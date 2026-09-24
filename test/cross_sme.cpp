@@ -1,8 +1,8 @@
 /**
- *  @brief Batch operation tests - SME ISA.
  *  @file test/cross_sme.cpp
  *  @author Ash Vardanian
  *  @date January 14, 2025
+ *  @brief Batch operation tests - SME ISA.
  */
 #include "test.hpp"
 #include "cross.cuh"

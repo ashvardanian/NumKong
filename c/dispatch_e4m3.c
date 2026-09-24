@@ -1,8 +1,8 @@
 /**
- *  @brief Dispatch Initialization for E4M3 Data Types.
  *  @file c/dispatch_e4m3.c
  *  @author Ash Vardanian
  *  @date February 3, 2026
+ *  @brief Dispatch initialization for E4M3 data types.
  */
 #include "dispatch.h"
 

@@ -1,16 +1,18 @@
 /**
- *  @brief Scalar types for NumKong low-precision types.
  *  @file python/types.c
+ *  @author Ash Vardanian
+ *  @date December 30, 2025
+ *  @brief Scalar types for NumKong low-precision types.
  *
- *  Pure Python C API implementation of bfloat16, float8_e4m3, and float8_e5m2.
- *  These work without NumPy - they're standalone Python objects.
- *  All arithmetic is performed through float32 using the conversion functions
- *  defined in numkong/types.h.
+ *  Pure Python C API implementation of bfloat16, float8_e4m3, and float8_e5m2. These work without
+ *  NumPy, as standalone Python objects. All arithmetic is performed through float32 using the
+ *  conversion functions from numkong/types.h.
  *
- *  Usage:
- *    nk.bfloat16(3.14)           → create a bfloat16 scalar
- *    float(nk.bfloat16(3.14))    → convert back to Python float
- *    nk.bfloat16(1.0) + nk.bfloat16(2.0)  → arithmetic
+ *  @code{.py}
+ *  nk.bfloat16(3.14)                    # create a bfloat16 scalar
+ *  float(nk.bfloat16(3.14))             # convert back to a Python float
+ *  nk.bfloat16(1.0) + nk.bfloat16(2.0)  # arithmetic
+ *  @endcode
  */
 
 #include "types.h"
@@ -248,12 +250,12 @@ static PyNumberMethods NkBFloat16Scalar_as_number = {
     .nb_int = (unaryfunc)NkBFloat16Scalar_int,
 };
 
-static char const doc_bfloat16[] =                                             //
-    "BFloat16 (16-bit) floating-point scalar.\n"                               //
-    "\n"                                                                       //
-    "Layout: sign(1) + exponent(8) + mantissa(7), bias=127.\n"                 //
-    "Range: ±3.39e38 (same dynamic range as f32), epsilon at 1.0: ~7.81e-3.\n" //
-    "32,514 of 65,280 finite values (49.8%%) fall in [-1, +1].\n"              //
+static char const doc_bfloat16[] =                                                  //
+    "BFloat16 (16-bit) floating-point scalar.\n"                                    //
+    "\n"                                                                            //
+    "Layout: sign(1) + exponent(8) + mantissa(7), bias=127.\n\n"                    //
+    "Range: ±3.39e38, the same dynamic range as f32, epsilon at 1.0: ~7.81e-3.\n\n" //
+    "32,514 of 65,280 finite values (49.8%%) fall in [-1, +1].\n\n"                 //
     "Wider dynamic range than float16 but lower precision (7 vs 10 mantissa bits).";
 
 PyTypeObject NkBFloat16Scalar_Type = {
@@ -485,12 +487,12 @@ static PyNumberMethods NkFloat8E4M3Scalar_as_number = {
     .nb_int = (unaryfunc)NkFloat8E4M3Scalar_int,
 };
 
-static char const doc_float8_e4m3[] =                         //
-    "8-bit E4M3 (OCP FP8) floating-point scalar.\n"           //
-    "\n"                                                      //
-    "Layout: sign(1) + exponent(4) + mantissa(3), bias=7.\n"  //
-    "Range: ±448, no infinities (all-ones exponent = NaN).\n" //
-    "114 of 254 finite values (44.9%%) fall in [-1, +1].\n"   //
+static char const doc_float8_e4m3[] =                           //
+    "8-bit E4M3, an OCP FP8 format, floating-point scalar.\n"   //
+    "\n"                                                        //
+    "Layout: sign(1) + exponent(4) + mantissa(3), bias=7.\n\n"  //
+    "Range: ±448, no infinities (all-ones exponent = NaN).\n\n" //
+    "114 of 254 finite values (44.9%%) fall in [-1, +1].\n\n"   //
     "Exact integer dot products via exponent-sum binning (29 bins).";
 
 PyTypeObject NkFloat8E4M3Scalar_Type = {
@@ -722,12 +724,12 @@ static PyNumberMethods NkFloat8E5M2Scalar_as_number = {
     .nb_int = (unaryfunc)NkFloat8E5M2Scalar_int,
 };
 
-static char const doc_float8_e5m2[] =                                             //
-    "8-bit E5M2 (OCP FP8) floating-point scalar.\n"                               //
-    "\n"                                                                          //
-    "Layout: sign(1) + exponent(5) + mantissa(2), bias=15.\n"                     //
-    "Range: ±57,344, supports infinities. Only 4 mantissa levels per exponent.\n" //
-    "122 of 248 finite values (49.2%%) fall in [-1, +1].\n"                       //
+static char const doc_float8_e5m2[] =                                               //
+    "8-bit E5M2, an OCP FP8 format, floating-point scalar.\n"                       //
+    "\n"                                                                            //
+    "Layout: sign(1) + exponent(5) + mantissa(2), bias=15.\n\n"                     //
+    "Range: ±57,344, supports infinities. Only 4 mantissa levels per exponent.\n\n" //
+    "122 of 248 finite values (49.2%%) fall in [-1, +1].\n\n"                       //
     "High cancellation risk in dot products.";
 
 PyTypeObject NkFloat8E5M2Scalar_Type = {
@@ -959,12 +961,12 @@ static PyNumberMethods NkFloat16Scalar_as_number = {
     .nb_int = (unaryfunc)NkFloat16Scalar_int,
 };
 
-static char const doc_float16[] =                                 //
-    "IEEE 754 half-precision (16-bit) floating-point scalar.\n"   //
-    "\n"                                                          //
-    "Layout: sign(1) + exponent(5) + mantissa(10), bias=15.\n"    //
-    "Range: ±65,504, epsilon at 1.0: ~9.77e-4.\n"                 //
-    "30,722 of 63,488 finite values (48.4%%) fall in [-1, +1].\n" //
+static char const doc_float16[] =                                   //
+    "IEEE 754 half-precision (16-bit) floating-point scalar.\n"     //
+    "\n"                                                            //
+    "Layout: sign(1) + exponent(5) + mantissa(10), bias=15.\n\n"    //
+    "Range: ±65,504, epsilon at 1.0: ~9.77e-4.\n\n"                 //
+    "30,722 of 63,488 finite values (48.4%%) fall in [-1, +1].\n\n" //
     "All arithmetic via f32 upcast/downcast.";
 
 PyTypeObject NkFloat16Scalar_Type = {
@@ -1196,12 +1198,12 @@ static PyNumberMethods NkFloat6E2M3Scalar_as_number = {
     .nb_int = (unaryfunc)NkFloat6E2M3Scalar_int,
 };
 
-static char const doc_float6_e2m3[] =                                                     //
-    "6-bit E2M3 micro-float scalar (padded to 8-bit storage).\n"                          //
-    "\n"                                                                                  //
-    "Layout: sign(1) + exponent(2) + mantissa(3), bias=1.\n"                              //
-    "Range: ±7.5, no infinities. Only 64 total codes.\n"                                  //
-    "18 of 64 codes (28.1%%) fall in [-1, +1]; poor resolution for normalized vectors.\n" //
+static char const doc_float6_e2m3[] =                                                       //
+    "6-bit E2M3 micro-float scalar, padded to 8-bit storage.\n"                             //
+    "\n"                                                                                    //
+    "Layout: sign(1) + exponent(2) + mantissa(3), bias=1.\n\n"                              //
+    "Range: ±7.5, no infinities. Only 64 total codes.\n\n"                                  //
+    "18 of 64 codes (28.1%%) fall in [-1, +1]; poor resolution for normalized vectors.\n\n" //
     "Exact integer dot products via exponent-sum binning (15 bins).";
 
 PyTypeObject NkFloat6E2M3Scalar_Type = {
@@ -1433,12 +1435,12 @@ static PyNumberMethods NkFloat6E3M2Scalar_as_number = {
     .nb_int = (unaryfunc)NkFloat6E3M2Scalar_int,
 };
 
-static char const doc_float6_e3m2[] =                            //
-    "6-bit E3M2 micro-float scalar (padded to 8-bit storage).\n" //
-    "\n"                                                         //
-    "Layout: sign(1) + exponent(3) + mantissa(2), bias=3.\n"     //
-    "Range: ±28, supports infinities. Only 64 total codes.\n"    //
-    "26 of 64 codes (40.6%%) fall in [-1, +1].\n"                //
+static char const doc_float6_e3m2[] =                           //
+    "6-bit E3M2 micro-float scalar, padded to 8-bit storage.\n" //
+    "\n"                                                        //
+    "Layout: sign(1) + exponent(3) + mantissa(2), bias=3.\n\n"  //
+    "Range: ±28, supports infinities. Only 64 total codes.\n\n" //
+    "26 of 64 codes (40.6%%) fall in [-1, +1].\n\n"             //
     "Exact integer dot products via exponent-sum binning (15 bins).";
 
 PyTypeObject NkFloat6E3M2Scalar_Type = {

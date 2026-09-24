@@ -1,8 +1,8 @@
 /**
- *  @brief Batch operation tests - LoongArch LASX ISA family.
  *  @file test/cross_loongarch.cpp
  *  @author Ash Vardanian
  *  @date March 23, 2026
+ *  @brief Batch operation tests - LoongArch LASX ISA family.
  */
 #include "test.hpp"
 #include "cross.cuh"

@@ -1,23 +1,25 @@
 /**
- *  @brief SIMD-accelerated Spatial Similarity Measures for Sierra Forest.
  *  @file include/numkong/spatial/sierra.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated spatial similarity measures for Sierra Forest.
  *
  *  @sa include/numkong/spatial.h
  *
  *  @section spatial_sierra_instructions AVXVNNIINT8 Instructions Performance
  *
- *      Intrinsic             Instruction                Sierra Forest
- *      _mm256_dpbssds_epi32  VPDPBSSDS (YMM, YMM, YMM)  4cy @ p05
- *      _mm256_dpbssd_epi32   VPDPBSSD (YMM, YMM, YMM)   4cy @ p05
- *      _mm256_dpbuud_epi32   VPDPBUUD (YMM, YMM, YMM)   4cy @ p05
- *      _mm_rsqrt_ps          VRSQRTPS (XMM, XMM)        5cy @ p0
- *      _mm_sqrt_ss           VSQRTSS (XMM, XMM, XMM)    12cy @ p0
+ *  @verbatim
+ *  Intrinsic             Instruction                Sierra Forest
+ *  _mm256_dpbssds_epi32  VPDPBSSDS (YMM, YMM, YMM)  4cy @ p05
+ *  _mm256_dpbssd_epi32   VPDPBSSD (YMM, YMM, YMM)   4cy @ p05
+ *  _mm256_dpbuud_epi32   VPDPBUUD (YMM, YMM, YMM)   4cy @ p05
+ *  _mm_rsqrt_ps          VRSQRTPS (XMM, XMM)        5cy @ p0
+ *  _mm_sqrt_ss           VSQRTSS (XMM, XMM, XMM)    12cy @ p0
+ *  @endverbatim
  *
- *  Sierra Forest (AVXVNNIINT8) provides native signed x signed and unsigned x unsigned
- *  dot products, eliminating the need for algebraic corrections required on Alder Lake.
- *  This gives ~2.6x throughput over Haswell and ~1.3x over Alder for spatial kernels.
+ *  Sierra Forest, AVXVNNIINT8, provides native signed x signed and unsigned x unsigned dot
+ *  products, eliminating the need for algebraic corrections required on Alder Lake. This gives
+ *  ~2.6x throughput over Haswell and ~1.3x over Alder for spatial kernels.
  */
 #ifndef NK_SPATIAL_SIERRA_H
 #define NK_SPATIAL_SIERRA_H

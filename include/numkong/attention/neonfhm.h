@@ -1,17 +1,16 @@
 /**
- *  @brief Arm NEON ragged attention backend for E4M3, using `FMLAL` over F16 planes.
  *  @file include/numkong/attention/neonfhm.h
  *  @author Ash Vardanian
  *  @date July 8, 2026
+ *  @brief Arm NEON ragged attention backend for E4M3, using @c FMLAL over F16 planes.
  *
  *  @sa include/numkong/attention.h
  *
  *  Mirrors the `v128relaxed` panel-flash shape with the family-shared packed header, segment
- *  directory, base-2 streaming softmax, and `(task_start, task_count)` windows. Every E4M3
- *  value converts exactly to F16 at the pack boundary (the Skylake precedent), so the hot
- *  loops run pure half-precision: scores keep four KV rows in flight through widening
- *  `FMLAL`/`FMLAL2` pairs into F32 accumulators, and the weighted V accumulation reuses the
- *  same instructions with the F16 weight broadcast.
+ *  directory, base-2 streaming softmax, and `(task_start, task_count)` windows. Every E4M3 value
+ *  converts exactly to F16 at the pack boundary — the Skylake precedent — so the hot loops run pure
+ *  half-precision: scores keep four KV rows in flight through widening @c FMLAL and @c FMLAL2 pairs
+ *  into F32 accumulators, and the weighted V accumulation shares the F16 weight-broadcast path.
  */
 #ifndef NK_ATTENTION_NEONFHM_H
 #define NK_ATTENTION_NEONFHM_H

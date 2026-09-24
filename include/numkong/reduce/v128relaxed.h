@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Reductions for WASM.
  *  @file include/numkong/reduce/v128relaxed.h
  *  @author Ash Vardanian
  *  @date February 13, 2026
+ *  @brief SIMD-accelerated reductions for WASM.
  *
  *  @sa include/numkong/reduce.h
  */

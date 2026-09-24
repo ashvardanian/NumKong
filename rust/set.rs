@@ -5,6 +5,9 @@
 //! - [`Hamming`]: Bit-level or byte-level Hamming distance
 //! - [`Jaccard`]: Jaccard distance (1 - intersection/union)
 //! - [`BinarySimilarity`]: Blanket trait combining `Hamming + Jaccard`
+//!
+//! File: rust/set.rs
+//! Author: Ash Vardanian
 
 use crate::types::{u1x8, StorageElement};
 
@@ -19,9 +22,9 @@ extern "C" {
 
 // region: Hamming
 
-/// Computes the **Hamming distance** between two binary vectors.
+/// Computes the __Hamming distance__ between two binary vectors.
 ///
-/// Counts differing bits (for `u1x8`) or differing bytes (for `u8`).
+/// Counts differing bits for `u1x8`, or differing bytes for `u8`.
 ///
 /// Range: \[0, n\]. Returns `None` if lengths differ.
 ///
@@ -60,7 +63,7 @@ impl Hamming for u8 {
 
 // region: Jaccard
 
-/// Computes the **Jaccard distance** between two sets represented as bit/integer vectors.
+/// Computes the __Jaccard distance__ between two sets represented as bit/integer vectors.
 ///
 /// d = 1 − |A ∩ B| / |A ∪ B|
 ///

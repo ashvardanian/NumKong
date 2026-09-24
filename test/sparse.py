@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Test sparse operations: nk.sparse_dot, nk.intersect.
 
-Dtypes: float32/bfloat16 values with uint32/uint16 indices.
+DTypes: float32/bfloat16 values with uint32/uint16 indices.
 Baselines: manual weighted intersection, NumPy intersect1d.
 Matches C++ suite: test/sparse.cpp.
+
+File: test/sparse.py
+Author: Ash Vardanian
+Date: February 27, 2026
 """
 
 import atexit

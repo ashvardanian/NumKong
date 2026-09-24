@@ -1,8 +1,8 @@
 /**
- *  @brief Type cast tests.
  *  @file test/cast.cpp
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief Type cast tests.
  */
 
 #include <numeric> // `std::lcm`
@@ -17,10 +17,10 @@ using cast_t = void (*)(void const *, nk_dtype_t, nk_size_t, void *, nk_dtype_t)
 /**
  *  @brief Pull one logical element out of a vector as a primitive comparable value.
  *
- *  For sub-byte value types (i4x2, u4x2, u1x8, e2m1x2), `vec[i]` returns a `sub_byte_ref`
- *  whose conversion operator upcasts the nibble/bit to its natural integer type (i8/u8/bool);
- *  unary `+` triggers that conversion. For byte-sized types, the indexed wrapper struct
- *  exposes the primitive directly through `.raw_`.
+ *  For sub-byte value types — i4x2, u4x2, u1x8, e2m1x2 — `vec[i]` returns a @c sub_byte_ref whose
+ *  conversion operator upcasts the nibble/bit to its natural integer type, i8, u8 or bool; unary
+ *  `+` triggers that conversion. For byte-sized types, the indexed wrapper struct exposes the
+ *  primitive directly through `.raw_`.
  */
 template <typename vec_type_>
 static auto read_element_(vec_type_ const &v, std::size_t i) {
@@ -28,10 +28,8 @@ static auto read_element_(vec_type_ const &v, std::size_t i) {
     else return v[i].raw_;
 }
 
-/**
- *  @brief Test cast kernel against serial kernel.
- *  SIMD kernels must match serial output exactly for every logical element.
- */
+/** Tests a cast kernel against the serial kernel; SIMD kernels must match serial output exactly for
+ *  every logical element. */
 template <typename from_type_, typename to_type_>
 error_stats_t test_cast(cast_t kernel) {
     error_stats_t stats(comparison_family_t::exact_k);
@@ -66,11 +64,8 @@ using block_scaled_cast_t = void (*)(                                           
     void *, void *, nk_scalar_buffer_t *, nk_block_scaled_format_t const *, nk_size_t);
 using block_scaled_format_factory_t = nk_block_scaled_format_t (*)(void);
 
-/**
- *  @brief Test block-scaled cast kernel against the serial reference.
- *  Direct analog of `test_cast`: SIMD kernels must match serial output exactly for both
- *  encoded elements and per-block scales.
- */
+/** Tests a block-scaled cast kernel against the serial reference; direct analog of @c test_cast,
+ *  SIMD kernels must match serial output exactly for both encoded elements and per-block scales. */
 error_stats_t test_cast_block_scaled(block_scaled_cast_t kernel, block_scaled_format_factory_t factory) {
     error_stats_t stats(comparison_family_t::exact_k);
     std::mt19937 generator(global_config.seed);

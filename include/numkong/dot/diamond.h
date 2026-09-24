@@ -1,23 +1,25 @@
 /**
- *  @brief SIMD-accelerated Dot Products for Diamond Rapids.
  *  @file include/numkong/dot/diamond.h
  *  @author Ash Vardanian
  *  @date March 23, 2026
+ *  @brief SIMD-accelerated dot products for Diamond Rapids.
  *
  *  @sa include/numkong/dot.h
  *
  *  @section dot_diamond_instructions Key AVX10.2 FP8 + FP16 VNNI Instructions
  *
- *      Intrinsic            Instruction                   Diamond Rapids
- *      _mm512_cvthf8_ph     VCVTHF82PH (ZMM, YMM)         ~3cy (estimated)
- *      _mm512_cvtbf8_ph     VCVTBF82PH (ZMM, YMM)         ~3cy (estimated)
- *      _mm512_dpph_ps       VDPPHPS (ZMM, ZMM, ZMM)       ~6cy (estimated)
+ *  @verbatim
+ *  Intrinsic            Instruction                   Diamond Rapids
+ *  _mm512_cvthf8_ph     VCVTHF82PH (ZMM, YMM)         ~3cy (estimated)
+ *  _mm512_cvtbf8_ph     VCVTBF82PH (ZMM, YMM)         ~3cy (estimated)
+ *  _mm512_dpph_ps       VDPPHPS (ZMM, ZMM, ZMM)       ~6cy (estimated)
+ *  @endverbatim
  *
- *  Diamond Rapids (AVX10.2) introduces native FP8→FP16 conversion via VCVTHF82PH (E4M3→FP16)
- *  and VCVTBF82PH (E5M2→FP16), replacing the multi-instruction arithmetic conversion used by
+ *  Diamond Rapids, AVX10.2, introduces native FP8 → FP16 conversion via VCVTHF82PH for E4M3 → FP16
+ *  and VCVTBF82PH for E5M2 → FP16, replacing the multi-instruction arithmetic conversion used by
  *  Genoa's BF16 path. VDPPHPS then computes two FP16 dot products per 32-bit lane, accumulating
  *  into FP32 — providing the same 32-element throughput as Genoa's VDPBF16PS but with FP16
- *  intermediate precision (10-bit mantissa vs BF16's 7-bit).
+ *  intermediate precision, a 10-bit mantissa versus BF16's 7-bit.
  *
  *  @section dot_diamond_stateful Stateful Streaming Logic
  *

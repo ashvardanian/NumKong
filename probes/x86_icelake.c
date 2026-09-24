@@ -1,4 +1,9 @@
-/* NumKong ISA probe: Ice Lake (AVX-512F/BW/DQ/VL + VNNI + VBMI + VPOPCNTDQ) */
+/**
+ *  @file probes/x86_icelake.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for Ice Lake, AVX-512F/BW/DQ/VL plus VNNI, VBMI and VPOPCNTDQ.
+ */
 #if defined(__APPLE__)
 #error "AVX-512 not available on macOS"
 #endif

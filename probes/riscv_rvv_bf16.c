@@ -1,4 +1,9 @@
-/* NumKong ISA probe: RVV Zvfbfwma (BF16 widening FMA) */
+/**
+ *  @file probes/riscv_rvv_bf16.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for RVV Zvfbfwma, BF16 widening fused multiply-add.
+ */
 #if !defined(__riscv_zvfbfwma)
 #error "Feature not available"
 #endif

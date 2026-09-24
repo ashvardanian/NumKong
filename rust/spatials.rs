@@ -1,4 +1,4 @@
-//! Batched spatial distances — angular (cosine) and Euclidean — over pre-packed matrices.
+//! Batched angular and Euclidean distances over pre-packed matrices.
 //!
 //! This module provides:
 //!
@@ -8,6 +8,9 @@
 //! - [`SymmetricAngularsOps`] / [`SymmetricEuclideansOps`]: self-distance upper triangle
 //!
 //! The right-hand operand is a [`DotsPackedMatrix`] from the [`crate::dots`] module.
+//!
+//! File: rust/spatials.rs
+//! Author: Ash Vardanian
 use crate::tensor::{Allocator, Global, Tensor, TensorError, TensorMut, TensorRef, TensorView};
 use crate::types::{bf16, e2m1x2, e2m3, e3m2, e4m3, e5m2, f16, i4x2, u4x2, StorageElement};
 
@@ -548,7 +551,7 @@ extern "C" {
 
 // region: Angulars Trait
 
-/// Low-level trait for batched **angular distance** operations.
+/// Low-level trait for batched __angular distance__ operations.
 ///
 /// Given A ∈ ℝᵐˣᵏ and packed B ∈ ℝⁿˣᵏ, computes C ∈ ℝᵐˣⁿ where:
 /// Cᵢⱼ = 1 − cos(θᵢⱼ) = 1 − (aᵢ · bⱼ) / (‖aᵢ‖ × ‖bⱼ‖)
@@ -557,11 +560,10 @@ extern "C" {
 ///
 /// # When to use
 ///
-/// Angular (cosine) distance is the standard similarity metric for embeddings
-/// from neural language / vision models. The accumulator is widened during
-/// the dot-product step — `f32` inputs accumulate in `f64`, `f16` / `bf16` in
-/// `f32`, `i8` / `u8` in `i32` / `u32` — then normalised back down to
-/// [`Self::SpatialResult`]. Pre-packing the corpus is the standard pattern
+/// Angular distance, also called cosine, is the standard similarity metric for embeddings from
+/// neural language / vision models. The accumulator is widened during the dot-product step — `f32`
+/// inputs accumulate in `f64`, `f16` / `bf16` in `f32`, `i8` / `u8` in `i32` / `u32` — then
+/// normalised back down to [`Self::SpatialResult`]. Pre-packing the corpus is the standard pattern
 /// for repeated-query retrieval.
 pub trait Angulars: Dots {
     /// Result type for angular distances.
@@ -571,8 +573,8 @@ pub trait Angulars: Dots {
     ///
     /// # Safety
     /// - `a` must point to valid memory for `height * depth` elements with given stride
-    /// - `packed` must be a buffer previously filled by `Dots::dots_pack`
-    /// - `c` must point to valid memory for `height * width` result elements with given stride
+    /// - `packed` must be a buffer filled by `Dots::dots_pack`
+    /// - `c` must point to valid memory for `height` × `width` result elements with given stride
     unsafe fn angulars_packed(
         queries: *const Self,
         packed: *const u8,
@@ -601,7 +603,7 @@ pub trait Angulars: Dots {
     );
 }
 
-/// Low-level trait for batched **euclidean distance** operations.
+/// Low-level trait for batched __euclidean distance__ operations.
 ///
 /// Given A ∈ ℝᵐˣᵏ and packed B ∈ ℝⁿˣᵏ, computes C ∈ ℝᵐˣⁿ where:
 /// Cᵢⱼ = √(max(0, ‖aᵢ‖² + ‖bⱼ‖² − 2 · aᵢ · bⱼ))
@@ -610,11 +612,10 @@ pub trait Angulars: Dots {
 ///
 /// # When to use
 ///
-/// Use for ℓ₂ distance in k-NN / clustering / metric learning. The kernel
-/// computes `‖a‖² + ‖b‖² − 2 a·b` in the widened accumulator domain
-/// (`f32 × f32 → f64`, `f16 × f16 → f32`, `i8 × i8 → i32`, …) before the
-/// square-root, so numerical cancellation is bounded. Pre-pack the reference
-/// matrix once when queries are repeated against the same corpus.
+/// Use for ℓ₂ distance in k-NN / clustering / metric learning. The kernel computes `‖a‖² + ‖b‖² − 2
+/// a·b` in the widened accumulator domain (`f32 × f32 → f64`, `f16 × f16 → f32`, `i8 × i8 → i32`,
+/// …) before the square-root, so numerical cancellation is bounded. Pre-pack the reference matrix
+/// once when queries are repeated against the same corpus.
 pub trait Euclideans: Dots {
     /// Result type for euclidean distances.
     type SpatialResult: StorageElement;
@@ -623,8 +624,8 @@ pub trait Euclideans: Dots {
     ///
     /// # Safety
     /// - `a` must point to valid memory for `height * depth` elements with given stride
-    /// - `packed` must be a buffer previously filled by `Dots::dots_pack`
-    /// - `c` must point to valid memory for `height * width` result elements with given stride
+    /// - `packed` must be a buffer filled by `Dots::dots_pack`
+    /// - `c` must point to valid memory for `height` × `width` result elements with given stride
     unsafe fn euclideans_packed(
         queries: *const Self,
         packed: *const u8,
@@ -1708,7 +1709,7 @@ impl Euclideans for e3m2 {
         )
     }
 }
-// Manual impls for 4-bit packed types: k must be multiplied by 2 (storage → nibbles).
+// Manual impls for 4-bit packed types: k must be multiplied by 2, storage to nibbles.
 
 impl Angulars for u4x2 {
     type SpatialResult = f32;
@@ -2101,19 +2102,18 @@ where
 
 // region: Angulars Packed Ops
 
-/// Extension trait: packed angular distances (`C = angular(A, Bᵀ)`) for any immutable
-/// tensor reference — owned [`Tensor`], borrowed [`TensorView`], or [`TensorSpan`](crate::TensorSpan).
+/// Extension trait: packed angular distances (`C = angular(A, Bᵀ)`) for any immutable tensor
+/// reference — owned [`Tensor`], borrowed [`TensorView`], or [`TensorSpan`](crate::TensorSpan).
 ///
-/// Blanket-implemented for every [`TensorRef`], so an `A` operand backed by an mmap'd
-/// view can score against a pre-packed [`DotsPackedMatrix`] without first materializing an
-/// owned copy. The allocating entry point returns a globally allocated result, since a
-/// bare view carries no allocator of its own.
+/// Blanket-implemented for every [`TensorRef`], so an `A` operand backed by an mmap'd view can
+/// score against a pre-packed [`DotsPackedMatrix`] without first materializing an owned copy. The
+/// allocating entry point returns a globally allocated result, since a bare view carries no
+/// allocator of its own.
 pub trait AngularsPackedOps<Scalar: Angulars, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
     /// Angular distances: C = angular(self, packed_rightᵀ)
     ///
-    /// self must be 2D (m × k) with contiguous rows.
-    /// packed_right contains B (n × k) packed.
-    /// Returns C (m × n) using the global allocator.
+    /// self must be 2D __[m,k]__ with contiguous rows. packed_right contains B __[n,k]__ packed.
+    /// Returns C __[m,n]__ using the global allocator.
     ///
     /// Returns `Err` if:
     /// - self is not 2D
@@ -2154,9 +2154,9 @@ pub trait AngularsPackedOps<Scalar: Angulars, const MAX_RANK: usize>: TensorRef<
 
     /// Angular distances into an existing output, avoiding allocation.
     ///
-    /// The output may be a `&mut Tensor<...>` or `&mut TensorSpan<...>`; any
-    /// writable tensor container that implements [`TensorMut`] works. The
-    /// kernel overwrites `c` — it need not be pre-initialized.
+    /// The output may be a `&mut Tensor<...>` or `&mut TensorSpan<...>`; any writable tensor
+    /// container that implements [`TensorMut`] works. The kernel overwrites `c` entirely, so it
+    /// need not arrive pre-initialized.
     fn try_angulars_packed_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
@@ -2191,8 +2191,8 @@ impl<Scalar: Angulars, const MAX_RANK: usize, A: TensorRef<Scalar, MAX_RANK>> An
 
 /// Extension trait: parallel packed angular distances for any immutable tensor reference.
 ///
-/// The parallel counterpart of [`AngularsPackedOps`], blanket-implemented for every
-/// [`TensorRef`] whose scalar can cross thread boundaries.
+/// The parallel counterpart of [`AngularsPackedOps`], blanket-implemented for every [`TensorRef`]
+/// whose scalar can cross thread boundaries.
 #[cfg(feature = "parallel")]
 #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
 pub trait AngularsPackedParallelOps<Scalar, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK>
@@ -2314,19 +2314,18 @@ where
 
 // region: Euclideans Packed Ops
 
-/// Extension trait: packed euclidean distances (`C = euclidean(A, Bᵀ)`) for any immutable
-/// tensor reference — owned [`Tensor`], borrowed [`TensorView`], or [`TensorSpan`](crate::TensorSpan).
+/// Extension trait: packed euclidean distances (`C = euclidean(A, Bᵀ)`) for any immutable tensor
+/// reference — owned [`Tensor`], borrowed [`TensorView`], or [`TensorSpan`](crate::TensorSpan).
 ///
-/// Blanket-implemented for every [`TensorRef`], so an `A` operand backed by an mmap'd
-/// view can score against a pre-packed [`DotsPackedMatrix`] without first materializing an
-/// owned copy. The allocating entry point returns a globally allocated result, since a
-/// bare view carries no allocator of its own.
+/// Blanket-implemented for every [`TensorRef`], so an `A` operand backed by an mmap'd view can
+/// score against a pre-packed [`DotsPackedMatrix`] without first materializing an owned copy. The
+/// allocating entry point returns a globally allocated result, since a bare view carries no
+/// allocator of its own.
 pub trait EuclideansPackedOps<Scalar: Euclideans, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
     /// Euclidean distances: C = euclidean(self, packed_rightᵀ)
     ///
-    /// self must be 2D (m × k) with contiguous rows.
-    /// packed_right contains B (n × k) packed.
-    /// Returns C (m × n) using the global allocator.
+    /// self must be 2D __[m,k]__ with contiguous rows. packed_right contains B __[n,k]__ packed.
+    /// Returns C __[m,n]__ using the global allocator.
     ///
     /// Returns `Err` if:
     /// - self is not 2D
@@ -2368,9 +2367,9 @@ pub trait EuclideansPackedOps<Scalar: Euclideans, const MAX_RANK: usize>: Tensor
 
     /// Euclidean distances into an existing output, avoiding allocation.
     ///
-    /// The output may be a `&mut Tensor<...>` or `&mut TensorSpan<...>`; any
-    /// writable tensor container that implements [`TensorMut`] works. The
-    /// kernel overwrites `c` — it need not be pre-initialized.
+    /// The output may be a `&mut Tensor<...>` or `&mut TensorSpan<...>`; any writable tensor
+    /// container that implements [`TensorMut`] works. The kernel overwrites `c` entirely, so it
+    /// need not arrive pre-initialized.
     fn try_euclideans_packed_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
@@ -2405,8 +2404,8 @@ impl<Scalar: Euclideans, const MAX_RANK: usize, A: TensorRef<Scalar, MAX_RANK>> 
 
 /// Extension trait: parallel packed euclidean distances for any immutable tensor reference.
 ///
-/// The parallel counterpart of [`EuclideansPackedOps`], blanket-implemented for every
-/// [`TensorRef`] whose scalar can cross thread boundaries.
+/// The parallel counterpart of [`EuclideansPackedOps`], blanket-implemented for every [`TensorRef`]
+/// whose scalar can cross thread boundaries.
 #[cfg(feature = "parallel")]
 #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
 pub trait EuclideansPackedParallelOps<Scalar, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK>
@@ -2539,8 +2538,8 @@ impl<'queries, Scalar: Angulars, const MAX_RANK: usize> TensorView<'queries, Sca
         Ok(result)
     }
 
-    /// Computes symmetric angular distances into pre-allocated output.
-    /// Only the upper triangle is written.
+    /// Computes symmetric angular distances into pre-allocated output, touching only the upper
+    /// triangle of it.
     pub fn try_angulars_symmetric_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         output: &mut OutputTensor,
@@ -2578,8 +2577,8 @@ impl<'queries, Scalar: Euclideans, const MAX_RANK: usize> TensorView<'queries, S
         Ok(result)
     }
 
-    /// Computes symmetric euclidean distances into pre-allocated output.
-    /// Only the upper triangle is written.
+    /// Computes symmetric euclidean distances into pre-allocated output, touching only the upper
+    /// triangle of it.
     pub fn try_euclideans_symmetric_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         output: &mut OutputTensor,
@@ -2613,8 +2612,8 @@ pub trait SymmetricAngularsOps<Scalar: Angulars, const MAX_RANK: usize>: TensorR
         self.view().try_angulars_symmetric()
     }
 
-    /// Writes the symmetric angular-distance matrix into pre-allocated output.
-    /// Only the upper triangle is written.
+    /// Writes the symmetric angular-distance matrix into pre-allocated output, touching only the
+    /// upper triangle of it.
     fn try_angulars_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(
         &self,
         output: &mut Out,
@@ -2634,21 +2633,19 @@ impl<Scalar: Angulars, const R: usize, OutputTensor: TensorRef<Scalar, R>> Symme
 /// Extension trait: symmetric euclidean distance matrix for any [`TensorRef`] implementor.
 ///
 /// Blanket-implemented for every `TensorRef<Scalar, R>`, which means
-/// `vectors.try_euclideans_symmetric()` compiles whether `vectors` is an
-/// owned [`Tensor`] or a borrowed view. The kernel only writes the upper
-/// triangle (including the diagonal) — the lower triangle is queries alone and
-/// callers should mirror it themselves if required.
+/// `vectors.try_euclideans_symmetric()` compiles whether `vectors` is an owned [`Tensor`] or a
+/// borrowed view. The kernel only writes the upper triangle, including the diagonal — the lower
+/// triangle is queries alone and callers should mirror it themselves if required.
 ///
-/// Prefer this trait when working through a generic `TensorRef`; reach for
-/// the inherent [`TensorView::try_euclideans_symmetric`] method when you
-/// already hold a view.
+/// Prefer this trait when working through a generic `TensorRef`; reach for the inherent
+/// [`TensorView::try_euclideans_symmetric`] method when you already hold a view.
 pub trait SymmetricEuclideansOps<Scalar: Euclideans, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
     fn try_euclideans_symmetric(&self) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
         self.view().try_euclideans_symmetric()
     }
 
-    /// Writes the symmetric euclidean-distance matrix into pre-allocated output.
-    /// Only the upper triangle is written.
+    /// Writes the symmetric euclidean-distance matrix into pre-allocated output, touching only the
+    /// upper triangle of it.
     fn try_euclideans_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(
         &self,
         output: &mut Out,

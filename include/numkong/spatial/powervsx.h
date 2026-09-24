@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Spatial Similarity Measures for Power VSX.
  *  @file include/numkong/spatial/powervsx.h
  *  @author Ash Vardanian
  *  @date March 23, 2026
+ *  @brief SIMD-accelerated spatial similarity measures for Power VSX.
  *
  *  @sa include/numkong/spatial.h
  *
@@ -10,24 +10,26 @@
  *
  *  Power ISA 3.0 (POWER9+) VSX instructions for distance computations:
  *
- *      Intrinsic                        Instruction           POWER9
- *      vec_madd(f32)                    XVMADDASP             5cy
- *      vec_mul(f32)                     XVMULSP               5cy
- *      vec_add(f32)                     XVADDSP               5cy
- *      vec_sub(f32)                     XVSUBSP               5cy
- *      vec_rsqrte(f32)                  XVRSQRTESP            5cy
- *      vec_sqrt(f32)                    XVSQRTSP              26cy
- *      vec_doublee                      XVCVSPDP              3cy  (f32 → f64 even elts)
- *      vec_xl_len                       LXVL                  5cy  (partial vector load)
- *      vec_extract_fp32_from_shorth     XVCVHPSP              5cy  (f16 → f32 high half)
- *      vec_extract_fp32_from_shortl     XVCVHPSP              5cy  (f16 → f32 low half)
- *      vec_msum(i8, u8, i32)            VMSUMMBM              5cy  (i8×u8 widening multiply-sum)
- *      vec_msum(u8, u8, u32)            VMSUMUBM              5cy  (u8×u8 widening multiply-sum)
- *      vec_unpackh(i8)                  VUPKHSB               2cy  (sign-extend high 8 i8 → i16x8)
- *      vec_unpackl(i8)                  VUPKLSB               2cy  (sign-extend low 8 i8 → i16x8)
+ *  @verbatim
+ *  Intrinsic                        Instruction           POWER9
+ *  vec_madd(f32)                    XVMADDASP             5cy
+ *  vec_mul(f32)                     XVMULSP               5cy
+ *  vec_add(f32)                     XVADDSP               5cy
+ *  vec_sub(f32)                     XVSUBSP               5cy
+ *  vec_rsqrte(f32)                  XVRSQRTESP            5cy
+ *  vec_sqrt(f32)                    XVSQRTSP              26cy
+ *  vec_doublee                      XVCVSPDP              3cy  (f32 → f64 even elts)
+ *  vec_xl_len                       LXVL                  5cy  (partial vector load)
+ *  vec_extract_fp32_from_shorth     XVCVHPSP              5cy  (f16 → f32 high half)
+ *  vec_extract_fp32_from_shortl     XVCVHPSP              5cy  (f16 → f32 low half)
+ *  vec_msum(i8, u8, i32)            VMSUMMBM              5cy  (i8×u8 widening multiply-sum)
+ *  vec_msum(u8, u8, u32)            VMSUMUBM              5cy  (u8×u8 widening multiply-sum)
+ *  vec_unpackh(i8)                  VUPKHSB               2cy  (sign-extend high 8 i8 → i16x8)
+ *  vec_unpackl(i8)                  VUPKLSB               2cy  (sign-extend low 8 i8 → i16x8)
+ *  @endverbatim
  *
- *  For angular distance, `vec_rsqrte` provides ~12-bit precision. Two Newton-Raphson
- *  iterations achieve ~23-bit precision for f32, three iterations for f64.
+ *  For angular distance, @c vec_rsqrte provides ~12-bit precision. Two Newton-Raphson iterations
+ *  achieve ~23-bit precision for f32, three iterations for f64.
  */
 #ifndef NK_SPATIAL_POWERVSX_H
 #define NK_SPATIAL_POWERVSX_H

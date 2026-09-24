@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Test reductions: nk.moments, nk.sum, nk.min, nk.max, nk.argmin, nk.argmax, nk.norm.
 
-Dtypes: float64, float32, float16, int32.
+DTypes: float64, float32, float16, int32.
 Baselines: high-precision Decimal summation, NumPy reductions.
 Matches C++ suite: test/reduce.cpp.
+
+File: test/reduce.py
+Author: Ash Vardanian
+Date: February 27, 2026
 """
 
 import atexit
@@ -727,10 +731,10 @@ def test_multi_axis_module_level(capability: str, nk_seed: int):
 
 # region N-D tensor contraction tests
 #
-# These test the stride-collapsing optimization paths: uniform-stride tail detection,
-# recursive re-analysis, and axis-reduction fast paths on contiguous non-axis dims.
-# Each case is validated against a flattened-then-reduced reference (for global reductions)
-# or NumPy (for axis reductions) to isolate the contraction logic from SIMD correctness.
+# These test the stride-collapsing optimization paths: uniform-stride tail detection, recursive
+# re-analysis, and axis-reduction fast paths on contiguous non-axis dims. Each case is validated
+# against a flattened-then-reduced reference for global reductions, or against NumPy for axis
+# reductions, to isolate the contraction logic from SIMD correctness.
 
 
 def _nd_global_case(description, np_arr):

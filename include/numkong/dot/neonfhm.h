@@ -1,55 +1,58 @@
 /**
- *  @brief SIMD-accelerated Dot Products for NEON FHM.
  *  @file include/numkong/dot/neonfhm.h
  *  @author Ash Vardanian
  *  @date December 28, 2025
+ *  @brief SIMD-accelerated dot products for NEON FHM.
  *
  *  @sa include/numkong/dot.h
  *
  *  @section dot_neonfhm_instructions ARM NEON FP16 Matrix Instructions (ARMv8.4-FHM)
  *
- *      Intrinsic         Instruction                A76       M5
- *      vfmlalq_low_f16   FMLAL (V.4S, V.8H, V.8H)   4cy @ 2p  4cy @ 4p
- *      vfmlalq_high_f16  FMLAL2 (V.4S, V.8H, V.8H)  4cy @ 2p  4cy @ 4p
- *      vfmlslq_low_f16   FMLSL (V.4S, V.8H, V.8H)   4cy @ 2p  4cy @ 4p
- *      vfmlslq_high_f16  FMLSL2 (V.4S, V.8H, V.8H)  4cy @ 2p  4cy @ 4p
- *      vld1q_f16         LD1 (V.8H)                 4cy @ 2p  4cy @ 3p
- *      vaddvq_f32        FADDP+FADDP (V.4S)         4cy @ 1p  8cy @ 1p
- *      vpaddq_f32        FADDP (V.4S, V.4S, V.4S)   2cy @ 2p  3cy @ 4p
- *      vshll_n_u8        SHLL (V.8H, V.8B, #8)      2cy @ 2p  2cy @ 4p
+ *  @verbatim
+ *  Intrinsic         Instruction                A76       M5
+ *  vfmlalq_low_f16   FMLAL (V.4S, V.8H, V.8H)   4cy @ 2p  4cy @ 4p
+ *  vfmlalq_high_f16  FMLAL2 (V.4S, V.8H, V.8H)  4cy @ 2p  4cy @ 4p
+ *  vfmlslq_low_f16   FMLSL (V.4S, V.8H, V.8H)   4cy @ 2p  4cy @ 4p
+ *  vfmlslq_high_f16  FMLSL2 (V.4S, V.8H, V.8H)  4cy @ 2p  4cy @ 4p
+ *  vld1q_f16         LD1 (V.8H)                 4cy @ 2p  4cy @ 3p
+ *  vaddvq_f32        FADDP+FADDP (V.4S)         4cy @ 1p  8cy @ 1p
+ *  vpaddq_f32        FADDP (V.4S, V.4S, V.4S)   2cy @ 2p  3cy @ 4p
+ *  vshll_n_u8        SHLL (V.8H, V.8B, #8)      2cy @ 2p  2cy @ 4p
+ *  @endverbatim
  *
  *  The ARMv8.4-FHM extension (FEAT_FHM) provides FMLAL/FMLSL instructions that fuse FP16 to FP32
  *  widening with multiply-accumulate in a single operation. FMLAL executes as a single fused op
  *  (4cy latency, 2/cy throughput on A76, 4/cy on M4+/V1+/Oryon) rather than separate FCVTL + FMLA.
  *
- *  FMLAL preserves FP32 accumulator precision while accepting FP16 inputs, ideal for mixed-precision
- *  workloads. The _low variants process elements 0-3, _high variants process elements 4-7, enabling
- *  processing of 8 FP16 elements per iteration with full precision accumulation.
+ *  FMLAL preserves FP32 accumulator precision while accepting FP16 inputs, ideal for
+ *  mixed-precision workloads. The _low variants process elements 0-3, _high variants process
+ *  elements 4-7, enabling processing of 8 FP16 elements per iteration with full precision
+ *  accumulation across all lanes.
  *
  *  @section dot_neonfhm_stateful Stateful Streaming Logic
  *
- *  To build memory-optimal tiled algorithms, this file defines following structures and force-inlined
- *  `NK_HELPER_INLINE` functions:
+ *  To build memory-optimal tiled algorithms, this file defines following structures and
+ *  force-inlined @c NK_HELPER_INLINE functions:
  *
  *  - nk_dot_f16x8 state with native FMLAL f16 dot-products.
  *
- *  @code{c}
+ *  @code{.c}
  *  nk_dot_f16x8_state_neonfhm_t state_first, state_second, state_third, state_fourth;
  *  float16x8_t query_f16x8, target_first_f16x8, target_second_f16x8, target_third_f16x8, target_fourth_f16x8;
  *  nk_dot_f16x8_init_neonfhm(&state_first);
  *  nk_dot_f16x8_init_neonfhm(&state_second);
  *  nk_dot_f16x8_init_neonfhm(&state_third);
  *  nk_dot_f16x8_init_neonfhm(&state_fourth);
- *  for (nk_size_t idx = 0; idx + 8 <= depth; idx += 8) {
- *      query_f16x8 = vld1q_f16(query_ptr + idx);
- *      target_first_f16x8 = vld1q_f16(target_first_ptr + idx);
- *      target_second_f16x8 = vld1q_f16(target_second_ptr + idx);
- *      target_third_f16x8 = vld1q_f16(target_third_ptr + idx);
- *      target_fourth_f16x8 = vld1q_f16(target_fourth_ptr + idx);
- *      nk_dot_f16x8_update_neonfhm(&state_first, query_f16x8, target_first_f16x8, idx, 8);
- *      nk_dot_f16x8_update_neonfhm(&state_second, query_f16x8, target_second_f16x8, idx, 8);
- *      nk_dot_f16x8_update_neonfhm(&state_third, query_f16x8, target_third_f16x8, idx, 8);
- *      nk_dot_f16x8_update_neonfhm(&state_fourth, query_f16x8, target_fourth_f16x8, idx, 8);
+ *  for (nk_size_t index = 0; index + 8 <= depth; index += 8) {
+ *      query_f16x8 = vld1q_f16(query_ptr + index);
+ *      target_first_f16x8 = vld1q_f16(target_first_ptr + index);
+ *      target_second_f16x8 = vld1q_f16(target_second_ptr + index);
+ *      target_third_f16x8 = vld1q_f16(target_third_ptr + index);
+ *      target_fourth_f16x8 = vld1q_f16(target_fourth_ptr + index);
+ *      nk_dot_f16x8_update_neonfhm(&state_first, query_f16x8, target_first_f16x8, index, 8);
+ *      nk_dot_f16x8_update_neonfhm(&state_second, query_f16x8, target_second_f16x8, index, 8);
+ *      nk_dot_f16x8_update_neonfhm(&state_third, query_f16x8, target_third_f16x8, index, 8);
+ *      nk_dot_f16x8_update_neonfhm(&state_fourth, query_f16x8, target_fourth_f16x8, index, 8);
  *  }
  *  float32x4_t results_f32x4;
  *  nk_dot_f16x8_finalize_neonfhm(&state_first, &state_second, &state_third, &state_fourth, depth, &results_f32x4);

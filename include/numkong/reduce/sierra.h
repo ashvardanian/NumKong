@@ -1,8 +1,8 @@
 /**
- *  @brief Sierra Forest (AVX-VNNI-INT8) implementations for the redesigned reduction API (moments).
  *  @file include/numkong/reduce/sierra.h
  *  @author Ash Vardanian
  *  @date February 13, 2026
+ *  @brief Sierra Forest, AVX-VNNI-INT8, implementations for the redesigned reduction API, moments.
  *
  *  @sa include/numkong/reduce.h
  *

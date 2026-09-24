@@ -1,8 +1,8 @@
 /**
- *  @brief Dot product benchmarks.
  *  @file bench/dot.cpp
  *  @author Ash Vardanian
  *  @date March 14, 2023
+ *  @brief Dot product benchmarks.
  */
 
 #include <complex> // std::complex

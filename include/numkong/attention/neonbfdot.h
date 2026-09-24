@@ -1,17 +1,16 @@
 /**
- *  @brief Arm NEON ragged attention backend for BF16, using `BFDOT`.
  *  @file include/numkong/attention/neonbfdot.h
  *  @author Ash Vardanian
  *  @date July 8, 2026
+ *  @brief Arm NEON ragged attention backend for BF16, using @c BFDOT.
  *
  *  @sa include/numkong/attention.h
  *
  *  Mirrors the `v128relaxed` panel-flash shape with the family-shared packed header, segment
- *  directory, base-2 streaming softmax, and `(task_start, task_count)` windows. Scores run
- *  four KV rows in flight through `BFDOT` (one query-vector load feeds four dot steps), the
- *  softmax stays in F32, and the weighted V accumulation widens BF16 rows with one `SHLL`
- *  pair per eight channels. K/V planes keep the raw BF16 encoding, channels zero-padded to
- *  eight for the dot lanes.
+ *  directory, base-2 streaming softmax, and `(task_start, task_count)` windows. Scores run four KV
+ *  rows in flight through @c BFDOT — one query-vector load feeds four dot steps — the softmax stays
+ *  in F32, and the weighted V accumulation widens BF16 rows with one @c SHLL pair per eight
+ *  channels. K/V planes keep the raw BF16 encoding, channels zero-padded to eight for dot lanes.
  */
 #ifndef NK_ATTENTION_NEONBFDOT_H
 #define NK_ATTENTION_NEONBFDOT_H

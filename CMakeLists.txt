@@ -827,11 +827,11 @@ if (NK_BUILD_SHARED_TEST)
         set_target_properties(numkong_shared_test PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
     endif ()
 
-    # The shared-library test must exercise only the DLL dispatch path, so compile
-    # the test binary at the platform baseline (no SIMD extensions).  This prevents
-    # types.h auto-detection (e.g. MSVC _MSC_VER >= 1920 → NK_TARGET_SKYLAKE=1) from
-    # pulling in inline AVX-512 code the CPU may not support.  All ISA-specific
-    # kernel coverage comes from numkong_test (header-only, with `nk_run_definitions_`).
+    # The shared-library test must exercise only the DLL dispatch path, so compile the test binary
+    # at the platform baseline, without SIMD extensions. This keeps types.h auto-detection, such as
+    # MSVC `_MSC_VER >= 1920` → `NK_TARGET_SKYLAKE=1`, from pulling in inline AVX-512 code the CPU
+    # may not support. All ISA-specific kernel coverage comes from the header-only numkong_test,
+    # with `nk_run_definitions_`.
     target_compile_definitions(
         numkong_shared_test
         PRIVATE NK_TARGET_HASWELL=0 NK_TARGET_SKYLAKE=0 NK_TARGET_ICELAKE=0 NK_TARGET_GENOA=0 NK_TARGET_SAPPHIRE=0

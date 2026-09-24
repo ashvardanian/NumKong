@@ -1,4 +1,9 @@
-/* NumKong ISA probe: Power VSX (POWER9+ 128-bit SIMD) */
+/**
+ *  @file probes/power_vsx.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for Power VSX, POWER9+ 128-bit SIMD.
+ */
 #if !defined(__VSX__)
 #error "Feature not available"
 #endif

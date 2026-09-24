@@ -1,11 +1,11 @@
 /**
- *  @brief Tile-parallel execution for NumKong language bindings.
  *  @file c/parallel.c
  *  @author Ash Vardanian
  *  @date August 6, 2026
+ *  @brief Tile-parallel execution for NumKong language bindings.
  *
- *  One shared tile counter drives every backend, so dynamic scheduling and the
- *  thread-count cap behave identically no matter which pool runs the tiles.
+ *  One shared tile counter drives every backend, so dynamic scheduling and the thread-count cap
+ *  behave identically no matter which pool runs the tiles.
  */
 #include "parallel.h"
 
@@ -21,7 +21,7 @@
 #endif
 #endif
 
-/*  OpenMP schedules tiles itself, so the counter below is for the other pools. */
+/** OpenMP schedules tiles itself, so the counter below is for the other pools. */
 #if !defined(__APPLE__) && !defined(_WIN32) && defined(_OPENMP)
 #define NK_PARALLEL_VIA_OPENMP 1
 #else
@@ -32,7 +32,7 @@
 
 #pragma region Tile Queue
 
-/** @brief Tiles remaining, plus the body that consumes them. */
+/** Tiles remaining, plus the body that consumes them. */
 typedef struct nk_tile_queue_t {
     nk_tile_body_t body;
     void *context;
@@ -44,7 +44,7 @@ typedef struct nk_tile_queue_t {
 #endif
 } nk_tile_queue_t;
 
-/** @brief Claim and run tiles until the queue is empty. Safe to call from every worker at once. */
+/** Claim and run tiles until the queue is empty. Safe to call from every worker at once. */
 static void nk_tile_queue_drain_(nk_tile_queue_t *queue) {
     for (;;) {
 #if defined(_MSC_VER)
@@ -65,7 +65,7 @@ static void nk_tile_queue_drain_(nk_tile_queue_t *queue) {
 
 #if defined(__APPLE__)
 
-/** @brief libdispatch hands each worker its index; the queue decides what it runs. */
+/** libdispatch hands each worker its index; the queue decides what it runs. */
 static void nk_tile_worker_dispatch_(void *context, size_t worker_index) {
     (void)worker_index;
     nk_tile_queue_drain_((nk_tile_queue_t *)context);

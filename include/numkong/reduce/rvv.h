@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Reductions for RISC-V.
  *  @file include/numkong/reduce/rvv.h
  *  @author Ash Vardanian
  *  @date February 13, 2026
+ *  @brief SIMD-accelerated reductions for RISC-V.
  *
  *  @sa include/numkong/reduce.h
  */

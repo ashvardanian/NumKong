@@ -1,21 +1,19 @@
 /**
- *  @brief SIMD capability detection and thread configuration.
  *  @file include/numkong/capabilities.h
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief SIMD capability detection and thread configuration.
  *
  *  @section x86_targets Choosing x86 Target Generations
  *
- *  It's important to provide fine-grained controls over AVX512 families, as they are very fragmented:
+ *  Fine-grained controls over AVX512 families matter, since they are very fragmented:
  *
  *  - Intel Skylake servers: F, CD, VL, DQ, BW
- *  - Intel Cascade Lake workstations: F, CD, VL, DQ, BW, VNNI
- *       > In other words, it extends Skylake with VNNI support
+ *  - Intel Cascade Lake workstations: F, CD, VL, DQ, BW, VNNI, extending Skylake with VNNI support.
  *  - Intel Sunny Cove (Ice Lake) servers:
- *         F, CD, VL, DQ, BW, VNNI, VPOPCNTDQ, IFMA, VBMI, VAES, GFNI, VBMI2, BITALG, VPCLMULQDQ
- *  - AMD Zen4 (Genoa):
- *         F, CD, VL, DQ, BW, VNNI, VPOPCNTDQ, IFMA, VBMI, VAES, GFNI, VBMI2, BITALG, VPCLMULQDQ, BF16
- *       > In other words, it extends Sunny Cove with BF16 support
+ *    F, CD, VL, DQ, BW, VNNI, VPOPCNTDQ, IFMA, VBMI, VAES, GFNI, VBMI2, BITALG, VPCLMULQDQ
+ *  - AMD Zen4 (Genoa): F, CD, VL, DQ, BW, VNNI, VPOPCNTDQ, IFMA, VBMI, VAES, GFNI, VBMI2, BITALG,
+ *    VPCLMULQDQ, BF16, extending Sunny Cove with BF16 support.
  *  - Intel Golden Cove (Sapphire Rapids): extends Zen4 and Sunny Cove with FP16 support
  *  - AMD Zen5 (Turin): makes VP2INTERSECT cool again
  *
@@ -33,13 +31,20 @@
  *  4. Intel Sapphire Rapids (2023+): advanced mixed-precision float processing.
  *  5. AMD Turin (2024+): advanced sparse algorithms.
  *
- *  Beyond those, we support AVX2 for old Haswell generation CPUs, AVX2+VNNI for Alder Lake (12th/13th gen),
- *  and AVX2+VNNI-INT8 for Sierra Forest (adds native signed×signed and unsigned×unsigned 8-bit dot products).
+ *  Beyond those, AVX2 serves Haswell, AVX2+VNNI serves 12th and 13th gen Alder Lake, and Sierra
+ *  Forest gets AVX2+VNNI-INT8 with native signed×signed and unsigned×unsigned 8-bit dot products.
  *
  *  To list all available macros for x86, take a recent compiler, like GCC 12 and run:
- *       gcc-12 -march=sapphirerapids -dM -E - < /dev/null | egrep "SSE|AVX" | sort
+ *
+ *  @code{.sh}
+ *  gcc-12 -march=sapphirerapids -dM -E - < /dev/null | egrep "SSE|AVX" | sort
+ *  @endcode
+ *
  *  On Arm machines you may want to check for other flags:
- *       gcc-12 -march=native -dM -E - < /dev/null | egrep "NEON|SVE|FP16|FMA" | sort
+ *
+ *  @code{.sh}
+ *  gcc-12 -march=native -dM -E - < /dev/null | egrep "NEON|SVE|FP16|FMA" | sort
+ *  @endcode
  *
  *  @section arm_targets Choosing Arm Target Generations
  *
@@ -67,26 +72,34 @@
  *  A more flexible version, 2x256 SVE, was implemented by the AWS Graviton3 ARM processor.
  *  Here are the most important recent families of CPU cores designed by Arm:
  *
- *  - Neoverse N1: armv8.2-a, extended with Armv8.4 "dotprod" instructions.
- *    Used in AWS @b Graviton2 and Ampere @b Altra.
- *    https://developer.arm.com/Processors/Neoverse%20N1
- *  - Neoverse V1: armv8.4-a, extended with Armv8.6 bfloat/int8 "matmul" instructions.
- *    Used in AWS @b Graviton3, which also enables `sve`, `svebf16`, and `svei8mm`.
- *    https://developer.arm.com/Processors/Neoverse%20V1
- *  - Neoverse V2: armv9.0 with SVE2 and SVE bit-permutes
- *    Used in AWS @b Graviton4, NVIDIA @b Grace, Google @b Axion.
- *    https://developer.arm.com/Processors/Neoverse%20V2
- *    The N2 core is very similar to V2 and is used by Microsoft @b Cobalt.
- *    https://developer.arm.com/Processors/Neoverse%20N2
+ *  Neoverse N1 implements armv8.2-a, extended with Armv8.4 "dotprod" instructions, and is used in
+ *  AWS @b Graviton2 and Ampere @b Altra.
+ *
+ *  @see Neoverse N1: https://developer.arm.com/Processors/Neoverse%20N1
+ *
+ *  Neoverse V1 implements armv8.4-a, extended with Armv8.6 bfloat/int8 "matmul" instructions, and
+ *  is used in AWS @b Graviton3, which also enables @c sve, @c svebf16, and @c svei8mm.
+ *
+ *  @see Neoverse V1: https://developer.arm.com/Processors/Neoverse%20V1
+ *
+ *  Neoverse V2 implements armv9.0 with SVE2 and SVE bit-permutes, and is used in AWS @b Graviton4,
+ *  NVIDIA @b Grace, and Google @b Axion.
+ *
+ *  @see Neoverse V2: https://developer.arm.com/Processors/Neoverse%20V2
+ *
+ *  The N2 core is very similar to V2, extending it with the same design, and is used by Microsoft
+ *  @b Cobalt.
+ *
+ *  @see Neoverse N2: https://developer.arm.com/Processors/Neoverse%20N2
  *
  *  On the consumer side, Apple is the biggest player with mobile @b A chips and desktop @b M chips.
- *  The M1 implements Armv8.5-A, both M2 and M3 implement Armv8.6-A, and M4 is expected to have Armv9.1-A.
+ *  M1 implements Armv8.5-A, M2 and M3 implement Armv8.6-A, and M4 is expected to have Armv9.1-A.
  *
- *  @section references References
+ *  @section capabilities_references References
  *
- *  - x86 intrinsics: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
- *  - Arm intrinsics: https://developer.arm.com/architectures/instruction-sets/intrinsics
- *  - Detecting target CPU features at compile time: https://stackoverflow.com/a/28939692/2766161
+ *  @see x86 intrinsics: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
+ *  @see Arm intrinsics: https://developer.arm.com/architectures/instruction-sets/intrinsics
+ *  @see Detecting target CPU features at compile time: https://stackoverflow.com/a/28939692/2766161
  */
 
 #ifndef NK_CAPABILITIES_H
@@ -99,24 +112,24 @@
 #define NK_VERSION_PATCH 2
 
 /**
- *  @brief  Removes compile-time dispatching, and replaces it with runtime dispatching.
- *          So the `nk_dot_f32` function will invoke the most advanced backend supported by the CPU,
- *          that runs the program, rather than the most advanced backend supported by the CPU
- *          used to compile the library or the downstream application.
+ *  @brief  Removes compile-time dispatching in favor of runtime dispatching, so @c nk_dot_f32
+ *      invokes the most advanced backend supported by the CPU running the program.
+ *
+ *  Without it, the function is pinned to the most advanced backend supported by the CPU used to
+ *  compile the library or the downstream application.
  */
 #if !defined(NK_RUNTIME_DISPATCH)
 #define NK_RUNTIME_DISPATCH (0) // true or false
 #endif
 
-// On Apple Silicon, `mrs` is not allowed in user-space, so we need to use the `sysctl` API.
+/* On Apple Silicon, @c mrs is not allowed in user-space, so we need to use the @c sysctl API. */
 #if defined(NK_DEFINED_APPLE_)
 #include <fenv.h>       // `fesetenv` - part of C 99 standard
 #include <sys/sysctl.h> // `sysctlbyname`
 #endif
 
-// Detect POSIX extensions availability for signal handling.
-// POSIX extensions provide `sigaction`, `sigjmp_buf`, and `sigsetjmp` for safe signal handling.
-// These are needed on Linux ARM for safely testing `mrs` instruction availability.
+/*  Detect POSIX extensions for signal handling: @c sigaction, @c sigjmp_buf, and @c sigsetjmp.
+ *  Linux ARM needs them to safely test whether the @c mrs instruction is available. */
 #if defined(NK_DEFINED_LINUX_) || defined(NK_DEFINED_FREEBSD_)
 #include <unistd.h> // `_POSIX_VERSION`
 #endif
@@ -128,10 +141,9 @@
 #define NK_HAS_POSIX_EXTENSIONS_ 0
 #endif
 
-// On Linux x86/RISC-V, we need `syscall()` for AMX permission and hwprobe.
-// With `-std=c11` glibc hides `syscall()` behind `_GNU_SOURCE`, but if any
-// system header was included before us, `<features.h>` is already locked.
-// Forward-declare `syscall` directly — it always exists in glibc.
+/*  On Linux x86 and RISC-V, AMX permission and hwprobe need `syscall()`. With `-std=c11` glibc
+ *  hides it behind @c _GNU_SOURCE, but a system header included before us already locks
+ *  `<features.h>`, so we forward-declare @c syscall, which glibc always has. */
 #if defined(NK_DEFINED_LINUX_) && (NK_TARGET_X8664_ || NK_TARGET_RISCV64_)
 #include <sys/syscall.h> // `SYS_arch_prctl`, `SYS_riscv_hwprobe`
 #ifdef __cplusplus
@@ -152,17 +164,17 @@ extern long syscall(long, ...);
 #include <sys/auxv.h> // `getauxval`, `AT_HWCAP`
 #endif
 
-// On FreeBSD RISC-V, we use elf_aux_info for capability detection
+/* On FreeBSD RISC-V, we use elf_aux_info for capability detection */
 #if defined(NK_DEFINED_FREEBSD_) && NK_TARGET_RISCV64_
 #include <sys/auxv.h> // `elf_aux_info`, `AT_HWCAP`
 #endif
 
-// On Windows ARM, we use IsProcessorFeaturePresent API for capability detection
+/* On Windows ARM, we use IsProcessorFeaturePresent API for capability detection */
 #if defined(NK_DEFINED_WINDOWS_) && NK_TARGET_ARM64_
 #include <processthreadsapi.h> // `IsProcessorFeaturePresent`
 #endif
 
-// On WASM with Emscripten, we use EM_JS for runtime capability detection
+/* On WASM with Emscripten, we use EM_JS for runtime capability detection */
 #if NK_TARGET_WASM_ && defined(__EMSCRIPTEN__)
 #include <emscripten.h> // `EM_JS`
 #endif

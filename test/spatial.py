@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Test spatial distances: nk.euclidean, nk.sqeuclidean, nk.angular.
 
-Dtypes: float64, float32, float16, bfloat16, e4m3, e5m2, e2m3, e3m2, int8, uint8.
+DTypes: float64, float32, float16, bfloat16, e4m3, e5m2, e2m3, e3m2, int8, uint8.
 Baselines: high-precision Decimal accumulation, SciPy spatial.distance.
 Matches C++ suite: test/spatial.cpp.
+
+File: test/spatial.py
+Author: Ash Vardanian
+Date: February 27, 2026
 """
 
 import atexit

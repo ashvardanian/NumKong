@@ -1,18 +1,18 @@
 /**
- *  @brief SIMD-accelerated MaxSim (angular distance late-interaction) for Alder Lake (AVX-VNNI).
  *  @file include/numkong/maxsim/alder.h
  *  @author Ash Vardanian
  *  @date March 5, 2026
+ *  @brief SIMD-accelerated MaxSim, angular distance late-interaction, for Alder Lake, AVX-VNNI.
  *
  *  @sa include/numkong/maxsim.h
  *
- *  Uses AVX-VNNI VPDPBUSD (u8×i8→i32 with accumulate) for coarse i8 screening.
- *  Unlike Haswell's VPMADDUBSW+VPMADDWD, DPBUSD has no i16 intermediate, so no saturation concern.
- *  Quantization range [-127, 127] (vs Haswell's [-79, 79]) for better precision.
- *  Bias correction via XOR-0x80 converts signed queries to unsigned, then subtracts 128 × sum_quantized.
+ *  Uses AVX-VNNI VPDPBUSD, u8×i8 → i32 with accumulate, for coarse i8 screening. Unlike Haswell's
+ *  VPMADDUBSW+VPMADDWD, DPBUSD has no i16 intermediate, so no saturation concern. Quantization
+ *  range [-127, 127], versus Haswell's [-79, 79], gives better precision. Bias correction via
+ *  XOR-0x80 converts signed queries to unsigned, then subtracts 128 × sum_quantized.
  *
- *  4x4 register tiling: 4 queries × 4 documents = 16 YMM accumulators per depth loop.
- *  Depth steps at 32 bytes (YMM width in bytes).
+ *  4x4 register tiling: 4 queries × 4 documents = 16 YMM accumulators per depth loop. Depth steps
+ *  at 32 bytes, the YMM width in bytes.
  */
 #ifndef NK_MAXSIM_ALDER_H
 #define NK_MAXSIM_ALDER_H
@@ -27,8 +27,8 @@
 #include "numkong/cast/haswell.h"    // `nk_f16_to_f32_haswell`
 #include "numkong/spatial/haswell.h" // `nk_f32_sqrt_haswell`
 
-// On GCC/Clang, VEX encoding is handled by target attributes.
-// Alias the MSVC-specific _avx intrinsic names to standard names.
+/** On GCC/Clang, VEX encoding is handled by target attributes. Alias the MSVC-specific _avx
+ *  intrinsic names to standard names. */
 #if !defined(_MSC_VER) && !defined(_mm256_dpbusd_avx_epi32)
 #define _mm256_dpbusd_avx_epi32 _mm256_dpbusd_epi32
 #endif

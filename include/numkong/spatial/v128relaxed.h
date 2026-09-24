@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Spatial Similarity Measures for WASM.
  *  @file include/numkong/spatial/v128relaxed.h
  *  @author Ash Vardanian
  *  @date February 2, 2026
+ *  @brief SIMD-accelerated spatial similarity measures for WASM.
  *
  *  Contains:
  *  - Euclidean (L2) distance
@@ -25,9 +25,8 @@
  *  - Integer distances ride one `relaxed_dot` sign-split pass for the dot and both norms
  *
  *  @sa include/numkong/spatial/v128.h for the SIMD128 twins of the bf16, i8 and u8 kernels.
- *  @see For pattern references:
- *  - Haswell: include/numkong/spatial/haswell.h
- *  - NEON: include/numkong/spatial/neon.h
+ *  @sa include/numkong/spatial/haswell.h for the matching x86 pattern.
+ *  @sa include/numkong/spatial/neon.h for the matching ARM pattern.
  */
 
 #ifndef NK_SPATIAL_V128RELAXED_H

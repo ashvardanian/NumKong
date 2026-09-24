@@ -1,3 +1,6 @@
+// numkong/golang/matrix.go
+// Written by Ash Vardanian.
+
 package numkong
 
 /*
@@ -13,8 +16,9 @@ import (
 	"sync"
 )
 
-// WorkerPool runs batch kernels on goroutines pinned to OS threads, each configuring its SIMD state once.
-// Create it with [NewWorkerPool], reuse it across calls, and release it with [WorkerPool.Close].
+// WorkerPool runs batch kernels on goroutines pinned to OS threads, each configuring its SIMD state
+// once. Create it with [NewWorkerPool], reuse it across calls, and release it with
+// [WorkerPool.Close].
 type WorkerPool struct {
 	tasks []chan func()
 	done  sync.WaitGroup
@@ -78,104 +82,117 @@ func (p *WorkerPool) run(totalRows int, fn func(lo, hi int)) {
 
 // region DotsPackedMatrix WithPool methods
 
-// DotsF64WithPool is [DotsPackedF64] with the height rows of a split across pool.
-// Each row has pm.Depth() dimensions, and c holds at least height * pm.Width() entries.
+// DotsF64WithPool is [DotsPackedF64] with the height rows of a split across pool, each of
+// [DotsPackedMatrix.Depth] dimensions, while c holds at least height * [DotsPackedMatrix.Width]
+// entries.
 func (pm DotsPackedMatrix) DotsF64WithPool(a []float64, c []float64, height int, pool *WorkerPool) {
 	pool.run(height, func(lo, hi int) {
 		DotsPackedF64(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.width:hi*pm.width], hi-lo)
 	})
 }
 
-// DotsF32WithPool is [DotsPackedF32] with the height rows of a split across pool.
-// Each row has pm.Depth() dimensions, and c holds at least height * pm.Width() entries.
+// DotsF32WithPool is [DotsPackedF32] with the height rows of a split across pool, each of
+// [DotsPackedMatrix.Depth] dimensions, while c holds at least height * [DotsPackedMatrix.Width]
+// entries.
 func (pm DotsPackedMatrix) DotsF32WithPool(a []float32, c []float64, height int, pool *WorkerPool) {
 	pool.run(height, func(lo, hi int) {
 		DotsPackedF32(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.width:hi*pm.width], hi-lo)
 	})
 }
 
-// DotsI8WithPool is [DotsPackedI8] with the height rows of a split across pool.
-// Each row has pm.Depth() dimensions, and c holds at least height * pm.Width() entries.
+// DotsI8WithPool is [DotsPackedI8] with the height rows of a split across pool, each of
+// [DotsPackedMatrix.Depth] dimensions, while c holds at least height * [DotsPackedMatrix.Width]
+// entries.
 func (pm DotsPackedMatrix) DotsI8WithPool(a []int8, c []int32, height int, pool *WorkerPool) {
 	pool.run(height, func(lo, hi int) {
 		DotsPackedI8(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.width:hi*pm.width], hi-lo)
 	})
 }
 
-// DotsU8WithPool is [DotsPackedU8] with the height rows of a split across pool.
-// Each row has pm.Depth() dimensions, and c holds at least height * pm.Width() entries.
+// DotsU8WithPool is [DotsPackedU8] with the height rows of a split across pool, each of
+// [DotsPackedMatrix.Depth] dimensions, while c holds at least height * [DotsPackedMatrix.Width]
+// entries.
 func (pm DotsPackedMatrix) DotsU8WithPool(a []uint8, c []uint32, height int, pool *WorkerPool) {
 	pool.run(height, func(lo, hi int) {
 		DotsPackedU8(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.width:hi*pm.width], hi-lo)
 	})
 }
 
-// AngularsF64WithPool is [AngularsPackedF64] with the height rows of a split across pool.
-// Each row has pm.Depth() dimensions, and c holds at least height * pm.Width() entries.
+// AngularsF64WithPool is [AngularsPackedF64] with the height rows of a split across pool, each of
+// [DotsPackedMatrix.Depth] dimensions, while c holds at least height * [DotsPackedMatrix.Width]
+// entries.
 func (pm DotsPackedMatrix) AngularsF64WithPool(a []float64, c []float64, height int, pool *WorkerPool) {
 	pool.run(height, func(lo, hi int) {
 		AngularsPackedF64(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.width:hi*pm.width], hi-lo)
 	})
 }
 
-// AngularsF32WithPool is [AngularsPackedF32] with the height rows of a split across pool.
-// Each row has pm.Depth() dimensions, and c holds at least height * pm.Width() entries.
+// AngularsF32WithPool is [AngularsPackedF32] with the height rows of a split across pool, each of
+// [DotsPackedMatrix.Depth] dimensions, while c holds at least height * [DotsPackedMatrix.Width]
+// entries.
 func (pm DotsPackedMatrix) AngularsF32WithPool(a []float32, c []float64, height int, pool *WorkerPool) {
 	pool.run(height, func(lo, hi int) {
 		AngularsPackedF32(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.width:hi*pm.width], hi-lo)
 	})
 }
 
-// AngularsI8WithPool is [AngularsPackedI8] with the height rows of a split across pool.
-// Each row has pm.Depth() dimensions, and c holds at least height * pm.Width() entries.
+// AngularsI8WithPool is [AngularsPackedI8] with the height rows of a split across pool, each of
+// [DotsPackedMatrix.Depth] dimensions, while c holds at least height * [DotsPackedMatrix.Width]
+// entries.
 func (pm DotsPackedMatrix) AngularsI8WithPool(a []int8, c []float32, height int, pool *WorkerPool) {
 	pool.run(height, func(lo, hi int) {
 		AngularsPackedI8(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.width:hi*pm.width], hi-lo)
 	})
 }
 
-// AngularsU8WithPool is [AngularsPackedU8] with the height rows of a split across pool.
-// Each row has pm.Depth() dimensions, and c holds at least height * pm.Width() entries.
+// AngularsU8WithPool is [AngularsPackedU8] with the height rows of a split across pool, each of
+// [DotsPackedMatrix.Depth] dimensions, while c holds at least height * [DotsPackedMatrix.Width]
+// entries.
 func (pm DotsPackedMatrix) AngularsU8WithPool(a []uint8, c []float32, height int, pool *WorkerPool) {
 	pool.run(height, func(lo, hi int) {
 		AngularsPackedU8(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.width:hi*pm.width], hi-lo)
 	})
 }
 
-// EuclideansF64WithPool is [EuclideansPackedF64] with the height rows of a split across pool.
-// Each row has pm.Depth() dimensions, and c holds at least height * pm.Width() entries.
+// EuclideansF64WithPool is [EuclideansPackedF64] with the height rows of a split across pool, each
+// of [DotsPackedMatrix.Depth] dimensions, while c holds at least height * [DotsPackedMatrix.Width]
+// entries.
 func (pm DotsPackedMatrix) EuclideansF64WithPool(a []float64, c []float64, height int, pool *WorkerPool) {
 	pool.run(height, func(lo, hi int) {
 		EuclideansPackedF64(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.width:hi*pm.width], hi-lo)
 	})
 }
 
-// EuclideansF32WithPool is [EuclideansPackedF32] with the height rows of a split across pool.
-// Each row has pm.Depth() dimensions, and c holds at least height * pm.Width() entries.
+// EuclideansF32WithPool is [EuclideansPackedF32] with the height rows of a split across pool, each
+// of [DotsPackedMatrix.Depth] dimensions, while c holds at least height * [DotsPackedMatrix.Width]
+// entries.
 func (pm DotsPackedMatrix) EuclideansF32WithPool(a []float32, c []float64, height int, pool *WorkerPool) {
 	pool.run(height, func(lo, hi int) {
 		EuclideansPackedF32(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.width:hi*pm.width], hi-lo)
 	})
 }
 
-// EuclideansI8WithPool is [EuclideansPackedI8] with the height rows of a split across pool.
-// Each row has pm.Depth() dimensions, and c holds at least height * pm.Width() entries.
+// EuclideansI8WithPool is [EuclideansPackedI8] with the height rows of a split across pool, each of
+// [DotsPackedMatrix.Depth] dimensions, while c holds at least height * [DotsPackedMatrix.Width]
+// entries.
 func (pm DotsPackedMatrix) EuclideansI8WithPool(a []int8, c []float32, height int, pool *WorkerPool) {
 	pool.run(height, func(lo, hi int) {
 		EuclideansPackedI8(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.width:hi*pm.width], hi-lo)
 	})
 }
 
-// EuclideansU8WithPool is [EuclideansPackedU8] with the height rows of a split across pool.
-// Each row has pm.Depth() dimensions, and c holds at least height * pm.Width() entries.
+// EuclideansU8WithPool is [EuclideansPackedU8] with the height rows of a split across pool, each of
+// [DotsPackedMatrix.Depth] dimensions, while c holds at least height * [DotsPackedMatrix.Width]
+// entries.
 func (pm DotsPackedMatrix) EuclideansU8WithPool(a []uint8, c []float32, height int, pool *WorkerPool) {
 	pool.run(height, func(lo, hi int) {
 		EuclideansPackedU8(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.width:hi*pm.width], hi-lo)
 	})
 }
 
-// HammingsU1WithPool is [HammingsPackedU1] with the height vectors split across pool.
-// Each vector has pm.Depth() dimensions, and c holds at least height * pm.Width() entries.
+// HammingsU1WithPool is [HammingsPackedU1] with the height vectors of a split across pool, each of
+// [DotsPackedMatrix.Depth] dimensions, while c holds at least height * [DotsPackedMatrix.Width]
+// entries.
 func (pm DotsPackedMatrix) HammingsU1WithPool(vectors []byte, c []uint32, height int, pool *WorkerPool) {
 	bytesPerVec := DimensionsToValues("u1", pm.depth)
 	pool.run(height, func(lo, hi int) {
@@ -183,8 +200,9 @@ func (pm DotsPackedMatrix) HammingsU1WithPool(vectors []byte, c []uint32, height
 	})
 }
 
-// JaccardsU1WithPool is [JaccardsPackedU1] with the height vectors split across pool.
-// Each vector has pm.Depth() dimensions, and c holds at least height * pm.Width() entries.
+// JaccardsU1WithPool is [JaccardsPackedU1] with the height vectors of a split across pool, each of
+// [DotsPackedMatrix.Depth] dimensions, while c holds at least height * [DotsPackedMatrix.Width]
+// entries.
 func (pm DotsPackedMatrix) JaccardsU1WithPool(vectors []byte, c []float32, height int, pool *WorkerPool) {
 	bytesPerVec := DimensionsToValues("u1", pm.depth)
 	pool.run(height, func(lo, hi int) {
@@ -196,8 +214,9 @@ func (pm DotsPackedMatrix) JaccardsU1WithPool(vectors []byte, c []float32, heigh
 
 // region Symmetric WithPool functions
 
-// DotsSymmetricF64WithPool is [DotsSymmetricF64] with the nVectors rows split across pool.
-// The vectors are stored row-major, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
+// DotsSymmetricF64WithPool is [DotsSymmetricF64] with the nVectors rows split across pool, the
+// vectors stored row-major; only entries with row <= column are written into result, which holds at
+// least nVectors * nVectors entries.
 func DotsSymmetricF64WithPool(vectors []float64, nVectors, depth int, result []float64, pool *WorkerPool) {
 	if len(vectors) < nVectors*depth {
 		panic("input slice too short for the given nVectors and depth")
@@ -210,8 +229,9 @@ func DotsSymmetricF64WithPool(vectors []float64, nVectors, depth int, result []f
 	})
 }
 
-// DotsSymmetricF32WithPool is [DotsSymmetricF32] with the nVectors rows split across pool.
-// The vectors are stored row-major, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
+// DotsSymmetricF32WithPool is [DotsSymmetricF32] with the nVectors rows split across pool, the
+// vectors stored row-major; only entries with row <= column are written into result, which holds at
+// least nVectors * nVectors entries.
 func DotsSymmetricF32WithPool(vectors []float32, nVectors, depth int, result []float64, pool *WorkerPool) {
 	if len(vectors) < nVectors*depth {
 		panic("input slice too short for the given nVectors and depth")
@@ -224,8 +244,9 @@ func DotsSymmetricF32WithPool(vectors []float32, nVectors, depth int, result []f
 	})
 }
 
-// DotsSymmetricI8WithPool is [DotsSymmetricI8] with the nVectors rows split across pool.
-// The vectors are stored row-major, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
+// DotsSymmetricI8WithPool is [DotsSymmetricI8] with the nVectors rows split across pool, the
+// vectors stored row-major; only entries with row <= column are written into result, which holds at
+// least nVectors * nVectors entries.
 func DotsSymmetricI8WithPool(vectors []int8, nVectors, depth int, result []int32, pool *WorkerPool) {
 	if len(vectors) < nVectors*depth {
 		panic("input slice too short for the given nVectors and depth")
@@ -238,8 +259,9 @@ func DotsSymmetricI8WithPool(vectors []int8, nVectors, depth int, result []int32
 	})
 }
 
-// DotsSymmetricU8WithPool is [DotsSymmetricU8] with the nVectors rows split across pool.
-// The vectors are stored row-major, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
+// DotsSymmetricU8WithPool is [DotsSymmetricU8] with the nVectors rows split across pool, the
+// vectors stored row-major; only entries with row <= column are written into result, which holds at
+// least nVectors * nVectors entries.
 func DotsSymmetricU8WithPool(vectors []uint8, nVectors, depth int, result []uint32, pool *WorkerPool) {
 	if len(vectors) < nVectors*depth {
 		panic("input slice too short for the given nVectors and depth")
@@ -252,8 +274,9 @@ func DotsSymmetricU8WithPool(vectors []uint8, nVectors, depth int, result []uint
 	})
 }
 
-// AngularsSymmetricF64WithPool is [AngularsSymmetricF64] with the nVectors rows split across pool.
-// The vectors are stored row-major, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
+// AngularsSymmetricF64WithPool is [AngularsSymmetricF64] with the nVectors rows split across pool,
+// the vectors stored row-major; only entries with row <= column are written into result, which
+// holds at least nVectors * nVectors entries.
 func AngularsSymmetricF64WithPool(vectors []float64, nVectors, depth int, result []float64, pool *WorkerPool) {
 	if len(vectors) < nVectors*depth {
 		panic("input slice too short for the given nVectors and depth")
@@ -266,8 +289,9 @@ func AngularsSymmetricF64WithPool(vectors []float64, nVectors, depth int, result
 	})
 }
 
-// AngularsSymmetricF32WithPool is [AngularsSymmetricF32] with the nVectors rows split across pool.
-// The vectors are stored row-major, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
+// AngularsSymmetricF32WithPool is [AngularsSymmetricF32] with the nVectors rows split across pool,
+// the vectors stored row-major; only entries with row <= column are written into result, which
+// holds at least nVectors * nVectors entries.
 func AngularsSymmetricF32WithPool(vectors []float32, nVectors, depth int, result []float64, pool *WorkerPool) {
 	if len(vectors) < nVectors*depth {
 		panic("input slice too short for the given nVectors and depth")
@@ -280,8 +304,9 @@ func AngularsSymmetricF32WithPool(vectors []float32, nVectors, depth int, result
 	})
 }
 
-// AngularsSymmetricI8WithPool is [AngularsSymmetricI8] with the nVectors rows split across pool.
-// The vectors are stored row-major, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
+// AngularsSymmetricI8WithPool is [AngularsSymmetricI8] with the nVectors rows split across pool,
+// the vectors stored row-major; only entries with row <= column are written into result, which
+// holds at least nVectors * nVectors entries.
 func AngularsSymmetricI8WithPool(vectors []int8, nVectors, depth int, result []float32, pool *WorkerPool) {
 	if len(vectors) < nVectors*depth {
 		panic("input slice too short for the given nVectors and depth")
@@ -294,8 +319,9 @@ func AngularsSymmetricI8WithPool(vectors []int8, nVectors, depth int, result []f
 	})
 }
 
-// AngularsSymmetricU8WithPool is [AngularsSymmetricU8] with the nVectors rows split across pool.
-// The vectors are stored row-major, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
+// AngularsSymmetricU8WithPool is [AngularsSymmetricU8] with the nVectors rows split across pool,
+// the vectors stored row-major; only entries with row <= column are written into result, which
+// holds at least nVectors * nVectors entries.
 func AngularsSymmetricU8WithPool(vectors []uint8, nVectors, depth int, result []float32, pool *WorkerPool) {
 	if len(vectors) < nVectors*depth {
 		panic("input slice too short for the given nVectors and depth")
@@ -308,8 +334,9 @@ func AngularsSymmetricU8WithPool(vectors []uint8, nVectors, depth int, result []
 	})
 }
 
-// EuclideansSymmetricF64WithPool is [EuclideansSymmetricF64] with the nVectors rows split across pool.
-// The vectors are stored row-major, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
+// EuclideansSymmetricF64WithPool is [EuclideansSymmetricF64] with the nVectors rows split across
+// pool, the vectors stored row-major; only entries with row <= column are written into result,
+// which holds at least nVectors * nVectors entries.
 func EuclideansSymmetricF64WithPool(vectors []float64, nVectors, depth int, result []float64, pool *WorkerPool) {
 	if len(vectors) < nVectors*depth {
 		panic("input slice too short for the given nVectors and depth")
@@ -322,8 +349,9 @@ func EuclideansSymmetricF64WithPool(vectors []float64, nVectors, depth int, resu
 	})
 }
 
-// EuclideansSymmetricF32WithPool is [EuclideansSymmetricF32] with the nVectors rows split across pool.
-// The vectors are stored row-major, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
+// EuclideansSymmetricF32WithPool is [EuclideansSymmetricF32] with the nVectors rows split across
+// pool, the vectors stored row-major; only entries with row <= column are written into result,
+// which holds at least nVectors * nVectors entries.
 func EuclideansSymmetricF32WithPool(vectors []float32, nVectors, depth int, result []float64, pool *WorkerPool) {
 	if len(vectors) < nVectors*depth {
 		panic("input slice too short for the given nVectors and depth")
@@ -336,8 +364,9 @@ func EuclideansSymmetricF32WithPool(vectors []float32, nVectors, depth int, resu
 	})
 }
 
-// EuclideansSymmetricI8WithPool is [EuclideansSymmetricI8] with the nVectors rows split across pool.
-// The vectors are stored row-major, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
+// EuclideansSymmetricI8WithPool is [EuclideansSymmetricI8] with the nVectors rows split across
+// pool, the vectors stored row-major; only entries with row <= column are written into result,
+// which holds at least nVectors * nVectors entries.
 func EuclideansSymmetricI8WithPool(vectors []int8, nVectors, depth int, result []float32, pool *WorkerPool) {
 	if len(vectors) < nVectors*depth {
 		panic("input slice too short for the given nVectors and depth")
@@ -350,8 +379,9 @@ func EuclideansSymmetricI8WithPool(vectors []int8, nVectors, depth int, result [
 	})
 }
 
-// EuclideansSymmetricU8WithPool is [EuclideansSymmetricU8] with the nVectors rows split across pool.
-// The vectors are stored row-major, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
+// EuclideansSymmetricU8WithPool is [EuclideansSymmetricU8] with the nVectors rows split across
+// pool, the vectors stored row-major; only entries with row <= column are written into result,
+// which holds at least nVectors * nVectors entries.
 func EuclideansSymmetricU8WithPool(vectors []uint8, nVectors, depth int, result []float32, pool *WorkerPool) {
 	if len(vectors) < nVectors*depth {
 		panic("input slice too short for the given nVectors and depth")
@@ -365,7 +395,8 @@ func EuclideansSymmetricU8WithPool(vectors []uint8, nVectors, depth int, result 
 }
 
 // HammingsSymmetricU1WithPool is [HammingsSymmetricU1] with the nVectors rows split across pool.
-// The depth is a multiple of 8, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
+// The depth is a multiple of 8, and only entries with row <= column are written into result, which
+// holds at least nVectors * nVectors entries.
 func HammingsSymmetricU1WithPool(vectors []byte, nVectors, depth int, result []uint32, pool *WorkerPool) {
 	validateDimensions("u1", depth)
 	bytesPerVec := DimensionsToValues("u1", depth)
@@ -381,7 +412,8 @@ func HammingsSymmetricU1WithPool(vectors []byte, nVectors, depth int, result []u
 }
 
 // JaccardsSymmetricU1WithPool is [JaccardsSymmetricU1] with the nVectors rows split across pool.
-// The depth is a multiple of 8, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
+// The depth is a multiple of 8, and only entries with row <= column are written into result, which
+// holds at least nVectors * nVectors entries.
 func JaccardsSymmetricU1WithPool(vectors []byte, nVectors, depth int, result []float32, pool *WorkerPool) {
 	validateDimensions("u1", depth)
 	bytesPerVec := DimensionsToValues("u1", depth)

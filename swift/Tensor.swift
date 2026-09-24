@@ -1,7 +1,9 @@
-//  Tensor.swift
-//  NumKong
 //
-//  Created by Ash Vardanian on March 14, 2026.
+//  swift/Tensor.swift
+//  Owning, row-major dense tensor that deallocates its memory on deinit.
+//
+//  - Author: Ash Vardanian
+//  - Date: March 14, 2026
 //
 
 import CNumKong
@@ -77,8 +79,8 @@ public final class Tensor<Element>: @unchecked Sendable {
     /// Resizes within the allocated `capacity` without moving storage, so existing `view()`,
     /// `span()`, and `row()` results stay valid.
     ///
-    /// - Returns: `false` (leaving the tensor unchanged) if either extent is negative or
-    ///   `rows * cols` exceeds `capacity`; call `reserve(_:)` first to grow.
+    /// - Returns: `false`, leaving the tensor unchanged, if either extent is negative or `rows *
+    ///     cols` exceeds `capacity`; call `reserve(_:)` first to grow.
     @discardableResult
     public func tryResize(rows newRows: Int, cols newCols: Int) -> Bool {
         guard newRows >= 0, newCols >= 0, newRows * newCols <= capacity else { return false }
@@ -90,8 +92,8 @@ public final class Tensor<Element>: @unchecked Sendable {
     /// Grows `capacity` to at least `minimumCapacity`, reallocating and copying the live elements.
     /// A no-op when already large enough.
     ///
-    /// - Warning: This may move storage, INVALIDATING any outstanding `view()`, `span()`, or
-    ///   `row()` pointers obtained before the call.
+    /// - Warning: This may move storage, invalidating any outstanding `view()`, `span()`, or
+    ///     `row()` pointers obtained before the call.
     public func reserve(_ minimumCapacity: Int) {
         guard minimumCapacity > capacity else { return }
         let grown = UnsafeMutablePointer<Element>.allocate(capacity: minimumCapacity)
@@ -137,7 +139,7 @@ extension Tensor where Element: NumKongDotsMatrixElement {
         try PackedMatrix<Element>(packing: view())
     }
 
-    /// Computes dot products between this tensor's rows and a packed matrix, returning an owned result.
+    /// Computes dot products between this tensor's rows and a packed matrix, owning the result.
     public func dotsPacked(_ packed: PackedMatrix<Element>) throws -> Tensor<Element.DotsOutput> {
         let result = try Tensor<Element.DotsOutput>._zeroInitialized(rows: rows, cols: packed.rows)
         var rSpan = result.span()

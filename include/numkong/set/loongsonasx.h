@@ -1,34 +1,35 @@
 /**
- *  @brief SIMD-accelerated Set Similarity Measures for LoongArch LASX (256-bit).
  *  @file include/numkong/set/loongsonasx.h
  *  @author Ash Vardanian
  *  @date March 23, 2026
+ *  @brief SIMD-accelerated set similarity measures for LoongArch LASX, 256-bit.
  *
  *  @sa include/numkong/set.h
  *
  *  @section set_loongsonasx_instructions Key LASX Set Instructions
  *
- *      Intrinsic                    Instruction
- *      __lasx_xvld                  XVLD (256-bit unaligned load)
- *      __lasx_xvxor_v               XVXOR.V (bitwise XOR)
- *      __lasx_xvor_v                XVOR.V (bitwise OR)
- *      __lasx_xvand_v               XVAND.V (bitwise AND)
- *      __lasx_xvpcnt_d              XVPCNT.D (popcount per u64 element)
- *      __lasx_xvseq_b               XVSEQ.B (byte-wise equality, 0xFF/0x00)
- *      __lasx_xvmin_bu              XVMIN.BU (unsigned byte minimum)
- *      __lasx_xvhaddw_hu_bu         XVHADDW.HU.BU (horizontal pairwise add u8->u16)
- *      __lasx_xvhaddw_wu_hu         XVHADDW.WU.HU (horizontal pairwise add u16->u32)
- *      __lasx_xvhaddw_du_wu         XVHADDW.DU.WU (horizontal pairwise add u32->u64)
- *      __lasx_xvadd_d               XVADD.D (i64 addition)
- *      __lasx_xvpermi_q             XVPERMI.Q (extract/permute 128-bit lanes)
+ *  @verbatim
+ *  Intrinsic                    Instruction
+ *  __lasx_xvld                  XVLD (256-bit unaligned load)
+ *  __lasx_xvxor_v               XVXOR.V (bitwise XOR)
+ *  __lasx_xvor_v                XVOR.V (bitwise OR)
+ *  __lasx_xvand_v               XVAND.V (bitwise AND)
+ *  __lasx_xvpcnt_d              XVPCNT.D (popcount per u64 element)
+ *  __lasx_xvseq_b               XVSEQ.B (byte-wise equality, 0xFF/0x00)
+ *  __lasx_xvmin_bu              XVMIN.BU (unsigned byte minimum)
+ *  __lasx_xvhaddw_hu_bu         XVHADDW.HU.BU (horizontal pairwise add u8->u16)
+ *  __lasx_xvhaddw_wu_hu         XVHADDW.WU.HU (horizontal pairwise add u16->u32)
+ *  __lasx_xvhaddw_du_wu         XVHADDW.DU.WU (horizontal pairwise add u32->u64)
+ *  __lasx_xvadd_d               XVADD.D (i64 addition)
+ *  __lasx_xvpermi_q             XVPERMI.Q (extract/permute 128-bit lanes)
+ *  @endverbatim
  *
- *  LASX provides per-element popcount at multiple widths (`xvpcnt_b/h/w/d`).
- *  For binary set operations we use `xvpcnt_d` which gives 4 x u64 popcount values
- *  directly, eliminating the need for horizontal byte-sum reduction chains.
+ *  LASX provides per-element popcount at multiple widths, `xvpcnt_b/h/w/d`. For binary set
+ *  operations we use @c xvpcnt_d, which gives 4 x u64 popcount values directly, eliminating the
+ *  need for horizontal byte-sum reduction chains.
  *
- *  For sorted integer set operations (jaccard_u16, jaccard_u32), SIMD provides limited
- *  benefit due to the inherently serial merge-based algorithm, so we delegate to the
- *  serial implementations.
+ *  For sorted integer set operations, jaccard_u16 and jaccard_u32, SIMD helps little because the
+ *  merge-based algorithm is inherently serial, so we delegate to the serial implementations.
  */
 #ifndef NK_SET_LOONGSONASX_H
 #define NK_SET_LOONGSONASX_H

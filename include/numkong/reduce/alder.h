@@ -1,8 +1,8 @@
 /**
- *  @brief Alder Lake (AVX2+VNNI) implementations for the redesigned reduction API (moments).
  *  @file include/numkong/reduce/alder.h
  *  @author Ash Vardanian
  *  @date March 4, 2026
+ *  @brief Alder Lake, AVX2+VNNI, implementations for the redesigned reduction API, moments.
  *
  *  @sa include/numkong/reduce.h
  *

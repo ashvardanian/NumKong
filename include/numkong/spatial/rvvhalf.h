@@ -1,15 +1,15 @@
 /**
- *  @brief SIMD-accelerated Spatial Similarity Measures for RISC-V FP16.
  *  @file include/numkong/spatial/rvvhalf.h
  *  @author Ash Vardanian
  *  @date January 5, 2026
+ *  @brief SIMD-accelerated spatial similarity measures for RISC-V FP16.
  *
  *  @sa include/numkong/spatial.h
  *
- *  Zvfh provides native half-precision (f16) vector operations.
- *  Uses widening operations (f16 → f32) for precision accumulation.
+ *  Zvfh provides native f16 vector operations, and the kernels keep their precision by widening
+ *  every f16 → f32 accumulation.
  *
- *  Requires: RVV 1.0 + Zvfh extension (GCC 14+ or Clang 18+)
+ *  Requires RVV 1.0 with Zvfh, from GCC 14 or Clang 18.
  */
 #ifndef NK_SPATIAL_RVVHALF_H
 #define NK_SPATIAL_RVVHALF_H

@@ -1,23 +1,23 @@
 /**
- *  @brief Ice Lake-accelerated Sparse Vector Operations.
  *  @file include/numkong/sparse/icelake.h
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief Ice Lake-accelerated sparse vector operations.
  *
  *  @sa include/numkong/sparse.h
  *
- *  The AVX-512 implementations are inspired by the "Faster-Than-Native Alternatives
- *  for x86 VP2INTERSECT Instructions" paper by Guille Diez-Canas, 2022.
+ *  The AVX-512 implementations are inspired by the "Faster-Than-Native Alternatives for x86
+ *  VP2INTERSECT Instructions" paper by Guille Diez-Canas, 2022.
  *
- *      https://github.com/mozonaut/vp2intersect
- *      https://arxiv.org/pdf/2112.06342.pdf
+ *  @see vp2intersect reference code: https://github.com/mozonaut/vp2intersect
+ *  @see Faster-Than-Native Alternatives for x86 VP2INTERSECT Instructions: https://arxiv.org/pdf/2112.06342.pdf
  *
  *  For R&D purposes, it's important to keep the following latencies in mind:
  *
- *   - `_mm512_permutex_epi64` (VPERMQ) - needs F - 3 cy latency, 1 cy throughput @ p5
- *   - `_mm512_shuffle_epi8` (VPSHUFB) - needs BW - 1 cy latency, 1 cy throughput @ p5
- *   - `_mm512_permutexvar_epi16` (VPERMW) - needs BW - 4-6 cy latency, 1 cy throughput @ p5
- *   - `_mm512_permutexvar_epi8` (VPERMB) - needs VBMI - 3 cy latency, 1 cy throughput @ p5
+ *  - @c _mm512_permutex_epi64 (VPERMQ) - needs F - 3 cy latency, 1 cy throughput @ p5
+ *  - @c _mm512_shuffle_epi8 (VPSHUFB) - needs BW - 1 cy latency, 1 cy throughput @ p5
+ *  - @c _mm512_permutexvar_epi16 (VPERMW) - needs BW - 4-6 cy latency, 1 cy throughput @ p5
+ *  - @c _mm512_permutexvar_epi8 (VPERMB) - needs VBMI - 3 cy latency, 1 cy throughput @ p5
  */
 #ifndef NK_SPARSE_ICELAKE_H
 #define NK_SPARSE_ICELAKE_H

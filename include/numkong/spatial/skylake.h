@@ -1,18 +1,20 @@
 /**
- *  @brief SIMD-accelerated Spatial Similarity Measures for Skylake.
  *  @file include/numkong/spatial/skylake.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated spatial similarity measures for Skylake.
  *
  *  @sa include/numkong/spatial.h
  *
  *  @section spatial_skylake_instructions Key AVX-512 Spatial Instructions
  *
- *      Intrinsic          Instruction                  Skylake-X         Genoa
- *      _mm512_fmadd_ps    VFMADD132PS (ZMM, ZMM, ZMM)  4cy @ p05         4cy @ p01
- *      _mm512_sub_ps      VSUBPS (ZMM, ZMM, ZMM)       4cy @ p05         3cy @ p23
- *      _mm512_rsqrt14_ps  VRSQRT14PS (ZMM, ZMM)        7cy @ p0+p0+p05   5cy @ p01
- *      _mm512_sqrt_ps     VSQRTPS (ZMM, ZMM)           20cy @ p0+p0+p05  15cy @ p01
+ *  @verbatim
+ *  Intrinsic          Instruction                  Skylake-X         Genoa
+ *  _mm512_fmadd_ps    VFMADD132PS (ZMM, ZMM, ZMM)  4cy @ p05         4cy @ p01
+ *  _mm512_sub_ps      VSUBPS (ZMM, ZMM, ZMM)       4cy @ p05         3cy @ p23
+ *  _mm512_rsqrt14_ps  VRSQRT14PS (ZMM, ZMM)        7cy @ p0+p0+p05   5cy @ p01
+ *  _mm512_sqrt_ps     VSQRTPS (ZMM, ZMM)           20cy @ p0+p0+p05  15cy @ p01
+ *  @endverbatim
  *
  *  Distance computations benefit from Skylake-X's dual FMA units achieving 0.5cy throughput for
  *  fused multiply-add operations. VRSQRT14PS provides ~14-bit precision reciprocal square root;

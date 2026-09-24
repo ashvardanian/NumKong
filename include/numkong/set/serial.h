@@ -1,8 +1,8 @@
 /**
- *  @brief SWAR-accelerated Set Similarity Measures for SIMD-free CPUs.
  *  @file include/numkong/set/serial.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SWAR-accelerated set similarity measures for SIMD-free CPUs.
  *
  *  @sa include/numkong/set.h
  *
@@ -18,7 +18,7 @@
  *  - nk_hamming_u1x128_state_serial_t for streaming Hamming distance
  *  - nk_jaccard_u1x128_state_serial_t for streaming Jaccard similarity
  *
- *  @code{c}
+ *  @code{.c}
  *  nk_jaccard_u1x128_state_serial_t state_first, state_second, state_third, state_fourth;
  *  nk_jaccard_u1x128_init_serial(&state_first);
  *  // ... stream through packed binary vectors ...

@@ -1,8 +1,8 @@
 /**
- *  @brief Batched Spatial Distances for Alder Lake (AVX-VNNI).
  *  @file include/numkong/spatials/alder.h
  *  @author Ash Vardanian
  *  @date March 4, 2026
+ *  @brief Batched spatial distances for Alder Lake, AVX-VNNI.
  *
  *  @sa include/numkong/spatials.h
  */

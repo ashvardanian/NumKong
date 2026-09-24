@@ -6,6 +6,9 @@
 //! - [`cast`]: Bulk-converts a slice from one scalar format to another
 //! - [`CastOps`]: Tensor-shaped extension trait — auto-implemented on every
 //!   [`crate::tensor::TensorRef`] so any container can do `tensor.try_cast::<Destination>()`
+//!
+//! File: rust/cast.rs
+//! Author: Ash Vardanian
 
 use crate::types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, StorageElement};
 use core::ffi::c_void;
@@ -160,16 +163,16 @@ impl CastDType for u64 {
 
 /// Cast source slice elements to destination slice.
 ///
-/// Converts elements from source type `S` to destination type `D` using
-/// hardware-accelerated SIMD operations when available.
+/// Converts elements from source type `S` to destination type `D` using hardware-accelerated SIMD
+/// operations when available.
 ///
 /// # Arguments
-/// * `source` - Source slice of elements to cast
-/// * `dest` - Destination slice to receive cast elements; must be same length as source
+/// - `source` - Source slice of elements to cast
+/// - `dest` - Destination slice to receive cast elements; must be same length as source
 ///
 /// # Returns
-/// * `Some(())` if successful
-/// * `None` if slices have different lengths
+/// - `Some(())` if successful
+/// - `None` if slices have different lengths
 ///
 /// # Example
 /// ```ignore
@@ -205,8 +208,8 @@ pub trait CastOps<Source: Clone + CastDType, const MAX_RANK: usize>: TensorRef<S
         self.view().try_cast()
     }
 
-    /// Cast into a pre-allocated sink. The destination may be a `&mut Tensor<...>`
-    /// or a `&mut TensorSpan<...>`, any [`TensorMut`]; a strided sub-span works too.
+    /// Cast into a pre-allocated sink. The destination may be a `&mut Tensor<...>` or a `&mut
+    /// TensorSpan<...>`, any [`TensorMut`]; a strided sub-span works too.
     fn try_cast_into<Destination, OutputTensor>(&self, out: &mut OutputTensor) -> Result<(), TensorError>
     where
         Destination: Clone + CastDType,
@@ -257,8 +260,8 @@ impl BlockScaledDescriptor {
     #[inline]
     pub fn elements_size(&self, count: usize) -> usize { count * dtype_bits(self.element_dtype) / 8 }
 
-    /// Scale storage bytes for `count` logical elements — mirrors
-    /// `nk_block_scaled_scales_size`: `0` when plain, else `round_up(count, block_size)`.
+    /// Scale storage bytes for `count` logical elements — mirrors `nk_block_scaled_scales_size`:
+    /// `0` when plain, else `round_up(count, block_size)`.
     #[inline]
     pub fn scales_size(&self, count: usize) -> usize {
         if self.scale_dtype == dtype::UNKNOWN || self.block_size == 0 {
@@ -282,8 +285,8 @@ fn dtype_bits(code: u32) -> usize {
     }
 }
 
-/// `#[repr(C)]` mirror of `nk_scalar_buffer_t` — a 16-byte union. The only field the
-/// block-scaled kernel reads or writes is the leading `f32` — the NVFP4 per-tensor multiplier.
+/// `#[repr(C)]` mirror of `nk_scalar_buffer_t` — a 16-byte union. The only field the block-scaled
+/// kernel reads or writes is the leading `f32` — the NVFP4 per-tensor multiplier.
 #[repr(C, align(16))]
 #[derive(Clone, Copy)]
 pub(crate) struct ScalarBuffer {
@@ -308,10 +311,9 @@ impl ScalarBuffer {
 
 /// Compile-time description of a block-scaled tensor layout.
 ///
-/// Each implementor is a zero-sized tag (`Nvfp4`, `Mxfp4`, …). The associated types name
-/// the storage scalars of the two composed tensors: `Element` for the packed values and
-/// `Scale` for the per-block scale bytes. There are no `macro_rules!` here — every format
-/// is an explicit `impl`.
+/// Each implementor is a zero-sized tag (`Nvfp4`, `Mxfp4`, …). The associated types name the
+/// storage scalars of the two composed tensors: `Element` for the packed values and `Scale` for the
+/// per-block scale bytes.
 pub trait BlockScaledFormat {
     /// Storage scalar of the `elements` tensor, e.g. [`e2m1x2`], `e4m3`, `i8`.
     type Element: StorageElement + Clone;
@@ -479,7 +481,7 @@ fn blocked_scales_shape_into(shape: &[usize], block_size: usize, out: &mut [usiz
 
 /// The one place the block-scaled C kernel is called. Marshals the per-tensor scale — seeded from
 /// the source, or derived into a fresh buffer for the destination — and returns the derived
-/// destination scale when `to_derives_scale` is set. `count` is the logical element total (`numel`).
+/// destination scale when `to_derives_scale` is set, given `count`, the logical element total.
 #[allow(clippy::too_many_arguments)]
 fn block_scaled_cast_(
     from_elements: *const c_void,
@@ -525,14 +527,13 @@ fn block_scaled_cast_(
 
 /// Encode a dense `f32` matrix into a [`ScaledTensor`].
 ///
-/// The source must be a contiguous 2D `(rows, cols)` view with `cols` divisible by
-/// `F::BLOCK_SIZE`. For formats with a per-tensor scale (NVFP4), the multiplier is derived
-/// from the tensor amax by the kernel (we seed the buffer with `0.0` and read it back).
-/// Extension trait: encode any dense `f32` tensor into a block-scaled [`ScaledTensor`].
+/// The source must be a contiguous 2D __[rows,columns]__ view with `cols` divisible by
+/// `F::BLOCK_SIZE`. For formats with a per-tensor scale, such as NVFP4, the multiplier is derived
+/// from the tensor amax by the kernel — we seed the buffer with `0.0` and read it back. Extension
+/// trait: encode any dense `f32` tensor into a block-scaled [`ScaledTensor`].
 ///
-/// Blanket-implemented for every [`TensorRef<f32, MAX_RANK>`], so `Tensor<f32>`,
-/// `TensorView<f32>`, and `TensorSpan<f32>` all expose `.try_cast_to_scaled::<F>()`
-/// without an intervening `.view()`.
+/// Blanket-implemented for every [`TensorRef<f32, MAX_RANK>`], so `Tensor<f32>`, `TensorView<f32>`,
+/// and `TensorSpan<f32>` all expose `.try_cast_to_scaled::<F>()` without an intervening `.view()`.
 pub trait DenseToScaledOps<const MAX_RANK: usize>: TensorRef<f32, MAX_RANK> {
     fn try_cast_to_scaled<F: BlockScaledFormat>(&self) -> Result<ScaledTensor<F>, TensorError> {
         let shape = self.shape();

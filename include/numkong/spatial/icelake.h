@@ -1,20 +1,23 @@
 /**
- *  @brief SIMD-accelerated Spatial Similarity Measures for Ice Lake.
  *  @file include/numkong/spatial/icelake.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated spatial similarity measures for Ice Lake.
  *
  *  @sa include/numkong/spatial.h
  *
  *  @section spatial_icelake_instructions Key AVX-512 VNNI Spatial Instructions
  *
- *      Intrinsic             Instruction               Icelake    Genoa
- *      _mm512_dpwssd_epi32   VPDPWSSD (ZMM, ZMM, ZMM)  5cy @ p0   4cy @ p01
- *      _mm512_cvtepi8_epi16  VPMOVSXBW (ZMM, YMM)      3cy @ p5   3cy @ p12
- *      _mm512_sub_epi16      VPSUBW (ZMM, ZMM, ZMM)    1cy @ p05  1cy @ p0123
+ *  @verbatim
+ *  Intrinsic             Instruction               Icelake    Genoa
+ *  _mm512_dpwssd_epi32   VPDPWSSD (ZMM, ZMM, ZMM)  5cy @ p0   4cy @ p01
+ *  _mm512_cvtepi8_epi16  VPMOVSXBW (ZMM, YMM)      3cy @ p5   3cy @ p12
+ *  _mm512_sub_epi16      VPSUBW (ZMM, ZMM, ZMM)    1cy @ p05  1cy @ p0123
+ *  @endverbatim
  *
  *  Ice Lake's VNNI enables efficient i8 distance computations via VPDPWSSD for squared differences.
- *  After widening i8 to i16, the same instruction computes both multiply and horizontal pair addition.
+ *  After widening i8 to i16, the same instruction computes both the multiply and the
+ *  horizontal-pair addition.
  */
 #ifndef NK_SPATIAL_ICELAKE_H
 #define NK_SPATIAL_ICELAKE_H

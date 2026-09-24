@@ -1,8 +1,8 @@
 /**
- *  @brief C++ wrappers for SIMD-accelerated Similarity Measures for Probability Distributions.
  *  @file include/numkong/probability.hpp
  *  @author Ash Vardanian
  *  @date February 5, 2026
+ *  @brief C++ wrappers for SIMD-accelerated similarity measures for probability distributions.
  */
 #ifndef NK_PROBABILITY_HPP
 #define NK_PROBABILITY_HPP

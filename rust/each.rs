@@ -13,14 +13,13 @@
 //!
 //! # In-Place vs Allocating Semantics
 //!
-//! Every operation in this module is **allocation-free**: the caller provides both
-//! the input slices and a pre-sized output buffer. The kernels never grow a `Vec`
-//! internally, never return a new allocation, and never call into the allocator —
-//! perfect for warm inner loops and `no_std` contexts.
+//! Every operation in this module is __allocation-free__: the caller provides both the input slices
+//! and a pre-sized output buffer. The kernels never grow a `Vec` internally, never return a new
+//! allocation, and never call into the allocator, ideal for warm inner loops and `no_std` contexts.
 //!
-//! Because the output buffer is always a separate `&mut [Self]`, a caller who
-//! wants in-place update must explicitly alias the output to one of the inputs
-//! for example by passing the same slot for both:
+//! Because the output buffer is always a separate `&mut [Self]`, a caller wanting an in-place
+//! update must alias the output to one of the inputs explicitly, for example by passing the same
+//! slot for both, as below:
 //!
 //! ```ignore
 //! // Functionally equivalent to `x *= 2.0`.
@@ -29,10 +28,10 @@
 //!
 //! # Stride Support
 //!
-//! Inputs are read contiguously in memory. For strided access, `slice::chunks_by`,
-//! `step_by`, or a caller-side reshape is the right tool — this module keeps the
-//! fast-path API simple and lets the SIMD kernels assume packed layout. See the
-//! strided variants in [`reduce`](crate::reduce) when non-unit stride is needed.
+//! Inputs are read contiguously in memory. For strided access, `slice::chunks_by`, `step_by`, or a
+//! caller-side reshape is the right tool — this module keeps the fast-path API simple and lets the
+//! SIMD kernels assume packed layout. See the strided variants in [`reduce`](crate::reduce) when
+//! non-unit stride is needed.
 //!
 //! # Example
 //!
@@ -44,6 +43,9 @@
 //! f32::each_scale(&input, 2.0, 0.5, &mut output).unwrap();
 //! assert_eq!(output, [2.5, 4.5, 6.5, 8.5]);
 //! ```
+//!
+//! File: rust/each.rs
+//! Author: Ash Vardanian
 
 use crate::tensor::{Global, Tensor, TensorError, TensorMut, TensorRef};
 use crate::types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, StorageElement};
@@ -395,8 +397,8 @@ where
     Some(())
 }
 
-// In-place complex fallbacks: read-modify-write through a single `&mut` — sound, with no
-// aliased `&[T]` over the same storage. `data` is both the `a` operand and the result.
+// In-place complex fallbacks: read-modify-write through a single `&mut` — sound, with no aliased
+// `&[T]` over the same storage. `data` is both the `a` operand and the result.
 
 fn complex_each_sum_inplace_fallback<Scalar>(data: &mut [Scalar], other: &[Scalar]) -> Option<()>
 where
@@ -451,8 +453,8 @@ where
     if data.len() != b.len() {
         return None;
     }
-    // In-place fused multiply-add matches `each_fma` with the `c` operand bound to `a`,
-    // the same storage — exactly how out-of-place `mul_tensor` wires `c = self`.
+    // In-place fused multiply-add matches `each_fma` with the `c` operand bound to `a`, the same
+    // storage — exactly how out-of-place `mul_tensor` wires `c = self`.
     for (out, right) in data.iter_mut().zip(b.iter()) {
         let value = *out;
         *out = alpha * value * *right + beta * value;
@@ -462,21 +464,21 @@ where
 
 // region: Scale
 
-/// Applies an **element-wise affine transform** — scale and shift.
+/// Applies an __element-wise affine transform__ — scale and shift.
 ///
 /// rᵢ = α × aᵢ + β
 ///
 /// Returns `None` if `a` and `result` lengths differ.
 ///
-/// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`,
-/// `i16`, `u16`, `i32`, `u32`, `i64`, `u64`, `e4m3`, `e5m2`, `e2m3`, `e3m2`.
+/// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`,
+/// `u64`, `e4m3`, `e5m2`, `e2m3`, and `e3m2`.
 pub trait EachScale: Sized + StorageElement {
     type Scalar;
 
-    /// Writes `result[i] = alpha * a[i] + beta` into the pre-sized output slice.
+    /// Writes resultᵢ = α × aᵢ + β into the pre-sized output slice.
     ///
-    /// All three slices (`a`, `result`) must have identical length — the kernel
-    /// does not allocate. Returns `None` on length mismatch.
+    /// Both slices, `a` and `result`, must have identical length — the kernel does not allocate.
+    /// Returns `None` on length mismatch.
     ///
     /// # Examples
     ///
@@ -490,10 +492,10 @@ pub trait EachScale: Sized + StorageElement {
     /// ```
     fn each_scale(a: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Option<()>;
 
-    /// In-place affine: `data[i] = alpha * data[i] + beta`.
+    /// In-place affine: dataᵢ = α × dataᵢ + β.
     ///
-    /// Both source and destination pointers are derived from the single `&mut`,
-    /// so no aliased `&[Self]` + `&mut [Self]` over the same storage is formed.
+    /// Both source and destination pointers are derived from the single `&mut`, so no aliased
+    /// `&[Self]` + `&mut [Self]` over the same storage is formed.
     fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()>;
 }
 
@@ -911,22 +913,22 @@ impl EachScale for bf16c {
 
 // region: Sum
 
-/// Applies **element-wise addition** of two vectors.
+/// Applies __element-wise addition__ of two vectors.
 ///
 /// rᵢ = aᵢ + bᵢ
 ///
 /// Returns `None` if lengths differ.
 ///
-/// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`,
-/// `i16`, `u16`, `i32`, `u32`, `i64`, `u64`, `e4m3`, `e5m2`, `e2m3`, `e3m2`.
+/// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`,
+/// `u64`, `e4m3`, `e5m2`, `e2m3`, and `e3m2`.
 pub trait EachSum: Sized + StorageElement {
     fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<()>;
 
-    /// In-place sum: `data[i] = data[i] + other[i]`.
+    /// In-place sum: dataᵢ = dataᵢ + otherᵢ.
     ///
-    /// `data` is both the `a` operand and the result; its source and destination
-    /// pointers come from the single `&mut`, while `other` is disjoint storage —
-    /// no aliased `&[Self]` + `&mut [Self]` over the same buffer is formed.
+    /// `data` is both the `a` operand and the result; its source and destination pointers come from
+    /// the single `&mut`, while `other` is disjoint storage — no aliased `&[Self]` + `&mut [Self]`
+    /// over the same buffer is formed.
     fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()>;
 }
 
@@ -1366,23 +1368,23 @@ impl EachSum for bf16c {
 
 // region: Blend
 
-/// Applies **element-wise weighted sum** (blend) of two vectors.
+/// Blends two vectors with an __element-wise weighted sum__.
 ///
 /// rᵢ = α × aᵢ + β × bᵢ
 ///
 /// Returns `None` if lengths differ.
 ///
-/// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`,
-/// `i16`, `u16`, `i32`, `u32`, `i64`, `u64`, `e4m3`, `e5m2`, `e2m3`, `e3m2`.
+/// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`,
+/// `u64`, `e4m3`, `e5m2`, `e2m3`, and `e3m2`.
 pub trait EachBlend: Sized + StorageElement {
     type Scalar;
     fn each_blend(a: &[Self], b: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Option<()>;
 
-    /// In-place blend: `data[i] = alpha * data[i] + beta * other[i]`.
+    /// In-place blend: dataᵢ = α × dataᵢ + β × otherᵢ.
     ///
-    /// `data` is both the `a` operand and the result; its source and destination
-    /// pointers come from the single `&mut`, while `other` is disjoint storage —
-    /// no aliased `&[Self]` + `&mut [Self]` over the same buffer is formed.
+    /// `data` is both the `a` operand and the result; its source and destination pointers come from
+    /// the single `&mut`, while `other` is disjoint storage — no aliased `&[Self]` + `&mut [Self]`
+    /// over the same buffer is formed.
     fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()>;
 }
 
@@ -1934,14 +1936,14 @@ impl EachBlend for bf16c {
 
 // region: FMA
 
-/// Applies **fused multiply-add** element-wise across three vectors.
+/// Applies __fused multiply-add__ element-wise across three vectors.
 ///
 /// rᵢ = α × aᵢ × bᵢ + β × cᵢ
 ///
 /// Returns `None` if lengths differ.
 ///
-/// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`,
-/// `i16`, `u16`, `i32`, `u32`, `i64`, `u64`, `e4m3`, `e5m2`, `e2m3`, `e3m2`.
+/// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`,
+/// `u64`, `e4m3`, `e5m2`, `e2m3`, and `e3m2`.
 pub trait EachFMA: Sized + StorageElement {
     type Scalar;
     fn each_fma(
@@ -1954,12 +1956,12 @@ pub trait EachFMA: Sized + StorageElement {
     ) -> Option<()>;
 
     /// In-place fused multiply-add with the `c` operand bound to `a`:
-    /// `data[i] = alpha * data[i] * b[i] + beta * data[i]`.
+    /// dataᵢ = α × dataᵢ × bᵢ + β × dataᵢ.
     ///
-    /// `data` is the `a` operand, the `c` operand, and the result — all derived
-    /// from the single `&mut`, while `b` is disjoint storage. This matches
-    /// out-of-place `mul_tensor`, which wires `c = self` and is the only in-place
-    /// FMA caller. No aliased `&[Self]` + `&mut [Self]` over the same buffer is formed.
+    /// `data` is the `a` operand, the `c` operand, and the result — all derived from the single
+    /// `&mut`, while `b` is disjoint storage. This matches out-of-place `mul_tensor`, which wires
+    /// `c = self` and is the only in-place FMA caller. No aliased `&[Self]` + `&mut [Self]` over
+    /// the same buffer is formed.
     fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()>;
 }
 
@@ -2659,8 +2661,7 @@ use crate::types::{is_close, FloatConvertible, NumberLike};
 
 /// Extension trait: tolerance-based equality for any [`TensorRef`] implementor.
 ///
-/// Uses the formula `|a - b| <= atol + rtol * |b|` per element.
-/// Returns `false` if shapes differ.
+/// Uses the formula |a − b| ≤ atol + rtol × |b| per element. Returns `false` if shapes differ.
 pub trait AllCloseOps<Scalar: FloatConvertible, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK>
 where
     Scalar::DimScalar: NumberLike,
@@ -2927,14 +2928,14 @@ where
 
 // region: Fused SwiGLU
 
-/// Fused SwiGLU over a row-major `[rows, cols]` slice: `y = silu(input_scale * gate) * (input_scale * up)`.
-/// With `up = None` this reduces to plain SiLU (`cols = gate.len() / rows`).
+/// Fused SwiGLU of a row-major __[rows,cols]__ slice, where `up = None` reduces it to plain SiLU
+/// over `gate.len() / rows` columns: y = silu(input_scale × gate) × input_scale × up.
 pub trait EachSwiglu: Sized + StorageElement {
-    /// Fused SwiGLU of 2D `[rows, cols]` tensors: `y = silu(input_scale*gate) * (input_scale*up)`.
+    /// Fused SwiGLU of 2D `[rows, cols]` tensors: y = silu(input_scale × gate) × input_scale × up.
     ///
     /// Strides are read from the tensors, so `gate`, `up`, and `y` may be independent strided
-    /// sub-spans, for example the two column halves of a `[rows, 2*cols]` gate|up buffer. `up = None`
-    /// reduces to plain SiLU. Returns `Err` on a shape mismatch.
+    /// sub-spans, for example the two column halves of a __[rows,2×cols]__ gate|up buffer, while
+    /// `up = None` reduces to plain SiLU. Returns `Err` on a shape mismatch.
     fn swiglu_into<GIn, UIn, YOut, const RG: usize, const RU: usize, const RY: usize>(
         gate: &GIn,
         up: Option<&UIn>,

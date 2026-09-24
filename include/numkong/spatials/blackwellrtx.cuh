@@ -1,14 +1,14 @@
 /**
- *  @brief SIMD-accelerated Batched Spatial Distances for the NVIDIA compute capability 12.x family.
  *  @file include/numkong/spatials/blackwellrtx.cuh
  *  @author Ash Vardanian
  *  @date September 22, 2026
+ *  @brief SIMD-accelerated batched spatial distances for the NVIDIA compute capability 12.x family.
  *
  *  @sa include/numkong/spatials.h
  *  @sa include/numkong/dots/blackwellrtx.cuh
  *
- *  The native Float8, Float6 and Float4 products with the Ampere norm updates, whose widenings read a Float6 code from
- *  its low 6 bits exactly as the MMA does, so both see the same values.
+ *  The native Float8, Float6 and Float4 products with the Ampere norm updates, whose widenings read
+ *  a Float6 code from its low 6 bits exactly as the MMA does, so both see the same values.
  */
 #ifndef NK_SPATIALS_BLACKWELLRTX_CUH
 #define NK_SPATIALS_BLACKWELLRTX_CUH

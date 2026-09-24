@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Type Conversions for NEON.
  *  @file include/numkong/cast/neon.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated Type Conversions for NEON.
  *
  *  @sa include/numkong/cast.h
  *
@@ -10,32 +10,40 @@
  *
  *  Float ↔ integer conversions:
  *
- *      Intrinsic      Instruction          A76       M5
- *      vcvtq_f32_s32  SCVTF (V.4S, V.4S)   3cy @ 2p  3cy @ 4p
- *      vcvtq_f32_u32  UCVTF (V.4S, V.4S)   3cy @ 2p  3cy @ 4p
- *      vcvtq_s32_f32  FCVTZS (V.4S, V.4S)  3cy @ 2p  3cy @ 4p
- *      vcvtq_u32_f32  FCVTZU (V.4S, V.4S)  3cy @ 2p  3cy @ 4p
+ *  @verbatim
+ *  Intrinsic      Instruction          A76       M5
+ *  vcvtq_f32_s32  SCVTF (V.4S, V.4S)   3cy @ 2p  3cy @ 4p
+ *  vcvtq_f32_u32  UCVTF (V.4S, V.4S)   3cy @ 2p  3cy @ 4p
+ *  vcvtq_s32_f32  FCVTZS (V.4S, V.4S)  3cy @ 2p  3cy @ 4p
+ *  vcvtq_u32_f32  FCVTZU (V.4S, V.4S)  3cy @ 2p  3cy @ 4p
+ *  @endverbatim
  *
  *  Float precision conversions:
  *
- *      Intrinsic     Instruction         A76       M5
- *      vcvt_f32_f16  FCVTL (V.4S, V.4H)  3cy @ 2p  3cy @ 4p
- *      vcvt_f16_f32  FCVTN (V.4H, V.4S)  3cy @ 2p  3cy @ 4p
- *      vcvt_f64_f32  FCVTL (V.2D, V.2S)  3cy @ 2p  3cy @ 4p
- *      vcvt_f32_f64  FCVTN (V.2S, V.2D)  3cy @ 2p  3cy @ 4p
+ *  @verbatim
+ *  Intrinsic     Instruction         A76       M5
+ *  vcvt_f32_f16  FCVTL (V.4S, V.4H)  3cy @ 2p  3cy @ 4p
+ *  vcvt_f16_f32  FCVTN (V.4H, V.4S)  3cy @ 2p  3cy @ 4p
+ *  vcvt_f64_f32  FCVTL (V.2D, V.2S)  3cy @ 2p  3cy @ 4p
+ *  vcvt_f32_f64  FCVTN (V.2S, V.2D)  3cy @ 2p  3cy @ 4p
+ *  @endverbatim
  *
  *  Integer narrowing with saturation:
  *
- *      Intrinsic    Instruction          A76       M5
- *      vqmovn_s32   SQXTN (V.4H, V.4S)   3cy @ 2p  3cy @ 4p
- *      vqmovn_u32   UQXTN (V.4H, V.4S)   3cy @ 2p  3cy @ 4p
- *      vqmovun_s32  SQXTUN (V.4H, V.4S)  3cy @ 2p  3cy @ 4p
+ *  @verbatim
+ *  Intrinsic    Instruction          A76       M5
+ *  vqmovn_s32   SQXTN (V.4H, V.4S)   3cy @ 2p  3cy @ 4p
+ *  vqmovn_u32   UQXTN (V.4H, V.4S)   3cy @ 2p  3cy @ 4p
+ *  vqmovun_s32  SQXTUN (V.4H, V.4S)  3cy @ 2p  3cy @ 4p
+ *  @endverbatim
  *
  *  BF16 support (ARMv8.6-A+):
  *
- *      Intrinsic            Instruction           A76       M5
- *      vcvtq_low_bf16_f32   BFCVTN (V.4H, V.4S)   3cy @ 2p  3cy @ 4p
- *      vcvtq_high_bf16_f32  BFCVTN2 (V.8H, V.4S)  3cy @ 2p  3cy @ 4p
+ *  @verbatim
+ *  Intrinsic            Instruction           A76       M5
+ *  vcvtq_low_bf16_f32   BFCVTN (V.4H, V.4S)   3cy @ 2p  3cy @ 4p
+ *  vcvtq_high_bf16_f32  BFCVTN2 (V.8H, V.4S)  3cy @ 2p  3cy @ 4p
+ *  @endverbatim
  *
  *  BF16 conversions on baseline NEON (emulated via bit shifts):
  *  - bf16 → f32: vmovl_u16 + vshlq_n_u32 by 16

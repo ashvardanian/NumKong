@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Test curved-space distances: nk.bilinear, nk.mahalanobis.
 
-Dtypes: float64, float32, float16, bfloat16, e4m3, e5m2, e2m3, e3m2, complex64, complex128.
+DTypes: float64, float32, float16, bfloat16, e4m3, e5m2, e2m3, e3m2, complex64, complex128.
 Baselines: high-precision Decimal quadratic forms, SciPy mahalanobis.
 Matches C++ suite: test/curved.cpp.
+
+File: test/curved.py
+Author: Ash Vardanian
+Date: February 27, 2026
 """
 
 import atexit

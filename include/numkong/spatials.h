@@ -1,12 +1,12 @@
 /**
- *  @brief SIMD-accelerated Batched Spatial Distances (Angular & Euclidean).
  *  @file include/numkong/spatials.h
  *  @author Ash Vardanian
  *  @date February 22, 2026
+ *  @brief SIMD-accelerated batched spatial distances, angular and euclidean.
  *
- *  This module provides efficient batched computation of angular and euclidean distances
- *  via a two-pass approach: compute dot products first, then post-process with spatial
- *  distance formulas using pre-computed norms stored in the packed buffer.
+ *  This module provides efficient batched computation of angular and euclidean distances via a
+ *  two-pass approach: compute dot products first, then post-process with spatial distance formulas
+ *  using pre-computed norms stored in the packed buffer.
  *
  *  For dtypes:
  *
@@ -26,27 +26,28 @@
  *  - x86: Haswell, Skylake, Ice Lake, Genoa, Sapphire Rapids (AMX), Sierra Forest
  *  - RISC-V: RVV
  *
- *  @section numerical_stability Numerical Stability
+ *  @section spatials_numerical_stability Numerical Stability
  *
- *  Inherits dot-product precision from nk_dots_packed_* and keeps packed payloads narrow. `f32` batched spatial
- *  kernels now normalize from widened `f64` dots and norms and store `f64` results directly.
+ *  Inherits dot-product precision from nk_dots_packed_* and keeps packed payloads narrow. @c f32
+ *  batched spatial kernels now normalize from widened @c f64 dots and norms, storing the @c f64
+ *  results directly, without narrowing back to @c f32.
  *
- *  @section approach Two-Pass Approach
+ *  @section spatials_approach Two-Pass Approach
  *
- *  1. Pack B matrix using nk_dots_pack_* (norms are stored in the packed buffer footer)
- *  2. Compute nk_angulars_packed_* or nk_euclideans_packed_*:
- *     a. Internally calls nk_dots_packed_* to fill result buffer with dot products
- *     b. Post-processes each result cell using angular/euclidean formula with pre-computed norms
+ *  1. Pack B matrix using `nk_dots_pack_*`, which stores the norms in the packed buffer footer.
+ *  2. Compute `nk_angulars_packed_*` or `nk_euclideans_packed_*`:
+ *     - Internally calls `nk_dots_packed_*` to fill the result buffer with dot products.
+ *     - Post-processes each result cell by the angular or euclidean formula with precomputed norms.
  *
- *  @section math Mathematical Foundation
+ *  @section spatials_math Mathematical Foundation
  *
  *  Angular distance:  1 - dot(a,b) / sqrt(sumsq(a) * sumsq(b))
  *  Euclidean distance: sqrt(max(0, sumsq(a) + sumsq(b) - 2*dot(a,b)))
  *
- *  @section packing Packing
+ *  @section spatials_packing Packing
  *
- *  Uses the SAME pack functions as dot products (nk_dots_pack_size_*, nk_dots_pack_*).
- *  The packed buffer includes norms appended after the data.
+ *  Uses the SAME pack functions as dot products, nk_dots_pack_size_*, nk_dots_pack_*. The packed
+ *  buffer includes norms appended after the data.
  */
 
 #ifndef NK_SPATIALS_H

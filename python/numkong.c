@@ -1,26 +1,24 @@
 /**
- *  @brief Pure CPython bindings for NumKong.
  *  @file python/numkong.c
  *  @author Ash Vardanian
  *  @date January 1, 2023
+ *  @brief Pure CPython bindings for NumKong.
  *
- *  @section Latency, Quality, and Arguments Parsing
+ *  @section numkong_latency_quality_arguments Latency, Quality, and Arguments Parsing
  *
- *  The complexity of implementing high-quality CPython bindings is often underestimated.
- *  Do not rely on high-level wrappers like PyBind11 and NanoBind, and avoid SWIG-like
- *  toolchains. Most of them use expensive dynamic data structures to map callbacks to
- *  object or module properties, rather than relying on the CPython API. They are too
- *  slow for low-latency operations such as checking container lengths, handling vectors,
- *  or processing strings.
+ *  The complexity of implementing high-quality CPython bindings is often underestimated, so avoid
+ *  high-level wrappers like PyBind11 and NanoBind, and SWIG-like toolchains. Most of them map
+ *  callbacks to object or module properties through expensive dynamic data structures rather than
+ *  the CPython API, making them too slow for low-latency operations such as checking container
+ *  lengths, handling vectors, or processing strings.
  *
- *  Once you work directly with the CPython API, there is substantial boilerplate code
- *  to write, and it is common to use `PyArg_ParseTupleAndKeywords` or `PyArg_ParseTuple`.
- *  Those functions parse format specifier strings at runtime, which @b cannot be fast
- *  by design. Moreover, they do not support the Python "Fast Calling Convention". In
- *  a typical scenario, a function is defined with `METH_VARARGS | METH_KEYWORDS` and
- *  has a signature like:
+ *  Once you work directly with the CPython API, there is substantial boilerplate code to write, and
+ *  it is common to use @c PyArg_ParseTupleAndKeywords or @c PyArg_ParseTuple. Those functions parse
+ *  format specifier strings at runtime, which @b cannot be fast by design. Moreover, they do not
+ *  support the Python "Fast Calling Convention". In a typical scenario, a function is defined with
+ *  `METH_VARARGS | METH_KEYWORDS`. The signature looks like this:
  *
- *  @code {.c}
+ *  @code{.c}
  *      static PyObject* cdist(
  *          PyObject * self,
  *          PyObject * positional_args_tuple,
@@ -37,7 +35,7 @@
  *  This `cdist` example takes 2 positional, 1 positional or named, and 3 named-only arguments.
  *  An alternative with `METH_FASTCALL` uses a function signature like:
  *
- *  @code {.c}
+ *  @code{.c}
  *     static PyObject* cdist(
  *          PyObject * self,
  *          PyObject * const * args_c_array,    //! C array of `args_count` pointers
@@ -48,41 +46,40 @@
  *          ...
  *  @endcode
  *
- *  The positional elements are easy to access in that C array, but parsing the named arguments is tricky.
- *  There are cases where a call is ill-formed and provides more positional arguments than expected.
+ *  The positional elements are easy to access in that C array, but parsing the named arguments is
+ *  tricky, and some ill-formed calls provide more positional arguments than expected.
  *
- *  @code {.py}
- *      cdist(a, b, "cos", "dos"):               //! positional_args_count == 4, args_names_count == 0
- *      cdist(a, b, "cos", metric="dos"):        //! positional_args_count == 3, args_names_count == 1
- *      cdist(a, b, metric="cos", metric="dos"): //! positional_args_count == 2, args_names_count == 2
+ *  @code{.py}
+ *  cdist(a, b, "cos", "dos")                # positional_args_count == 4, args_names_count == 0
+ *  cdist(a, b, "cos", metric="dos")         # positional_args_count == 3, args_names_count == 1
+ *  cdist(a, b, metric="cos", metric="dos")  # positional_args_count == 2, args_names_count == 2
  *  @endcode
  *
- *  If the same argument is provided twice, a @b `TypeError` is raised.
- *  If the argument is not found, a @b `KeyError` is raised.
+ *  If the same argument is provided twice, a @c TypeError is raised. If the argument is not found,
+ *  a @c KeyError is raised.
  *
- *  https://ashvardanian.com/posts/discount-on-keyword-arguments-in-python/
+ *  @see Discount on keyword arguments in Python: https://ashvardanian.com/posts/discount-on-keyword-arguments-in-python/
  *
- *  @section Buffer Protocol and NumPy Compatibility
+ *  @section numkong_buffer_protocol_numpy Buffer Protocol and NumPy Compatibility
  *
- *  Most modern machine learning frameworks struggle with buffer protocol compatibility.
- *  At best, they provide zero-copy NumPy views of the underlying data, which introduces an
- *  unnecessary dependency on NumPy, an allocation for the wrapper, and constraints on the
- *  supported numeric types. This is a limitation because PyTorch and TensorFlow have richer
- *  type systems than NumPy.
+ *  Most modern machine learning frameworks struggle with buffer protocol compatibility, providing
+ *  at best zero-copy NumPy views of the underlying data, which introduces an unnecessary dependency
+ *  on NumPy, an allocation for the wrapper, and constraints on the supported numeric types, a
+ *  limitation because PyTorch and TensorFlow have richer type systems than NumPy.
  *
  *  A PyTorch `Tensor` cannot be converted to a `memoryview` object.
  *  Converting a `bf16` TensorFlow `Tensor` to a `memoryview` raises:
  *
  *      ! ValueError: cannot include dtype 'E' in a buffer
  *
- *  Moreover, the CPython and NumPy documentation diverge on format specifiers for the `typestr`
- *  and `format` data type descriptor strings, which makes development error-prone. NumKong is
+ *  Moreover, the CPython and NumPy documentation diverge on format specifiers for the @c typestr
+ *  and @c format data type descriptor strings, which makes development error-prone. NumKong is
  *  @b one of the few packages that attempts to provide interoperability.
  *
- *  https://numpy.org/doc/stable/reference/arrays.interface.html
- *  https://pearu.github.io/array_interface_pytorch.html
- *  https://github.com/pytorch/pytorch/issues/54138
- *  https://github.com/pybind/pybind11/issues/1908
+ *  @see NumPy array interface: https://numpy.org/doc/stable/reference/arrays.interface.html
+ *  @see Array interfaces in PyTorch: https://pearu.github.io/array_interface_pytorch.html
+ *  @see PyTorch buffer protocol issue: https://github.com/pytorch/pytorch/issues/54138
+ *  @see pybind11 buffer protocol issue: https://github.com/pybind/pybind11/issues/1908
  */
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
@@ -116,7 +113,7 @@ nk_dtype_conversion_info_t const nk_dtype_conversion_infos[] = {
     {nk_u4_k, "uint4", "u4", "|V1", sizeof(nk_u4x2_t)},
     // Block-scaled building blocks: packed FP4 element nibble + the two scale-byte formats.
     // E2M1 is a 4-bit nibble packed 2/byte, mirroring the int4/uint4 "|V1" byte-container view.
-    // UE8M0 (MX pow-2 scale) and UE4M3 (NVFP4 scale) are whole bytes viewed as opaque "|u1".
+    // UE8M0, MX pow-2 scale, and UE4M3, NVFP4 scale, are whole bytes viewed as opaque "|u1".
     {nk_e2m1_k, "float4_e2m1", "e2m1", "|V1", sizeof(nk_e2m1x2_t)},
     {nk_ue8m0_k, "float8_e8m0", "e8m0", "|u1", sizeof(nk_ue8m0_t)},
     {nk_ue4m3_k, "ue4m3", "ue4m3", "|u1", sizeof(nk_ue4m3_t)},
@@ -131,11 +128,10 @@ nk_dtype_conversion_info_t const nk_dtype_conversion_infos[] = {
     {nk_u16_k, "uint16", "H", "<u2", sizeof(nk_u16_t)},
 #if SIZEOF_LONG == 4
     // PEP 3118 format characters for integers depend on sizeof(long):
-    //   ILP32 / LLP64 (Windows, i386, WASM): long = 4 bytes → 'l'/'L' = int32/uint32
-    //   LP64 (Linux x86_64, macOS arm64):    long = 8 bytes → 'l'/'L' = int64/uint64
-    // CPython's pyconfig.h provides SIZEOF_LONG on all platforms.
-    // These must match `py_string_to_nk_dtype` so round-tripping through
-    // the buffer protocol works correctly.
+    //     ILP32 / LLP64 — Windows, i386, WASM:    long = 4 bytes → 'l'/'L' = int32/uint32
+    //     LP64 — Linux x86_64, macOS arm64:       long = 8 bytes → 'l'/'L' = int64/uint64
+    // CPython's pyconfig.h provides SIZEOF_LONG on all platforms, and these must match
+    // `py_string_to_nk_dtype` so round-tripping through the buffer protocol works correctly.
     {nk_i32_k, "int32", "l", "<i4", sizeof(nk_i32_t)},
     {nk_u32_k, "uint32", "L", "<u4", sizeof(nk_u32_t)},
     {nk_i64_k, "int64", "q", "<i8", sizeof(nk_i64_t)},
@@ -183,14 +179,14 @@ nk_dtype_t resolve_nk_dtype_in_py_buffer(Py_buffer const *buffer) {
                           : nk_dtype_unknown_k;
 }
 
-/** @brief Per-component bit width: for complex types returns the width of one component. */
+/** Per-component bit width: for complex types returns the width of one component. */
 nk_size_t nk_dtype_component_bits_(nk_dtype_t dtype) {
     nk_size_t bits = nk_dtype_bits(dtype);
     if (nk_dtype_family(dtype) == nk_dtype_family_complex_float_k) bits /= 2;
     return bits;
 }
 
-/** @brief Returns the signed integer dtype at the given bit width, or nk_dtype_unknown_k. */
+/** Returns the signed integer dtype at the given bit width, or nk_dtype_unknown_k. */
 nk_dtype_t nk_signed_int_at_bits_(nk_size_t bits) {
     switch (bits) {
     case 4: return nk_i4_k;
@@ -202,7 +198,7 @@ nk_dtype_t nk_signed_int_at_bits_(nk_size_t bits) {
     }
 }
 
-/** @brief Returns the unsigned integer dtype at the given bit width, or nk_dtype_unknown_k. */
+/** Returns the unsigned integer dtype at the given bit width, or nk_dtype_unknown_k. */
 nk_dtype_t nk_unsigned_int_at_bits_(nk_size_t bits) {
     switch (bits) {
     case 4: return nk_u4_k;
@@ -214,7 +210,7 @@ nk_dtype_t nk_unsigned_int_at_bits_(nk_size_t bits) {
     }
 }
 
-/** @brief Returns the next power-of-two bit width, doubling from the given width. */
+/** Returns the next power-of-two bit width, doubling from the given width. */
 nk_size_t nk_next_int_bits_(nk_size_t bits) {
     if (bits < 8) return 8;
     if (bits < 16) return 16;
@@ -223,7 +219,7 @@ nk_size_t nk_next_int_bits_(nk_size_t bits) {
     return 0; // overflow
 }
 
-/** @brief Returns the IEEE float dtype at the given bit width, or nk_dtype_unknown_k. */
+/** Returns the IEEE float dtype at the given bit width, or nk_dtype_unknown_k. */
 nk_dtype_t nk_float_at_bits_(nk_size_t bits) {
     switch (bits) {
     case 16: return nk_f16_k;
@@ -233,7 +229,7 @@ nk_dtype_t nk_float_at_bits_(nk_size_t bits) {
     }
 }
 
-/** @brief Returns the complex dtype with components of the given bit width, or nk_dtype_unknown_k. */
+/** Returns the complex dtype with components of the given bit width, or nk_dtype_unknown_k. */
 nk_dtype_t nk_complex_at_bits_(nk_size_t bits) {
     switch (bits) {
     case 16: return nk_f16c_k;
@@ -243,7 +239,7 @@ nk_dtype_t nk_complex_at_bits_(nk_size_t bits) {
     }
 }
 
-/** @brief Bit width of the narrowest IEEE float holding every value of a component of `dtype`, or 0. */
+/** Bit width of the narrowest IEEE float holding every value of a component of @p dtype, or 0. */
 nk_size_t nk_float_bits_holding_(nk_dtype_t dtype) {
     nk_size_t const bits = nk_dtype_component_bits_(dtype);
     switch (nk_dtype_family(dtype)) {
@@ -292,7 +288,7 @@ int same_string_n(char const *input, Py_ssize_t input_len, char const *literal, 
     return input_len == literal_len && memcmp(input, literal, (size_t)input_len) == 0;
 }
 
-/** @brief Convenience macro: compare input of known length against a string literal. */
+/** Convenience macro: compare input of known length against a string literal. */
 #define same_literal_(input, len, literal) same_string_n((input), (len), (literal), (Py_ssize_t)(sizeof(literal) - 1))
 
 nk_dtype_t py_string_to_nk_dtype(char const *name, Py_ssize_t len) {
@@ -717,7 +713,7 @@ int py_number_to_f64(PyObject *obj, nk_f64_t *value) {
     return 0;
 }
 
-/** @brief Fallback: synthesize a Py_buffer from __array_interface__. */
+/** Fallback: synthesize a Py_buffer from __array_interface__. */
 static int nk_get_buffer_via_array_interface(PyObject *obj, Py_buffer *buffer, nk_buffer_backing_t *backing) {
     PyObject *iface = PyObject_GetAttrString(obj, "__array_interface__");
     if (!iface) {
@@ -1041,11 +1037,11 @@ static struct {
     {NULL},
 };
 
-char const doc_enable_capability[] =                                                         //
-    "Enable a specific SIMD kernel family.\n\n"                                              //
-    "Parameters:\n"                                                                          //
-    "    capability (str): Name of the SIMD feature to enable (for example, 'haswell').\n\n" //
-    "Signature:\n"                                                                           //
+char const doc_enable_capability[] =                                                       //
+    "Enable a specific SIMD kernel family.\n\n"                                            //
+    "Args:\n"                                                                              //
+    "    capability (str): Name of the SIMD feature to enable, for example 'haswell'.\n\n" //
+    "Signature:\n"                                                                         //
     "    >>> def enable_capability(capability): ...";
 
 /**
@@ -1083,11 +1079,11 @@ PyObject *api_enable_capability(PyObject *self, PyObject *cap_name_obj) {
     return NULL;
 }
 
-char const doc_disable_capability[] =                                                         //
-    "Disable a specific SIMD kernel family.\n\n"                                              //
-    "Parameters:\n"                                                                           //
-    "    capability (str): Name of the SIMD feature to disable (for example, 'haswell').\n\n" //
-    "Signature:\n"                                                                            //
+char const doc_disable_capability[] =                                                       //
+    "Disable a specific SIMD kernel family.\n\n"                                            //
+    "Args:\n"                                                                               //
+    "    capability (str): Name of the SIMD feature to disable, for example 'haswell'.\n\n" //
+    "Signature:\n"                                                                          //
     "    >>> def disable_capability(capability): ...";
 
 PyObject *api_disable_capability(PyObject *self, PyObject *cap_name_obj) {
@@ -1113,47 +1109,45 @@ PyObject *api_disable_capability(PyObject *self, PyObject *cap_name_obj) {
     return NULL;
 }
 
-char const doc_get_capabilities_detected[] =                                                     //
-    "Get the SIMD capabilities this CPU supports, as a dictionary of feature flags.\n\n"         //
-    "Detected from CPUID or HWCAP. Says nothing about whether the kernels were compiled in —\n"  //
-    "for that see `get_capabilities_compiled`, and for what will actually run on this machine\n" //
-    "see `get_capabilities_available`.\n\n"                                                      //
-    "The dictionary maps capability names to booleans. Known capabilities (beyond serial):\n"    //
-    "  x86 AVX2: haswell, alder, sierra.\n"                                                      //
-    "  x86 AVX512: skylake, icelake, genoa, sapphire, turin, diamond.\n"                         //
-    "  x86 AMX: sapphireamx, graniteamx, diamondamx.\n"                                          //
-    "  ARM NEON: neon, neonhalf, neonfhm, neonbfdot, neonsdot, neonfp8.\n"                       //
-    "  ARM SVE: sve, svehalf, svebfdot, svesdot, sve2, sve2p1.\n"                                //
-    "  ARM SME: sme, sme2, sme2p1, smef64, smehalf, smebf16, smebi32, smelut2, smefa64.\n"       //
-    "  RISC-V: rvv, rvvhalf, rvvbf16, rvvbb.\n"                                                  //
-    "  LoongArch: loongsonasx.\n"                                                                //
-    "  Power: powervsx.\n"                                                                       //
-    "  WASM: v128, v128relaxed.\n\n"                                                             //
-    "Signature:\n"                                                                               //
+char const doc_get_capabilities_detected[] =                                                             //
+    "Get the SIMD capabilities this CPU supports, as a dictionary of feature flags.\n\n"                 //
+    "Detected from CPUID or HWCAP. Says nothing about whether the kernels were compiled in — for that\n" //
+    "see `get_capabilities_compiled`, and for what will actually run on this machine see\n"              //
+    "`get_capabilities_available`.\n\n"                                                                  //
+    "The dictionary maps capability names to booleans. Known capabilities (beyond serial):\n"            //
+    "  x86 AVX2: haswell, alder, sierra.\n"                                                              //
+    "  x86 AVX512: skylake, icelake, genoa, sapphire, turin, diamond.\n"                                 //
+    "  x86 AMX: sapphireamx, graniteamx, diamondamx.\n"                                                  //
+    "  ARM NEON: neon, neonhalf, neonfhm, neonbfdot, neonsdot, neonfp8.\n"                               //
+    "  ARM SVE: sve, svehalf, svebfdot, svesdot, sve2, sve2p1.\n"                                        //
+    "  ARM SME: sme, sme2, sme2p1, smef64, smehalf, smebf16, smebi32, smelut2, smefa64.\n"               //
+    "  RISC-V: rvv, rvvhalf, rvvbf16, rvvbb.\n"                                                          //
+    "  LoongArch: loongsonasx.\n"                                                                        //
+    "  Power: powervsx.\n"                                                                               //
+    "  WASM: v128, v128relaxed.\n\n"                                                                     //
+    "Signature:\n"                                                                                       //
     "    >>> def get_capabilities_detected(): ...";
 
-char const doc_get_capabilities_compiled[] =                                                        //
-    "Get the SIMD capabilities whose kernels were compiled into this binary.\n\n"                   //
-    "Decided at build time by the ISA probes. Independent of the CPU: a binary built with a\n"      //
-    "broken probe toolchain still reports this machine's full `get_capabilities_detected` set\n"    //
-    "while containing no SIMD kernels at all, which is what makes a scalar build hard to spot.\n\n" //
-    "Signature:\n"                                                                                  //
+char const doc_get_capabilities_compiled[] =                                                               //
+    "Get the SIMD capabilities whose kernels were compiled into this binary.\n\n"                          //
+    "Decided at build time by the ISA probes. Independent of the CPU: a binary built with a broken\n"      //
+    "probe toolchain still reports this machine's full `get_capabilities_detected` set while containing\n" //
+    "no SIMD kernels at all, which is what makes a scalar build hard to spot.\n\n"                         //
+    "Signature:\n"                                                                                         //
     "    >>> def get_capabilities_compiled(): ...";
 
-char const doc_get_capabilities_available[] =                                                    //
-    "Get the SIMD capabilities that can actually execute here.\n\n"                              //
-    "The intersection of `get_capabilities_detected` and `get_capabilities_compiled`. This is\n" //
-    "the honest answer to 'will NumKong use AVX-512 on this machine?' — either axis alone\n"     //
-    "over-reports.\n\n"                                                                          //
-    "Signature:\n"                                                                               //
+char const doc_get_capabilities_available[] =                                                            //
+    "Get the SIMD capabilities that can actually execute here.\n\n"                                      //
+    "The intersection of `get_capabilities_detected` and `get_capabilities_compiled`. This is the\n"     //
+    "honest answer to 'will NumKong use AVX-512 on this machine?' — either axis alone over-reports.\n\n" //
+    "Signature:\n"                                                                                       //
     "    >>> def get_capabilities_available(): ...";
 
-char const doc_get_capabilities_enabled[] =                                                    //
-    "Get the SIMD capabilities dispatch is currently restricted to.\n\n"                       //
-    "Starts equal to `get_capabilities_available` and shrinks or grows within it as\n"         //
-    "`enable_capability` and `disable_capability` are called. Mostly useful for testing one\n" //
-    "kernel family at a time.\n\n"                                                             //
-    "Signature:\n"                                                                             //
+char const doc_get_capabilities_enabled[] =                                                                //
+    "Get the SIMD capabilities dispatch is currently restricted to.\n\n"                                   //
+    "Starts equal to `get_capabilities_available` and shrinks or grows within it as `enable_capability`\n" //
+    "and `disable_capability` are called. Mostly useful for testing one kernel family at a time.\n\n"      //
+    "Signature:\n"                                                                                         //
     "    >>> def get_capabilities_enabled(): ...";
 
 static PyObject *capabilities_to_dict(nk_capability_t caps) {
@@ -1190,8 +1184,8 @@ static PyMethodDef nk_methods[] = {
     {"enable_capability", (PyCFunction)api_enable_capability, METH_O, doc_enable_capability},
     {"disable_capability", (PyCFunction)api_disable_capability, METH_O, doc_disable_capability},
 
-    // NumPy and SciPy compatible interfaces for dense vector representations
-    // Each function can compute distances between:
+    // NumPy and SciPy compatible interfaces for dense vector representations. Each function can
+    // compute distances between:
     //  - A pair of vectors
     //  - A batch of vector pairs (two matrices of identical shape)
     //  - A matrix of vectors and a single vector
@@ -1274,8 +1268,8 @@ static PyMethodDef nk_methods[] = {
     {"add", (PyCFunction)api_add, METH_FASTCALL | METH_KEYWORDS, doc_add},
     {"multiply", (PyCFunction)api_multiply, METH_FASTCALL | METH_KEYWORDS, doc_multiply},
 
-    // Block-scaled (OCP MX family + NVIDIA NVFP4) encode / decode / transcode.
-    // Allocation-free: the caller sizes element/scale buffers with the size helpers.
+    // Block-scaled, OCP MX family + NVIDIA NVFP4, encode / decode / transcode, allocation-free as
+    // the caller sizes element/scale buffers with the size helpers.
 
     // Element-wise trigonometric functions
     {"sin", (PyCFunction)api_sin, METH_FASTCALL | METH_KEYWORDS, doc_sin},
@@ -1310,7 +1304,7 @@ static PyMethodDef nk_methods[] = {
     // Sentinel
     {NULL, NULL, 0, NULL}};
 
-/** @brief Module teardown hook: release the recycled Tensor-view headers. */
+/** Module teardown hook: release the recycled Tensor-view headers. */
 static void nk_module_free(void *unused) {
     nk_unused_(unused);
     nk_tensor_view_freelist_clear();

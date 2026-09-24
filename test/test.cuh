@@ -1,11 +1,11 @@
 /**
- *  @brief CUDA memory and the CUDA backend the cross-kernel tests and benchmarks share.
  *  @file test/test.cuh
  *  @author Ash Vardanian
  *  @date September 23, 2026
+ *  @brief CUDA memory and the CUDA backend the cross-kernel tests and benchmarks share.
  *
- *  Both allocators return `nullptr` on failure instead of throwing, so the non-throwing `try_*` factories report it.
- *  Benchmarks reach this header as `#include "../test/test.cuh"`.
+ *  Both allocators return @c nullptr on failure instead of throwing, so the non-throwing `try_*`
+ *  factories report it. Benchmarks reach this header as `#include "../test/test.cuh"`.
  */
 #pragma once
 #ifndef NK_TEST_CUH
@@ -23,7 +23,7 @@
 
 namespace ashvardanian::numkong::test {
 
-/** Unified memory: host and device both dereference it, so every `nk::vector` factory works on it. */
+/** Unified memory: host and device both dereference it, so any @c nk::vector factory can use it. */
 template <typename value_type_>
 struct cuda_managed_allocator {
     using value_type = value_type_;
@@ -60,7 +60,8 @@ struct cuda_managed_allocator {
     }
 };
 
-/** Device memory: only kernels dereference it, so build with `try_empty` and fill through `cudaMemcpy`. */
+/** Device memory: only kernels dereference it, so build with @c try_empty and fill through
+ *  @c cudaMemcpy. */
 template <typename value_type_>
 struct cuda_device_allocator {
     using value_type = value_type_;
@@ -100,18 +101,23 @@ struct cuda_device_allocator {
 template <typename value_type_>
 using device_vector = vector<value_type_, cuda_device_allocator<value_type_>>;
 
-/** Runs the CUDA kernels on `cudaStreamPerThread` over managed memory, keeping the first failed status. */
+/** Runs the CUDA kernels on @c cudaStreamPerThread over managed memory, keeping the first failed
+ *  status. */
 struct cuda_backend_t {
-    /** The allocator every kernel operand comes from, readable by the host once the stream is synchronized. */
+
+    /** The allocator every kernel operand comes from, readable by the host once the stream is
+     *  synchronized. */
     template <typename value_type_>
     using allocator = cuda_managed_allocator<value_type_>;
 
     /** Where every call launches. */
     cudaStream_t stream = cudaStreamPerThread;
+
     /** The first failure since the last synchronization. */
     cudaError_t status = cudaSuccess;
 
-    /** Dots of @p scalar_type_ accumulate integers exactly, F64 in Dot2, F32 in F64, and the rest in tensor cores. */
+    /** Dots of @p scalar_type_ accumulate integers exactly, F64 in Dot2, F32 in F64, and the rest
+     *  in tensor cores. */
     template <typename scalar_type_>
     static constexpr accumulation_t dots_accumulation() noexcept {
         using result_t = typename scalar_type_::dot_result_t;
@@ -127,7 +133,8 @@ struct cuda_backend_t {
         return dots_accumulation<scalar_type_>();
     }
 
-    /** Row stride for rows of @p row_bytes: rounded up to the 16 bytes `cp.async` requires of A rows. */
+    /** Row stride for rows of @p row_bytes: rounded up to the 16 bytes `cp.async` requires of A
+     *  rows. */
     static constexpr std::size_t row_stride(std::size_t row_bytes) noexcept { return (row_bytes + 15) / 16 * 16; }
 
     /** Copies @p bytes in whichever direction the pointers imply. */
@@ -144,13 +151,15 @@ struct cuda_backend_t {
         keep(kernel(arguments..., stream));
     }
 
-    /** Calls @p kernel on operands it must refuse; whether it returned `cudaErrorMisalignedAddress` unlaunched. */
+    /** Calls @p kernel on operands it must refuse, reporting whether it returned
+     *  @c cudaErrorMisalignedAddress unlaunched. */
     template <typename kernel_type_, typename... arguments_types_>
     bool refuses_misaligned(kernel_type_ kernel, arguments_types_... arguments) noexcept {
         return kernel(arguments..., stream) == cudaErrorMisalignedAddress;
     }
 
-    /** Waits for the stream, returning the name of the first failure since the last call, or `nullptr`. */
+    /** Waits for the stream, returning the name of the first failure since the last call, or
+     *  @c nullptr. */
     char const *synchronize() noexcept {
         keep(cudaStreamSynchronize(stream));
         cudaError_t const failure = status;

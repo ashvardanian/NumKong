@@ -1,13 +1,13 @@
 /**
- *  @brief SIMD-accelerated Batched Dot Products for NEON FP8DOT4.
  *  @file include/numkong/dots/neonfp8.h
  *  @author Ash Vardanian
  *  @date March 23, 2026
+ *  @brief SIMD-accelerated Batched Dot Products for NEON FP8DOT4.
  *
  *  @sa include/numkong/dots.h
  *
- *  Uses FDOT (FEAT_FP8DOT4) for native FP8 4-way dot products accumulating into FP32.
- *  Each FDOT processes 16 FP8 elements (128-bit register) into 4 FP32 accumulators.
+ *  Uses FDOT, FEAT_FP8DOT4, for native FP8 4-way dot products accumulating into FP32. Each FDOT
+ *  processes 16 FP8 elements, a 128-bit register, into 4 FP32 accumulators.
  */
 #ifndef NK_DOTS_NEONFP8_H
 #define NK_DOTS_NEONFP8_H

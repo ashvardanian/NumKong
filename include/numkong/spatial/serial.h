@@ -1,8 +1,8 @@
 /**
- *  @brief SWAR-accelerated Spatial Similarity Measures for SIMD-free CPUs.
  *  @file include/numkong/spatial/serial.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SWAR-accelerated spatial similarity measures for SIMD-free CPUs.
  *
  *  @sa include/numkong/spatial.h
  */

@@ -1,23 +1,22 @@
 /**
- *  @brief Ragged attention for AVX-512 BF16-capable Genoa generation CPUs.
  *  @file include/numkong/attention/genoa.h
  *  @author Ash Vardanian
  *  @date July 6, 2026
+ *  @brief Ragged attention for AVX-512 BF16-capable Genoa generation CPUs.
  *
  *  @sa include/numkong/attention.h
  *
- *  Backend for AVX512_BF16 machines without AMX: scores accumulate with `vdpbf16ps`
- *  straight from BF16 planes, doubling the per-instruction throughput over the widened-F32
- *  Skylake tier while halving the packed-KV footprint. The panel structure, online
- *  correction, and the base-2 softmax polynomial are shared with the rest of the family;
- *  the softmax and weighted-sum stages reuse the Skylake helpers (Genoa always implies the
- *  Skylake feature set, matching `dots/genoa.h`).
+ *  Backend for AVX512_BF16 machines without AMX: scores accumulate with @c vdpbf16ps straight from
+ *  BF16 planes, doubling the per-instruction throughput over the widened-F32 Skylake tier while
+ *  halving the packed-KV footprint. The panel structure, online correction, and the base-2 softmax
+ *  polynomial are shared with the rest of the family; the softmax and weighted-sum stages reuse the
+ *  Skylake helpers — Genoa always implies the Skylake feature set, matching `dots/genoa.h`.
  *
- *  Packed payload per segment: K planes then V planes, `[key_value_head][position][channel]` in BF16
- *  with channels zero-padded to a multiple of 32 — `vdpbf16ps` consumes value pairs, so
- *  full-width loops need no masks. E4M3 widens to BF16 during packing and Q staging via
- *  the Ice Lake converters, exactly like `dots/genoa.h`. `depth > 256` routes to the
- *  width-agnostic serial tier from every entry point.
+ *  Packed payload per segment: K planes then V planes, `[key_value_head][position][channel]` in
+ *  BF16 with channels zero-padded to a multiple of 32 — @c vdpbf16ps consumes value pairs, so
+ *  full-width loops need no masks. E4M3 widens to BF16 during packing and Q staging via the Ice
+ *  Lake converters, exactly like `dots/genoa.h`. `depth > 256` routes to the width-agnostic serial
+ *  tier from every entry point.
  */
 #ifndef NK_ATTENTION_GENOA_H
 #define NK_ATTENTION_GENOA_H

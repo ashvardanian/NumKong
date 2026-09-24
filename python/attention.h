@@ -1,8 +1,8 @@
 /**
- *  @brief Ragged attention API declarations for NumKong Python bindings.
  *  @file python/attention.h
  *  @author Ash Vardanian
  *  @date July 6, 2026
+ *  @brief Ragged attention API declarations for NumKong Python bindings.
  */
 #ifndef NK_PYTHON_ATTENTION_H
 #define NK_PYTHON_ATTENTION_H
@@ -15,37 +15,46 @@
 /**
  *  @brief Pre-packed KV-cache for ragged scaled-dot-product attention.
  *
- *  Owns the backend-opaque packed blob inline (flex-array), together with the
- *  geometry needed to validate query batches against it.  Created via
- *  `nk.attention_pack()` and consumed by `nk.attention_bidirectional_packed()` or `nk.attention_causal_packed()`.
+ *  Owns the backend-opaque packed blob inline as a flex-array, together with the geometry needed to
+ *  validate query batches against it. Created via `nk.attention_pack()` and consumed by
+ *  `nk.attention_bidirectional_packed()` or `nk.attention_causal_packed()`.
  */
 typedef struct AttentionPackedMatrix {
     PyObject_HEAD
+
     /** Input dtype (bf16 or e4m3). */
     nk_dtype_t dtype;
+
     /** Number of KV heads packed per token. */
     nk_size_t heads;
+
     /** Channels per head. */
     nk_size_t depth;
+
     /** Number of ragged segments. */
     nk_size_t segment_count;
+
     /** Total KV tokens across all segments. */
     nk_size_t total_tokens;
+
     /** Size of the packed blob in bytes. */
     nk_size_t nbytes;
+
     /** Variable-length packed data. */
     char start[];
 } AttentionPackedMatrix;
 
-/** @brief AttentionPackedMatrix Python type object. */
+/** AttentionPackedMatrix Python type object. */
 extern PyTypeObject AttentionPackedMatrixType;
 
-/** @brief Pack ragged K/V token matrices into a backend-opaque KV-cache blob. */
+/** Pack ragged K/V token matrices into a backend-opaque KV-cache blob. */
 PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
-/** @brief Ragged bidirectional scaled-dot-product attention against a pre-packed KV-cache. */
+
+/** Ragged bidirectional scaled-dot-product attention against a pre-packed KV-cache. */
 PyObject *api_attention_bidirectional_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs,
                                              PyObject *kwnames);
-/** @brief Ragged causal scaled-dot-product attention against a pre-packed KV-cache. */
+
+/** Ragged causal scaled-dot-product attention against a pre-packed KV-cache. */
 PyObject *api_attention_causal_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
 extern char const doc_attention_pack[];

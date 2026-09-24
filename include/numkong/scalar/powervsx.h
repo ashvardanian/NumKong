@@ -1,20 +1,22 @@
 /**
- *  @brief SIMD-accelerated Scalar Math Helpers for Power VSX.
  *  @file include/numkong/scalar/powervsx.h
  *  @author Ash Vardanian
  *  @date March 24, 2026
+ *  @brief SIMD-accelerated scalar math helpers for Power VSX.
  *
  *  @sa include/numkong/scalar.h
  *
  *  @section scalars_powervsx_instructions Key Power VSX Scalar Instructions
  *
- *      Instruction     Description                  Latency
- *      xssqrtsp        Scalar √ (f32)               26cy
- *      xssqrtdp        Scalar √ (f64)               33cy
- *      xsrsqrtesp      Scalar 1/√ estimate (f32)    6cy
- *      xsrsqrtedp      Scalar 1/√ estimate (f64)    6cy
- *      xsmaddadp       Scalar FMA (f64)             5cy
- *      xsmaddasp       Scalar FMA (f32)             5cy
+ *  @verbatim
+ *  Instruction     Description                  Latency
+ *  xssqrtsp        Scalar √ (f32)               26cy
+ *  xssqrtdp        Scalar √ (f64)               33cy
+ *  xsrsqrtesp      Scalar 1/√ estimate (f32)    6cy
+ *  xsrsqrtedp      Scalar 1/√ estimate (f64)    6cy
+ *  xsmaddadp       Scalar FMA (f64)             5cy
+ *  xsmaddasp       Scalar FMA (f32)             5cy
+ *  @endverbatim
  */
 #ifndef NK_SCALAR_POWERVSX_H
 #define NK_SCALAR_POWERVSX_H

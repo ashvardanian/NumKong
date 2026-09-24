@@ -1,8 +1,8 @@
 /**
- *  @brief SVE2-accelerated Sparse Vector Operations.
  *  @file include/numkong/sparse/sve2.h
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief SVE2-accelerated sparse vector operations.
  *
  *  @sa include/numkong/sparse.h
  */

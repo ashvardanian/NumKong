@@ -1,4 +1,9 @@
-/* NumKong ISA probe: SME (Scalable Matrix Extension) */
+/**
+ *  @file probes/arm_sme.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for SME, the Scalable Matrix Extension.
+ */
 #if defined(_WIN32)
 #error "SVE/SME not supported on Windows ARM"
 #endif

@@ -1,4 +1,9 @@
-/* NumKong ISA probe: Genoa (AVX-512F/BW/DQ/VL + BF16) */
+/**
+ *  @file probes/x86_genoa.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for Genoa, AVX-512F/BW/DQ/VL plus BF16.
+ */
 #if defined(__APPLE__)
 #error "AVX-512 not available on macOS"
 #endif

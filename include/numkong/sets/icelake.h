@@ -1,8 +1,8 @@
 /**
- *  @brief Batched Set Operations for Ice Lake (AVX-512 VNNI/VBMI).
  *  @file include/numkong/sets/icelake.h
  *  @author Ash Vardanian
  *  @date February 23, 2026
+ *  @brief AVX-512 VNNI/VBMI batched set operations for Ice Lake.
  *
  *  @sa include/numkong/sets.h
  */

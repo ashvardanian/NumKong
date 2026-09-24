@@ -1,8 +1,8 @@
 /**
- *  @brief Batched Spatial Distances for NEON BF16 Dot Product.
  *  @file include/numkong/spatials/neonbfdot.h
  *  @author Ash Vardanian
  *  @date February 23, 2026
+ *  @brief Batched spatial distances for NEON BF16 dot product.
  *
  *  @sa include/numkong/spatials.h
  */

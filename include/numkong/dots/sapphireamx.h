@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Batched Dot Products for Sapphire Rapids.
  *  @file include/numkong/dots/sapphireamx.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated Batched Dot Products for Sapphire Rapids.
  *
  *  @sa include/numkong/dots.h
  *
@@ -12,21 +12,21 @@
  *  - BF16 tiles: 16 rows × 32 elements = 512 BF16 values = 1KB per tile
  *  - INT8 tiles: 16 rows × 64 elements = 1024 INT8 values = 1KB per tile
  *
- *  We typically use 4 registers for the 2 × 2 tile output for the matrix C accumulators, leaving
- *  4 other registers for parts of A and B matrices:
+ *  We typically use 4 registers for the 2 × 2 tile output for the matrix C accumulators, leaving 4
+ *  other registers for parts of A and B matrices:
  *
  *  - TMM0, TMM1: A matrix tiles (row blocks i and i+16)
  *  - TMM2, TMM3: B matrix tiles (column blocks j and j+16)
  *  - TMM4-7: C accumulator tiles (2 × 2 output grid)
  *
- *  In most synthetic benchmarks there seems to be no mahor difference between aggregating into 1 or 4
- *  output tiles, implying the CPU's ability to internally pipeline the accumulation; so using 2 × 2 for
- *  ouputs is more of memory-bandwidth saving measure.
+ *  In most synthetic benchmarks there seems to be no major difference between aggregating into 1 or
+ *  4 output tiles, implying the CPU's ability to internally pipeline the accumulation, so using 2 ×
+ *  2 for outputs is more of a memory-bandwidth saving measure.
  *
- *  Lacking High Bandwidth Mememory, the performance in GEMM-like BLAS workloads is dominated by memory
- *  bandwidth. Latency hiding is also extremely hard, heavily affecting performance numbers. For reference,
- *  Intel MKL SGEMM for FP32 inputs yeilds arounf 250 GigaOPS per core on Intel Sapphire Rapids, leveraging
- *  AVX-512. At the same time, for AMX:
+ *  Lacking High Bandwidth Memory, the performance in GEMM-like BLAS workloads is dominated by
+ *  memory bandwidth. Latency hiding is also extremely hard, heavily affecting performance numbers.
+ *  For reference, Intel MKL SGEMM for FP32 inputs yields around 250 GigaOPS per core on Intel
+ *  Sapphire Rapids, leveraging AVX-512. At the same time, for AMX:
  *
  *  - BF16 peak: ≈ 3 TeraOPS per core in theory, ≈ 500 GigaOPS per core in practice
  *  - INT8 peak: ≈ 6 TeraOPS per core in theory, ≈ 1000 GigaOPS per core in practice
@@ -41,24 +41,30 @@
  *
  *  Tile configuration and data movement:
  *
- *      Intrinsic                   Instruction                     Notes
- *      _tile_loadconfig            LDTILECFG (mem64)               Configure tile palette
- *      _tile_loadd                 TILELOADD (TMM, mem, stride)    Load tile from memory
- *      _tile_stored                TILESTORED (mem, TMM, stride)   Store tile to memory
- *      _tile_zero                  TILEZERO (TMM)                  Zero a tile register
+ *  @verbatim
+ *  Intrinsic                   Instruction                     Notes
+ *  _tile_loadconfig            LDTILECFG (mem64)               Configure tile palette
+ *  _tile_loadd                 TILELOADD (TMM, mem, stride)    Load tile from memory
+ *  _tile_stored                TILESTORED (mem, TMM, stride)   Store tile to memory
+ *  _tile_zero                  TILEZERO (TMM)                  Zero a tile register
+ *  @endverbatim
  *
  *  BF16 matrix multiply (AMX-BF16):
  *
- *      Intrinsic                   Instruction                     Operation
- *      _tile_dpbf16ps              TDPBF16PS (TMM, TMM, TMM)       C += A × B (bf16 → f32)
+ *  @verbatim
+ *  Intrinsic                   Instruction                     Operation
+ *  _tile_dpbf16ps              TDPBF16PS (TMM, TMM, TMM)       C += A × B (bf16 → f32)
+ *  @endverbatim
  *
  *  INT8 matrix multiply (AMX-INT8):
  *
- *      Intrinsic                   Instruction                     Operation
- *      _tile_dpbssd                TDPBSSD (TMM, TMM, TMM)         C += A × B (i8 × i8 → i32)
- *      _tile_dpbsud                TDPBSUD (TMM, TMM, TMM)         C += A × B (i8 × u8 → i32)
- *      _tile_dpbusd                TDPBUSD (TMM, TMM, TMM)         C += A × B (u8 × i8 → i32)
- *      _tile_dpbuud                TDPBUUD (TMM, TMM, TMM)         C += A × B (u8 × u8 → u32)
+ *  @verbatim
+ *  Intrinsic                   Instruction                     Operation
+ *  _tile_dpbssd                TDPBSSD (TMM, TMM, TMM)         C += A × B (i8 × i8 → i32)
+ *  _tile_dpbsud                TDPBSUD (TMM, TMM, TMM)         C += A × B (i8 × u8 → i32)
+ *  _tile_dpbusd                TDPBUSD (TMM, TMM, TMM)         C += A × B (u8 × i8 → i32)
+ *  _tile_dpbuud                TDPBUUD (TMM, TMM, TMM)         C += A × B (u8 × u8 → u32)
+ *  @endverbatim
  *
  *  AMX performance characteristics:
  *  - TDPBF16PS: 16 × 16 × 32 = 8192 BF16 MACs per instruction

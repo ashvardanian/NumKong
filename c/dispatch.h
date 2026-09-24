@@ -1,8 +1,8 @@
 /**
- *  @brief Common Definitions for Dispatch Files.
  *  @file c/dispatch.h
  *  @author Ash Vardanian
  *  @date February 3, 2026
+ *  @brief Common definitions for dispatch files.
  */
 #ifndef NK_DISPATCH_H
 #define NK_DISPATCH_H
@@ -20,15 +20,13 @@
  *  - Node.js: binding.gyp
  *  - CMake: CMakeLists.txt
  *
- *  For header-only usage without a build system, types.h provides
- *  compiler-intrinsic-based fallback detection.
+ *  Header-only use without a build system falls back to compiler-intrinsic detection in `types.h`.
  *
  *  OS/compiler capabilities summary:
  *  - Linux: everything available in GCC 12+ and Clang 16+.
  *  - FreeBSD: same as Linux, except AMX (no kernel tile permission support).
  *  - Windows - MSVC: Haswell/Skylake/Icelake, plus Sapphire FP16 (MSVC 2022 17.2+).
- *  - macOS - Apple Clang: only Arm NEON and x86 AVX2 Haswell extensions.
- */
+ *  - macOS - Apple Clang: only Arm NEON and x86 AVX2 Haswell extensions. */
 
 #include <numkong/numkong.h>
 
@@ -510,19 +508,19 @@ typedef struct {
 
     /**
      *  @brief  The capabilities this table was built from, and the set `nk_find_kernel_punned`
-     *          searches. Lives inside the table so the two cannot drift.
+     *      searches. Lives inside the table so the two cannot drift.
      *
      *  Zero until the table is built. A built table always retains @b nk_cap_serial_k, so zero
-     *  doubles as the "not initialized yet" marker on the zero-initialized global below. Kept
-     *  last to leave the function-pointer block 64-byte aligned.
+     *  doubles as the "not initialized yet" marker on the zero-initialized global below. Kept last
+     *  to leave the function-pointer block 64-byte aligned.
      */
     nk_capability_t enabled;
 } nk_implementations_t;
 
-/** @brief Global dispatch table, defined in numkong.c. */
+/** Global dispatch table, defined in numkong.c. */
 extern nk_implementations_t nk_dispatch_table;
 
-// Error handlers - defined in numkong.c
+/** Error handlers, defined in numkong.c. */
 extern void nk_error_dense_(void const *, void const *, nk_size_t, void *);
 extern void nk_error_sparse_intersect_(void const *, void const *, nk_size_t, nk_size_t, void *, nk_size_t *);
 extern void nk_error_sparse_dot_(void const *, void const *, void const *, void const *, nk_size_t, nk_size_t, void *);
@@ -557,7 +555,7 @@ extern void nk_error_attention_causal_packed_(void const *, void const *, void *
                                               nk_u32_t const *, nk_size_t, nk_size_t, nk_f32_t, nk_i64_t, nk_size_t,
                                               nk_size_t, nk_size_t);
 
-// DType-specific kernel lookup functions
+/** DType-specific kernel lookup functions. */
 extern void nk_dispatch_f64c_find_(nk_capability_t, nk_kernel_kind_t, nk_kernel_punned_t *, nk_capability_t *);
 extern void nk_dispatch_f32c_find_(nk_capability_t, nk_kernel_kind_t, nk_kernel_punned_t *, nk_capability_t *);
 extern void nk_dispatch_bf16c_find_(nk_capability_t, nk_kernel_kind_t, nk_kernel_punned_t *, nk_capability_t *);

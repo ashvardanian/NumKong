@@ -1,11 +1,10 @@
 /**
- *  @brief Distance metric declarations for NumKong Python bindings.
  *  @file python/distance.h
  *  @author Ash Vardanian
  *  @date February 19, 2026
+ *  @brief Distance metric declarations for NumKong Python bindings.
  *
- *  Forward declarations for all api_* distance functions, pointer APIs,
- *  and their documentation strings.
+ *  Forward declarations for api_* distance functions, pointer APIs, and documentation strings.
  */
 #ifndef NK_PYTHON_DISTANCE_H
 #define NK_PYTHON_DISTANCE_H

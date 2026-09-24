@@ -1,8 +1,8 @@
 /**
- *  @brief Batched Spatial Distances for WASM Relaxed SIMD.
  *  @file include/numkong/spatials/v128relaxed.h
  *  @author Ash Vardanian
  *  @date March 5, 2026
+ *  @brief Batched spatial distances for WASM Relaxed SIMD.
  *
  *  @sa include/numkong/spatials.h
  */

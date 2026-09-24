@@ -1,8 +1,8 @@
 /**
- *  @brief Batched Set Operations for Haswell (AVX2).
  *  @file include/numkong/sets/haswell.h
  *  @author Ash Vardanian
  *  @date February 23, 2026
+ *  @brief AVX2 batched set operations for Haswell.
  *
  *  @sa include/numkong/sets.h
  */

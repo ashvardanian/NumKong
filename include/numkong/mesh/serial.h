@@ -1,8 +1,8 @@
 /**
- *  @brief SWAR-accelerated Point Cloud Alignment for SIMD-free CPUs.
  *  @file include/numkong/mesh/serial.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SWAR-accelerated point cloud alignment for SIMD-free CPUs.
  *
  *  @sa include/numkong/mesh.h
  */

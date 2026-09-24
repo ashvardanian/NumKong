@@ -1,3 +1,6 @@
+// numkong/golang/spatial.go
+// Written by Ash Vardanian.
+
 package numkong
 
 /*
@@ -9,7 +12,7 @@ package numkong
 */
 import "C"
 
-// region Angular (Cosine) Distance
+// region Angular Cosine Distance
 
 // AngularF64 computes the angular distance between two float64 vectors.
 // Both slices must have the same length.
@@ -69,7 +72,7 @@ func AngularU8(a, b []uint8) float32 {
 
 // endregion
 
-// region Euclidean Distance (L2)
+// region Euclidean L2 Distance
 
 // EuclideanF64 computes the Euclidean distance between two float64 vectors.
 // Both slices must have the same length.
@@ -129,7 +132,7 @@ func EuclideanU8(a, b []uint8) float32 {
 
 // endregion
 
-// region Squared Euclidean Distance (L2sq)
+// region Squared Euclidean L2sq Distance
 
 // SqEuclideanF64 computes the squared Euclidean distance between two float64 vectors.
 // Both slices must have the same length.

@@ -1,8 +1,8 @@
 /**
- *  @brief Dispatch Initialization for BF16 Data Types.
  *  @file c/dispatch_bf16.c
  *  @author Ash Vardanian
  *  @date February 3, 2026
+ *  @brief Dispatch initialization for BF16 data types.
  */
 #include "dispatch.h"
 

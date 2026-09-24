@@ -1,32 +1,35 @@
 /**
- *  @brief C++ test suite with precision analysis using double-double arithmetic.
  *  @file test/test.hpp
  *  @author Ash Vardanian
  *  @date December 28, 2025
+ *  @brief C++ test suite with precision analysis using double-double arithmetic.
  *
- *  This test suite compares NumKong operations against high-precision references,
- *  like our `f118_t` double-double type, and reports ULP, absolute, and relative error statistics.
+ *  This test suite compares NumKong operations against high-precision references, like our
+ *  @c f118_t double-double type, and reports ULP, absolute, and relative error statistics.
  *
  *  Environment Variables:
- *    NK_FILTER=<pattern>           - Filter tests by name RegEx (default: run all)
- *    NK_SEED=N                     - RNG seed (default: 42)
  *
- *    NK_DENSE_DIMENSIONS=N         - Vector dimension for dot/spatial tests (default: 1536)
- *    NK_CURVED_DIMENSIONS=N        - Vector dimension for curved tests (default: 64)
- *    NK_SPARSE_DIMENSIONS=N        - Vector dimension for sparse tests (default: 256)
- *    NK_MESH_POINTS=N              - Point count for mesh tests (default: 1000)
- *    NK_MATRIX_HEIGHT=N            - GEMM M dimension (default: 1024)
- *    NK_MATRIX_WIDTH=N             - GEMM N dimension (default: 128)
- *    NK_MATRIX_DEPTH=N             - GEMM K dimension (default: 1536)
+ *  @verbatim
+ *  NK_FILTER=<pattern>           - Filter tests by name RegEx (default: run all)
+ *  NK_SEED=N                     - RNG seed (default: 42)
  *
- *    NK_IN_QEMU                    - Set when running under QEMU (relaxes accuracy thresholds)
- *    NK_TEST_ASSERT=1              - Assert on failed accuracy checks (default: 0)
- *    NK_TEST_VERBOSE=1             - Show per-dimension ULP breakdown (default: 0)
- *    NK_ULP_THRESHOLD_F32=N        - Max allowed ULP for f32 (default: 4)
- *    NK_ULP_THRESHOLD_F16=N        - Max allowed ULP for f16 (default: 32)
- *    NK_ULP_THRESHOLD_BF16=N       - Max allowed ULP for bf16 (default: 256)
- *    NK_BUDGET_SECS=<seconds>      - Time budget per kernel in seconds (default: 1)
- *    NK_RANDOM_DISTRIBUTION=<type> - Random distribution: uniform_k|lognormal_k|cauchy_k (default: lognormal_k)
+ *  NK_DENSE_DIMENSIONS=N         - Vector dimension for dot/spatial tests (default: 1536)
+ *  NK_CURVED_DIMENSIONS=N        - Vector dimension for curved tests (default: 64)
+ *  NK_SPARSE_DIMENSIONS=N        - Vector dimension for sparse tests (default: 256)
+ *  NK_MESH_POINTS=N              - Point count for mesh tests (default: 1000)
+ *  NK_MATRIX_HEIGHT=N            - GEMM M dimension (default: 1024)
+ *  NK_MATRIX_WIDTH=N             - GEMM N dimension (default: 128)
+ *  NK_MATRIX_DEPTH=N             - GEMM K dimension (default: 1536)
+ *
+ *  NK_IN_QEMU                    - Set when running under QEMU, relaxing accuracy thresholds
+ *  NK_TEST_ASSERT=1              - Assert on failed accuracy checks (default: 0)
+ *  NK_TEST_VERBOSE=1             - Show per-dimension ULP breakdown (default: 0)
+ *  NK_ULP_THRESHOLD_F32=N        - Max allowed ULP for f32 (default: 4)
+ *  NK_ULP_THRESHOLD_F16=N        - Max allowed ULP for f16 (default: 32)
+ *  NK_ULP_THRESHOLD_BF16=N       - Max allowed ULP for bf16 (default: 256)
+ *  NK_BUDGET_SECS=<seconds>      - Time budget per kernel in seconds (default: 1)
+ *  NK_RANDOM_DISTRIBUTION=<type> - uniform, lognormal or cauchy (default: lognormal)
+ *  @endverbatim
  */
 
 #pragma once
@@ -68,7 +71,7 @@
 #define NK_ALLOW_ISA_REDIRECT 0
 #endif
 
-// Optional BLAS/MKL integration for precision comparison
+/** Optional BLAS/MKL integration for precision comparison */
 #ifndef NK_COMPARE_TO_BLAS
 #define NK_COMPARE_TO_BLAS 0
 #endif
@@ -79,7 +82,7 @@
 #define NK_COMPARE_TO_ACCELERATE 0
 #endif
 
-// Include reference library headers - MKL, Accelerate, or generic CBLAS
+/* Include reference library headers - MKL, Accelerate, or generic CBLAS */
 #if NK_COMPARE_TO_MKL
 #include <mkl.h> // MKL includes its own CBLAS interface
 #elif NK_COMPARE_TO_ACCELERATE
@@ -88,8 +91,8 @@
 #include <cblas.h> // Generic CBLAS (OpenBLAS, etc.)
 #endif
 
-// Intests we want to make sure our custom floating-point routines are used instead of
-// compiler-provided native types.
+/* In tests we want to make sure our custom floating-point routines are used instead of
+ * compiler-provided native types. */
 #undef NK_NATIVE_F16
 #define NK_NATIVE_F16 0
 #undef NK_NATIVE_BF16
@@ -215,48 +218,68 @@ inline constexpr comparison_family_spec_t comparison_family_spec(comparison_fami
 }
 
 struct test_config_t {
+
     /** Assert on failed accuracy checks. Override: `NK_TEST_ASSERT=1`. */
     bool assert_on_failure = false;
+
     /** Show per-dimension ULP breakdown. Override: `NK_TEST_VERBOSE=1`. */
     bool verbose = false;
+
     /** Relaxed accuracy for emulated SIMD. Override: `NK_IN_QEMU`. */
     bool running_in_qemu = false;
+
     /** Max allowed ULP for f32. Override: `NK_ULP_THRESHOLD_F32`. */
     std::uint64_t ulp_threshold_f32 = 4;
+
     /** Max allowed ULP for f16. Override: `NK_ULP_THRESHOLD_F16`. */
     std::uint64_t ulp_threshold_f16 = 32;
+
     /** Max allowed ULP for bf16. Override: `NK_ULP_THRESHOLD_BF16`. */
     std::uint64_t ulp_threshold_bf16 = 256;
+
     /** Max absolute error as a fraction of the largest reference magnitude, for the
      *  normalized-reduction family. Override: `NK_SCALE_THRESHOLD`. */
     nk_f64_t scale_threshold = 0.02;
+
     /** Time budget per kernel in milliseconds. Override: `NK_BUDGET_SECS`. */
     std::size_t time_budget_ms = 1000;
+
     /** Random seed for reproducible tests. Override: `NK_SEED`. */
     std::uint32_t seed = 42;
+
     /** Filter tests by name (regex or substring). Override: `NK_FILTER`. */
     char const *filter = nullptr;
+
     /** Random distribution for test inputs. Override: `NK_RANDOM_DISTRIBUTION`. */
     random_distribution_kind_t distribution = random_distribution_kind_t::lognormal_k;
 
     /** For dot products, spatial metrics. Override: `NK_DENSE_DIMENSIONS`. */
     std::size_t dense_dimensions = 1536;
-    /** For curved metrics (quadratic in dims). Override: `NK_CURVED_DIMENSIONS`. */
+
+    /** For curved metrics, quadratic in dimensions. Override: @c NK_CURVED_DIMENSIONS. */
     std::size_t curved_dimensions = 64;
+
     /** For sparse set intersection and sparse dot. Override: `NK_SPARSE_DIMENSIONS`. */
     std::size_t sparse_dimensions = 256;
+
     /** Number of 3D points for RMSD, Kabsch. Override: `NK_MESH_POINTS`. */
     std::size_t mesh_points = 1000;
+
     /** GEMM M dimension. Override: `NK_MATRIX_HEIGHT`. */
     std::size_t matrix_height = 1024;
+
     /** GEMM N dimension. Override: `NK_MATRIX_WIDTH`. */
     std::size_t matrix_width = 128;
+
     /** GEMM K dimension. Override: `NK_MATRIX_DEPTH`. */
     std::size_t matrix_depth = 1536;
+
     /** Max angular separation in degrees for geospatial tests. Override: `NK_MAX_COORD_ANGLE`. */
     float max_coord_angle = 180.0f;
+
     /** Count of kernels that ran their accuracy checks. */
     std::size_t kernel_count = 0;
+
     /** Count of kernels that failed the configured accuracy checks. */
     std::size_t failure_count = 0;
 
@@ -280,7 +303,7 @@ struct test_config_t {
 #endif
     }
 
-    /** @brief Applies the `NK_*` environment overrides on top of whatever the command line already set. */
+    /** Applies the `NK_*` environment overrides on top of whatever the command line already set. */
     void load_environment() {
         if (std::getenv("NK_IN_QEMU")) running_in_qemu = true;
         if (char const *env = std::getenv("NK_TEST_ASSERT")) assert_on_failure = std::atoi(env) != 0;
@@ -379,11 +402,8 @@ struct error_stats_t;
 bool should_fail(char const *kernel_name, error_stats_t const &stats) noexcept;
 void print_stats_row(char const *kernel_name, error_stats_t const &stats) noexcept;
 
-/**
- *  @brief Tracks the currently-running kernel name for SIGILL diagnostics.
- *  Set before each kernel call, cleared after. A signal handler installed in
- *  main() reads this to log the culprit before the process exits.
- */
+/** Names the running kernel for SIGILL diagnostics: set before each kernel call, cleared after, and
+ *  read by the signal handler that main() installs to log the culprit before the process exits. */
 extern char const *volatile nk_test_current_kernel_;
 
 struct error_stats_section_t {
@@ -393,11 +413,12 @@ struct error_stats_section_t {
     std::optional<comparison_family_t> last_family = std::nullopt;
     bool emitted_any = false;
 
-    /** @brief Runs only kernels whose family is in @p available: `#if NK_TARGET_X` says built, this says runnable. */
+    /** Runs only kernels whose family is in @p available: `#if NK_TARGET_X` says built, this says
+     *  runnable. */
     explicit error_stats_section_t(nk_capability_t available = nk_capabilities_detected()) noexcept
         : available(available) {}
 
-    /** @brief Restart under a new heading, for kernels needing @p cap. */
+    /** Restart under a new heading, for kernels needing @p cap. */
     void section(char const *heading, nk_capability_t cap) noexcept {
         title = heading;
         required = cap;
@@ -405,7 +426,8 @@ struct error_stats_section_t {
         last_family.reset();
     }
 
-    /** @brief Runs @p test_fn over @p kernels, deducing a scenario's kernel types from the kernels themselves. */
+    /** Runs @p test_fn over @p kernels, deducing a scenario's kernel types from the kernels
+     *  themselves. */
     template <typename stats_type_ = error_stats_t, typename... kernels_types_>
     void operator()(char const *kernel_name, stats_type_ (*test_fn)(kernels_types_...), kernels_types_... kernels) {
         (*this)(kernel_name, [&] { return test_fn(kernels...); });
@@ -444,12 +466,13 @@ inline bool within_time_budget(time_point start) {
 }
 
 /**
- *  @brief Compute ULP (Units in Last Place) distance between two floating-point values.
+ *  @brief Compute the ULP, Units in Last Place, distance between two floating-point values.
  *
  *  ULP distance is the number of representable floating-point numbers between a and b.
  *  This is the gold standard for comparing floating-point implementations.
  *
- *  Uses the XOR transformation from Bruce Dawson's algorithm to handle all sign combinations:
+ *  Uses the XOR transformation from Bruce Dawson's algorithm to handle all sign combinations.
+ *
  *  @see https://randomascii.wordpress.com/2012/02/25/comparing-floating-point-numbers-2012-edition/
  *  @see https://en.wikipedia.org/wiki/Unit_in_the_last_place
  */
@@ -516,9 +539,7 @@ std::uint64_t integer_distance(scalar_type_ a, scalar_type_ b) noexcept {
     return a_ordered >= b_ordered ? a_ordered - b_ordered : b_ordered - a_ordered;
 }
 
-/**
- *  @brief Accumulator for error statistics across multiple test trials.
- */
+/** Accumulator for error statistics across multiple test trials. */
 struct error_stats_t {
     comparison_family_t family = comparison_family_t::approximate_k;
 
@@ -545,14 +566,14 @@ struct error_stats_t {
 
     explicit error_stats_t(comparison_family_t family = comparison_family_t::approximate_k) noexcept : family(family) {}
 
-    /** @brief Record a boolean property; @p property names it in the report when it does not hold. */
+    /** Record a boolean property; @p property names it in the report when it does not hold. */
     void expect(bool held, char const *property) noexcept {
         if (!held && !first_failure) first_failure = property;
         failed_expectations += !held;
         accumulate(static_cast<int>(held), 1);
     }
 
-    /** @brief Record one result against its reference, failing when the error exceeds @p bound or is NaN. */
+    /** Records one result against its reference, failing when error exceeds @p bound, or on NaN. */
     template <typename actual_type_>
     void accumulate_bounded(actual_type_ actual, nk_f64_t expected, nk_f64_t bound) noexcept {
         nk_f64_t const error = std::fabs(static_cast<nk_f64_t>(actual) - expected);
@@ -696,9 +717,7 @@ inline void print_stats_row(char const *kernel_name, error_stats_t const &stats)
     std::fflush(stdout);
 }
 
-/**
- *  @brief Factory function to allocate vectors, potentially raising bad-allocs.
- */
+/** Factory function to allocate vectors, potentially raising bad-allocs. */
 template <typename type_>
 [[nodiscard]] nk::vector<type_> make_vector(std::size_t n) {
     auto result = nk::vector<type_>::try_zeros(n);
@@ -713,7 +732,7 @@ template <typename type_>
 /**
  *  @brief Fill buffer with random values, respecting global distribution setting.
  *
- *  Dispatches to appropriate nk::fill_* library function based on `global_config.distribution`.
+ *  Dispatches to the matching `nk::fill_*` library function based on `global_config.distribution`.
  *  Infers sensible bounds from type's representable range.
  */
 template <typename scalar_type_, typename allocator_type_, typename generator_type_>
@@ -733,23 +752,38 @@ void fill_random(generator_type_ &generator, nk::vector<scalar_type_, allocator_
 
 #pragma region Host Backend
 
-/** The arithmetic a backend accumulates products with, which sets how far its results may land from the reference. */
+/** The arithmetic a backend accumulates products with, setting how far its results may land from
+ *  the reference. */
 enum class accumulation_t {
-    family_thresholds_k, ///< judged by the comparison family's own ULP or scale thresholds
-    exact_k,             ///< integer products summed exactly, compared bit for bit
-    dot2_k,              ///< F64 with TwoProd and TwoSum: two ulp plus 4·γ² of Σ|a·b|
-    f64_k,               ///< products exact in F64 and summed in F64: (depth + 1)·2⁻⁵³ of Σ|a·b|, or exact
-    f32_k,               ///< products exact in F32 and summed in F32: (depth + 1)·2⁻²⁴ of Σ|a·b|, or exact
-    tensor_core_k,       ///< 32-deep MMA blocks into F32, truncated to ~22 bits: (depth / 32 + 1)·2⁻²² of Σ|a·b|
+
+    /** Judged by the comparison family's own ULP or scale thresholds. */
+    family_thresholds_k,
+
+    /** Integer products summed exactly, compared bit for bit. */
+    exact_k,
+
+    /** F64 with TwoProd and TwoSum: two ulp plus 4·γ² of Σ|a·b|. */
+    dot2_k,
+
+    /** Products exact in F64 and summed in F64: (depth + 1)·2⁻⁵³ of Σ|a·b|, or exact. */
+    f64_k,
+
+    /** Products exact in F32 and summed in F32: (depth + 1)·2⁻²⁴ of Σ|a·b|, or exact. */
+    f32_k,
+
+    /** 32-deep MMA blocks into F32, truncated to ~22 bits: (depth / 32 + 1)·2⁻²² of Σ|a·b|. */
+    tensor_core_k,
 };
 
-/** Runs the CPU kernels in place: operands in host memory, direct calls, results readable at once. */
+/** Runs CPU kernels in place: operands in host memory, direct calls, results readable at once. */
 struct host_backend_t {
+
     /** The allocator every kernel operand comes from. */
     template <typename value_type_>
     using allocator = aligned_allocator<value_type_>;
 
-    /** Dots of @p scalar_type_ accumulate integers exactly, F64 in Dot2, F32 in F64, and narrower floats in F32. */
+    /** Dots of @p scalar_type_ accumulate integers exactly, F64 in Dot2, F32 in F64, and narrower
+     *  floats in F32. */
     template <typename scalar_type_>
     static constexpr accumulation_t dots_accumulation() noexcept {
         using result_t = typename scalar_type_::dot_result_t;
@@ -765,7 +799,7 @@ struct host_backend_t {
         return accumulation_t::family_thresholds_k;
     }
 
-    /** Row stride for rows of @p row_bytes: exactly one row, so the tightest stride stays covered. */
+    /** Row stride for @p row_bytes: exactly one row, keeping the tightest stride covered. */
     static constexpr std::size_t row_stride(std::size_t row_bytes) noexcept { return row_bytes; }
 
     /** Copies @p bytes between host buffers. */
@@ -809,11 +843,14 @@ inline void print_indicator(bool on) {
 }
 
 /**
- *  Tri-state glyph for "compiled in" vs "runtime supports":
- *    ● compiled & runtime usable kernel    — green
- *    ◐ compiled but runtime lacks it       — red (invoking this kernel will SIGILL)
- *    ◑ runtime has it but not compiled in  — yellow (perf left on the table)
- *    ○ neither                             — dim
+ *  @brief Prints a tri-state glyph for whether a kernel is compiled in and the runtime supports it.
+ *
+ *  @verbatim
+ *  ● compiled & runtime usable kernel    — green
+ *  ◐ compiled but runtime lacks it       — red (invoking this kernel will SIGILL)
+ *  ◑ runtime has it but not compiled in  — yellow (perf left on the table)
+ *  ○ neither                             — muted
+ *  @endverbatim
  */
 inline void print_indicator_dual(bool compiled, bool runtime) {
     char const *glyph;
@@ -833,7 +870,8 @@ inline void print_isa(char const *name, int compiled, nk_capability_t cap, nk_ca
     print_indicator_dual(compiled != 0, runtime);
 }
 
-/** Prints the @p suite title, the compilation row, and every CPU ISA compiled in or detected in @p runtime_caps. */
+/** Prints the @p suite title, the compilation row, and every CPU ISA compiled in or detected in
+ *  @p runtime_caps. */
 inline void print_suite_header(char const *suite, nk_capability_t runtime_caps) {
     std::printf(colors_enabled() ? "\033[1mNumKong Precision Testing Suite v%d.%d.%d\033[0m\n" : "%s v%d.%d.%d\n",
                 suite, NK_VERSION_MAJOR, NK_VERSION_MINOR, NK_VERSION_PATCH);
@@ -902,7 +940,7 @@ inline void print_suite_header(char const *suite, nk_capability_t runtime_caps) 
 
 } // namespace ashvardanian::numkong::test
 
-// Forward declarations for test modules
+/** Forward declarations for test modules. */
 void test_casts();
 void test_reduce();
 void test_dot();
@@ -919,7 +957,7 @@ void test_vector_types();
 void test_tensor_ops();
 void test_maxsim();
 
-// Forward declarations for cross/batch tests (ISA-family files)
+/** Forward declarations for cross/batch tests, ISA-family files. */
 void test_cross_serial();
 void test_cross_x86();
 void test_cross_amx();

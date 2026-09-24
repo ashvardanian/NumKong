@@ -1,16 +1,14 @@
-//! MaxSim (ColBERT-style late-interaction) scoring with pre-packed matrices.
+//! MaxSim scoring — ColBERT-style late-interaction — with pre-packed matrices.
 //!
-//! MaxSim is the late-interaction similarity introduced by ColBERT: given a
-//! query matrix `Q`, one row per query token, and a document matrix `D`, one
-//! row per document token, the score is the sum over query rows of the max
-//! inner product with any document row. It retains token-level granularity —
-//! unlike single-vector retrieval — while remaining cheap enough to run over
-//! large candidate sets.
+//! MaxSim is the late-interaction similarity introduced by ColBERT: given a query matrix `Q`, one
+//! row per query token, and a document matrix `D`, one row per document token, the score is the sum
+//! over query rows of the max inner product with any document row. It retains token-level
+//! granularity — unlike single-vector retrieval — while remaining cheap enough to run over large
+//! candidate sets.
 //!
-//! [`MaxSimPackedMatrix`] stores those matrices in a quantized format
-//! optimized for fast coarse screening followed by full-precision refinement:
-//! an i8 pre-pass filters obvious non-matches before the original
-//! `f32` / `f16` / `bf16` values resolve the top candidates.
+//! [`MaxSimPackedMatrix`] stores those matrices in a quantized format optimized for fast coarse
+//! screening followed by full-precision refinement: an i8 pre-pass filters obvious non-matches
+//! before the original `f32` / `f16` / `bf16` values resolve the top candidates.
 //!
 //! # Typical flow
 //!
@@ -20,10 +18,9 @@
 //!
 //! # Example
 //!
-//! The doctest below is marked `ignore` because doctests compile as separate
-//! crates and would need to re-link the `libnumkong` C library that provides
-//! the `nk_maxsim_*` FFI symbols used here. The in-crate tests at the bottom
-//! of this file exercise the same code path.
+//! The doctest below is marked `ignore` because doctests compile as separate crates and would need
+//! to re-link the `libnumkong` C library that provides the `nk_maxsim_*` FFI symbols used here. The
+//! in-crate tests at the bottom of this file exercise the same code path.
 //!
 //! ```rust,no_run
 //! use numkong::{MaxSimPackedMatrix, Tensor};
@@ -38,6 +35,9 @@
 //! let docs_packed = MaxSimPackedMatrix::try_pack(&documents).unwrap();
 //! let score = queries_packed.try_score(&docs_packed).unwrap();
 //! ```
+//!
+//! File: rust/maxsim.rs
+//! Author: Ash Vardanian
 
 use core::marker::PhantomData;
 
@@ -216,9 +216,8 @@ impl MaxSim for bf16 {
 
 /// Pre-packed vector set for MaxSim scoring.
 ///
-/// Both query and document vectors must be packed before scoring.
-/// The buffer uses i8 quantization for fast coarse screening,
-/// with full-precision originals retained for refinement.
+/// Both query and document vectors must be packed before scoring. The buffer uses i8 quantization
+/// for fast coarse screening, with full-precision originals retained for refinement.
 #[derive(Debug)]
 pub struct MaxSimPackedMatrix<Scalar: MaxSim, Alloc: Allocator = Global> {
     buffer: PackedBuffer<Alloc>,
@@ -248,7 +247,8 @@ impl<Scalar: MaxSim, Alloc: Allocator + Clone> Clone for MaxSimPackedMatrix<Scal
 }
 
 impl<Scalar: MaxSim, Alloc: Allocator> MaxSimPackedMatrix<Scalar, Alloc> {
-    /// An empty packed set owning no allocation; fill it with [`try_pack_into`](Self::try_pack_into).
+    /// An empty packed set owning no allocation; fill it with
+    /// [`try_pack_into`](Self::try_pack_into).
     pub fn empty_in(alloc: Alloc) -> Self {
         Self {
             buffer: PackedBuffer::empty_in(alloc),
@@ -260,8 +260,8 @@ impl<Scalar: MaxSim, Alloc: Allocator> MaxSimPackedMatrix<Scalar, Alloc> {
 
     /// Pack vectors from a 2D tensor view using a custom allocator.
     ///
-    /// Returns `Err` if the view is not 2D, the depth axis is not contiguous,
-    /// the row stride is negative, or allocation fails.
+    /// Returns `Err` if the view is not 2D, the depth axis is not contiguous, the row stride is
+    /// negative, or allocation fails.
     pub fn try_pack_in<Vectors, const MAX_RANK: usize>(data: &Vectors, alloc: Alloc) -> Result<Self, TensorError>
     where
         Vectors: TensorRef<Scalar, MAX_RANK> + ?Sized,
@@ -289,8 +289,8 @@ impl<Scalar: MaxSim, Alloc: Allocator> MaxSimPackedMatrix<Scalar, Alloc> {
         Ok(())
     }
 
-    /// Pre-grow the buffer to hold `vectors` vectors of `depth`, so a later `try_pack_into` that fits
-    /// stays allocation-free with a stable pointer — hoist this out of a decode loop.
+    /// Pre-grow the buffer to hold `vectors` vectors of `depth`, so a later `try_pack_into` that
+    /// fits stays allocation-free with a stable pointer — hoist this out of a decode loop.
     pub fn try_reserve(&mut self, vectors: usize, depth: usize) -> Result<(), TensorError> {
         self.buffer.try_reserve(Scalar::maxsim_pack_size(vectors, depth))
     }
@@ -330,11 +330,11 @@ impl<Scalar: MaxSim, Alloc: Allocator> MaxSimPackedMatrix<Scalar, Alloc> {
     /// Number of vectors in the packed set.
     pub fn vectors(&self) -> usize { self.vectors }
 
-    /// Returns the shape (vectors, depth) of the original vector set.
+    /// Returns the shape __[vectors,depth]__ of the original vector set.
     pub fn shape(&self) -> (usize, usize) { (self.vectors, self.depth) }
 
-    /// Bytes a packed buffer occupies for `vectors` vectors of the given `depth` under the
-    /// active backend's layout, letting a caller pre-size an external buffer without packing.
+    /// Bytes a packed buffer occupies for `vectors` vectors of the given `depth` under the active
+    /// backend's layout, letting a caller pre-size an external buffer without packing.
     pub fn pack_size(vectors: usize, depth: usize) -> usize { Scalar::maxsim_pack_size(vectors, depth) }
 
     /// Adopt an externally-produced packed buffer by copying `bytes` into a container-owned
@@ -342,8 +342,8 @@ impl<Scalar: MaxSim, Alloc: Allocator> MaxSimPackedMatrix<Scalar, Alloc> {
     /// self-describing, so the caller must supply the shape the bytes were packed for.
     ///
     /// # Safety
-    /// `bytes` must be a valid packing of `vectors` vectors of `depth` for `Scalar`, produced
-    /// by this build's packer; anything else makes a later `try_score` read out of bounds.
+    /// `bytes` must be a valid packing of `vectors` vectors of `depth` for `Scalar`, produced by
+    /// this build's packer; anything else makes a later `try_score` read out of bounds.
     pub unsafe fn from_packed_bytes_in(
         bytes: &[u8],
         vectors: usize,
@@ -405,8 +405,8 @@ where
 impl<Scalar: MaxSim> MaxSimPackedMatrix<Scalar, Global> {
     /// Pack a 2D tensor of vectors for MaxSim scoring using the global allocator.
     ///
-    /// The `MaxSimPackedMatrix::` qualifier names the packing target — a tensor can be packed
-    /// for MaxSim or for dots, and those layouts differ, so construction goes through the typed
+    /// The `MaxSimPackedMatrix::` qualifier names the packing target — a tensor can be packed for
+    /// MaxSim or for dots, and those layouts differ, so construction goes through the typed
     /// constructor rather than a bare `tensor.try_pack()`.
     pub fn try_pack<Vectors, const MAX_RANK: usize>(data: &Vectors) -> Result<Self, TensorError>
     where

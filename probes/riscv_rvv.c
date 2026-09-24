@@ -1,4 +1,9 @@
-/* NumKong ISA probe: RVV 1.0 (RISC-V Vector Extension) */
+/**
+ *  @file probes/riscv_rvv.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for RVV 1.0, the RISC-V Vector Extension.
+ */
 #if !defined(__riscv_v)
 #error "Feature not available"
 #endif

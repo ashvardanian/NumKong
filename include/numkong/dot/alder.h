@@ -1,53 +1,55 @@
 /**
- *  @brief SIMD-accelerated Dot Products for Alder Lake.
  *  @file include/numkong/dot/alder.h
  *  @author Ash Vardanian
  *  @date March 4, 2026
+ *  @brief SIMD-accelerated dot products for Alder Lake.
  *
  *  @sa include/numkong/dot.h
  *
  *  @section dot_alder_instructions AVX-VNNI Instructions Performance
  *
- *      Intrinsic            Instruction               Alder Lake  Raptor Lake
- *      _mm256_dpbusd_epi32  VPDPBUSD (YMM, YMM, YMM)  4cy @ p05   4cy @ p05
- *      _mm256_madd_epi16    VPMADDWD (YMM, YMM, YMM)  4cy @ p05   4cy @ p05
- *      _mm256_sad_epu8      VPSADBW (YMM, YMM, YMM)   3cy @ p5    3cy @ p5
+ *  @verbatim
+ *  Intrinsic            Instruction               Alder Lake  Raptor Lake
+ *  _mm256_dpbusd_epi32  VPDPBUSD (YMM, YMM, YMM)  4cy @ p05   4cy @ p05
+ *  _mm256_madd_epi16    VPMADDWD (YMM, YMM, YMM)  4cy @ p05   4cy @ p05
+ *  _mm256_sad_epu8      VPSADBW (YMM, YMM, YMM)   3cy @ p5    3cy @ p5
+ *  @endverbatim
  *
- *  Alder Lake and Raptor Lake support AVX-VNNI (256-bit VNNI)
- *  for accelerated integer dot products. This is the 256-bit variant of AVX-512 VNNI found on Ice Lake.
- *  We use VPDPBUSD for asymmetric unsigned×signed multiplication with algebraic transformations to
- *  handle signed×signed (i8) and unsigned×unsigned (u8) cases.
+ *  Alder Lake and Raptor Lake support AVX-VNNI for accelerated integer dot products, the 256-bit
+ *  variant of AVX-512 VNNI found on Ice Lake. We use VPDPBUSD, an asymmetric unsigned×signed
+ *  multiply, with algebraic transformations covering signed×signed i8 and unsigned×unsigned u8.
  *
  *  Performance improvements over previous approaches:
- *    - i8×i8: 1.3-1.4× speedup using dpbusd with XOR transformation (a+128)×b - 128×sum(b)
- *    - u8×u8: 1.8-2.0× speedup using dpbusd with XOR transformation a×(b-128) + 128×sum(a)
+ *  - i8×i8: 1.3-1.4× speedup using dpbusd with XOR transformation (a+128)×b - 128×sum(b)
+ *  - u8×u8: 1.8-2.0× speedup using dpbusd with XOR transformation a×(b-128) + 128×sum(a)
+ *
  *  These match the speedups achieved on Ice Lake (AVX-512 VNNI) but with 256-bit vectors.
  *
  *  @section dot_alder_stateful Stateful Streaming Logic
  *
- *  To build memory-optimal tiled algorithms, this file defines following structures and force-inlined
- *  `NK_HELPER_INLINE` functions:
+ *  To build memory-optimal tiled algorithms, this file defines following structures and
+ *  force-inlined @c NK_HELPER_INLINE functions:
  *
  *  - nk_dot_i8x32 for 8-bit signed integer inputs using DPBUSD with algebraic transformation,
  *  - nk_dot_u8x32 for 8-bit unsigned integer inputs using DPBUSD with algebraic transformation.
  *
- *  @code{c}
+ *  @code{.c}
  *  nk_dot_i8x32_state_alder_t state_first, state_second, state_third, state_fourth;
  *  nk_b256_vec_t query_i8x32, target_first_i8x32, target_second_i8x32, target_third_i8x32, target_fourth_i8x32;
  *  nk_dot_i8x32_init_alder(&state_first);
  *  nk_dot_i8x32_init_alder(&state_second);
  *  nk_dot_i8x32_init_alder(&state_third);
  *  nk_dot_i8x32_init_alder(&state_fourth);
- *  for (nk_size_t idx = 0; idx + 32 <= depth; idx += 32) {
- *      query_i8x32.ymm = _mm256_loadu_si256(query_ptr + idx);
- *      target_first_i8x32.ymm = _mm256_loadu_si256(target_first_ptr + idx);
- *      target_second_i8x32.ymm = _mm256_loadu_si256(target_second_ptr + idx);
- *      target_third_i8x32.ymm = _mm256_loadu_si256(target_third_ptr + idx);
- *      target_fourth_i8x32.ymm = _mm256_loadu_si256(target_fourth_ptr + idx);
- *      nk_dot_i8x32_update_alder(&state_first, query_i8x32, target_first_i8x32, idx, 32);
- *      nk_dot_i8x32_update_alder(&state_second, query_i8x32, target_second_i8x32, idx, 32);
- *      nk_dot_i8x32_update_alder(&state_third, query_i8x32, target_third_i8x32, idx, 32);
- *      nk_dot_i8x32_update_alder(&state_fourth, query_i8x32, target_fourth_i8x32, idx, 32);
+ *  for (nk_size_t index = 0; index + 32 <= depth; index += 32) {
+ *      query_i8x32.ymm = _mm256_loadu_si256(query_ptr + index);
+ *      target_first_i8x32.ymm = _mm256_loadu_si256(target_first_ptr + index);
+ *      target_second_i8x32.ymm = _mm256_loadu_si256(target_second_ptr + index);
+ *      target_third_i8x32.ymm = _mm256_loadu_si256(target_third_ptr + index);
+ *      target_fourth_i8x32.ymm = _mm256_loadu_si256(target_fourth_ptr + index);
+ *      nk_dot_i8x32_update_alder(&state_first, query_i8x32, target_first_i8x32, index, 32);
+ *      nk_dot_i8x32_update_alder(&state_second, query_i8x32, target_second_i8x32, index, 32);
+ *      nk_dot_i8x32_update_alder(&state_third, query_i8x32, target_third_i8x32, index, 32);
+ *      nk_dot_i8x32_update_alder(&state_fourth, query_i8x32, target_fourth_i8x32, index, 32);
  *  }
  *  nk_b128_vec_t results_i32x4;
  *  nk_dot_i8x32_finalize_alder(&state_first, &state_second, &state_third, &state_fourth, depth, &results_i32x4);
@@ -55,23 +57,23 @@
  *
  *  The unsigned variant follows the same pattern with appropriate type changes:
  *
- *  @code{c}
+ *  @code{.c}
  *  nk_dot_u8x32_state_alder_t state_first, state_second, state_third, state_fourth;
  *  nk_b256_vec_t query_u8x32, target_first_u8x32, target_second_u8x32, target_third_u8x32, target_fourth_u8x32;
  *  nk_dot_u8x32_init_alder(&state_first);
  *  nk_dot_u8x32_init_alder(&state_second);
  *  nk_dot_u8x32_init_alder(&state_third);
  *  nk_dot_u8x32_init_alder(&state_fourth);
- *  for (nk_size_t idx = 0; idx + 32 <= depth; idx += 32) {
- *      query_u8x32.ymm = _mm256_loadu_si256(query_ptr + idx);
- *      target_first_u8x32.ymm = _mm256_loadu_si256(target_first_ptr + idx);
- *      target_second_u8x32.ymm = _mm256_loadu_si256(target_second_ptr + idx);
- *      target_third_u8x32.ymm = _mm256_loadu_si256(target_third_ptr + idx);
- *      target_fourth_u8x32.ymm = _mm256_loadu_si256(target_fourth_ptr + idx);
- *      nk_dot_u8x32_update_alder(&state_first, query_u8x32, target_first_u8x32, idx, 32);
- *      nk_dot_u8x32_update_alder(&state_second, query_u8x32, target_second_u8x32, idx, 32);
- *      nk_dot_u8x32_update_alder(&state_third, query_u8x32, target_third_u8x32, idx, 32);
- *      nk_dot_u8x32_update_alder(&state_fourth, query_u8x32, target_fourth_u8x32, idx, 32);
+ *  for (nk_size_t index = 0; index + 32 <= depth; index += 32) {
+ *      query_u8x32.ymm = _mm256_loadu_si256(query_ptr + index);
+ *      target_first_u8x32.ymm = _mm256_loadu_si256(target_first_ptr + index);
+ *      target_second_u8x32.ymm = _mm256_loadu_si256(target_second_ptr + index);
+ *      target_third_u8x32.ymm = _mm256_loadu_si256(target_third_ptr + index);
+ *      target_fourth_u8x32.ymm = _mm256_loadu_si256(target_fourth_ptr + index);
+ *      nk_dot_u8x32_update_alder(&state_first, query_u8x32, target_first_u8x32, index, 32);
+ *      nk_dot_u8x32_update_alder(&state_second, query_u8x32, target_second_u8x32, index, 32);
+ *      nk_dot_u8x32_update_alder(&state_third, query_u8x32, target_third_u8x32, index, 32);
+ *      nk_dot_u8x32_update_alder(&state_fourth, query_u8x32, target_fourth_u8x32, index, 32);
  *  }
  *  nk_b128_vec_t results_u32x4;
  *  nk_dot_u8x32_finalize_alder(&state_first, &state_second, &state_third, &state_fourth, depth, &results_u32x4);

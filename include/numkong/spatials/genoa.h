@@ -1,8 +1,8 @@
 /**
- *  @brief Batched Spatial Distances for Genoa (AVX-512 BF16).
  *  @file include/numkong/spatials/genoa.h
  *  @author Ash Vardanian
  *  @date February 23, 2026
+ *  @brief Batched spatial distances for Genoa, AVX-512 BF16.
  *
  *  @sa include/numkong/spatials.h
  */

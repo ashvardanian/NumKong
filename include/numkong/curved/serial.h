@@ -1,15 +1,15 @@
 /**
- *  @brief SWAR-accelerated Curved Space Similarity for SIMD-free CPUs.
  *  @file include/numkong/curved/serial.h
  *  @author Ash Vardanian
  *  @date January 14, 2026
+ *  @brief SWAR-accelerated curved-space similarity for SIMD-free CPUs.
  *
  *  @sa include/numkong/curved.h
  *
  *  Implements bilinear forms and Mahalanobis distance with precision-appropriate strategies:
  *  - f64 inputs use Dot2 (Ogita-Rump-Oishi 2005) for error-free transformations
- *  - f32/f16/bf16 inputs upcast to wider accumulators (f64/f32), providing sufficient
- *    precision headroom without compensation overhead
+ *  - f32/f16/bf16 inputs upcast to wider accumulators (f64/f32), providing sufficient precision
+ *    headroom without compensation overhead
  *
  *  Bilinear form: aᵀ × C × b = Σᵢ aᵢ × (Σⱼ cᵢⱼ × bⱼ)
  *
@@ -17,13 +17,13 @@
  *  - Inner: Σⱼ cᵢⱼ × bⱼ (O(n) terms per row)
  *  - Outer: Σᵢ aᵢ × inner_result (O(n) terms total)
  *
- *  For f64→f64 (no upcast headroom): Dot2 uses TwoProd and TwoSum error-free
- *  transformations at both levels, capturing rounding errors in compensation terms.
+ *  For f64 → f64 (no upcast headroom): Dot2 uses TwoProd and TwoSum error-free transformations at
+ *  both levels, capturing rounding errors in compensation terms.
  *
- *  For upcasted types (f32→f64, f16→f32, bf16→f32): the wider accumulator provides
- *  enough extra mantissa bits that simple accumulation suffices.
+ *  For upcasted types, f32 → f64, f16 → f32, and bf16 → f32, the wider accumulator provides enough
+ *  extra mantissa bits that simple accumulation suffices.
  *
- *  @see Ogita, T., Rump, S.M., Oishi, S. (2005). "Accurate Sum and Dot Product"
+ *  Dot2 follows Ogita, T., Rump, S.M., Oishi, S. (2005), "Accurate Sum and Dot Product".
  */
 #ifndef NK_CURVED_SERIAL_H
 #define NK_CURVED_SERIAL_H
@@ -38,8 +38,8 @@ extern "C" {
 /**
  *  @brief Macro for bilinear form aᵀ × C × b with simple accumulation.
  *
- *  Suitable for upcasted types where the wider accumulator provides sufficient
- *  precision headroom (f32→f64, f16→f32, bf16→f32).
+ *  Suitable for upcasted types where the wider accumulator provides sufficient precision headroom
+ *  (f32 → f64, f16 → f32, bf16 → f32).
  */
 #define nk_define_bilinear_(input_type, accumulator_type, output_type, load_and_convert)                               \
     NK_API_COMPTIME void nk_bilinear_##input_type##_serial(nk_##input_type##_t const *a, nk_##input_type##_t const *b, \
@@ -63,8 +63,8 @@ extern "C" {
 /**
  *  @brief Macro for complex bilinear form aᵀ × C × b with simple accumulation.
  *
- *  Suitable for upcasted complex types where the wider accumulator provides
- *  sufficient precision headroom.
+ *  Suitable for upcasted complex types where the wider accumulator provides sufficient precision
+ *  headroom. The outer sum is a complex multiply of @c a_i by each row's inner complex sum.
  */
 #define nk_define_bilinear_complex_(input_type, accumulator_type, output_type, load_and_convert)                    \
     NK_API_COMPTIME void nk_bilinear_##input_type##_serial(                                                         \
@@ -95,8 +95,8 @@ extern "C" {
 /**
  *  @brief Macro for Mahalanobis distance √((a−b)ᵀ × C × (a−b)) with simple accumulation.
  *
- *  Suitable for upcasted types where the wider accumulator provides sufficient
- *  precision headroom. Differences are computed in the accumulator precision.
+ *  Suitable for upcasted types where the wider accumulator provides sufficient precision headroom.
+ *  Differences are computed in the accumulator precision.
  */
 #define nk_define_mahalanobis_(input_type, accumulator_type, output_type, load_and_convert)                    \
     NK_API_COMPTIME void nk_mahalanobis_##input_type##_serial(                                                 \
@@ -122,17 +122,17 @@ extern "C" {
         *result = nk_##accumulator_type##_sqrt_serial(quadratic > 0 ? quadratic : 0);                          \
     }
 
-// f32 → f64 accumulator → f64 output
+/* f32 → f64 accumulator → f64 output */
 nk_define_bilinear_(f32, f64, f64, nk_assign_from_to_)          // nk_bilinear_f32_serial
 nk_define_bilinear_complex_(f32c, f64, f64, nk_assign_from_to_) // nk_bilinear_f32c_serial
 nk_define_mahalanobis_(f32, f64, f64, nk_assign_from_to_)       // nk_mahalanobis_f32_serial
 
-// f16 → f32 accumulator → f32 output: f32 provides ample headroom for f16 (~3 vs ~7 decimal digits)
+/* f16 → f32 accumulator → f32 output: f16 has ~3 decimal digits, f32 gives ample headroom. */
 nk_define_bilinear_(f16, f32, f32, nk_f16_to_f32_serial)          // nk_bilinear_f16_serial
 nk_define_bilinear_complex_(f16c, f32, f32, nk_f16_to_f32_serial) // nk_bilinear_f16c_serial
 nk_define_mahalanobis_(f16, f32, f32, nk_f16_to_f32_serial)       // nk_mahalanobis_f16_serial
 
-// bf16 → f32 accumulator → f32 output: f32 provides ample headroom for bf16 (~2 vs ~7 decimal digits)
+/* bf16 → f32 accumulator → f32 output: bf16 has ~2 decimal digits, f32 gives ample headroom. */
 nk_define_bilinear_(bf16, f32, f32, nk_bf16_to_f32_serial)          // nk_bilinear_bf16_serial
 nk_define_bilinear_complex_(bf16c, f32, f32, nk_bf16_to_f32_serial) // nk_bilinear_bf16c_serial
 nk_define_mahalanobis_(bf16, f32, f32, nk_bf16_to_f32_serial)       // nk_mahalanobis_bf16_serial

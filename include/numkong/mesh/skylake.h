@@ -1,18 +1,20 @@
 /**
- *  @brief SIMD-accelerated Point Cloud Alignment for Skylake.
  *  @file include/numkong/mesh/skylake.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated point cloud alignment for Skylake.
  *
  *  @sa include/numkong/mesh.h
  *
  *  @section skylake_mesh_instructions Key AVX-512 Mesh Instructions
  *
- *      Intrinsic               Instruction                   Skylake-X  Genoa
- *      _mm512_fmadd_ps         VFMADD132PS (ZMM, ZMM, ZMM)   4cy @ p05  4cy @ p01
- *      _mm512_permutexvar_ps   VPERMPS (ZMM, ZMM, ZMM)       3cy @ p5   4cy @ p12
- *      _mm512_permutex2var_ps  VPERMT2PS (ZMM, ZMM, ZMM)     3cy @ p5   4cy @ p12
- *      _mm512_extractf32x8_ps  VEXTRACTF32X8 (YMM, ZMM, I8)  3cy @ p5   1cy @ p0123
+ *  @verbatim
+ *  Intrinsic               Instruction                   Skylake-X  Genoa
+ *  _mm512_fmadd_ps         VFMADD132PS (ZMM, ZMM, ZMM)   4cy @ p05  4cy @ p01
+ *  _mm512_permutexvar_ps   VPERMPS (ZMM, ZMM, ZMM)       3cy @ p5   4cy @ p12
+ *  _mm512_permutex2var_ps  VPERMT2PS (ZMM, ZMM, ZMM)     3cy @ p5   4cy @ p12
+ *  _mm512_extractf32x8_ps  VEXTRACTF32X8 (YMM, ZMM, I8)  3cy @ p5   1cy @ p0123
+ *  @endverbatim
  *
  *  Most `*_f32` mesh kernels use a 15-lane stride-3 chunk layout: 5 xyz triplets per ZMM (lane 15
  *  masked to zero) so the xyz phase is identical across all chunks and no per-chunk deinterleave is

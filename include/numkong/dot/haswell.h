@@ -1,30 +1,32 @@
 /**
- *  @brief SIMD-accelerated Dot Products for Haswell.
  *  @file include/numkong/dot/haswell.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated dot products for Haswell.
  *
  *  @sa include/numkong/dot.h
  *
  *  @section dot_haswell_instructions Key AVX2/FMA Dot Product Instructions
  *
- *      Intrinsic           Instruction                Haswell    Genoa
- *      _mm256_fmadd_ps/pd  VFMADD (YMM, YMM, YMM)     5cy @ p01  4cy @ p01
- *      _mm256_mul_ps/pd    VMULPS/PD (YMM, YMM, YMM)  5cy @ p01  3cy @ p01
- *      _mm256_add_ps/pd    VADDPS/PD (YMM, YMM, YMM)  3cy @ p01  3cy @ p23
- *      _mm256_cvtph_ps     VCVTPH2PS (YMM, XMM)       5cy @ p01  4cy @ p12+p23
- *      _mm256_cvtps_pd     VCVTPS2PD (YMM, XMM)       2cy @ p01  4cy @ p12+p23
+ *  @verbatim
+ *  Intrinsic           Instruction                Haswell    Genoa
+ *  _mm256_fmadd_ps/pd  VFMADD (YMM, YMM, YMM)     5cy @ p01  4cy @ p01
+ *  _mm256_mul_ps/pd    VMULPS/PD (YMM, YMM, YMM)  5cy @ p01  3cy @ p01
+ *  _mm256_add_ps/pd    VADDPS/PD (YMM, YMM, YMM)  3cy @ p01  3cy @ p23
+ *  _mm256_cvtph_ps     VCVTPH2PS (YMM, XMM)       5cy @ p01  4cy @ p12+p23
+ *  _mm256_cvtps_pd     VCVTPS2PD (YMM, XMM)       2cy @ p01  4cy @ p12+p23
+ *  @endverbatim
  *
- *  For small numeric types (F16, BF16, E4M3, E5M2) we use F32 accumulators. For F32 dot products,
- *  upcasting to F64 and downcasting back is faster than stable summation algorithms. For F64 we
- *  use the Dot2 algorithm (Ogita-Rump-Oishi, 2005) for compensated accumulation via TwoSum/TwoProd.
- *  For F32 complex dot products, upcasting to F64 absorbs the deferred sign-flip error.
- *  BF16c and F16c use the same deferred sign-flip with F32 accumulators.
+ *  For small numeric types — F16, BF16, E4M3, E5M2 — we use F32 accumulators. For F32 dot products,
+ *  upcasting to F64 and downcasting back is faster than stable summation algorithms. For F64 we use
+ *  the Ogita-Rump-Oishi 2005 Dot2 algorithm for compensated accumulation via TwoSum/TwoProd. For
+ *  F32 complex dot products, upcasting to F64 absorbs the deferred sign-flip error. BF16c and F16c
+ *  use the same deferred sign-flip with F32 accumulators.
  *
  *  @section dot_haswell_stateful Stateful Streaming Logic
  *
- *  To build memory-optimal tiled algorithms, this file defines following structures and force-inlined
- *  `NK_HELPER_INLINE` functions:
+ *  To build memory-optimal tiled algorithms, this file defines following structures and
+ *  force-inlined @c NK_HELPER_INLINE functions:
  *
  *  - nk_dot_f64x4 state with Dot2 stable dot-products,
  *  - nk_dot_f32x4 state with double-precision numerics,
@@ -33,23 +35,23 @@
  *  - nk_dot_i4x32 for 4-bit signed integer products with 2 correction terms,
  *  - nk_dot_u4x32 for 4-bit unsigned integer products.
  *
- *  @code{c}
+ *  @code{.c}
  *  nk_dot_through_i32_state_haswell_t_ state_first, state_second, state_third, state_fourth;
  *  nk_b128_vec_t query_i8x16, target_first_i8x16, target_second_i8x16, target_third_i8x16, target_fourth_i8x16,
  *  nk_dot_through_i32_init_haswell_(&state_first);
  *  nk_dot_through_i32_init_haswell_(&state_second);
  *  nk_dot_through_i32_init_haswell_(&state_third);
  *  nk_dot_through_i32_init_haswell_(&state_fourth);
- *  for (nk_size_t idx = 0; idx + 16 <= depth; idx += 16) {
- *      query_i8x16.xmm = _mm_loadu_si128(query_ptr + idx);
- *      target_first_i8x16.xmm = _mm_loadu_si128(target_first_ptr + idx);
- *      target_second_i8x16.xmm = _mm_loadu_si128(target_second_ptr + idx);
- *      target_third_i8x16.xmm = _mm_loadu_si128(target_third_ptr + idx);
- *      target_fourth_i8x16.xmm = _mm_loadu_si128(target_fourth_ptr + idx);
- *      nk_dot_i8x16_update_haswell(&state_first, query_i8x16, target_first_i8x16, idx, 16);
- *      nk_dot_i8x16_update_haswell(&state_second, query_i8x16, target_second_i8x16, idx, 16);
- *      nk_dot_i8x16_update_haswell(&state_third, query_i8x16, target_third_i8x16, idx, 16);
- *      nk_dot_i8x16_update_haswell(&state_fourth, query_i8x16, target_fourth_i8x16, idx, 16);
+ *  for (nk_size_t index = 0; index + 16 <= depth; index += 16) {
+ *      query_i8x16.xmm = _mm_loadu_si128(query_ptr + index);
+ *      target_first_i8x16.xmm = _mm_loadu_si128(target_first_ptr + index);
+ *      target_second_i8x16.xmm = _mm_loadu_si128(target_second_ptr + index);
+ *      target_third_i8x16.xmm = _mm_loadu_si128(target_third_ptr + index);
+ *      target_fourth_i8x16.xmm = _mm_loadu_si128(target_fourth_ptr + index);
+ *      nk_dot_i8x16_update_haswell(&state_first, query_i8x16, target_first_i8x16, index, 16);
+ *      nk_dot_i8x16_update_haswell(&state_second, query_i8x16, target_second_i8x16, index, 16);
+ *      nk_dot_i8x16_update_haswell(&state_third, query_i8x16, target_third_i8x16, index, 16);
+ *      nk_dot_i8x16_update_haswell(&state_fourth, query_i8x16, target_fourth_i8x16, index, 16);
  *  }
  *  nk_b128_vec_t results_i32x4;
  *  nk_dot_through_i32_finalize_haswell_(&state_first, &state_second, &state_third, &state_fourth,
@@ -60,23 +62,23 @@
  *  like f16, bf16, e4m3, e5m2, e2m3, and e3m2 on Haswell use ISA-specific upcasting to f32 combined
  *  with native FMA instructions, sharing the `nk_dot_through_f32` accumulation logic:
  *
- *  @code{c}
+ *  @code{.c}
  *  nk_dot_e4m3x16_state_haswell_t state_first, state_second, state_third, state_fourth;
  *  nk_b256_vec_t query_f32x8, target_first_f32x8, target_second_f32x8, target_third_f32x8, target_fourth_f32x8;
  *  nk_dot_through_f32_init_haswell_(&state_first);
  *  nk_dot_through_f32_init_haswell_(&state_second);
  *  nk_dot_through_f32_init_haswell_(&state_third);
  *  nk_dot_through_f32_init_haswell_(&state_fourth);
- *  for (nk_size_t idx = 0; idx + 8 <= depth; idx += 8) {
- *      query_f32x8.ymm_ps = nk_e4m3x8_to_f32x8_haswell_(_mm_loadl_epi64(query_ptr + idx));
- *      target_first_f32x8.ymm_ps = nk_e4m3x8_to_f32x8_haswell_(_mm_loadl_epi64(target_first_ptr + idx));
- *      target_second_f32x8.ymm_ps = nk_e4m3x8_to_f32x8_haswell_(_mm_loadl_epi64(target_second_ptr + idx));
- *      target_third_f32x8.ymm_ps = nk_e4m3x8_to_f32x8_haswell_(_mm_loadl_epi64(target_third_ptr + idx));
- *      target_fourth_f32x8.ymm_ps = nk_e4m3x8_to_f32x8_haswell_(_mm_loadl_epi64(target_fourth_ptr + idx));
- *      nk_dot_through_f32_update_haswell_(&state_first, query_f32x8, target_first_f32x8, idx, 8);
- *      nk_dot_through_f32_update_haswell_(&state_second, query_f32x8, target_second_f32x8, idx, 8);
- *      nk_dot_through_f32_update_haswell_(&state_third, query_f32x8, target_third_f32x8, idx, 8);
- *      nk_dot_through_f32_update_haswell_(&state_fourth, query_f32x8, target_fourth_f32x8, idx, 8);
+ *  for (nk_size_t index = 0; index + 8 <= depth; index += 8) {
+ *      query_f32x8.ymm_ps = nk_e4m3x8_to_f32x8_haswell_(_mm_loadl_epi64(query_ptr + index));
+ *      target_first_f32x8.ymm_ps = nk_e4m3x8_to_f32x8_haswell_(_mm_loadl_epi64(target_first_ptr + index));
+ *      target_second_f32x8.ymm_ps = nk_e4m3x8_to_f32x8_haswell_(_mm_loadl_epi64(target_second_ptr + index));
+ *      target_third_f32x8.ymm_ps = nk_e4m3x8_to_f32x8_haswell_(_mm_loadl_epi64(target_third_ptr + index));
+ *      target_fourth_f32x8.ymm_ps = nk_e4m3x8_to_f32x8_haswell_(_mm_loadl_epi64(target_fourth_ptr + index));
+ *      nk_dot_through_f32_update_haswell_(&state_first, query_f32x8, target_first_f32x8, index, 8);
+ *      nk_dot_through_f32_update_haswell_(&state_second, query_f32x8, target_second_f32x8, index, 8);
+ *      nk_dot_through_f32_update_haswell_(&state_third, query_f32x8, target_third_f32x8, index, 8);
+ *      nk_dot_through_f32_update_haswell_(&state_fourth, query_f32x8, target_fourth_f32x8, index, 8);
  *  }
  *  nk_b128_vec_t results_f32x4;
  *  nk_dot_through_f32_finalize_haswell_(&state_first, &state_second, &state_third, &state_fourth,

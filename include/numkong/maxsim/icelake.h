@@ -1,23 +1,25 @@
 /**
- *  @brief SIMD-accelerated MaxSim (ColBERT late-interaction) for Ice Lake.
  *  @file include/numkong/maxsim/icelake.h
  *  @author Ash Vardanian
  *  @date February 28, 2026
+ *  @brief SIMD-accelerated MaxSim, ColBERT late-interaction, for Ice Lake.
  *
  *  @sa include/numkong/maxsim.h
  *
  *  Uses AVX-512 VNNI (VPDPBUSD) for coarse i8 screening. The coarse argmax kernel and reduce helper
  *  are shared with genoa.h — genoa.h imports them from this file for its bf16 compute path.
  *
- *  VPDPBUSD computes 4 groups of (u8 × i8) → i32 per 128-bit lane, processing 64 i8 pairs
- *  per ZMM register operation. Bias correction via XOR with 0x80 converts signed queries
- *  to unsigned, then subtracts 128 * sum(document_i8) after the depth loop.
+ *  VPDPBUSD computes 4 groups of (u8 × i8) → i32 per 128-bit lane, processing 64 i8 pairs per ZMM
+ *  register operation. Bias correction via XOR with 0x80 converts signed queries to unsigned, then
+ *  subtracts 128 * sum(document_i8) after the depth loop.
  *
  *  4x4 register tiling: 4 queries × 4 documents = 16 ZMM accumulators per depth loop.
  *  Each document load is amortized across 4 VPDPBUSDs, and each query load across 4 documents.
  *
- *      Intrinsic            Instruction  Icelake   Genoa
- *      _mm512_dpbusd_epi32  VPDPBUSD     5cy @ p0  4cy @ p01
+ *  @verbatim
+ *  Intrinsic            Instruction  Icelake   Genoa
+ *  _mm512_dpbusd_epi32  VPDPBUSD     5cy @ p0  4cy @ p01
+ *  @endverbatim
  */
 #ifndef NK_MAXSIM_ICELAKE_H
 #define NK_MAXSIM_ICELAKE_H

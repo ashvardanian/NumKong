@@ -1,3 +1,6 @@
+// numkong/golang/sets.go
+// Written by Ash Vardanian.
+
 package numkong
 
 /*
@@ -10,8 +13,9 @@ package numkong
 import "C"
 import "unsafe"
 
-// HammingsPackedU1 computes the Hamming distance from each of height binary vectors to every packed query.
-// Each vector has query.Depth() dimensions, and result holds at least height * query.Width() entries.
+// HammingsPackedU1 computes the Hamming distance from each of height binary vectors to every packed
+// query. Each vector has [DotsPackedMatrix.Depth] dimensions, and result holds at least height *
+// [DotsPackedMatrix.Width] entries.
 func HammingsPackedU1(vectors []byte, query DotsPackedMatrix, result []uint32, height int) {
 	if query.DType() != "u1" {
 		panic("DotsPackedMatrix dtype must be u1")
@@ -32,8 +36,9 @@ func HammingsPackedU1(vectors []byte, query DotsPackedMatrix, result []uint32, h
 		C.nk_size_t(query.width*4))
 }
 
-// HammingsSymmetricU1 computes the Hamming distance between every pair of nVectors binary vectors of depth dimensions.
-// The depth is a multiple of 8, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
+// HammingsSymmetricU1 computes the Hamming distance between every pair of nVectors binary vectors
+// of depth dimensions. The depth is a multiple of 8, and only entries with row <= column are
+// written into result, which holds at least nVectors * nVectors entries.
 func HammingsSymmetricU1(vectors []byte, nVectors, depth int, result []uint32) {
 	validateDimensions("u1", depth)
 	bytesPerVec := DimensionsToValues("u1", depth)
@@ -57,8 +62,9 @@ func hammingsSymmetricU1(vectors []byte, nVectors, depth int, result []uint32, r
 		C.nk_size_t(rowStart), C.nk_size_t(rowCount))
 }
 
-// JaccardsPackedU1 computes the Jaccard distance from each of height binary vectors to every packed query.
-// Each vector has query.Depth() dimensions, and result holds at least height * query.Width() entries.
+// JaccardsPackedU1 computes the Jaccard distance from each of height binary vectors to every packed
+// query. Each vector has [DotsPackedMatrix.Depth] dimensions, and result holds at least height *
+// [DotsPackedMatrix.Width] entries.
 func JaccardsPackedU1(vectors []byte, query DotsPackedMatrix, result []float32, height int) {
 	if query.DType() != "u1" {
 		panic("DotsPackedMatrix dtype must be u1")
@@ -79,8 +85,9 @@ func JaccardsPackedU1(vectors []byte, query DotsPackedMatrix, result []float32, 
 		C.nk_size_t(query.width*4))
 }
 
-// JaccardsSymmetricU1 computes the Jaccard distance between every pair of nVectors binary vectors of depth dimensions.
-// The depth is a multiple of 8, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
+// JaccardsSymmetricU1 computes the Jaccard distance between every pair of nVectors binary vectors
+// of depth dimensions. The depth is a multiple of 8, and only entries with row <= column are
+// written into result, which holds at least nVectors * nVectors entries.
 func JaccardsSymmetricU1(vectors []byte, nVectors, depth int, result []float32) {
 	validateDimensions("u1", depth)
 	bytesPerVec := DimensionsToValues("u1", depth)

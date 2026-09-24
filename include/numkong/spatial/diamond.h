@@ -1,14 +1,13 @@
 /**
- *  @brief SIMD-accelerated Spatial Similarity Measures for Diamond Rapids.
  *  @file include/numkong/spatial/diamond.h
  *  @author Ash Vardanian
  *  @date March 23, 2026
+ *  @brief SIMD-accelerated spatial similarity measures for Diamond Rapids.
  *
  *  @sa include/numkong/spatial.h
  *
- *  For L2 distance, uses the identity: (a−b)² = a² + b² − 2 × a × b,
- *  with VCVTHF82PH/VCVTBF82PH for 1-instruction FP8→FP16 conversion and
- *  VDPPHPS for FP16-pair dot products accumulating into FP32.
+ *  For L2 distance, uses (a−b)² = a² + b² − 2 × a × b, with VCVTHF82PH and VCVTBF82PH converting
+ *  FP8 → FP16 in one instruction and VDPPHPS accumulating FP16 pairs into FP32.
  */
 #ifndef NK_SPATIAL_DIAMOND_H
 #define NK_SPATIAL_DIAMOND_H

@@ -1,8 +1,8 @@
 /**
- *  @brief C++ bindings for set-intersection kernels.
  *  @file include/numkong/set.hpp
  *  @author Ash Vardanian
  *  @date February 5, 2026
+ *  @brief C++ bindings for set-intersection kernels.
  */
 #ifndef NK_SET_HPP
 #define NK_SET_HPP
@@ -50,8 +50,8 @@ void hamming(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *
  *  @param[in] d Counts dimensions, a multiple of the values per byte.
  *  @param[out] r Pointer to output distance
  *
- *  For u1x8_t (bit vectors): uses popcount(AND) / popcount(OR)
- *  For u16_t/u32_t (element vectors): uses count of matching elements / total
+ *  For u1x8_t bit vectors, uses popcount(AND) / popcount(OR). For u16_t/u32_t element vectors, uses
+ *  count of matching elements / total.
  *
  *  @tparam in_type_ Input vector element type (u1x8_t, u16_t, or u32_t)
  *  @tparam result_type_ Accumulator type, defaults to `in_type_::jaccard_result_t`

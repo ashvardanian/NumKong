@@ -1,8 +1,8 @@
 /**
- *  @brief Ragged attention operations for NumKong Python bindings.
  *  @file python/attention.c
  *  @author Ash Vardanian
  *  @date July 6, 2026
+ *  @brief Ragged attention operations for NumKong Python bindings.
  *
  *  This module owns:
  *  - `AttentionPackedMatrix`: opaque pre-packed ragged KV-cache.
@@ -17,7 +17,7 @@
 
 #include <math.h>
 
-/** @brief One segment-head window of a KV-cache pack, named as in `nk_attention_pack_*`. */
+/** One segment-head window of a KV-cache pack, named as in `nk_attention_pack_*`. */
 typedef struct attention_pack_task_t {
     nk_attention_pack_punned_t kernel;
     void const *keys;
@@ -41,7 +41,7 @@ static void attention_pack_tile_(nk_size_t tile_index, void *context) {
                  task->key_value_packed, window, window + 1);
 }
 
-/** @brief Arguments both attention kernels take, named as in `nk_attention_*_packed_*`. */
+/** Arguments both attention kernels take, named as in `nk_attention_*_packed_*`. */
 typedef struct attention_arguments_t {
     void const *queries;
     void const *key_value_packed;
@@ -55,13 +55,13 @@ typedef struct attention_arguments_t {
     nk_f32_t scale;
 } attention_arguments_t;
 
-/** @brief One segment-head task of bidirectional attention. */
+/** One segment-head task of bidirectional attention. */
 typedef struct attention_bidirectional_task_t {
     nk_attention_bidirectional_packed_punned_t kernel;
     attention_arguments_t arguments;
 } attention_bidirectional_task_t;
 
-/** @brief One segment-head task of causal attention, which adds the mask to the shared arguments. */
+/** One segment-head task of causal attention, which adds the mask to the shared arguments. */
 typedef struct attention_causal_task_t {
     nk_attention_causal_packed_punned_t kernel;
     attention_arguments_t arguments;
@@ -165,7 +165,7 @@ PyTypeObject AttentionPackedMatrixType = {
     .tp_repr = AttentionPackedMatrix_repr,
 };
 
-/** @brief Parses a 1-D contiguous `u32` buffer, releasing it on failure. */
+/** Parses a 1-D contiguous @c u32 buffer, releasing it on failure. */
 static int attention_parse_u32_vector(PyObject *obj, char const *name, Py_buffer *buffer, nk_buffer_backing_t *backing,
                                       nk_u32_t const **data, nk_size_t *count) {
     if (!nk_get_buffer(obj, buffer, PyBUF_STRIDES | PyBUF_FORMAT, backing)) {
@@ -183,7 +183,7 @@ static int attention_parse_u32_vector(PyObject *obj, char const *name, Py_buffer
     return 1;
 }
 
-/** @brief Interprets a K/V/Q buffer as `[tokens, heads * depth]`, inferring the head split. */
+/** Interprets a K/V/Q buffer as @b [tokens,heads×depth], inferring the head split. */
 static int attention_parse_token_matrix(Py_buffer const *buffer, char const *name, nk_size_t depth, nk_size_t *tokens,
                                         nk_size_t *heads, nk_size_t *row_stride) {
     if (buffer->ndim == 3) {
@@ -224,23 +224,23 @@ static int attention_parse_token_matrix(Py_buffer const *buffer, char const *nam
     return 0;
 }
 
-char const doc_attention_pack[] =                                                     //
-    "attention_pack(k, v, /, segment_offsets, segment_lengths=None, depth=None, "     //
-    "threads=1) -> AttentionPackedMatrix\n\n"                                         //
-    "Pack ragged K/V token matrices into a backend-opaque KV-cache blob.\n\n"         //
-    "Parameters:\n"                                                                   //
-    "    k, v (array_like): Token matrices, 2-D (tokens, heads*depth) or\n"           //
-    "        3-D (tokens, heads, depth); bf16 or e4m3, rows may be strided\n"         //
-    "        interior views of a fused QKV buffer.\n"                                 //
-    "    segment_offsets (u32 array): Cumulative token offsets, length segments+1.\n" //
-    "    segment_lengths (u32 array, optional): KV length per segment; defaults to\n" //
-    "        adjacent offset differences (self-attention).\n"                         //
-    "    depth (int, optional): Required when k/v are 2-D.\n"                         //
-    "    threads (int): Threads for packing; 0 = all cores.\n\n"                      //
-    "Returns:\n"                                                                      //
-    "    AttentionPackedMatrix: Opaque packed KV-cache for attention_*_packed().\n\n" //
-    "Signature:\n"                                                                    //
-    "    >>> def attention_pack(k, v, /, segment_offsets, segment_lengths=None,\n"    //
+char const doc_attention_pack[] =                                                                //
+    "attention_pack(k, v, /, segment_offsets, segment_lengths=None, depth=None, threads=1) ->\n" //
+    "AttentionPackedMatrix\n\n"                                                                  //
+    "Pack ragged K/V token matrices into a backend-opaque KV-cache blob.\n\n"                    //
+    "Args:\n"                                                                                    //
+    "    k, v (array_like): Token matrices, 2-D (tokens, heads*depth) or\n"                      //
+    "        3-D (tokens, heads, depth); bf16 or e4m3, rows may be strided\n"                    //
+    "        interior views of a fused QKV buffer.\n"                                            //
+    "    segment_offsets (u32 array): Cumulative token offsets, length segments+1.\n"            //
+    "    segment_lengths (u32 array, optional): KV length per segment; defaults to\n"            //
+    "        adjacent offset differences, as in self-attention.\n"                               //
+    "    depth (int, optional): Required when k/v are 2-D.\n"                                    //
+    "    threads (int): Threads for packing; 0 = all cores.\n\n"                                 //
+    "Returns:\n"                                                                                 //
+    "    AttentionPackedMatrix: Opaque packed KV-cache for attention_*_packed().\n\n"            //
+    "Signature:\n"                                                                               //
+    "    >>> def attention_pack(k, v, /, segment_offsets, segment_lengths=None,\n"               //
     "    ...                    depth=None, threads=1) -> AttentionPackedMatrix: ...";
 
 PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
@@ -409,43 +409,43 @@ cleanup:
     return (PyObject *)packed;
 }
 
-char const doc_attention_bidirectional_packed[] =                                               //
-    "attention_bidirectional_packed(q, kv, /, query_offsets, out=None, scale=None, threads=1) " //
-    "-> Tensor\n\n"                                                                             //
-    "Ragged bidirectional scaled-dot-product attention against a pre-packed KV-cache.\n\n"      //
-    "Parameters:\n"                                                                             //
-    "    q (array_like): Query tokens, 2-D (tokens, heads*depth) or 3-D\n"                      //
-    "        (tokens, heads, depth), same dtype as the packed KV-cache.\n"                      //
-    "    kv (AttentionPackedMatrix): Packed KV-cache from attention_pack().\n"                  //
-    "    query_offsets (u32 array): Cumulative query offsets, length segments+1;\n"             //
-    "        arange(segments+1) turns the call into a batched single-query pool.\n"             //
-    "    out (Tensor, optional): Pre-allocated f32 output of the same shape as q.\n"            //
-    "    scale (float, optional): Score scale; default 1/sqrt(depth).\n"                        //
-    "    threads (int): Threads over the segment*head task grid; 0 = all.\n\n"                  //
-    "Returns:\n"                                                                                //
-    "    Tensor: f32 outputs, rows covered by query_offsets are written.\n\n"                   //
-    "Signature:\n"                                                                              //
-    "    >>> def attention_bidirectional_packed(q, kv, /, query_offsets, out=None,\n"           //
+char const doc_attention_bidirectional_packed[] =                                                            //
+    "attention_bidirectional_packed(q, kv, /, query_offsets, out=None, scale=None, threads=1) -> Tensor\n\n" //
+    "Ragged bidirectional scaled-dot-product attention against a pre-packed KV-cache.\n\n"                   //
+    "Args:\n"                                                                                                //
+    "    q (array_like): Query tokens, 2-D (tokens, heads*depth) or 3-D\n"                                   //
+    "        (tokens, heads, depth), same dtype as the packed KV-cache.\n"                                   //
+    "    kv (AttentionPackedMatrix): Packed KV-cache from attention_pack().\n"                               //
+    "    query_offsets (u32 array): Cumulative query offsets, length segments+1;\n"                          //
+    "        arange(segments+1) turns the call into a batched single-query pool.\n"                          //
+    "    out (Tensor, optional): Pre-allocated f32 output of the same shape as q.\n"                         //
+    "    scale (float, optional): Score scale; default 1/sqrt(depth).\n"                                     //
+    "    threads (int): Threads over the segment*head task grid; 0 = all.\n\n"                               //
+    "Returns:\n"                                                                                             //
+    "    Tensor: f32 outputs, rows covered by query_offsets are written.\n\n"                                //
+    "Signature:\n"                                                                                           //
+    "    >>> def attention_bidirectional_packed(q, kv, /, query_offsets, out=None,\n"                        //
     "    ...                                    scale=None, threads=1) -> Tensor: ...";
 
-char const doc_attention_causal_packed[] =                                                      //
-    "attention_causal_packed(q, kv, /, query_offsets, out=None, scale=None, "                   //
-    "diagonal_offset=0, window=None, threads=1) -> Tensor\n\n"                                  //
-    "Ragged causal, optionally sliding-window, attention against a pre-packed KV-cache.\n\n"    //
-    "Query row r of a segment sits at position p = r + diagonal_offset and attends to\n"        //
-    "keys max(0, p - window + 1) through min(p, length - 1); rows seeing no key are zeros.\n\n" //
-    "Parameters:\n"                                                                             //
-    "    q, kv, query_offsets, out, scale, threads: As in attention_bidirectional_packed().\n"  //
-    "    diagonal_offset (int): Position of query row 0; length - queries for decode.\n"        //
-    "    window (int, optional): Visible keys including the query; None is unbounded.\n\n"      //
-    "Returns:\n"                                                                                //
-    "    Tensor: f32 outputs, rows covered by query_offsets are written.\n\n"                   //
-    "Signature:\n"                                                                              //
-    "    >>> def attention_causal_packed(q, kv, /, query_offsets, out=None, scale=None,\n"      //
-    "    ...                             diagonal_offset=0, window=None,\n"                     //
+char const doc_attention_causal_packed[] =                                                               //
+    "attention_causal_packed(q, kv, /, query_offsets, out=None, scale=None, diagonal_offset=0,\n"        //
+    "window=None, threads=1) -> Tensor\n\n"                                                              //
+    "Ragged causal, optionally sliding-window, attention against a pre-packed KV-cache.\n\n"             //
+    "Query row r of a segment sits at position p = r + diagonal_offset and attends to keys max(0, p -\n" //
+    "window + 1) through min(p, length - 1); rows seeing no key are zeros.\n\n"                          //
+    "Args:\n"                                                                                            //
+    "    q, kv, query_offsets, out, scale, threads: As in attention_bidirectional_packed().\n"           //
+    "    diagonal_offset (int): Position of query row 0; length - queries for decode.\n"                 //
+    "    window (int, optional): Visible keys including the query; None is unbounded.\n\n"               //
+    "Returns:\n"                                                                                         //
+    "    Tensor: f32 outputs, rows covered by query_offsets are written.\n\n"                            //
+    "Signature:\n"                                                                                       //
+    "    >>> def attention_causal_packed(q, kv, /, query_offsets, out=None, scale=None,\n"               //
+    "    ...                             diagonal_offset=0, window=None,\n"                              //
     "    ...                             threads=1) -> Tensor: ...";
 
-/** @brief Python buffers and the output tensor behind an `attention_arguments_t`, held until its kernel returns. */
+/** Python buffers and the output tensor behind an @c attention_arguments_t, held until its kernel
+ *  returns. */
 typedef struct attention_buffers_t {
     Py_buffer queries;
     nk_buffer_backing_t queries_backing;
@@ -454,8 +454,11 @@ typedef struct attention_buffers_t {
     Tensor *output;
 } attention_buffers_t;
 
-/** @brief Validates the operands both attention modes share, releasing everything on failure;
- *  on success the caller passes `buffers` to `attention_buffers_release_`. */
+/**
+ *  @brief Validates the operands both attention modes share, releasing everything on failure.
+ *
+ *  On success the caller passes @p buffers to @c attention_buffers_release_.
+ */
 static int attention_arguments_parse_(char const *name, PyObject *queries_object, PyObject *packed_object,
                                       PyObject *query_offsets_object, PyObject *output_object, PyObject *scale_object,
                                       attention_arguments_t *arguments, attention_buffers_t *buffers,
@@ -552,7 +555,7 @@ release_queries:
     return 0;
 }
 
-/** @brief Releases the input buffers and returns the output tensor, or NULL if a Python error is pending. */
+/** Releases input buffers, returns the output tensor, or NULL on a pending Python error. */
 static PyObject *attention_buffers_release_(attention_buffers_t *buffers) {
     PyBuffer_Release(&buffers->query_offsets);
     PyBuffer_Release(&buffers->queries);

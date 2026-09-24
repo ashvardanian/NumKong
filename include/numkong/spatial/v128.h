@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Spatial Similarity Measures for WASM.
  *  @file include/numkong/spatial/v128.h
  *  @author Ash Vardanian
  *  @date September 12, 2026
+ *  @brief SIMD-accelerated spatial similarity measures for WASM.
  *
  *  Contains:
  *  - Euclidean (L2) distance

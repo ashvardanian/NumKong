@@ -1,8 +1,8 @@
 /**
- *  @brief C++ bindings for trigonometric kernels.
  *  @file include/numkong/trigonometry.hpp
  *  @author Ash Vardanian
  *  @date February 5, 2026
+ *  @brief C++ bindings for trigonometric kernels.
  */
 #ifndef NK_TRIGONOMETRY_HPP
 #define NK_TRIGONOMETRY_HPP
@@ -86,16 +86,17 @@ void atan(in_type_ const *in, std::size_t n, in_type_ *out) noexcept {
 }
 
 /**
- *  @brief NeoX split-half rotary position embedding (RoPE): rotates channel pairs by per-token angles.
+ *  @brief NeoX split-half RoPE: rotates channel pairs of every head by per-token angles.
  *
- *  Rotates each pair `(i, i + half_dim)` of every head by the `[rows, half_dim]` angle grids.
+ *  Rotates each pair `(i, i + @p half_dim)` of every head by the `[rows, @p half_dim]` angle grids.
  *
- *  @param[in] x `rows × (heads · 2·half_dim)` input token matrix
+ *  @param[in] x Row-major matrix of shape @b [rows,channels]; channels = heads · 2 · @p half_dim
  *  @param[out] y Output, same shape and dtype as x; may alias x for in-place rotation
- *  @param[in] cos,sin `[rows, half_dim]` per-token angle grids, shared across heads
+ *  @param[in] cos,sin `[rows, @p half_dim]` per-token angle grids, shared across heads
  *  @param[in] rows,heads Token count and heads per token
  *  @param[in] half_dim Half the head dimension; channel `i` pairs with `i + half_dim`
- *  @param[in] x_row_stride,y_row_stride Row (token) strides in bytes
+ *  @param[in] x_row_stride Row (token) stride of x in bytes
+ *  @param[in] y_row_stride Row (token) stride of y in bytes
  *  @param[in] input_scale Scalar folded onto every loaded element (E4M3 descale; 1.0 for BF16/F32)
  *
  *  @tparam in_type_ Element type
@@ -145,7 +146,7 @@ namespace ashvardanian::numkong {
 
 #pragma region Tensor Trigonometric
 
-/** @brief Elementwise sin into pre-allocated output. */
+/** Elementwise sin into pre-allocated output. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
 bool sin(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_, max_rank_> output) noexcept {
     return elementwise_into_<value_type_, max_rank_>(
@@ -154,7 +155,7 @@ bool sin(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_, max
         });
 }
 
-/** @brief Allocating sin. */
+/** Allocating sin. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
 tensor<value_type_, allocator_type_, max_rank_> try_sin(tensor_view<value_type_, max_rank_> input) noexcept {
@@ -167,7 +168,7 @@ tensor<value_type_, allocator_type_, max_rank_> try_sin(tensor_view<value_type_,
     return result;
 }
 
-/** @brief Elementwise cos into pre-allocated output. */
+/** Elementwise cos into pre-allocated output. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
 bool cos(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_, max_rank_> output) noexcept {
     return elementwise_into_<value_type_, max_rank_>(
@@ -176,7 +177,7 @@ bool cos(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_, max
         });
 }
 
-/** @brief Allocating cos. */
+/** Allocating cos. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
 tensor<value_type_, allocator_type_, max_rank_> try_cos(tensor_view<value_type_, max_rank_> input) noexcept {
@@ -189,7 +190,7 @@ tensor<value_type_, allocator_type_, max_rank_> try_cos(tensor_view<value_type_,
     return result;
 }
 
-/** @brief Elementwise atan into pre-allocated output. */
+/** Elementwise atan into pre-allocated output. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
 bool atan(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_, max_rank_> output) noexcept {
     return elementwise_into_<value_type_, max_rank_>(
@@ -198,7 +199,8 @@ bool atan(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_, ma
         });
 }
 
-/** @brief In-place NeoX split-half RoPE over a `[rows, heads·2·half_dim]` matrix span. */
+/** In-place NeoX split-half RoPE over a @b [rows,channels] matrix span, channels being heads times
+ *  2 · @p half_dim. */
 template <numeric_dtype value_type_>
 bool rope(matrix_view<value_type_> x, matrix_span<value_type_> y, vector_view<f32_t> cos, vector_view<f32_t> sin,
           std::size_t heads, std::size_t half_dim, float input_scale = 1.0f) noexcept {
@@ -211,7 +213,7 @@ bool rope(matrix_view<value_type_> x, matrix_span<value_type_> y, vector_view<f3
     return true;
 }
 
-/** @brief Allocating atan. */
+/** Allocating atan. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
 tensor<value_type_, allocator_type_, max_rank_> try_atan(tensor_view<value_type_, max_rank_> input) noexcept {

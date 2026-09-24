@@ -1,4 +1,9 @@
-/* NumKong ISA probe: NEON (AArch64 baseline SIMD) */
+/**
+ *  @file probes/arm_neon.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for NEON, the AArch64 baseline SIMD extension.
+ */
 #include <arm_neon.h>
 int main(void) {
     float32x4_t a = vdupq_n_f32(1.0f);

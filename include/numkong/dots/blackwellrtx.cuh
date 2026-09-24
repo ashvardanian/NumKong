@@ -1,17 +1,18 @@
 /**
- *  @brief SIMD-accelerated Batched Dot Products for the NVIDIA compute capability 12.x family.
  *  @file include/numkong/dots/blackwellrtx.cuh
  *  @author Ash Vardanian
  *  @date September 22, 2026
+ *  @brief SIMD-accelerated Batched Dot Products for the NVIDIA compute capability 12.x family.
  *
  *  @sa include/numkong/dots.h
  *  @sa include/numkong/dots/ampere.cuh
  *
- *  The Ampere tile, with each 32-byte sub-slab going to the tensor cores as it is. Float8 and Float6 take one
- *  `mma.m16n8k32.kind::f8f6f4` per 16 × 8 output, at twice the 16-bit rate; the MMA reads a Float6 code from the low 6
- *  bits of each byte, which is how `nk_e3m2_t` and `nk_e2m3_t` already store it. Float4 takes one block-scaled
- *  `mma.m16n8k64.kind::mxf4` with every scale at 2⁰, at four times the 16-bit rate, straight from packed nibble pairs.
- *  Only the 12.x family carries these instructions, so every other device pass traps.
+ *  The Ampere tile, with each 32-byte sub-slab going to the tensor cores as it is. Float8 and
+ *  Float6 take one `mma.m16n8k32.kind::f8f6f4` per 16 × 8 output, at twice the 16-bit rate; the MMA
+ *  reads a Float6 code from the low 6 bits of each byte, which is how @c nk_e3m2_t and @c nk_e2m3_t
+ *  already store it. Float4 takes one block-scaled `mma.m16n8k64.kind::mxf4` with every scale at
+ *  2⁰, at four times the 16-bit rate, straight from packed nibble pairs. Only the 12.x family
+ *  carries these instructions, so every other device pass traps.
  */
 #ifndef NK_DOTS_BLACKWELLRTX_CUH
 #define NK_DOTS_BLACKWELLRTX_CUH

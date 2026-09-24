@@ -1,16 +1,16 @@
 /**
- *  @brief SIMD-accelerated Dot Products for RISC-V with Zvbb.
  *  @file include/numkong/dot/rvvbb.h
  *  @author Ash Vardanian
  *  @date February 22, 2026
+ *  @brief SIMD-accelerated dot products for RISC-V with Zvbb.
  *
  *  @sa include/numkong/dot.h
  *
- *  Zvbb (Vector Basic Bit-manipulation) provides native per-element popcount via `vcpop.v`,
- *  replacing the 11-instruction SWAR approach with a single instruction for u1 dot products.
+ *  Zvbb, the Vector Basic Bit-manipulation extension, adds a per-element popcount, `vcpop.v`, which
+ *  replaces the 11-instruction SWAR sequence with one instruction. Only @c nk_dot_u1 benefits, as
+ *  it needs a byte-level popcount of AND results.
  *
- *  Only `nk_dot_u1` benefits from Zvbb (it needs byte-level popcount of AND results).
- *  Requires: RVV 1.0 + Zvbb extension (GCC 14+ or Clang 18+)
+ *  Requires RVV 1.0 with Zvbb, from GCC 14 or Clang 18.
  */
 #ifndef NK_DOT_RVVBB_H
 #define NK_DOT_RVVBB_H

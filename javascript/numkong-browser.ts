@@ -1,15 +1,20 @@
 /**
- * @brief Self-contained browser ESM entry point for NumKong WASM.
- * @file javascript/numkong-browser.ts
+ *  @file javascript/numkong-browser.ts
+ *  @author Ash Vardanian
+ *  @date March 20, 2026
+ *  @brief Self-contained browser ESM entry point for NumKong WASM.
  *
- * Auto-initializes the Emscripten module on import via top-level await.
- * The engine is probed first, and the matching glue and binary - `numkong-wasm32-v128.js` or
- * `numkong-wasm32-v128relaxed.js` with its `.wasm` - must sit beside this file, in the same
- * directory or CDN prefix.
+ *  Auto-initializes the Emscripten module on import through a top-level await, probing the engine
+ *  first. The matching glue and binary, `numkong-wasm32-v128.js` or `numkong-wasm32-v128relaxed.js`
+ *  with its `.wasm`, must sit beside this file, in the same directory or CDN prefix.
  *
- * Usage:
- *   import { dot, euclidean } from './numkong.js';
- *   console.log(dot(new Float32Array([1,2,3]), new Float32Array([4,5,6])));
+ *  @example
+ *  ```js
+ *  import { dot, euclidean } from './numkong.js';
+ *  console.log(dot(new Float32Array([1, 2, 3]), new Float32Array([4, 5, 6])));
+ *  ```
+ *
+ *  @packageDocumentation
  */
 
 export {
@@ -44,8 +49,8 @@ export class NumKongWasmSimdError extends Error {
     }
 }
 
-// Auto-initialize: probe the engine, load the matching Emscripten glue relative to this module's
-// URL, instantiate the WASM module, and wire up the wrapper before any export is used.
+/* Auto-initialize: probe the engine, load the matching Emscripten glue relative to this module's
+ * URL, instantiate the WASM module, and wire up the wrapper before any export is used. */
 const tier = detectWasmSimdTier();
 if (tier === 'serial') throw new NumKongWasmSimdError();
 const glueUrl = new URL(`./numkong-wasm32-${tier}.js`, import.meta.url);

@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Type Conversions.
  *  @file include/numkong/cast.h
  *  @author Ash Vardanian
  *  @date January 2, 2026
+ *  @brief SIMD-accelerated Type Conversions.
  *
  *  This file focuses on numeric types not uniformly supported across platforms, prioritizing:
  *
@@ -11,27 +11,28 @@
  *  - `f16` & `bf16` ↔ `f32` - often used for half-precision dot-products on older CPUs,
  *
  *  Unlike most operation classes in NumKong, these are dependent on two input types: "from" & "to".
- *  It contains scalar helpers named like `nk_f16_to_f32_serial` as well as buffer-to-buffer
- *  `memcpy`-like vectorized operations, such as `nk_cast` with `nk_cast_serial`,
- *  `nk_cast_neon`, `nk_cast_skylake`, and other platform-specific variants.
+ *  It contains scalar helpers named like @c nk_f16_to_f32_serial as well as buffer-to-buffer
+ *  vectorized operations akin to @c memcpy, such as @c nk_cast with @c nk_cast_serial,
+ *  @c nk_cast_neon, @c nk_cast_skylake, and other platform-specific variants.
  *
- *  It also includes "partial load" and "partial store" type-punned helper functions for handling
- *  IO between memory and registers, that are extensively reused in reductions, elementwise ops, and
- *  dot-products.
+ *  It also includes "partial load" and "partial store" type-punned helpers for IO between memory
+ *  and registers, extensively reused in reductions, elementwise operations, and dot-products.
  *
  *  Float-format narrowing uses round-to-nearest, ties-to-even. Float-to-integer narrowing follows
  *  the same tie rule, saturates infinities, and maps NaNs to zero.
  *
- *  Assuming the overall breadth and sparsity of our type system, its clear, that not all type conversions
- *  have equivalent relevance. With ~16 numeric types we'd be looking at 21x21=441 conversions for:
+ *  Given the breadth and sparsity of our type system, not all conversions carry equal weight: with
+ *  ~16 numeric types, a dense matrix would need 21×21 = 441 conversions for:
  *
- *              e4m3    e5m2    bf16    f16     f32     f64
- *                              bf16c   f16c    f32c    f64c
- *              i4      i8              i16     i32     i64
- *      u1      u4      u8              u16     u32     u64
+ *  @verbatim
+ *          e4m3    e5m2    bf16    f16     f32     f64
+ *                          bf16c   f16c    f32c    f64c
+ *          i4      i8              i16     i32     i64
+ *  u1      u4      u8              u16     u32     u64
+ *  @endverbatim
  *
- *  To simplify the design and make it more broadly applicable in AI workloads, we implement a slower
- *  @b "hub-and-spoke" design to guiding most conversions through an intermediate type, like `f64` or `i64`.
+ *  To keep the design simple and broadly applicable to AI workloads, we route most conversions
+ *  through a slower @b "hub-and-spoke" design, via an intermediate type such as @c f64 or @c i64.
  *
  */
 #ifndef NK_CAST_H

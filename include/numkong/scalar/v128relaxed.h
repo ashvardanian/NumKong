@@ -1,8 +1,8 @@
 /**
- *  @brief Relaxed-SIMD Scalar Math Helpers for WASM: fused multiply-add.
  *  @file include/numkong/scalar/v128relaxed.h
  *  @author Ash Vardanian
  *  @date March 1, 2026
+ *  @brief Relaxed-SIMD scalar math helpers for WASM: fused multiply-add.
  *
  *  @sa include/numkong/scalar.h
  *  @sa include/numkong/scalar/v128.h for the square roots every SIMD128 engine runs.

@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Dot Products for NEON.
  *  @file include/numkong/dot/neon.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated dot products for NEON.
  *
  *  @sa include/numkong/dot.h
  *
@@ -10,50 +10,52 @@
  *
  *  Key NEON instructions for dot products:
  *
- *      Intrinsic     Instruction                  A76       M5
- *      vfmaq_f32     FMLA (V.4S, V.4S, V.4S)      4cy @ 2p  3cy @ 4p
- *      vfmaq_f64     FMLA (V.2D, V.2D, V.2D)      4cy @ 2p  4cy @ 4p
- *      vfmsq_f64     FMLS (V.2D, V.2D, V.2D)      4cy @ 2p  4cy @ 4p
- *      vmulq_f32     FMUL (V.4S, V.4S, V.4S)      3cy @ 2p  3cy @ 4p
- *      vmulq_f64     FMUL (V.2D, V.2D, V.2D)      3cy @ 2p  3cy @ 4p
- *      vaddvq_f32    FADDP+FADDP (reduce)         5cy @ 1p  8cy @ 1p
- *      vaddvq_f64    FADDP (V.2D to scalar)       3cy @ 1p  3cy @ 1p
- *      vpaddq_f32    FADDP (V.4S, V.4S, V.4S)     2cy @ 2p  3cy @ 4p
- *      vpaddq_f64    FADDP (V.2D, V.2D, V.2D)     2cy @ 2p  3cy @ 4p
- *      vcvt_f64_f32  FCVTL (V.2D, V.2S)           3cy @ 2p  3cy @ 2p
- *      vld2_f32      LD2 ({Vt.2S, Vt2.2S}, [Xn])  4cy @ 1p  4cy @ 1p
+ *  @verbatim
+ *  Intrinsic     Instruction                  A76       M5
+ *  vfmaq_f32     FMLA (V.4S, V.4S, V.4S)      4cy @ 2p  3cy @ 4p
+ *  vfmaq_f64     FMLA (V.2D, V.2D, V.2D)      4cy @ 2p  4cy @ 4p
+ *  vfmsq_f64     FMLS (V.2D, V.2D, V.2D)      4cy @ 2p  4cy @ 4p
+ *  vmulq_f32     FMUL (V.4S, V.4S, V.4S)      3cy @ 2p  3cy @ 4p
+ *  vmulq_f64     FMUL (V.2D, V.2D, V.2D)      3cy @ 2p  3cy @ 4p
+ *  vaddvq_f32    FADDP+FADDP (reduce)         5cy @ 1p  8cy @ 1p
+ *  vaddvq_f64    FADDP (V.2D to scalar)       3cy @ 1p  3cy @ 1p
+ *  vpaddq_f32    FADDP (V.4S, V.4S, V.4S)     2cy @ 2p  3cy @ 4p
+ *  vpaddq_f64    FADDP (V.2D, V.2D, V.2D)     2cy @ 2p  3cy @ 4p
+ *  vcvt_f64_f32  FCVTL (V.2D, V.2S)           3cy @ 2p  3cy @ 2p
+ *  vld2_f32      LD2 ({Vt.2S, Vt2.2S}, [Xn])  4cy @ 1p  4cy @ 1p
+ *  @endverbatim
  *
- *  FMA throughput doubles on cores with 4 SIMD pipes (Apple M4+, Graviton3+, Oryon), but
- *  horizontal reductions remain at 1/cy on all cores and become the main bottleneck.
+ *  FMA throughput doubles on cores with 4 SIMD pipes (Apple M4+, Graviton3+, Oryon), but horizontal
+ *  reductions remain at 1/cy on all cores and become the main bottleneck.
  *
- *  For f32 dot products, we upcast to f64 for accumulation to preserve precision and
- *  avoid catastrophic cancellation in large-magnitude sums.
+ *  For f32 dot products, we upcast to f64 for accumulation to preserve precision and avoid
+ *  catastrophic cancellation in large-magnitude sums.
  *
  *  @section dot_neon_stateful Stateful Streaming Logic
  *
- *  To build memory-optimal tiled algorithms, this file defines following structures and force-inlined
- *  `NK_HELPER_INLINE` functions:
+ *  To build memory-optimal tiled algorithms, this file defines following structures and
+ *  force-inlined @c NK_HELPER_INLINE functions:
  *
  *  - nk_dot_f32x2 state for f32 inputs with double-precision accumulation,
  *  - nk_dot_f64x2 state with Dot2 stable dot-products for f64 inputs.
  *
- *  @code{c}
+ *  @code{.c}
  *  nk_dot_f32x2_state_neon_t state_first, state_second, state_third, state_fourth;
  *  float32x2_t query_f32x2, target_first_f32x2, target_second_f32x2, target_third_f32x2, target_fourth_f32x2;
  *  nk_dot_f32x2_init_neon(&state_first);
  *  nk_dot_f32x2_init_neon(&state_second);
  *  nk_dot_f32x2_init_neon(&state_third);
  *  nk_dot_f32x2_init_neon(&state_fourth);
- *  for (nk_size_t idx = 0; idx + 2 <= depth; idx += 2) {
- *      query_f32x2 = vld1_f32(query_ptr + idx);
- *      target_first_f32x2 = vld1_f32(target_first_ptr + idx);
- *      target_second_f32x2 = vld1_f32(target_second_ptr + idx);
- *      target_third_f32x2 = vld1_f32(target_third_ptr + idx);
- *      target_fourth_f32x2 = vld1_f32(target_fourth_ptr + idx);
- *      nk_dot_f32x2_update_neon(&state_first, query_f32x2, target_first_f32x2, idx, 2);
- *      nk_dot_f32x2_update_neon(&state_second, query_f32x2, target_second_f32x2, idx, 2);
- *      nk_dot_f32x2_update_neon(&state_third, query_f32x2, target_third_f32x2, idx, 2);
- *      nk_dot_f32x2_update_neon(&state_fourth, query_f32x2, target_fourth_f32x2, idx, 2);
+ *  for (nk_size_t index = 0; index + 2 <= depth; index += 2) {
+ *      query_f32x2 = vld1_f32(query_ptr + index);
+ *      target_first_f32x2 = vld1_f32(target_first_ptr + index);
+ *      target_second_f32x2 = vld1_f32(target_second_ptr + index);
+ *      target_third_f32x2 = vld1_f32(target_third_ptr + index);
+ *      target_fourth_f32x2 = vld1_f32(target_fourth_ptr + index);
+ *      nk_dot_f32x2_update_neon(&state_first, query_f32x2, target_first_f32x2, index, 2);
+ *      nk_dot_f32x2_update_neon(&state_second, query_f32x2, target_second_f32x2, index, 2);
+ *      nk_dot_f32x2_update_neon(&state_third, query_f32x2, target_third_f32x2, index, 2);
+ *      nk_dot_f32x2_update_neon(&state_fourth, query_f32x2, target_fourth_f32x2, index, 2);
  *  }
  *  float32x4_t results_f32x4;
  *  nk_dot_f32x2_finalize_neon(&state_first, &state_second, &state_third, &state_fourth, depth, &results_f32x4);
@@ -61,23 +63,23 @@
  *
  *  For f64 inputs, Dot2 compensated summation provides numerical stability:
  *
- *  @code{c}
+ *  @code{.c}
  *  nk_dot_f64x2_state_neon_t state_first, state_second, state_third, state_fourth;
  *  float64x2_t query_f64x2, target_first_f64x2, target_second_f64x2, target_third_f64x2, target_fourth_f64x2;
  *  nk_dot_f64x2_init_neon(&state_first);
  *  nk_dot_f64x2_init_neon(&state_second);
  *  nk_dot_f64x2_init_neon(&state_third);
  *  nk_dot_f64x2_init_neon(&state_fourth);
- *  for (nk_size_t idx = 0; idx + 2 <= depth; idx += 2) {
- *      query_f64x2 = vld1q_f64(query_ptr + idx);
- *      target_first_f64x2 = vld1q_f64(target_first_ptr + idx);
- *      target_second_f64x2 = vld1q_f64(target_second_ptr + idx);
- *      target_third_f64x2 = vld1q_f64(target_third_ptr + idx);
- *      target_fourth_f64x2 = vld1q_f64(target_fourth_ptr + idx);
- *      nk_dot_f64x2_update_neon(&state_first, query_f64x2, target_first_f64x2, idx, 2);
- *      nk_dot_f64x2_update_neon(&state_second, query_f64x2, target_second_f64x2, idx, 2);
- *      nk_dot_f64x2_update_neon(&state_third, query_f64x2, target_third_f64x2, idx, 2);
- *      nk_dot_f64x2_update_neon(&state_fourth, query_f64x2, target_fourth_f64x2, idx, 2);
+ *  for (nk_size_t index = 0; index + 2 <= depth; index += 2) {
+ *      query_f64x2 = vld1q_f64(query_ptr + index);
+ *      target_first_f64x2 = vld1q_f64(target_first_ptr + index);
+ *      target_second_f64x2 = vld1q_f64(target_second_ptr + index);
+ *      target_third_f64x2 = vld1q_f64(target_third_ptr + index);
+ *      target_fourth_f64x2 = vld1q_f64(target_fourth_ptr + index);
+ *      nk_dot_f64x2_update_neon(&state_first, query_f64x2, target_first_f64x2, index, 2);
+ *      nk_dot_f64x2_update_neon(&state_second, query_f64x2, target_second_f64x2, index, 2);
+ *      nk_dot_f64x2_update_neon(&state_third, query_f64x2, target_third_f64x2, index, 2);
+ *      nk_dot_f64x2_update_neon(&state_fourth, query_f64x2, target_fourth_f64x2, index, 2);
  *  }
  *  float64x4_t results_f64x4;
  *  nk_dot_f64x2_finalize_neon(&state_first, &state_second, &state_third, &state_fourth, depth, &results_f64x4);

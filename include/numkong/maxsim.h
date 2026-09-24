@@ -1,15 +1,15 @@
 /**
- *  @brief SIMD-accelerated MaxSim (ColBERT Late Interaction).
  *  @file include/numkong/maxsim.h
  *  @author Ash Vardanian
  *  @date February 17, 2026
+ *  @brief SIMD-accelerated MaxSim, ColBERT late interaction.
  *
  *  Computes angular distance late-interaction: result = Σᵢ minⱼ angular(qᵢ, dⱼ).
  *  Angular distance = 1 - dot(q, d) / sqrt(||q||² × ||d||²), clamped >= 0.
  *
- *  Strategy: coarse i8-quantized screening with running argmax (dot as proxy for argmin angular),
- *  then full-precision refinement of the winning pairs via nk_dot_* primitives,
- *  finalized with angular distance and accumulated with `f64`.
+ *  Strategy: coarse i8-quantized screening with running argmax, dot as proxy for argmin angular,
+ *  then full-precision refinement of the winning pairs via @c nk_dot_* primitives, finalized with
+ *  angular distance and accumulated with @c f64.
  *
  *  Precision policy:
  *  - `f32` inputs keep packed payloads and metadata narrow for memory bandwidth.
@@ -19,7 +19,7 @@
  *
  *  - "maxsim_packed" - computing MaxSim where both Q and D are pre-packed into optimal form
  *  - "maxsim_pack_size" - estimating the memory requirements for external malloc
- *  - "maxsim_pack" - performing the pre-processing (quantization + original copy)
+ *  - "maxsim_pack" - performing the pre-processing, quantization plus original copy
  *
  *  @section maxsim_api Two-Phase API
  *
@@ -39,20 +39,20 @@
  *
  *  @section maxsim_packed_layout Packed Buffer Layout
  *
- *  [Header 64B] [i8 vectors, 64B-aligned] [metadata, 64B-aligned] [originals row-major, 64B-aligned]
+ *  [Header 64B] [i8 vectors 64B-aligned] [metadata 64B-aligned] [originals row-major, 64B-aligned]
  *
- *  The packed format is backend-specific: different ISAs use different i8 depth padding
- *  and clamp ranges. Pack with the matching ISA's pack function.
+ *  The packed format is backend-specific: different ISAs use different i8 depth padding and clamp
+ *  ranges. Pack with the matching ISA's pack function.
  *
  *  @section maxsim_isa_support ISA Support
  *
  *  Currently implemented:
- *  - Serial: scalar reference (all platforms)
- *  - Haswell: AVX2 VPMADDUBSW coarse [-79,79] + bias correction (bf16/f32/f16)
- *  - Icelake: AVX-512 VNNI VPDPBUSD coarse (f32/f16)
- *  - Genoa: AVX-512 VNNI coarse + VDPBF16PS refinement (bf16 only)
- *  - NEONSDOT: ARM SDOT (vdotq_s32) coarse, no bias correction (bf16/f32/f16)
- *  - SME: ARM fused BFMOPA (existing, unchanged)
+ *  - Serial: scalar reference, all platforms
+ *  - Haswell: AVX2 VPMADDUBSW coarse [-79,79] plus bias correction, bf16/f32/f16
+ *  - Icelake: AVX-512 VNNI VPDPBUSD coarse, f32/f16
+ *  - Genoa: AVX-512 VNNI coarse plus VDPBF16PS refinement, bf16 only
+ *  - NEONSDOT: ARM SDOT, vdotq_s32, coarse, no bias correction, bf16/f32/f16
+ *  - SME: ARM fused BFMOPA, existing and unchanged
  */
 #ifndef NK_MAXSIM_H
 #define NK_MAXSIM_H

@@ -1,13 +1,13 @@
 /**
- *  @brief SIMD-accelerated Batched Spatial Distances for Diamond Rapids.
  *  @file include/numkong/spatials/diamond.h
  *  @author Ash Vardanian
  *  @date March 23, 2026
+ *  @brief SIMD-accelerated batched spatial distances for Diamond Rapids.
  *
  *  @sa include/numkong/spatials.h
  *
- *  Uses VCVTHF82PH/VCVTBF82PH + VDPPHPS via the batched dots/ infrastructure,
- *  then derives angular and Euclidean distances.
+ *  Uses VCVTHF82PH/VCVTBF82PH + VDPPHPS via the batched dots/ infrastructure, then derives angular
+ *  and Euclidean distances.
  */
 #ifndef NK_SPATIALS_DIAMOND_H
 #define NK_SPATIALS_DIAMOND_H

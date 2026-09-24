@@ -1,69 +1,73 @@
 /**
- *  @brief SIMD-accelerated Dot Products for NEON SDOT.
  *  @file include/numkong/dot/neonsdot.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated dot products for NEON SDOT.
  *
  *  @sa include/numkong/dot.h
  *
  *  @section dot_neonsdot_instructions ARM NEON SDOT/UDOT Instructions (ARMv8.4-DotProd)
  *
- *      Intrinsic   Instruction                A76         M5
- *      vdotq_s32   SDOT (V.4S, V.16B, V.16B)  3cy @ 2p    3cy @ 4p
- *      vdotq_u32   UDOT (V.4S, V.16B, V.16B)  3cy @ 2p    3cy @ 4p
- *      vld1q_s8    LD1 (V.16B)                4cy @ 2p    4cy @ 3p
- *      vld1q_u8    LD1 (V.16B)                4cy @ 2p    4cy @ 3p
- *      vaddvq_s32  ADDV (V.4S)                4cy @ 1p    5cy @ 1p
- *      vaddvq_u32  ADDV (V.4S)                4cy @ 1p    5cy @ 1p
- *      vpaddq_s32  ADDP (V.4S, V.4S, V.4S)    2cy @ 2p    2cy @ 4p
- *      vpaddq_u32  ADDP (V.4S, V.4S, V.4S)    2cy @ 2p    2cy @ 4p
+ *  @verbatim
+ *  Intrinsic   Instruction                A76         M5
+ *  vdotq_s32   SDOT (V.4S, V.16B, V.16B)  3cy @ 2p    3cy @ 4p
+ *  vdotq_u32   UDOT (V.4S, V.16B, V.16B)  3cy @ 2p    3cy @ 4p
+ *  vld1q_s8    LD1 (V.16B)                4cy @ 2p    4cy @ 3p
+ *  vld1q_u8    LD1 (V.16B)                4cy @ 2p    4cy @ 3p
+ *  vaddvq_s32  ADDV (V.4S)                4cy @ 1p    5cy @ 1p
+ *  vaddvq_u32  ADDV (V.4S)                4cy @ 1p    5cy @ 1p
+ *  vpaddq_s32  ADDP (V.4S, V.4S, V.4S)    2cy @ 2p    2cy @ 4p
+ *  vpaddq_u32  ADDP (V.4S, V.4S, V.4S)    2cy @ 2p    2cy @ 4p
+ *  @endverbatim
  *
  *  Extraction ops used for i4/u4 nibble unpacking and e2m3/e3m2 LUT conversion:
  *
- *      vshlq_n_s8  SHL (V.16B, #imm)           2cy @ 2p   2cy @ 4p
- *      vshrq_n_s8  SSHR (V.16B, #imm)          2cy @ 2p   2cy @ 4p
- *      vshrq_n_u8  USHR (V.16B, #imm)          2cy @ 2p   2cy @ 4p
- *      vandq_u8    AND (V.16B, V.16B)          1cy @ 2p   2cy @ 4p
- *      veorq_u8    EOR (V.16B, V.16B)          1cy @ 2p   2cy @ 4p
- *      vqtbl2q_u8  TBL (V.16B, {2reg}, V.16B)  2cy @ 1p   2cy @ 4p
- *      vqtbl4q_u8  TBL (V.16B, {4reg}, V.16B)  2cy @ 1p   4cy @ 2p+2p
- *      vmlal_s16   SMLAL (V.4S, V.4H, V.4H)    3cy @ 1p   2cy @ 4p
+ *  @verbatim
+ *  vshlq_n_s8  SHL (V.16B, #imm)           2cy @ 2p   2cy @ 4p
+ *  vshrq_n_s8  SSHR (V.16B, #imm)          2cy @ 2p   2cy @ 4p
+ *  vshrq_n_u8  USHR (V.16B, #imm)          2cy @ 2p   2cy @ 4p
+ *  vandq_u8    AND (V.16B, V.16B)          1cy @ 2p   2cy @ 4p
+ *  veorq_u8    EOR (V.16B, V.16B)          1cy @ 2p   2cy @ 4p
+ *  vqtbl2q_u8  TBL (V.16B, {2reg}, V.16B)  2cy @ 1p   2cy @ 4p
+ *  vqtbl4q_u8  TBL (V.16B, {4reg}, V.16B)  2cy @ 1p   4cy @ 2p+2p
+ *  vmlal_s16   SMLAL (V.4S, V.4H, V.4H)    3cy @ 1p   2cy @ 4p
+ *  @endverbatim
  *
  *  The ARMv8.4-DotProd extension provides SDOT/UDOT instructions critical for int8 quantized ML
  *  inference. Each instruction computes four dot products of 4-element int8 vectors, accumulating
  *  into int32 lanes, processing 16 multiply-accumulates per instruction.
  *
  *  SDOT handles signed int8 operands while UDOT handles unsigned. The 3-cycle latency with 2/cy
- *  throughput on A76 (4/cy on newer cores) enables int8 matrix multiplication for
- *  quantized neural network inference, where 8-bit weights reduce memory bandwidth by 4x vs FP32.
+ *  throughput on A76 (4/cy on newer cores) enables int8 matrix multiplication for quantized neural
+ *  network inference, where 8-bit weights reduce memory bandwidth by 4x vs FP32.
  *
  *  @section dot_neonsdot_stateful Stateful Streaming Logic
  *
- *  To build memory-optimal tiled algorithms, this file defines following structures and force-inlined
- *  `NK_HELPER_INLINE` functions:
+ *  To build memory-optimal tiled algorithms, this file defines following structures and
+ *  force-inlined @c NK_HELPER_INLINE functions:
  *
  *  - nk_dot_i8x16 for 8-bit signed integer inputs using SDOT,
  *  - nk_dot_u8x16 for 8-bit unsigned integer inputs using UDOT,
  *  - nk_dot_i4x32 for 4-bit signed integer products,
  *  - nk_dot_u4x32 for 4-bit unsigned integer products.
  *
- *  @code{c}
+ *  @code{.c}
  *  nk_dot_i8x16_state_neonsdot_t state_first, state_second, state_third, state_fourth;
  *  int8x16_t query_i8x16, target_first_i8x16, target_second_i8x16, target_third_i8x16, target_fourth_i8x16;
  *  nk_dot_i8x16_init_neonsdot(&state_first);
  *  nk_dot_i8x16_init_neonsdot(&state_second);
  *  nk_dot_i8x16_init_neonsdot(&state_third);
  *  nk_dot_i8x16_init_neonsdot(&state_fourth);
- *  for (nk_size_t idx = 0; idx + 16 <= depth; idx += 16) {
- *      query_i8x16 = vld1q_s8(query_ptr + idx);
- *      target_first_i8x16 = vld1q_s8(target_first_ptr + idx);
- *      target_second_i8x16 = vld1q_s8(target_second_ptr + idx);
- *      target_third_i8x16 = vld1q_s8(target_third_ptr + idx);
- *      target_fourth_i8x16 = vld1q_s8(target_fourth_ptr + idx);
- *      nk_dot_i8x16_update_neonsdot(&state_first, query_i8x16, target_first_i8x16, idx, 16);
- *      nk_dot_i8x16_update_neonsdot(&state_second, query_i8x16, target_second_i8x16, idx, 16);
- *      nk_dot_i8x16_update_neonsdot(&state_third, query_i8x16, target_third_i8x16, idx, 16);
- *      nk_dot_i8x16_update_neonsdot(&state_fourth, query_i8x16, target_fourth_i8x16, idx, 16);
+ *  for (nk_size_t index = 0; index + 16 <= depth; index += 16) {
+ *      query_i8x16 = vld1q_s8(query_ptr + index);
+ *      target_first_i8x16 = vld1q_s8(target_first_ptr + index);
+ *      target_second_i8x16 = vld1q_s8(target_second_ptr + index);
+ *      target_third_i8x16 = vld1q_s8(target_third_ptr + index);
+ *      target_fourth_i8x16 = vld1q_s8(target_fourth_ptr + index);
+ *      nk_dot_i8x16_update_neonsdot(&state_first, query_i8x16, target_first_i8x16, index, 16);
+ *      nk_dot_i8x16_update_neonsdot(&state_second, query_i8x16, target_second_i8x16, index, 16);
+ *      nk_dot_i8x16_update_neonsdot(&state_third, query_i8x16, target_third_i8x16, index, 16);
+ *      nk_dot_i8x16_update_neonsdot(&state_fourth, query_i8x16, target_fourth_i8x16, index, 16);
  *  }
  *  int32x4_t results_i32x4;
  *  nk_dot_i8x16_finalize_neonsdot(&state_first, &state_second, &state_third, &state_fourth, depth, &results_i32x4);
@@ -71,23 +75,23 @@
  *
  *  For 4-bit integers, the state manages unpacking and accumulation:
  *
- *  @code{c}
+ *  @code{.c}
  *  nk_dot_i4x32_state_neonsdot_t state_first, state_second, state_third, state_fourth;
  *  uint8x8_t query_packed, target_first_packed, target_second_packed, target_third_packed, target_fourth_packed;
  *  nk_dot_i4x32_init_neonsdot(&state_first);
  *  nk_dot_i4x32_init_neonsdot(&state_second);
  *  nk_dot_i4x32_init_neonsdot(&state_third);
  *  nk_dot_i4x32_init_neonsdot(&state_fourth);
- *  for (nk_size_t idx = 0; idx + 16 <= depth; idx += 16) {
- *      query_packed = vld1_u8(query_ptr + idx / 2);
- *      target_first_packed = vld1_u8(target_first_ptr + idx / 2);
- *      target_second_packed = vld1_u8(target_second_ptr + idx / 2);
- *      target_third_packed = vld1_u8(target_third_ptr + idx / 2);
- *      target_fourth_packed = vld1_u8(target_fourth_ptr + idx / 2);
- *      nk_dot_i4x32_update_neonsdot(&state_first, query_packed, target_first_packed, idx, 16);
- *      nk_dot_i4x32_update_neonsdot(&state_second, query_packed, target_second_packed, idx, 16);
- *      nk_dot_i4x32_update_neonsdot(&state_third, query_packed, target_third_packed, idx, 16);
- *      nk_dot_i4x32_update_neonsdot(&state_fourth, query_packed, target_fourth_packed, idx, 16);
+ *  for (nk_size_t index = 0; index + 16 <= depth; index += 16) {
+ *      query_packed = vld1_u8(query_ptr + index / 2);
+ *      target_first_packed = vld1_u8(target_first_ptr + index / 2);
+ *      target_second_packed = vld1_u8(target_second_ptr + index / 2);
+ *      target_third_packed = vld1_u8(target_third_ptr + index / 2);
+ *      target_fourth_packed = vld1_u8(target_fourth_ptr + index / 2);
+ *      nk_dot_i4x32_update_neonsdot(&state_first, query_packed, target_first_packed, index, 16);
+ *      nk_dot_i4x32_update_neonsdot(&state_second, query_packed, target_second_packed, index, 16);
+ *      nk_dot_i4x32_update_neonsdot(&state_third, query_packed, target_third_packed, index, 16);
+ *      nk_dot_i4x32_update_neonsdot(&state_fourth, query_packed, target_fourth_packed, index, 16);
  *  }
  *  int32x4_t results_i32x4;
  *  nk_dot_i4x32_finalize_neonsdot(&state_first, &state_second, &state_third, &state_fourth, depth, &results_i32x4);

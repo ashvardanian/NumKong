@@ -1,3 +1,6 @@
+// numkong/golang/set.go
+// Written by Ash Vardanian.
+
 package numkong
 
 /*
@@ -23,8 +26,8 @@ func HammingU8(a, b []uint8) uint32 {
 	return uint32(result)
 }
 
-// HammingU1 computes the Hamming distance between two binary vectors of depth dimensions.
-// The depth is a multiple of 8, and both slices hold at least [DimensionsToValues]("u1", depth) bytes.
+// HammingU1 computes the Hamming distance between two binary vectors of depth dimensions, a
+// multiple of 8, and both slices hold at least [DimensionsToValues]("u1", depth) bytes.
 func HammingU1(a, b []byte, depth int) uint32 {
 	validateDimensions("u1", depth)
 	values := DimensionsToValues("u1", depth)
@@ -39,8 +42,8 @@ func HammingU1(a, b []byte, depth int) uint32 {
 	return uint32(result)
 }
 
-// JaccardU1 computes the Jaccard distance between two binary vectors of depth dimensions.
-// The depth is a multiple of 8, and both slices hold at least [DimensionsToValues]("u1", depth) bytes.
+// JaccardU1 computes the Jaccard distance between two binary vectors of depth dimensions, a
+// multiple of 8, and both slices hold at least [DimensionsToValues]("u1", depth) bytes.
 func JaccardU1(a, b []byte, depth int) float32 {
 	validateDimensions("u1", depth)
 	values := DimensionsToValues("u1", depth)

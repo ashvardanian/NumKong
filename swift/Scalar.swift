@@ -1,7 +1,9 @@
-//  Scalar.swift
-//  NumKong
 //
-//  Created by Ash Vardanian on March 14, 2026.
+//  swift/Scalar.swift
+//  Protocols for scalar dot, angular, and Euclidean distance operations.
+//
+//  - Author: Ash Vardanian
+//  - Date: March 14, 2026
 //
 
 import CNumKong
@@ -15,7 +17,7 @@ public protocol NumKongDot {
     where A: Sequence, B: Sequence, A.Element == Self, B.Element == Self
 }
 
-/// A type that can compute SIMD-accelerated angular (cosine) distances.
+/// A type that can compute SIMD-accelerated angular distances, also known as cosine distances.
 public protocol NumKongAngular {
     associatedtype AngularOutput
     static func angular<A, B>(_ a: A, _ b: B) -> AngularOutput?
@@ -824,7 +826,7 @@ extension RandomAccessCollection where Element: NumKongDot {
 }
 
 extension RandomAccessCollection where Element: NumKongAngular {
-    /// Computes the SIMD-accelerated angular (cosine) distance to another sequence.
+    /// Computes the SIMD-accelerated angular, or cosine, distance to another sequence.
     @inlinable @inline(__always)
     public func angular<B>(_ b: B) -> Element.AngularOutput?
     where B: Sequence, B.Element == Element {

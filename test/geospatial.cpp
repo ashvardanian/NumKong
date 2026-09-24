@@ -1,8 +1,8 @@
 /**
- *  @brief Haversine and Vincenty distance tests.
  *  @file test/geospatial.cpp
  *  @author Ash Vardanian
  *  @date December 28, 2025
+ *  @brief Haversine and Vincenty distance tests.
  */
 
 #include "test.hpp"
@@ -10,9 +10,7 @@
 
 using namespace ashvardanian::numkong::test;
 
-/**
- *  @brief Test Haversine distance.
- */
+/** Test Haversine distance. */
 template <typename scalar_type_>
 error_stats_t test_haversine(typename scalar_type_::geospatial_kernel_t kernel) {
     using scalar_t = scalar_type_;
@@ -67,9 +65,7 @@ error_stats_t test_haversine(typename scalar_type_::geospatial_kernel_t kernel) 
     return combined;
 }
 
-/**
- *  @brief Test Vincenty distance.
- */
+/** Test Vincenty distance. */
 template <typename scalar_type_>
 error_stats_t test_vincenty(typename scalar_type_::geospatial_kernel_t kernel) {
     using scalar_t = scalar_type_;

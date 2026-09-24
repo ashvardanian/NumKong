@@ -1,14 +1,15 @@
 /**
- * @brief Probe modules for the WebAssembly SIMD tiers, validated before a module is chosen.
- * @file javascript/wasm-probes.ts
- * @date September 12, 2026
+ *  @file javascript/wasm-probes.ts
+ *  @author Ash Vardanian
+ *  @date September 12, 2026
+ *  @brief Probe modules for the WebAssembly SIMD tiers, validated before a module is chosen.
  *
- * Each array is one function of type `() → v128`, so `WebAssembly.validate` accepts it exactly where
- * the engine implements that tier. The same bytes back the `nk_has_v128` and `nk_has_relaxed` probes
- * in `c/numkong.c`, so the loader and the module agree on what the host can execute.
+ *  Each array is one function of type `() → v128`, which `WebAssembly.validate` accepts exactly
+ *  where the engine implements that tier. The `nk_has_v128` and `nk_has_relaxed` probes in
+ *  `c/numkong.c` use the same bytes, so the loader and the module agree on what the host can run.
  */
 
-/** The one member of the `WebAssembly` global this module calls; the package compiles without the DOM typings. */
+/** The one `WebAssembly` member this module calls; the package compiles without the DOM typings. */
 declare const WebAssembly: { validate(bytes: Uint8Array): boolean };
 
 /** SIMD128: two `v128.const` operands and one `f32x4.add`. */

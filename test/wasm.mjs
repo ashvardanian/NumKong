@@ -1,10 +1,16 @@
 /**
- * Multi-runtime WASM test suite for NumKong
- * Supports: Emscripten (Node.js), WASI (Node.js), Browser (Playwright)
+ *  @file test/wasm.mjs
+ *  @author Ash Vardanian
+ *  @date February 10, 2026
+ *  @brief Multi-runtime WASM test suite for NumKong.
  *
- * Usage:
- *   NK_RUNTIME=emscripten node --test test/wasm.mjs
- *   NK_RUNTIME=wasi-node node --test test/wasm.mjs
+ *  Supports Emscripten and WASI under Node.js, and browsers under Playwright, with `NK_RUNTIME`
+ *  choosing the runtime:
+ *
+ *  ```sh
+ *  NK_RUNTIME=emscripten node --test test/wasm.mjs
+ *  NK_RUNTIME=wasi-node node --test test/wasm.mjs
+ *  ```
  */
 
 import test from "node:test";
@@ -24,7 +30,7 @@ function resolveModule(candidates) {
   });
 }
 
-// Runtime loader - adapts to different WASM execution environments
+/** Runtime loader, adapting to different WASM execution environments. */
 async function loadNumKong(runtime) {
   switch (runtime) {
     case "native":
@@ -96,14 +102,14 @@ async function loadNumKong(runtime) {
   }
 }
 
-// Load runtime based on environment variable
+/** Runtime selected by the environment variable. */
 const runtime = process.env.NK_RUNTIME || "native";
 const seed = parseInt(process.env.NK_SEED || "42");
 const dims = process.env.NK_DENSE_DIMENSIONS
   ? process.env.NK_DENSE_DIMENSIONS.split(",").map(Number)
   : [3, 16, 128, 1536];
 
-// Simple PRNG for reproducible tests
+/** Simple PRNG for reproducible tests. */
 class Random {
   constructor(seed) {
     this.seed = seed;
@@ -114,7 +120,7 @@ class Random {
   }
 }
 
-// Sub-byte packing ratio — mirrors nk_dimensions_per_value in types.h.
+/** Sub-byte packing ratio, equal to `nk_dimensions_per_value` in types.h. */
 function dimensionsPerValue(dtype) {
   switch (dtype) {
     case "u1":
@@ -144,7 +150,7 @@ if (numkong === null) {
   process.exit(0);
 }
 
-// Helper function for approximate equality
+/** Asserts approximate equality within a tolerance. */
 function assertAlmostEqual(actual, expected, tolerance = 1e-6) {
   const lowerBound = expected - tolerance;
   const upperBound = expected + tolerance;
@@ -154,7 +160,7 @@ function assertAlmostEqual(actual, expected, tolerance = 1e-6) {
   );
 }
 
-// Test suite (copied from test/test.mjs structure)
+// Test suite shaped like test/test.mjs
 test(`[${runtime}] Distance from itself`, () => {
   const f32s = new Float32Array([1.0, 2.0, 3.0]);
   assertAlmostEqual(numkong.sqeuclidean(f32s, f32s), 0.0, 0.01);
@@ -234,7 +240,7 @@ test(`[${runtime}] Capability detection`, () => {
   }
 });
 
-// Expanded test coverage - comprehensive dtype/function/dimension testing
+/** Expanded test coverage over every dtype, function and dimension. */
 const testMatrix = {
   dot: ["f64", "f32", "i8", "u8"],
   inner: ["f64", "f32", "i8", "u8"],

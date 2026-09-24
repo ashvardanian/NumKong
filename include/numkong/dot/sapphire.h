@@ -1,21 +1,24 @@
 /**
- *  @brief SIMD-accelerated Dot Products for Sapphire Rapids.
  *  @file include/numkong/dot/sapphire.h
  *  @author Ash Vardanian
  *  @date February 7, 2026
+ *  @brief SIMD-accelerated dot products for Sapphire Rapids.
  *
  *  @sa include/numkong/dot.h
  *
  *  @section dot_sapphire_instructions Key AVX-512 FP16 Instructions
  *
- *      Intrinsic        Instruction                  Sapphire Rapids
- *      _mm512_fmadd_ph  VFMADDPH (ZMM, ZMM, ZMM)     4cy @ p01
- *      _mm512_fmadd_ps  VFMADD132PS (ZMM, ZMM, ZMM)  4cy @ p01
- *      _mm512_cvtph_ps  VCVTPH2PS (ZMM, YMM)         7cy @ p01
+ *  @verbatim
+ *  Intrinsic        Instruction                  Sapphire Rapids
+ *  _mm512_fmadd_ph  VFMADDPH (ZMM, ZMM, ZMM)     4cy @ p01
+ *  _mm512_fmadd_ps  VFMADD132PS (ZMM, ZMM, ZMM)  4cy @ p01
+ *  _mm512_cvtph_ps  VCVTPH2PS (ZMM, YMM)         7cy @ p01
+ *  @endverbatim
  *
- *  Sapphire Rapids introduces native AVX-512 FP16 support, enabling 32 FP16 FMAs per instruction at the same
- *  throughput as 16 FP32 FMAs — effectively 2x compute density. For FP6 types (E2M3 and E3M2) whose products
- *  are small enough to accumulate safely in FP16, this provides near-2x speedup over the Genoa BF16 path.
+ *  Sapphire Rapids introduces native AVX-512 FP16 support, enabling 32 FP16 FMAs per instruction at
+ *  the same throughput as 16 FP32 FMAs — effectively 2x compute density. For FP6 types (E2M3 and
+ *  E3M2) whose products are small enough to accumulate safely in FP16, this provides near-2x
+ *  speedup over the Genoa BF16 path.
  *
  *  @section dot_sapphire_accumulation Safe FP16 Accumulation
  *

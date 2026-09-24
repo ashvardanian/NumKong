@@ -1,3 +1,6 @@
+// numkong/golang/dot.go
+// Written by Ash Vardanian.
+
 package numkong
 
 /*

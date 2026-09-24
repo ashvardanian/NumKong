@@ -1,8 +1,8 @@
 /**
- *  @brief ARMv8.4-FHM implementations for the redesigned reduction API.
  *  @file include/numkong/reduce/neonfhm.h
  *  @author Ash Vardanian
  *  @date February 13, 2026
+ *  @brief ARMv8.4-FHM implementations for the redesigned reduction API.
  *
  *  @sa include/numkong/reduce.h
  */

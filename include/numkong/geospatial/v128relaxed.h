@@ -1,30 +1,32 @@
 /**
- *  @brief SIMD-accelerated Geospatial Distances for WASM.
  *  @file include/numkong/geospatial/v128relaxed.h
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief SIMD-accelerated geospatial distances for WASM.
  *
  *  @sa include/numkong/geospatial.h
  *
- *  Implements Haversine and Vincenty great-circle distances for f32x4 and f64x2.
- *  Haversine uses sin/cos/atan2 with min/max clamping to keep the atan2 argument in [0,1].
- *  Vincenty iterates sin/cos/atan2 until convergence, using `i8x16_all_true` to test whether
- *  all SIMD lanes have converged without per-lane extraction.
+ *  Implements Haversine and Vincenty great-circle distances for f32x4 and f64x2. Haversine uses
+ *  sin/cos/atan2 with min/max clamping to keep the atan2 argument in [0,1]. Vincenty iterates
+ *  sin/cos/atan2 until convergence, using @c i8x16_all_true to test whether all SIMD lanes have
+ *  converged without per-lane extraction.
  *
  *  @section geospatial_wasm_instructions Key WASM SIMD Instructions (beyond trig)
  *
- *      Intrinsic                               Operation
- *      wasm_f32x4_sqrt(a)                      Square root (4-way f32)
- *      wasm_f64x2_sqrt(a)                      Square root (2-way f64)
- *      wasm_f32x4_div(a, b)                    Division (4-way f32)
- *      wasm_f64x2_div(a, b)                    Division (2-way f64)
- *      wasm_f32x4_min/max(a, b)                Clamping for Haversine
- *      wasm_f64x2_min/max(a, b)                Clamping for Haversine
- *      wasm_f32x4_relaxed_min/max(a, b)        Min/max without NaN fixup (1 vs 6-9 on x86)
- *      wasm_f64x2_relaxed_min/max(a, b)        Min/max without NaN fixup (1 vs 6-9 on x86)
- *      wasm_i32x4_relaxed_laneselect(a, b, m)  Lane select (1 instr vs 3 on x86)
- *      wasm_i64x2_relaxed_laneselect(a, b, m)  Lane select for f64 masks
- *      wasm_i8x16_all_true(a)                  Vincenty convergence check (all lanes at once)
+ *  @verbatim
+ *  Intrinsic                               Operation
+ *  wasm_f32x4_sqrt(a)                      Square root (4-way f32)
+ *  wasm_f64x2_sqrt(a)                      Square root (2-way f64)
+ *  wasm_f32x4_div(a, b)                    Division (4-way f32)
+ *  wasm_f64x2_div(a, b)                    Division (2-way f64)
+ *  wasm_f32x4_min/max(a, b)                Clamping for Haversine
+ *  wasm_f64x2_min/max(a, b)                Clamping for Haversine
+ *  wasm_f32x4_relaxed_min/max(a, b)        Min/max without NaN fixup (1 vs 6-9 on x86)
+ *  wasm_f64x2_relaxed_min/max(a, b)        Min/max without NaN fixup (1 vs 6-9 on x86)
+ *  wasm_i32x4_relaxed_laneselect(a, b, m)  Lane select (1 instr vs 3 on x86)
+ *  wasm_i64x2_relaxed_laneselect(a, b, m)  Lane select for f64 masks
+ *  wasm_i8x16_all_true(a)                  Vincenty convergence check (all lanes at once)
+ *  @endverbatim
  */
 #ifndef NK_GEOSPATIAL_V128RELAXED_H
 #define NK_GEOSPATIAL_V128RELAXED_H

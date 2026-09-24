@@ -1,29 +1,31 @@
 /**
- *  @brief SIMD-accelerated Elementwise Arithmetic for NEON.
  *  @file include/numkong/each/neon.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated elementwise arithmetic for NEON.
  *
  *  @sa include/numkong/each.h
  *
  *  @section elementwise_neon_instructions ARM NEON Instructions
  *
- *      Intrinsic       Instruction               A76       M5
- *      vld1q_f32       LD1 (V.4S)                4cy @ 2p  4cy @ 3p
- *      vst1q_f32       ST1 (V.4S)                2cy @ 2p  2cy @ 3p
- *      vaddq_f32       FADD (V.4S, V.4S, V.4S)   2cy @ 2p  2cy @ 4p
- *      vmulq_f32       FMUL (V.4S, V.4S, V.4S)   3cy @ 2p  3cy @ 4p
- *      vfmaq_f32       FMLA (V.4S, V.4S, V.4S)   4cy @ 2p  3cy @ 4p
- *      vaddq_f64       FADD (V.2D, V.2D, V.2D)   2cy @ 2p  2cy @ 4p
- *      vmulq_f64       FMUL (V.2D, V.2D, V.2D)   3cy @ 2p  3cy @ 4p
- *      vfmaq_f64       FMLA (V.2D, V.2D, V.2D)   4cy @ 2p  3cy @ 4p
- *      vqaddq_s16      SQADD (V.8H, V.8H, V.8H)  2cy @ 2p  3cy @ 2p
- *      vcvtq_f32_s32   SCVTF (V.4S, V.4S)        3cy @ 2p  3cy @ 4p
- *      vcvtnq_s32_f32  FCVTNS (V.4S, V.4S)       3cy @ 2p  3cy @ 4p
- *      vqmovn_s32      SQXTN (V.4H, V.4S)        3cy @ 2p  3cy @ 4p
+ *  @verbatim
+ *  Intrinsic       Instruction               A76       M5
+ *  vld1q_f32       LD1 (V.4S)                4cy @ 2p  4cy @ 3p
+ *  vst1q_f32       ST1 (V.4S)                2cy @ 2p  2cy @ 3p
+ *  vaddq_f32       FADD (V.4S, V.4S, V.4S)   2cy @ 2p  2cy @ 4p
+ *  vmulq_f32       FMUL (V.4S, V.4S, V.4S)   3cy @ 2p  3cy @ 4p
+ *  vfmaq_f32       FMLA (V.4S, V.4S, V.4S)   4cy @ 2p  3cy @ 4p
+ *  vaddq_f64       FADD (V.2D, V.2D, V.2D)   2cy @ 2p  2cy @ 4p
+ *  vmulq_f64       FMUL (V.2D, V.2D, V.2D)   3cy @ 2p  3cy @ 4p
+ *  vfmaq_f64       FMLA (V.2D, V.2D, V.2D)   4cy @ 2p  3cy @ 4p
+ *  vqaddq_s16      SQADD (V.8H, V.8H, V.8H)  2cy @ 2p  3cy @ 2p
+ *  vcvtq_f32_s32   SCVTF (V.4S, V.4S)        3cy @ 2p  3cy @ 4p
+ *  vcvtnq_s32_f32  FCVTNS (V.4S, V.4S)       3cy @ 2p  3cy @ 4p
+ *  vqmovn_s32      SQXTN (V.4H, V.4S)        3cy @ 2p  3cy @ 4p
+ *  @endverbatim
  *
- *  Elementwise operations are throughput-bound rather than latency-bound. FP arithmetic
- *  throughput doubles on 4-pipe cores (Apple M4+, Graviton3+, Oryon) from 2/cy to 4/cy.
+ *  Elementwise operations are throughput-bound rather than latency-bound. FP arithmetic throughput
+ *  doubles on 4-pipe cores — Apple M4+, Graviton3+, Oryon — from 2/cy to 4/cy.
  *
  *  Memory bandwidth (LD1/ST1) typically becomes the bottleneck for large arrays, as load/store
  *  throughput remains at 2/cy across all cores.

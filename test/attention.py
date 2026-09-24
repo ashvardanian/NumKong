@@ -2,6 +2,10 @@
 
 The reference is a float64 NumPy softmax-attention over the same dtype-rounded inputs and an
 explicit visibility mask, so tolerances only cover kernel arithmetic, not input rounding.
+
+File: test/attention.py
+Author: Ash Vardanian
+Date: July 7, 2026
 """
 
 import numpy as np
@@ -23,8 +27,8 @@ SCENARIOS = {
 
 ATTENTION_MODES = ["bidirectional", "causal"]
 
-# (diagonal_offset, window) pairs; None is an unbounded window, -3 leaves the first rows empty
 CAUSAL_MASKS = [(0, None), (0, 7), (-3, None), (2, 1)]
+"""(diagonal_offset, window) pairs; None is an unbounded window, -3 leaves the first rows empty."""
 
 
 def visibility_mask(query_count, key_count, mode, diagonal_offset, window):

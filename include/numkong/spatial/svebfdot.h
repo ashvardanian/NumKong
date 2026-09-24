@@ -1,33 +1,35 @@
 /**
- *  @brief SIMD-accelerated Spatial Similarity Measures for SVE BF16.
  *  @file include/numkong/spatial/svebfdot.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated spatial similarity measures for SVE BF16.
  *
  *  @sa include/numkong/spatial.h
  *
  *  @section spatial_svebfdot_instructions ARM SVE+BF16 Instructions
  *
- *      Intrinsic      Instruction                V1
- *      svld1_bf16     LD1H (Z.H, P/Z, [Xn])      4-6cy @ 2p
- *      svld1_u16      LD1H (Z.H, P/Z, [Xn])      4-6cy @ 2p
- *      svbfdot_f32    BFDOT (Z.S, Z.H, Z.H)      4cy @ 2p
- *      svmla_f32_x    FMLA (Z.S, P/M, Z.S, Z.S)  4cy @ 2p
- *      svsub_f32_x    FSUB (Z.S, P/M, Z.S, Z.S)  3cy @ 2p
- *      svaddv_f32     FADDV (S, P, Z.S)          6cy @ 1p
- *      svunpklo_u32   UUNPKLO (Z.S, Z.H)         2cy @ 2p
- *      svunpkhi_u32   UUNPKHI (Z.S, Z.H)         2cy @ 2p
- *      svlsl_n_u32_x  LSL (Z.S, P/M, Z.S, #imm)  2cy @ 2p
- *      svwhilelt_b16  WHILELT (P.H, Xn, Xm)      2cy @ 1p
- *      svwhilelt_b32  WHILELT (P.S, Xn, Xm)      2cy @ 1p
- *      svcnth         CNTH (Xd)                  1cy @ 2p
+ *  @verbatim
+ *  Intrinsic      Instruction                V1
+ *  svld1_bf16     LD1H (Z.H, P/Z, [Xn])      4-6cy @ 2p
+ *  svld1_u16      LD1H (Z.H, P/Z, [Xn])      4-6cy @ 2p
+ *  svbfdot_f32    BFDOT (Z.S, Z.H, Z.H)      4cy @ 2p
+ *  svmla_f32_x    FMLA (Z.S, P/M, Z.S, Z.S)  4cy @ 2p
+ *  svsub_f32_x    FSUB (Z.S, P/M, Z.S, Z.S)  3cy @ 2p
+ *  svaddv_f32     FADDV (S, P, Z.S)          6cy @ 1p
+ *  svunpklo_u32   UUNPKLO (Z.S, Z.H)         2cy @ 2p
+ *  svunpkhi_u32   UUNPKHI (Z.S, Z.H)         2cy @ 2p
+ *  svlsl_n_u32_x  LSL (Z.S, P/M, Z.S, #imm)  2cy @ 2p
+ *  svwhilelt_b16  WHILELT (P.H, Xn, Xm)      2cy @ 1p
+ *  svwhilelt_b32  WHILELT (P.S, Xn, Xm)      2cy @ 1p
+ *  svcnth         CNTH (Xd)                  1cy @ 2p
+ *  @endverbatim
  *
- *  SVE vector widths vary across implementations: Graviton3 uses 256-bit, while Graviton4/5
- *  and Apple M4+ use 128-bit. Code using svcntb() adapts automatically, but wider vectors
- *  process more elements per iteration with identical latencies.
+ *  SVE vector widths vary across implementations: Graviton3 uses 256-bit, while Graviton4/5 and
+ *  Apple M4+ use 128-bit. Code using svcntb() adapts automatically, but wider vectors process more
+ *  elements per iteration with identical latencies.
  *
- *  The BFDOT instruction fuses two BF16 multiplications with FP32 accumulation, providing
- *  efficient BF16 dot products without explicit conversion overhead.
+ *  The BFDOT instruction fuses two BF16 multiplications with FP32 accumulation, providing efficient
+ *  BF16 dot products without explicit conversion overhead.
  */
 #ifndef NK_SPATIAL_SVEBFDOT_H
 #define NK_SPATIAL_SVEBFDOT_H

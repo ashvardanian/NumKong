@@ -1,8 +1,8 @@
 /**
- *  @brief Batched Spatial Distances for RISC-V Vector (RVV).
  *  @file include/numkong/spatials/rvv.h
  *  @author Ash Vardanian
  *  @date February 23, 2026
+ *  @brief Batched spatial distances for RISC-V Vector, RVV.
  *
  *  @sa include/numkong/spatials.h
  */

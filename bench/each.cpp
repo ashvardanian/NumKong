@@ -1,8 +1,8 @@
 /**
- *  @brief Elementwise operations benchmarks (fma, blend, sum, scale).
  *  @file bench/each.cpp
  *  @author Ash Vardanian
  *  @date March 14, 2023
+ *  @brief Elementwise operations benchmarks, fma, blend, sum, scale.
  */
 
 #include <cstring> // std::memset
@@ -47,10 +47,10 @@ void blend_f64_with_blas(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f
 #endif // NK_COMPARE_TO_BLAS || NK_COMPARE_TO_MKL || NK_COMPARE_TO_ACCELERATE
 
 /**
- *  @brief Measures the performance of elementwise operations (sum, blend, fma, scale) using Google Benchmark.
- *  @param state The benchmark state object provided by Google Benchmark.
- *  @param kernel The kernel function to benchmark.
- *  @param dimensions The number of dimensions in the vectors.
+ *  @brief Measures elementwise operations, sum, blend, fma and scale, using Google Benchmark.
+ *  @param[inout] state The benchmark state object provided by Google Benchmark.
+ *  @param[in] kernel The kernel function to benchmark.
+ *  @param[in] dimensions The number of dimensions in the vectors.
  */
 template <nk_dtype_t input_dtype_, nk_kernel_kind_t kernel_kind_, nk_dtype_t alpha_dtype_, typename kernel_type_ = void>
 void measure_each(bm::State &state, kernel_type_ kernel, std::size_t dimensions) {
@@ -126,9 +126,7 @@ void run_each(std::string name, kernel_type_ *kernel) {
                           kernel, bench_config.dense_dimensions);
 }
 
-/**
- *  @brief Measures a fused SwiGLU kernel (single row, gate ⊙ up).
- */
+/** Measures a fused SwiGLU kernel, single row, gate ⊙ up. */
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
 void measure_swiglu(bm::State &state, kernel_type_ kernel, std::size_t dimensions) {
     using input_t = typename nk::type_for<input_dtype_>::type;
@@ -163,9 +161,7 @@ void run_swiglu(std::string name, kernel_type_ *kernel) {
                           bench_config.dense_dimensions);
 }
 
-/**
- *  @brief Measures an in-place NeoX split-half RoPE kernel (single head, all pairs rotated).
- */
+/** Measures an in-place NeoX split-half RoPE kernel, single head, all pairs rotated. */
 void bench_each() {
     constexpr nk_dtype_t i8_k = nk_i8_k;
     constexpr nk_dtype_t u8_k = nk_u8_k;

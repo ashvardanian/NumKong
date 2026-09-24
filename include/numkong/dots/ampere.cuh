@@ -1,15 +1,16 @@
 /**
- *  @brief SIMD-accelerated Batched Dot Products for NVIDIA Ampere and newer.
  *  @file include/numkong/dots/ampere.cuh
  *  @author Ash Vardanian
  *  @date September 22, 2026
+ *  @brief SIMD-accelerated Batched Dot Products for NVIDIA Ampere and newer.
  *
  *  @sa include/numkong/dots.h
  *
- *  Four warps own a 128 × 128 output tile, streaming 64-byte depth slabs through a three-stage `cp.async` pipeline
- *  into swizzled shared memory, so dtypes differ only in how each 32-byte sub-slab is multiplied. F64 and F32 run a
- *  CUDA-core FMA tile at Dot2 and F64 precision; Float8 and E3M2 widen exactly into F16; E2M3, E2M1, I4 and U4 widen
- *  into I8 for exact integer MMA, with one output multiply undoing each widening's power of two.
+ *  Four warps own a @b [128,128] output tile, streaming 64-byte depth slabs through a three-stage
+ *  `cp.async` pipeline into swizzled shared memory, so dtypes differ only in how each 32-byte
+ *  sub-slab is multiplied. F64 and F32 run a CUDA-core FMA tile at Dot2 and F64 precision; Float8
+ *  and E3M2 widen exactly into F16; E2M3, E2M1, I4 and U4 widen into I8 for exact integer MMA, with
+ *  one output multiply undoing each widening's power of two.
  */
 #ifndef NK_DOTS_AMPERE_CUH
 #define NK_DOTS_AMPERE_CUH

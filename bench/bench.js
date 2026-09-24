@@ -1,10 +1,17 @@
+/**
+ *  @file bench/bench.js
+ *  @author Ash Vardanian
+ *  @date October 20, 2023
+ *  @brief Angular-distance benchmarks of NumKong against pure JavaScript, MathJS and USearch.
+ */
+
 const benchmark = require("benchmark");
 const math = require("mathjs");
 const usearch = require("usearch");
 const MetricKind = usearch.MetricKind;
 const numkong = require("../javascript/dist/cjs/numkong.js");
 
-// Assuming the vectors are of the same length
+/** Angular distance in pure JavaScript, assuming the vectors are of the same length. */
 function angular(a, b) {
   let dotProduct = 0;
   let magA = 0;
@@ -24,7 +31,7 @@ function angularMathJS(a, b) {
   return 1 - dotProduct / (magA * magB);
 }
 
-// Generate random data for testing
+/** Random data for testing. */
 const dimensions = 1536; // Adjust dimensions as needed
 const array1 = Array.from({ length: dimensions }, () => Math.random() * 100);
 const array2 = Array.from({ length: dimensions }, () => Math.random() * 100);
@@ -39,7 +46,7 @@ const floatArray2 = new Float32Array(array2);
 const intArray1 = new Int8Array(array1);
 const intArray2 = new Int8Array(array2);
 
-// Generate random batch data for testing
+/** Random batch data for testing. */
 const batchSize = 1000;
 const matrix1 = Array.from(
   { length: dimensions * batchSize },
@@ -54,7 +61,7 @@ const floatMatrix2 = new Float32Array(matrix2);
 const intMatrix1 = new Int8Array(matrix1);
 const intMatrix2 = new Int8Array(matrix2);
 
-// Create benchmark suite
+/** Benchmark suites. */
 const singleSuite = new benchmark.Suite("Single Vector Processing");
 const batchSuite = new benchmark.Suite("Batch Vector Processing");
 

@@ -1,8 +1,8 @@
 /**
- *  @brief Haswell-accelerated Probability Distribution Similarity Measures.
  *  @file include/numkong/probability/haswell.h
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief Haswell-accelerated probability distribution similarity measures.
  *
  *  @sa include/numkong/probability.h
  */

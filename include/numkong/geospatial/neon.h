@@ -1,18 +1,20 @@
 /**
- *  @brief SIMD-accelerated Geospatial Distances for NEON.
  *  @file include/numkong/geospatial/neon.h
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief SIMD-accelerated geospatial distances for NEON.
  *
  *  @sa include/numkong/geospatial.h
  *
  *  @section geospatial_neon_instructions Key NEON Geospatial Instructions
  *
- *      Intrinsic   Instruction    M1 Firestorm  Graviton 3   Graviton 4
- *      vfmaq_f32   FMLA.S (vec)   4cy @ V0123   4cy @ V0123  4cy @ V0123
- *      vfmaq_f64   FMLA.D (vec)   4cy @ V0123   4cy @ V0123  4cy @ V0123
- *      vsqrtq_f32  FSQRT.S (vec)  10cy @ V02    10cy @ V02   9cy @ V02
- *      vsqrtq_f64  FSQRT.D (vec)  13cy @ V02    16cy @ V02   16cy @ V02
+ *  @verbatim
+ *  Intrinsic   Instruction    M1 Firestorm  Graviton 3   Graviton 4
+ *  vfmaq_f32   FMLA.S (vec)   4cy @ V0123   4cy @ V0123  4cy @ V0123
+ *  vfmaq_f64   FMLA.D (vec)   4cy @ V0123   4cy @ V0123  4cy @ V0123
+ *  vsqrtq_f32  FSQRT.S (vec)  10cy @ V02    10cy @ V02   9cy @ V02
+ *  vsqrtq_f64  FSQRT.D (vec)  13cy @ V02    16cy @ V02   16cy @ V02
+ *  @endverbatim
  */
 #ifndef NK_GEOSPATIAL_NEON_H
 #define NK_GEOSPATIAL_NEON_H

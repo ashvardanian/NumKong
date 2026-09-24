@@ -1,4 +1,9 @@
-/* NumKong ISA probe: NEON FP8 (fp8dot4) */
+/**
+ *  @file probes/arm_neonfp8.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for NEON FP8, the @c fp8dot4 instruction.
+ */
 #include <arm_neon.h>
 int test_neonfp8(void) {
     mfloat8x16_t a = vreinterpretq_mf8_u8(vdupq_n_u8(0));

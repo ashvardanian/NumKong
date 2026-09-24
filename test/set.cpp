@@ -1,8 +1,8 @@
 /**
- *  @brief Binary set operations tests (Hamming, Jaccard).
  *  @file test/set.cpp
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief Binary set operations tests: Hamming, Jaccard.
  */
 
 #include "test.hpp"
@@ -10,9 +10,7 @@
 
 using namespace ashvardanian::numkong::test;
 
-/**
- *  @brief Test Hamming distance for binary or integer vectors.
- */
+/** Test Hamming distance for binary or integer vectors. */
 template <typename scalar_type_>
 error_stats_t test_hamming(typename scalar_type_::hamming_kernel_t kernel) {
     using scalar_t = scalar_type_;
@@ -41,9 +39,7 @@ error_stats_t test_hamming(typename scalar_type_::hamming_kernel_t kernel) {
     return stats;
 }
 
-/**
- *  @brief Test Jaccard distance for binary or integer vectors.
- */
+/** Test Jaccard distance for binary or integer vectors. */
 template <typename scalar_type_>
 error_stats_t test_jaccard(typename scalar_type_::jaccard_kernel_t kernel) {
     using scalar_t = scalar_type_;

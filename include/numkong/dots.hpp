@@ -1,8 +1,8 @@
 /**
- *  @brief C++ bindings for multi-target dot-product kernels.
  *  @file include/numkong/dots.hpp
  *  @author Ash Vardanian
  *  @date February 5, 2026
+ *  @brief C++ bindings for multi-target dot-product kernels.
  */
 #ifndef NK_DOTS_HPP
 #define NK_DOTS_HPP
@@ -27,9 +27,9 @@ namespace ashvardanian::numkong {
  *  This matches BLAS sgemm/dgemm with CblasNoTrans for A and CblasTrans for B.
  *  Useful as a reference implementation for validating BLAS/MKL/Accelerate.
  *
- *  @param[in] a Matrix A [m x k] row-major
- *  @param[in] b Matrix B [n x k] row-major (accessed as Bᵀ)
- *  @param[out] c Output matrix C [m x n] row-major
+ *  @param[in] a Row-major matrix A of shape @b [rows,depth]
+ *  @param[in] b Row-major matrix B of shape @b [columns,depth], accessed as Bᵀ
+ *  @param[out] c Row-major output matrix C of shape @b [rows,columns]
  *  @param[in] row_count Rows of A and C (m)
  *  @param[in] column_count Rows of B and columns of C (n)
  *  @param[in] depth Columns of A and B (k). Counts dimensions, a multiple of the values per byte.
@@ -63,10 +63,9 @@ void dots_unpacked(in_type_ const *a, in_type_ const *b, result_type_ *c, size_t
 /**
  *  @brief Conjugated unpacked dot products: C = A × Bᴴ (Hermitian inner product, row-major)
  *
- *  Same as `dots_unpacked`, but conjugates elements of B before multiplication.
- *  For real types this is identical to `dots_unpacked`. For complex types this
- *  computes the standard Hermitian inner product matching `cblas_{c,z}gemm` with
- *  `CblasConjTrans`.
+ *  Same as @c dots_unpacked, but conjugates elements of B before multiplication. For real types
+ *  this is identical to @c dots_unpacked. For complex types this computes the standard Hermitian
+ *  inner product matching `cblas_{c,z}gemm` with @c CblasConjTrans.
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::dot_result_t>
 void dots_unpacked_conjugated(in_type_ const *a, in_type_ const *b, result_type_ *c, size_t row_count,
@@ -91,12 +90,12 @@ void dots_unpacked_conjugated(in_type_ const *a, in_type_ const *b, result_type_
 
 /**
  *  @brief Packed dot products (batch matrix multiply): C = A × B (row-major)
- *  @param[in] a Matrix A [m x k]
- *  @param[in] b_packed Packed matrix B [k x n] with stride metadata appended
- *  @param[out] c Output matrix C [m x n]
- *  @param[in] row_count Rows of A and C (m)
- *  @param[in] column_count Columns of B and C (n)
- *  @param[in] depth Columns of A, Rows of B (k). Counts dimensions, a multiple of the values per byte.
+ *  @param[in] a Matrix A of shape @b [rows,depth]
+ *  @param[in] b_packed Packed matrix B of shape @b [depth,columns], with stride metadata appended
+ *  @param[out] c Output matrix C of shape @b [rows,columns]
+ *  @param[in] row_count Rows of A and C
+ *  @param[in] column_count Columns of B and C
+ *  @param[in] depth Columns of A, rows of B, a multiple of the values per byte.
  *  @param[in] a_stride_in_bytes Stride between rows of A in bytes
  *  @param[in] c_stride_in_bytes Stride between rows of C in bytes
  *
@@ -162,11 +161,11 @@ void dots_packed(in_type_ const *a, void const *b_packed, result_type_ *c, size_
 
 /**
  *  @brief Symmetric dot products: C = A × Aᵀ where C[i,j] = ⟨A[i], A[j]⟩
- *  @param[in] a Matrix A [n x k] (n vectors of dimension k)
- *  @param[in] vectors_count Number of vectors (n)
+ *  @param[in] a Matrix A of shape @b [vectors,depth]
+ *  @param[in] vectors_count Number of vectors
  *  @param[in] depth Counts dimensions, a multiple of the values per byte.
  *  @param[in] a_stride_in_bytes Stride between vectors in A
- *  @param[out] c Output matrix C [n x n]
+ *  @param[out] c Output matrix C of shape @b [vectors,vectors]
  *  @param[in] c_stride_in_bytes Stride between rows of C in bytes
  *
  *  @tparam in_type_ Input element type
@@ -242,17 +241,17 @@ void dots_symmetric(in_type_ const *a, std::size_t vectors_count, std::size_t de
 
 /**
  *  @brief Symmetric Hamming distance matrix: C[i,j] = hamming(A[i], A[j])
- *  @param[in] a Input matrix (vectors_count x depth)
+ *  @param[in] a Input matrix, shape @b [vectors_count,depth]
  *  @param[in] vectors_count Number of vectors
  *  @param[in] depth Counts dimensions, a multiple of the values per byte.
  *  @param[in] a_stride_in_bytes Row stride in bytes
- *  @param[out] c Output matrix (vectors_count x vectors_count)
+ *  @param[out] c Output matrix, shape @b [vectors_count,vectors_count]
  *  @param[in] c_stride_in_bytes Output row stride in bytes
  *  @param[in] row_start Starting row index (default 0)
  *  @param[in] row_count Number of rows to compute (default all)
  *
- *  Computes Hamming distances between all pairs of binary vectors.
- *  For u1x8_t inputs, distances are exact bit counts (u32_t outputs).
+ *  Computes Hamming distances between all pairs of binary vectors. For @c u1x8_t inputs, distances
+ *  are exact bit counts, returned as @c u32_t.
  *
  *  @tparam in_type_ Input element type (u1x8_t)
  *  @tparam result_type_ Output type (u32_t for Hamming distances)
@@ -305,8 +304,8 @@ void hammings_symmetric(in_type_ const *a, std::size_t vectors_count, std::size_
  *  @param[in] a_stride_in_bytes Stride between consecutive rows of A in bytes.
  *  @param[in] c_stride_in_bytes Stride between consecutive rows of C in bytes.
  *
- *  Computes Hamming distances between binary vectors using optimized packed format.
- *  For u1x8_t inputs, distances are exact bit counts (u32_t outputs).
+ *  Computes Hamming distances between binary vectors using optimized packed format. For @c u1x8_t
+ *  inputs, distances are exact bit counts, returned as @c u32_t.
  *
  *  @tparam in_type_ Input element type (u1x8_t)
  *  @tparam result_type_ Output type (u32_t for Hamming distances)
@@ -363,9 +362,7 @@ void hammings_packed(in_type_ const *a, void const *b_packed, result_type_ *c, s
     }
 }
 
-/**
- *  @brief Symmetric Jaccard distance matrix: C[i,j] = jaccard(A[i], A[j])
- */
+/** Symmetric Jaccard distance matrix: C[i,j] = jaccard(A[i], A[j]). */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::jaccard_result_t,
           allow_simd_t allow_simd_ = prefer_simd_k>
 void jaccards_symmetric(in_type_ const *a, std::size_t vectors_count, std::size_t depth, std::size_t a_stride_in_bytes,
@@ -403,9 +400,7 @@ void jaccards_symmetric(in_type_ const *a, std::size_t vectors_count, std::size_
     }
 }
 
-/**
- *  @brief Computes Jaccard distances between rows of A and columns of packed B.
- */
+/** Computes Jaccard distances between rows of A and columns of packed B. */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::jaccard_result_t,
           allow_simd_t allow_simd_ = prefer_simd_k>
 void jaccards_packed(in_type_ const *a, void const *b_packed, result_type_ *c, std::size_t row_count,
@@ -462,7 +457,7 @@ namespace ashvardanian::numkong {
 
 #pragma region Concept Constrained Symmetric Dot Products
 
-/** @brief C = A × Aᵀ where C[i,j] = ⟨A[i], A[j]⟩. */
+/** C = A × Aᵀ where C[i,j] = ⟨A[i], A[j]⟩. */
 template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
           mutable_matrix_of<typename value_type_::dot_result_t> output_matrix_>
 bool dots_symmetric(input_matrix_ const &input, output_matrix_ &&output) noexcept {
@@ -474,7 +469,7 @@ bool dots_symmetric(input_matrix_ const &input, output_matrix_ &&output) noexcep
     return true;
 }
 
-/** @brief Partitioned symmetric dot products for parallel row-range work. */
+/** Partitioned symmetric dot products for parallel row-range work. */
 template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
           mutable_matrix_of<typename value_type_::dot_result_t> output_matrix_>
 bool dots_symmetric(input_matrix_ const &input, output_matrix_ output, std::size_t row_start,
@@ -487,7 +482,7 @@ bool dots_symmetric(input_matrix_ const &input, output_matrix_ output, std::size
     return true;
 }
 
-/** @brief Allocating symmetric dot products: C = A × Aᵀ. */
+/** Allocating symmetric dot products: C = A × Aᵀ. */
 template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
           typename allocator_type_ = aligned_allocator<typename value_type_::dot_result_t>>
 matrix<typename value_type_::dot_result_t, allocator_type_> try_dots_symmetric(input_matrix_ const &input) noexcept {
@@ -501,7 +496,7 @@ matrix<typename value_type_::dot_result_t, allocator_type_> try_dots_symmetric(i
     return result;
 }
 
-/** @brief Symmetric Hamming distances: C[i,j] = hamming(A[i], A[j]). */
+/** Symmetric Hamming distances: C[i,j] = hamming(A[i], A[j]). */
 template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
           mutable_matrix_of<typename value_type_::hamming_result_t> output_matrix_>
 bool hammings_symmetric(input_matrix_ const &input, output_matrix_ &&output) noexcept {
@@ -513,7 +508,7 @@ bool hammings_symmetric(input_matrix_ const &input, output_matrix_ &&output) noe
     return true;
 }
 
-/** @brief Allocating symmetric Hamming distances. */
+/** Allocating symmetric Hamming distances. */
 template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
           typename allocator_type_ = aligned_allocator<typename value_type_::hamming_result_t>>
 matrix<typename value_type_::hamming_result_t, allocator_type_> try_hammings_symmetric(
@@ -528,7 +523,7 @@ matrix<typename value_type_::hamming_result_t, allocator_type_> try_hammings_sym
     return result;
 }
 
-/** @brief Symmetric Jaccard distances: C[i,j] = jaccard(A[i], A[j]). */
+/** Symmetric Jaccard distances: C[i,j] = jaccard(A[i], A[j]). */
 template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
           mutable_matrix_of<typename value_type_::jaccard_result_t> output_matrix_>
 bool jaccards_symmetric(input_matrix_ const &input, output_matrix_ &&output) noexcept {
@@ -540,7 +535,7 @@ bool jaccards_symmetric(input_matrix_ const &input, output_matrix_ &&output) noe
     return true;
 }
 
-/** @brief Allocating symmetric Jaccard distances. */
+/** Allocating symmetric Jaccard distances. */
 template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
           typename allocator_type_ = aligned_allocator<typename value_type_::jaccard_result_t>>
 matrix<typename value_type_::jaccard_result_t, allocator_type_> try_jaccards_symmetric(
@@ -559,7 +554,7 @@ matrix<typename value_type_::jaccard_result_t, allocator_type_> try_jaccards_sym
 
 #pragma region Concept Constrained Packed Dot Products
 
-/** @brief Packed dot products: C = A × B_packedᵀ. */
+/** Packed dot products: C = A × B_packedᵀ. */
 template <numeric_dtype value_type_, packed_matrix_like packed_type_, const_matrix_of<value_type_> input_matrix_,
           mutable_matrix_of<typename value_type_::dot_result_t> output_matrix_>
 bool dots_packed(input_matrix_ const &a, packed_type_ const &packed_b, output_matrix_ &&c) noexcept {
@@ -572,7 +567,7 @@ bool dots_packed(input_matrix_ const &a, packed_type_ const &packed_b, output_ma
     return true;
 }
 
-/** @brief Allocating packed dot products: C = A × B_packedᵀ. */
+/** Allocating packed dot products: C = A × B_packedᵀ. */
 template <numeric_dtype value_type_, packed_matrix_like packed_type_, const_matrix_of<value_type_> input_matrix_,
           typename allocator_type_ = aligned_allocator<typename value_type_::dot_result_t>>
 matrix<typename value_type_::dot_result_t, allocator_type_> try_dots_packed(input_matrix_ const &a,
@@ -586,7 +581,7 @@ matrix<typename value_type_::dot_result_t, allocator_type_> try_dots_packed(inpu
     return c;
 }
 
-/** @brief Packed Hamming distances: C = hamming(A, B_packed). */
+/** Packed Hamming distances: C = hamming(A, B_packed). */
 template <numeric_dtype value_type_, packed_matrix_like packed_type_, const_matrix_of<value_type_> input_matrix_,
           mutable_matrix_of<typename value_type_::hamming_result_t> output_matrix_>
 bool hammings_packed(input_matrix_ const &a, packed_type_ const &packed_b, output_matrix_ &&c) noexcept {
@@ -599,7 +594,7 @@ bool hammings_packed(input_matrix_ const &a, packed_type_ const &packed_b, outpu
     return true;
 }
 
-/** @brief Allocating packed Hamming distances. */
+/** Allocating packed Hamming distances. */
 template <numeric_dtype value_type_, packed_matrix_like packed_type_, const_matrix_of<value_type_> input_matrix_,
           typename allocator_type_ = aligned_allocator<typename value_type_::hamming_result_t>>
 matrix<typename value_type_::hamming_result_t, allocator_type_> try_hammings_packed(
@@ -613,7 +608,7 @@ matrix<typename value_type_::hamming_result_t, allocator_type_> try_hammings_pac
     return c;
 }
 
-/** @brief Packed Jaccard distances: C = jaccard(A, B_packed). */
+/** Packed Jaccard distances: C = jaccard(A, B_packed). */
 template <numeric_dtype value_type_, packed_matrix_like packed_type_, const_matrix_of<value_type_> input_matrix_,
           mutable_matrix_of<typename value_type_::jaccard_result_t> output_matrix_>
 bool jaccards_packed(input_matrix_ const &a, packed_type_ const &packed_b, output_matrix_ &&c) noexcept {
@@ -626,7 +621,7 @@ bool jaccards_packed(input_matrix_ const &a, packed_type_ const &packed_b, outpu
     return true;
 }
 
-/** @brief Allocating packed Jaccard distances. */
+/** Allocating packed Jaccard distances. */
 template <numeric_dtype value_type_, packed_matrix_like packed_type_, const_matrix_of<value_type_> input_matrix_,
           typename allocator_type_ = aligned_allocator<typename value_type_::jaccard_result_t>>
 matrix<typename value_type_::jaccard_result_t, allocator_type_> try_jaccards_packed(

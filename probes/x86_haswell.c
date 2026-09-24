@@ -1,4 +1,9 @@
-/* NumKong ISA probe: Haswell (AVX2 + FMA + F16C) */
+/**
+ *  @file probes/x86_haswell.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for Haswell, AVX2 plus FMA plus F16C.
+ */
 #if !defined(__AVX2__)
 #error "Feature not available"
 #endif

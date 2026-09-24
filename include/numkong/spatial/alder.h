@@ -1,25 +1,26 @@
 /**
- *  @brief SIMD-accelerated Spatial Similarity Measures for Alder Lake.
  *  @file include/numkong/spatial/alder.h
  *  @author Ash Vardanian
  *  @date March 4, 2026
+ *  @brief SIMD-accelerated spatial similarity measures for Alder Lake.
  *
  *  @sa include/numkong/spatial.h
  *
  *  @section spatial_alder_instructions AVX-VNNI Instructions Performance
  *
- *      Intrinsic            Instruction               Alder Lake  Raptor Lake
- *      _mm256_dpbusd_epi32  VPDPBUSD (YMM, YMM, YMM)  4cy @ p05   4cy @ p05
- *      _mm256_sad_epu8      VPSADBW (YMM, YMM, YMM)   3cy @ p5    3cy @ p5
- *      _mm256_xor_si256     VPXOR (YMM, YMM, YMM)     1cy @ p015  1cy @ p015
- *      _mm256_add_epi64     VPADDQ (YMM, YMM, YMM)    1cy @ p015  1cy @ p015
- *      _mm_rsqrt_ps         VRSQRTPS (XMM, XMM)       5cy @ p0    5cy @ p0
- *      _mm_sqrt_ss          VSQRTSS (XMM, XMM, XMM)   12cy @ p0   12cy @ p0
+ *  @verbatim
+ *  Intrinsic            Instruction               Alder Lake  Raptor Lake
+ *  _mm256_dpbusd_epi32  VPDPBUSD (YMM, YMM, YMM)  4cy @ p05   4cy @ p05
+ *  _mm256_sad_epu8      VPSADBW (YMM, YMM, YMM)   3cy @ p5    3cy @ p5
+ *  _mm256_xor_si256     VPXOR (YMM, YMM, YMM)     1cy @ p015  1cy @ p015
+ *  _mm256_add_epi64     VPADDQ (YMM, YMM, YMM)    1cy @ p015  1cy @ p015
+ *  _mm_rsqrt_ps         VRSQRTPS (XMM, XMM)       5cy @ p0    5cy @ p0
+ *  _mm_sqrt_ss          VSQRTSS (XMM, XMM, XMM)   12cy @ p0   12cy @ p0
+ *  @endverbatim
  *
- *  All spatial kernels use the dpbusd norm-decomposition approach:
- *    ||a-b||^2 = ||a||^2 + ||b||^2 - 2*dot(a,b)
- *  This avoids the p5 bottleneck from unpack operations, achieving ~2x throughput
- *  over Haswell's subs+unpack+madd approach (16 elem/cy vs 8 elem/cy).
+ *  All spatial kernels use the dpbusd norm-decomposition approach, ||a-b||^2 = ||a||^2 + ||b||^2 -
+ *  2*dot(a,b). This avoids the p5 bottleneck from unpack operations, achieving ~2x throughput over
+ *  Haswell's subs+unpack+madd approach, 16 elements per cycle versus 8 elements per cycle.
  */
 #ifndef NK_SPATIAL_ALDER_H
 #define NK_SPATIAL_ALDER_H

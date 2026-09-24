@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Dot Products for WASM.
  *  @file include/numkong/dot/v128.h
  *  @author Ash Vardanian
  *  @date September 12, 2026
+ *  @brief SIMD-accelerated dot products for WASM.
  *
  *  Requires Emscripten 3.1.27+ or a WASI SDK with the `-msimd128` flag.
  *

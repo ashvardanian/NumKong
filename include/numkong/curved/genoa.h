@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Curved Space Similarity for Genoa.
  *  @file include/numkong/curved/genoa.h
  *  @author Ash Vardanian
  *  @date January 14, 2026
+ *  @brief SIMD-accelerated curved-space similarity for Genoa.
  *
  *  @sa include/numkong/curved.h
  *

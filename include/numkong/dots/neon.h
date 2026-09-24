@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Batched Dot Products for NEON.
  *  @file include/numkong/dots/neon.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated Batched Dot Products for NEON.
  *
  *  @sa include/numkong/dots.h
  */

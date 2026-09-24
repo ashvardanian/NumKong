@@ -1,13 +1,13 @@
 // swift-tools-version:6.1
-// The swift-tools-version declares the minimum version of Swift required to build this package.
-// 6.1 is the minimum version required for the package access level.
+// The swift-tools-version declares the minimum version of Swift required to build this package. 6.1
+// is the minimum version required for the package access level.
 
 import PackageDescription
 
 let package = Package(
     name: "NumKong",
-    // SPM has no `.linux` platform constant — Linux is supported and tested in CI;
-    // it simply ignores the `platforms` array on non-Apple hosts.
+    // SPM has no `.linux` platform constant — Linux is supported and tested in CI; it simply
+    // ignores the `platforms` array on non-Apple hosts.
     platforms: [
         .macOS(.v11),
         .iOS(.v14),
@@ -52,11 +52,12 @@ let package = Package(
                 .define("NK_NATIVE_BF16", to: "0"),
             ]
         ),
-        // No `.unsafeFlags` here — SPM forbids depending on targets with unsafeFlags
-        // when pulled as a remote package dependency.  `-Wno-psabi` is GCC-only anyway
-        // (ARM Linux ABI notes); CMake handles it in the GNU-only branch.
-        // `path` must contain every entry in `sources` — SPM silently resolves zero sources
-        // for paths that escape it, so the root is the target directory and `sources` selects.
+        // No `.unsafeFlags` here — SPM forbids depending on targets with unsafeFlags when pulled as
+        // a remote package dependency. `-Wno-psabi` is GCC-only anyway, silencing ARM's Linux ABI
+        // notes; CMake handles it in the GNU-only branch.
+        //
+        // `path` must contain every entry in `sources` — SPM silently resolves zero sources for
+        // paths that escape it, so the root is the target directory and `sources` selects.
         .target(
             name: "CNumKong",
             path: ".",

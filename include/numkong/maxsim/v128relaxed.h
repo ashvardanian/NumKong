@@ -1,18 +1,17 @@
 /**
- *  @brief SIMD-accelerated MaxSim (angular distance late-interaction) for WASM Relaxed SIMD.
  *  @file include/numkong/maxsim/v128relaxed.h
  *  @author Ash Vardanian
  *  @date March 5, 2026
+ *  @brief SIMD-accelerated MaxSim, angular distance late-interaction, for WASM Relaxed SIMD.
  *
  *  @sa include/numkong/maxsim.h
  *
- *  Uses wasm_i32x4_relaxed_dot_i8x16_i7x16_add for coarse i8 screening.
- *  Both operands stay within i7 range [-63, 63] for native signed×signed arithmetic.
- *  No bias correction needed (unlike Haswell/Alder XOR-0x80 approach).
- *  The packing routines that produce that layout live in `maxsim/v128.h`.
+ *  Uses wasm_i32x4_relaxed_dot_i8x16_i7x16_add for coarse i8 screening. Both operands stay within
+ *  i7 range [-63, 63] for native signed×signed arithmetic, so no bias correction is needed, unlike
+ *  the Haswell and Alder XOR-0x80 approach. The layout's packing routines live in `maxsim/v128.h`.
  *
- *  1Q×1D tiling (simpler than x86 4x4) with scalar running argmax.
- *  Depth steps at 16 bytes (v128 width in bytes).
+ *  1Q×1D tiling, simpler than x86 4x4, with scalar running argmax. Depth steps at 16 bytes, the
+ *  v128 width in bytes.
  */
 #ifndef NK_MAXSIM_V128RELAXED_H
 #define NK_MAXSIM_V128RELAXED_H

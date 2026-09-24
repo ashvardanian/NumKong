@@ -1,4 +1,9 @@
-/* NumKong ISA probe: RVV Zvfh (half-precision vector) */
+/**
+ *  @file probes/riscv_rvv_half.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for RVV Zvfh, half-precision vectors.
+ */
 #if !defined(__riscv_zvfh)
 #error "Feature not available"
 #endif

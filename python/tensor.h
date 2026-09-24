@@ -1,28 +1,27 @@
 /**
- *  @brief NumKong Tensor Type, constructors, reductions, and stride utilities for Python.
  *  @file python/tensor.h
  *  @author Ash Vardanian
  *  @date December 30, 2025
+ *  @brief NumKong Tensor Type, constructors, reductions, and stride utilities for Python.
  *
- *  Declares the Tensor N-dimensional array type, its iterator, factory functions
- *  (empty, zeros, ones, full), reduction operations (moments, minmax),
- *  stride-walking utilities (linearize_cast_into, ensure_contiguous_buffer,
- *  shared_contiguous_tail_dimensions), and recursive elementwise dispatch helpers
- *  (each_sum_recursive, each_scale_recursive, each_fma_recursive, each_blend_recursive).
+ *  Declares the Tensor N-dimensional array type, its iterator, and supporting helpers:
+ *  - Factory functions: empty, zeros, ones, full.
+ *  - Reduction operations: moments, minmax.
+ *  - Stride-walking utilities: linearize_cast_into, ensure_contiguous_buffer,
+ *    shared_contiguous_tail_dimensions.
+ *  - Recursive elementwise dispatch helpers: each_sum_recursive, each_scale_recursive,
+ *    each_fma_recursive, each_blend_recursive.
  */
 #ifndef NK_PYTHON_TENSOR_H
 #define NK_PYTHON_TENSOR_H
 
 #include "numkong.h"
 
-/**
- *  Extra bytes appended to every SIMD-facing heap allocation (promoted buffers,
- *  cast-staging buffers, Tensor inline storage). MSVC versions before 19.30
- *  can mis-compile AVX-512 masked stores (`_mm256_mask_storeu_epi32` and friends),
- *  emitting a full-width store that writes past the logical buffer end. Adding
- *  one ZMM register (64 bytes) of padding absorbs any such spill. On GCC/Clang
- *  the masked instructions are correct, so zero padding suffices.
- */
+/** Extra bytes appended to every SIMD-facing heap allocation: promoted buffers, cast-staging
+ *  buffers, Tensor inline storage. MSVC versions before 19.30 can mis-compile AVX-512 masked
+ *  stores, @c _mm256_mask_storeu_epi32 and friends, emitting a full-width store that writes past
+ *  the logical buffer end. Adding one ZMM register, 64 bytes, of padding absorbs any such spill;
+ *  GCC and Clang emit the masked instructions correctly, so zero padding suffices there. */
 #if defined(_MSC_VER)
 #define NK_TENSOR_PADDING_ 64
 #else

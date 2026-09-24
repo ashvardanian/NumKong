@@ -1,46 +1,44 @@
 /**
- *  @brief SIMD-accelerated MaxSim (ColBERT late-interaction) for Sapphire Rapids AMX.
  *  @file include/numkong/maxsim/sapphireamx.h
  *  @author Ash Vardanian
  *  @date March 7, 2026
+ *  @brief SIMD-accelerated MaxSim, ColBERT late-interaction, for Sapphire Rapids AMX.
  *
  *  @sa include/numkong/maxsim.h
  *
- *  bf16: fused AMX approach using TDPBF16PS for direct bf16 dot products,
- *  with per-tile column extraction for running argmax and angular distance finalization.
- *  Uses 4 accumulator tiles (TMM4-7) for 4-way document tile pipelining.
+ *  bf16: fused AMX approach using TDPBF16PS for direct bf16 dot products, with per-tile column
+ *  extraction for running argmax and angular distance finalization. Uses 4 accumulator tiles,
+ *  TMM4-7, for 4-way document tile pipelining.
  *
- *  f32/f16: coarse i8 screening via AMX TDPBSSD (signed i8 × signed i8 → i32)
- *  with 4-accumulator pipeline, then full-precision refinement with nk_dot_f32/nk_dot_f16.
+ *  f32/f16: coarse i8 screening via AMX TDPBSSD, signed i8 × signed i8 → i32, with a 4-accumulator
+ *  pipeline, then full-precision refinement with nk_dot_f32/nk_dot_f16.
  *
- *  TMM register allocation (all 3 dtypes):
- *  - TMM0: query (A-side) — loaded once per depth step
- *  - TMM1: document (B-side) — reloaded 4× per depth step (one per doc tile)
- *  - TMM4: accumulator 0 (doc tile 0)
- *  - TMM5: accumulator 1 (doc tile 1)
- *  - TMM6: accumulator 2 (doc tile 2)
- *  - TMM7: accumulator 3 (doc tile 3)
+ *  TMM register allocation, all 3 dtypes:
+ *  - TMM0: query, A-side — loaded once per depth step
+ *  - TMM1: document, B-side — reloaded 4× per depth step, one per doc tile
+ *  - TMM4: accumulator 0, doc tile 0
+ *  - TMM5: accumulator 1, doc tile 1
+ *  - TMM6: accumulator 2, doc tile 2
+ *  - TMM7: accumulator 3, doc tile 3
  *  - TMM2, TMM3: unused
  *
  *  BF16 packed layout:
- *  [Header 64B] [0-63B padding for 64B alignment]
- *               [A-side tiles: col_tiles × depth_tiles × 1KB]
- *               [B-side tiles: col_tiles × depth_tiles × 1KB]
- *               [inverse norms: n × f32]
+ *  [Header 64B] [0-63B padding for 64B alignment] [A-side tiles: col_tiles × depth_tiles × 1KB]
+ *  [B-side tiles: col_tiles × depth_tiles × 1KB] [inverse norms: n × f32]
  *
- *  i8 packed layout (f32/f16):
- *  [Header 64B] [0-63B padding for 64B alignment]
- *               [i8 A-side tiles: col_tiles × depth_tiles × 1KB]
- *               [i8 B-side tiles: col_tiles × depth_tiles × 1KB]
- *               [originals 64B-aligned: n × original_stride]
- *               [inverse norms: n × f32]
+ *  i8 packed layout, f32/f16:
+ *  [Header 64B] [0-63B padding for 64B alignment] [i8 A-side tiles: col_tiles × depth_tiles × 1KB]
+ *  [i8 B-side tiles: col_tiles × depth_tiles × 1KB] [originals 64B-aligned: n × original_stride]
+ *  [inverse norms: n × f32]
  *
- *      Intrinsic                   Instruction         Notes
- *      _tile_dpbf16ps              TDPBF16PS           C += A × B (bf16 → f32), 16×16×32 MACs
- *      _tile_dpbssd                TDPBSSD             C += A × B (i8 × i8 → i32), 16×16×64 MACs
- *      _tile_loadd                 TILELOADD           Load tile from memory
- *      _tile_stored                TILESTORED          Store tile to memory
- *      _tile_zero                  TILEZERO            Zero a tile register
+ *  @verbatim
+ *  Intrinsic                   Instruction         Notes
+ *  _tile_dpbf16ps              TDPBF16PS           C += A × B (bf16 → f32), 16×16×32 MACs
+ *  _tile_dpbssd                TDPBSSD             C += A × B (i8 × i8 → i32), 16×16×64 MACs
+ *  _tile_loadd                 TILELOADD           Load tile from memory
+ *  _tile_stored                TILESTORED          Store tile to memory
+ *  _tile_zero                  TILEZERO            Zero a tile register
+ *  @endverbatim
  */
 #ifndef NK_MAXSIM_SAPPHIREAMX_H
 #define NK_MAXSIM_SAPPHIREAMX_H

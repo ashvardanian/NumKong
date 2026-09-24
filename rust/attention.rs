@@ -1,10 +1,9 @@
 //! Ragged scaled-dot-product attention with a pre-packed KV-cache.
 //!
-//! The attention family operates on ragged batches: a directory of variable-length
-//! segments shares one packed KV-cache blob, and every `(segment, head)` pair is an
-//! independent task. Packing rearranges K and V into a backend-opaque layout — AMX
-//! tiles on Sapphire Rapids, dtype-preserving planes on the AVX tiers — so the hot
-//! kernel streams data in its native format.
+//! The attention family operates on ragged batches: a directory of variable-length segments shares
+//! one packed KV-cache blob, and every `(segment, head)` pair is an independent task. Packing
+//! rearranges K and V into a backend-opaque layout — AMX tiles on Sapphire Rapids, dtype-preserving
+//! planes on the AVX tiers — so the hot kernel streams data in its native format.
 //!
 //! # Typical flow
 //!
@@ -15,12 +14,11 @@
 //! 3. Or call [`AttentionPackedMatrix::try_causal_attention`] over the same cache for
 //!    decoder-style causal and sliding-window masking.
 //!
-//! # Example
+//! # Examples
 //!
-//! The doctest below is marked `ignore` because doctests compile as separate crates
-//! and would need to re-link the `libnumkong` C library providing the
-//! `nk_attention_*` FFI symbols. The in-crate tests at the bottom of this file
-//! exercise the same code path.
+//! The doctest below is marked `ignore` because doctests compile as separate crates and would need
+//! to re-link the `libnumkong` C library providing the `nk_attention_*` FFI symbols. The in-crate
+//! tests at the bottom of this file exercise the same code path.
 //!
 //! ```rust,no_run
 //! use numkong::{bf16, AttentionPackedMatrix, Tensor};
@@ -34,6 +32,9 @@
 //! let kv = AttentionPackedMatrix::try_pack(&keys.view(), &values.view(), depth, &offsets).unwrap();
 //! let outputs = kv.try_attention(&keys.view(), &offsets, None).unwrap();
 //! ```
+//!
+//! File: rust/attention.rs
+//! Author: Ash Vardanian
 
 use core::marker::PhantomData;
 
@@ -215,8 +216,8 @@ extern "C" {
 pub trait Attention: StorageElement + Clone {
     /// Returns the packed KV-cache size in bytes for the given segment geometry.
     ///
-    /// One token count per segment, so `segment_lengths.len()` *is* the segment count — the C
-    /// entry point needs it spelled out only because it takes a bare pointer.
+    /// One token count per segment, so `segment_lengths.len()` _is_ the segment count — the C entry
+    /// point needs it spelled out only because it takes a bare pointer.
     fn attention_pack_size(heads: usize, depth: usize, segment_lengths: &[u32]) -> usize;
 
     /// Reads the KV-cache geometry — heads, depth, segments — from the packed header.
@@ -226,8 +227,8 @@ pub trait Attention: StorageElement + Clone {
 
     /// Pack a window of the `(segment, kv_head)` task grid into the KV-cache blob.
     /// # Safety
-    /// - `k` / `v` must point to token matrices with `key_stride_bytes` / `value_stride_bytes` byte rows
-    ///   covering every token addressed by `segment_offsets` + `segment_lengths`
+    /// - `k` / `v` must point to token matrices with `key_stride_bytes` / `value_stride_bytes` byte
+    ///   rows covering every token addressed by `segment_offsets` + `segment_lengths`
     /// - `key_value_packed` must have at least `attention_pack_size(..)` bytes
     /// - a window with `task_begin > 0` requires the header already initialized by a
     ///   prior or concurrent window covering task 0
@@ -247,7 +248,8 @@ pub trait Attention: StorageElement + Clone {
         task_end: usize,
     );
 
-    /// Compute bidirectional attention over `task_count` tasks of the `(segment, head)` grid from `task_start`.
+    /// Compute bidirectional attention over `task_count` tasks of the `(segment, head)` grid,
+    /// starting at `task_start`.
     /// # Safety
     /// - `key_value_packed` must have been produced by `attention_pack` with matching geometry
     /// - `queries` rows addressed by `query_offsets` must be valid, `output` writable
@@ -268,7 +270,7 @@ pub trait Attention: StorageElement + Clone {
         task_count: usize,
     );
 
-    /// Compute causal attention, query row `r` seeing the `window` keys ending at `r + diagonal_offset`.
+    /// Compute causal attention: row `r` sees `window` keys ending at `r + diagonal_offset`.
     /// # Safety
     /// Same contract as [`attention_bidirectional_packed`](Self::attention_bidirectional_packed).
     #[allow(clippy::too_many_arguments)]
@@ -672,7 +674,7 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> Clone for AttentionPackedMatri
     fn clone(&self) -> Self { self.try_clone().expect("AttentionPackedMatrix clone allocation failed") }
 }
 
-/// Validates a `[tokens, heads * depth]` token-matrix view against a head width.
+/// Validates a __[tokens,heads×depth]__ token-matrix view against a head width.
 fn validate_token_view<Scalar, View, const MAX_RANK: usize>(
     view: &View,
     depth: usize,
@@ -711,7 +713,7 @@ where
 
 /// Validates the `keys` and `values` token views together and returns their shared geometry as
 /// `(tokens, heads, keys_stride_bytes, values_stride_bytes)`. Both views must be 2D
-/// `[tokens, heads * depth]` with contiguous rows and matching token and head counts.
+/// __[tokens,heads*depth]__ with contiguous rows and matching token and head counts.
 fn validate_attention_views<Scalar, Keys, Values, const MAX_RANK: usize>(
     keys: &Keys,
     values: &Values,
@@ -804,9 +806,9 @@ fn derive_segment_lengths<Alloc: Allocator>(
 impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, Alloc> {
     /// An empty cache that owns no allocation, holding only the given allocator.
     ///
-    /// Nothing is packed yet: every geometry field reads zero and [`as_bytes`](Self::as_bytes)
-    /// is empty until the first [`try_pack_into`](Self::try_pack_into), which allocates on demand
-    /// and can then be re-run each decode step to reuse the buffer.
+    /// Nothing is packed yet: every geometry field reads zero and [`as_bytes`](Self::as_bytes) is
+    /// empty until the first [`try_pack_into`](Self::try_pack_into), which allocates on demand and
+    /// can then be re-run each decode step to reuse the buffer.
     pub fn empty_in(alloc: Alloc) -> Self {
         Self {
             buffer: PackedBuffer::empty_in(alloc.clone()),
@@ -891,15 +893,15 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, 
 
     /// Pre-grow the cache to hold the given ragged geometry, so a later `try_pack_into` that fits
     /// stays allocation-free with a stable pointer — allocate once at layer-init for the maximum
-    /// sequence length, then refresh every decode step with no further allocation. `segment_lengths`
-    /// carries one token count per segment.
+    /// sequence length, then refresh every decode step with no further allocation.
+    /// `segment_lengths` carries one token count per segment.
     pub fn try_reserve(&mut self, heads: usize, depth: usize, segment_lengths: &[u32]) -> Result<(), TensorError> {
         self.buffer
             .try_reserve(Scalar::attention_pack_size(heads, depth, segment_lengths))
     }
 
-    /// Ragged attention into a caller-provided `f32` output tensor of the same
-    /// logical shape as `q` — `[tokens, heads * depth]`, contiguous rows.
+    /// Ragged attention into a caller-provided `f32` output tensor of the same logical shape as `q`
+    /// — __[tokens,heads * depth]__, contiguous rows.
     pub fn try_attention_into<QueriesTensor, OutTensor, const MAX_RANK: usize, const OUT_MAX_RANK: usize>(
         &self,
         queries: &QueriesTensor,
@@ -980,9 +982,9 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, 
     }
 
     /// Bytes a packed cache needs for the given ragged geometry — the infallible size query
-    /// mirroring [`Dots::dots_pack_size`](crate::Dots::dots_pack_size). `segment_lengths`
-    /// carries one token count per segment, so its length is the segment count. Useful for
-    /// pre-sizing an external buffer before packing, without constructing a cache.
+    /// mirroring [`Dots::dots_pack_size`](crate::Dots::dots_pack_size). `segment_lengths` carries
+    /// one token count per segment, so its length is the segment count. Useful for pre-sizing an
+    /// external buffer before packing, without constructing a cache.
     pub fn pack_size(heads: usize, depth: usize, segment_lengths: &[u32]) -> usize {
         Scalar::attention_pack_size(heads, depth, segment_lengths)
     }
@@ -992,7 +994,7 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, 
     /// one. Unlike the dots packed matrix, the attention blob records its own shape, so no
     /// caller-supplied dimensions are needed.
     ///
-    /// Reads through the C `nk_attention_packed_shape_<dtype>` accessor for this cache's scalar type.
+    /// Reads via the C `nk_attention_packed_shape_<dtype>` accessor for this cache's scalar type.
     pub fn peek_shape(packed: &[u8]) -> Option<(usize, usize, usize)> {
         if packed.len() < 12 {
             return None;
@@ -1113,9 +1115,9 @@ impl<Scalar: Attention> AttentionPackedMatrix<Scalar, Global> {
 impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
     /// Validate the token views and offsets, size the buffer, and record the packed geometry.
     ///
-    /// Shared by the serial and parallel packs, which differ only in how they fan the task grid
-    /// out afterwards. Returns `None` when the geometry packs to nothing, so the caller returns
-    /// early rather than handing a zero-length blob to the kernel.
+    /// Shared by the serial and parallel packs, which differ only in how they fan the task grid out
+    /// afterwards. Returns `None` when the geometry packs to nothing, so the caller returns early
+    /// rather than handing a zero-length blob to the kernel.
     fn prepare_pack<KeysTensor, ValuesTensor, const MAX_RANK: usize>(
         &mut self,
         keys: &KeysTensor,

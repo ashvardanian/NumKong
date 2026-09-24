@@ -1,4 +1,9 @@
-/* NumKong ISA probe: SME BF16 (FEAT_SME_B16B16) */
+/**
+ *  @file probes/arm_sme_bf16.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for SME BF16, @c FEAT_SME_B16B16.
+ */
 #if defined(_WIN32)
 #error "SVE/SME not supported on Windows ARM"
 #endif

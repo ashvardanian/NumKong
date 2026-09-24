@@ -1,27 +1,29 @@
 /**
- *  @brief SIMD-accelerated Dot Products for SVE SDOT.
  *  @file include/numkong/dot/svesdot.h
  *  @author Ash Vardanian
  *  @date April 3, 2026
+ *  @brief SIMD-accelerated dot products for SVE SDOT.
  *
  *  @sa include/numkong/dot.h
  *
  *  @section dot_svesdot_instructions ARM SVE+DotProd Instructions
  *
- *      Intrinsic      Instruction             V1
- *      svld1_s8       LD1B (Z.B, P/Z, [Xn])   4-6cy @ 2p
- *      svld1_u8       LD1B (Z.B, P/Z, [Xn])   4-6cy @ 2p
- *      svdot_s32      SDOT (Z.S, Z.B, Z.B)    3cy @ 2p
- *      svdot_u32      UDOT (Z.S, Z.B, Z.B)    3cy @ 2p
- *      svaddv_s32     SADDV (D, P, Z.S)       6cy @ 1p
- *      svaddv_u32     UADDV (D, P, Z.S)       6cy @ 1p
- *      svdup_s32      DUP (Z.S, #imm)         1cy @ 2p
- *      svwhilelt_b8   WHILELT (P.B, Xn, Xm)   2cy @ 1p
- *      svcntb         CNTB (Xd)               1cy @ 2p
+ *  @verbatim
+ *  Intrinsic      Instruction             V1
+ *  svld1_s8       LD1B (Z.B, P/Z, [Xn])   4-6cy @ 2p
+ *  svld1_u8       LD1B (Z.B, P/Z, [Xn])   4-6cy @ 2p
+ *  svdot_s32      SDOT (Z.S, Z.B, Z.B)    3cy @ 2p
+ *  svdot_u32      UDOT (Z.S, Z.B, Z.B)    3cy @ 2p
+ *  svaddv_s32     SADDV (D, P, Z.S)       6cy @ 1p
+ *  svaddv_u32     UADDV (D, P, Z.S)       6cy @ 1p
+ *  svdup_s32      DUP (Z.S, #imm)         1cy @ 2p
+ *  svwhilelt_b8   WHILELT (P.B, Xn, Xm)   2cy @ 1p
+ *  svcntb         CNTB (Xd)               1cy @ 2p
+ *  @endverbatim
  *
- *  SVE vector widths vary across implementations: Graviton3 uses 256-bit, while Graviton4/5
- *  and Apple M4+ use 128-bit. Code using svcntb() adapts automatically, but wider vectors
- *  process more elements per iteration with identical latencies.
+ *  SVE vector widths vary across implementations: Graviton3 uses 256-bit, while Graviton4/5 and
+ *  Apple M4+ use 128-bit. Code using svcntb() adapts automatically, but wider vectors process more
+ *  elements per iteration with identical latencies.
  *
  *  The SDOT/UDOT instructions fuse four int8 multiplications with int32 accumulation per lane,
  *  providing the same 4-way dot product as NEON SDOT but with scalable vector widths.

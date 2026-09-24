@@ -1,4 +1,9 @@
-/* NumKong ISA probe: NEON F16 (ARMv8.2-A half-precision) */
+/**
+ *  @file probes/arm_neon_half.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for ARMv8.2-A NEON half-precision arithmetic.
+ */
 #include <arm_neon.h>
 int main(void) {
     float16x8_t a = vdupq_n_f16(1.0f);

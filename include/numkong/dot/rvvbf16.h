@@ -1,19 +1,17 @@
 /**
- *  @brief SIMD-accelerated Dot Products for RISC-V BF16.
  *  @file include/numkong/dot/rvvbf16.h
  *  @author Ash Vardanian
  *  @date January 5, 2026
+ *  @brief SIMD-accelerated dot products for RISC-V BF16.
  *
  *  @sa include/numkong/dot.h
  *
- *  Alibaba XuanTie C930 and similar chips implement RVV 1.0 with Zvfbfwma extension.
- *  Zvfbfwma provides widening bf16 fused multiply-accumulate to f32:
- *    vfwmaccbf16: f32 ← bf16 ⨯ bf16
+ *  Alibaba XuanTie C930 and similar chips implement RVV 1.0 with Zvfbfwma, whose @c vfwmaccbf16
+ *  fuses a widening bf16 × bf16 → f32 multiply-accumulate. Every mini-float type first gathers
+ *  through the 256-entry VLUXEI16 tables of cast/rvv.h, three instructions each, then accumulates
+ *  through @c vfwmaccbf16_vv.
  *
- *  All mini-float types use 256-entry VLUXEI16 LUT gathers from cast/rvv.h (3 instructions each).
- *  All variants then use vfwmaccbf16_vv for fused bf16 ⨯ bf16 → f32 multiply-accumulate.
- *
- *  Requires: RVV 1.0 + Zvfbfwma extension (GCC 14+ or Clang 18+)
+ *  Requires RVV 1.0 with Zvfbfwma, from GCC 14 or Clang 18.
  */
 #ifndef NK_DOT_RVVBF16_H
 #define NK_DOT_RVVBF16_H

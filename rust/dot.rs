@@ -7,29 +7,29 @@
 //!
 //! # Accumulator Widening — The Core Value Proposition
 //!
-//! Every spatial kernel promotes its accumulator to a wider type than the inputs.
-//! This is not cosmetic — on long vectors of low-precision data, naive same-width
-//! accumulation overflows silently for integers or loses huge amounts of precision
-//! for half-floats. NumKong widens systematically so every kernel in this module
-//! returns a result that matches a textbook-accurate reference in the wide type:
+//! Every spatial kernel promotes its accumulator to a wider type than the inputs, which is not
+//! cosmetic — on long vectors of low-precision data, naive same-width accumulation overflows
+//! silently for integers or loses huge amounts of precision for half-floats. NumKong widens
+//! systematically so every kernel in this module returns a result that matches a textbook-accurate
+//! reference in the wide type:
 //!
-//! - **`f32` → `f64`**: single-precision inputs accumulate in double precision. A
+//! - __`f32` → `f64`__: single-precision inputs accumulate in double precision. A
 //!   `dot` over 2048 `f32` values returns `f64` and uses Neumaier-compensated
 //!   summation internally.
-//! - **`f16` → `f32`** and **`bf16` → `f32`**: half-precision dots, norms, and
+//! - __`f16` → `f32`__ and __`bf16` → `f32`__: half-precision dots, norms, and
 //!   distances accumulate in `f32` rather than clamping at `f16::MAX = 65 504`.
-//! - **`i8` → `i32`** (unsigned `u8` → `u32`): byte-level quantised inputs widen
+//! - __`i8` → `i32`__ (unsigned `u8` → `u32`): byte-level quantised inputs widen
 //!   into 32-bit integer accumulators. Two `i8` vectors of all `100`s and length
 //!   2048 have a true dot of `20 480 000`, which overflows `i8` (saturates at
 //!   `±127`) and `i16` (`±32 767`) but is exact in `i32`.
-//! - **FP8 variants** — `e4m3` / `e5m2` / `e2m3` / `e3m2` — all accumulate in `f32`.
-//! - **4-bit packed** `i4x2` / `u4x2` behave like `i8` / `u8` but compute over
+//! - __FP8 variants__ — `e4m3` / `e5m2` / `e2m3` / `e3m2` — all accumulate in `f32`.
+//! - __4-bit packed__ `i4x2` / `u4x2` behave like `i8` / `u8` but compute over
 //!   double the element count because each byte holds two logical values.
-//! - **1-bit packed** `u1x8` counts bit coincidences over eight logical values
+//! - __1-bit packed__ `u1x8` counts bit coincidences over eight logical values
 //!   per byte into a `u32`, so a 4096-bit embedding cannot saturate its result.
 //!
-//! This widening is the reason quantised retrieval pipelines — for example BFloat16 or
-//! INT8 embeddings in vector search — can rely on NumKong without post-hoc rescaling.
+//! This widening is the reason quantised retrieval pipelines — for example BFloat16 or INT8
+//! embeddings in vector search — can rely on NumKong without post-hoc rescaling.
 //!
 //! # Example — INT8 Dot Without Overflow
 //!
@@ -43,6 +43,9 @@
 //! let exact: i32 = i8::dot(&left, &right).unwrap();
 //! assert_eq!(exact, 20_480_000);
 //! ```
+//!
+//! File: rust/dot.rs
+//! Author: Ash Vardanian
 
 use crate::types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i4x2, u1x8, u4x2, StorageElement};
 
@@ -79,18 +82,18 @@ extern "C" {
 
 // region: Dot
 
-/// Computes the **dot product** (inner product) between two vectors.
+/// Computes the __dot product__ — the inner product — between two vectors.
 ///
 /// d = ∑ᵢ aᵢ × bᵢ
 ///
 /// Range: unbounded. Returns `None` if lengths differ.
 ///
-/// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`,
-/// `e4m3`, `e5m2`, `e2m3`, `e3m2`, `i4x2`, `u4x2`, `u1x8`.
+/// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`, `e4m3`, `e5m2`, `e2m3`, `e3m2`,
+/// `i4x2`, `u4x2`, `u1x8`.
 ///
-/// On `u1x8` this is the binary inner product — the number of positions where
-/// both bits are set — which is the intersection count that Tanimoto similarity
-/// divides by the union. Use [`crate::Jaccard`] when you want that ratio.
+/// On `u1x8` this is the binary inner product — the number of positions where both bits are set —
+/// which is the intersection count that Tanimoto similarity divides by the union. Use
+/// [`crate::Jaccard`] when you want that ratio.
 ///
 /// # Example
 /// ```
@@ -422,21 +425,20 @@ impl Dot for f64c {
 
 // region: VDot
 
-/// Computes the conjugating (Hermitian) dot product.
+/// Computes the conjugating dot product, the Hermitian inner product.
 ///
-/// For real-valued types this is identical to [`Dot::dot`]. For complex-valued
-/// types it computes `∑ᵢ conj(aᵢ) × bᵢ`, which is the convention used in quantum
-/// mechanics and most linear-algebra textbooks — BLAS `cdotc`, NumPy `vdot`.
+/// For real-valued types this is identical to [`Dot::dot`]. For complex-valued types it computes ∑ᵢ
+/// conj(aᵢ) × bᵢ, which is the convention used in quantum mechanics and most linear-algebra
+/// textbooks — BLAS `cdotc`, NumPy `vdot`.
 ///
-/// Unlike an ordinary complex dot product, the Hermitian form produces a proper
-/// inner product: `vdot(x, x)` is always a non-negative real number equal to
-/// `‖x‖²`, and `vdot(x, y) == conj(vdot(y, x))`. This matters in retrieval and
-/// signal-processing pipelines where cancellation between a vector and its
-/// conjugate should leave the norm intact.
+/// Unlike an ordinary complex dot product, the Hermitian form produces a proper inner product:
+/// `vdot(x, x)` is always a non-negative real number equal to ‖x‖², and `vdot(x, y) == conj(vdot(y,
+/// x))`. This matters in retrieval and signal-processing pipelines where cancellation between a
+/// vector and its conjugate should leave the norm intact.
 pub trait VDot: Dot {
-    /// Hermitian inner product. On real-valued types this falls back to `Dot::dot`;
-    /// on complex types it returns `∑ᵢ conj(aᵢ) × bᵢ` computed in the widened
-    /// accumulator described by `Dot::Output`.
+    /// Hermitian inner product. On real-valued types this falls back to `Dot::dot`; on complex
+    /// types it returns ∑ᵢ conj(aᵢ) × bᵢ computed in the widened accumulator described by
+    /// `Dot::Output`.
     fn vdot(first: &[Self], second: &[Self]) -> Option<Self::Output> { Self::dot(first, second) }
 }
 

@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Point Cloud Alignment for NEON.
  *  @file include/numkong/mesh/neon.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated point cloud alignment for NEON.
  *
  *  @sa include/numkong/mesh.h
  *
@@ -10,19 +10,21 @@
  *
  *  Point cloud operations use these ARM NEON instructions:
  *
- *      Intrinsic    Instruction                    A76       M5
- *      vfmaq_f32    FMLA (V.4S, V.4S, V.4S)        4cy @ 2p  3cy @ 4p
- *      vmulq_n_f32  FMUL (V.4S, V.4S, V.S[0])      3cy @ 2p  3cy @ 4p
- *      vsubq_f32    FSUB (V.4S, V.4S, V.4S)        2cy @ 2p  2cy @ 4p
- *      vaddvq_f32   FADDP+FADDP (reduce)           5cy @ 1p  8cy @ 1p
- *      vld3q_f32    LD3 ({Vt.4S, Vt2.4S, Vt3.4S})  4cy @ 1p  4cy @ 1p
+ *  @verbatim
+ *  Intrinsic    Instruction                    A76       M5
+ *  vfmaq_f32    FMLA (V.4S, V.4S, V.4S)        4cy @ 2p  3cy @ 4p
+ *  vmulq_n_f32  FMUL (V.4S, V.4S, V.S[0])      3cy @ 2p  3cy @ 4p
+ *  vsubq_f32    FSUB (V.4S, V.4S, V.4S)        2cy @ 2p  2cy @ 4p
+ *  vaddvq_f32   FADDP+FADDP (reduce)           5cy @ 1p  8cy @ 1p
+ *  vld3q_f32    LD3 ({Vt.4S, Vt2.4S, Vt3.4S})  4cy @ 1p  4cy @ 1p
+ *  @endverbatim
  *
- *  LD3 provides hardware stride-3 deinterleaving for XYZ point data. The 6cy latency and
- *  1/cy throughput make it the memory bottleneck regardless of core microarchitecture.
+ *  LD3 provides hardware stride-3 deinterleaving for XYZ point data. The 6cy latency and 1/cy
+ *  throughput make it the memory bottleneck regardless of core microarchitecture.
  *
- *  FMA throughput doubles on 4-pipe cores (Apple M4+, Graviton3+, Oryon). Using 2x loop
- *  unrolling with independent accumulators hides FMA latency and saturates 2 FP pipes on
- *  A76-class cores; 4x unrolling may further benefit 4-pipe cores.
+ *  FMA throughput doubles on 4-pipe cores — Apple M4+, Graviton3+, Oryon. Using 2x loop unrolling
+ *  with independent accumulators hides FMA latency and saturates 2 FP pipes on A76-class cores; 4x
+ *  unrolling may further benefit 4-pipe cores.
  */
 #ifndef NK_MESH_NEON_H
 #define NK_MESH_NEON_H

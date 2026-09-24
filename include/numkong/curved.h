@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Similarity Measures for Curved Spaces.
  *  @file include/numkong/curved.h
  *  @author Ash Vardanian
  *  @date August 27, 2024
+ *  @brief SIMD-accelerated similarity measures for curved spaces.
  *
  *  Contains following similarity measures:
  *
@@ -23,28 +23,28 @@
  *  - x86: Haswell, Skylake, Genoa
  *  - RISC-V: RVV
  *
- *  @section numerical_stability Numerical Stability
+ *  @section curved_numerical_stability Numerical Stability
  *
  *  To minimize catastrophic cancellation in large-magnitude sums:
  *  - f32 kernels widen public outputs to f64/f64c and accumulate in f64 precision where possible
  *  - f64 kernels use Dot2 algorithm (Ogita-Rump-Oishi 2005) in SIMD paths
  *  - Serial kernels use Neumaier compensated summation for all types
  *
- *  @section usage Usage and Benefits
+ *  @section curved_usage Usage and Benefits
  *
- *  These kernels target BLAS level 2 patterns where vectors are combined with a metric
- *  tensor or covariance matrix. Using raw bilinear and Mahalanobis forms avoids constructing
- *  intermediates and keeps memory traffic low, which is often faster than a full GEMM path
- *  for small and medium sizes. Complex bilinear forms return a complex scalar as two reals,
- *  serving complex-valued signals without extra packing or unpacking.
+ *  These kernels target BLAS level 2 patterns where vectors are combined with a metric tensor or
+ *  covariance matrix. Using raw bilinear and Mahalanobis forms avoids constructing intermediates
+ *  and keeps memory traffic low, which is often faster than a full GEMM path for small and medium
+ *  sizes. Complex bilinear forms return a complex scalar as two reals, serving complex-valued
+ *  signals without extra packing or unpacking.
  *
- *  @section references References
+ *  @section curved_references References
  *
- *  - x86 intrinsics: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
- *  - Arm intrinsics: https://developer.arm.com/architectures/instruction-sets/intrinsics/
  *  - Neumaier, A. (1974). "Rundungsfehleranalyse einiger Verfahren zur Summation endlicher Summen"
  *  - Ogita, T., Rump, S.M., Oishi, S. (2005). "Accurate Sum and Dot Product"
  *
+ *  @see x86 intrinsics: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
+ *  @see Arm intrinsics: https://developer.arm.com/architectures/instruction-sets/intrinsics/
  */
 #ifndef NK_CURVED_H
 #define NK_CURVED_H

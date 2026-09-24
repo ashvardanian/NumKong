@@ -1,8 +1,8 @@
 /**
- *  @brief Batched Spatial Distances for Haswell (AVX2).
  *  @file include/numkong/spatials/haswell.h
  *  @author Ash Vardanian
  *  @date February 23, 2026
+ *  @brief Batched spatial distances for Haswell, AVX2.
  *
  *  @sa include/numkong/spatials.h
  */

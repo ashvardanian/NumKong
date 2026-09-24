@@ -7,25 +7,26 @@
 //! - [`TensorSpan`]: Mutable view into a tensor
 //! - [`Matrix`]: Type alias for 2D tensors
 //! - [`TensorRef`] / [`TensorMut`]: Structural traits implemented by all three above
-//! - [`Fill`] / [`CopyFrom`]: Container-level traits for in-place fill and slice/view-to-span copies
+//! - [`Fill`] / [`CopyFrom`]: Container-level traits for in-place fill and copying a slice or
+//!   view into a span
 //!
-//! Operation extension traits live in their respective domain modules so each `<op>.rs`
-//! mirrors the C++ `<op>.hpp` layout:
+//! Operation extension traits live in their respective domain modules so each `<op>.rs` mirrors the
+//! C++ `<op>.hpp` layout:
 //! - [`crate::each`]: `ScaleOps` / `SumOps` / `BlendOps` / `FmaOps` / `TrigSinOps` /
 //!   `TrigCosOps` / `TrigAtanOps` / `AllCloseOps`
 //! - [`crate::reduce`]: `MomentsOps` / `MinMaxOps` / `BitwiseReductionsOps`
 //! - [`mod@crate::cast`]: `CastOps` dtype conversions
 //!
-//! Batch matrix operations live in [`crate::dots`] (GEMM), [`crate::spatials`] (spatial distances),
-//! and [`crate::sets`] (binary/set metrics).
+//! Batch matrix operations live in [`crate::dots`] for GEMM, [`crate::spatials`] for spatial
+//! distances, and [`crate::sets`] for binary/set metrics.
 //!
 //! # Custom allocators
 //!
-//! [`Tensor`] is generic over [`allocator_api2::alloc::Allocator`], the ecosystem's stable
-//! stand-in for the unstable `core::alloc::Allocator`. Any allocator written against that trait —
-//! a bump arena, a pool, a pinned-memory allocator — plugs into the `try_*_in` constructors with
-//! no adapter, and because `allocator-api2` also implements the trait for `&A`, an arena that is
-//! not `Clone` goes in by reference. [`Global`], the default, forwards to the system heap.
+//! [`Tensor`] is generic over [`allocator_api2::alloc::Allocator`], the ecosystem's stable stand-in
+//! for the unstable `core::alloc::Allocator`. Any allocator written against that trait — a bump
+//! arena, a pool, a pinned-memory allocator — plugs into the `try_*_in` constructors with no
+//! adapter, and because `allocator-api2` also implements the trait for `&A`, an arena that is not
+//! `Clone` goes in by reference. [`Global`], the default, forwards to the system heap.
 //!
 //! ```rust
 //! use allocator_api2::alloc::{AllocError, Allocator, Layout};
@@ -48,9 +49,8 @@
 //!
 //! # Slicing and views
 //!
-//! Tensors support zero-copy slicing with NumPy-style tuple syntax or the
-//! [`SliceRange`] enum. Views and spans share memory with the parent tensor
-//! and may have non-contiguous strides:
+//! Tensors support zero-copy slicing with NumPy-style tuple syntax or the [`SliceRange`] enum.
+//! Views and spans share memory with the parent tensor and may have non-contiguous strides:
 //!
 //! ```rust,ignore
 //! let matrix = Tensor::<f32>::try_full(&[4, 5], 1.0).unwrap();
@@ -60,12 +60,13 @@
 //!
 //! # Sub-byte types
 //!
-//! Sub-byte element types (`i4x2`, `u4x2`, `u1x8`) pack multiple logical
-//! elements per storage byte. The [`core::ops::Index`] trait cannot
-//! return a `&Scalar` reference to an individual nibble, so sub-byte tensors
-//! must be accessed via [`Tensor::try_flat`], [`Tensor::try_coords`], and the
-//! iterator APIs that yield [`crate::types::DimRef`] / [`crate::types::DimMut`]
-//! proxies.
+//! Sub-byte element types (`i4x2`, `u4x2`, `u1x8`) pack multiple logical elements per storage byte.
+//! The [`core::ops::Index`] trait cannot return a `&Scalar` reference to an individual nibble, so
+//! sub-byte tensors must be accessed via [`Tensor::try_flat`], [`Tensor::try_coords`], and the
+//! iterator APIs that yield [`crate::types::DimRef`] / [`crate::types::DimMut`] proxies.
+//!
+//! File: rust/tensor.rs
+//! Author: Ash Vardanian
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
@@ -95,10 +96,10 @@ pub const SIMD_ALIGNMENT: usize = 64;
 
 /// The [`SIMD_ALIGNMENT`]-aligned layout holding `count` storage values of `Scalar`.
 ///
-/// Every owned allocation in the crate is sized here, so the value-count-to-byte-count multiply
-/// is checked in one place. A `count` that overflows describes an allocation no allocator could
-/// ever satisfy, so it reports [`TensorError::AllocationFailed`] rather than wrapping into a
-/// small request that the caller would then write past the end of.
+/// Every owned allocation in the crate is sized here, so the value-count-to-byte-count multiply is
+/// checked in one place. A `count` that overflows describes an allocation no allocator could ever
+/// satisfy, so it reports [`TensorError::AllocationFailed`] rather than wrapping into a small
+/// request that the caller would then write past the end of.
 pub(crate) fn layout_for<Scalar>(count: usize) -> Result<core::alloc::Layout, TensorError> {
     let bytes = count
         .checked_mul(core::mem::size_of::<Scalar>())
@@ -106,17 +107,17 @@ pub(crate) fn layout_for<Scalar>(count: usize) -> Result<core::alloc::Layout, Te
     layout_for_bytes(bytes)
 }
 
-/// The byte-granular twin of [`layout_for`], for the packed buffers whose size the C ABI reports
-/// in bytes rather than in typed slots.
+/// The byte-granular twin of [`layout_for`], for the packed buffers whose size the C ABI reports in
+/// bytes rather than in typed slots.
 pub(crate) fn layout_for_bytes(bytes: usize) -> Result<core::alloc::Layout, TensorError> {
     core::alloc::Layout::from_size_align(bytes, SIMD_ALIGNMENT).map_err(|_| TensorError::AllocationFailed)
 }
 
 /// The logical element count of `shape`, reporting [`TensorError::AllocationFailed`] on overflow.
 ///
-/// A wrapped product would leave the stored shape and the derived element count disagreeing, so
-/// the per-axis stride arithmetic would index outside the allocation. The empty product of a
-/// rank-0 shape is 1 — a rank-0 tensor holds one element.
+/// A wrapped product would leave the stored shape and the derived element count disagreeing, so the
+/// per-axis stride arithmetic would index outside the allocation. The empty product of a rank-0
+/// shape is 1 — a rank-0 tensor holds one element.
 pub(crate) fn shape_product(shape: &[usize]) -> Result<usize, TensorError> {
     let mut total: usize = 1;
     for &extent in shape {
@@ -242,7 +243,7 @@ pub(crate) fn alloc_filled<Scalar: StorageElement, A: Allocator>(
     }
 }
 
-/// Allocate `layout` and report the block's *actual* size, which an arena or a pool may round up
+/// Allocate `layout` and report the block's _actual_ size, which an arena or a pool may round up
 /// past the request.
 ///
 /// Callers record that size as their capacity, so the slack an allocator already handed over is
@@ -262,12 +263,12 @@ pub(crate) fn alloc_block<A: Allocator>(
 
 /// A `SIMD_ALIGNMENT`-aligned owning byte buffer shared by the packed-matrix containers.
 ///
-/// The dots, maxsim, and attention packed containers each wrap a single byte blob produced
-/// by the C `*_pack` FFI. `PackedBuffer` factors the allocation, reuse, and teardown of that
-/// blob into one place — it owns `(data, size, capacity, alloc)` and every container holds one
-/// as a private field, exactly as [`alloc::vec::Vec`] holds a `RawVec`. `size` is the live
-/// packed length and `capacity` the allocated length (`capacity >= size`); a `capacity == 0`
-/// buffer owns no allocation and holds a dangling pointer.
+/// The dots, maxsim, and attention packed containers each wrap a single byte blob produced by the C
+/// `*_pack` FFI. `PackedBuffer` factors the allocation, reuse, and teardown of that blob into one
+/// place — it owns `(data, size, capacity, alloc)` and every container holds one as a private
+/// field, exactly as [`alloc::vec::Vec`] holds a `RawVec`. `size` is the live packed length and
+/// `capacity` the allocated length (`capacity >= size`); a `capacity == 0` buffer owns no
+/// allocation and holds a dangling pointer.
 ///
 /// Two growth policies live here:
 /// - [`reset_for_pack`](Self::reset_for_pack) makes room for a fresh pack and discards the old
@@ -310,8 +311,8 @@ impl<Alloc: Allocator> PackedBuffer<Alloc> {
     pub(crate) fn clear(&mut self) { self.size = 0; }
 
     /// Make room for a fresh `needed`-byte pack, reusing the allocation when it already fits and
-    /// reallocating — discarding the old contents, since packing overwrites — only when it must grow.
-    /// Marks the live size and returns the writable base pointer.
+    /// reallocating — discarding the old contents, since packing overwrites — only when it must
+    /// grow. Marks the live size and returns the writable base pointer.
     pub(crate) fn reset_for_pack(&mut self, needed: usize) -> Result<*mut u8, TensorError> {
         if needed > self.capacity {
             self.grow_to(needed)?;
@@ -321,7 +322,8 @@ impl<Alloc: Allocator> PackedBuffer<Alloc> {
     }
 
     /// Pre-grow the allocation to at least `needed` bytes, preserving the live bytes, so a later
-    /// `reset_for_pack` that fits stays allocation-free with a stable pointer. A no-op when it already fits.
+    /// `reset_for_pack` call stays allocation-free with a stable pointer, doing nothing when the
+    /// allocation already fits.
     pub(crate) fn try_reserve(&mut self, needed: usize) -> Result<(), TensorError> {
         if needed <= self.capacity {
             return Ok(());
@@ -474,9 +476,9 @@ impl core::fmt::Display for TensorError {
 
 /// Named result from min/max reduction operations.
 ///
-/// For scalar reductions (`try_minmax_all`), `Value` is the scalar output type
-/// and `AnyIndex` defaults to `usize`.
-/// For axis reductions (`try_minmax_axis`), `Value` and `AnyIndex` are tensors.
+/// `AnyIndex` defaults to `usize` and `Value` is the scalar output type for scalar reductions such
+/// as `try_minmax_all`, while for axis reductions such as `try_minmax_axis`, `Value` and `AnyIndex`
+/// are both tensors.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MinMaxResult<Value, AnyIndex = usize> {
     pub min_value: Value,
@@ -494,7 +496,7 @@ pub struct MinMaxResult<Value, AnyIndex = usize> {
 /// Uses raw memory allocation, not std::Vec, for maximum control.
 ///
 /// Supports:
-/// - Slicing and subviews (zero-copy)
+/// - Slicing and subviews, zero-copy
 /// - Dot-product multiplication with [`crate::dots::DotsPackedMatrix`]
 /// - Reductions — sum, min, max
 /// - Elementwise ops — scale, sum, blend, fma
@@ -516,7 +518,7 @@ pub struct MinMaxResult<Value, AnyIndex = usize> {
 pub struct Tensor<Scalar: StorageElement, Alloc: Allocator = Global, const MAX_RANK: usize = DEFAULT_MAX_RANK> {
     /// Raw pointer to data buffer.
     data: NonNull<Scalar>,
-    /// Shape dimensions (always logical).
+    /// Shape dimensions, always logical.
     shape: [usize; MAX_RANK],
     /// Strides in bytes.
     strides: [isize; MAX_RANK],
@@ -572,9 +574,9 @@ impl<Scalar: StorageElement, Alloc: Allocator + Clone, const MAX_RANK: usize> Cl
 impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK> {
     /// Creates a new Tensor filled with a value using a custom allocator.
     ///
-    /// The `shape` specifies logical dimensions. For sub-byte types the innermost
-    /// extent counts dimensions, a multiple of the values per byte. Storage is allocated for
-    /// `total / dimensions_per_value()` packed values.
+    /// The `shape` specifies logical dimensions. For sub-byte types the innermost extent counts
+    /// elements, a multiple of the values packed per byte, and storage holds `total` divided by
+    /// `dimensions_per_value()` packed values.
     ///
     /// Returns `Err` if allocation fails or shape is invalid.
     pub fn try_full_in(shape: &[usize], value: Scalar, alloc: Alloc) -> Result<Self, TensorError> {
@@ -655,8 +657,8 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
     /// Creates an uninitialized Tensor using a custom allocator.
     ///
     /// # Safety
-    /// The returned tensor's contents are uninitialized. Reading before writing
-    /// is undefined behavior.
+    /// The returned tensor's contents are uninitialized; reading before writing is undefined
+    /// behavior.
     pub unsafe fn try_empty_in(shape: &[usize], alloc: Alloc) -> Result<Self, TensorError> {
         if shape.len() > MAX_RANK {
             return Err(TensorError::TooManyRanks { got: shape.len() });
@@ -714,9 +716,9 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
 
     /// Creates a Tensor from existing storage data using a custom allocator.
     ///
-    /// The `shape` specifies logical dimensions. For sub-byte types, the
-    /// `data` slice has `shape.product() / dimensions_per_value()` storage
-    /// values. For normal types, `data.len() == shape.product()`.
+    /// The `shape` specifies logical dimensions. For sub-byte types, the `data` slice holds
+    /// `shape.product()` divided by `dimensions_per_value()` storage values; for normal types,
+    /// `data.len()` equals `shape.product()`.
     pub fn try_from_slice_in(data: &[Scalar], shape: &[usize], alloc: Alloc) -> Result<Self, TensorError> {
         if shape.len() > MAX_RANK {
             return Err(TensorError::TooManyRanks { got: shape.len() });
@@ -781,10 +783,9 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
 
     /// Creates a Tensor from per-dimension `f32` values using a custom allocator.
     ///
-    /// Each `f32` is converted through `FloatConvertible::DimScalar::from_f32` before
-    /// storage, so this works for full-byte types (`f16`, `bf16`, `i8`, …) and
-    /// sub-byte types (`i4x2`, `u4x2`, `u1x8`) alike. The length of `scalars`
-    /// must equal the product of `shape`.
+    /// Each `f32` is converted through `FloatConvertible::DimScalar::from_f32` before storage, so
+    /// this works for full-byte types (`f16`, `bf16`, `i8`, …) and sub-byte types (`i4x2`, `u4x2`,
+    /// `u1x8`) alike. The length of `scalars` must equal the product of `shape`.
     pub fn try_from_scalars_in(scalars: &[f32], shape: &[usize], alloc: Alloc) -> Result<Self, TensorError>
     where
         Scalar: FloatConvertible,
@@ -809,9 +810,9 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
 
     /// Creates a Tensor from per-dimension `DimScalar` values using a custom allocator.
     ///
-    /// Each element of `dim_values` represents one logical dimension; for sub-byte
-    /// types the values are packed into their storage representation. The length
-    /// of `dim_values` must equal the product of `shape`.
+    /// Each element of `dim_values` represents one logical dimension; for sub-byte types the values
+    /// are packed into their storage representation. The length of `dim_values` must equal the
+    /// product of `shape`.
     pub fn try_from_dims_in(
         dim_values: &[<Scalar as FloatConvertible>::DimScalar],
         shape: &[usize],
@@ -839,10 +840,9 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
 
     /// Compute byte strides from a logical shape.
     ///
-    /// For sub-byte types (`dims_per_value > 1`), the innermost dimension is
-    /// divided by `dims_per_value` before computing strides, so the innermost
-    /// stride is `size_of::<Scalar>()` and covers `dims_per_value` logical elements
-    /// per step.
+    /// For sub-byte types (`dims_per_value > 1`), the innermost dimension is divided by
+    /// `dims_per_value` before computing strides, so the innermost stride is `size_of::<Scalar>()`
+    /// and covers `dims_per_value` logical elements per step.
     fn compute_strides_into(shape: &[usize], dims_per_value: usize, strides: &mut [isize; MAX_RANK]) {
         let elem_size = core::mem::size_of::<Scalar>();
         if shape.is_empty() {
@@ -925,8 +925,9 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
     /// Returns the number of dimensions.
     pub fn ndim(&self) -> usize { self.ndim }
 
-    /// Allocated storage-value capacity (`Scalar` slots) — the ceiling [`try_resize`](Self::try_resize)
-    /// honors. Always `>= numel() / Scalar::dimensions_per_value()`.
+    /// Allocated storage-value capacity (`Scalar` slots) — the ceiling
+    /// [`try_resize`](Self::try_resize) honors. Always `>= numel() /
+    /// Scalar::dimensions_per_value()`.
     pub fn capacity(&self) -> usize { self.capacity }
 
     /// Validate `shape` and return its packed storage-value count (shared by resize/reserve).
@@ -988,8 +989,9 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
     }
 
     /// Grow the allocated `capacity()` to hold at least `new_shape`, reallocating and copying the
-    /// live elements if needed. A no-op when already large enough. Unlike [`try_resize`](Self::try_resize)
-    /// it MAY move storage. Returns [`TensorError::AllocationFailed`] on failure, leaving it unchanged.
+    /// live elements if needed. A no-op when already large enough. Unlike
+    /// [`try_resize`](Self::try_resize) it may move storage. Returns
+    /// [`TensorError::AllocationFailed`] on failure, leaving it unchanged.
     pub fn try_reserve(&mut self, new_shape: &[usize]) -> Result<(), TensorError> {
         let needed = Self::shape_storage_count(new_shape)?;
         if needed <= self.capacity {
@@ -1031,8 +1033,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
 
     /// Returns the underlying storage data as a slice.
     ///
-    /// For sub-byte types, the slice contains packed storage values, not
-    /// individual logical elements.
+    /// For sub-byte types, the slice holds packed storage values, not individual logical elements.
     pub fn as_slice(&self) -> &[Scalar] {
         let count = self.numel() / Scalar::dimensions_per_value();
         unsafe { core::slice::from_raw_parts(self.data.as_ptr(), count) }
@@ -1040,8 +1041,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
 
     /// Returns the underlying storage data as a mutable slice.
     ///
-    /// For sub-byte types, the slice contains packed storage values, not
-    /// individual logical elements.
+    /// For sub-byte types, the slice holds packed storage values, not individual logical elements.
     pub fn as_mut_slice(&mut self) -> &mut [Scalar] {
         let count = self.numel() / Scalar::dimensions_per_value();
         unsafe { core::slice::from_raw_parts_mut(self.data.as_ptr(), count) }
@@ -1119,8 +1119,8 @@ impl<Scalar: StorageElement + Clone, const MAX_RANK: usize> Tensor<Scalar, Globa
     /// Creates an uninitialized Tensor using the global allocator.
     ///
     /// # Safety
-    /// The returned tensor's contents are uninitialized. Reading before writing
-    /// is undefined behavior.
+    /// The returned tensor's contents are uninitialized; reading before writing is undefined
+    /// behavior.
     pub unsafe fn try_empty(shape: &[usize]) -> Result<Self, TensorError> {
         unsafe { Self::try_empty_in(shape, Global) }
     }
@@ -1139,8 +1139,8 @@ impl<Scalar: StorageElement + Clone, const MAX_RANK: usize> Tensor<Scalar, Globa
 
     /// Creates a Tensor from per-dimension `f32` values using the global allocator.
     ///
-    /// Each `f32` is converted through `FloatConvertible::DimScalar::from_f32` before
-    /// storage. The length of `scalars` must equal the product of `shape`.
+    /// Each `f32` is converted through `FloatConvertible::DimScalar::from_f32` before storage. The
+    /// length of `scalars` must equal the product of `shape`.
     pub fn try_from_scalars(scalars: &[f32], shape: &[usize]) -> Result<Self, TensorError>
     where
         Scalar: FloatConvertible,
@@ -1150,8 +1150,8 @@ impl<Scalar: StorageElement + Clone, const MAX_RANK: usize> Tensor<Scalar, Globa
 
     /// Creates a Tensor from per-dimension `DimScalar` values using the global allocator.
     ///
-    /// Each element of `dim_values` represents one logical dimension. The length
-    /// of `dim_values` must equal the product of `shape`.
+    /// Each element of `dim_values` represents one logical dimension. The length of `dim_values`
+    /// must equal the product of `shape`.
     pub fn try_from_dims(
         dim_values: &[<Scalar as FloatConvertible>::DimScalar],
         shape: &[usize],
@@ -1197,8 +1197,8 @@ impl SliceRange {
 
 /// A stepped range for use in tuple-based slicing — compile-time dispatch.
 ///
-/// Rust has no built-in literal for stepped ranges, so this struct fills that
-/// gap. Use it inside `.try_slice()` tuples:
+/// Rust has no built-in literal for stepped ranges, so this struct fills that gap. Use it inside
+/// `.try_slice()` tuples:
 /// ```ignore
 /// t.try_slice((.., RangeStep::new(0, 6, 2))).unwrap();  // t[:, 0:6:2]
 /// ```
@@ -1217,8 +1217,8 @@ impl RangeStep {
 
 // region: SliceArg + SliceSpec
 
-/// Resolve a signed index against a dimension size.  Negative values wrap from
-/// the end: `-1` → `dim_size - 1`, `-2` → `dim_size - 2`, etc.
+/// Resolve a signed index against a dimension size. Negative values wrap from the end: `-1` →
+/// `dim_size - 1`, `-2` → `dim_size - 2`, etc.
 #[inline(always)]
 fn resolve_signed_(index: isize, dim_size: usize) -> Result<usize, TensorError> {
     if index >= 0 {
@@ -1233,17 +1233,17 @@ fn resolve_signed_(index: isize, dim_size: usize) -> Result<usize, TensorError> 
     }
 }
 
-/// Processes one axis of a slice operation, directly computing the effect on
-/// output shape, strides, and byte offset — no intermediate enum dispatch.
+/// Processes one axis of a slice operation, directly computing the effect on output shape, strides,
+/// and byte offset — no intermediate enum dispatch.
 ///
-/// Each impl is monomorphized and fully inlined, so the compiler sees concrete
-/// types at every call site with zero runtime branching overhead.
+/// Each impl is monomorphized and fully inlined, so the compiler sees concrete types at every call
+/// site with zero runtime branching overhead.
 ///
-/// Unsigned types: `RangeFull`, `usize`, `Range<usize>`, `RangeTo<usize>`,
-/// `RangeFrom<usize>`, `RangeInclusive<usize>`.
+/// Unsigned types: `RangeFull`, `usize`, `Range<usize>`, `RangeTo<usize>`, `RangeFrom<usize>`,
+/// `RangeInclusive<usize>`.
 ///
-/// Signed types (negative wraps from end): `isize`, `Range<isize>`,
-/// `RangeTo<isize>`, `RangeFrom<isize>`, `RangeInclusive<isize>`.
+/// Signed types (negative wraps from end): `isize`, `Range<isize>`, `RangeTo<isize>`,
+/// `RangeFrom<isize>`, `RangeInclusive<isize>`.
 ///
 /// Stepped: `RangeStep` — Rust has no built-in stepped range literal.
 ///
@@ -1496,9 +1496,9 @@ type LayoutResult<const MAX_RANK: usize> =
 
 /// Computes the full slice layout from shape, strides, and ndim.
 ///
-/// Implemented for `&[SliceRange]` / `&[SliceRange; N]` — backward compat, runtime
-/// dispatch — and tuples of [`SliceArg`] types from arity 1-8: compile-time
-/// dispatch, fully inlined with zero branching overhead.
+/// Implemented for `&[SliceRange]` / `&[SliceRange; N]` — backward compat, runtime dispatch — and
+/// tuples of [`SliceArg`] types from arity 1-8: compile-time dispatch, fully inlined with zero
+/// branching overhead.
 pub trait SliceSpec {
     ///
     /// `dims_per_value` is the scalar's packing factor: on the innermost axis a range start counts
@@ -2288,27 +2288,26 @@ impl<
 
 /// A read-only, zero-copy view into a [`Tensor`].
 ///
-/// `TensorView` borrows the parent tensor's memory for the duration of `'a`
-/// without owning or copying any data. Views may have arbitrary byte strides,
-/// so they transparently represent slicing, transposition, or step-sampling
-/// of the underlying storage — iteration and indexing honour those strides.
+/// `TensorView` borrows the parent tensor's memory for the duration of `'a` without owning or
+/// copying any data. Views may have arbitrary byte strides, so they transparently represent
+/// slicing, transposition, or step-sampling of the underlying storage — iteration and indexing
+/// honour those strides.
 ///
 /// A view is normally obtained by calling [`Tensor::view`] or by slicing:
-/// `tensor.try_slice((0..4_usize, ..))`. For lower-level construction from a
-/// raw pointer plus shape/stride arrays, see [`TensorView::from_raw_parts`].
+/// `tensor.try_slice((0..4_usize, ..))`. For lower-level construction from a raw pointer plus
+/// shape/stride arrays, see [`TensorView::from_raw_parts`].
 ///
-/// `TensorView` is the immutable counterpart of [`TensorSpan`]. Both share
-/// the same layout fields, but a view cannot be used to mutate the backing
-/// storage. Multiple views into the same tensor may coexist, subject to
-/// Rust's borrow rules; a mutable span excludes all other references.
+/// `TensorView` is the immutable counterpart of [`TensorSpan`]. Both share the same layout fields,
+/// but a view cannot be used to mutate the backing storage. Multiple views into the same tensor may
+/// coexist, subject to Rust's borrow rules; a mutable span excludes all other references.
 ///
-/// The `'a` lifetime ties the view to the source tensor or outer view,
-/// ensuring the referenced memory outlives the view itself.
+/// The `'a` lifetime ties the view to the source tensor or outer view, ensuring the referenced
+/// memory outlives the view itself.
 #[derive(Clone, Copy, Debug)]
 pub struct TensorView<'a, Scalar, const MAX_RANK: usize = DEFAULT_MAX_RANK> {
     /// Pointer to first element of view.
     data: *const Scalar,
-    /// Shape of the view (always logical).
+    /// Shape of the view, always logical.
     shape: [usize; MAX_RANK],
     /// Strides in bytes.
     strides: [isize; MAX_RANK],
@@ -2327,9 +2326,8 @@ unsafe impl<Scalar: Sync, const MAX_RANK: usize> Sync for TensorView<'_, Scalar,
 impl<'a, Scalar: StorageElement, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RANK> {
     /// Create a view from a raw pointer, shape, and byte strides.
     ///
-    /// The `shape` specifies logical dimensions. For sub-byte types, the
-    /// storage count is inferred as `shape.product() / dimensions_per_value()`.
-    /// For normal types the two are equal.
+    /// The `shape` specifies logical dimensions. For sub-byte types, the storage count is
+    /// `shape.product()` divided by `dimensions_per_value()`; for normal types the two are equal.
     ///
     /// # Safety
     /// - `data` must be valid for reads over the region described by `shape` and `strides_bytes`.
@@ -2387,8 +2385,7 @@ impl<'a, Scalar: StorageElement, const MAX_RANK: usize> TensorView<'a, Scalar, M
     ///
     /// Negative `isize` indices wrap from the end (`-1` is the last element).
     /// Returns [`TensorError::DimensionMismatch`] on a rank-0 view and
-    /// [`TensorError::IndexOutOfBounds`] when the index is outside the
-    /// logical element count.
+    /// [`TensorError::IndexOutOfBounds`] when the index is outside the logical element count.
     ///
     /// # Examples
     ///
@@ -2444,8 +2441,8 @@ impl<'a, Scalar: StorageElement, const MAX_RANK: usize> TensorView<'a, Scalar, M
 
     /// Slice the view along multiple dimensions.
     ///
-    /// Accepts tuples of Rust range types or `&[SliceRange]`. Indexing with a
-    /// scalar reduces the rank, while range arguments preserve it.
+    /// Accepts tuples of Rust range types or `&[SliceRange]`. Indexing with a scalar reduces the
+    /// rank, while range arguments preserve it.
     ///
     /// # Examples
     ///
@@ -2502,12 +2499,12 @@ impl<'a, Scalar: Clone + StorageElement, const MAX_RANK: usize> TensorView<'a, S
         }
     }
 
-    /// True when the underlying storage *bytes* are densely packed in memory.
+    /// True when the underlying storage _bytes_ are densely packed in memory.
     ///
     /// Unlike [`is_contiguous`](Self::is_contiguous), this accounts for sub-byte packing: the
-    /// innermost-axis extent is measured in storage values (`shape / dimensions_per_value`), so
-    /// a freshly-allocated `e2m1x2` tensor — whose row stride is `cols / 2` bytes — is recognized
-    /// as packed. Used by the block-scaled casts, which hand raw byte buffers to the C kernel.
+    /// innermost-axis extent is measured in storage values (`shape / dimensions_per_value`), so a
+    /// freshly-allocated `e2m1x2` tensor — whose row stride is `cols / 2` bytes — is recognized as
+    /// packed. Used by the block-scaled casts, which hand raw byte buffers to the C kernel.
     pub fn is_packed_contiguous(&self) -> bool {
         if self.ndim == 0 {
             return true;
@@ -2529,7 +2526,7 @@ impl<'a, Scalar: Clone + StorageElement, const MAX_RANK: usize> TensorView<'a, S
         true
     }
 
-    /// Storage values as a slice when the bytes are packed (sub-byte aware).
+    /// Storage values as a slice when the bytes are packed, sub-byte aware.
     ///
     /// Returns `None` for strided/transposed views. This is the sub-byte-aware companion to
     /// [`as_contiguous_slice`](Self::as_contiguous_slice).
@@ -2585,26 +2582,25 @@ impl<'a, Scalar: Clone + StorageElement, const MAX_RANK: usize> TensorView<'a, S
 
 /// A mutable, zero-copy view into a [`Tensor`].
 ///
-/// `TensorSpan` borrows the parent tensor's memory exclusively for the
-/// duration of `'a`, giving write access without taking ownership. As with
-/// [`TensorView`], a span may carry non-contiguous byte strides so slicing,
-/// transposition, and stepped sub-views all remain free of data copies.
+/// `TensorSpan` borrows the parent tensor's memory exclusively for the duration of `'a`, giving
+/// write access without taking ownership. As with [`TensorView`], a span may carry non-contiguous
+/// byte strides so slicing, transposition, and stepped sub-views all remain free of data copies.
 ///
-/// Spans are typically produced by [`Tensor::span`] or by a mutable slicing
-/// method such as `tensor.slice_mut((..,0_usize))`. Lower-level construction
-/// from a raw pointer is available through [`TensorSpan::from_raw_parts`].
+/// Spans are typically produced by [`Tensor::span`] or by a mutable slicing method such as
+/// `tensor.slice_mut((..,0_usize))`. Lower-level construction from a raw pointer is available
+/// through [`TensorSpan::from_raw_parts`].
 ///
-/// A span is the mutable counterpart of [`TensorView`]. At most one span to
-/// a given region may exist at a time; reborrow via [`TensorSpan::as_view`]
-/// to hand out immutable sub-views without surrendering the span.
+/// A span is the mutable counterpart of [`TensorView`]. At most one span to a given region may
+/// exist at a time; reborrow via [`TensorSpan::as_view`] to hand out immutable sub-views without
+/// surrendering the span.
 ///
-/// The `'a` lifetime ties the span to the owning tensor, ensuring the
-/// referenced memory remains valid.
+/// The `'a` lifetime ties the span to the owning tensor, so the referenced memory stays valid for
+/// as long as the span exists.
 #[derive(Debug)]
 pub struct TensorSpan<'a, Scalar, const MAX_RANK: usize = DEFAULT_MAX_RANK> {
     /// Pointer to first element of view.
     data: *mut Scalar,
-    /// Shape of the view (always logical).
+    /// Shape of the view, always logical.
     shape: [usize; MAX_RANK],
     /// Strides in bytes.
     strides: [isize; MAX_RANK],
@@ -2624,7 +2620,8 @@ impl<'a, Scalar: StorageElement, const MAX_RANK: usize> TensorSpan<'a, Scalar, M
     /// Create a mutable view from a raw pointer, shape, and byte strides.
     ///
     /// # Safety
-    /// - `data` must be valid for reads and writes over the region described by `shape` and `strides_bytes`.
+    /// - `data` must be valid for reads and writes over the region described by `shape` and
+    ///   `strides_bytes`.
     /// - The pointed-to memory must outlive `'a`.
     /// - `shape.len()` must be `<= MAX_RANK`.
     /// - `shape.len()` must equal `strides_bytes.len()`.
@@ -2696,9 +2693,8 @@ impl<'a, Scalar: StorageElement, const MAX_RANK: usize> TensorSpan<'a, Scalar, M
 
     /// Try to get a mutable element by flat logical row-major index.
     ///
-    /// Negative `isize` indices wrap from the end. Returns
-    /// [`TensorError::DimensionMismatch`] on a rank-0 span and
-    /// [`TensorError::IndexOutOfBounds`] when the index is out of range.
+    /// Negative `isize` indices wrap from the end. Returns [`TensorError::DimensionMismatch`] on a
+    /// rank-0 span and [`TensorError::IndexOutOfBounds`] when the index is out of range.
     ///
     /// # Examples
     ///
@@ -2845,19 +2841,17 @@ impl<'a, Scalar: StorageElement, const MAX_RANK: usize> TensorSpan<'a, Scalar, M
 
 /// Read-only structural access to N-dimensional tensor containers.
 ///
-/// Implemented by [`Tensor`], [`TensorView`], and [`TensorSpan`], enabling
-/// generic code over any tensor-like container. Most operations in this
-/// crate accept `&(impl TensorRef<Scalar, MAX_RANK> + ?Sized)` so you can
-/// mix owned tensors, views, and spans freely without copying.
+/// Implemented by [`Tensor`], [`TensorView`], and [`TensorSpan`], enabling generic code over any
+/// tensor-like container. Most operations in this crate accept `&(impl TensorRef<Scalar, MAX_RANK>
+/// + ?Sized)` so you can mix owned tensors, views, and spans freely without copying.
 ///
-/// The trait only exposes *structural* accessors — shape, strides, pointer,
-/// and a borrow-as-view constructor. Element reads happen through the
-/// resulting [`TensorView`]. See [`TensorMut`] for the mutable counterpart.
+/// The trait only exposes _structural_ accessors — shape, strides, pointer, and a borrow-as-view
+/// constructor. Element reads happen through the resulting [`TensorView`]. See [`TensorMut`] for
+/// the mutable counterpart.
 pub trait TensorRef<Scalar: StorageElement, const MAX_RANK: usize> {
     /// Logical shape as a slice of length `ndim()`.
     ///
-    /// For sub-byte types this is the number of individual elements, not the
-    /// packed storage count.
+    /// For sub-byte types this is the number of individual elements, not the packed storage count.
     fn shape(&self) -> &[usize];
 
     /// Number of dimensions currently in use.
@@ -2867,8 +2861,8 @@ pub trait TensorRef<Scalar: StorageElement, const MAX_RANK: usize> {
 
     /// Byte stride along dimension `dim`.
     ///
-    /// Negative values indicate reverse traversal (e.g. from a stepped
-    /// slice). Only indices in `0..ndim()` are valid.
+    /// Negative values indicate reverse traversal, such as from a stepped slice. Only indices in
+    /// `0..ndim()` are valid.
     ///
     /// # Example
     /// ```rust,ignore
@@ -2879,17 +2873,17 @@ pub trait TensorRef<Scalar: StorageElement, const MAX_RANK: usize> {
 
     /// Raw pointer to the first storage element.
     ///
-    /// The pointer is valid for `shape().iter().product()` *logical* reads,
-    /// divided by `Scalar::dimensions_per_value()` for sub-byte types.
+    /// The pointer is valid for `shape().iter().product()` _logical_ reads, divided by
+    /// `Scalar::dimensions_per_value()` for sub-byte types.
     fn as_ptr(&self) -> *const Scalar;
 
     /// Borrow as an immutable [`TensorView`] with the same shape and strides.
     ///
-    /// This is a zero-cost reborrow and is the normal entry point for
-    /// extension-trait methods that want to delegate to view-level code.
+    /// This is a zero-cost reborrow and is the normal entry point for extension-trait methods that
+    /// want to delegate to view-level code.
     fn view(&self) -> TensorView<'_, Scalar, MAX_RANK>;
 
-    /// Total number of logical elements (product of shape dimensions).
+    /// Total number of logical elements, the product of the shape dimensions.
     ///
     /// # Example
     /// ```rust,ignore
@@ -2903,17 +2897,16 @@ pub trait TensorRef<Scalar: StorageElement, const MAX_RANK: usize> {
 
     /// Returns `true` if the tensor contains zero logical elements.
     ///
-    /// A rank-0 (scalar) tensor is *not* empty — it has one element.
+    /// A rank-0 tensor is a scalar and is _not_ empty — it has one element.
     fn is_empty(&self) -> bool { self.numel() == 0 }
 
-    /// Returns `true` for rank-2 tensors whose innermost stride equals one
-    /// element — the layout required by GEMM's left-hand matrix.
+    /// Returns `true` for rank-2 tensors whose innermost stride equals one element — the layout
+    /// required by GEMM's left-hand matrix.
     fn has_contiguous_rows(&self) -> bool {
         self.ndim() == 2 && self.stride_bytes(1) == core::mem::size_of::<Scalar>() as isize
     }
 
-    /// Returns `true` if the entire tensor is stored in row-major contiguous
-    /// order with no gaps.
+    /// Returns `true` if the entire tensor is stored in row-major contiguous order with no gaps.
     ///
     /// A contiguous tensor can be reinterpreted as a flat slice via
     /// [`TensorView::as_contiguous_slice`]; a non-contiguous one cannot.
@@ -2939,21 +2932,19 @@ pub trait TensorRef<Scalar: StorageElement, const MAX_RANK: usize> {
 
 /// Mutable structural access to N-dimensional tensor containers.
 ///
-/// `TensorMut` is a supertrait of [`TensorRef`] that adds a single method —
-/// a mutable raw pointer to the first element. It is implemented by
-/// [`Tensor`], which owns its memory, and by [`TensorSpan`], which borrows
-/// a mutable sub-region. Immutable views ([`TensorView`]) deliberately do
-/// not implement `TensorMut`.
+/// `TensorMut` is a supertrait of [`TensorRef`] that adds a single method — a mutable raw pointer
+/// to the first element. It is implemented by [`Tensor`], which owns its memory, and by
+/// [`TensorSpan`], which borrows a mutable sub-region. Immutable views ([`TensorView`])
+/// deliberately do not implement `TensorMut`.
 ///
-/// Generic write-access helpers accept `&mut (impl TensorMut<Scalar, R>)`
-/// so they work uniformly against owned tensors and span reborrows.
+/// Generic write-access helpers accept `&mut (impl TensorMut<Scalar, R>)` so they work uniformly
+/// against owned tensors and span reborrows.
 pub trait TensorMut<Scalar: StorageElement, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
     /// Raw mutable pointer to the first storage element.
     ///
-    /// The pointer is valid for `numel() / dimensions_per_value()` writes
-    /// and preserves whatever stride layout [`TensorRef::stride_bytes`]
-    /// reports — callers must honour the per-axis strides when striding
-    /// through non-contiguous memory.
+    /// The pointer is valid for `numel()` divided by `dimensions_per_value()` writes and preserves
+    /// whatever stride layout [`TensorRef::stride_bytes`] reports — callers must honour the
+    /// per-axis strides when striding through non-contiguous memory.
     fn as_mut_ptr(&mut self) -> *mut Scalar;
 }
 
@@ -2961,17 +2952,16 @@ pub trait TensorMut<Scalar: StorageElement, const MAX_RANK: usize>: TensorRef<Sc
 ///
 /// Implemented for [`Tensor`], [`TensorSpan`], [`crate::vector::Vector`], and
 /// [`crate::vector::VectorSpan`]. Mirrors `tensor_span::fill_zeros / fill` and
-/// `vector_span::fill_zeros / fill` from the C++ side. Both methods are
-/// infallible and operate on every storage byte the container owns or borrows.
+/// `vector_span::fill_zeros / fill` from the C++ side. Both methods are infallible and operate on
+/// every storage byte the container owns or borrows.
 pub trait Fill<Scalar: StorageElement> {
-    /// Set every storage byte to zero. Works for every `StorageElement` since
-    /// the binary-zero of all NumKong scalar dtypes is the value-zero.
+    /// Set every storage byte to zero. Works for every `StorageElement` since the binary-zero of
+    /// all NumKong scalar dtypes is the value-zero.
     fn fill_zeros(&mut self);
 
-    /// Set every storage element to `value`. For 1-byte storage (including
-    /// sub-byte packings) this becomes a single byte-pattern memset; for
-    /// multi-byte storage it falls through to a typed broadcast loop on the
-    /// pre-zeroed buffer, so float NaN/inf patterns from uninitialised memory
+    /// Set every storage element to `value`. For 1-byte storage, including sub-byte packings, this
+    /// becomes a single byte-pattern memset; for multi-byte storage it falls through to a typed
+    /// broadcast loop on the pre-zeroed buffer, so float NaN/inf patterns from uninitialised memory
     /// cannot leak through.
     fn fill(&mut self, value: Scalar);
 }
@@ -2979,12 +2969,12 @@ pub trait Fill<Scalar: StorageElement> {
 /// Copy storage from a `Source` into this container in place.
 ///
 /// `Source` is the natural read-side counterpart for the implementor:
-/// `&[Scalar]` (raw storage slice) for owning `Tensor` / `Vector`, or the
-/// matching `View` type for span implementors. Mirrors `tensor_span::copy_from`
-/// and `vector_span::copy_from` on the C++ side.
+/// `&[Scalar]`, the raw storage slice, for an owning `Tensor` or `Vector`, or the matching `View`
+/// type for span implementors, mirroring `tensor_span::copy_from` and `vector_span::copy_from` on
+/// the C++ side.
 pub trait CopyFrom<Source> {
-    /// Copy from `source` into self. Returns an error on a shape or storage
-    /// mismatch and does not modify the destination on error.
+    /// Copy from `source` into self. Returns an error on a shape or storage mismatch and does not
+    /// modify the destination on error.
     fn copy_from(&mut self, source: Source) -> Result<(), TensorError>;
 }
 
@@ -3040,10 +3030,9 @@ impl<'a, Scalar: StorageElement, const R: usize> TensorMut<Scalar, R> for Tensor
 
 // region: Fill / CopyFrom Implementations
 
-/// Compares the bit pattern of a fresh `Scalar::default()` to `value` to decide
-/// whether the post-`fill_zeros` overlay can be skipped. Treats `+0.0` and the
-/// default `Scalar::default()` representation as identical so a `fill(0.0)` on a
-/// freshly-defaulted buffer is a single memset.
+/// Compares the bit pattern of a fresh `Scalar::default()` to `value` to decide whether the
+/// post-`fill_zeros` overlay can be skipped. Treats `+0.0` and the default `Scalar::default()`
+/// representation as identical so a `fill(0.0)` on a freshly-defaulted buffer is a single memset.
 #[inline]
 fn value_is_default_bit_pattern<Scalar: StorageElement>(value: Scalar) -> bool {
     let default_value = Scalar::default();
@@ -3058,8 +3047,8 @@ fn value_is_default_bit_pattern<Scalar: StorageElement>(value: Scalar) -> bool {
     value_bytes == default_bytes
 }
 
-/// Body shared by every `Fill::fill` impl: zero the buffer, then byte-pattern
-/// memset (1-byte storage) or typed broadcast (multi-byte storage).
+/// Body shared by every `Fill::fill` impl: zero the buffer, then a byte-pattern memset for 1-byte
+/// storage or a typed broadcast for multi-byte storage.
 #[inline]
 unsafe fn overlay_value_into_storage<Scalar: StorageElement>(
     storage_ptr: *mut Scalar,
@@ -3216,8 +3205,8 @@ impl<'a, 'b, Scalar: StorageElement, const MAX_RANK: usize> CopyFrom<&'b TensorV
 
 /// Iterator over sub-tensor views along a given axis.
 ///
-/// Each item is a `TensorView` with the iterated dimension removed (rank - 1).
-/// For a rank-2 matrix, `axis_views(0)` yields row views.
+/// Each item is a `TensorView` with the iterated dimension removed, leaving rank minus one. For a
+/// rank-2 matrix, `axis_views(0)` yields row views.
 pub struct AxisIterator<'a, Scalar, const MAX_RANK: usize = DEFAULT_MAX_RANK> {
     data: *const Scalar,
     shape: [usize; MAX_RANK],
@@ -3274,8 +3263,8 @@ impl<'a, Scalar, const MAX_RANK: usize> core::iter::FusedIterator for AxisIterat
 
 /// Mutable iterator over sub-tensor spans along a given axis.
 ///
-/// Each item is a `TensorSpan` with the iterated dimension removed (rank - 1).
-/// For a rank-2 matrix, `axis_spans(0)` yields mutable row spans.
+/// Each item is a `TensorSpan` with the iterated dimension removed, leaving rank minus one. For a
+/// rank-2 matrix, `axis_spans(0)` yields mutable row spans.
 pub struct AxisIteratorMut<'a, Scalar, const MAX_RANK: usize = DEFAULT_MAX_RANK> {
     data: *mut Scalar,
     shape: [usize; MAX_RANK],
@@ -3359,8 +3348,8 @@ impl<'a, Scalar, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RANK> {
 impl<'a, Scalar: StorageElement, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RANK> {
     /// Transpose — reverse all dimensions, no data copy.
     ///
-    /// Returns an error for sub-byte types with ndim >= 2, since transposing
-    /// would produce non-contiguous strides that break packed element addressing.
+    /// Returns an error for sub-byte types with ndim >= 2, since transposing would produce
+    /// non-contiguous strides that break packed element addressing.
     pub fn try_transpose(&self) -> Result<TensorView<'a, Scalar, MAX_RANK>, TensorError> {
         if self.ndim < 2 {
             return Ok(TensorView {
@@ -3386,8 +3375,8 @@ impl<'a, Scalar: StorageElement, const MAX_RANK: usize> TensorView<'a, Scalar, M
 
     /// Reshape the view — must have same total elements, contiguous only.
     ///
-    /// Returns an error for sub-byte types, since reshape would invalidate
-    /// the packed element layout.
+    /// For sub-byte types this returns an error, since a reshape would invalidate the packed
+    /// element layout.
     pub fn try_reshape(&self, new_shape: &[usize]) -> Result<TensorView<'a, Scalar, MAX_RANK>, TensorError> {
         if Scalar::dimensions_per_value() > 1 {
             return Err(TensorError::SubByteUnsupported);
@@ -3583,9 +3572,9 @@ impl<Scalar: StorageElement + core::fmt::Debug, Alloc: Allocator, const MAX_RANK
 
 /// Lazy element iterator over possibly non-contiguous tensor data.
 ///
-/// Yields `(position, DimRef<'a, Scalar>)` pairs in row-major order at the logical-scalar
-/// level. For sub-byte types, the innermost dimension is expanded by `dimensions_per_value`.
-/// Use [`.dims()`](TensorViewIterator::dims) when only the dimension proxies are needed.
+/// Yields `(position, DimRef<'a, Scalar>)` pairs in row-major order at the logical-scalar level.
+/// For sub-byte types, the innermost dimension is expanded by `dimensions_per_value`; use
+/// [`.dims()`](TensorViewIterator::dims) when only the dimension proxies are needed.
 ///
 /// Cost per `next()` is O(1) amortized (O(ndim) only on carry propagation).
 pub struct TensorViewIterator<'a, Scalar: FloatConvertible, const MAX_RANK: usize = DEFAULT_MAX_RANK> {
@@ -3695,8 +3684,8 @@ impl<'a, Scalar: FloatConvertible, const MAX_RANK: usize> core::iter::FusedItera
 
 /// Mutable element iterator over possibly non-contiguous tensor data.
 ///
-/// Yields `(position, DimMut<'a, Scalar>)` pairs in row-major order at the logical-scalar
-/// level. For sub-byte types, each proxy performs a read-modify-write on drop.
+/// Yields `(position, DimMut<'a, Scalar>)` pairs in row-major order at the logical-scalar level.
+/// For sub-byte types, each proxy performs a read-modify-write on drop.
 pub struct TensorSpanIterator<'a, Scalar: FloatConvertible, const MAX_RANK: usize = DEFAULT_MAX_RANK> {
     data: *mut Scalar,
     shape: [usize; MAX_RANK],
@@ -3763,7 +3752,8 @@ impl<'a, Scalar: FloatConvertible, const MAX_RANK: usize> TensorSpanIterator<'a,
     pub fn dims(self) -> TensorSpanDims<'a, Scalar, MAX_RANK> { TensorSpanDims { inner: self } }
 }
 
-/// Mutable dimension-only adapter over [`TensorSpanIterator`], yielding [`DimMut`] without positions.
+/// A mutable dimension-only adapter over [`TensorSpanIterator`], yielding [`DimMut`] items and
+/// discarding positions.
 pub struct TensorSpanDims<'a, Scalar: FloatConvertible, const MAX_RANK: usize = DEFAULT_MAX_RANK> {
     inner: TensorSpanIterator<'a, Scalar, MAX_RANK>,
 }
@@ -3789,8 +3779,8 @@ impl<'a, Scalar: FloatConvertible, const MAX_RANK: usize> core::iter::FusedItera
 
 /// Helper to compute the logical shape and total element count for iteration.
 ///
-/// Shape is already logical (sub-byte types store logical dimensions in shape),
-/// so this simply copies the shape and computes the product.
+/// Shape is already logical — sub-byte types store logical dimensions in shape — so this simply
+/// copies the shape and computes the product.
 fn logical_shape<const MAX_RANK: usize>(shape: &[usize; MAX_RANK], ndim: usize) -> ([usize; MAX_RANK], usize) {
     let logical = *shape;
     let mut total = 1usize;
@@ -3803,8 +3793,8 @@ fn logical_shape<const MAX_RANK: usize>(shape: &[usize; MAX_RANK], ndim: usize) 
 impl<'a, Scalar: FloatConvertible, const MAX_RANK: usize> TensorView<'a, Scalar, MAX_RANK> {
     /// Returns a lazy iterator over all logical scalars in row-major order.
     ///
-    /// Yields `(position, DimRef)` pairs. Use `.iter().dims()` for just dimensions.
-    /// For sub-byte types, the innermost dimension is expanded.
+    /// Yields `(position, DimRef)` pairs. Use `.iter().dims()` for just dimensions. For sub-byte
+    /// types, the innermost dimension is expanded.
     pub fn iter(&self) -> TensorViewIterator<'a, Scalar, MAX_RANK> {
         let dims_per_value = Scalar::dimensions_per_value();
         let (logical, total) = logical_shape::<MAX_RANK>(&self.shape, self.ndim);
@@ -3824,8 +3814,8 @@ impl<'a, Scalar: FloatConvertible, const MAX_RANK: usize> TensorView<'a, Scalar,
 impl<'a, Scalar: FloatConvertible, const MAX_RANK: usize> TensorSpan<'a, Scalar, MAX_RANK> {
     /// Returns a lazy iterator over all logical scalars in row-major order.
     ///
-    /// Yields `(position, DimRef)` pairs. Use `.iter().dims()` for just dimensions.
-    /// For sub-byte types, the innermost dimension is expanded.
+    /// Yields `(position, DimRef)` pairs. Use `.iter().dims()` for just dimensions. For sub-byte
+    /// types, the innermost dimension is expanded.
     pub fn iter(&self) -> TensorViewIterator<'_, Scalar, MAX_RANK> {
         let dims_per_value = Scalar::dimensions_per_value();
         let (logical, total) = logical_shape::<MAX_RANK>(&self.shape, self.ndim);
@@ -3887,7 +3877,7 @@ impl<Scalar: FloatConvertible, Alloc: Allocator, const MAX_RANK: usize> Tensor<S
 
 // endregion: Tensor iter() / iter_mut() methods
 
-// region: IntoIterator (immutable)
+// region: IntoIterator, immutable
 
 impl<'a, Scalar: FloatConvertible, Alloc: Allocator, const MAX_RANK: usize> IntoIterator
     for &'a Tensor<Scalar, Alloc, MAX_RANK>
@@ -3909,9 +3899,9 @@ impl<'a, Scalar: FloatConvertible, const MAX_RANK: usize> IntoIterator for &'a T
     fn into_iter(self) -> Self::IntoIter { self.iter() }
 }
 
-// endregion: IntoIterator (immutable)
+// endregion: IntoIterator, immutable
 
-// region: IntoIterator (mutable)
+// region: IntoIterator, mutable
 
 impl<'a, Scalar: FloatConvertible, Alloc: Allocator, const MAX_RANK: usize> IntoIterator
     for &'a mut Tensor<Scalar, Alloc, MAX_RANK>
@@ -3927,7 +3917,7 @@ impl<'a, Scalar: FloatConvertible, const MAX_RANK: usize> IntoIterator for &'a m
     fn into_iter(self) -> Self::IntoIter { self.iter_mut() }
 }
 
-// endregion: IntoIterator (mutable)
+// endregion: IntoIterator, mutable
 
 // region: PartialEq
 
@@ -3965,8 +3955,6 @@ where
 
 // endregion: PartialEq
 
-// endregion: Tolerance Equality (AllCloseOps moved to crate::each)
-
 // region: AsRef
 
 impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> AsRef<[Scalar]>
@@ -3993,10 +3981,9 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
 
     /// Create a mutable span of the entire tensor.
     ///
-    /// The returned [`TensorSpan`] borrows `self` exclusively for `'_`. Use it
-    /// to apply in-place kernels, write to individual elements via
-    /// [`TensorSpan::try_flat_mut`] / [`TensorSpan::try_coords_mut`], or pass
-    /// it to APIs that need `&mut (impl TensorMut<_, _>)`.
+    /// The returned [`TensorSpan`] borrows `self` exclusively for `'_`. Use it to apply in-place
+    /// kernels, write to individual elements via [`TensorSpan::try_flat_mut`] /
+    /// [`TensorSpan::try_coords_mut`], or pass it to APIs that need `&mut (impl TensorMut<_, _>)`.
     ///
     /// # Examples
     ///
@@ -4106,9 +4093,8 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
 
     /// Slice the array along multiple dimensions, returning a zero-copy view.
     ///
-    /// Accepts tuples of Rust range types or `&[SliceRange]`. Scalar arguments
-    /// reduce the rank, range arguments preserve it, and [`RangeStep`] permits
-    /// stepped sampling.
+    /// Accepts tuples of Rust range types or `&[SliceRange]`. Scalar arguments reduce the rank,
+    /// range arguments preserve it, and [`RangeStep`] permits stepped sampling.
     ///
     /// # Examples
     ///
@@ -4925,8 +4911,8 @@ fn offset_from_coords_<Scalar: StorageElement, const MAX_RANK: usize>(
 #[inline]
 /// Byte offset of the storage value holding the element at row-major `flat_index`.
 ///
-/// Decomposes into per-axis coordinates and then defers to [`offset_from_coords_`], so the
-/// sub-byte units are handled in exactly one place.
+/// Decomposes into per-axis coordinates and then defers to [`offset_from_coords_`], so the sub-byte
+/// units are handled in exactly one place.
 fn offset_from_flat_<Scalar: StorageElement, const MAX_RANK: usize>(
     shape: &[usize; MAX_RANK],
     strides: &[isize; MAX_RANK],
@@ -5056,8 +5042,8 @@ fn slice_leading_layout_<AnyIndex: VectorIndex, const MAX_RANK: usize>(
     Ok((new_shape, new_strides, new_ndim, offset, new_len))
 }
 
-/// Write the axis-reduced shape into `out`, a stack buffer whose rank is bounded by `MAX_RANK`,
-/// and return its length. Heap-free, so it needs no `alloc`.
+/// Write the axis-reduced shape into `out`, a stack buffer whose rank is bounded by `MAX_RANK`, and
+/// return its length. Heap-free, so it needs no `alloc`.
 fn reduced_shape_into(shape: &[usize], axis: usize, keep_dims: bool, out: &mut [usize]) -> usize {
     let mut ndim = 0;
     for (dim_index, &dim_size) in shape.iter().enumerate() {
@@ -5488,13 +5474,13 @@ fn for_each_axis_lane<Scalar, const MAX_RANK: usize, Kernel>(
     }
 }
 
-/// Byte offset of the `flat_index`-th logical element, row-major over `shape`,
-/// inside a container whose per-axis byte `strides` are given.
+/// Byte offset of the `flat_index`-th logical element, row-major over `shape`, inside a container
+/// whose per-axis byte `strides` are given.
 ///
-/// Reduction `_into` kernels enumerate output lanes with a flat row-major
-/// counter; when the destination is a strided sub-span rather than a dense
-/// owned tensor, that counter must be re-expanded into multi-dimensional
-/// coordinates and re-projected through the destination's strides.
+/// Reduction `_into` kernels enumerate output lanes with a flat row-major counter; when the
+/// destination is a strided sub-span rather than a dense owned tensor, that counter must be
+/// re-expanded into multi-dimensional coordinates and re-projected through the destination's
+/// per-axis strides.
 #[inline]
 fn logical_index_byte_offset(flat_index: usize, shape: &[usize], strides: &[isize]) -> isize {
     let mut remaining = flat_index;
@@ -5898,17 +5884,16 @@ where
 
 // region: TensorSpan In-Place Elementwise Operations
 //
-// In-place mutation operates *through the mutable span* on its own storage. Each
-// closure forms at most a single `&mut [T]` over the target, derived from the span's
-// own pointer, and, for binary ops, a disjoint `&[T]` over `other`. No fabricated
-// read-view aliases the span's storage, so no overlapping `&[T]` + `&mut [T]` is ever
-// constructed — sound under Stacked/Tree Borrows.
+// In-place mutation operates _through the mutable span_ on its own storage. Each closure forms at
+// most a single `&mut [T]` over the target, derived from the span's own pointer, and, for binary
+// ops, a disjoint `&[T]` over `other`. No fabricated read-view aliases the span's storage, so no
+// overlapping `&[T]` + `&mut [T]` is ever constructed — sound under Stacked/Tree Borrows.
 
 impl<'a, Scalar: Clone + EachScale, const MAX_RANK: usize> TensorSpan<'a, Scalar, MAX_RANK>
 where
     Scalar::Scalar: From<f32> + core::ops::Mul<Output = Scalar::Scalar> + Copy,
 {
-    /// In-place affine: `self[i] = alpha * self[i] + beta`.
+    /// In-place affine: selfᵢ = α × selfᵢ + β.
     pub fn scale_inplace(&mut self, alpha: Scalar::Scalar, beta: Scalar::Scalar) {
         let ptr = self.data;
         let ndim = self.ndim;
@@ -5926,24 +5911,24 @@ where
         }
     }
 
-    /// In-place add scalar: `self[i] = self[i] + scalar`.
+    /// In-place add scalar: selfᵢ = selfᵢ + scalar.
     pub fn add_scalar_inplace(&mut self, scalar: Scalar::Scalar) {
         self.scale_inplace(Scalar::Scalar::from(1.0f32), scalar);
     }
 
-    /// In-place subtract scalar: `self[i] = self[i] - scalar`.
+    /// In-place subtract scalar: selfᵢ = selfᵢ − scalar.
     pub fn sub_scalar_inplace(&mut self, scalar: Scalar::Scalar) {
         self.scale_inplace(Scalar::Scalar::from(1.0f32), Scalar::Scalar::from(-1.0f32) * scalar);
     }
 
-    /// In-place multiply scalar: `self[i] = self[i] * scalar`.
+    /// In-place multiply scalar: selfᵢ = selfᵢ × scalar.
     pub fn mul_scalar_inplace(&mut self, scalar: Scalar::Scalar) {
         self.scale_inplace(scalar, Scalar::Scalar::from(0.0f32));
     }
 }
 
 impl<'a, Scalar: Clone + EachSum, const MAX_RANK: usize> TensorSpan<'a, Scalar, MAX_RANK> {
-    /// In-place sum: `self[i] = self[i] + other[i]`.
+    /// In-place sum: selfᵢ = selfᵢ + otherᵢ.
     pub fn add_inplace(&mut self, other: &TensorView<'_, Scalar, MAX_RANK>) -> Result<(), TensorError> {
         validate_same_shape(self.shape(), other.shape())?;
         let ptr = self.data;
@@ -5971,7 +5956,7 @@ impl<'a, Scalar: Clone + EachBlend, const MAX_RANK: usize> TensorSpan<'a, Scalar
 where
     Scalar::Scalar: From<f32> + Copy,
 {
-    /// In-place subtract tensor: `self[i] = self[i] - other[i]`.
+    /// In-place subtract tensor: selfᵢ = selfᵢ − otherᵢ.
     pub fn sub_inplace(&mut self, other: &TensorView<'_, Scalar, MAX_RANK>) -> Result<(), TensorError> {
         validate_same_shape(self.shape(), other.shape())?;
         let ptr = self.data;
@@ -6003,11 +5988,11 @@ impl<'a, Scalar: Clone + EachFMA, const MAX_RANK: usize> TensorSpan<'a, Scalar, 
 where
     Scalar::Scalar: From<f32> + Copy,
 {
-    /// In-place multiply tensor: `self[i] = self[i] * other[i]`.
+    /// In-place multiply tensor: selfᵢ = selfᵢ × otherᵢ.
     ///
-    /// Mirrors out-of-place `mul_tensor`, which is an FMA with `c = self` and
-    /// `alpha = 1`, `beta = 0`. The `c` operand is bound to `self` inside the
-    /// kernel via the single span pointer, so `other` remains the only foreign slice.
+    /// Mirrors out-of-place `mul_tensor`, which is an FMA with `c = self` and `alpha = 1`, `beta =
+    /// 0`. The `c` operand is bound to `self` inside the kernel via the single span pointer, so
+    /// `other` remains the only foreign slice.
     pub fn mul_inplace(&mut self, other: &TensorView<'_, Scalar, MAX_RANK>) -> Result<(), TensorError> {
         validate_same_shape(self.shape(), other.shape())?;
         let ptr = self.data;
@@ -6036,7 +6021,7 @@ where
 }
 
 impl<'a, Scalar: Clone + TrigSin, const MAX_RANK: usize> TensorSpan<'a, Scalar, MAX_RANK> {
-    /// In-place sine: `self[i] = sin(self[i])`.
+    /// In-place sine: selfᵢ = sin(selfᵢ).
     pub fn sin_inplace(&mut self) {
         let ptr = self.data;
         let ndim = self.ndim;
@@ -6056,7 +6041,7 @@ impl<'a, Scalar: Clone + TrigSin, const MAX_RANK: usize> TensorSpan<'a, Scalar, 
 }
 
 impl<'a, Scalar: Clone + TrigCos, const MAX_RANK: usize> TensorSpan<'a, Scalar, MAX_RANK> {
-    /// In-place cosine: `self[i] = cos(self[i])`.
+    /// In-place cosine: selfᵢ = cos(selfᵢ).
     pub fn cos_inplace(&mut self) {
         let ptr = self.data;
         let ndim = self.ndim;
@@ -6076,7 +6061,7 @@ impl<'a, Scalar: Clone + TrigCos, const MAX_RANK: usize> TensorSpan<'a, Scalar, 
 }
 
 impl<'a, Scalar: Clone + TrigAtan, const MAX_RANK: usize> TensorSpan<'a, Scalar, MAX_RANK> {
-    /// In-place arctangent: `self[i] = atan(self[i])`.
+    /// In-place arctangent: selfᵢ = atan(selfᵢ).
     pub fn atan_inplace(&mut self) {
         let ptr = self.data;
         let ndim = self.ndim;
@@ -6391,7 +6376,7 @@ impl<'a, Source: Clone + CastDType, const MAX_RANK: usize> TensorView<'a, Source
     }
 }
 
-// endregion: Tensor Explicit Elementwise + Cast (ScaleOps/SumOps/BlendOps/FmaOps/CastOps moved to crate::each / crate::cast)
+// endregion: Tensor Explicit Elementwise + Cast
 
 // region: Tensor Trigonometry
 
@@ -6831,8 +6816,8 @@ use crate::cast::BlockScaledFormat;
 ///   scale byte per block, and
 /// - `tensor_scale`: an `Option<f32>` per-tensor multiplier (`Some` for NVFP4, `None` for MX).
 ///
-/// This composes the existing tensor family rather than introducing a parallel hierarchy; the
-/// scale newtypes ([`crate::Ue4m3`] / [`crate::Ue8m0`]) and the packed element scalars are plain
+/// This composes the existing tensor family rather than introducing a parallel hierarchy; the scale
+/// newtypes ([`crate::Ue4m3`] / [`crate::Ue8m0`]) and the packed element scalars are plain
 /// [`StorageElement`]s. Construct one with `dense.view().try_cast_to_scaled::<F>()` and decode it
 /// back with `scaled.view().try_cast::<f32>()`.
 #[derive(Debug)]
@@ -6849,7 +6834,7 @@ impl<F: BlockScaledFormat, A: Allocator> ScaledTensor<F, A> {
     /// public so callers holding pre-quantized buffers can wrap them without a re-encode.
     ///
     /// Both parts must agree, because nothing downstream re-checks them: decoding derives the scale
-    /// count from the *elements* shape alone and hands the scales pointer to the kernel, so a
+    /// count from the _elements_ shape alone and hands the scales pointer to the kernel, so a
     /// `block_scales` shorter than that shape is read past its end. Whether a per-tensor multiplier
     /// exists at all is fixed by the format rather than the caller, so a mismatch there is rejected
     /// too — its value, for the formats that have one, is genuine data.
@@ -6911,11 +6896,11 @@ impl<F: BlockScaledFormat, A: Allocator> ScaledTensor<F, A> {
         }
     }
 
-    /// Allocated element-storage capacity of the packed `elements` buffer (`F::Element` slots) — the
-    /// ceiling a coordinated [`try_resize`](Self::try_resize) honors.
+    /// Allocated element-storage capacity of the packed `elements` buffer (`F::Element` slots) —
+    /// the ceiling a coordinated [`try_resize`](Self::try_resize) honors.
     pub fn capacity(&self) -> usize { self.elements.capacity() }
 
-    /// Derive the paired scales shape for an element `shape` (last axis counted in blocks).
+    /// Derive the paired scales shape for an element `shape`, with the last axis counted in blocks.
     fn scales_shape_into(shape: &[usize], out: &mut [usize]) -> Result<usize, TensorError> {
         let (&last, leading) = shape
             .split_last()
@@ -6935,9 +6920,9 @@ impl<F: BlockScaledFormat, A: Allocator> ScaledTensor<F, A> {
         Ok(shape.len())
     }
 
-    /// Resize the packed elements and the per-block scales in lockstep, without moving either buffer.
+    /// Resize the packed elements and the per-block scales in lockstep, moving neither buffer.
     ///
-    /// Atomic: fails leaving both children unchanged if EITHER would exceed its capacity — call
+    /// Atomic: fails leaving both children unchanged if either would exceed its capacity — call
     /// [`try_reserve`](Self::try_reserve) first to grow.
     pub fn try_resize(&mut self, new_shape: &[usize]) -> Result<(), TensorError> {
         let mut scales_buf = [0usize; DEFAULT_MAX_RANK];
@@ -6967,7 +6952,7 @@ impl<F: BlockScaledFormat, A: Allocator> ScaledTensor<F, A> {
         Ok(())
     }
 
-    /// Grow both children's capacity to hold `new_shape` (and its paired scales), reallocating if
+    /// Grow both children's capacity to hold `new_shape` and its paired scales, reallocating if
     /// needed. May move storage. A no-op when already large enough.
     pub fn try_reserve(&mut self, new_shape: &[usize]) -> Result<(), TensorError> {
         let mut scales_buf = [0usize; DEFAULT_MAX_RANK];
@@ -7006,8 +6991,8 @@ impl<'a, F: BlockScaledFormat> ScaledTensorView<'a, F> {
     /// Logical `(rows, columns)` shape.
     pub fn shape(&self) -> &[usize] { self.elements.shape() }
 
-    /// Borrow leading-axis index `i` as a new [`ScaledTensorView`], slicing BOTH sub-tensors in
-    /// lockstep and keeping the rank — the leading extent becomes 1, so the last axis stays present.
+    /// Borrow leading-axis index `i` as a new [`ScaledTensorView`], slicing both sub-tensors in
+    /// lockstep and keeping the rank, with the leading extent reduced to 1 rather than dropped.
     pub fn row(&self, i: usize) -> Result<ScaledTensorView<'a, F>, TensorError> { self.rows(i, i + 1) }
 
     /// Slice a contiguous leading-axis range `start..end`, slicing BOTH sub-tensors in lockstep.

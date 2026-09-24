@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Set Similarity Measures for Power ISA VSX.
  *  @file include/numkong/set/powervsx.h
  *  @author Ash Vardanian
  *  @date March 23, 2026
+ *  @brief SIMD-accelerated set similarity measures for Power ISA VSX.
  *
  *  @sa include/numkong/set.h
  *
@@ -10,16 +10,18 @@
  *
  *  Key Power9 VSX instructions for binary/bitwise operations:
  *
- *      Intrinsic      Instruction          P9
- *      vec_popcnt     vpopcntb/h/w/d       2cy @ 2p    element-wise popcount
- *      vec_xor        xxlxor               1cy @ 4p
- *      vec_and        xxland               1cy @ 4p
- *      vec_or         xxlor                1cy @ 4p
- *      vec_cmpne      vcmpneb/h/w          2cy @ 2p    byte/half/word not-equal
- *      vec_xl_len     lxvll                6cy @ 1p    partial vector load
+ *  @verbatim
+ *  Intrinsic      Instruction          P9
+ *  vec_popcnt     vpopcntb/h/w/d       2cy @ 2p    element-wise popcount
+ *  vec_xor        xxlxor               1cy @ 4p
+ *  vec_and        xxland               1cy @ 4p
+ *  vec_or         xxlor                1cy @ 4p
+ *  vec_cmpne      vcmpneb/h/w          2cy @ 2p    byte/half/word not-equal
+ *  vec_xl_len     lxvll                6cy @ 1p    partial vector load
+ *  @endverbatim
  *
- *  Power9 has native doubleword `vpopcntd` instruction, providing efficient SIMD popcount
- *  with minimal data flow complexity. `vec_xl_len` enables branchless tail handling.
+ *  Power9 has native doubleword @c vpopcntd instruction, providing efficient SIMD popcount with
+ *  minimal data flow complexity. @c vec_xl_len enables branchless tail handling.
  *
  *  @section set_powervsx_stateful Stateful Streaming Logic
  *
@@ -28,7 +30,7 @@
  *  - nk_hamming_u1x128_state_powervsx_t for streaming Hamming distance
  *  - nk_jaccard_u1x128_state_powervsx_t for streaming Jaccard similarity
  *
- *  @code{c}
+ *  @code{.c}
  *  nk_jaccard_u1x128_state_powervsx_t state_first, state_second, state_third, state_fourth;
  *  nk_jaccard_u1x128_init_powervsx(&state_first);
  *  // ... stream through packed binary vectors ...

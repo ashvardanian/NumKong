@@ -1,20 +1,22 @@
 /**
- *  @brief SIMD-accelerated Scalar Math Helpers for NEON.
  *  @file include/numkong/scalar/neon.h
  *  @author Ash Vardanian
  *  @date March 1, 2026
+ *  @brief SIMD-accelerated scalar math helpers for NEON.
  *
  *  @sa include/numkong/scalar.h
  *
  *  @section scalars_neon_instructions Key NEON Scalar Instructions
  *
- *      Intrinsic  Instruction         A76        M5
- *      vsqrt_f32  FSQRT (S)           12cy @ 1p  9cy @ 1p
- *      vsqrt_f64  FSQRT (D)           12cy @ 1p  9cy @ 1p
- *      vfmas_f32  FMADD (S, S, S, S)  4cy @ 2p   3cy @ 4p
- *      vfmad_f64  FMADD (D, D, D, D)  4cy @ 2p   3cy @ 4p
- *      vqaddb_u8  UQADD (B)           2cy @ 2p   3cy @ 2p
- *      vqaddb_s8  SQADD (B)           2cy @ 2p   3cy @ 2p
+ *  @verbatim
+ *  Intrinsic  Instruction         A76        M5
+ *  vsqrt_f32  FSQRT (S)           12cy @ 1p  9cy @ 1p
+ *  vsqrt_f64  FSQRT (D)           12cy @ 1p  9cy @ 1p
+ *  vfmas_f32  FMADD (S, S, S, S)  4cy @ 2p   3cy @ 4p
+ *  vfmad_f64  FMADD (D, D, D, D)  4cy @ 2p   3cy @ 4p
+ *  vqaddb_u8  UQADD (B)           2cy @ 2p   3cy @ 2p
+ *  vqaddb_s8  SQADD (B)           2cy @ 2p   3cy @ 2p
+ *  @endverbatim
  */
 #ifndef NK_SCALAR_NEON_H
 #define NK_SCALAR_NEON_H

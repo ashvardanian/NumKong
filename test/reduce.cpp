@@ -1,8 +1,8 @@
 /**
- *  @brief Reduction tests.
  *  @file test/reduce.cpp
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief Reduction tests.
  */
 
 #include "test.hpp"
@@ -66,9 +66,7 @@ error_stats_t test_reduce_minmax(typename input_type_::reduce_minmax_kernel_t ke
     return stats;
 }
 
-/**
- *  @brief Known-value test for the vector-shaped reduction wrappers.
- */
+/** Known-value test for the vector-shaped reduction wrappers. */
 inline error_stats_t test_vector_reductions() {
     // Known values, not `assert` — Release defines `NDEBUG`, which would delete the checks.
     error_stats_t stats(comparison_family_t::exact_k);

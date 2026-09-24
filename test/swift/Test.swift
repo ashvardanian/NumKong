@@ -1,7 +1,9 @@
-//  Test.swift
-//  NumKong
 //
-//  Created by Ash Vardanian on March 14, 2026.
+//  test/swift/Test.swift
+//  XCTest correctness tests for the NumKong Swift bindings.
+//
+//  - Author: Ash Vardanian
+//  - Date: March 14, 2026
 //
 
 import NumKong

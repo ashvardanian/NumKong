@@ -1,8 +1,8 @@
 /**
- *  @brief Batched Spatial Distances for LoongArch LASX (256-bit).
  *  @file include/numkong/spatials/loongsonasx.h
  *  @author Ash Vardanian
  *  @date March 23, 2026
+ *  @brief Batched spatial distances for LoongArch LASX, 256-bit.
  *
  *  @sa include/numkong/spatials.h
  */

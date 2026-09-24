@@ -1,18 +1,21 @@
 /**
- *  @brief Backend-neutral cross-kernel benchmarks: batched dots, angular and euclidean distances, ragged attention.
  *  @file bench/cross.cuh
  *  @author Ash Vardanian
  *  @date September 23, 2026
+ *  @brief Backend-neutral cross-kernel benchmarks: batched dots, angular and euclidean distances,
+ *      and ragged attention.
  *
- *  Every driver is a template over the input dtype, its kernels, and a backend owning where operands live, how a kernel
- *  is called, and when its results become readable. The benchmarks extend the backends of `test/` with how a window of
- *  calls is timed: `host_backend_t` under Google Benchmark's wall time, the CUDA benchmark's under CUDA events.
+ *  Every driver is a template over the input dtype, its kernels, and a backend owning where
+ *  operands live, how a kernel is called, and when its results become readable. The benchmarks
+ *  extend the backends of `test/` with how a window of calls is timed: @c host_backend_t under
+ *  Google Benchmark's wall time, the CUDA benchmark's under CUDA events.
  *
- *  Input sets rotate, as many as the backend asks for, so a small problem does not time a cache-resident replay.
- *  Matrix rows report `scalar-ops` and, against a double-double reference over up to 4096 sampled entries of the
- *  first set, `ulp` in the output's own precision for floats or `exact` as the share of exact integer results.
- *  Attention rows report `tokens` as queries and `flops` as the 4 · depth operations per visible query-key pair and
- *  head, so a masked row is not credited for the keys it skips.
+ *  Input sets rotate, as many as the backend asks for, so a small problem does not time a
+ *  cache-resident replay. Matrix rows report `scalar-ops` and, against a double-double reference
+ *  over up to 4096 sampled entries of the first set, @c ulp in the output's own precision for
+ *  floats or @c exact as the share of exact integer results. Attention rows report @c tokens as
+ *  queries and @c flops as the 4 · depth operations per visible query-key pair and head, so a
+ *  masked row is not credited for the keys it skips.
  */
 #pragma once
 #ifndef NK_BENCH_CROSS_CUH
@@ -38,25 +41,29 @@ namespace ashvardanian::numkong::bench {
 
 #pragma region Backend Policy
 
-/** Attention visibility: every key, the keys up to the query's own position, or the last 1024 of those. */
+/** Attention visibility: every key, the keys up to the query's own position, or the last 1024 of
+ *  those. */
 enum class attention_visibility_t { bidirectional_k, causal_k, causal_window_1024_k };
 
-/** One timed attention segment: queries at the end of a cache of keys, with query heads grouped over K and V heads. */
+/** One timed attention segment: @c label appends to the row name when set, the rest are per-token
+ *  counts, queries at the end of a cache of @c keys with heads grouped over K and V. */
 struct attention_shape_t {
-    char const *label;                ///< appended to the row name when non-empty
-    std::size_t head_count;           ///< query heads per token
-    std::size_t key_value_head_count; ///< key and value heads per token
-    std::size_t depth;                ///< elements per head
-    std::size_t queries;              ///< query rows in the segment
-    std::size_t keys;                 ///< key rows in the segment
+    char const *label;
+    std::size_t head_count;
+    std::size_t key_value_head_count;
+    std::size_t depth;
+    std::size_t queries;
+    std::size_t keys;
 };
 
 /** The shared host backend, timed by Google Benchmark's wall clock. */
 struct host_backend_t : test::host_backend_t {
+
     /** Rotation sets of @p bytes_per_set each: as many as the memory budget holds, up to 1024. */
     std::size_t input_sets(std::size_t bytes_per_set) const noexcept { return bench_input_count(bytes_per_set); }
 
-    /** One shape from the matrix config: keys from its height, head depth from its width, queries from its depth. */
+    /** One shape from the matrix config: keys from its height, head depth from its width, queries
+     *  from its depth. */
     static std::vector<attention_shape_t> attention_shapes() {
         return {{"", 8, 8, bench_config.matrix_width, bench_config.matrix_depth, bench_config.matrix_height}};
     }
@@ -88,7 +95,8 @@ nk::vector<value_type_, typename backend_type_::template allocator<value_type_>>
     return destination;
 }
 
-/** Launches set 0 once, then times @p launch over rotating sets; returns the call count, or zero once skipped. */
+/** Launches set 0 once, then times @p launch over rotating sets; returns the call count, or zero
+ *  once skipped. */
 template <typename backend_type_, typename launch_type_>
 std::size_t time_rotating(bm::State &state, backend_type_ &backend, std::size_t sets_count, launch_type_ launch) {
     launch(std::size_t(0));
@@ -126,7 +134,8 @@ inline std::uint64_t ulp_distance_f64(double first, double second) noexcept {
                                      : std::uint64_t(second_bits) - std::uint64_t(first_bits);
 }
 
-/** Σ first[i] × second[i] in double-double: exact products through FMA, error-free sums, one final rounding. */
+/** Σ first[i] × second[i] in double-double: exact products through FMA, error-free sums, one final
+ *  rounding. */
 inline double dot_double_double(double const *first, double const *second, std::size_t count) noexcept {
     double high = 0, low = 0;
     for (std::size_t index = 0; index != count; ++index) {
@@ -139,13 +148,14 @@ inline double dot_double_double(double const *first, double const *second, std::
     return high + low;
 }
 
-/** What a matrix row computes between two input rows, and so which reference it is judged against. */
+/** What a matrix row computes between two rows, and so which reference it's judged against. */
 enum class reference_metric_t { dot_k, angular_k, euclidean_k };
 
 /** Which C entries a kernel writes, and so which ones its accuracy is measured on. */
 enum class written_entries_t { full_k, upper_triangle_k, strict_upper_triangle_k };
 
-/** The reference between two decoded rows in double-double, with the serial backends' zero-norm rule and clamps. */
+/** The reference between two decoded rows in double-double, with the serial backends' zero-norm
+ *  rule and clamps. */
 inline double reference_distance(reference_metric_t metric, double const *first, double const *second,
                                  std::size_t count) noexcept {
     double const dot = dot_double_double(first, second, count);
@@ -157,10 +167,9 @@ inline double reference_distance(reference_metric_t metric, double const *first,
     return std::max(0.0, 1 - dot / std::sqrt(first_norm) / std::sqrt(second_norm));
 }
 
-/**
- *  Random A and B of `height` and `width` rows of @p depth dimensions under one seed: A at @p backend_type_'s row
- *  stride and zero past each row's end, B dense. A matrix whose allocation failed comes back empty.
- */
+/** Random A and B of @p height and @p width rows of @p depth dimensions under one seed: A at @p
+ *  backend_type_'s row stride and zero past each row's end, B dense. A matrix whose allocation
+ *  failed comes back empty. */
 template <nk_dtype_t input_dtype_, typename backend_type_>
 std::array<nk::tensor<typename nk::type_for<input_dtype_>::type,
                       nk::aligned_allocator<typename nk::type_for<input_dtype_>::type>, 2>,
@@ -183,10 +192,8 @@ random_matrices(std::size_t height, std::size_t width, std::size_t depth) {
     return matrices;
 }
 
-/**
- *  Accuracy of @p c against the reference over its written entries, or 4096 sampled ones: mean ULP in the output's
- *  precision for floats, share of exact matches for integers.
- */
+/** Accuracy of @p c against the reference over its written entries, or 4096 sampled ones: mean ULP
+ *  in the output's precision for floats, share of exact matches for integers. */
 template <nk_dtype_t input_dtype_, typename output_type_, typename backend_type_>
 double sampled_accuracy(backend_type_ &backend,
                         nk::vector<output_type_, typename backend_type_::template allocator<output_type_>> const &c,
@@ -220,7 +227,7 @@ double sampled_accuracy(backend_type_ &backend,
     return score_sum / double(std::max(measured, std::size_t(1)));
 }
 
-/** Fills `scalar-ops` and `calls`, and `exact` for integer outputs or `ulp` for floating ones. */
+/** Fills `scalar-ops` and @p calls, and @c exact for integer outputs or @c ulp for floats. */
 template <typename output_type_>
 void report_matrix(bm::State &state, std::size_t calls, double scalar_ops_per_call, double score) {
     state.counters["scalar-ops"] = bm::Counter(double(calls) * scalar_ops_per_call, bm::Counter::kIsRate);
@@ -232,20 +239,24 @@ void report_matrix(bm::State &state, std::size_t calls, double scalar_ops_per_ca
 
 #pragma region Matrices
 
-/** A, B packed or dense, and C for one rotation slot in @p backend_type_ memory. */
+/** A at the stride it was generated with, B as the pack kernel laid it out or dense rows, and C as
+ *  the output, for one rotation slot in @p backend_type_ memory. */
 template <typename backend_type_, typename output_type_>
 struct matrix_set {
+
     /** Bytes in backend memory. */
     using bytes_t = nk::vector<char, typename backend_type_::template allocator<char>>;
+
     /** Outputs in backend memory. */
     using outputs_t = nk::vector<output_type_, typename backend_type_::template allocator<output_type_>>;
 
-    bytes_t a;   ///< A at the stride it was generated with
-    bytes_t b;   ///< B as the pack kernel laid it out, or dense rows
-    outputs_t c; ///< the output matrix
+    bytes_t a;
+    bytes_t b;
+    outputs_t c;
 };
 
-/** Times a packed-B kernel, C = A × Bᵀ or a distance over the same tile, against its @p metric reference. */
+/** Times a packed-B kernel, C = A × Bᵀ or a distance over the same tile, against its @p metric
+ *  reference. */
 template <nk_dtype_t input_dtype_, typename output_type_, typename backend_type_, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename kernel_type_>
 void measure_packed(bm::State &state, reference_metric_t metric, pack_size_kernel_type_ packed_size_fn,
@@ -284,10 +295,8 @@ void measure_packed(bm::State &state, reference_metric_t metric, pack_size_kerne
     report_matrix<output_type_>(state, calls, 2.0 * height * width * depth, score);
 }
 
-/**
- *  Times a symmetric kernel over A × Aᵀ, judged on the upper triangle: with the diagonal for dots, without it for
- *  distances. `scalar-ops` counts the triangle's height · (height + 1) · depth.
- */
+/** Times a symmetric kernel over A × Aᵀ, judged on the upper triangle: with the diagonal for dots,
+ *  without it for distances. `scalar-ops` counts the triangle's height · (height + 1) · depth. */
 template <nk_dtype_t input_dtype_, typename output_type_, typename backend_type_, typename kernel_type_>
 void measure_symmetric(bm::State &state, reference_metric_t metric, kernel_type_ kernel, std::size_t height,
                        std::size_t depth) {
@@ -427,7 +436,8 @@ inline double attention_visible_pairs(attention_visibility_t visibility, attenti
     return pairs;
 }
 
-/** Fills `tokens` with queries per second, `flops` with the visible 4 · depth work per pair and head, and `calls`. */
+/** Fills @c tokens with queries per second, @c flops with the visible 4 · depth work per pair and
+ *  head, and @p calls. */
 inline void report_attention(bm::State &state, std::size_t calls, attention_visibility_t visibility,
                              attention_shape_t shape) {
     double const flops_per_call = 4.0 * double(shape.depth * shape.head_count) *
@@ -437,7 +447,8 @@ inline void report_attention(bm::State &state, std::size_t calls, attention_visi
     state.counters["calls"] = bm::Counter(double(calls), bm::Counter::kIsRate);
 }
 
-/** Queries, keys and values of @p shape in [-1, 1], or [-32, 32] for integers, identical for every backend. */
+/** Queries, keys and values of @p shape in [-1, 1], or [-32, 32] for integers, identical for every
+ *  backend. */
 template <nk_dtype_t input_dtype_>
 std::array<nk::vector<typename nk::type_for<input_dtype_>::type>, 3> random_attention(attention_shape_t shape) {
     using input_t = typename nk::type_for<input_dtype_>::type;
@@ -451,7 +462,8 @@ std::array<nk::vector<typename nk::type_for<input_dtype_>::type>, 3> random_atte
     return inputs;
 }
 
-/** Packs the keys and values of the one segment of @p shape, whose @p directory holds key offsets then lengths. */
+/** Packs the keys and values of the one segment of @p shape, whose @p directory holds key offsets
+ *  then lengths. */
 template <typename backend_type_, typename pack_kernel_type_, typename raw_type_>
 void attention_pack(backend_type_ &backend, pack_kernel_type_ pack_fn, attention_shape_t shape, raw_type_ const *keys,
                     raw_type_ const *values, nk_u32_t const *directory, void *packed) {
@@ -460,7 +472,8 @@ void attention_pack(backend_type_ &backend, pack_kernel_type_ pack_fn, attention
                  std::size_t(1), key_stride, key_stride, packed, std::size_t(0), shape.key_value_head_count);
 }
 
-/** Runs @p attention_fn over the one segment of @p shape under @p visibility_, queries aligned to the keys' end. */
+/** Runs @p attention_fn over the one segment of @p shape under @p visibility_, queries aligned to
+ *  the keys' end. */
 template <attention_visibility_t visibility_, typename backend_type_, typename attention_kernel_type_,
           typename raw_type_>
 void attend(backend_type_ &backend, attention_kernel_type_ attention_fn, attention_shape_t shape,
@@ -477,22 +490,27 @@ void attend(backend_type_ &backend, attention_kernel_type_ attention_fn, attenti
                      attention_window(visibility_), std::size_t(0), shape.head_count);
 }
 
-/** Queries, the packed cache and the output for one rotation slot in @p backend_type_ memory. */
+/** Queries, the packed key/value cache, and one F32-row-per-query output, for one rotation slot in
+ *  @p backend_type_ memory. */
 template <typename backend_type_, typename input_type_>
 struct attention_set {
+
     /** Queries in backend memory. */
     using queries_t = nk::vector<input_type_, typename backend_type_::template allocator<input_type_>>;
+
     /** Bytes in backend memory. */
     using bytes_t = nk::vector<char, typename backend_type_::template allocator<char>>;
+
     /** Outputs in backend memory. */
     using outputs_t = nk::vector<nk::f32_t, typename backend_type_::template allocator<nk::f32_t>>;
 
-    queries_t queries; ///< the segment's query rows
-    bytes_t packed;    ///< keys and values as the pack kernel laid them out
-    outputs_t output;  ///< one F32 row per query
+    queries_t queries;
+    bytes_t packed;
+    outputs_t output;
 };
 
-/** Times one segment of @p shape under @p visibility_: pack once per set, then attention calls over rotating sets. */
+/** Times one segment of @p shape under @p visibility_: pack once per set, then attention calls over
+ *  rotating sets. */
 template <nk_dtype_t input_dtype_, attention_visibility_t visibility_, typename backend_type_,
           typename pack_size_kernel_type_, typename pack_kernel_type_, typename attention_kernel_type_>
 void measure_attention(bm::State &state, pack_size_kernel_type_ packed_size_fn, pack_kernel_type_ pack_fn,

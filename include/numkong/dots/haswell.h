@@ -1,24 +1,26 @@
 /**
- *  @brief SIMD-accelerated Batched Dot Products for Haswell.
  *  @file include/numkong/dots/haswell.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated Batched Dot Products for Haswell.
  *
  *  @sa include/numkong/dots.h
  *
  *  @section haswell_dots_instructions Key AVX2/FMA GEMM Instructions
  *
- *      Intrinsic           Instruction               Haswell    Genoa
- *      _mm256_fmadd_ps/pd  VFMADD (YMM, YMM, YMM)    5cy @ p01  4cy @ p01
- *      _mm256_mul_ps       VMULPS (YMM, YMM, YMM)    5cy @ p01  3cy @ p01
- *      _mm256_add_ps       VADDPS (YMM, YMM, YMM)    3cy @ p01  3cy @ p23
- *      _mm256_cvtph_ps     VCVTPH2PS (YMM, XMM)      5cy @ p01  4cy @ p12+p23
- *      _mm256_madd_epi16   VPMADDWD (YMM, YMM, YMM)  5cy @ p01  3cy @ p01
+ *  @verbatim
+ *  Intrinsic           Instruction               Haswell    Genoa
+ *  _mm256_fmadd_ps/pd  VFMADD (YMM, YMM, YMM)    5cy @ p01  4cy @ p01
+ *  _mm256_mul_ps       VMULPS (YMM, YMM, YMM)    5cy @ p01  3cy @ p01
+ *  _mm256_add_ps       VADDPS (YMM, YMM, YMM)    3cy @ p01  3cy @ p23
+ *  _mm256_cvtph_ps     VCVTPH2PS (YMM, XMM)      5cy @ p01  4cy @ p12+p23
+ *  _mm256_madd_epi16   VPMADDWD (YMM, YMM, YMM)  5cy @ p01  3cy @ p01
+ *  @endverbatim
  *
  *  GEMM kernels use tiled dot products with 4-way parallel accumulation to hide FMA latency.
- *  Type-specific tile sizes: f32/f64 use depth_simd_dimensions=4, f16/bf16 use depth_simd_dimensions=8,
- *  i8/u8/fp8 use depth_simd_dimensions=16. Integer dot products use VPMADDWD for efficient i16 pair
- *  multiplication with i32 accumulation.
+ *  Type-specific tile sizes: f32/f64 use depth_simd_dimensions=4, f16/bf16 use
+ *  depth_simd_dimensions=8, i8/u8/fp8 use depth_simd_dimensions=16. Integer dot products use
+ *  VPMADDWD for efficient i16 pair multiplication with i32 accumulation.
  */
 #ifndef NK_DOTS_HASWELL_H
 #define NK_DOTS_HASWELL_H

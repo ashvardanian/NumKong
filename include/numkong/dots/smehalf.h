@@ -1,23 +1,24 @@
 /**
- *  @brief SIMD-accelerated Batched Dot Products for SME FP16.
  *  @file include/numkong/dots/smehalf.h
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief SIMD-accelerated Batched Dot Products for SME FP16.
  *
- *  Implements hierarchical accumulation for E2M3 and E3M2 dot products:
- *  convert to FP16, accumulate products into FP16 ZA tiles, periodically
- *  widen to FP32 to preserve precision.
+ *  Implements hierarchical accumulation for E2M3 and E3M2 dot products: convert to FP16, accumulate
+ *  products into FP16 ZA tiles, periodically widen to FP32 to preserve precision.
  *
- *  E2M3 and E3M2 are ideal for FP16 intermediate accumulation because their
- *  limited dynamic range (max ±7.5 and ±28) guarantees no single product
- *  can overflow FP16. The only constraint is mantissa precision:
+ *  E2M3 and E3M2 are ideal for FP16 intermediate accumulation because their limited dynamic range,
+ *  max ±7.5 and ±28, guarantees no single product overflows FP16; only mantissa precision limits
+ *  how many accumulate:
  *
- *      Format   Max Product   FP16 Headroom   Safe Accumulations
- *      E2M3     7.5² = 56     11 - 7 bits     2^4 = 16 products
- *      E3M2     28² = 784     11 - 5 bits     2^6 = 64 products
+ *  @verbatim
+ *  Format   Max Product   FP16 Headroom   Safe Accumulations
+ *  E2M3     7.5² = 56     11 - 7 bits     2^4 = 16 products
+ *  E3M2     28² = 784     11 - 5 bits     2^6 = 64 products
+ *  @endverbatim
  *
- *  The implementation uses FMOPA (f16→f32) for high throughput, widening
- *  to FP32 every 16 (E2M3) or 64 (E3M2) depth steps.
+ *  The implementation uses FMOPA, f16 → f32, for high throughput, widening to FP32 every 16 E2M3 or
+ *  64 E3M2 depth steps.
  *
  *  Requires: SME with FEAT_SME_F16F16 for native FP16 outer products.
  *

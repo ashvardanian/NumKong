@@ -1,36 +1,38 @@
 /**
- *  @brief SIMD-accelerated Dot Products for SVE.
  *  @file include/numkong/dot/sve.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated dot products for SVE.
  *
  *  @sa include/numkong/dot.h
  *
  *  @section dot_sve_instructions ARM SVE Instructions
  *
- *      Intrinsic      Instruction                V1
- *      svld1_f32      LD1W (Z.S, P/Z, [Xn])      4-6cy @ 2p
- *      svld2_f32      LD2W (Z.S, P/Z, [Xn])      6-8cy @ 1p
- *      svmla_f32_x    FMLA (Z.S, P/M, Z.S, Z.S)  4cy @ 2p
- *      svmls_f32_x    FMLS (Z.S, P/M, Z.S, Z.S)  4cy @ 2p
- *      svaddv_f32     FADDV (S, P, Z.S)          6cy @ 1p
- *      svdup_f32      DUP (Z.S, #imm)            1cy @ 2p
- *      svwhilelt_b32  WHILELT (P.S, Xn, Xm)      2cy @ 1p
- *      svptrue_b32    PTRUE (P.S, pattern)       1cy @ 2p
- *      svcntw         CNTW (Xd)                  1cy @ 2p
- *      svcntd         CNTD (Xd)                  1cy @ 2p
- *      svld1_f64      LD1D (Z.D, P/Z, [Xn])      4-6cy @ 2p
- *      svld2_f64      LD2D (Z.D, P/Z, [Xn])      6-8cy @ 1p
- *      svmla_f64_x    FMLA (Z.D, P/M, Z.D, Z.D)  4cy @ 2p
- *      svmls_f64_x    FMLS (Z.D, P/M, Z.D, Z.D)  4cy @ 2p
- *      svaddv_f64     FADDV (D, P, Z.D)          6cy @ 1p
+ *  @verbatim
+ *  Intrinsic      Instruction                V1
+ *  svld1_f32      LD1W (Z.S, P/Z, [Xn])      4-6cy @ 2p
+ *  svld2_f32      LD2W (Z.S, P/Z, [Xn])      6-8cy @ 1p
+ *  svmla_f32_x    FMLA (Z.S, P/M, Z.S, Z.S)  4cy @ 2p
+ *  svmls_f32_x    FMLS (Z.S, P/M, Z.S, Z.S)  4cy @ 2p
+ *  svaddv_f32     FADDV (S, P, Z.S)          6cy @ 1p
+ *  svdup_f32      DUP (Z.S, #imm)            1cy @ 2p
+ *  svwhilelt_b32  WHILELT (P.S, Xn, Xm)      2cy @ 1p
+ *  svptrue_b32    PTRUE (P.S, pattern)       1cy @ 2p
+ *  svcntw         CNTW (Xd)                  1cy @ 2p
+ *  svcntd         CNTD (Xd)                  1cy @ 2p
+ *  svld1_f64      LD1D (Z.D, P/Z, [Xn])      4-6cy @ 2p
+ *  svld2_f64      LD2D (Z.D, P/Z, [Xn])      6-8cy @ 1p
+ *  svmla_f64_x    FMLA (Z.D, P/M, Z.D, Z.D)  4cy @ 2p
+ *  svmls_f64_x    FMLS (Z.D, P/M, Z.D, Z.D)  4cy @ 2p
+ *  svaddv_f64     FADDV (D, P, Z.D)          6cy @ 1p
+ *  @endverbatim
  *
- *  SVE vector widths vary across implementations: Graviton3 uses 256-bit, while Graviton4/5
- *  and Apple M4+ use 128-bit. Code using svcntb() adapts automatically, but wider vectors
- *  process more elements per iteration with identical latencies.
+ *  SVE vector widths vary across implementations: Graviton3 uses 256-bit, while Graviton4/5 and
+ *  Apple M4+ use 128-bit. Code using svcntb() adapts automatically, but wider vectors process more
+ *  elements per iteration with identical latencies.
  *
- *  The FADDV horizontal reduction has higher latency (6cy) compared to vertical operations,
- *  making it beneficial to accumulate in vector registers and reduce only at the end.
+ *  The FADDV horizontal reduction has 6cy of latency, higher than vertical operations, making it
+ *  beneficial to accumulate in vector registers and reduce only at the end.
  */
 #ifndef NK_DOT_SVE_H
 #define NK_DOT_SVE_H

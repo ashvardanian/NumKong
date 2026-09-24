@@ -1,8 +1,8 @@
 /**
- *  @brief SWAR-accelerated Type Conversions for SIMD-free CPUs.
  *  @file include/numkong/cast/serial.h
  *  @author Ash Vardanian
  *  @date January 2, 2026
+ *  @brief SWAR-accelerated type conversions for SIMD-free CPUs.
  */
 #ifndef NK_CAST_SERIAL_H
 #define NK_CAST_SERIAL_H

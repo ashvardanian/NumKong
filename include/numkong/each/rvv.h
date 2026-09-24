@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Elementwise Arithmetic for RISC-V.
  *  @file include/numkong/each/rvv.h
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief SIMD-accelerated elementwise arithmetic for RISC-V.
  *
  *  @sa include/numkong/each.h
  */

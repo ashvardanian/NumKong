@@ -1,21 +1,21 @@
 /**
- *  @brief SIMD-accelerated Spatial Similarity Measures for LoongArch LASX (256-bit).
  *  @file include/numkong/spatial/loongsonasx.h
  *  @author Ash Vardanian
  *  @date March 23, 2026
+ *  @brief SIMD-accelerated spatial similarity measures for LoongArch LASX, 256-bit.
  *
  *  @sa include/numkong/spatial.h
  *
  *  @section spatial_loongsonasx_instructions Key LASX Spatial Instructions
  *
- *  LASX provides 256-bit SIMD operations using __m256i as the universal vector type.
- *  All intrinsics are prefixed with __lasx_. Float operations reinterpret __m256i as
- *  f32x8 or f64x4. Integer widening multiply-accumulate chains handle i8/u8 distances.
+ *  LASX provides 256-bit SIMD operations using __m256i as the universal vector type, and all
+ *  intrinsics are prefixed with __lasx_. Float operations reinterpret __m256i as f32x8 or f64x4.
+ *  Integer widening multiply-accumulate chains handle i8/u8 distances.
  *
- *  For F32 spatial distances, upcasting to F64 and downcasting back is faster than stable
- *  summation algorithms. For F64 angular we use the Dot2 algorithm (Ogita-Rump-Oishi, 2005)
- *  for the cross-product accumulation, while self-products use simple FMA since all terms
- *  are non-negative and don't suffer from cancellation.
+ *  For F32 spatial distances, upcasting to F64 and downcasting back is faster than stable summation
+ *  algorithms. For F64 angular we use the Dot2 algorithm, Ogita-Rump-Oishi, 2005, for the
+ *  cross-product accumulation, while self-products use simple FMA since all terms are non-negative
+ *  and don't suffer from cancellation.
  */
 #ifndef NK_SPATIAL_LOONGSONASX_H
 #define NK_SPATIAL_LOONGSONASX_H

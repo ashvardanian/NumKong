@@ -1,20 +1,24 @@
-//  Numerics.swift
-//  NumKong
 //
-//  Created by Ash Vardanian on March 14, 2026.
+//  swift/Numerics.swift
+//  Compact and narrow floating-point scalar types for the NumKong kernels.
+//
+//  - Author: Ash Vardanian
+//  - Date: March 14, 2026
 //
 
 import CNumKong
 
 // MARK: - Shared Helpers: Sequence
 
-/// Logical dimensions held by `values` storage values of `dtype`, mirroring `nk_dimensions_per_value`.
+/// Logical dimensions held by `values` storage values of `dtype`, mirroring
+/// `nk_dimensions_per_value`.
 @usableFromInline
 internal func valuesToDimensions(_ values: Int, _ dtype: nk_dtype_t) -> Int {
     values * Int(nk_dimensions_per_value(dtype))
 }
 
-/// Storage values holding `dimensions` logical dimensions of `dtype`, a multiple of the values per byte.
+/// Storage values holding `dimensions` logical dimensions of `dtype`, a multiple of `dtype`'s
+/// values per byte.
 @usableFromInline
 internal func dimensionsToValues(_ dimensions: Int, _ dtype: nk_dtype_t) -> Int {
     dimensions / Int(nk_dimensions_per_value(dtype))
@@ -181,7 +185,7 @@ public struct BFloat16: Equatable, Hashable, Sendable {
     public var float: Float32 { _nkBf16BitsToF32(bitPattern) }
 }
 
-/// FP8 format with 5-bit exponent and 2-bit mantissa (FP8 E5M2), used in gradient storage.
+/// FP8 E5M2 format with 5-bit exponent and 2-bit mantissa, used in gradient storage.
 @frozen
 public struct E5M2: Equatable, Hashable, Sendable {
     public var bitPattern: UInt8
@@ -200,7 +204,7 @@ public struct E5M2: Equatable, Hashable, Sendable {
     public var float: Float32 { _nkE5M2BitsToF32(bitPattern) }
 }
 
-/// FP8 format with 4-bit exponent and 3-bit mantissa (FP8 E4M3), used in transformer inference.
+/// FP8 E4M3 format with 4-bit exponent and 3-bit mantissa, used in transformer inference.
 @frozen
 public struct E4M3: Equatable, Hashable, Sendable {
     public var bitPattern: UInt8
@@ -219,7 +223,7 @@ public struct E4M3: Equatable, Hashable, Sendable {
     public var float: Float32 { _nkE4M3BitsToF32(bitPattern) }
 }
 
-/// MX format with 3-bit exponent and 2-bit mantissa (MX E3M2).
+/// MX E3M2 format with 3-bit exponent and 2-bit mantissa.
 @frozen
 public struct E3M2: Equatable, Hashable, Sendable {
     public var bitPattern: UInt8
@@ -238,7 +242,7 @@ public struct E3M2: Equatable, Hashable, Sendable {
     public var float: Float32 { _nkE3M2BitsToF32(bitPattern) }
 }
 
-/// MX format with 2-bit exponent and 3-bit mantissa (MX E2M3).
+/// MX E2M3 format with 2-bit exponent and 3-bit mantissa.
 @frozen
 public struct E2M3: Equatable, Hashable, Sendable {
     public var bitPattern: UInt8
@@ -353,7 +357,8 @@ public struct U4x2: Equatable, Hashable, Sendable {
     @inlinable public var second: UInt8 { bitPattern & 0x0F }
 }
 
-/// Packed pair of 4-bit E2M1 floats, `[high nibble : low nibble]`, each of 1 sign, 2 exponent and 1 mantissa bits.
+/// Packed pair of 4-bit E2M1 floats, `[high nibble : low nibble]`, each of 1 sign, 2 exponent and 1
+/// mantissa bits.
 @frozen
 public struct E2M1x2: Equatable, Hashable, Sendable {
     public var bitPattern: UInt8

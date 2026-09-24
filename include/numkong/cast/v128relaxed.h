@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Type Conversions for WASM Relaxed SIMD.
  *  @file include/numkong/cast/v128relaxed.h
  *  @author Ash Vardanian
  *  @date July 25, 2026
+ *  @brief SIMD-accelerated Type Conversions for WASM Relaxed SIMD.
  */
 
 #ifndef NK_CAST_V128RELAXED_H

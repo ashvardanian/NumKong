@@ -1,10 +1,10 @@
 /**
- *  @brief Batch operation benchmarks - LoongArch ISA family (LASX 256-bit).
  *  @file bench/cross_loongarch.cpp
  *  @author Ash Vardanian
  *  @date March 23, 2026
+ *  @brief Batch operation benchmarks, LoongArch ISA family, LASX 256-bit.
  *
- *  Covers LoongSON Advanced SIMD Extension (LASX).
+ *  Covers LoongSON Advanced SIMD Extension, LASX.
  */
 
 #include "numkong/dot.h"

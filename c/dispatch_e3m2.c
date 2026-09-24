@@ -1,8 +1,8 @@
 /**
- *  @brief Dispatch Initialization for E3M2 Data Types.
  *  @file c/dispatch_e3m2.c
  *  @author Ash Vardanian
  *  @date February 3, 2026
+ *  @brief Dispatch initialization for E3M2 data types.
  */
 #include "dispatch.h"
 

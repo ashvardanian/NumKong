@@ -1,8 +1,8 @@
 /**
- *  @brief Type casting benchmarks.
  *  @file bench/cast.cpp
  *  @author Ash Vardanian
  *  @date March 14, 2023
+ *  @brief Type casting benchmarks.
  */
 
 #include "numkong/cast.h"
@@ -15,9 +15,9 @@ using cast_kernel_t = void (*)(void const *, nk_dtype_t, nk_size_t, void *, nk_d
 
 /**
  *  @brief Measures the performance of type casting operations using Google Benchmark.
- *  @param state The benchmark state object provided by Google Benchmark.
- *  @param kernel The cast kernel function to benchmark.
- *  @param count The number of elements to cast.
+ *  @param[inout] state The benchmark state object provided by Google Benchmark.
+ *  @param[in] kernel The cast kernel function to benchmark.
+ *  @param[in] count The number of elements to cast.
  */
 template <nk_dtype_t input_dtype_, nk_dtype_t output_dtype_>
 void measure_cast(bm::State &state, cast_kernel_t kernel, std::size_t count) {

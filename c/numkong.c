@@ -1,14 +1,13 @@
 /**
- *  @brief Runtime dispatch library for NumKong.
  *  @file c/numkong.c
  *  @author Ash Vardanian
  *  @date March 13, 2024
+ *  @brief Runtime dispatch library for NumKong.
  */
 #include "dispatch.h"
 
-/*  MemorySanitizer cannot track initialization through SIMD intrinsics (SVE, NEON, SSE, AVX),
- *  causing false-positive "use-of-uninitialized-value" reports. We unpoison results after dispatch.
- */
+/*  MemorySanitizer cannot track initialization through SVE, NEON, SSE and AVX SIMD intrinsics, so
+ *  it reports false "use-of-uninitialized-value"; we unpoison results after dispatch. */
 #if defined(__has_feature)
 #if __has_feature(memory_sanitizer)
 #include <sanitizer/msan_interface.h>

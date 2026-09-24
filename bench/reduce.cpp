@@ -1,8 +1,8 @@
 /**
- *  @brief Reduction benchmarks (reduce_moments, reduce_minmax).
  *  @file bench/reduce.cpp
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief Reduction benchmarks, reduce_moments, reduce_minmax.
  */
 
 #include "numkong/reduce.h"
@@ -12,9 +12,7 @@
 
 using namespace ashvardanian::numkong::bench;
 
-/**
- *  @brief Measures the performance of a reduce_moments kernel (sum + sumsq).
- */
+/** Measures the performance of a reduce_moments kernel, sum plus sumsq. */
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
 void measure_reduce_moments(bm::State &state, kernel_type_ kernel, std::size_t dimensions) {
     using input_t = typename nk::type_for<input_dtype_>::type;
@@ -51,9 +49,7 @@ void run_reduce_moments(std::string name, kernel_type_ *kernel) {
                           bench_config.dense_dimensions);
 }
 
-/**
- *  @brief Measures the performance of a grouped RMSNorm kernel (single row, single group).
- */
+/** Measures the performance of a grouped RMSNorm kernel, single row, single group. */
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
 void measure_rmsnorm(bm::State &state, kernel_type_ kernel, std::size_t dimensions) {
     using input_t = typename nk::type_for<input_dtype_>::type;
@@ -88,9 +84,7 @@ void run_reduce_rmsnorm(std::string name, kernel_type_ *kernel) {
                           bench_config.dense_dimensions);
 }
 
-/**
- *  @brief Measures the performance of a reduce_minmax kernel (min + max with indices).
- */
+/** Measures the performance of a reduce_minmax kernel, min and max with indices. */
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
 void measure_reduce_minmax(bm::State &state, kernel_type_ kernel, std::size_t dimensions) {
     using input_t = typename nk::type_for<input_dtype_>::type;

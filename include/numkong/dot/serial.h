@@ -1,27 +1,27 @@
 /**
- *  @brief SWAR-accelerated Dot Products for SIMD-free CPUs.
  *  @file include/numkong/dot/serial.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SWAR-accelerated dot products for SIMD-free CPUs.
  *
  *  @sa include/numkong/dot.h
  *
  *  @section dot_serial_instructions Serial Fallback Implementation
  *
- *  The serial backend provides portable scalar implementations for all numeric types without requiring
- *  any SIMD extensions. While significantly slower than vectorized implementations, these serve as:
+ *  The serial backend provides portable scalar implementations for all numeric types without any
+ *  SIMD extensions. While significantly slower than vectorized implementations, these serve as:
  *
  *  - Reference implementations for correctness validation
  *  - Fallbacks for platforms without SIMD support (WASM, older CPUs)
  *  - Baseline for benchmarking vectorized speedups
  *
- *  For f64 dot products, compensated (Kahan-style) summation is used to minimize floating-point
- *  accumulation errors. For smaller types (f16, bf16, FP8), values are upcast to f32 for accumulation.
+ *  For f64 dot products, compensated Kahan-style summation minimizes floating-point accumulation
+ *  errors. For smaller types — f16, bf16, and FP8 — values upcast to f32 for accumulation.
  *
  *  @section dot_serial_stateful Stateful Streaming Logic
  *
- *  To build memory-optimal tiled algorithms, this file defines following structures and force-inlined
- *  `NK_HELPER_INLINE` functions:
+ *  To build memory-optimal tiled algorithms, this file defines following structures and
+ *  force-inlined @c NK_HELPER_INLINE functions:
  *
  *  - nk_dot_f64x2 state with compensated summation for numerical stability,
  *  - nk_dot_f32x4 state with simple f32 accumulation,
@@ -33,23 +33,27 @@
  *  - nk_dot_e2m1x16 for FP4 inputs,
  *  - nk_dot_i4x16, nk_dot_u4x16 for 4-bit integer inputs.
  *
- *  @code{c}
+ *  @code{.c}
  *  nk_dot_f64x2_state_serial_t state_first, state_second, state_third, state_fourth;
  *  nk_b128_vec_t query_f64x2, target_first_f64x2, target_second_f64x2, target_third_f64x2, target_fourth_f64x2;
  *  nk_dot_f64x2_init_serial(&state_first);
  *  nk_dot_f64x2_init_serial(&state_second);
  *  nk_dot_f64x2_init_serial(&state_third);
  *  nk_dot_f64x2_init_serial(&state_fourth);
- *  for (nk_size_t idx = 0; idx + 2 <= depth; idx += 2) {
- *      query_f64x2.f64s[0] = query_ptr[idx], query_f64x2.f64s[1] = query_ptr[idx + 1];
- *      target_first_f64x2.f64s[0] = target_first_ptr[idx], target_first_f64x2.f64s[1] = target_first_ptr[idx + 1];
- *      target_second_f64x2.f64s[0] = target_second_ptr[idx], target_second_f64x2.f64s[1] = target_second_ptr[idx + 1];
- *      target_third_f64x2.f64s[0] = target_third_ptr[idx], target_third_f64x2.f64s[1] = target_third_ptr[idx + 1];
- *      target_fourth_f64x2.f64s[0] = target_fourth_ptr[idx], target_fourth_f64x2.f64s[1] = target_fourth_ptr[idx + 1];
- *      nk_dot_f64x2_update_serial(&state_first, query_f64x2, target_first_f64x2, idx, 2);
- *      nk_dot_f64x2_update_serial(&state_second, query_f64x2, target_second_f64x2, idx, 2);
- *      nk_dot_f64x2_update_serial(&state_third, query_f64x2, target_third_f64x2, idx, 2);
- *      nk_dot_f64x2_update_serial(&state_fourth, query_f64x2, target_fourth_f64x2, idx, 2);
+ *  for (nk_size_t index = 0; index + 2 <= depth; index += 2) {
+ *      query_f64x2.f64s[0] = query_ptr[index], query_f64x2.f64s[1] = query_ptr[index + 1];
+ *      target_first_f64x2.f64s[0] = target_first_ptr[index];
+ *      target_first_f64x2.f64s[1] = target_first_ptr[index + 1];
+ *      target_second_f64x2.f64s[0] = target_second_ptr[index];
+ *      target_second_f64x2.f64s[1] = target_second_ptr[index + 1];
+ *      target_third_f64x2.f64s[0] = target_third_ptr[index];
+ *      target_third_f64x2.f64s[1] = target_third_ptr[index + 1];
+ *      target_fourth_f64x2.f64s[0] = target_fourth_ptr[index];
+ *      target_fourth_f64x2.f64s[1] = target_fourth_ptr[index + 1];
+ *      nk_dot_f64x2_update_serial(&state_first, query_f64x2, target_first_f64x2, index, 2);
+ *      nk_dot_f64x2_update_serial(&state_second, query_f64x2, target_second_f64x2, index, 2);
+ *      nk_dot_f64x2_update_serial(&state_third, query_f64x2, target_third_f64x2, index, 2);
+ *      nk_dot_f64x2_update_serial(&state_fourth, query_f64x2, target_fourth_f64x2, index, 2);
  *  }
  *  nk_b256_vec_t results_f64x4;
  *  nk_dot_f64x2_finalize_serial(&state_first, &state_second, &state_third, &state_fourth, depth, &results_f64x4);
@@ -57,23 +61,23 @@
  *
  *  Integer types follow a similar pattern with appropriate type changes:
  *
- *  @code{c}
+ *  @code{.c}
  *  nk_dot_i8x16_state_serial_t state_first, state_second, state_third, state_fourth;
  *  nk_b128_vec_t query_i8x16, target_first_i8x16, target_second_i8x16, target_third_i8x16, target_fourth_i8x16;
  *  nk_dot_i8x16_init_serial(&state_first);
  *  nk_dot_i8x16_init_serial(&state_second);
  *  nk_dot_i8x16_init_serial(&state_third);
  *  nk_dot_i8x16_init_serial(&state_fourth);
- *  for (nk_size_t idx = 0; idx + 16 <= depth; idx += 16) {
- *      memcpy(query_i8x16.i8s, query_ptr + idx, 16);
- *      memcpy(target_first_i8x16.i8s, target_first_ptr + idx, 16);
- *      memcpy(target_second_i8x16.i8s, target_second_ptr + idx, 16);
- *      memcpy(target_third_i8x16.i8s, target_third_ptr + idx, 16);
- *      memcpy(target_fourth_i8x16.i8s, target_fourth_ptr + idx, 16);
- *      nk_dot_i8x16_update_serial(&state_first, query_i8x16, target_first_i8x16, idx, 16);
- *      nk_dot_i8x16_update_serial(&state_second, query_i8x16, target_second_i8x16, idx, 16);
- *      nk_dot_i8x16_update_serial(&state_third, query_i8x16, target_third_i8x16, idx, 16);
- *      nk_dot_i8x16_update_serial(&state_fourth, query_i8x16, target_fourth_i8x16, idx, 16);
+ *  for (nk_size_t index = 0; index + 16 <= depth; index += 16) {
+ *      memcpy(query_i8x16.i8s, query_ptr + index, 16);
+ *      memcpy(target_first_i8x16.i8s, target_first_ptr + index, 16);
+ *      memcpy(target_second_i8x16.i8s, target_second_ptr + index, 16);
+ *      memcpy(target_third_i8x16.i8s, target_third_ptr + index, 16);
+ *      memcpy(target_fourth_i8x16.i8s, target_fourth_ptr + index, 16);
+ *      nk_dot_i8x16_update_serial(&state_first, query_i8x16, target_first_i8x16, index, 16);
+ *      nk_dot_i8x16_update_serial(&state_second, query_i8x16, target_second_i8x16, index, 16);
+ *      nk_dot_i8x16_update_serial(&state_third, query_i8x16, target_third_i8x16, index, 16);
+ *      nk_dot_i8x16_update_serial(&state_fourth, query_i8x16, target_fourth_i8x16, index, 16);
  *  }
  *  nk_b128_vec_t results_i32x4;
  *  nk_dot_i8x16_finalize_serial(&state_first, &state_second, &state_third, &state_fourth, depth, &results_i32x4);
@@ -89,9 +93,7 @@
 extern "C" {
 #endif
 
-/**
- *  @brief Macro for dot product with simple accumulation.
- */
+/** Macro for dot product with simple accumulation. */
 #define nk_define_dot_(input_type, accumulator_type, output_type, load_and_convert)                               \
     NK_API_COMPTIME void nk_dot_##input_type##_serial(nk_##input_type##_t const *a, nk_##input_type##_t const *b, \
                                                       nk_size_t n, nk_##output_type##_t *result) {                \
@@ -140,14 +142,15 @@ extern "C" {
         result->imag = sum_imag;                                                                                  \
     }
 
-/*  GCC inlines a helper only into callers whose targets include its own, so serial code builds at the Armv8-A floor. */
+/*  GCC inlines a helper only into callers whose targets include its own, so serial code builds at
+ *  the Armv8-A floor. */
 #if defined(__GNUC__) && !defined(__clang__) && NK_TARGET_ARM64_
 #pragma GCC push_options
 #pragma GCC target("arch=armv8-a")
 #endif
 
-/*  Keep the serial instantiations below actually scalar, regardless of build type.
- *  See dots/serial.h for rationale. */
+/*  Keep the serial instantiations below actually scalar, regardless of build type. See
+ *  dots/serial.h for rationale. */
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((noinline)), apply_to = function)
 #elif defined(__GNUC__)
@@ -231,20 +234,24 @@ NK_API_COMPTIME void nk_dot_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk
 
 #pragma endregion I8 and U8 Integers
 
-#pragma region F32 and F64 Floats
-
-/*  Double-precision dot-produce variants
+/*
+ *  Double-precision dot-produce variants.
  *
- *  Implements Neumaier's Kahan-Babuška variant to minimize floating-point rounding errors.
- *  Unlike Kahan, Neumaier handles the case where the term being added is larger than the
- *  running sum. Achieves O(1) error growth regardless of vector dimension.
+ *  Implements Neumaier's Kahan-Babuška variant to minimize floating-point rounding errors. Unlike
+ *  Kahan, Neumaier handles a term larger than the running sum, achieving O(1) error growth
+ *  regardless of vector dimension.
  *
  *  Algorithm: For each term, compute t = sum + term, then:
- *    - If ‖sum‖ ≥ ‖term‖: c += (sum - t) + term  (lost low-order bits of term)
- *    - Else:              c += (term - t) + sum  (lost low-order bits of sum)
  *
- *  @see Neumaier, A. (1974). "Rundungsfehleranalyse einiger Verfahren zur Summation endlicher Summen"
+ *  @verbatim
+ *  - If ‖sum‖ ≥ ‖term‖: c += (sum - t) + term  (lost low-order bits of term)
+ *  - Else:              c += (term - t) + sum  (lost low-order bits of sum)
+ *  @endverbatim
+ *
+ *  Neumaier, A. (1974). "Rundungsfehleranalyse einiger Verfahren zur Summation endlicher Summen."
  */
+#pragma region F32 and F64 Floats
+
 NK_API_COMPTIME void nk_dot_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     nk_f64_t sum = 0, compensation = 0;
     for (nk_size_t i = 0; i != n; ++i) nk_f64_dot2_(&sum, &compensation, a[i], b[i]);
@@ -702,7 +709,7 @@ NK_HELPER_INLINE void nk_dot_e3m2x16_finalize_serial(                           
     result->f32s[3] = state_d->sums[0] + state_d->sums[1] + state_d->sums[2] + state_d->sums[3];
 }
 
-/** @brief E2M1 state: 16 nibbles (8 bytes) per update, doubled values accumulated exactly in i32. */
+/** E2M1 state: 16 nibbles, 8 bytes, per update, doubled values accumulated exactly in i32. */
 typedef struct nk_dot_e2m1x16_state_serial_t {
     nk_i32_t sum;
 } nk_dot_e2m1x16_state_serial_t;
@@ -737,7 +744,7 @@ NK_HELPER_INLINE void nk_dot_e2m1x16_finalize_serial(                           
 
 #pragma region I8 and U8 Integers
 
-// U4x2 state: processes 16 nibbles (8 bytes = 64 bits) per update
+/** U4x2 state: processes 16 nibbles, 8 bytes = 64 bits, per update. */
 typedef struct nk_dot_u4x16_state_serial_t {
     nk_u64_t sums[2]; // sums[0]: low nibbles, sums[1]: high nibbles
 } nk_dot_u4x16_state_serial_t;
@@ -912,15 +919,11 @@ NK_HELPER_INLINE void nk_dot_u1x128_finalize_serial(nk_dot_u1x128_state_serial_t
 
 #pragma endregion Binary
 
-/**
- *  Serial fallback sum helpers for progressive element-sum accumulation.
- *  Used by the compensated symmetric GEMM macro to piggyback sum computation
- *  on the depth loop's already-loaded vectors, avoiding a separate sum pass.
- */
+/*  Serial fallback sum helpers for progressive element-sum accumulation. The compensated symmetric
+ *  GEMM macro piggybacks them on the depth loop's loaded vectors, avoiding a separate sum pass. */
+#pragma region Stateful Element Sum Helpers for Compensated GEMM
 
-#pragma region Stateful Element Sum Helpers (for compensated GEMM)
-
-/* i4x32: Haswell i4 (nk_b128_vec_t containing 32 nibbles in 16 bytes) */
+/** i4x32 sum state for Haswell-layout i4 input, 32 nibbles in the 16 bytes of an nk_b128_vec_t. */
 typedef struct nk_sum_i4x32_state_serial_t {
     nk_i64_t sum;
 } nk_sum_i4x32_state_serial_t;

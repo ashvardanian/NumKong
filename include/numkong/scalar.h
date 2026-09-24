@@ -1,13 +1,12 @@
 /**
- *  @brief SIMD-accelerated Scalar Math Helpers.
  *  @file include/numkong/scalar.h
  *  @author Ash Vardanian
  *  @date March 1, 2026
+ *  @brief SIMD-accelerated scalar math helpers.
  *
- *  Provides dispatchable scalar helpers: sqrt, rsqrt, fma, saturating arithmetic,
- *  and ordering. Each ISA file is header-only with
- *  `NK_API_COMPTIME static inline` implementations; compile-time dispatch selects the
- *  best available backend when `NK_RUNTIME_DISPATCH` is off.
+ *  Provides dispatchable scalar helpers: sqrt, rsqrt, fma, saturating arithmetic, and ordering.
+ *  Each ISA file is header-only with `NK_API_COMPTIME static inline` implementations; compile-time
+ *  dispatch selects the best available backend when @c NK_RUNTIME_DISPATCH is off.
  *
  *  For hardware architectures:
  *

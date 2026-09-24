@@ -1,8 +1,8 @@
 /**
- *  @brief Batched Spatial Distances for ARM SME-F64.
  *  @file include/numkong/spatials/smef64.h
  *  @author Ash Vardanian
  *  @date February 23, 2026
+ *  @brief Batched spatial distances for ARM SME-F64.
  *
  *  @sa include/numkong/spatials.h
  */

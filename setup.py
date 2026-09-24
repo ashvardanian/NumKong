@@ -4,6 +4,10 @@ NumKong build configuration.
 This file configures wheels compilation for NumKong CPython bindings.
 The architecture detection uses environment variable overrides (set via cibuildwheel)
 to support cross-compilation scenarios like building ARM64 wheels on x64 hosts.
+
+File: setup.py
+Author: Ash Vardanian
+Date: June 27, 2023
 """
 
 from __future__ import annotations
@@ -207,11 +211,6 @@ def probe_isa(cc, probe_file, flags, is_msvc=False, env=None) -> tuple[bool, str
 
 ProbeTable = list[tuple[str, str, list[str], list[str]]]
 
-# Probe table: (NK_TARGET_NAME, probe_file, gcc_flags, msvc_flags)
-# The probe files contain #error guards for unsupported OS/runtime combinations,
-# so we do not need per-platform override logic.
-# x86 probes: GCC flags are minimal — each implies its prerequisites.
-# E.g., -mavx512vnni implies -mavx512f; -mavxvnni implies -mavx2.
 PROBE_TABLE_X86: ProbeTable = [
     ("HASWELL", "probes/x86_haswell.c", ["-mavx2", "-mfma", "-mf16c"], ["/arch:AVX2"]),
     ("SKYLAKE", "probes/x86_skylake.c", ["-mavx512f", "-mavx512bw", "-mavx512dq", "-mavx512vl"], ["/arch:AVX512"]),
@@ -225,10 +224,12 @@ PROBE_TABLE_X86: ProbeTable = [
     ("ALDER", "probes/x86_alder.c", ["-mavxvnni"], ["/arch:AVX2"]),
     ("SIERRA", "probes/x86_sierra.c", ["-mavxvnniint8"], ["/arch:AVX2"]),
 ]
+"""Probe table columns: NK_TARGET_NAME, probe_file, gcc_flags, msvc_flags. The probe files contain
+#error guards for unsupported OS/runtime combinations, so we do not need per-platform override
+logic. x86 probes: GCC flags are minimal — each implies its prerequisites.
+E.g., -mavx512vnni implies -mavx512f; -mavxvnni implies -mavx2.
+"""
 
-# ARM probes: msvc_flags are empty because MSVC does not define __ARM_FEATURE_*
-# macros via /arch: flags. For MSVC header-only builds, types.h infers features
-# from __ARM_ARCH level instead. SVE/SME probes also have #error guards for _WIN32.
 PROBE_TABLE_ARM: ProbeTable = [
     # FEAT_AdvSIMD
     ("NEON", "probes/arm_neon.c", ["-march=armv8-a+simd"], []),
@@ -253,6 +254,10 @@ PROBE_TABLE_ARM: ProbeTable = [
     ("SMELUT2", "probes/arm_sme_lut2.c", ["-march=armv8-a+sme2+sme-lutv2"], []),
     ("SMEFA64", "probes/arm_sme_fa64.c", ["-march=armv8-a+sme+sme-fa64"], []),
 ]
+"""ARM probes: msvc_flags are empty because MSVC does not define __ARM_FEATURE_* macros via /arch:
+flags. For MSVC header-only builds, types.h infers features from __ARM_ARCH level instead. SVE/SME
+probes also have #error guards for _WIN32.
+"""
 
 PROBE_TABLE_RISCV: ProbeTable = [
     ("RVV", "probes/riscv_rvv.c", ["-march=rv64gcv"], []),

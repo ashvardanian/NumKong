@@ -1,8 +1,8 @@
 /**
- *  @brief Test suite entry point and configuration.
  *  @file test/test.cpp
  *  @author Ash Vardanian
  *  @date December 28, 2025
+ *  @brief Test suite entry point and configuration.
  */
 #if defined(_MSC_VER)
 #define _CRT_SECURE_NO_WARNINGS
@@ -29,11 +29,9 @@ using namespace ashvardanian::numkong::test;
 test_config_t nk::test::global_config;
 char const *volatile nk::test::nk_test_current_kernel_ = nullptr;
 
-// Explicit instantiations to verify `random.hpp` compiles for all code paths:
-//  - f64_t:   scalar float path
-//  - i16_t:   scalar signed integer path
-//  - bf16c_t: complex path
-//  - i4x2_t:  packed sub-byte path
+/*  Explicit instantiations verify that `random.hpp` compiles for every code path: f64_t for the
+ *  scalar float path, i16_t for the scalar signed integer path, bf16c_t for the complex path, and
+ *  i4x2_t for the packed sub-byte path. */
 template void nk::fill_uniform(std::mt19937 &, nk::f64_t *, std::size_t, nk::f64_t::component_t,
                                nk::f64_t::component_t);
 template void nk::fill_uniform(std::mt19937 &, nk::i16_t *, std::size_t, nk::i16_t::component_t,
@@ -56,7 +54,8 @@ template void nk::fill_cauchy(std::mt19937 &, nk::bf16c_t *, std::size_t, double
 template void nk::fill_cauchy(std::mt19937 &, nk::i4x2_t *, std::size_t, double, double);
 
 #if NK_HAS_SIGNAL_
-/** @brief  Fatal signal handler that logs the signal and faulting kernel before exiting. */
+
+/** Fatal signal handler that logs the signal and faulting kernel before exiting. */
 static void crash_handler(int sig) {
     // Only async-signal-safe calls allowed: write(2) and _exit(2).
     char const *sig_name = "unknown signal";

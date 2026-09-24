@@ -1,8 +1,8 @@
 /**
- *  @brief Batch operation tests - Arm ISA family.
  *  @file test/cross_arm.cpp
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief Batch operation tests - Arm ISA family.
  *
  *  Covers NEON, NEONHALF, NEONFHM, NEONBFDOT, NEONSDOT.
  */

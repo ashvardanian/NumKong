@@ -1,3 +1,6 @@
+// numkong/golang/numkong.go
+// Written by Ash Vardanian.
+
 // Package numkong provides SIMD-accelerated similarity measures and numeric kernels.
 //
 // # Operations
@@ -5,9 +8,10 @@
 //   - Dot products: [DotF64], [DotF32], [DotI8], [DotU8]
 //   - Angular distances: [AngularF64], [AngularF32], [AngularI8], [AngularU8]
 //   - Euclidean distances: [EuclideanF64], [EuclideanF32], [EuclideanI8], [EuclideanU8]
-//   - Squared Euclidean distances: [SqEuclideanF64], [SqEuclideanF32], [SqEuclideanI8], [SqEuclideanU8]
+//   - Squared Euclidean: [SqEuclideanF64], [SqEuclideanF32], [SqEuclideanI8], [SqEuclideanU8]
 //   - Set similarities: [HammingU8], [HammingU1], [JaccardU1], [JaccardU16], [JaccardU32]
-//   - Probability divergences: [KullbackLeiblerF64], [KullbackLeiblerF32], [JensenShannonF64], [JensenShannonF32]
+//   - Divergences: [KullbackLeiblerF64], [KullbackLeiblerF32], [JensenShannonF64],
+//     [JensenShannonF32]
 //   - Geospatial distances: [HaversineF64], [HaversineF32], [VincentyF64], [VincentyF32]
 //
 // # Batch Operations
@@ -15,36 +19,41 @@
 // Packed kernels take a right-hand side packed once into a [DotsPackedMatrix]:
 //
 //   - Packed dot products: [DotsPackedF64], [DotsPackedF32], [DotsPackedI8], [DotsPackedU8]
-//   - Packed angular distances: [AngularsPackedF64], [AngularsPackedF32], [AngularsPackedI8], [AngularsPackedU8]
-//   - Packed Euclidean distances: [EuclideansPackedF64], [EuclideansPackedF32], [EuclideansPackedI8], [EuclideansPackedU8]
+//   - Packed angular: [AngularsPackedF64], [AngularsPackedF32], [AngularsPackedI8],
+//     [AngularsPackedU8]
+//   - Packed Euclidean: [EuclideansPackedF64], [EuclideansPackedF32], [EuclideansPackedI8],
+//     [EuclideansPackedU8]
 //   - Packed binary distances: [HammingsPackedU1], [JaccardsPackedU1]
 //   - Late interaction: [MaxSimF32] over a [MaxSimPackedMatrix]
 //
-// Symmetric kernels compare every pair within one set and write the upper triangle only:
+// Symmetric kernels compare every pair within one set and write only the upper triangle.
 //
-//   - Symmetric dot products: [DotsSymmetricF64], [DotsSymmetricF32], [DotsSymmetricI8], [DotsSymmetricU8]
-//   - Symmetric angular distances: [AngularsSymmetricF64], [AngularsSymmetricF32], [AngularsSymmetricI8], [AngularsSymmetricU8]
-//   - Symmetric Euclidean distances: [EuclideansSymmetricF64], [EuclideansSymmetricF32], [EuclideansSymmetricI8], [EuclideansSymmetricU8]
+//   - Symmetric dot: [DotsSymmetricF64], [DotsSymmetricF32], [DotsSymmetricI8], [DotsSymmetricU8]
+//   - Symmetric angular: [AngularsSymmetricF64], [AngularsSymmetricF32], [AngularsSymmetricI8],
+//     [AngularsSymmetricU8]
+//   - Symmetric Euclidean: [EuclideansSymmetricF64], [EuclideansSymmetricF32],
+//     [EuclideansSymmetricI8], [EuclideansSymmetricU8]
 //   - Symmetric binary distances: [HammingsSymmetricU1], [JaccardsSymmetricU1]
 //
 // # Output Types
 //
-// Outputs are widened to prevent overflow: float32 inputs produce float64, int8 inputs produce int32 or float32, and uint8 inputs produce uint32 or float32.
+// Outputs are widened to prevent overflow: float32 inputs produce float64, int8 inputs produce
+// int32 or float32, and uint8 inputs produce uint32 or float32.
 //
 // # Binary Vectors
 //
-// Binary vectors pack 8 dimensions per byte, least significant bit first.
-// [DimensionsPerValue] and [DimensionsToValues] convert a dimension count into stored values for a dtype name such as "u1".
+// Binary vectors pack 8 dimensions per byte, least significant bit first. [DimensionsPerValue] and
+// [DimensionsToValues] convert a dimension count into stored values for a dtype name such as "u1".
 //
 // # Threads
 //
-// [ConfigureThread] pins the goroutine to an OS thread and configures its SIMD state.
-// A [WorkerPool] keeps such threads alive, and the WithPool variants split a batch across them.
+// [ConfigureThread] pins the goroutine to an OS thread and configures its SIMD state. A
+// [WorkerPool] keeps such threads alive, and the WithPool variants split a batch across them.
 //
 // # Errors
 //
-// Every function panics on invalid inputs such as mismatched lengths or short slices.
-// Scalar functions return zero for empty inputs.
+// Every function panics on invalid inputs such as mismatched lengths or short slices. Scalar
+// functions return zero for empty inputs.
 package numkong
 
 /*
@@ -76,8 +85,8 @@ func nativeDType(dtype string) C.nk_dtype_t {
 	panic("unknown dtype " + dtype)
 }
 
-// DimensionsPerValue returns how many logical dimensions of dtype share one stored value, such as 8 for "u1".
-// It panics on any name other than "f64", "f32", "i8", "u8" and "u1".
+// DimensionsPerValue returns how many logical dimensions of dtype share one stored value, such as 8
+// for "u1". It panics on any name other than "f64", "f32", "i8", "u8" and "u1".
 func DimensionsPerValue(dtype string) int {
 	return int(C.nk_dimensions_per_value(nativeDType(dtype)))
 }
@@ -98,7 +107,7 @@ func validateDimensions(dtype string, dimensions int) {
 // divideRoundUp divides rounding up, for tile and thread counts only.
 func divideRoundUp(dividend, divisor int) int { return (dividend + divisor - 1) / divisor }
 
-// CPU capability bit masks in chronological order (by first commercial silicon)
+// CPU capability bit masks, in chronological order of first commercial silicon
 const (
 	CapSerial      uint64 = 1 << 0  // Always: Fallback
 	CapNeon        uint64 = 1 << 1  // 2013: ARM NEON
@@ -144,22 +153,26 @@ const (
 	CapV128        uint64 = 1 << 41 // 2021: WASM SIMD128
 )
 
-// CapabilitiesDetected returns the bitmask of SIMD capabilities this CPU supports, whether or not their kernels were compiled in.
+// CapabilitiesDetected returns the bitmask of SIMD capabilities this CPU supports, whether or not
+// their kernels were compiled in.
 func CapabilitiesDetected() uint64 {
 	return uint64(C.nk_capabilities_detected())
 }
 
-// CapabilitiesCompiled returns the bitmask of SIMD capabilities whose kernels were compiled in, whether or not this CPU supports them.
+// CapabilitiesCompiled returns the bitmask of SIMD capabilities whose kernels were compiled in,
+// whether or not this CPU supports them.
 func CapabilitiesCompiled() uint64 {
 	return uint64(C.nk_capabilities_compiled())
 }
 
-// CapabilitiesAvailable returns the bitmask of SIMD capabilities that can execute here, the intersection of [CapabilitiesDetected] and [CapabilitiesCompiled].
+// CapabilitiesAvailable returns the bitmask of SIMD capabilities that can execute here, the
+// intersection of [CapabilitiesDetected] and [CapabilitiesCompiled].
 func CapabilitiesAvailable() uint64 {
 	return uint64(C.nk_capabilities_available())
 }
 
-// CapabilitiesEnabled returns the bitmask of SIMD capabilities dispatch is currently restricted to, a subset of [CapabilitiesAvailable].
+// CapabilitiesEnabled returns the bitmask of SIMD capabilities dispatch is currently restricted to,
+// a subset of [CapabilitiesAvailable].
 func CapabilitiesEnabled() uint64 {
 	return uint64(C.nk_capabilities_enabled())
 }
@@ -186,8 +199,9 @@ func CapabilitiesDisable(caps uint64) {
 	C.nk_capabilities_disable(C.nk_capability_t(caps))
 }
 
-// ConfigureThread pins the goroutine to an OS thread, configures its SIMD state for [CapabilitiesAvailable], and returns the unlock function.
-// Call the returned function, typically via defer, once the SIMD work is done.
+// ConfigureThread pins the goroutine to an OS thread, configures its SIMD state for
+// [CapabilitiesAvailable], and returns the unlock function. Call the returned function, typically
+// via defer, once the SIMD work is done.
 func ConfigureThread() func() {
 	runtime.LockOSThread()
 	C.nk_configure_thread(C.nk_capability_t(C.nk_capabilities_available()))

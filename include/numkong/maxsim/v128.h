@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated MaxSim (angular distance late-interaction) packing for WASM SIMD128.
  *  @file include/numkong/maxsim/v128.h
  *  @author Ash Vardanian
  *  @date September 12, 2026
+ *  @brief SIMD-accelerated MaxSim, angular distance late-interaction, packing for WASM SIMD128.
  *
  *  @sa include/numkong/maxsim.h
  *

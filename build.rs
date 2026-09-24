@@ -1,12 +1,15 @@
+//! Build script that compiles the C kernels and probes which ISA tiers the compiler supports.
+//!
+//! File: build.rs
+//! Author: Ash Vardanian
 use std::collections::HashMap;
 use std::env;
 use std::path::Path;
 
 fn main() { build_numkong().expect("Failed to build NumKong"); }
 
-/// Try to compile a single probe .c file with the given flags.
-/// Uses `flag()` (hard error) instead of `flag_if_supported()` to avoid
-/// silently dropping flags the compiler doesn't recognize.
+/// Try to compile a single probe .c file with the given flags. Uses `flag()`, a hard error, instead
+/// of `flag_if_supported()` to avoid silently dropping flags the compiler doesn't recognize.
 fn probe_isa(probe_file: &str, flags: &[&str]) -> bool {
     let mut build = cc::Build::new();
     build
@@ -116,11 +119,11 @@ const X86_PROBES: &[IsaProbe] = &[
     },
 ];
 
-// ARM probes: msvc_flags are empty because MSVC does not define __ARM_FEATURE_*
-// macros via /arch: flags. For MSVC header-only builds, types.h infers features
-// from __ARM_ARCH level instead. SVE/SME probes also have #error guards for _WIN32.
+// ARM probes: msvc_flags are empty because MSVC does not define __ARM_FEATURE_* macros via /arch:
+// flags. For MSVC header-only builds, types.h infers features from __ARM_ARCH level instead.
+// SVE/SME probes also have #error guards for _WIN32.
 const ARM_PROBES: &[IsaProbe] = &[
-    // FEAT_AdvSIMD (baseline ARM64)
+    // FEAT_AdvSIMD, baseline ARM64
     IsaProbe {
         name: "NK_TARGET_NEON",
         probe_file: "probes/arm_neon.c",

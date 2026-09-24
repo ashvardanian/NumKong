@@ -1,3 +1,6 @@
+// numkong/golang/probability.go
+// Written by Ash Vardanian.
+
 package numkong
 
 /*

@@ -1,8 +1,8 @@
 /**
- *  @brief Dispatch Initialization for Type Conversions and Scalar Math.
  *  @file c/dispatch_other.c
  *  @author Ash Vardanian
  *  @date February 3, 2026
+ *  @brief Dispatch initialization for type conversions and scalar math.
  */
 #include "dispatch.h"
 
@@ -300,7 +300,7 @@ void nk_dispatch_math_init_(nk_capability_t caps) {
 #endif
 }
 
-// Scalar conversion dispatch functions
+/* Scalar conversion dispatch functions */
 
 NK_API_RUNTIME void nk_bf16_to_f32(nk_bf16_t const *src, nk_f32_t *dest) { nk_dispatch_table.bf16_to_f32(src, dest); }
 NK_API_RUNTIME void nk_f32_to_bf16(nk_f32_t const *src, nk_bf16_t *dest) { nk_dispatch_table.f32_to_bf16(src, dest); }
@@ -315,7 +315,7 @@ NK_API_RUNTIME void nk_f32_to_e3m2(nk_f32_t const *src, nk_e3m2_t *dest) { nk_di
 NK_API_RUNTIME void nk_e2m3_to_f32(nk_e2m3_t const *src, nk_f32_t *dest) { nk_dispatch_table.e2m3_to_f32(src, dest); }
 NK_API_RUNTIME void nk_f32_to_e2m3(nk_f32_t const *src, nk_e2m3_t *dest) { nk_dispatch_table.f32_to_e2m3(src, dest); }
 
-// Scalar math dispatch functions
+/* Scalar math dispatch functions */
 
 NK_API_RUNTIME nk_f64_t nk_f64_sqrt(nk_f64_t x) { return nk_dispatch_table.f64_sqrt(x); }
 NK_API_RUNTIME nk_f64_t nk_f64_rsqrt(nk_f64_t x) { return nk_dispatch_table.f64_rsqrt(x); }
@@ -327,7 +327,7 @@ NK_API_RUNTIME nk_f16_t nk_f16_sqrt(nk_f16_t x) { return nk_dispatch_table.f16_s
 NK_API_RUNTIME nk_f16_t nk_f16_rsqrt(nk_f16_t x) { return nk_dispatch_table.f16_rsqrt(x); }
 NK_API_RUNTIME nk_f16_t nk_f16_fma(nk_f16_t a, nk_f16_t b, nk_f16_t c) { return nk_dispatch_table.f16_fma(a, b, c); }
 
-// Saturating arithmetic dispatch functions
+/* Saturating arithmetic dispatch functions */
 
 NK_API_RUNTIME nk_i64_t nk_i64_saturating_add(nk_i64_t a, nk_i64_t b) {
     return nk_dispatch_table.i64_saturating_add(a, b);
@@ -382,7 +382,7 @@ NK_API_RUNTIME nk_u4x2_t nk_u4x2_saturating_mul(nk_u4x2_t a, nk_u4x2_t b) {
     return nk_dispatch_table.u4x2_saturating_mul(a, b);
 }
 
-// Ordering dispatch functions
+/* Ordering dispatch functions */
 
 NK_API_RUNTIME int nk_bf16_order(nk_bf16_t a, nk_bf16_t b) { return nk_dispatch_table.bf16_order(a, b); }
 NK_API_RUNTIME int nk_f16_order(nk_f16_t a, nk_f16_t b) { return nk_dispatch_table.f16_order(a, b); }

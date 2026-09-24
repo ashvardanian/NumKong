@@ -1,14 +1,17 @@
-//! Batched dot products (GEMM) over pre-packed matrices — the shared `dots` core.
+//! Batched dot products over pre-packed matrices, the GEMM core that `dots` shares.
 //!
 //! This module provides:
 //!
 //! - [`Dots`]: Low-level per-scalar batched dot-product trait — FFI-backed
 //! - [`DotsPackedMatrix`]: Pre-packed right-hand operand reused across many multiplies
 //! - [`DotsPackedOps`] / `DotsPackedParallelOps`: `C = A × Bᵀ` for any [`TensorRef`]
-//! - [`SymmetricDotsOps`]: `C = A × Aᵀ` (upper triangle) for any [`TensorRef`]
+//! - [`SymmetricDotsOps`]: `C = A × Aᵀ`, upper triangle, for any [`TensorRef`]
 //!
 //! The `spatials` (angular/euclidean) and `sets` (hamming/jaccard) modules build on the
 //! `DotsPackedMatrix` and validators re-exported here.
+//!
+//! File: rust/dots.rs
+//! Author: Ash Vardanian
 use core::marker::PhantomData;
 
 use crate::tensor::{Allocator, Global, PackedBuffer, Tensor, TensorError, TensorMut, TensorRef, TensorView};
@@ -473,30 +476,27 @@ extern "C" {
 
 // region: Dots Trait
 
-/// Low-level trait for batched **dot product** computation using pre-packed matrices.
+/// Low-level trait for batched __dot product__ computation using pre-packed matrices.
 ///
 /// Given A ∈ ℝᵐˣᵏ and packed B ∈ ℝⁿˣᵏ, computes C ∈ ℝᵐˣⁿ where:
 /// Cᵢⱼ = aᵢ · bⱼ
 ///
-/// B is pre-packed into a backend-specific layout for optimal memory access.
-/// All strides are in bytes.
+/// B is pre-packed into a backend-specific layout for optimal access; strides are all in bytes.
 ///
 /// # When to use
 ///
-/// Reach for this trait, or the matching `Tensor::try_dots_packed*` wrappers,
-/// whenever you multiply many query rows against the **same** matrix of
-/// database rows: pre-packing B once amortises layout-conversion cost across
-/// every subsequent query. The accumulator type is intentionally widened to
-/// avoid precision loss — `f32 × f32 → f64`, `f16 × f16 → f32`,
-/// `i8 × i8 → i32`, `u8 × u8 → u32`, and so on; see each impl's
-/// [`Dots::Accumulator`]. On `u1x8` the multiply degenerates to a bitwise AND
-/// and the accumulator counts set bits into a `u32`.
+/// Reach for this trait, or the matching `Tensor::try_dots_packed*` wrappers, whenever you multiply
+/// many query rows against the __same__ matrix of database rows: pre-packing B once amortises
+/// layout-conversion cost across every subsequent query. The accumulator type is intentionally
+/// widened to avoid precision loss — `f32 × f32 → f64`, `f16 × f16 → f32`, `i8 × i8 → i32`, `u8 ×
+/// u8 → u32`, and so on; see each impl's [`Dots::Accumulator`]. On `u1x8` the multiply degenerates
+/// to a bitwise AND and the accumulator counts set bits into a `u32`.
 mod private {
     /// Sealed supertrait for the batch-operation trait family.
     ///
-    /// Implementations of [`Dots`] / [`Angulars`] / [`Euclideans`] / [`Hammings`] /
-    /// [`Jaccards`] call into NumKong's C kernels via unsafe FFI. External
-    /// implementations are not supported — the sealed bound makes that explicit.
+    /// Implementations of [`Dots`] / [`Angulars`] / [`Euclideans`] / [`Hammings`] / [`Jaccards`]
+    /// call into NumKong's C kernels via unsafe FFI. External implementations are not supported —
+    /// the sealed bound makes that explicit.
     pub trait Sealed {}
     impl Sealed for f32 {}
     impl Sealed for f64 {}
@@ -545,8 +545,8 @@ pub trait Dots: StorageElement + private::Sealed {
     ///
     /// # Safety
     /// - `a` must point to valid memory for `height * depth` elements with given stride
-    /// - `packed` must be a buffer previously filled by `dots_pack`
-    /// - `c` must point to valid memory for `height * width` elements with given stride
+    /// - `packed` must be a buffer filled by `dots_pack`
+    /// - `c` must point to valid memory for `height` × `width` elements with given stride
     unsafe fn dots_packed(
         queries: *const Self,
         packed: *const u8,
@@ -560,12 +560,12 @@ pub trait Dots: StorageElement + private::Sealed {
 
     /// Computes C = A × Aᵀ where C is symmetric.
     ///
-    /// Given input matrix A of shape [n, k], computes the symmetric matrix of all pairwise
-    /// dot products. Only the upper triangle is computed, then mirrored to the lower triangle.
+    /// Given input matrix A of shape __[n,k]__, computes the symmetric matrix of all pairwise dot
+    /// products. Only the upper triangle is computed, then mirrored to the lower triangle.
     ///
     /// # Safety
     /// - `vectors` must point to valid memory for `vector_count × depth` elements with given stride
-    /// - `result` must point to valid memory for `vector_count × vector_count` elements with given stride
+    /// - `result` must point to valid memory for `vector_count×vector_count` elements, given stride
     /// - Strides are in bytes, not elements
     /// - `row_start + row_count` must be <= `vector_count`
     unsafe fn dots_symmetric(
@@ -1606,19 +1606,19 @@ impl Dots for u1x8 {
 ///
 /// Uses raw memory allocation, not std::Vec, for maximum control.
 ///
-/// When multiplying A × Bᵀ multiple times with the same B matrix,
-/// packing B once and reusing it is much faster than packing each time.
+/// When multiplying A × Bᵀ multiple times with the same B matrix, packing B once and reusing it is
+/// much faster than packing each time.
 ///
 /// # Usage
 ///
-/// For C = A × Bᵀ where B is (n × k):
+/// For C = A × Bᵀ where B is __[n,k]__:
 /// ```rust,ignore
 /// // Requires linking against libnumkong C library
 /// let b_packed = DotsPackedMatrix::try_pack(&b_array).unwrap();
 /// let c = a_array.dots_packed(&b_packed);
 /// ```
 ///
-/// For C = A × B where B is (k × n) in standard GEMM layout:
+/// For C = A × B where B is __[k,n]__ in standard GEMM layout:
 /// ```rust,ignore
 /// // Requires linking against libnumkong C library
 /// let b_packed = DotsPackedMatrix::try_pack_transposed(&b_array).unwrap();
@@ -1627,9 +1627,9 @@ impl Dots for u1x8 {
 #[derive(Debug)]
 pub struct DotsPackedMatrix<Scalar: Dots, Alloc: Allocator = Global> {
     buffer: PackedBuffer<Alloc>,
-    /// Output columns (B width).
+    /// Output columns, the B width.
     width: usize,
-    /// Inner dimension (depth).
+    /// Inner dimension, the depth.
     depth: usize,
     _marker: PhantomData<Scalar>,
 }
@@ -1679,8 +1679,8 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
 
     /// Repack `b` into this matrix's existing buffer, reusing the allocation when the packed size
     /// fits `capacity` and reallocating through the stored allocator only when it must grow. A
-    /// steady-state loop over same-shaped operands then allocates at most once. `b` must be 2D
-    /// with contiguous rows.
+    /// steady-state loop over same-shaped operands then allocates at most once. `b` must be 2D with
+    /// contiguous rows.
     pub fn try_pack_into<Matrix, const MAX_RANK: usize>(&mut self, matrix: &Matrix) -> Result<(), TensorError>
     where
         Matrix: TensorRef<Scalar, MAX_RANK> + ?Sized,
@@ -1729,7 +1729,8 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
     /// Repack `b` into this matrix's buffer in parallel, splitting the columns across a ForkUnion
     /// thread pool. Column ranges partition `[0, width)` contiguously, so every packed tile is
     /// written exactly once and the range covering column 0 writes the shared header. Like
-    /// [`try_pack_into`](Self::try_pack_into), packing overwrites, so a grow discards the old contents.
+    /// [`try_pack_into`](Self::try_pack_into), packing overwrites, so growing the buffer discards
+    /// its old contents.
     #[cfg(feature = "parallel")]
     #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
     pub fn try_pack_parallel_into<Matrix, const MAX_RANK: usize>(
@@ -1780,7 +1781,7 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
         Ok(())
     }
 
-    /// Pack Bᵀ where B is (k × n) row-major, the standard GEMM layout, using a custom allocator.
+    /// Pack Bᵀ where B is __[k,n]__ row-major, the standard GEMM layout, using a custom allocator.
     ///
     /// Materializes the transpose into a contiguous buffer, then packs normally.
     /// Result computes: C = A × B
@@ -1814,7 +1815,7 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
     /// Returns a reference to the allocator.
     pub fn allocator(&self) -> &Alloc { self.buffer.allocator() }
 
-    /// Returns the shape (width, depth) of the original B matrix.
+    /// Returns the shape __[width,depth]__ of the original B matrix.
     pub fn shape(&self) -> (usize, usize) { (self.width, self.depth) }
 
     /// Bytes a packed buffer occupies for a width-by-depth B matrix of this scalar type under the
@@ -1859,7 +1860,7 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
 
 // Convenience methods using Global allocator
 impl<Scalar: Dots> DotsPackedMatrix<Scalar, Global> {
-    /// Pack B matrix where B is (n × k) row-major using the global allocator.
+    /// Pack B matrix where B is __[n,k]__ row-major using the global allocator.
     ///
     /// Result computes: C = A × Bᵀ
     pub fn try_pack<Matrix, const MAX_RANK: usize>(matrix: &Matrix) -> Result<Self, TensorError>
@@ -1869,7 +1870,7 @@ impl<Scalar: Dots> DotsPackedMatrix<Scalar, Global> {
         Self::try_pack_in(matrix, Global)
     }
 
-    /// Pack Bᵀ where B is (k × n) row-major, the standard GEMM layout, using the global allocator.
+    /// Pack Bᵀ where B is __[k,n]__ row-major, standard GEMM layout, using the global allocator.
     ///
     /// Result computes: C = A × B
     pub fn try_pack_transposed<Matrix, const MAX_RANK: usize>(matrix: &Matrix) -> Result<Self, TensorError>
@@ -1902,8 +1903,8 @@ impl<Scalar: Dots> DotsPackedMatrix<Scalar, Global> {
 
 /// Validate shared preconditions for `*_packed` operations.
 ///
-/// Checks that `a` is a 2D tensor with contiguous rows and that its depth
-/// matches that of the packed matrix. Returns `(height, width, depth)` on success.
+/// Checks that `a` is a 2D tensor with contiguous rows and that its depth matches that of the
+/// packed matrix. Returns `(height, width, depth)` on success.
 #[inline]
 pub(crate) fn validate_packed_input<Scalar, A, PackedAlloc, const MAX_RANK: usize>(
     queries: &A,
@@ -2001,17 +2002,16 @@ where
 
 // region: Tensor GEMM
 
-// Inherent, allocator-preserving entry points on the owning `Tensor`. These
-// mirror the [`DotsPackedOps`] methods below but return a result allocated with
-// `self`'s own allocator, and remain callable without importing the extension
-// trait. For a `Tensor` receiver they shadow the blanket-trait methods of the
-// same name; views and spans reach the globally allocating trait versions.
+// Inherent, allocator-preserving entry points on the owning `Tensor`. These mirror the
+// [`DotsPackedOps`] methods below but return a result allocated with `self`'s own allocator, and
+// remain callable without importing the extension trait. For a `Tensor` receiver they shadow the
+// blanket-trait methods of the same name; views and spans instead reach the globally allocating
+// trait's own versions.
 impl<Scalar: Dots, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK> {
     /// Dot-product multiply: C = self × packed_rightᵀ
     ///
-    /// self must be 2D (m × k) with contiguous rows.
-    /// packed_right contains B (n × k) packed.
-    /// Returns C (m × n) using the same allocator as self.
+    /// self must be 2D __[m,k]__ with contiguous rows. packed_right contains B __[n,k]__ packed.
+    /// Returns C __[m,n]__ using the same allocator as self.
     ///
     /// Returns `Err` if:
     /// - self is not 2D
@@ -2048,19 +2048,18 @@ impl<Scalar: Dots, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<Scala
     }
 }
 
-/// Extension trait: packed GEMM (`C = A × Bᵀ`) for any immutable tensor
-/// reference — owned [`Tensor`], borrowed [`TensorView`], or [`TensorSpan`](crate::TensorSpan).
+/// Extension trait: packed GEMM (`C = A × Bᵀ`) for any immutable tensor reference — owned
+/// [`Tensor`], borrowed [`TensorView`], or [`TensorSpan`](crate::TensorSpan).
 ///
-/// Blanket-implemented for every [`TensorRef`], so an `A` operand backed by an
-/// mmap'd view can multiply against a pre-packed [`DotsPackedMatrix`] without first
-/// materializing an owned copy. The allocating entry point returns a globally
-/// allocated result, since a bare view carries no allocator of its own.
+/// Blanket-implemented for every [`TensorRef`], so an `A` operand backed by an mmap'd view can
+/// multiply against a pre-packed [`DotsPackedMatrix`] without first materializing an owned copy.
+/// The allocating entry point returns a globally allocated result, since a bare view carries no
+/// allocator of its own.
 pub trait DotsPackedOps<Scalar: Dots, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
     /// Dot-product multiply: C = self × packed_rightᵀ
     ///
-    /// self must be 2D (m × k) with contiguous rows.
-    /// packed_right contains B (n × k) packed.
-    /// Returns C (m × n) using the global allocator.
+    /// self must be 2D __[m,k]__ with contiguous rows. packed_right contains B __[n,k]__ packed.
+    /// Returns C __[m,n]__ using the global allocator.
     ///
     /// Returns `Err` if:
     /// - self is not 2D
@@ -2101,9 +2100,9 @@ pub trait DotsPackedOps<Scalar: Dots, const MAX_RANK: usize>: TensorRef<Scalar, 
 
     /// Dot-product multiply into an existing output, avoiding allocation.
     ///
-    /// The output may be a `&mut Tensor<...>` or `&mut TensorSpan<...>`; any
-    /// writable tensor container that implements [`TensorMut`] works. The
-    /// kernel overwrites `c` — it need not be pre-initialized.
+    /// The output may be a `&mut Tensor<...>` or `&mut TensorSpan<...>`; any writable tensor
+    /// container that implements [`TensorMut`] works. The kernel overwrites `c` entirely, so it
+    /// need not arrive pre-initialized.
     fn try_dots_packed_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
@@ -2134,12 +2133,13 @@ pub trait DotsPackedOps<Scalar: Dots, const MAX_RANK: usize>: TensorRef<Scalar, 
 impl<Scalar: Dots, const MAX_RANK: usize, A: TensorRef<Scalar, MAX_RANK>> DotsPackedOps<Scalar, MAX_RANK> for A {}
 
 // Parallel dots_packed implementations, if ForkUnion is available.
+
 /// Extension trait: parallel packed GEMM for any immutable tensor reference.
 ///
-/// The parallel counterpart of [`DotsPackedOps`], blanket-implemented for every
-/// [`TensorRef`] whose scalar can cross thread boundaries. The `A` operand may
-/// therefore be an owned [`Tensor`], a borrowed [`TensorView`], or a
-/// [`TensorSpan`](crate::TensorSpan) without materializing an owned copy.
+/// The parallel counterpart of [`DotsPackedOps`], blanket-implemented for every [`TensorRef`] whose
+/// scalar can cross thread boundaries. The `A` operand may therefore be an owned [`Tensor`], a
+/// borrowed [`TensorView`], or a [`TensorSpan`](crate::TensorSpan) without first materializing an
+/// owned copy of it.
 #[cfg(feature = "parallel")]
 #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
 pub trait DotsPackedParallelOps<Scalar, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK>
@@ -2277,8 +2277,8 @@ where
 
 /// Compute row assignment for a thread without allocation
 ///
-/// For a symmetric matrix, cumulative work up to row r is: r*(2n - r + 1)/2
-/// Solving r*(2n - r + 1)/2 = work using quadratic formula gives exact row.
+/// For a symmetric matrix, cumulative work up to row r is: r*(2n - r + 1)/2. Solving r*(2n - r +
+/// 1)/2 = work using the quadratic formula gives the exact row.
 #[cfg(feature = "parallel")]
 #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
 #[inline]
@@ -2413,8 +2413,8 @@ where
 {
     /// Computes the symmetric dot-product matrix C = A × Aᵀ.
     ///
-    /// Given a matrix of row vectors, computes the matrix of all pairwise dot products.
-    /// The result is a symmetric n×n matrix where result\[i,j\] = dot(row_i, row_j).
+    /// Given a matrix of row vectors, computes the symmetric __[n,n]__ matrix of all pairwise dot
+    /// products, where result\[i,j\] = dot(row_i, row_j).
     ///
     /// # Example
     /// ```ignore
@@ -2439,8 +2439,8 @@ where
 
     /// Computes the symmetric dot-product matrix into pre-allocated output.
     ///
-    /// Only the upper triangle of `c` is written; the lower triangle is queries
-    /// as-is. The output may be a `&mut Tensor<...>` or `&mut TensorSpan<...>`.
+    /// Only the upper triangle of `c` is written; the lower triangle is queries as-is. The output
+    /// may be a `&mut Tensor<...>` or `&mut TensorSpan<...>`.
     pub fn try_dots_symmetric_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         output: &mut OutputTensor,
@@ -2472,15 +2472,14 @@ where
 
 /// Extension trait: symmetric dot-product matrix for any [`TensorRef`] implementor.
 ///
-/// Blanket-implemented for every `TensorRef<Scalar, R>`, so calling
-/// `vectors.try_dots_symmetric()` works on both owned [`Tensor`] and borrowed
-/// [`TensorView`] / `TensorSpan`. Only the **upper triangle** (including the
-/// diagonal) of the output is written by the kernel; the lower triangle is
-/// queries untouched — callers that need a full dense matrix must mirror it.
+/// Blanket-implemented for every `TensorRef<Scalar, R>`, so calling `vectors.try_dots_symmetric()`
+/// works on both owned [`Tensor`] and borrowed [`TensorView`] / `TensorSpan`. Only the __upper
+/// triangle__, including the diagonal, of the output is written by the kernel; the lower triangle
+/// is queries untouched — callers that need a full dense matrix must mirror it.
 ///
-/// Prefer this extension trait when you have a generic `TensorRef`; use the
-/// inherent [`TensorView::try_dots_symmetric`] form when you already hold a
-/// view and want to avoid the extra trait import.
+/// Prefer this extension trait when you have a generic `TensorRef`; use the inherent
+/// [`TensorView::try_dots_symmetric`] form instead when you already hold a view and want to skip
+/// the extra trait import.
 pub trait SymmetricDotsOps<Scalar: Dots, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK>
 where
     Scalar::Accumulator: 'static,
@@ -2489,8 +2488,8 @@ where
         self.view().try_dots_symmetric()
     }
 
-    /// Writes the symmetric dot-product matrix into pre-allocated output.
-    /// Only the upper triangle is written.
+    /// Writes the symmetric dot-product matrix into pre-allocated output, touching only the upper
+    /// triangle of it.
     fn try_dots_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(&self, output: &mut Out) -> Result<(), TensorError>
     where
         Out: TensorMut<Scalar::Accumulator, OUTPUT_MAX_RANK>,
@@ -2506,14 +2505,13 @@ impl<Scalar: Dots, const R: usize, OutputTensor: TensorRef<Scalar, R>> Symmetric
 
 /// Extension trait: symmetric angular distance matrix for any [`TensorRef`] implementor.
 ///
-/// Blanket-implemented for every `TensorRef<Scalar, R>` so the `try_angulars_symmetric`
-/// method is available on both owned [`Tensor`] and borrowed views. Only the
-/// upper triangle (including the diagonal) of the output is written by the
-/// kernel — mirror it yourself if you need a dense symmetric matrix.
+/// Blanket-implemented for every `TensorRef<Scalar, R>` so the `try_angulars_symmetric` method is
+/// available on both owned [`Tensor`] and borrowed views. Only the upper triangle, including the
+/// diagonal, of the output is written by the kernel — mirror it yourself for a full dense matrix.
 ///
 /// Prefer this trait when operating on a generic `TensorRef`; use the inherent
-/// [`TensorView::try_angulars_symmetric`] form when you already hold a view
-/// and want to sidestep the extra trait import.
+/// [`TensorView::try_angulars_symmetric`] form when you already hold a view and want to sidestep
+/// the extra trait import.
 
 #[cfg(test)]
 mod tests {

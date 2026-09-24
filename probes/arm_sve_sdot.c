@@ -1,4 +1,9 @@
-/* NumKong ISA probe: SVE I8 signed-dot (FEAT_SVEDot) */
+/**
+ *  @file probes/arm_sve_sdot.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for SVE I8 signed dot products, @c FEAT_SVEDot.
+ */
 #if defined(_WIN32)
 #error "SVE/SME not supported on Windows ARM"
 #endif

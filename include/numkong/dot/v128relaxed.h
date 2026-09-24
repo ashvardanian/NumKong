@@ -1,27 +1,24 @@
 /**
- *  @brief SIMD-accelerated Dot Products for WASM.
  *  @file include/numkong/dot/v128relaxed.h
  *  @author Ash Vardanian
  *  @date January 31, 2026
+ *  @brief SIMD-accelerated dot products for WASM.
  *
  *  Requires Emscripten 3.1.27+ with `-msimd128 -mrelaxed-simd` flags.
  *
  *  Key optimizations:
  *  - Uses relaxed FMA (f32x4.relaxed_madd, f64x2.relaxed_madd) for 2x throughput
  *  - Smart i8/u8 dot products using algebraic decomposition + correction terms
- *  - F64 upcasting variant for improved numerical precision (NEON-style)
+ *  - F64 upcasting variant for improved numerical precision, NEON-style
  *
- *  Smart i8 optimization:
- *    Decompose: b = b_7bit - 128 × signbit
- *    Therefore: a·b = a·b_7bit - 128 × sum(a[i] where b[i] < 0)
- *    Uses fast relaxed_dot_i8x16_i7x16 + SAD-like correction
+ *  Smart i8 optimization decomposes b = b_7bit − 128 × signbit, so a·b = a·b_7bit − 128 × Σ a[i]
+ *  over the lanes where b[i] < 0: a fast relaxed_dot_i8x16_i7x16 plus a SAD-like correction.
  *
- *  Smart u8 optimization:
- *    Decompose: b = b_7bit + 128 × highbit
- *    Therefore: a·b = a·b_7bit + 128 × sum(a[i] where b[i] >= 128)
- *    Simpler than i8 (positive correction, can use shift instead of mul)
+ *  Smart u8 optimization decomposes b = b_7bit + 128 × highbit, so a·b = a·b_7bit + 128 × Σ a[i]
+ *  over the lanes where b[i] ≥ 128. It is simpler than i8: the correction is positive, and a shift
+ *  can replace the multiplication.
  *
- *  @sa include/numkong/dot/v128.h for the SIMD128 twins of the bf16, i8 and u8 kernels and the u1 dot.
+ *  @sa include/numkong/dot/v128.h for the SIMD128 twins of the bf16, i8, u8, and u1 dot kernels.
  */
 
 #ifndef NK_DOT_V128RELAXED_H

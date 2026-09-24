@@ -1,8 +1,8 @@
 /**
- *  @brief Reduction kernels: reduce_moments (sum + sum-of-squares), reduce_minmax (min + max with indices).
  *  @file include/numkong/reduce.hpp
  *  @author Ash Vardanian
  *  @date February 5, 2026
+ *  @brief Reduction kernels: reduce_moments (sum, sum-of-squares), reduce_minmax (min/max/indices).
  */
 #ifndef NK_REDUCE_HPP
 #define NK_REDUCE_HPP
@@ -20,17 +20,17 @@
 namespace ashvardanian::numkong {
 
 /**
- *  @brief Compute sum and sum-of-squares in a single pass: sum = Sigma data_i, sumsq = Sigma data_i^2
- *  @param[in] data Input array
+ *  @brief Computes sum and sum of squares in a single pass: sum = Σ dataᵢ, sumsq = Σ dataᵢ².
+ *  @param[in] data Input array.
  *  @param[in] count Counts dimensions, a multiple of the values per byte.
- *  @param[in] stride_bytes Stride between elements in bytes (use sizeof(in_type_) for contiguous)
- *  @param[out] sum Output sum
- *  @param[out] sumsq Output sum of squares
+ *  @param[in] stride_bytes Stride between elements in bytes, `sizeof(in_type_)` for contiguous.
+ *  @param[out] sum Output sum.
+ *  @param[out] sumsq Output sum of squares.
  *
- *  @tparam in_type_ Input vector element type
- *  @tparam sum_type_ Sum accumulator type, defaults to `in_type_::reduce_moments_sum_t` (often widened)
- *  @tparam sumsq_type_ Sum-of-squares accumulator type, defaults to `sum_type_`
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
+ *  @tparam in_type_ Input vector element type.
+ *  @tparam sum_type_ Accumulator, defaults to @c in_type_::reduce_moments_sum_t, often widened.
+ *  @tparam sumsq_type_ Sum-of-squares accumulator type, defaults to @c sum_type_.
+ *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k.
  */
 template <numeric_dtype in_type_, numeric_dtype sum_type_ = typename in_type_::reduce_moments_sum_t,
           numeric_dtype sumsq_type_ = typename in_type_::reduce_moments_sumsq_t,
@@ -121,7 +121,8 @@ void reduce_moments(in_type_ const *data, std::size_t count, std::size_t stride_
  *  @param[out] max_index Output index of maximum value
  *
  *  @tparam in_type_ Input vector element type
- *  @tparam minmax_type_ Result type for min/max values, defaults to `in_type_::reduce_minmax_value_t`
+ *  @tparam minmax_type_ Result type for min/max values, defaults to
+ *      @c in_type_::reduce_minmax_value_t
  *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
  */
 template <numeric_dtype in_type_, numeric_dtype minmax_type_ = typename in_type_::reduce_minmax_value_t,
@@ -211,13 +212,14 @@ void reduce_minmax(in_type_ const *data, std::size_t count, std::size_t stride_b
 /**
  *  @brief Grouped RMSNorm: yᵢ = xᵢ · rsqrt(mean(x²) + eps) · gammaᵢ
  *
- *  Each row holds `groups` independent `cols`-vectors, normalized separately.
+ *  Each row holds @p groups independent @p cols-vectors, normalized separately.
  *
- *  @param[in] x Input matrix; `rows × groups × cols` with `groups` packed at `group · cols`
- *  @param[in] gamma Per-column gain of length `cols`, shared across groups; `nullptr` for unit scale
- *  @param[out] y Output matrix, same shape and dtype as `x`; may alias `x`
+ *  @param[in] x Input matrix, shaped @b [rows,groups,cols], with each group packed as @p cols
+ *      contiguous elements within its row.
+ *  @param[in] gamma Per-column gain, length @p cols, shared by groups; @c nullptr is unit scale.
+ *  @param[out] y Output matrix, same shape and dtype as @p x; may alias @p x
  *  @param[in] rows,groups,cols Logical shape
- *  @param[in] x_row_stride,y_row_stride Row (outer) strides in bytes
+ *  @param[in] x_row_stride, @p y_row_stride Row (outer) strides in bytes
  *  @param[in] eps Variance epsilon added before the reciprocal square root
  *  @param[in] input_scale Scalar folded onto every loaded element (E4M3 descale; 1.0 for BF16/F32)
  *
@@ -264,7 +266,7 @@ void rmsnorm(in_type_ const *x, f32_t const *gamma, in_type_ *y, std::size_t row
     }
 }
 
-/** @brief Compute sum and sum-of-squares over a vector view. */
+/** Compute sum and sum-of-squares over a vector view. */
 template <numeric_dtype in_type_, numeric_dtype sum_type_ = typename in_type_::reduce_moments_sum_t,
           numeric_dtype sumsq_type_ = typename in_type_::reduce_moments_sumsq_t,
           allow_simd_t allow_simd_ = prefer_simd_k>
@@ -273,7 +275,7 @@ void reduce_moments(vector_view<in_type_> input, sum_type_ *sum, sumsq_type_ *su
         input.data(), input.size(), static_cast<std::size_t>(input.stride_bytes()), sum, sumsq);
 }
 
-/** @brief Find minimum and maximum elements with their indices over a vector view. */
+/** Find minimum and maximum elements with their indices over a vector view. */
 template <numeric_dtype in_type_, numeric_dtype minmax_type_ = typename in_type_::reduce_minmax_value_t,
           allow_simd_t allow_simd_ = prefer_simd_k>
 void reduce_minmax(vector_view<in_type_> input, minmax_type_ *min_value, std::size_t *min_index,
@@ -291,7 +293,8 @@ namespace ashvardanian::numkong {
 
 #pragma region Tensor Nonlinearities
 
-/** @brief Grouped RMSNorm over a `[rows, groups·cols]` matrix into a matching output span. */
+/** Grouped RMSNorm over a matrix of @c rows rows, @p groups groups and @c cols columns, into a
+ *  matching output span. */
 template <numeric_dtype value_type_>
 bool rmsnorm(matrix_view<value_type_> input, vector_view<f32_t> gamma, matrix_span<value_type_> output,
              std::size_t groups, float eps, float input_scale = 1.0f) noexcept {
@@ -306,7 +309,7 @@ bool rmsnorm(matrix_view<value_type_> input, vector_view<f32_t> gamma, matrix_sp
     return true;
 }
 
-/** @brief Allocating grouped RMSNorm returning a fresh matrix. */
+/** Allocating grouped RMSNorm returning a fresh matrix. */
 template <numeric_dtype value_type_, typename allocator_type_ = aligned_allocator<value_type_>>
 tensor<value_type_, allocator_type_, 2> try_rmsnorm(matrix_view<value_type_> input, vector_view<f32_t> gamma,
                                                     std::size_t groups, float eps, float input_scale = 1.0f) noexcept {
@@ -323,16 +326,21 @@ tensor<value_type_, allocator_type_, 2> try_rmsnorm(matrix_view<value_type_> inp
 
 #pragma region Tensor Reduction Helpers
 
-/** @brief Result of detecting how many trailing dimensions form a single arithmetic progression. */
+/** Result of detecting how many trailing dimensions form a single arithmetic progression:
+ *  @c tail_dims collapsible trailing dimensions, @c element_count product of collapsed extents,
+ *  @c stride_bytes absolute stride of the innermost collapsed dimension. */
 struct uniform_stride_tail_result_t_ {
-    std::size_t tail_dims;     ///< Number of collapsible trailing dimensions.
-    std::size_t element_count; ///< Product of collapsed extents.
-    std::size_t stride_bytes;  ///< Absolute stride of the innermost collapsed dimension.
+    std::size_t tail_dims;
+    std::size_t element_count;
+    std::size_t stride_bytes;
 };
 
-/** @brief Detect trailing dimensions where stride[i] == stride[i+1] * extent[i+1].
- *  When this holds, the tail is a single strided sequence and can be passed to a SIMD
- *  kernel in one call with (element_count, stride_bytes). */
+/**
+ *  @brief Detects trailing dimensions where `stride[i] == stride[i+1] * extent[i+1]`.
+ *
+ *  When this holds, the tail is a single strided sequence and can be passed to a SIMD kernel in one
+ *  call with @c element_count and @c stride_bytes.
+ */
 template <typename value_type_, std::size_t max_rank_>
 uniform_stride_tail_result_t_ uniform_stride_tail_(tensor_view<value_type_, max_rank_> input) noexcept {
     if constexpr (dimensions_per_value<value_type_>() > 1) return {0, 0, 0};
@@ -351,7 +359,7 @@ uniform_stride_tail_result_t_ uniform_stride_tail_(tensor_view<value_type_, max_
     return {tail, count, static_cast<std::size_t>(innermost_stride < 0 ? -innermost_stride : innermost_stride)};
 }
 
-/** @brief Collapse the trailing `tail.tail_dims` dimensions into one, preserving outer dims and strides. */
+/** Collapses trailing `tail.tail_dims` dimensions into one, preserving outer dims and strides. */
 template <typename value_type_, std::size_t max_rank_>
 tensor_view<value_type_, max_rank_> collapse_uniform_tail_(tensor_view<value_type_, max_rank_> input,
                                                            uniform_stride_tail_result_t_ const &tail) noexcept {
@@ -366,7 +374,7 @@ tensor_view<value_type_, max_rank_> collapse_uniform_tail_(tensor_view<value_typ
     return {input.byte_data(), s};
 }
 
-/** @brief Normalize a fully-collapsed tail for SIMD kernel consumption, handling negative strides. */
+/** Normalize a fully-collapsed tail for SIMD kernel consumption, handling negative strides. */
 template <typename value_type_, std::size_t max_rank_>
 normalized_rank1_lane_<value_type_, max_rank_> normalize_rank1_lane_from_tail_(
     tensor_view<value_type_, max_rank_> input, uniform_stride_tail_result_t_ const &tail) noexcept {
@@ -581,7 +589,7 @@ bool reduce_minmax_axis_packed_(tensor_view<value_type_, max_rank_> input, std::
 
 #pragma region Scalar Reductions
 
-/** @brief Compute Σxᵢ and Σxᵢ² in a single pass. Returns zeroed result for empty tensors. */
+/** Compute Σxᵢ and Σxᵢ² in a single pass. Returns zeroed result for empty tensors. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
 moments_result<typename value_type_::reduce_moments_sum_t, typename value_type_::reduce_moments_sumsq_t> moments(
     tensor_view<value_type_, max_rank_> input) noexcept {
@@ -616,7 +624,7 @@ moments_result<typename value_type_::reduce_moments_sum_t, typename value_type_:
     return result;
 }
 
-/** @brief Find min and max values with their flat indices. */
+/** Find min and max values with their flat indices. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
 minmax_result<typename value_type_::reduce_minmax_value_t> minmax(tensor_view<value_type_, max_rank_> input) noexcept {
     using minmax_t = typename value_type_::reduce_minmax_value_t;
@@ -666,37 +674,37 @@ minmax_result<typename value_type_::reduce_minmax_value_t> minmax(tensor_view<va
     return result;
 }
 
-/** @brief Σ of all elements. */
+/** Σ of all elements. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
 typename value_type_::reduce_moments_sum_t sum(tensor_view<value_type_, max_rank_> input) noexcept {
     return moments(input).sum;
 }
 
-/** @brief Find the minimum element value. */
+/** Find the minimum element value. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
 typename value_type_::reduce_minmax_value_t min(tensor_view<value_type_, max_rank_> input) noexcept {
     return minmax(input).min_value;
 }
 
-/** @brief Find the maximum element value. */
+/** Find the maximum element value. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
 typename value_type_::reduce_minmax_value_t max(tensor_view<value_type_, max_rank_> input) noexcept {
     return minmax(input).max_value;
 }
 
-/** @brief Index of the minimum element (flat). */
+/** Index of the minimum element, flat. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
 std::size_t argmin(tensor_view<value_type_, max_rank_> input) noexcept {
     return minmax(input).min_index;
 }
 
-/** @brief Index of the maximum element (flat). */
+/** Index of the maximum element, flat. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
 std::size_t argmax(tensor_view<value_type_, max_rank_> input) noexcept {
     return minmax(input).max_index;
 }
 
-/** @brief Compute Σxᵢ and Σxᵢ² over a vector view. */
+/** Compute Σxᵢ and Σxᵢ² over a vector view. */
 template <numeric_dtype value_type_>
 moments_result<typename value_type_::reduce_moments_sum_t, typename value_type_::reduce_moments_sumsq_t> moments(
     vector_view<value_type_> input) noexcept {
@@ -708,7 +716,7 @@ moments_result<typename value_type_::reduce_moments_sum_t, typename value_type_:
     return result;
 }
 
-/** @brief Find min and max values with their indices over a vector view. */
+/** Find min and max values with their indices over a vector view. */
 template <numeric_dtype value_type_>
 minmax_result<typename value_type_::reduce_minmax_value_t> minmax(vector_view<value_type_> input) noexcept {
     using minmax_t = typename value_type_::reduce_minmax_value_t;
@@ -718,79 +726,79 @@ minmax_result<typename value_type_::reduce_minmax_value_t> minmax(vector_view<va
     return result;
 }
 
-/** @brief Σ of all elements in a vector view. */
+/** Σ of all elements in a vector view. */
 template <numeric_dtype value_type_>
 typename value_type_::reduce_moments_sum_t sum(vector_view<value_type_> input) noexcept {
     return moments(input).sum;
 }
 
-/** @brief Find the minimum element value in a vector view. */
+/** Find the minimum element value in a vector view. */
 template <numeric_dtype value_type_>
 typename value_type_::reduce_minmax_value_t min(vector_view<value_type_> input) noexcept {
     return minmax(input).min_value;
 }
 
-/** @brief Find the maximum element value in a vector view. */
+/** Find the maximum element value in a vector view. */
 template <numeric_dtype value_type_>
 typename value_type_::reduce_minmax_value_t max(vector_view<value_type_> input) noexcept {
     return minmax(input).max_value;
 }
 
-/** @brief Index of the minimum element in a vector view. */
+/** Index of the minimum element in a vector view. */
 template <numeric_dtype value_type_>
 std::size_t argmin(vector_view<value_type_> input) noexcept {
     return minmax(input).min_index;
 }
 
-/** @brief Index of the maximum element in a vector view. */
+/** Index of the maximum element in a vector view. */
 template <numeric_dtype value_type_>
 std::size_t argmax(vector_view<value_type_> input) noexcept {
     return minmax(input).max_index;
 }
 
-/** @brief Population count of a packed bit tensor — number of set bits.
- *  Wraps `nk_reduce_moments_u1` via `sum`; returns 0 for empty inputs. */
+/** Population count of a packed bit tensor, number of set bits. Wraps @c nk_reduce_moments_u1 via
+ *  @c sum; returns 0 for empty inputs. */
 template <std::size_t max_rank_ = 8>
 u64_t popcount(tensor_view<u1x8_t, max_rank_> input) noexcept {
     return sum<u1x8_t, max_rank_>(input);
 }
 
-/** @brief True if any bit of the packed bit tensor is set. Suffixed `_set` to
- *  avoid colliding with the `all_t`/`all` slice marker in `vector.hpp`. */
+/** True if any bit of the packed bit tensor is set. Suffixed @c _set to avoid colliding with the
+ *  @c all_t and @c all slice marker in `vector.hpp`. */
 template <std::size_t max_rank_ = 8>
 bool any_set(tensor_view<u1x8_t, max_rank_> input) noexcept {
     return popcount<max_rank_>(input).raw_ != 0;
 }
 
-/** @brief True if no bit of the packed bit tensor is set. */
+/** True if no bit of the packed bit tensor is set. */
 template <std::size_t max_rank_ = 8>
 bool none_set(tensor_view<u1x8_t, max_rank_> input) noexcept {
     return !any_set<max_rank_>(input);
 }
 
-/** @brief True if every bit of the packed bit tensor is set. */
+/** True if every bit of the packed bit tensor is set. */
 template <std::size_t max_rank_ = 8>
 bool all_set(tensor_view<u1x8_t, max_rank_> input) noexcept {
     return popcount<max_rank_>(input).raw_ == input.numel();
 }
 
-/** @brief Population count over a 1D bit-vector view. */
+/** Population count over a 1D bit-vector view. */
 inline u64_t popcount(vector_view<u1x8_t> input) noexcept { return sum<u1x8_t>(input); }
 
-/** @brief True if any bit of the 1D bit-vector view is set. */
+/** True if any bit of the 1D bit-vector view is set. */
 inline bool any_set(vector_view<u1x8_t> input) noexcept { return popcount(input).raw_ != 0; }
 
-/** @brief True if no bit of the 1D bit-vector view is set. */
+/** True if no bit of the 1D bit-vector view is set. */
 inline bool none_set(vector_view<u1x8_t> input) noexcept { return !any_set(input); }
 
-/** @brief True if every bit of the 1D bit-vector view is set. */
+/** True if every bit of the 1D bit-vector view is set. */
 inline bool all_set(vector_view<u1x8_t> input) noexcept { return popcount(input).raw_ == input.size(); }
 
 #pragma endregion Scalar Reductions
 
 #pragma region Axis Reductions
 
-/** @brief Σ along a single axis. Returns empty tensor on failure. */
+/** Σ along a single axis. Returns empty tensor on failure. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<typename value_type_::reduce_moments_sum_t>>
 tensor<typename value_type_::reduce_moments_sum_t, allocator_type_, max_rank_> try_sum(
@@ -816,7 +824,7 @@ tensor<typename value_type_::reduce_moments_sum_t, allocator_type_, max_rank_> t
     return sums;
 }
 
-/** @brief Moments along an axis (Σxᵢ and Σxᵢ² per slice). */
+/** Moments along an axis, Σxᵢ and Σxᵢ² per slice. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<typename value_type_::reduce_moments_sum_t>>
 moments_result<tensor<typename value_type_::reduce_moments_sum_t, allocator_type_, max_rank_>,
@@ -854,7 +862,7 @@ try_moments(tensor_view<value_type_, max_rank_> input, std::size_t axis,
     return {std::move(sums), std::move(sumsqs)};
 }
 
-/** @brief Min and max along an axis. */
+/** Min and max along an axis. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<typename value_type_::reduce_minmax_value_t>>
 minmax_result<tensor<typename value_type_::reduce_minmax_value_t, allocator_type_, max_rank_>> try_minmax(
@@ -880,7 +888,7 @@ minmax_result<tensor<typename value_type_::reduce_minmax_value_t, allocator_type
     return {std::move(mins), 0, std::move(maxs), 0};
 }
 
-/** @brief Argmin along an axis. */
+/** Argmin along an axis. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<std::size_t>>
 tensor<std::size_t, allocator_type_, max_rank_> try_argmin(tensor_view<value_type_, max_rank_> input, std::size_t axis,
@@ -896,7 +904,7 @@ tensor<std::size_t, allocator_type_, max_rank_> try_argmin(tensor_view<value_typ
     return indices;
 }
 
-/** @brief Argmax along an axis. */
+/** Argmax along an axis. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<std::size_t>>
 tensor<std::size_t, allocator_type_, max_rank_> try_argmax(tensor_view<value_type_, max_rank_> input, std::size_t axis,
@@ -912,7 +920,7 @@ tensor<std::size_t, allocator_type_, max_rank_> try_argmax(tensor_view<value_typ
     return indices;
 }
 
-/** @brief Min along an axis. */
+/** Min along an axis. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<typename value_type_::reduce_minmax_value_t>>
 tensor<typename value_type_::reduce_minmax_value_t, allocator_type_, max_rank_> try_min(
@@ -920,7 +928,7 @@ tensor<typename value_type_::reduce_minmax_value_t, allocator_type_, max_rank_> 
     return try_minmax<value_type_, max_rank_, allocator_type_>(input, axis, keep_dims).min_value;
 }
 
-/** @brief Max along an axis. */
+/** Max along an axis. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<typename value_type_::reduce_minmax_value_t>>
 tensor<typename value_type_::reduce_minmax_value_t, allocator_type_, max_rank_> try_max(

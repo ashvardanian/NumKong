@@ -1,8 +1,9 @@
 /**
- *  @brief C++ bindings for mesh-distance kernels.
  *  @file include/numkong/mesh.hpp
  *  @author Ash Vardanian
  *  @date February 5, 2026
+ *  @brief C++ bindings for mesh-distance kernels.
+ *
  */
 #ifndef NK_MESH_HPP
 #define NK_MESH_HPP
@@ -19,13 +20,13 @@ namespace ashvardanian::numkong {
 
 #pragma region SVD Helpers for Scalar Fallbacks
 
-/** @brief 3x3 matrix determinant. */
+/** 3x3 matrix determinant. */
 template <typename scalar_type_>
 scalar_type_ det3x3_(scalar_type_ const *m) {
     return m[0] * (m[4] * m[8] - m[5] * m[7]) - m[1] * (m[3] * m[8] - m[5] * m[6]) + m[2] * (m[3] * m[7] - m[4] * m[6]);
 }
 
-/** @brief Conditional swap helper. */
+/** Conditional swap helper. */
 template <typename scalar_type_>
 void conditional_swap_(bool c, scalar_type_ *x, scalar_type_ *y) {
     scalar_type_ temp = *x;
@@ -33,7 +34,7 @@ void conditional_swap_(bool c, scalar_type_ *x, scalar_type_ *y) {
     *y = c ? temp : *y;
 }
 
-/** @brief Conditional negating swap helper. */
+/** Conditional negating swap helper. */
 template <typename scalar_type_>
 void conditional_negating_swap_(bool c, scalar_type_ *x, scalar_type_ *y) {
     scalar_type_ neg_x = scalar_type_(0.0) - *x;
@@ -41,7 +42,7 @@ void conditional_negating_swap_(bool c, scalar_type_ *x, scalar_type_ *y) {
     *y = c ? neg_x : *y;
 }
 
-/** @brief Approximate Givens quaternion for Jacobi eigenanalysis. */
+/** Approximate Givens quaternion for Jacobi eigenanalysis. */
 template <typename scalar_type_>
 void approximate_givens_quaternion_(scalar_type_ a11, scalar_type_ a12, scalar_type_ a22, scalar_type_ *cos_half,
                                     scalar_type_ *sin_half) {
@@ -57,7 +58,7 @@ void approximate_givens_quaternion_(scalar_type_ a11, scalar_type_ a12, scalar_t
     *sin_half = use_givens ? w * (*sin_half) : sstar_k;
 }
 
-/** @brief Jacobi conjugation step for eigenanalysis. */
+/** Jacobi conjugation step for eigenanalysis. */
 template <typename scalar_type_>
 void jacobi_conjugation_(int idx_x, int idx_y, int idx_z, scalar_type_ *s11, scalar_type_ *s21, scalar_type_ *s22,
                          scalar_type_ *s31, scalar_type_ *s32, scalar_type_ *s33, scalar_type_ *quat) {
@@ -99,7 +100,7 @@ void jacobi_conjugation_(int idx_x, int idx_y, int idx_z, scalar_type_ *s11, sca
     *s11 = s11_old, *s21 = s21_old, *s22 = s22_old, *s31 = s31_old, *s32 = s32_old, *s33 = s33_old;
 }
 
-/** @brief Convert quaternion to 3x3 rotation matrix. */
+/** Convert quaternion to 3x3 rotation matrix. */
 template <typename scalar_type_>
 void quaternion_to_mat3x3_(scalar_type_ const *quat, scalar_type_ *matrix) {
     scalar_type_ w = quat[3], x = quat[0], y = quat[1], z = quat[2];
@@ -117,7 +118,7 @@ void quaternion_to_mat3x3_(scalar_type_ const *quat, scalar_type_ *matrix) {
     matrix[8] = scalar_type_(1.0) - scalar_type_(2.0) * (q_xx + q_yy);
 }
 
-/** @brief Jacobi eigenanalysis for symmetric 3x3 matrix. */
+/** Jacobi eigenanalysis for symmetric 3x3 matrix. */
 template <typename scalar_type_>
 void jacobi_eigenanalysis_(scalar_type_ *s11, scalar_type_ *s21, scalar_type_ *s22, scalar_type_ *s31,
                            scalar_type_ *s32, scalar_type_ *s33, scalar_type_ *quat) {
@@ -138,7 +139,7 @@ void jacobi_eigenanalysis_(scalar_type_ *s11, scalar_type_ *s21, scalar_type_ *s
     quat[3] = quat[3] * norm;
 }
 
-/** @brief QR Givens quaternion for QR decomposition. */
+/** QR Givens quaternion for QR decomposition. */
 template <typename scalar_type_>
 void qr_givens_quaternion_(scalar_type_ a1, scalar_type_ a2, scalar_type_ *cos_half, scalar_type_ *sin_half) {
     constexpr scalar_type_ epsilon_k = scalar_type_(1e-12);
@@ -157,7 +158,7 @@ void qr_givens_quaternion_(scalar_type_ a1, scalar_type_ a2, scalar_type_ *cos_h
     *sin_half = (*sin_half) * w;
 }
 
-/** @brief Sort singular values in descending order. */
+/** Sort singular values in descending order. */
 template <typename scalar_type_>
 void sort_singular_values_(scalar_type_ *b, scalar_type_ *v) {
     scalar_type_ rho1 = b[0] * b[0] + b[3] * b[3] + b[6] * b[6];
@@ -190,7 +191,7 @@ void sort_singular_values_(scalar_type_ *b, scalar_type_ *v) {
     conditional_negating_swap_(should_swap, &v[7], &v[8]);
 }
 
-/** @brief QR decomposition of 3x3 matrix. */
+/** QR decomposition of 3x3 matrix. */
 template <typename scalar_type_>
 void qr_decomposition_(scalar_type_ const *input, scalar_type_ *q, scalar_type_ *r) {
     scalar_type_ cos_half_1, sin_half_1;
@@ -263,7 +264,7 @@ void qr_decomposition_(scalar_type_ const *input, scalar_type_ *q, scalar_type_ 
            (scalar_type_(-1.0) + scalar_type_(2.0) * sin_half_3_sq);
 }
 
-/** @brief 3x3 SVD: A = U * S * Vt using McAdams algorithm. */
+/** 3x3 SVD: A = U * S * Vt using McAdams algorithm. */
 template <typename scalar_type_>
 void svd3x3_(scalar_type_ const *a, scalar_type_ *svd_u, scalar_type_ *svd_s, scalar_type_ *svd_v) {
     // Compute At * A (symmetric)
@@ -557,7 +558,8 @@ void kabsch(                                             //
  *  @brief Umeyama algorithm: min ‖P − s × R × Q‖² over R ∈ SO(3), s ∈ ℝ⁺
  *  @param[in] a,b Point clouds [n x 3] interleaved (source and target)
  *  @param[in] n Number of 3D points
- *  @param[out] a_centroid,b_centroid Centroids (3 values each), can be nullptr
+ *  @param[out] a_centroid Centroid of @p a, 3 values, can be nullptr
+ *  @param[out] b_centroid Centroid of @p b, 3 values, can be nullptr
  *  @param[out] rotation 3x3 rotation matrix (9 values, row-major), can be nullptr
  *  @param[out] scale Uniform scale factor, can be nullptr
  *  @param[out] metric Output RMSD after optimal transformation

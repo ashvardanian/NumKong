@@ -7,19 +7,20 @@
 //!
 //! # Sorted-Index Assumption
 //!
-//! Every sparse routine in this module assumes that the index arrays are **strictly
-//! ascending**, sorted with no duplicates — for example `[1, 3, 5, 7]`. The
-//! underlying SIMD kernels use galloping / merge-style advancement that is only
-//! correct on sorted input; feeding unsorted indices silently produces wrong results,
-//! typically an undercounted intersection.
+//! Every sparse routine in this module assumes that the index arrays are __strictly ascending__,
+//! sorted with no duplicates — for example `[1, 3, 5, 7]`. The underlying SIMD kernels use
+//! galloping / merge-style advancement that is only correct on sorted input; feeding unsorted
+//! indices silently produces wrong results, typically an undercounted intersection.
 //!
-//! For [`SparseDot`], the paired `weights` slice must mirror the index layout: entry
-//! `weights[i]` is the weight at `indices[i]`. The dot product sums
-//! `a_weights[i] × b_weights[j]` over all pairs `i, j` where
-//! `a_indices[i] == b_indices[j]` — i.e., the intersection's co-indexed weights.
+//! For [`SparseDot`], the paired `weights` slice must mirror the index layout: entry `weights[i]`
+//! is the weight at `indices[i]`. The dot product sums `a_weights[i] × b_weights[j]` over all pairs
+//! `i, j` where `a_indices[i] == b_indices[j]` — i.e., the intersection's co-indexed weights.
 //!
-//! Callers with unsorted sparse vectors should sort, for example via `slice::sort_unstable`,
-//! and deduplicate before calling these kernels.
+//! Callers with unsorted sparse vectors should sort, for example via `slice::sort_unstable`, and
+//! deduplicate before calling these kernels.
+//!
+//! File: rust/sparse.rs
+//! Author: Ash Vardanian
 
 use crate::types::bf16;
 
@@ -196,8 +197,8 @@ impl SparseIntersect for u64 {
 
 /// Computes sparse dot product between two sorted sparse vectors with weights.
 ///
-/// Each vector consists of sorted indices and corresponding weights. The dot product
-/// is computed over the intersection of indices, summing the products of weights.
+/// Each vector consists of sorted indices and corresponding weights. The dot product is computed
+/// over the intersection of indices, summing the products of weights.
 pub trait SparseDot: Sized {
     /// Weight type for this sparse dot product.
     type Weight;
@@ -206,9 +207,10 @@ pub trait SparseDot: Sized {
 
     /// Computes sparse dot product.
     ///
-    /// Returns the sum of `a_weights[i] × b_weights[j]` for all pairs where `a_indices[i] == b_indices[j]`.
-    /// A sparse vector carries one weight per index, so a weights slice shorter than its index
-    /// slice describes no vector at all and yields the default rather than reading past its end.
+    /// Returns the sum of `a_weights[i] × b_weights[j]` for all pairs where `a_indices[i] ==
+    /// b_indices[j]`. A sparse vector carries one weight per index, so a weights slice shorter than
+    /// its index slice describes no vector at all and yields the default rather than reading past
+    /// its end.
     fn sparse_dot(
         a_indices: &[Self],
         b_indices: &[Self],

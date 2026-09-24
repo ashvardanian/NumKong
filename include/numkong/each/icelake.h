@@ -1,24 +1,26 @@
 /**
- *  @brief SIMD-accelerated Elementwise Arithmetic for Ice Lake.
  *  @file include/numkong/each/icelake.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated elementwise arithmetic for Ice Lake.
  *
  *  @sa include/numkong/each.h
  *
  *  @section ice_elementwise_instructions Relevant Instructions
  *
- *      Intrinsic                Instruction                   Icelake    Genoa
- *      _mm512_add_epi8          VPADDB (ZMM, ZMM, ZMM)        1cy @ p05  1cy @ p0123
- *      _mm512_adds_epi8         VPADDSB (ZMM, ZMM, ZMM)       1cy @ p05  1cy @ p0123
- *      _mm512_add_epi32         VPADDD (ZMM, ZMM, ZMM)        1cy @ p05  1cy @ p0123
- *      _mm512_cmpgt_epi32_mask  VPCMPGTD (K, ZMM, ZMM)        3cy @ p5   3cy @ p0
- *      _mm512_mask_blend_epi32  VPBLENDMD (ZMM, K, ZMM, ZMM)  1cy @ p05  1cy @ p0123
- *      _mm512_maskz_loadu_epi8  VMOVDQU8 (ZMM {K}, M512)      7cy @ p23  7cy @ p23
+ *  @verbatim
+ *  Intrinsic                Instruction                   Icelake    Genoa
+ *  _mm512_add_epi8          VPADDB (ZMM, ZMM, ZMM)        1cy @ p05  1cy @ p0123
+ *  _mm512_adds_epi8         VPADDSB (ZMM, ZMM, ZMM)       1cy @ p05  1cy @ p0123
+ *  _mm512_add_epi32         VPADDD (ZMM, ZMM, ZMM)        1cy @ p05  1cy @ p0123
+ *  _mm512_cmpgt_epi32_mask  VPCMPGTD (K, ZMM, ZMM)        3cy @ p5   3cy @ p0
+ *  _mm512_mask_blend_epi32  VPBLENDMD (ZMM, K, ZMM, ZMM)  1cy @ p05  1cy @ p0123
+ *  _mm512_maskz_loadu_epi8  VMOVDQU8 (ZMM {K}, M512)      7cy @ p23  7cy @ p23
+ *  @endverbatim
  *
  *  Ice Lake inherits Skylake's AVX-512 execution but reduces frequency throttling on client chips.
- *  Integer saturation arithmetic (VPADDSB, VPADDUSB) provides 1cy latency for overflow-safe addition.
- *  For i32/i64 saturation, manual overflow detection via compare-and-blend is required.
+ *  Integer saturation arithmetic, VPADDSB, VPADDUSB, provides 1cy latency for overflow-safe
+ *  addition. For i32/i64 saturation, manual overflow detection via compare-and-blend is required.
  */
 #ifndef NK_EACH_ICELAKE_H
 #define NK_EACH_ICELAKE_H

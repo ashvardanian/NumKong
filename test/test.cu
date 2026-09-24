@@ -1,20 +1,23 @@
 /**
- *  @brief CUDA test: tensor memcpy round-trips, fp6/fp8 cast conformance, and every CUDA cross-kernel entry point.
  *  @file test/test.cu
  *  @author Ash Vardanian
  *  @date April 15, 2026
+ *  @brief CUDA test: tensor memcpy round-trips, fp6/fp8 cast conformance, and every CUDA
+ *      cross-kernel entry point.
  *
- *  The first half drives cudaMemcpy, cudaMemcpy2D (pitched), and cudaMemcpy3D round-trips through
- *  nk::tensor_view and runs a trivial add-one kernel to prove device-side readability. The second half
- *  does an exhaustive bit-exact comparison between nk_cast on the CPU and CUDA's __nv_cvt_* intrinsics
- *  on the GPU, covering every fp32, fp16, and bf16 input against every e4m3, e5m2, e3m2, and e2m3 variant.
- *  The cross sections run the dots, spatial, and attention scenarios of `cross.cuh` through `cuda_backend_t`
- *  for every family the device runs. `NK_FILTER=<regex>` runs only the sections and kernels whose names match.
+ *  The first half drives @c cudaMemcpy, pitched @c cudaMemcpy2D and @c cudaMemcpy3D round-trips
+ *  through @c nk::tensor_view and runs a trivial add-one kernel to prove device-side readability,
+ *  while the second half compares @c nk_cast on the CPU bit for bit against CUDA's @c __nv_cvt_*
+ *  intrinsics on the GPU, covering every fp32, fp16 and bf16 input against every e4m3, e5m2, e3m2
+ *  and e2m3 variant. The cross sections run the dots, spatial and attention scenarios of
+ *  `cross.cuh` through @c cuda_backend_t for every family the device runs, and `NK_FILTER=<regex>`
+ *  keeps only the sections and kernels whose names match.
  *
- *  The test builds and runs on any Turing-or-newer GPU. CUDA's __nv_cvt_* converters fall back to software
- *  emulation below SM_89 for fp8 and below SM_100 for fp6, and PTX JIT forward-compiles to newer hardware,
- *  so a single binary works from Turing through Blackwell. Override CMAKE_CUDA_ARCHITECTURES at configure
- *  time to target a specific compute capability or to build a fat binary.
+ *  The test builds and runs on any Turing-or-newer GPU. CUDA's __nv_cvt_* converters fall back to
+ *  software emulation below SM_89 for fp8 and below SM_100 for fp6, and PTX JIT forward-compiles to
+ *  newer hardware, so a single binary works from Turing through Blackwell. Override
+ *  CMAKE_CUDA_ARCHITECTURES at configure time to target one compute capability, or build a single
+ *  fat binary for all.
  */
 #include <cinttypes> // `PRIu64`, `PRIx64`
 #include <cstdint>   // `std::uint32_t`, `std::uint64_t`
@@ -45,7 +48,7 @@ char const *volatile nk::test::nk_test_current_kernel_ = nullptr;
 
 #pragma region Output Helpers
 
-/** @brief Detect whether stdout supports ANSI colors (kept in sync with test/test.cpp:59-70). */
+/** Detect whether stdout supports ANSI colors, kept in sync with test/test.cpp:59-70. */
 static bool colors_enabled_() {
     static bool const result = [] {
         if (std::getenv("NO_COLOR")) return false;
@@ -59,7 +62,7 @@ static bool colors_enabled_() {
     return result;
 }
 
-/** @brief Print ● (filled) for pass, ○ (hollow) for fail. Colored when stdout is a TTY. */
+/** Print a filled ● for pass, a hollow ○ for fail. Colored when stdout is a TTY. */
 static void print_indicator_(bool on) {
     if (on) std::printf(colors_enabled_() ? "\033[32m\xe2\x97\x8f\033[0m" : "\xe2\x97\x8f");
     else std::printf(colors_enabled_() ? "\033[31m\xe2\x97\x8b\033[0m" : "\xe2\x97\x8b");
@@ -69,17 +72,15 @@ static void print_indicator_(bool on) {
 
 #pragma region CUDA Error Handling
 
-/** @brief Return true on success; on failure, print a diagnostic and return false. */
+/** Return true on success; on failure, print a diagnostic and return false. */
 static bool cuda_check_(cudaError_t error, char const *expression, char const *file, int line) {
     if (error == cudaSuccess) return true;
     std::fprintf(stderr, "CUDA error %s at %s:%d: %s\n", expression, file, line, cudaGetErrorString(error));
     return false;
 }
 
-/**
- *  @brief Early-return assertion: on failure prints a diagnostic and returns
- *  `false` from the enclosing function. Every `test_*_` / `sweep_*_` here returns bool.
- */
+/** Early-return assertion: on failure prints a diagnostic and returns @c false from the enclosing
+ *  function. Every `test_*_` / `sweep_*_` here returns bool. */
 #define nk_cuda_assert_(expression)                                                    \
     do {                                                                               \
         if (!cuda_check_((expression), #expression, __FILE__, __LINE__)) return false; \
@@ -87,9 +88,9 @@ static bool cuda_check_(cudaError_t error, char const *expression, char const *f
 
 #pragma endregion
 
-#pragma region Tensor Round-Trip Tests
+#pragma region Tensor Round Trip Tests
 
-/** @brief 1D contiguous round-trip via cudaMemcpy; bit-exact compare. */
+/** 1D contiguous round-trip via cudaMemcpy; bit-exact compare. */
 static bool test_memcpy_1d_roundtrip_() {
     constexpr std::size_t count = 1 << 14;
     auto host_source = nk::tensor<float>::try_zeros({count});
@@ -111,11 +112,8 @@ static bool test_memcpy_1d_roundtrip_() {
     return true;
 }
 
-/**
- *  @brief 2D round-trip with padded rows: logical `columns` elements per row,
- *  but rows are padded so `stride_bytes(0) > columns·sizeof(T)`. That stride
- *  drops straight into `cudaMemcpy2D`'s host pitch.
- */
+/** 2D round-trip with padded rows: logical @c columns elements per row, but rows pad to
+ *  `stride_bytes(0) > columns * sizeof(T)`, which is the host pitch @c cudaMemcpy2D expects. */
 static bool test_memcpy_2d_padded_rows_() {
     constexpr std::size_t rows = 32;
     constexpr std::size_t columns = 80;
@@ -147,7 +145,7 @@ static bool test_memcpy_2d_padded_rows_() {
     return true;
 }
 
-/** @brief 3D batched round-trip via cudaMemcpy3D + cudaPitchedPtr. */
+/** 3D batched round-trip via cudaMemcpy3D + cudaPitchedPtr. */
 static bool test_memcpy_3d_batched_() {
     constexpr std::size_t batches = 4, rows = 8, columns = 16;
     auto host_source = nk::tensor<float>::try_zeros({batches, rows, columns});
@@ -188,10 +186,8 @@ static bool test_memcpy_3d_batched_() {
     return true;
 }
 
-/**
- *  @brief 2D sub-rectangle extraction from a parent tensor via cudaMemcpy2D.
- *  The sub-view keeps the parent row pitch; only extents shrink.
- */
+/** 2D sub-rectangle extraction from a parent tensor via cudaMemcpy2D. The sub-view keeps the parent
+ *  row pitch; only extents shrink. */
 static bool test_memcpy_2d_subview_() {
     constexpr std::size_t parent_rows = 16, parent_columns = 32;
     constexpr std::size_t row_start = 4, column_start = 8;
@@ -224,7 +220,7 @@ static bool test_memcpy_2d_subview_() {
     return true;
 }
 
-/** @brief Trivial add-1.0 kernel used to prove device-side data is readable/writable. */
+/** Trivial add-1.0 kernel used to prove device-side data is readable/writable. */
 __global__ void add_one_kernel_(float *data, std::size_t rows, std::size_t columns, std::size_t pitch_bytes) {
     std::size_t row = blockIdx.y * blockDim.y + threadIdx.y;
     std::size_t column = blockIdx.x * blockDim.x + threadIdx.x;
@@ -233,7 +229,7 @@ __global__ void add_one_kernel_(float *data, std::size_t rows, std::size_t colum
     row_pointer[column] += 1.0f;
 }
 
-/** @brief Upload, add-one on device, download, verify every element incremented by 1. */
+/** Upload, add-one on device, download, verify every element incremented by 1. */
 static bool test_device_kernel_usability_() {
     constexpr std::size_t rows = 24, columns = 48;
     auto host_source = nk::tensor<float>::try_zeros({rows, columns});
@@ -265,11 +261,11 @@ static bool test_device_kernel_usability_() {
     return true;
 }
 
-/** @brief Device kernel exercising the `constexpr` nk::tensor_view / nk::vector_view surface directly
- *  on the GPU — this is what proves the abstractions are `__device__`-callable under
- *  `--expt-relaxed-constexpr`. Covers: typed-pointer construction, `operator bool`, 2D `operator()`,
- *  `slice_leading`, `operator[]` on the reduced-rank row, `flatten<1>()`, and iteration. Writes a
- *  checksum so nothing is optimized away. */
+/** Device kernel exercising the @c constexpr @c nk::tensor_view and @c nk::vector_view surface on
+ *  the GPU — this is what proves the abstractions are @c __device__-callable under
+ *  `--expt-relaxed-constexpr`. Covers: typed-pointer construction, `operator bool`, 2D
+ *  `operator()`, @c slice_leading, `operator[]` on the reduced-rank row, `flatten<1>()`, and
+ *  iteration. Writes a checksum so nothing is optimized away. */
 __global__ void tensor_view_ops_kernel_(float const *data, std::size_t rows, std::size_t columns, float *out) {
     if (threadIdx.x != 0 || threadIdx.y != 0 || blockIdx.x != 0 || blockIdx.y != 0) return;
     nk::tensor_view<float> view(data, rows, columns); // typed-pointer rank-2 ctor
@@ -290,8 +286,8 @@ __global__ void tensor_view_ops_kernel_(float const *data, std::size_t rows, std
     out[0] = accumulator;
 }
 
-/** @brief Run the tensor-abstraction kernel on device and check its checksum equals the identical
- *  computation on the host — confirms the `constexpr` surface both compiles for and executes on the GPU. */
+/** Run the tensor-abstraction kernel on device, checking its checksum against the identical host
+ *  computation, confirming the @c constexpr surface compiles and runs on the GPU. */
 static bool test_device_tensor_view_ops_() {
     constexpr std::size_t rows = 8, columns = 16, count = rows * columns;
     auto host = nk::tensor<float>::try_zeros({rows, columns});
@@ -323,9 +319,9 @@ static bool test_device_tensor_view_ops_() {
 
 #pragma endregion
 
-#pragma region FP8 / FP6 Conversion Kernels
+#pragma region FP8 and FP6 Conversion Kernels
 
-/** @brief Batch fp32 → fp8 conversion via __nv_cvt_float_to_fp8. */
+/** Batch fp32 → fp8 conversion via __nv_cvt_float_to_fp8. */
 __global__ void fp32_to_fp8_kernel_(float const *source, unsigned char *destination, std::size_t count,
                                     __nv_fp8_interpretation_t interpretation, __nv_saturation_t saturate) {
     std::size_t index = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -333,7 +329,7 @@ __global__ void fp32_to_fp8_kernel_(float const *source, unsigned char *destinat
     destination[index] = __nv_cvt_float_to_fp8(source[index], saturate, interpretation);
 }
 
-/** @brief Batch fp16 → fp8 conversion via __nv_cvt_halfraw_to_fp8. */
+/** Batch fp16 → fp8 conversion via __nv_cvt_halfraw_to_fp8. */
 __global__ void fp16_to_fp8_kernel_(__half const *source, unsigned char *destination, std::size_t count,
                                     __nv_fp8_interpretation_t interpretation, __nv_saturation_t saturate) {
     std::size_t index = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -343,7 +339,7 @@ __global__ void fp16_to_fp8_kernel_(__half const *source, unsigned char *destina
     destination[index] = __nv_cvt_halfraw_to_fp8(raw, saturate, interpretation);
 }
 
-/** @brief Batch bf16 → fp8 conversion via __nv_cvt_bfloat16raw_to_fp8. */
+/** Batch bf16 → fp8 conversion via __nv_cvt_bfloat16raw_to_fp8. */
 __global__ void bf16_to_fp8_kernel_(__nv_bfloat16 const *source, unsigned char *destination, std::size_t count,
                                     __nv_fp8_interpretation_t interpretation, __nv_saturation_t saturate) {
     std::size_t index = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -353,7 +349,7 @@ __global__ void bf16_to_fp8_kernel_(__nv_bfloat16 const *source, unsigned char *
     destination[index] = __nv_cvt_bfloat16raw_to_fp8(raw, saturate, interpretation);
 }
 
-/** @brief Batch fp8 → fp32 conversion (routed via halfraw; CUDA has no direct fp8→fp32). */
+/** Batch fp8 → fp32 conversion, routed via halfraw since CUDA has no direct fp8 → fp32. */
 __global__ void fp8_to_fp32_kernel_(unsigned char const *source, float *destination, std::size_t count,
                                     __nv_fp8_interpretation_t interpretation) {
     std::size_t index = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -364,7 +360,7 @@ __global__ void fp8_to_fp32_kernel_(unsigned char const *source, float *destinat
     destination[index] = __half2float(half_value);
 }
 
-/** @brief Batch fp8 → fp16 conversion via __nv_cvt_fp8_to_halfraw. */
+/** Batch fp8 → fp16 conversion via __nv_cvt_fp8_to_halfraw. */
 __global__ void fp8_to_fp16_kernel_(unsigned char const *source, __half *destination, std::size_t count,
                                     __nv_fp8_interpretation_t interpretation) {
     std::size_t index = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -373,7 +369,7 @@ __global__ void fp8_to_fp16_kernel_(unsigned char const *source, __half *destina
     std::memcpy(&destination[index], &half_raw, sizeof half_raw);
 }
 
-/** @brief Batch fp8 → bf16 conversion (CUDA has no direct path; routes fp8→halfraw→fp32→bf16). */
+/** Batch fp8 → bf16 conversion, routed fp8 → halfraw → fp32 → bf16 as CUDA has no direct path. */
 __global__ void fp8_to_bf16_kernel_(unsigned char const *source, __nv_bfloat16 *destination, std::size_t count,
                                     __nv_fp8_interpretation_t interpretation) {
     std::size_t index = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -384,7 +380,7 @@ __global__ void fp8_to_bf16_kernel_(unsigned char const *source, __nv_bfloat16 *
     destination[index] = __float2bfloat16(__half2float(half_value));
 }
 
-/** @brief Batch fp32 → fp6 conversion via __nv_cvt_float_to_fp6. */
+/** Batch fp32 → fp6 conversion via __nv_cvt_float_to_fp6. */
 __global__ void fp32_to_fp6_kernel_(float const *source, unsigned char *destination, std::size_t count,
                                     __nv_fp6_interpretation_t interpretation) {
     std::size_t index = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -392,7 +388,7 @@ __global__ void fp32_to_fp6_kernel_(float const *source, unsigned char *destinat
     destination[index] = __nv_cvt_float_to_fp6(source[index], interpretation, cudaRoundNearest);
 }
 
-/** @brief Batch fp16 → fp6 conversion via __nv_cvt_halfraw_to_fp6. */
+/** Batch fp16 → fp6 conversion via __nv_cvt_halfraw_to_fp6. */
 __global__ void fp16_to_fp6_kernel_(__half const *source, unsigned char *destination, std::size_t count,
                                     __nv_fp6_interpretation_t interpretation) {
     std::size_t index = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -402,7 +398,7 @@ __global__ void fp16_to_fp6_kernel_(__half const *source, unsigned char *destina
     destination[index] = __nv_cvt_halfraw_to_fp6(raw, interpretation, cudaRoundNearest);
 }
 
-/** @brief Batch bf16 → fp6 conversion via __nv_cvt_bfloat16raw_to_fp6. */
+/** Batch bf16 → fp6 conversion via __nv_cvt_bfloat16raw_to_fp6. */
 __global__ void bf16_to_fp6_kernel_(__nv_bfloat16 const *source, unsigned char *destination, std::size_t count,
                                     __nv_fp6_interpretation_t interpretation) {
     std::size_t index = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -412,7 +408,7 @@ __global__ void bf16_to_fp6_kernel_(__nv_bfloat16 const *source, unsigned char *
     destination[index] = __nv_cvt_bfloat16raw_to_fp6(raw, interpretation, cudaRoundNearest);
 }
 
-/** @brief Batch fp6 → fp32 conversion (routed via halfraw). */
+/** Batch fp6 → fp32 conversion, routed via halfraw. */
 __global__ void fp6_to_fp32_kernel_(unsigned char const *source, float *destination, std::size_t count,
                                     __nv_fp6_interpretation_t interpretation) {
     std::size_t index = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -423,7 +419,7 @@ __global__ void fp6_to_fp32_kernel_(unsigned char const *source, float *destinat
     destination[index] = __half2float(half_value);
 }
 
-/** @brief Batch fp6 → fp16 conversion via __nv_cvt_fp6_to_halfraw. */
+/** Batch fp6 → fp16 conversion via __nv_cvt_fp6_to_halfraw. */
 __global__ void fp6_to_fp16_kernel_(unsigned char const *source, __half *destination, std::size_t count,
                                     __nv_fp6_interpretation_t interpretation) {
     std::size_t index = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -432,7 +428,7 @@ __global__ void fp6_to_fp16_kernel_(unsigned char const *source, __half *destina
     std::memcpy(&destination[index], &half_raw, sizeof half_raw);
 }
 
-/** @brief Batch fp6 → bf16 conversion (routes fp6→halfraw→fp32→bf16). */
+/** Batch fp6 → bf16 conversion, routed fp6 → halfraw → fp32 → bf16. */
 __global__ void fp6_to_bf16_kernel_(unsigned char const *source, __nv_bfloat16 *destination, std::size_t count,
                                     __nv_fp6_interpretation_t interpretation) {
     std::size_t index = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -445,23 +441,21 @@ __global__ void fp6_to_bf16_kernel_(unsigned char const *source, __nv_bfloat16 *
 
 #pragma endregion
 
-#pragma region NaN Bit-Pattern Predicates
+#pragma region NaN Bit Pattern Predicates
 
-/** @brief True iff the 32-bit IEEE-754 pattern encodes any NaN. */
+/** True iff the 32-bit IEEE-754 pattern encodes any NaN. */
 static bool bits_fp32_nan_(std::uint32_t bits) noexcept {
     return (bits & 0x7F800000u) == 0x7F800000u && (bits & 0x007FFFFFu) != 0;
 }
 
-/** @brief True iff the 16-bit IEEE-754 half pattern encodes any NaN. */
+/** True iff the 16-bit IEEE-754 half pattern encodes any NaN. */
 static bool bits_fp16_nan_(std::uint16_t bits) noexcept { return (bits & 0x7C00u) == 0x7C00u && (bits & 0x03FFu) != 0; }
 
-/** @brief True iff the 16-bit bfloat16 pattern encodes any NaN. */
+/** True iff the 16-bit bfloat16 pattern encodes any NaN. */
 static bool bits_bf16_nan_(std::uint16_t bits) noexcept { return (bits & 0x7F80u) == 0x7F80u && (bits & 0x007Fu) != 0; }
 
-/**
- *  @brief NaN-tolerant bit equality: any NaN encoding matches any other NaN
- *  of the same width, but the "is a NaN" vs "is a number" bit still matters.
- */
+/** NaN-tolerant bit equality: any NaN encoding matches any other NaN of the same width, but the "is
+ *  a NaN" vs "is a number" bit still matters. */
 static bool f32_bits_equal_tolerant_nan_(float left, float right) {
     std::uint32_t left_bits, right_bits;
     std::memcpy(&left_bits, &left, sizeof left_bits);
@@ -470,7 +464,7 @@ static bool f32_bits_equal_tolerant_nan_(float left, float right) {
     return left_bits == right_bits;
 }
 
-/** @brief NaN-tolerant bit equality for 16-bit half. */
+/** NaN-tolerant bit equality for 16-bit half. */
 static bool f16_bits_equal_tolerant_nan_(__half left, __half right) {
     std::uint16_t left_bits, right_bits;
     std::memcpy(&left_bits, &left, sizeof left_bits);
@@ -479,7 +473,7 @@ static bool f16_bits_equal_tolerant_nan_(__half left, __half right) {
     return left_bits == right_bits;
 }
 
-/** @brief NaN-tolerant bit equality for 16-bit bfloat16. */
+/** NaN-tolerant bit equality for 16-bit bfloat16. */
 static bool bf16_bits_equal_tolerant_nan_(__nv_bfloat16 left, __nv_bfloat16 right) {
     std::uint16_t left_bits, right_bits;
     std::memcpy(&left_bits, &left, sizeof left_bits);
@@ -488,12 +482,12 @@ static bool bf16_bits_equal_tolerant_nan_(__nv_bfloat16 left, __nv_bfloat16 righ
     return left_bits == right_bits;
 }
 
-/** @brief Masked byte equality; fp6 cares only about the low 6 bits. */
+/** Masked byte equality; fp6 cares only about the low 6 bits. */
 static bool bytes_equal_masked_(unsigned char left, unsigned char right, unsigned mask) noexcept {
     return (left & mask) == (right & mask);
 }
 
-/** @brief Print a single mismatch line to stderr for diagnostics. */
+/** Print a single mismatch line to stderr for diagnostics. */
 static void report_mismatch_(char const *label, std::uint64_t source_bits, unsigned char cuda_output,
                              unsigned char numkong_output, std::uint64_t index) {
     std::fprintf(stderr, "  [%s] input #%" PRIu64 " raw=0x%" PRIx64 " → CUDA=0x%02x NumKong=0x%02x\n", label, index,
@@ -504,11 +498,11 @@ static void report_mismatch_(char const *label, std::uint64_t source_bits, unsig
 
 #pragma region Conversion Sweeps
 
-// Batch size: 1M elements per launch keeps device buffers under 16 MB even
-// for 16-byte element types.
+/** Batch size: 1M elements per launch keeps device buffers under 16 MB even for 16-byte element
+ *  types. */
 constexpr std::size_t batch_size_ = 1u << 20;
 
-/** @brief Upload a batch, launch the kernel, download the result. */
+/** Upload a batch, launch the kernel, download the result. */
 template <typename source_type_, typename destination_type_, typename kernel_type_>
 static bool run_kernel_batch_(source_type_ const *host_source, destination_type_ *host_destination, std::size_t count,
                               kernel_type_ kernel) {
@@ -532,10 +526,9 @@ static bool run_kernel_batch_(source_type_ const *host_source, destination_type_
 /**
  *  @brief Exhaustive fp32 → fp8 sweep (2^32 inputs) in 1M-element batches.
  *
- *  NumKong uses a single rounding mode (RTNE) and one overflow policy per
- *  target type: E4M3 saturates (no Inf encoding), E5M2 produces ±Inf. The
- *  CUDA `saturate` dial is derived here from `interpretation` rather than
- *  plumbed through, so the test exposes only NumKong's fixed mode.
+ *  NumKong uses a single rounding mode, RTNE, and one overflow policy per target type: E4M3
+ *  saturates with no Inf encoding, E5M2 produces ±Inf. The CUDA @c saturate dial is derived here
+ *  from @p interpretation rather than plumbed through, exposing only NumKong's fixed mode.
  */
 template <typename launcher_type_>
 static bool sweep_fp32_to_fp8_(char const *label, nk_dtype_t destination_dtype,
@@ -572,7 +565,7 @@ static bool sweep_fp32_to_fp8_(char const *label, nk_dtype_t destination_dtype,
     return mismatches == 0;
 }
 
-/** @brief Exhaustive fp32 → fp6 sweep; only low 6 bits of each output byte matter. */
+/** Exhaustive fp32 → fp6 sweep; only low 6 bits of each output byte matter. */
 template <typename launcher_type_>
 static bool sweep_fp32_to_fp6_(char const *label, nk_dtype_t destination_dtype,
                                __nv_fp6_interpretation_t interpretation, launcher_type_ launcher) {
@@ -605,7 +598,7 @@ static bool sweep_fp32_to_fp6_(char const *label, nk_dtype_t destination_dtype,
     return mismatches == 0;
 }
 
-/** @brief Exhaustive 16-bit (fp16 or bf16) → fp{6,8} sweep over all 2^16 inputs. */
+/** Exhaustive fp16-or-bf16 16-bit → fp{6,8} sweep over all 2^16 inputs. */
 template <typename source_type_, typename launcher_type_>
 static bool sweep_16bit_to_8bit_(char const *label, nk_dtype_t source_dtype, nk_dtype_t destination_dtype,
                                  bool (*is_nan_fn)(std::uint16_t), unsigned byte_mask, launcher_type_ launcher) {
@@ -633,10 +626,8 @@ static bool sweep_16bit_to_8bit_(char const *label, nk_dtype_t source_dtype, nk_
     return mismatches == 0;
 }
 
-/**
- *  @brief Reverse-direction exhaustive sweep: 2^8 (fp8) or 2^6 (fp6) inputs,
- *  comparing the wider output via a caller-supplied bit-equality predicate.
- */
+/** Reverse-direction exhaustive sweep: 2^8 fp8 or 2^6 fp6 inputs, comparing the wider output via a
+ *  caller-supplied bit-equality predicate. */
 template <typename destination_type_, typename launcher_type_, typename equals_type_>
 static bool sweep_small_to_wide_(char const *label, nk_dtype_t source_dtype, nk_dtype_t destination_dtype,
                                  std::size_t domain_size, launcher_type_ launcher, equals_type_ equals) {
@@ -661,7 +652,8 @@ static bool sweep_small_to_wide_(char const *label, nk_dtype_t source_dtype, nk_
 
 #pragma region CUDA Capabilities
 
-/** `nk_capabilities_cuda_detected` reports the families the device's major version runs, and zero past the last. */
+/** @c nk_capabilities_cuda_detected reports the families the device's major version runs, and zero
+ *  past the last. */
 static bool test_cuda_capabilities_(int device) {
     int major = 0, devices_count = 0;
     nk_cuda_assert_(cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, device));

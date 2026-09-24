@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Curved Space Similarity for Haswell.
  *  @file include/numkong/curved/haswell.h
  *  @author Ash Vardanian
  *  @date January 14, 2026
+ *  @brief SIMD-accelerated curved-space similarity for Haswell.
  *
  *  @sa include/numkong/curved.h
  *

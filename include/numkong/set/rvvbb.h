@@ -1,19 +1,18 @@
 /**
- *  @brief SIMD-accelerated Set Similarity Measures for RISC-V with Zvbb.
  *  @file include/numkong/set/rvvbb.h
  *  @author Ash Vardanian
  *  @date February 9, 2026
+ *  @brief SIMD-accelerated set similarity measures for RISC-V with Zvbb.
  *
  *  @sa include/numkong/set.h
  *
- *  Zvbb (Vector Basic Bit-manipulation) provides native per-element popcount via `vcpop.v`,
- *  replacing the 11-instruction SWAR approach in set/rvv.h with a single instruction.
+ *  Zvbb, the Vector Basic Bit-manipulation extension, adds a per-element popcount, `vcpop.v`, which
+ *  replaces the 11-instruction SWAR sequence of set/rvv.h with one instruction.
  *
- *  Only `nk_hamming_u1` and `nk_jaccard_u1` benefit from Zvbb (they need byte-level popcount).
- *  Integer set operations (hamming_u8, jaccard_u16, jaccard_u32) use mask-level vcpop.m
- *  which is already available in base RVV 1.0.
+ *  Only @c nk_hamming_u1 and @c nk_jaccard_u1 need that byte-level popcount; the u8, u16 and u32
+ *  set kernels count with the mask-level `vcpop.m` that base RVV 1.0 already has.
  *
- *  Requires: RVV 1.0 + Zvbb extension (GCC 14+ or Clang 18+)
+ *  Requires RVV 1.0 with Zvbb, from GCC 14 or Clang 18.
  */
 #ifndef NK_SET_RVVBB_H
 #define NK_SET_RVVBB_H

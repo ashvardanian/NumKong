@@ -1,74 +1,77 @@
 /**
- *  @brief SIMD-accelerated Dot Products for Skylake.
  *  @file include/numkong/dot/skylake.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated dot products for Skylake.
  *
  *  @sa include/numkong/dot.h
  *
  *  @section dot_skylake_instructions Key AVX-512 Instructions
  *
- *      Intrinsic             Instruction                  Skylake-X  Genoa
- *      _mm512_madd_epi16     VPMADDWD (ZMM, ZMM, ZMM)     5cy @ p05  3cy @ p01
- *      _mm512_add_epi32      VPADDD (ZMM, ZMM, ZMM)       1cy @ p05  1cy @ p0123
- *      _mm512_fmadd_ps       VFMADD132PS (ZMM, ZMM, ZMM)  4cy @ p05  4cy @ p01
- *      _mm512_cvtepi8_epi16  VPMOVSXBW (ZMM, YMM)         3cy @ p5   4cy @ p12
+ *  @verbatim
+ *  Intrinsic             Instruction                  Skylake-X  Genoa
+ *  _mm512_madd_epi16     VPMADDWD (ZMM, ZMM, ZMM)     5cy @ p05  3cy @ p01
+ *  _mm512_add_epi32      VPADDD (ZMM, ZMM, ZMM)       1cy @ p05  1cy @ p0123
+ *  _mm512_fmadd_ps       VFMADD132PS (ZMM, ZMM, ZMM)  4cy @ p05  4cy @ p01
+ *  _mm512_cvtepi8_epi16  VPMOVSXBW (ZMM, YMM)         3cy @ p5   4cy @ p12
+ *  @endverbatim
  *
- *  Skylake-X server chips feature dual 512-bit FMA units on ports 0 and 5, enabling 0.5cy throughput for
- *  VFMADD and arithmetic operations. Client Skylake variants have only one FMA unit with 1cy throughput.
- *  Without VNNI support, integer dot products use VPMADDWD for i16 pair multiplication with i32 accumulation.
+ *  Skylake-X server chips feature dual 512-bit FMA units on ports 0 and 5, enabling 0.5cy
+ *  throughput for VFMADD and arithmetic operations. Client Skylake variants have only one FMA unit
+ *  with 1cy throughput. Without VNNI support, integer dot products use VPMADDWD for i16 pair
+ *  multiplication with i32 accumulation.
  *
  *  @section dot_skylake_stateful Stateful Streaming Logic
  *
- *  To build memory-optimal tiled algorithms, this file defines following structures and force-inlined
- *  `NK_HELPER_INLINE` functions:
+ *  To build memory-optimal tiled algorithms, this file defines following structures and
+ *  force-inlined @c NK_HELPER_INLINE functions:
  *
  *  - nk_dot_f64x8 state with Dot2 stable dot-products,
  *  - nk_dot_f32x8 state with double-precision numerics,
  *  - nk_dot_through_f32 state for 16-bit float inputs with single-precision numerics.
  *
- *  @code{c}
+ *  @code{.c}
  *  nk_dot_f64x8_state_skylake_t state_first, state_second, state_third, state_fourth;
  *  nk_b512_vec_t query_f64x8, target_first_f64x8, target_second_f64x8, target_third_f64x8, target_fourth_f64x8;
  *  nk_dot_f64x8_init_skylake(&state_first);
  *  nk_dot_f64x8_init_skylake(&state_second);
  *  nk_dot_f64x8_init_skylake(&state_third);
  *  nk_dot_f64x8_init_skylake(&state_fourth);
- *  for (nk_size_t idx = 0; idx + 8 <= depth; idx += 8) {
- *      query_f64x8.zmm_pd = _mm512_loadu_pd(query_ptr + idx);
- *      target_first_f64x8.zmm_pd = _mm512_loadu_pd(target_first_ptr + idx);
- *      target_second_f64x8.zmm_pd = _mm512_loadu_pd(target_second_ptr + idx);
- *      target_third_f64x8.zmm_pd = _mm512_loadu_pd(target_third_ptr + idx);
- *      target_fourth_f64x8.zmm_pd = _mm512_loadu_pd(target_fourth_ptr + idx);
- *      nk_dot_f64x8_update_skylake(&state_first, query_f64x8, target_first_f64x8, idx, 8);
- *      nk_dot_f64x8_update_skylake(&state_second, query_f64x8, target_second_f64x8, idx, 8);
- *      nk_dot_f64x8_update_skylake(&state_third, query_f64x8, target_third_f64x8, idx, 8);
- *      nk_dot_f64x8_update_skylake(&state_fourth, query_f64x8, target_fourth_f64x8, idx, 8);
+ *  for (nk_size_t index = 0; index + 8 <= depth; index += 8) {
+ *      query_f64x8.zmm_pd = _mm512_loadu_pd(query_ptr + index);
+ *      target_first_f64x8.zmm_pd = _mm512_loadu_pd(target_first_ptr + index);
+ *      target_second_f64x8.zmm_pd = _mm512_loadu_pd(target_second_ptr + index);
+ *      target_third_f64x8.zmm_pd = _mm512_loadu_pd(target_third_ptr + index);
+ *      target_fourth_f64x8.zmm_pd = _mm512_loadu_pd(target_fourth_ptr + index);
+ *      nk_dot_f64x8_update_skylake(&state_first, query_f64x8, target_first_f64x8, index, 8);
+ *      nk_dot_f64x8_update_skylake(&state_second, query_f64x8, target_second_f64x8, index, 8);
+ *      nk_dot_f64x8_update_skylake(&state_third, query_f64x8, target_third_f64x8, index, 8);
+ *      nk_dot_f64x8_update_skylake(&state_fourth, query_f64x8, target_fourth_f64x8, index, 8);
  *  }
  *  nk_b256_vec_t results_f64x4;
  *  nk_dot_f64x8_finalize_skylake(&state_first, &state_second, &state_third, &state_fourth, depth, &results_f64x4);
  *  @endcode
  *
- *  Smaller float types like f16 and bf16 on Skylake use ISA-specific upcasting to f32 combined with native
- *  FMA instructions, sharing the `nk_dot_through_f32` accumulation logic:
+ *  Smaller float types like f16 and bf16 on Skylake use ISA-specific upcasting to f32 combined with
+ *  native FMA instructions, sharing the @c nk_dot_through_f32 accumulation logic:
  *
- *  @code{c}
+ *  @code{.c}
  *  nk_dot_f16x16_state_skylake_t state_first, state_second, state_third, state_fourth;
  *  nk_b512_vec_t query_f32x16, target_first_f32x16, target_second_f32x16, target_third_f32x16, target_fourth_f32x16;
  *  nk_dot_through_f32_init_skylake_(&state_first);
  *  nk_dot_through_f32_init_skylake_(&state_second);
  *  nk_dot_through_f32_init_skylake_(&state_third);
  *  nk_dot_through_f32_init_skylake_(&state_fourth);
- *  for (nk_size_t idx = 0; idx + 16 <= depth; idx += 16) {
- *      nk_load_f16x16_to_f32x16_skylake_(query_ptr + idx, &query_f32x16);
- *      nk_load_f16x16_to_f32x16_skylake_(target_first_ptr + idx, &target_first_f32x16);
- *      nk_load_f16x16_to_f32x16_skylake_(target_second_ptr + idx, &target_second_f32x16);
- *      nk_load_f16x16_to_f32x16_skylake_(target_third_ptr + idx, &target_third_f32x16);
- *      nk_load_f16x16_to_f32x16_skylake_(target_fourth_ptr + idx, &target_fourth_f32x16);
- *      nk_dot_through_f32_update_skylake_(&state_first, query_f32x16, target_first_f32x16, idx, 16);
- *      nk_dot_through_f32_update_skylake_(&state_second, query_f32x16, target_second_f32x16, idx, 16);
- *      nk_dot_through_f32_update_skylake_(&state_third, query_f32x16, target_third_f32x16, idx, 16);
- *      nk_dot_through_f32_update_skylake_(&state_fourth, query_f32x16, target_fourth_f32x16, idx, 16);
+ *  for (nk_size_t index = 0; index + 16 <= depth; index += 16) {
+ *      nk_load_f16x16_to_f32x16_skylake_(query_ptr + index, &query_f32x16);
+ *      nk_load_f16x16_to_f32x16_skylake_(target_first_ptr + index, &target_first_f32x16);
+ *      nk_load_f16x16_to_f32x16_skylake_(target_second_ptr + index, &target_second_f32x16);
+ *      nk_load_f16x16_to_f32x16_skylake_(target_third_ptr + index, &target_third_f32x16);
+ *      nk_load_f16x16_to_f32x16_skylake_(target_fourth_ptr + index, &target_fourth_f32x16);
+ *      nk_dot_through_f32_update_skylake_(&state_first, query_f32x16, target_first_f32x16, index, 16);
+ *      nk_dot_through_f32_update_skylake_(&state_second, query_f32x16, target_second_f32x16, index, 16);
+ *      nk_dot_through_f32_update_skylake_(&state_third, query_f32x16, target_third_f32x16, index, 16);
+ *      nk_dot_through_f32_update_skylake_(&state_fourth, query_f32x16, target_fourth_f32x16, index, 16);
  *  }
  *  nk_b128_vec_t results_f32x4;
  *  nk_dot_through_f32_finalize_skylake_(&state_first, &state_second, &state_third, &state_fourth,

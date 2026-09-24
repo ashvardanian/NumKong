@@ -1,8 +1,8 @@
 /**
- *  @brief Batched Spatial Distances for Sierra Forest (AVX-VNNI-INT8).
  *  @file include/numkong/spatials/sierra.h
  *  @author Ash Vardanian
  *  @date February 23, 2026
+ *  @brief Batched spatial distances for Sierra Forest, AVX-VNNI-INT8.
  *
  *  @sa include/numkong/spatials.h
  */

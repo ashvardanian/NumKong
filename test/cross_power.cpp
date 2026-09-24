@@ -1,8 +1,8 @@
 /**
- *  @brief Batch operation tests - Power ISA family (VSX).
  *  @file test/cross_power.cpp
  *  @author Ash Vardanian
  *  @date March 24, 2026
+ *  @brief Batch operation tests - Power ISA family, VSX.
  */
 #include "test.hpp"
 #include "cross.cuh"

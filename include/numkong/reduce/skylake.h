@@ -1,33 +1,36 @@
 /**
- *  @brief AVX-512 implementations for the redesigned reduction API (moments + minmax).
  *  @file include/numkong/reduce/skylake.h
  *  @author Ash Vardanian
  *  @date February 11, 2026
+ *  @brief AVX-512 implementations for the redesigned reduction API, moments and minmax.
  *
  *  @sa include/numkong/reduce.h
  *
  *  @section tail_nan_fill  Tail Handling via NaN Fill
  *
- *  In floating-point minmax contiguous kernels (f32, f64), the tail block fills
- *  unloaded lanes with NaN via `_mm512_mask_loadu_ps(nan, mask, ptr)` instead of
- *  `_mm512_maskz_loadu_ps(mask, ptr)`.  This allows the subsequent `_CMP_LT_OQ` /
- *  `_CMP_GT_OQ` comparisons to run without the tail-load mask predicate, because
- *  IEEE-754 ordered-quiet comparisons return false for NaN operands.
+ *  In floating-point minmax contiguous kernels, f32 and f64, the tail block fills unloaded lanes
+ *  with NaN via `_mm512_mask_loadu_ps(nan, mask, ptr)` instead of:
+ *  `_mm512_maskz_loadu_ps(mask, ptr)`. This allows the subsequent @c _CMP_LT_OQ and @c _CMP_GT_OQ
+ *  comparisons to run without the tail-load mask predicate, because IEEE-754 ordered-quiet
+ *  comparisons return false for NaN operands.
  *
- *  @section reduce_block_caps Block-Cap Overflow Thresholds
+ *  @section reduce_skylake_block_caps Block-Cap Overflow Thresholds
  *
  *  Dispatch functions use pairwise recursion when `count` exceeds a block cap.
  *  The cap is sized so the iteration counter in the contiguous kernel never wraps.
  *
- *  Iteration counters start at 0 (initial load) and increment by 1 per SIMD chunk.
- *  A u8 counter holds 0..255 → 256 iterations → processes 256 × lanes elements.
- *  A u16 counter holds 0..65535 → 65536 iterations → processes 65536 × lanes elements.
- *  A u32 counter holds 0..4294967295 → ~4.3 billion iterations.
+ *  Iteration counters start at 0, initial load, and increment by 1 per SIMD chunk. A u8 counter
+ *  holds 0..255, 256 iterations, processing 256 × lanes elements; a u16 counter holds 0..65535,
+ *  65536 iterations, processing 65536 × lanes elements; a u32 counter holds 0..4294967295, about
+ *  4.3 billion iterations.
  *
  *  Threshold formula: count > (COUNTER_MAX + 1) × lanes_per_chunk
+ *
+ *  @verbatim
  *    - u8 minmax:  (NK_U8_MAX  + 1) × lanes   (e.g. 256 × 64 = 16384 for i8x64)
  *    - u16 minmax: (NK_U16_MAX + 1) × lanes   (e.g. 65536 × 32 = 2097152 for i16x32)
  *    - u32 minmax: NK_U32_MAX × lanes          (no +1: NK_U32_MAX + 1 overflows unsigned)
+ *  @endverbatim
  *
  *  Moments block caps are sized for accumulator overflow, not counter overflow.
  *  See individual dispatch functions for type-specific derivations.

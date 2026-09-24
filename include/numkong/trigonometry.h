@@ -1,9 +1,8 @@
 /**
- *  @brief SIMD-accelerated Trigonometric Functions.
  *  @file include/numkong/trigonometry.h
  *  @author Ash Vardanian
  *  @date July 1, 2023
- *  @see SLEEF: https://sleef.org/
+ *  @brief SIMD-accelerated trigonometric functions.
  *
  *  Contains:
  *
@@ -21,93 +20,99 @@
  *  - Arm: NEON
  *  - x86: Haswell, Skylake, Sapphire Rapids
  *
- *  Those functions partially complement the `each.h` module, and are necessary for
- *  the `geospatial.h` module, among others. Both Haversine and Vincenty's formulas require
+ *  Those functions partially complement the `each.h` module, and are necessary for the
+ *  `geospatial.h` module, among others. Both Haversine and Vincenty's formulas require
  *  trigonometric functions, and those are the most expensive part of the computation.
+ *
+ *  @see SLEEF: https://sleef.org/
  *
  *  @section glibc_math GLibC IEEE-754-compliant Math Functions
  *
- *  The GNU C Library (GLibC) provides a set of IEEE-754-compliant math functions, like `sinf`, `cosf`,
- *  and double-precision variants `sin`, `cos`. Those functions are accurate to ~0.55 ULP (units in the
- *  last place), but can be slow to evaluate. They use a combination of techniques, like:
+ *  The GNU C Library, GLibC, provides IEEE-754-compliant math functions, like single-precision
+ *  @c sinf and @c cosf or double-precision @c sin and @c cos. Those are accurate to ~0.55 ULP,
+ *  units in the last place, but can be slow to evaluate. They combine techniques like:
  *
  *  - Taylor series expansions for small values.
  *  - Table lookups combined with corrections for moderate values.
  *  - Accurate modulo reduction for large values.
  *
- *  The precomputed tables may be the hardest part to accelerate with SIMD, as they contain 440x values,
- *  each 64-bit wide.
+ *  The precomputed tables may be the hardest part to accelerate with SIMD, as they contain 440x
+ *  values, each 64-bit wide.
  *
- *  https://github.com/lattera/glibc/blob/895ef79e04a953cac1493863bcae29ad85657ee1/sysdeps/ieee754/dbl-64/branred.c#L54
- *  https://github.com/lattera/glibc/blob/895ef79e04a953cac1493863bcae29ad85657ee1/sysdeps/ieee754/dbl-64/s_sin.c#L84
+ *  @see glibc argument reduction: https://github.com/lattera/glibc/blob/895ef79e04a953cac1493863bcae29ad85657ee1/sysdeps/ieee754/dbl-64/branred.c#L54
+ *  @see glibc sine: https://github.com/lattera/glibc/blob/895ef79e04a953cac1493863bcae29ad85657ee1/sysdeps/ieee754/dbl-64/s_sin.c#L84
  *
  *  @section approximation_algorithms Approximation Algorithms
  *
  *  There are several ways to approximate trigonometric functions, and the choice depends on the
- *  target hardware and the desired precision. Notably:
+ *  target hardware and the desired precision.
  *
- *  - Taylor Series approximation is a series expansion of a sum of its derivatives at a target point.
- *    It's easy to derive for differentiable functions, works well for functions smooth around the
- *    expsansion point, but can perform poorly for functions with singularities or high-frequency
- *    oscillations.
+ *  Taylor Series approximation is a series expansion of a sum of its derivatives at a target point.
+ *  It's easy to derive for differentiable functions and works well for functions smooth around the
+ *  expansion point, but can perform poorly for functions with singularities or rapid,
+ *  high-frequency oscillations.
  *
- *  - Pade approximations are rational functions that approximate a function by a ratio of polynomials.
- *    It often converges faster than Taylor for functions with singularities or steep changes, provides
- *    good approximations for both smooth and rational functions, but can be more computationally
- *    intensive to evaluate, and can have holes (undefined points).
+ *  Pade approximations are rational functions that approximate a function by a ratio of
+ *  polynomials. They often converge faster than Taylor for functions with singularities or steep
+ *  changes, and approximate both smooth and rational functions well, but can be more
+ *  computationally intensive to evaluate, and can have holes, undefined points.
  *
- *  Moreover, most approximations can be combined with Horner's methods of evaluating polynomials
- *  to reduce the number of multiplications and additions, and to improve the numerical stability.
- *  In trigonometry, the Payne-Hanek Range Reduction is another technique used to reduce the argument
+ *  Moreover, most approximations can be combined with Horner's methods of evaluating polynomials to
+ *  reduce the number of multiplications and additions, and to improve the numerical stability. In
+ *  trigonometry, the Payne-Hanek Range Reduction is another technique used to reduce the argument
  *  to a smaller range, where the approximation is more accurate.
  *
  *  @section optimization_notes Optimization Notes
  *
- *  The following optimizations were evaluated but did not yield performance improvements:
+ *  The following optimizations were evaluated but did not yield performance improvements.
  *
- *  - Estrin's scheme for polynomial evaluation: This tree-based approach reduces the dependency depth
- *    from N sequential FMAs to log2(N) by computing powers of x in parallel with partial sums.
- *    For an 8-term polynomial, Estrin reduces depth from 7 to 3. However, benchmarks showed ~20%
- *    regression because the extra MUL operations for computing x², x⁴, x⁸ hurt throughput more
- *    than the reduced dependency depth helps latency. For large arrays, out-of-order execution
- *    across loop iterations already hides FMA latency, making throughput the bottleneck.
+ *  Estrin's scheme for polynomial evaluation is a tree-based approach that reduces the dependency
+ *  depth from N sequential FMAs to log2(N), by computing powers of x in parallel with partial sums.
+ *  For an 8-term polynomial, it reduces depth from 7 to 3, but benchmarks showed a ~20% regression:
+ *  the extra MUL operations for computing x², x⁴, x⁸ hurt throughput more than the reduced
+ *  dependency depth helps latency. For large arrays, out-of-order execution across loop iterations
+ *  already hides FMA latency, making throughput the bottleneck.
  *
- *  - RCPPS with Newton-Raphson refinement: Fast reciprocal approximation (~4 cycles) with one
- *    refinement iteration for ~22-bit precision, tested as an alternative to VDIVPS (~11 cycles).
- *    Did not improve performance when combined with Estrin's scheme, likely because the division
- *    is not on the critical path when processing large arrays.
+ *  RCPPS with Newton-Raphson refinement, a fast reciprocal approximation at ~4 cycles with one
+ *  refinement iteration for ~22-bit precision, was tested as an alternative to VDIVPS at ~11
+ *  cycles. It did not improve performance when combined with Estrin's scheme, likely because the
+ *  division is not on the critical path when processing large arrays.
  *
- *  @section x86_instructions Relevant x86 Instructions
+ *  @section trigonometry_x86_instructions Relevant x86 Instructions
  *
  *  Polynomial evaluation (Horner's method) for sin/cos/tan uses chained FMAs - the 4-cycle latency
  *  is hidden by out-of-order execution across iterations. Range reduction uses VRNDSCALE for fast
  *  rounding (notably 3x faster on Genoa than Ice Lake). VFPCLASS detects NaN/Inf inputs for special
  *  case handling. Division appears in tangent's final step but isn't on the critical path.
  *
- *      Intrinsic               Instruction                  Icelake      Genoa
- *      _mm512_roundscale_ps    VRNDSCALEPS (ZMM, ZMM, I8)   8cy @ p0+p0  3cy @ p23
- *      _mm512_roundscale_pd    VRNDSCALEPD (ZMM, ZMM, I8)   8cy @ p0+p0  3cy @ p23
- *      _mm512_fpclass_ps_mask  VFPCLASSPS (K, ZMM, I8)      3cy @ p5     5cy @ p01
- *      _mm512_fmadd_ps         VFMADD231PS (ZMM, ZMM, ZMM)  4cy @ p0     4cy @ p01
- *      _mm256_fmadd_ps         VFMADD231PS (YMM, YMM, YMM)  4cy @ p01    4cy @ p01
- *      _mm256_div_ps           VDIVPS (YMM, YMM, YMM)       ~11cy @ p0   ~11cy @ p01
- *      _mm256_div_pd           VDIVPD (YMM, YMM, YMM)       ~13cy @ p0   ~13cy @ p01
+ *  @verbatim
+ *  Intrinsic               Instruction                  Icelake      Genoa
+ *  _mm512_roundscale_ps    VRNDSCALEPS (ZMM, ZMM, I8)   8cy @ p0+p0  3cy @ p23
+ *  _mm512_roundscale_pd    VRNDSCALEPD (ZMM, ZMM, I8)   8cy @ p0+p0  3cy @ p23
+ *  _mm512_fpclass_ps_mask  VFPCLASSPS (K, ZMM, I8)      3cy @ p5     5cy @ p01
+ *  _mm512_fmadd_ps         VFMADD231PS (ZMM, ZMM, ZMM)  4cy @ p0     4cy @ p01
+ *  _mm256_fmadd_ps         VFMADD231PS (YMM, YMM, YMM)  4cy @ p01    4cy @ p01
+ *  _mm256_div_ps           VDIVPS (YMM, YMM, YMM)       ~11cy @ p0   ~11cy @ p01
+ *  _mm256_div_pd           VDIVPD (YMM, YMM, YMM)       ~13cy @ p0   ~13cy @ p01
+ *  @endverbatim
  *
- *  @section arm_instructions Relevant ARM NEON/SVE Instructions
+ *  @section trigonometry_arm_instructions Relevant ARM NEON/SVE Instructions
  *
  *  ARM implementations use the same Horner polynomial approach with FMLA chains. FRINTA provides
  *  fast rounding for range reduction. The 4-cycle FMA latency with 4 inst/cycle throughput allows
  *  excellent pipelining when processing multiple elements.
  *
- *      Intrinsic   Instruction   M1 Firestorm  Graviton 3   Graviton 4
- *      vfmaq_f32   FMLA.S (vec)  4cy @ V0123   4cy @ V0123  4cy @ V0123
- *      vfmaq_f64   FMLA.D (vec)  4cy @ V0123   4cy @ V0123  4cy @ V0123
- *      vrndaq_f32  FRINTA.S      2cy @ V0123   2cy @ V01    2cy @ V01
+ *  @verbatim
+ *  Intrinsic   Instruction   M1 Firestorm  Graviton 3   Graviton 4
+ *  vfmaq_f32   FMLA.S (vec)  4cy @ V0123   4cy @ V0123  4cy @ V0123
+ *  vfmaq_f64   FMLA.D (vec)  4cy @ V0123   4cy @ V0123  4cy @ V0123
+ *  vrndaq_f32  FRINTA.S      2cy @ V0123   2cy @ V01    2cy @ V01
+ *  @endverbatim
  *
- *  @section references References
+ *  @section trigonometry_references References
  *
- *  - x86 intrinsics: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
- *  - Arm intrinsics: https://developer.arm.com/architectures/instruction-sets/intrinsics/
+ *  @see x86 intrinsics: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
+ *  @see Arm intrinsics: https://developer.arm.com/architectures/instruction-sets/intrinsics/
  *
  */
 #ifndef NK_TRIGONOMETRY_H

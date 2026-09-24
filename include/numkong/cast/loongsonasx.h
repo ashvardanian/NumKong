@@ -1,28 +1,30 @@
 /**
- *  @brief SIMD-accelerated Type Conversions and Load/Store Helpers for LoongArch LASX (256-bit).
  *  @file include/numkong/cast/loongsonasx.h
  *  @author Ash Vardanian
  *  @date March 23, 2026
+ *  @brief SIMD-accelerated type conversions and load/store helpers for LoongArch LASX, 256-bit.
  *
  *  @sa include/numkong/cast.h
  *
  *  @section loongsonasx_cast_instructions Key LASX Load/Store Instructions
  *
- *      Intrinsic                      Instruction       Description
- *      __lasx_xvld(ptr, 0)            XVLD              256-bit aligned/unaligned load
- *      __lasx_xvst(v, ptr, 0)         XVST              256-bit aligned/unaligned store
- *      __lasx_xvreplgr2vr_w(bits)     XVREPLGR2VR.W     Broadcast i32 to 8 lanes
- *      __lasx_xvreplgr2vr_d(bits)     XVREPLGR2VR.D     Broadcast i64 to 4 lanes
- *      __lasx_xvffint_s_w(v)          XVFFINT.S.W       4x i32 -> f32 (per 128-bit lane)
- *      __lasx_xvfrsqrt_s(v)           XVFRSQRT.S        f32 full-precision reciprocal sqrt
- *      __lasx_xvfsqrt_s(v)            XVFSQRT.S         f32 full-precision sqrt
- *      __lasx_xvfsqrt_d(v)            XVFSQRT.D         f64 full-precision sqrt
+ *  @verbatim
+ *  Intrinsic                      Instruction       Description
+ *  __lasx_xvld(address, 0)        XVLD              256-bit aligned/unaligned load
+ *  __lasx_xvst(v, address, 0)     XVST              256-bit aligned/unaligned store
+ *  __lasx_xvreplgr2vr_w(bits)     XVREPLGR2VR.W     Broadcast i32 to 8 lanes
+ *  __lasx_xvreplgr2vr_d(bits)     XVREPLGR2VR.D     Broadcast i64 to 4 lanes
+ *  __lasx_xvffint_s_w(v)          XVFFINT.S.W       4x i32 → f32 (per 128-bit lane)
+ *  __lasx_xvfrsqrt_s(v)           XVFRSQRT.S        f32 full-precision reciprocal sqrt
+ *  __lasx_xvfsqrt_s(v)            XVFSQRT.S         f32 full-precision sqrt
+ *  __lasx_xvfsqrt_d(v)            XVFSQRT.D         f64 full-precision sqrt
+ *  @endverbatim
  *
- *  LASX is a 256-bit extension; all vector registers are 256-bit `__m256i`. For 128-bit
- *  `nk_b128_vec_t` operations, `__lasx_xvld` safely loads into the low 128 bits (the high
- *  128 bits are zeroed or undefined depending on context). For 128-bit stores we use `memcpy`
- *  to avoid writing beyond the intended 16 bytes. Partial loads/stores delegate to serial
- *  helpers since LASX lacks masked load/store instructions.
+ *  LASX is a 256-bit extension; all vector registers are 256-bit @c __m256i. For 128-bit
+ *  @c nk_b128_vec_t operations, @c __lasx_xvld safely loads into the low 128 bits — the high 128
+ *  bits are zeroed or undefined depending on context. For 128-bit stores we use @c memcpy to avoid
+ *  writing beyond the intended 16 bytes. Partial loads/stores delegate to serial helpers since LASX
+ *  lacks masked load/store instructions.
  */
 #ifndef NK_CAST_LOONGSONASX_H
 #define NK_CAST_LOONGSONASX_H

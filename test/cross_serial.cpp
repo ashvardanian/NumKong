@@ -1,8 +1,8 @@
 /**
- *  @brief Batch operation tests - Serial fallback.
  *  @file test/cross_serial.cpp
  *  @author Ash Vardanian
  *  @date January 14, 2025
+ *  @brief Batch operation tests - Serial fallback.
  */
 #include "test.hpp"
 #include "cross.cuh"

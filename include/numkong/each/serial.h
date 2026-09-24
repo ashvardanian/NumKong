@@ -1,8 +1,8 @@
 /**
- *  @brief SWAR-accelerated Elementwise Arithmetic for SIMD-free CPUs.
  *  @file include/numkong/each/serial.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SWAR-accelerated elementwise arithmetic for SIMD-free CPUs.
  *
  *  @sa include/numkong/each.h
  */

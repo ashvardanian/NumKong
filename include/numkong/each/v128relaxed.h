@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Elementwise Arithmetic for WASM.
  *  @file include/numkong/each/v128relaxed.h
  *  @author Ash Vardanian
  *  @date April 3, 2026
+ *  @brief SIMD-accelerated elementwise arithmetic for WASM.
  *
  *  @sa include/numkong/each.h
  *

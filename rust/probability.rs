@@ -5,6 +5,9 @@
 //! - [`KullbackLeibler`]: KL divergence between two distributions
 //! - [`JensenShannon`]: Jensen-Shannon distance — a symmetric metric
 //! - [`ProbabilitySimilarity`]: Blanket trait combining `KullbackLeibler + JensenShannon`
+//!
+//! File: rust/probability.rs
+//! Author: Ash Vardanian
 
 use crate::types::{bf16, f16};
 
@@ -23,7 +26,7 @@ extern "C" {
 
 // region: KullbackLeibler
 
-/// Computes the **Kullback-Leibler divergence** between two probability distributions.
+/// Computes the __Kullback-Leibler divergence__ between two probability distributions.
 ///
 /// D_KL(P‖Q) = ∑ᵢ pᵢ × ln(pᵢ / qᵢ)
 ///
@@ -90,7 +93,7 @@ impl KullbackLeibler for bf16 {
 
 // region: JensenShannon
 
-/// Computes the **Jensen-Shannon distance** between two probability distributions.
+/// Computes the __Jensen-Shannon distance__ between two probability distributions.
 ///
 /// d_JS(P, Q) = √(½(D_KL(P‖M) + D_KL(Q‖M))), where M = (P + Q) / 2
 ///
@@ -155,7 +158,7 @@ impl JensenShannon for bf16 {
 
 // endregion: JensenShannon
 
-/// `ProbabilitySimilarity` bundles probability divergence metrics: KullbackLeibler and JensenShannon.
+/// `ProbabilitySimilarity` bundles the divergence metrics: KullbackLeibler and JensenShannon.
 pub trait ProbabilitySimilarity: KullbackLeibler + JensenShannon {}
 impl<Scalar: KullbackLeibler + JensenShannon> ProbabilitySimilarity for Scalar {}
 

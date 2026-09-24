@@ -1,56 +1,53 @@
 /**
- *  @brief Ragged attention for AVX-512 VNNI (Ice Lake) generation CPUs.
  *  @file include/numkong/attention/icelake.h
  *  @author Ash Vardanian
  *  @date July 7, 2026
+ *  @brief Ragged attention for AVX-512 VNNI Ice Lake generation CPUs.
  *
  *  @sa include/numkong/attention.h
  *
- *  VNNI backend for the INT8 attention triple. Q, K and V arrive caller-quantized to I8,
- *  the Q·K descale already folded into `scale`. Scores are exact I32 integer dot products,
- *  the base-2 softmax reuses the Skylake helpers (Ice Lake caps imply Skylake), weights
- *  quantize to U8 as `round(255 · 2^(s₂ − m₂))`, and the P×V contraction runs natively on
- *  `_mm512_dpbusd_epi32` with the U8 weights as the unsigned operand.
+ *  VNNI backend for the INT8 attention triple. Q, K and V arrive caller-quantized to I8, the Q·K
+ *  descale already folded into @c scale. Scores are exact I32 integer dot products, the base-2
+ *  softmax reuses the Skylake helpers — Ice Lake caps imply Skylake — weights quantize to U8 as
+ *  round(255 · 2^(s₂ − m₂)), and the P×V contraction runs natively on @c _mm512_dpbusd_epi32 with
+ *  the U8 weights as the unsigned operand.
  *
  *  @section attention_icelake_qk Q×Kᵀ correction placement
  *
- *  DPBUSD multiplies an unsigned byte by a signed byte, so Q is shifted into the unsigned
- *  domain once per query row (`q' = q ⊕ 0x80 = q + 128`). `dpbusd(q', k)` then yields
- *  `Σ(q+128)·k = Σq·k + 128·Σk`, so the exact score is `dpbusd(q', k) − 128·Σk`. The
- *  per-position `Σk = Σ_channel k[pos][channel]` depends only on K, so it is precomputed
- *  once at pack time and stored as one I32 per KV position in a table riding beside the K
- *  plane (see the payload layout below). To keep the score loop drain-free the score kernel
- *  never reduces across the 16 lanes: K is packed VNNI-interleaved so a 64-byte load holds
- *  four channels of sixteen consecutive KV positions, one score per lane. A query's four
- *  channels broadcast as one dword (`_mm512_set1_epi32`) and one DPBUSD advances sixteen KV
- *  positions by four channels; accumulating over the depth quads leaves sixteen exact
- *  biased scores with no transpose. Sixteen queries share each K load — hold sixteen
- *  accumulators and issue sixteen broadcast DPBUSDs per K vector — so the score cost scales
- *  flat with KV length. The `128·Σk` correction is one sixteen-wide `zmm ≪ 7` subtract per
- *  KV tile. Zero-padded channels are exact: a padded `k = 0` contributes `(q+128)·0 = 0` to
- *  the product and `0` to `Σk`.
+ *  DPBUSD multiplies an unsigned byte by a signed byte, so Q is shifted into the unsigned domain
+ *  once per query row, q' = q ⊕ 0x80 = q + 128. dpbusd(q', k) then yields Σ(q+128)·k = Σq·k +
+ *  128·Σk, so the exact score is dpbusd(q', k) − 128·Σk. The per-position Σk = Σ_channel
+ *  k[pos][channel] depends only on K, so it is precomputed once at pack time and stored as one I32
+ *  per KV position in a table riding beside the K plane, see the payload layout below. To keep the
+ *  score loop drain-free the score kernel never reduces across the 16 lanes: K is packed
+ *  VNNI-interleaved so a 64-byte load holds four channels of sixteen consecutive KV positions, one
+ *  score per lane. A query's four channels broadcast as one dword, @c _mm512_set1_epi32, and one
+ *  DPBUSD advances sixteen KV positions by four channels; accumulating over the depth quads leaves
+ *  sixteen exact biased scores with no transpose. Sixteen queries share each K load — hold sixteen
+ *  accumulators and issue sixteen broadcast DPBUSDs per K vector — so the score cost scales flat
+ *  with KV length. The 128·Σk correction is one sixteen-wide `zmm ≪ 7` subtract per KV tile.
+ *  Zero-padded channels stay exact: a padded k=0 adds (q+128)·0=0 to the product and 0 to Σk.
  *
  *  @section attention_icelake_pv P×V layout
  *
- *  DPBUSD contracts four adjacent bytes per I32 lane, so the P×V contraction over KV
- *  positions needs four consecutive positions of one channel adjacent in memory. V is
- *  therefore packed position-quad-interleaved at pack time: byte `[group][channel][pos%4]`
- *  holds `v[4·group + pos%4][channel]`. A single 64-byte load then covers 16 channels × 4
- *  positions, the U8 weights of those four positions broadcast into every I32 lane, and one
- *  DPBUSD advances 16 channels by four positions with no shift and no correction. The I32
- *  accumulators drain to F32 once per panel and fold into the online `O = O·2^(m_old−m_new)
- *  + panel` correction. K is VNNI-interleaved `[tile of 16 positions][depth quad][16 lanes ×
- *  4 channels]`; both planes zero-pad channels to a multiple of 64, K pads positions to a
- *  multiple of 16 (one 16-lane score tile) and V to a multiple of 4. The row-max sweep covers
- *  live columns only: a zero-padded position's score of 0 could otherwise raise the max and
- *  zero out an all-negative row's weight sum. `depth > 256` routes to the width-agnostic
- *  serial tier from every entry point.
+ *  DPBUSD contracts four adjacent bytes per I32 lane, so the P×V contraction over KV positions
+ *  needs four consecutive positions of one channel adjacent in memory. V is therefore packed
+ *  position-quad-interleaved at pack time: byte [group][channel][pos%4] holds v[4·group +
+ *  pos%4][channel]. A single 64-byte load then covers 16 channels × 4 positions, the U8 weights of
+ *  those four positions broadcast into every I32 lane, and one DPBUSD advances 16 channels by four
+ *  positions with no shift and no correction. The I32 accumulators drain to F32 once per panel and
+ *  fold into the online O = O·2^(m_old−m_new) + panel correction. K is VNNI-interleaved as tiles of
+ *  16 positions, each a depth quad of 16 lanes by 4 channels; both planes zero-pad channels to a
+ *  multiple of 64, K pads positions to a multiple of 16, one 16-lane score tile, and V to a
+ *  multiple of 4. The row-max sweep covers live columns only: a zero-padded position's score of 0
+ *  could otherwise raise the max and zero out an all-negative row's weight sum. depth > 256 routes
+ *  to the width-agnostic serial tier from every entry point.
  *
- *  Per-segment payload is `[K planes][V planes][Σk tables]` across `num_kv_heads` heads: the
- *  K and V planes as above (`round_up(len, 16) · dim_padded` bytes each), then one I32 `Σk`
- *  per padded KV position per head. Two extra payload bytes per position per plane pair
- *  equal exactly one I32 per position, so the directory keeps its single closed form with
- *  `unit_bytes = dim_padded + 2` — `2 · num_kv_heads · round_up(len, 16) · (dim_padded + 2)`.
+ *  Per-segment payload is [K planes][V planes][Σk tables] across @c num_kv_heads heads: the K and V
+ *  planes as above, round_up(length, 16) · dim_padded bytes each, then one I32 Σk per padded KV
+ *  position per head. Two extra payload bytes per position per plane pair equal exactly one I32 per
+ *  position, so the directory keeps its single closed form with unit_bytes = dim_padded + 2 — 2 ·
+ *  num_kv_heads · round_up(length, 16) · (dim_padded + 2).
  */
 #ifndef NK_ATTENTION_ICELAKE_H
 #define NK_ATTENTION_ICELAKE_H

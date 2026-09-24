@@ -1,8 +1,8 @@
 /**
- *  @brief MaxSim late-interaction operations for NumKong Python bindings.
  *  @file python/maxsim.c
  *  @author Ash Vardanian
  *  @date March 9, 2026
+ *  @brief MaxSim late-interaction operations for NumKong Python bindings.
  *
  *  This module owns:
  *  - `MaxSimPackedMatrix`: opaque pre-packed matrix for MaxSim scoring.
@@ -159,8 +159,8 @@ PyTypeObject MaxSimPackedMatrixType = {
 char const doc_maxsim_pack[] =                                                  //
     "maxsim_pack(b, /, dtype=None) -> MaxSimPackedMatrix\n\n"                   //
     "Pack a 2D matrix for MaxSim late-interaction scoring.\n\n"                 //
-    "Parameters:\n"                                                             //
-    "    b (array_like): Source matrix with shape (vectors, depth).\n"          //
+    "Args:\n"                                                                   //
+    "    b (array_like): Source matrix with shape [vectors,depth].\n"           //
     "    dtype (str, optional): Packing dtype. Default: inferred from input.\n" //
     "        Supported values: 'bf16', 'f16', 'f32'.\n\n"                       //
     "Returns:\n"                                                                //
@@ -308,7 +308,7 @@ PyObject *api_maxsim_pack(PyObject *self, PyObject *const *args, Py_ssize_t narg
 char const doc_maxsim_packed[] =                                             //
     "maxsim_packed(queries, documents, /) -> float\n\n"                      //
     "Compute MaxSim late-interaction score between two packed matrices.\n\n" //
-    "Parameters:\n"                                                          //
+    "Args:\n"                                                                //
     "    queries (MaxSimPackedMatrix): Packed query vectors.\n"              //
     "    documents (MaxSimPackedMatrix): Packed document vectors.\n\n"       //
     "Returns:\n"                                                             //
@@ -388,17 +388,17 @@ PyObject *api_maxsim_packed(PyObject *self, PyObject *const *args, Py_ssize_t na
                                       documents->vectors, queries->depth);
 }
 
-char const doc_maxsim[] =                                                               //
-    "maxsim(queries, documents, /, dtype=None) -> float\n\n"                            //
-    "Convenience MaxSim: pack both matrices and compute in one call.\n\n"               //
-    "Parameters:\n"                                                                     //
-    "    queries (array_like): Query matrix with shape (query_count, depth).\n"         //
-    "    documents (array_like): Document matrix with shape (document_count, depth).\n" //
-    "    dtype (str, optional): Packing dtype. Default: inferred from input.\n"         //
-    "        Supported values: 'bf16', 'f16', 'f32'.\n\n"                               //
-    "Returns:\n"                                                                        //
-    "    float: Sum of per-query minimum angular distances.\n\n"                        //
-    "Signature:\n"                                                                      //
+char const doc_maxsim[] =                                                              //
+    "maxsim(queries, documents, /, dtype=None) -> float\n\n"                           //
+    "Convenience MaxSim: pack both matrices and compute in one call.\n\n"              //
+    "Args:\n"                                                                          //
+    "    queries (array_like): Query matrix with shape [query_count,depth].\n"         //
+    "    documents (array_like): Document matrix with shape [document_count,depth].\n" //
+    "    dtype (str, optional): Packing dtype. Default: inferred from input.\n"        //
+    "        Supported values: 'bf16', 'f16', 'f32'.\n\n"                              //
+    "Returns:\n"                                                                       //
+    "    float: Sum of per-query minimum angular distances.\n\n"                       //
+    "Signature:\n"                                                                     //
     "    >>> def maxsim(queries, documents, /, dtype=None) -> float: ...";
 
 PyObject *api_maxsim(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {

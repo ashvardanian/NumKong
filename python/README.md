@@ -801,7 +801,7 @@ nk.dot(query, query)  # buffer protocol, zero copy
 # Explicit pointer wrap
 query_view = nk.from_pointer(query.data_ptr(), tuple(query.shape), 'float32', owner=query)
 
-# NumKong → PyTorch: 1D via buffer protocol, N-D via numpy bridge
+# NumKong → PyTorch: 1D via buffer protocol, N-D via NumPy bridge
 flat = torch.frombuffer(memoryview(nk_tensor), dtype=torch.float32)
 shaped = torch.as_tensor(np.asarray(nk_tensor))
 ```

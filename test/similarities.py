@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Test pairwise cross-distances: nk.cdist for all metric families.
 
-Dtypes: float64, float32, float16, bfloat16, int8, uint8, sub-byte floats.
+DTypes: float64, float32, float16, bfloat16, int8, uint8, sub-byte floats.
 Baselines: SciPy cdist.
 Matches C++ suite: test/cross_*.cpp.
+
+File: test/similarities.py
+Author: Ash Vardanian
+Date: March 4, 2026
 """
 
 import atexit
@@ -85,11 +89,11 @@ def test_cdist_batch_metrics(ndim, input_dtype, metric, capability, nk_seed):
 
     Sets ``out_dtype`` equal to ``input_dtype`` (float64 or float32) so that the
     kernel's native output type matches and the fast packed/symmetric batch path
-    is selected instead of the scalar pairwise fallback.  Uses asymmetric matrix
+    is selected instead of the scalar pairwise fallback. Uses asymmetric matrix
     sizes (7 x 11) to exercise the general rectangular case.
 
     Dimensions are inherited from ``NK_DENSE_DIMENSIONS``; capabilities from
-    platform auto-detection via ``possible_capabilities``.  Baseline for ``dot``
+    platform auto-detection via ``possible_capabilities``. Baseline for ``dot``
     is ``np.dot`` (SciPy has no ``cdist`` metric for inner product); other
     metrics use ``scipy.spatial.distance.cdist``.
     """
@@ -123,8 +127,8 @@ def test_cdist_self_distance(ndim, input_dtype, metric, nk_seed):
     """Verify ``cdist(A, A)`` produces a complete, correct symmetric matrix.
 
     When both operands are the same object the C code takes a symmetric batch
-    shortcut that only computes the upper triangle.  A post-kernel mirror loop
-    must fill the lower triangle.  This test checks:
+    shortcut that only computes the upper triangle. A post-kernel mirror loop
+    must fill the lower triangle. This test checks:
 
     1. Default ``out_dtype=float64`` (pairwise fallback on f32 input) — full
        matrix against SciPy.
@@ -178,7 +182,7 @@ def test_cdist_float_accuracy(ndim, input_dtype, out_dtype, metric, capability, 
 
     Exercises four metrics (angular, sqeuclidean, euclidean, dot) across three
     input dtypes (float64, float32, float16) and three output modes (default
-    float64, explicit float32, explicit int32).  Inputs are intentionally
+    float64, explicit float32, explicit int32). Inputs are intentionally
     *strided* — sliced from wider arrays — so the kernel must respect non-
     contiguous memory layouts.
 
@@ -189,7 +193,7 @@ def test_cdist_float_accuracy(ndim, input_dtype, out_dtype, metric, capability, 
         * ``angular`` at ndim=1 — degenerate (norm is a single element, 0/0).
 
     Dimensions from ``NK_DENSE_DIMENSIONS``; capabilities from platform
-    auto-detection.  Integer output uses ``atol=1`` (discrete rounding);
+    auto-detection. Integer output uses ``atol=1`` (discrete rounding);
     floats use ``NK_ATOL / NK_RTOL``.
     """
     if metric == "angular" and ndim == 1:
@@ -244,13 +248,13 @@ def test_cdist_complex(ndim, input_dtype, out_dtype, metric, capability):
 
     Tests three output modes (default complex128, explicit complex128,
     explicit complex64) for both ``dot`` (Hermitian-unaware) and ``vdot``
-    (conjugate dot) metrics.  Exercises:
+    (conjugate dot) metrics. Exercises:
 
     * 1D scalar result (single row vs single row).
     * 2D matrix result (10 x 15).
     * ``out=`` buffer path with strided column slice.
 
-    Inputs are strided (sliced from wider allocations).  Dimensions from
+    Inputs are strided (sliced from wider allocations). Dimensions from
     ``NK_DENSE_DIMENSIONS``; capabilities from platform auto-detection.
     """
     keep_one_capability(capability)
@@ -294,16 +298,16 @@ def test_cdist_hamming(ndim, out_dtype, capability):
     """Verify cdist Hamming distance on packed bit vectors.
 
     Generates random binary matrices, packs them via ``np.packbits``, and passes
-    ``dtype="uint1"`` so the kernel interprets each byte as 8 bits.  Baseline is
+    ``dtype="uint1"`` so the kernel interprets each byte as 8 bits. Baseline is
     ``scipy.spatial.distance.cdist(bits, bits, "hamming") * ndim`` — SciPy
     normalises by dimension, so we undo that.
 
-    Output dtype coverage: default (float64), float32, float16, int8.  Integer
+    Output dtype coverage: default (float64), float32, float16, int8. Integer
     output uses standard ``NK_ATOL / NK_RTOL`` (Hamming counts are exact for
     integer types but may round for float16).
 
     Randomised via ``@pytest.mark.repeat(randomized_repetitions_count)`` (env
-    ``NK_RANDOMIZED_REPETITIONS``, default 1).  Dimensions from
+    ``NK_RANDOMIZED_REPETITIONS``, default 1). Dimensions from
     ``NK_DENSE_DIMENSIONS``; capabilities from platform auto-detection.
     """
     keep_one_capability(capability)
@@ -337,7 +341,7 @@ def test_cdist_jaccard(ndim, out_dtype, capability):
     """Verify cdist Jaccard distance on packed bit vectors.
 
     Same ``np.packbits`` + ``dtype="uint1"`` pattern as the Hamming test, but
-    with ``metric="jaccard"``.  Baseline is ``scipy.spatial.distance.cdist``
+    with ``metric="jaccard"``. Baseline is ``scipy.spatial.distance.cdist``
     with ``"jaccard"`` (already normalised — ratio of disagreeing bits to bits
     where at least one is set).
 
@@ -383,7 +387,7 @@ def test_cdist_probability(ndim, input_dtype, metric, capability):
           ``base=e`` (natural log), returning ``sqrt(JS divergence)`` which
           matches ``nk.jsd`` directly.
 
-    Only float64 and float32 input dtypes are supported.  No ``out_dtype``
+    Only float64 and float32 input dtypes are supported. No ``out_dtype``
     variants — probability divergences always produce float64 output.
     Dimensions from ``NK_DENSE_DIMENSIONS``; capabilities from platform
     auto-detection.
@@ -423,13 +427,13 @@ def test_cdist_exotic_dtypes(ndim, input_dtype, metric):
     """Verify cdist for sub-byte and non-standard types via pairwise fallback.
 
     Covers bfloat16, e4m3, e5m2, e2m3, e3m2, int8, uint8, int4, and uint4 for
-    the ``dot`` and ``euclidean`` metrics.  These dtypes have no batch-path
+    the ``dot`` and ``euclidean`` metrics. These dtypes have no batch-path
     kernel, so cdist always falls back to the scalar pairwise loop with float64
     output.
 
     Baselines are computed from the float64 arrays returned by ``make_random``
     (second return value), avoiding sub-byte row-indexing issues on
-    ``nk.Tensor``.  Raw numpy byte-arrays are passed to cdist with an explicit
+    ``nk.Tensor``. Raw numpy byte-arrays are passed to cdist with an explicit
     ``dtype=`` parameter so the C code knows how to interpret the data.
 
     Sub-byte types (int4, uint4, uint1) have their ``ndim`` rounded up to
@@ -481,7 +485,7 @@ def test_cdist_shapes(m, n, k, nk_seed):
     * ``(13, 17, 97)`` — odd prime dimensions with no alignment.
 
     Both ``euclidean`` (may use batch path) and ``sqeuclidean`` (pairwise only)
-    are tested on float32 input with default float64 output.  Asserts both
+    are tested on float32 input with default float64 output. Asserts both
     correctness (against SciPy) and output shape ``(m, n)``.
 
     Not parameterised by capability — shape handling is ISA-independent.

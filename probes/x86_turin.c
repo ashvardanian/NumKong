@@ -1,4 +1,9 @@
-/* NumKong ISA probe: Turin (AVX-512F + VP2INTERSECT) */
+/**
+ *  @file probes/x86_turin.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for Turin, AVX-512F plus VP2INTERSECT.
+ */
 #if defined(__APPLE__)
 #error "AVX-512 not available on macOS"
 #endif

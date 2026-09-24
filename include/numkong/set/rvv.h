@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Set Similarity Measures for RISC-V.
  *  @file include/numkong/set/rvv.h
  *  @author Ash Vardanian
  *  @date January 13, 2026
+ *  @brief SIMD-accelerated set similarity measures for RISC-V.
  *
  *  @sa include/numkong/set.h
  *
@@ -16,19 +16,21 @@
  *  - Use vrgather to look up popcount of each nibble (0-4)
  *  - Sum the results (0-8 per byte)
  *
- *  This approach is efficient on SpacemiT X60 cores which have optimized vrgather
- *  for small indices (LMUL=1 with indices 0-15).
+ *  This approach is efficient on SpacemiT X60 cores which have optimized vrgather for small indices
+ *  (LMUL=1 with indices 0-15).
  *
  *  @section set_rvv_instructions Key RVV Set Instructions
  *
- *      Intrinsic                       Purpose
- *      vxor_vv_u8m1                    XOR for Hamming difference
- *      vand_vv_u8m1                    AND for Jaccard intersection
- *      vor_vv_u8m1                     OR for Jaccard union
- *      vrgather_vv_u8m1                LUT lookup (16-entry nibble table)
- *      vsrl_vx_u8m1                    Right shift to extract high nibble
- *      vwaddu_vx_u16m2                 Widen u8 → u16 for accumulation
- *      vwredsumu_vs_u16m2_u32m1        Widening reduction sum
+ *  @verbatim
+ *  Intrinsic                       Purpose
+ *  vxor_vv_u8m1                    XOR for Hamming difference
+ *  vand_vv_u8m1                    AND for Jaccard intersection
+ *  vor_vv_u8m1                     OR for Jaccard union
+ *  vrgather_vv_u8m1                LUT lookup (16-entry nibble table)
+ *  vsrl_vx_u8m1                    Right shift to extract high nibble
+ *  vwaddu_vx_u16m2                 Widen u8 → u16 for accumulation
+ *  vwredsumu_vs_u16m2_u32m1        Widening reduction sum
+ *  @endverbatim
  */
 #ifndef NK_SET_RVV_H
 #define NK_SET_RVV_H

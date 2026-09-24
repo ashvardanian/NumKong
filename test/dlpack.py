@@ -25,6 +25,10 @@ Frameworks exercised:
 The importer accepts every DLPack ``device_type`` whose pointer is dereferenceable from host code
 (kDLCPU / CUDAHost / ROCMHost / CUDAManaged / OneAPI / Metal). Pure device memory (kDLCUDA, kDLROCM,
 kDLOpenCL, kDLVulkan, kDLWebGPU, kDLHexagon, kDLMAIA, kDLTrn, kDLVPI, kDLExtDev) is rejected.
+
+File: test/dlpack.py
+Author: Ash Vardanian
+Date: April 18, 2026
 """
 
 import pytest
@@ -39,24 +43,29 @@ _INTEGER_DTYPES = ["int64", "int32", "int16", "int8", "uint64", "uint32", "uint1
 _PLAIN_FLOAT_DTYPES = ["float64", "float32", "float16"]
 _PLAIN_NUMERIC_DTYPES = _PLAIN_FLOAT_DTYPES + _INTEGER_DTYPES
 
-# Per-framework dtype matrices. Each entry is a `(framework_attr_name, nk_dtype_string)` pair so a single
-# parametrized test can drive both directions: `getattr(framework_module, attr)` resolves the producer-side
-# dtype, and the `nk_dtype_string` is what we expect back on the NumKong-side after import.
+# Per-framework dtype matrices. Each entry is a `(framework_attr_name, nk_dtype_string)` pair so a
+# single parametrized test can drive both directions: `getattr(framework_module, attr)` resolves the
+# producer-side dtype, and `nk_dtype_string` is what we expect back on the NumKong side once NumKong
+# finishes the import.
 #
-# We include the "weird GPU formats" (bf16, fp8 e4m3fn, fp8 e5m2, fp6 e2m3, fp6 e3m2) wherever the framework
-# supports them natively, so each framework's coverage matches what dtype-fidelity DLPack actually buys.
+# We include the "weird GPU formats" — bf16, fp8 e4m3fn, fp8 e5m2, fp6 e2m3 and fp6 e3m2 — wherever
+# the framework supports them natively, so each framework's coverage matches what dtype-fidelity
+# DLPack actually buys.
 
-# NumPy core has no bf16/fp8/fp6 — those would need ml_dtypes. Skip exotics here; they're tested via PyTorch/MLX.
 _NUMPY_DTYPES = [(name, name) for name in _PLAIN_NUMERIC_DTYPES]
+"""NumPy core has no bf16/fp8/fp6 — those would need ml_dtypes. Skip exotics here; they're tested
+instead via PyTorch and MLX.
+"""
 
-# PyTorch ships native bf16 + float8_e4m3fn + float8_e5m2 since 2.1+; full coverage here is the marquee case.
 _TORCH_DTYPES = [(name, name) for name in _PLAIN_NUMERIC_DTYPES] + [
     ("bfloat16", "bfloat16"),
     ("float8_e4m3fn", "e4m3"),
     ("float8_e5m2", "e5m2"),
 ]
+"""PyTorch ships native bf16, float8_e4m3fn and float8_e5m2 since 2.1+, so this is the framework's
+marquee coverage case.
+"""
 
-# JAX has native bf16 (always) and the integer / float subset; no fp8/fp6 yet.
 _JAX_DTYPES = [
     ("float16", "float16"),
     ("float32", "float32"),
@@ -71,8 +80,8 @@ _JAX_DTYPES = [
     ("uint64", "uint64"),
     ("bfloat16", "bfloat16"),
 ]
+"""JAX always has native bf16 and the integer / float subset; no fp8/fp6 yet."""
 
-# TensorFlow: native bf16 + float16/32/64 + integers. No public fp8 dtype that maps cleanly via DLPack today.
 _TF_DTYPES = [
     ("float16", "float16"),
     ("float32", "float32"),
@@ -87,8 +96,10 @@ _TF_DTYPES = [
     ("uint64", "uint64"),
     ("bfloat16", "bfloat16"),
 ]
+"""TensorFlow ships native bf16 + float16/32/64 + integers, with no public fp8 dtype that maps
+cleanly via DLPack today.
+"""
 
-# PyArrow exposes float / signed-int / unsigned-int builders by name. No bf16/fp8/fp6.
 _PYARROW_DTYPES = [
     ("float16", "float16"),
     ("float32", "float32"),
@@ -102,8 +113,8 @@ _PYARROW_DTYPES = [
     ("uint32", "uint32"),
     ("uint64", "uint64"),
 ]
+"""PyArrow exposes float / signed-int / unsigned-int builders by name. No bf16/fp8/fp6."""
 
-# MLX ships native bf16 on Apple Silicon, plus float16/32/integers. No fp8 yet (mlx.core 0.x).
 _MLX_DTYPES = [
     ("float16", "float16"),
     ("float32", "float32"),
@@ -117,6 +128,7 @@ _MLX_DTYPES = [
     ("uint64", "uint64"),
     ("bfloat16", "bfloat16"),
 ]
+"""MLX ships native bf16 on Apple Silicon, plus float16/32/integers; mlx.core 0.x has no fp8 yet."""
 
 
 def _assert_round_trip_through(producer_array, expected_dtype_str: str, expected_shape: tuple) -> None:
@@ -296,7 +308,7 @@ def test_tensorflow_import(tf_dtype_attr, nk_dtype):
 # endregion TensorFlow round-trip
 
 
-# region CuPy round-trip (GPU only — skipped on CPU-only venvs)
+# region CuPy round-trip on GPUs
 
 
 def _cupy_or_skip():
@@ -361,10 +373,10 @@ def test_cupy_pinned_host_memory_accepted():
         pytest.skip(f"CuPy pinned-memory DLPack producer unavailable ({exc})")
 
 
-# endregion CuPy round-trip
+# endregion CuPy round-trip on GPUs
 
 
-# region MLX round-trip (Apple Silicon — unified memory)
+# region MLX round-trip on Apple Silicon
 
 
 @pytest.mark.parametrize("mlx_dtype_attr, nk_dtype", _MLX_DTYPES)
@@ -390,10 +402,10 @@ def test_mlx_export(mlx_dtype_attr, nk_dtype):
     assert mx_array.dtype == getattr(mx, mlx_dtype_attr)
 
 
-# endregion MLX round-trip
+# endregion MLX round-trip on Apple Silicon
 
 
-# region PyArrow → NumKong (PyArrow is producer-only in the protocol)
+# region PyArrow → NumKong — producer-only in the protocol
 
 
 @pytest.mark.parametrize("pa_dtype_attr, nk_dtype", _PYARROW_DTYPES)
@@ -433,7 +445,7 @@ def test_onnxruntime_roundtrip():
 # endregion ONNX Runtime
 
 
-# region Protocol contract (no framework dependency — uses only NumKong's own constructors)
+# region Protocol contract without frameworks
 
 
 def test_dlpack_device_is_cpu():
@@ -515,4 +527,4 @@ def test_capsule_renamed_to_used_after_import():
     assert '"used_dltensor"' in repr(capsule), repr(capsule)
 
 
-# endregion Protocol contract
+# endregion Protocol contract without frameworks

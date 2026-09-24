@@ -1,8 +1,8 @@
 /**
- *  @brief C++ vector type instantiation tests.
  *  @file test/tensor.cpp
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief C++ vector type instantiation tests.
  */
 #include <array>
 #include <cassert>
@@ -34,14 +34,14 @@ using namespace ashvardanian::numkong::test;
 error_stats_t test_format_scalars();
 #endif
 
-// Explicit instantiations for tensor types — forces full compilation of all APIs
+/*  Explicit instantiations for tensor types, forcing full compilation of all APIs. */
 template class nk::tensor<nk::f32_t>;
 template class nk::tensor<nk::f64_t>;
 template class nk::tensor<nk::f16_t>;
 template class nk::tensor<nk::bf16_t>;
 template class nk::tensor<nk::i8_t>;
 
-// Views and spans for rank-2 (matrix) and default rank
+/*  Views and spans for rank-2 matrices and the default rank. */
 template class nk::tensor_view<nk::f32_t, 2>;
 template class nk::tensor_view<nk::f32_t, 8>;
 template class nk::tensor_span<nk::f32_t, 2>;
@@ -392,15 +392,16 @@ error_stats_t test_block_scaled_composites() {
     return stats;
 }
 
-/** @brief Detects whether a `scaled_tensor`-like type exposes the per-tensor `tensor_scale()` accessor. */
+/** Detects whether a @c scaled_tensor lookalike has the per-tensor `tensor_scale()` accessor. */
 template <typename scaled_type_>
 concept exposes_tensor_scale_ = requires(scaled_type_ const &t) { t.tensor_scale(); };
 
 /**
  *  @brief End-to-end test of the `scaled_tensor` family: encode via `cast`, inspect the SoA
- *  components, slice rows / block-aligned column tiles, materialize back to dense, and verify the
- *  per-tensor scale is exposed for NVFP4 but compile-time absent for the MX family. Every numeric
- *  path is checked byte-for-byte against `nk_cast_block_scaled_serial`.
+ *      components, slice rows / block-aligned column tiles, materialize back to dense, and verify
+ *      the per-tensor scale is exposed for NVFP4 but compile-time absent for the MX family.
+ *
+ *  Every numeric path is checked byte-for-byte against @c nk_cast_block_scaled_serial.
  */
 error_stats_t test_scaled_tensor() {
     error_stats_t stats(comparison_family_t::exact_k);
@@ -577,13 +578,15 @@ error_stats_t test_scaled_tensor() {
 }
 
 /**
- *  @brief Per-format bidirectional round-trip checks (one block) covering three regimes:
- *   - B exactly-representable: a block of powers of two (amax = 2 is a power of two, no scale clip)
- *     must round-trip bit-exactly through UE8M0 formats; NVFP4's two-level f32×UE4M3 scale only
- *     reaches it within the element resolution, so that case asserts the same relative bound as C.
- *   - C narrow range [1, 1.5): every value's mantissa is below each element format's max mantissa, so
- *     nothing clips and the relative error is bounded by the element resolution `narrow_relative_bound`.
- *   - D idempotence: re-quantizing an already-quantized block is a fixed point (bit-stable).
+ *  @brief Per-format bidirectional round-trip checks, one block, covering three regimes:
+ *
+ *  - B exactly-representable: a block of powers of two — amax = 2 is a power of two, no scale clip
+ *    — must round-trip bit-exactly through UE8M0 formats; NVFP4's two-level f32×UE4M3 scale only
+ *    reaches it within the element resolution, so that case asserts the same relative bound as C.
+ *  - C narrow range [1, 1.5): every value's mantissa is below each element format's max mantissa,
+ *    so nothing clips and the relative error is bounded by the element resolution
+ *    @p narrow_relative_bound.
+ *  - D idempotence: re-quantizing an already-quantized block is a fixed point, bit-stable.
  */
 template <typename format_>
 error_stats_t test_scaled_roundtrip(float narrow_relative_bound) {
@@ -642,7 +645,7 @@ error_stats_t test_scaled_roundtrip(float narrow_relative_bound) {
     return stats;
 }
 
-/** @brief Degenerate-input handling: all-zero blocks decode to zero; a NaN poisons only its block. */
+/** Degenerate-input handling: all-zero blocks decode to zero; a NaN poisons only its block. */
 error_stats_t test_scaled_tensor_degenerate() {
     error_stats_t stats(comparison_family_t::exact_k);
     using nk::f32_t;
@@ -898,11 +901,9 @@ error_stats_t test_packed_tensor_fail_closed_views() {
     return stats;
 }
 
-/**
- *  @brief Smoke-test for the vector-shaped reduction wrappers (`nk::moments`/`minmax`/`sum`/...).
- *  Exercises every accessor variant on a small random vector. Numerical accuracy of the
- *  underlying kernels is validated by `test_reduce_moments` / `test_reduce_minmax` above.
- */
+/** Smoke-test for the vector-shaped reduction wrappers @c nk::moments, @c minmax, @c sum, and more,
+ *  exercising every accessor variant on a small random vector. Numerical accuracy of the underlying
+ *  kernels is validated by @c test_reduce_moments and @c test_reduce_minmax above. */
 template <typename value_type_>
 error_stats_t test_vector_reductions_for_type() {
     error_stats_t stats(comparison_family_t::exact_k);
@@ -976,9 +977,8 @@ void test_vector_types() {
 /**
  *  @brief Explicit template instantiation test for all tensor-level operations.
  *
- *  Forces the compiler to fully instantiate every type × operation combination,
- *  catching signature mismatches, missing type traits, and implicit conversion errors
- *  that syntax-only checks miss.
+ *  Forces the compiler to fully instantiate every type × operation combination, catching signature
+ *  mismatches, missing type traits, and implicit conversion errors that syntax-only checks miss.
  */
 template <typename value_type_>
 error_stats_t test_tensor_ops_for_type() {
@@ -1225,7 +1225,7 @@ error_stats_t test_format_scalars() {
 }
 #endif // NK_TEST_FORMAT_
 
-/** @brief Typed-pointer convenience ctors (count / initializer_list / std::array) + out-of-range guard. */
+/** Typed-pointer ctors — count, initializer_list, @c std::array — with an out-of-range guard. */
 error_stats_t test_typed_pointer_ctors() {
     error_stats_t stats(comparison_family_t::exact_k);
     alignas(64) float buf[64];
@@ -1253,7 +1253,7 @@ error_stats_t test_typed_pointer_ctors() {
     return stats;
 }
 
-/** @brief `explicit operator bool` on every owning + non-owning handle type. */
+/** `explicit operator bool` on every owning + non-owning handle type. */
 error_stats_t test_operator_bool() {
     error_stats_t stats(comparison_family_t::exact_k);
     auto t = nk::tensor<nk::f32_t>::try_empty({2, 3});
@@ -1274,7 +1274,7 @@ error_stats_t test_operator_bool() {
     return stats;
 }
 
-/** @brief Templated `flatten<out_rank_>()` with an explicit non-default output rank. */
+/** Templated `flatten<out_rank_>()` with an explicit non-default output rank. */
 error_stats_t test_flatten_out_rank() {
     error_stats_t stats(comparison_family_t::exact_k);
     auto t = nk::tensor<nk::f32_t>::try_empty({2, 3, 4});
@@ -1287,7 +1287,7 @@ error_stats_t test_flatten_out_rank() {
     return stats;
 }
 
-/** @brief Fixed-capacity resize contract: data()-stability, beyond-capacity fail, reserve/clear/move. */
+/** Fixed-capacity resize contract: data()-stability, beyond-capacity fail, reserve/clear/move. */
 error_stats_t test_resize_capacity() {
     error_stats_t stats(comparison_family_t::exact_k);
     auto t = nk::tensor<nk::f32_t>::try_empty({8, 4}); // capacity 32
@@ -1324,11 +1324,9 @@ error_stats_t test_resize_capacity() {
     return stats;
 }
 
-/**
- *  @brief Smoke-test for the tensor-shaped trig wrappers (`nk::try_sin`/`cos`/`atan`).
- *  Runs allocating + into-span variants on a small zero tensor — just exercises the dispatch
- *  paths, not the numerical accuracy (the latter is covered by the kernel tests above).
- */
+/** Smoke-test for the tensor-shaped trig wrappers @c nk::try_sin, @c cos and @c atan, running
+ *  allocating and into-span variants on a small zero tensor, just exercising the dispatch paths,
+ *  not the numerical accuracy, which the kernel tests above cover. */
 template <typename value_type_>
 error_stats_t test_tensor_trig_for_type() {
     error_stats_t stats(comparison_family_t::exact_k);

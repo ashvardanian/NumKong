@@ -1,8 +1,8 @@
 /**
- *  @brief Dot product precision tests.
  *  @file test/dot.cpp
  *  @author Ash Vardanian
  *  @date December 28, 2025
+ *  @brief Dot product precision tests.
  */
 
 #include "test.hpp"
@@ -10,10 +10,8 @@
 
 using namespace ashvardanian::numkong::test;
 
-/**
- *  @brief Unified dot product test for all types: float, integer, and complex.
- *  Works with f32_t, f64_t, f16_t, bf16_t, e4m3_t, e5m2_t, i8_t, u8_t, f32c_t, f64c_t.
- */
+/** Unified dot product test for all types: float, integer, and complex. Works with f32_t, f64_t,
+ *  f16_t, bf16_t, e4m3_t, e5m2_t, i8_t, u8_t, f32c_t, f64c_t. */
 template <typename scalar_type_>
 error_stats_t test_dot(typename scalar_type_::dot_kernel_t kernel) {
     using scalar_t = scalar_type_;
@@ -42,9 +40,7 @@ error_stats_t test_dot(typename scalar_type_::dot_kernel_t kernel) {
     return stats;
 }
 
-/**
- *  @brief Conjugate dot product test for complex types (vdot = conj(a) * b).
- */
+/** Conjugate dot product test for complex types (vdot = conj(a) * b). */
 template <typename scalar_type_>
 error_stats_t test_vdot(typename scalar_type_::vdot_kernel_t kernel) {
     using scalar_t = scalar_type_;

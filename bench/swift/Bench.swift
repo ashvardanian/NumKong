@@ -1,17 +1,22 @@
-//  Bench.swift
-//  NumKong
 //
+//  bench/swift/Bench.swift
 //  XCTest performance benchmarks for NumKong.
-//  Run on-device (iPad, iPhone, Mac) via:
-//      xcodebuild test -scheme NumKong -destination 'platform=iOS,name=...' -only-testing Bench
-//  Or locally:
-//      swift test --filter Bench
 //
-//  Environment variables (matching C++ nk_bench):
-//      NK_DENSE_DIMENSIONS  — pairwise vector length  (default 1536)
-//      NK_MATRIX_HEIGHT     — GEMM M / dataset rows   (default 1024)
-//      NK_MATRIX_WIDTH      — GEMM N / query rows     (default 128)
-//      NK_MATRIX_DEPTH      — GEMM K / vector dims    (default 1536)
+//  - Author: Ash Vardanian
+//  - Date: March 14, 2026
+//
+//  Runs on an iPad, iPhone or Mac through Xcode, or locally through SwiftPM:
+//
+//  ```sh
+//  xcodebuild test -scheme NumKong -destination 'platform=iOS,name=...' -only-testing Bench
+//  swift test --filter Bench
+//  ```
+//
+//  Environment variables, matching C++ nk_bench:
+//      NK_DENSE_DIMENSIONS  — pairwise vector length, defaulting to 1536
+//      NK_MATRIX_HEIGHT     — GEMM M / dataset rows, defaulting to 1024
+//      NK_MATRIX_WIDTH      — GEMM N / query rows, defaulting to 128
+//      NK_MATRIX_DEPTH      — GEMM K / vector dims, defaulting to 1536
 
 #if canImport(Darwin)
 
@@ -115,7 +120,7 @@ private func withSerialDispatch(_ body: () -> Void) {
 // MARK: - Pairwise Benchmark Helpers
 
 extension XCTestCase {
-    /// Benchmarks a pairwise operation over `pairwiseReps` iterations, with optional serial-only dispatch.
+    /// Benchmarks a pairwise operation over `pairwiseReps` iterations, optionally serial-only.
     func benchPairwise<T>(_ make: (Int) -> [T], _ op: @escaping ([T], [T]) -> Any?, serial: Bool = false) {
         let dims = T.self == U1x8.self ? denseDims / 8 : denseDims
         let a = make(dims)
@@ -277,14 +282,14 @@ final class BenchSqEuclidean: XCTestCase {
     func testE3M2Serial() { benchPairwise(randomE3M2, { $0.sqeuclidean($1) }, serial: true) }
 }
 
-// MARK: - Pairwise: Hamming (binary)
+// MARK: - Pairwise: Binary Hamming
 
 final class BenchHamming: XCTestCase {
     func testU1x8() { benchPairwise(randomU1x8) { $0.hamming($1) } }
     func testU1x8Serial() { benchPairwise(randomU1x8, { $0.hamming($1) }, serial: true) }
 }
 
-// MARK: - Pairwise: Jaccard (binary)
+// MARK: - Pairwise: Binary Jaccard
 
 final class BenchJaccard: XCTestCase {
     func testU1x8() { benchPairwise(randomU1x8) { $0.jaccard($1) } }
@@ -380,14 +385,14 @@ final class BenchEuclideansPacked: XCTestCase {
     func testE3M2Serial() throws { try benchPacked(randomE3M2, serial: true) { try $0.euclideansPacked($1) } }
 }
 
-// MARK: - Packed: Hammings (binary)
+// MARK: - Packed: Binary Hammings
 
 final class BenchHammingsPacked: XCTestCase {
     func testU1x8() throws { try benchPacked(randomU1x8) { try $0.hammingsPacked($1) } }
     func testU1x8Serial() throws { try benchPacked(randomU1x8, serial: true) { try $0.hammingsPacked($1) } }
 }
 
-// MARK: - Packed: Jaccards (binary)
+// MARK: - Packed: Binary Jaccards
 
 final class BenchJaccardsPacked: XCTestCase {
     func testU1x8() throws { try benchPacked(randomU1x8) { try $0.jaccardsPacked($1) } }
@@ -489,14 +494,14 @@ final class BenchEuclideansSymmetric: XCTestCase {
     func testE3M2Serial() throws { try benchSymmetric(randomE3M2, serial: true) { try $0.euclideansSymmetric() } }
 }
 
-// MARK: - Symmetric: Hammings (binary)
+// MARK: - Symmetric: Binary Hammings
 
 final class BenchHammingsSymmetric: XCTestCase {
     func testU1x8() throws { try benchSymmetric(randomU1x8) { try $0.hammingsSymmetric() } }
     func testU1x8Serial() throws { try benchSymmetric(randomU1x8, serial: true) { try $0.hammingsSymmetric() } }
 }
 
-// MARK: - Symmetric: Jaccards (binary)
+// MARK: - Symmetric: Binary Jaccards
 
 final class BenchJaccardsSymmetric: XCTestCase {
     func testU1x8() throws { try benchSymmetric(randomU1x8) { try $0.jaccardsSymmetric() } }

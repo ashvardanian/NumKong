@@ -1,11 +1,12 @@
 /**
- *  @brief SIMD-accelerated Set Similarity Measures for WASM.
  *  @file include/numkong/set/v128.h
  *  @author Ash Vardanian
  *  @date September 12, 2026
+ *  @brief SIMD-accelerated set similarity measures for WASM.
  *
- *  Hamming and Jaccard over packed bits accumulate byte popcounts in u8 for 31 steps before widening once, since
- *  31 × 8 = 248 stays below 255; the u8, u16 and u32 kernels count equal lanes with a compare and a shift.
+ *  Hamming and Jaccard over packed bits accumulate byte popcounts in u8 for 31 steps before
+ *  widening once, since 31 × 8 = 248 stays below 255; the u8, u16 and u32 kernels count equal lanes
+ *  with a compare and a shift.
  */
 
 #ifndef NK_SET_V128_H

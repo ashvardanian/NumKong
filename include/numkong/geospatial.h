@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Geospatial Distances.
  *  @file include/numkong/geospatial.h
  *  @author Ash Vardanian
  *  @date July 1, 2023
+ *  @brief SIMD-accelerated geospatial distances.
  *
  *  Contains following distance functions:
  *
@@ -31,11 +31,10 @@
  *
  *  @section haversine_similarity Low-Accuracy High-Performance Haversine Similarity
  *
- *  In most cases, for distance computations, we don't need the exact Haversine formula.
- *  The very last part of the computation applies `asin(√x)` non-linear transformation.
- *  Both `asin` and `sqrt` are monotonically increasing functions, so their product is also
- *  monotonically increasing. This means, for relative similarity/closeness computation we
- *  can avoid that expensive last step.
+ *  In most cases, for distance computations, we don't need the exact Haversine formula. The very
+ *  last part of the computation applies an asin(√x) non-linear transformation. Both @c asin and
+ *  @c sqrt are monotonically increasing, so their composition is too, and relative similarity or
+ *  closeness computations can skip that expensive last step.
  *
  *  @section trig_approximations Trigonometric Approximations & SIMD Vectorization
  *
@@ -52,63 +51,68 @@
  *  Vincenty is ~3-20x more accurate than Haversine for most routes. The improvement is most
  *  significant for long-distance routes and near-polar paths where Earth's oblateness matters.
  *
- *  @note   SIMD implementations may have slightly different results than serial due to
- *          floating-point ordering in iterative algorithms. For Vincenty, expect <0.001%
- *          difference between SIMD and serial implementations.
+ *  @note SIMD implementations may have slightly different results than serial due to floating-point
+ *      ordering in iterative algorithms. For Vincenty, expect <0.001% difference between SIMD and
+ *      serial implementations.
  *
  *  @section vincenty_precision High-Precision Vincenty's Formulae & Earth Ellipsoid
  *
- *  Several approximations of the Earth Ellipsoid exist, each defined by the Equatorial radius (m),
- *  Polar radius (m), and Inverse flattening. The earliest ones date back to 1738, when Pierre Louis
- *  Maupertuis in France suggested a shape, that is only 0.3% different from the most accurate modern
- *  estimates by the International Earth Rotation and Reference Systems Service (IERS).
- *  The Global Positioning System (GPS) uses the World Geodetic Systems's (WGS) WGS-84 standard.
- *  NumKong uses the newer & more accurate @b IERS-2003 standard, but allows overriding default parameters:
+ *  Several approximations of the Earth Ellipsoid exist, each defined by the Equatorial radius, the
+ *  Polar radius, both in meters, and the Inverse flattening. The earliest ones date back to 1738,
+ *  when Pierre Louis Maupertuis in France suggested a shape only 0.3% off from the most accurate
+ *  modern estimates by the International Earth Rotation and Reference Systems Service, IERS. The
+ *  Global Positioning System, GPS, uses the WGS-84 standard of the World Geodetic System. NumKong
+ *  uses the newer @b IERS-2003 standard, but its parameters can be overridden:
  *
- *      #define NK_EARTH_ELLIPSOID_EQUATORIAL_RADIUS (6378136.6)
- *      #define NK_EARTH_ELLIPSOID_POLAR_RADIUS (6356751.9)
- *      #define NK_EARTH_ELLIPSOID_INVERSE_FLATTENING (298.25642)
+ *  @code{.c}
+ *  #define NK_EARTH_ELLIPSOID_EQUATORIAL_RADIUS (6378136.6)
+ *  #define NK_EARTH_ELLIPSOID_POLAR_RADIUS (6356751.9)
+ *  #define NK_EARTH_ELLIPSOID_INVERSE_FLATTENING (298.25642)
+ *  @endcode
  *
  *  To revert from oblate spheroids to spheres, use `NK_EARTH_MEDIATORIAL_RADIUS`.
  *
- *  @section x86_instructions Relevant x86 Instructions
+ *  @section geospatial_x86_instructions Relevant x86 Instructions
  *
- *  Haversine and Vincenty formulas require sqrt for the final distance calculation and division
- *  for Vincenty's iterative convergence. These are the most expensive operations (12-23 cycles)
- *  but only execute once per point-pair. The polynomial trig approximations use FMA chains.
+ *  Haversine and Vincenty formulas require sqrt for the final distance calculation and division for
+ *  Vincenty's iterative convergence. These are the most expensive operations (12-23 cycles) but
+ *  only execute once per point-pair. The polynomial trig approximations use FMA chains.
  *  Note: ZMM sqrt is faster on Genoa (15c) than Ice Lake (19c) due to better 512-bit support.
  *
- *      Intrinsic        Instruction                  Icelake           Genoa
- *      _mm256_sqrt_ps   VSQRTPS (YMM, YMM)           12cy @ p0         15cy @ p01
- *      _mm256_sqrt_pd   VSQRTPD (YMM, YMM)           13cy @ p0         21cy @ p01
- *      _mm512_sqrt_ps   VSQRTPS (ZMM, ZMM)           19cy @ p0+p0+p05  15cy @ p01
- *      _mm512_sqrt_pd   VSQRTPD (ZMM, ZMM)           23cy @ p0+p0+p05  21cy @ p01
- *      _mm256_div_ps    VDIVPS (YMM, YMM, YMM)       11cy @ p0         11cy @ p01
- *      _mm256_div_pd    VDIVPD (YMM, YMM, YMM)       13cy @ p0         13cy @ p01
- *      _mm256_fmadd_ps  VFMADD231PS (YMM, YMM, YMM)  4cy @ p01         4cy @ p01
- *      _mm256_fmadd_pd  VFMADD231PD (YMM, YMM, YMM)  4cy @ p01         4cy @ p01
+ *  @verbatim
+ *  Intrinsic        Instruction                  Icelake           Genoa
+ *  _mm256_sqrt_ps   VSQRTPS (YMM, YMM)           12cy @ p0         15cy @ p01
+ *  _mm256_sqrt_pd   VSQRTPD (YMM, YMM)           13cy @ p0         21cy @ p01
+ *  _mm512_sqrt_ps   VSQRTPS (ZMM, ZMM)           19cy @ p0+p0+p05  15cy @ p01
+ *  _mm512_sqrt_pd   VSQRTPD (ZMM, ZMM)           23cy @ p0+p0+p05  21cy @ p01
+ *  _mm256_div_ps    VDIVPS (YMM, YMM, YMM)       11cy @ p0         11cy @ p01
+ *  _mm256_div_pd    VDIVPD (YMM, YMM, YMM)       13cy @ p0         13cy @ p01
+ *  _mm256_fmadd_ps  VFMADD231PS (YMM, YMM, YMM)  4cy @ p01         4cy @ p01
+ *  _mm256_fmadd_pd  VFMADD231PD (YMM, YMM, YMM)  4cy @ p01         4cy @ p01
+ *  @endverbatim
  *
- *  @section arm_instructions Relevant ARM NEON/SVE Instructions
+ *  @section geospatial_arm_instructions Relevant ARM NEON/SVE Instructions
  *
  *  ARM sqrt (FSQRT) has low throughput as it uses a dedicated V02 execution unit. This is
- *  acceptable since sqrt only appears once per distance calculation. FMA chains for trig
- *  polynomial evaluation pipeline well across all 4 V-units.
+ *  acceptable since sqrt only appears once per distance calculation. FMA chains for trig polynomial
+ *  evaluation pipeline well across all 4 V-units.
  *
- *      Intrinsic   Instruction    M1 Firestorm  Graviton 3   Graviton 4
- *      vfmaq_f32   FMLA.S (vec)   4cy @ V0123   4cy @ V0123  4cy @ V0123
- *      vfmaq_f64   FMLA.D (vec)   4cy @ V0123   4cy @ V0123  4cy @ V0123
- *      vsqrtq_f32  FSQRT.S (vec)  10cy @ V02    10cy @ V02   9cy @ V02
- *      vsqrtq_f64  FSQRT.D (vec)  13cy @ V02    16cy @ V02   16cy @ V02
+ *  @verbatim
+ *  Intrinsic   Instruction    M1 Firestorm  Graviton 3   Graviton 4
+ *  vfmaq_f32   FMLA.S (vec)   4cy @ V0123   4cy @ V0123  4cy @ V0123
+ *  vfmaq_f64   FMLA.D (vec)   4cy @ V0123   4cy @ V0123  4cy @ V0123
+ *  vsqrtq_f32  FSQRT.S (vec)  10cy @ V02    10cy @ V02   9cy @ V02
+ *  vsqrtq_f64  FSQRT.D (vec)  13cy @ V02    16cy @ V02   16cy @ V02
+ *  @endverbatim
  *
- *  @section references References
+ *  @section geospatial_references References
  *
- *  - x86 intrinsics: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
- *  - Arm intrinsics: https://developer.arm.com/architectures/instruction-sets/intrinsics/
- *  - Earth Ellipsoid: https://en.wikipedia.org/wiki/Earth_ellipsoid
- *  - Oblate Spheroid Geodesic: https://mathworld.wolfram.com/OblateSpheroidGeodesic.html
- *  - Speeding up atan2f by 50x: https://mazzo.li/posts/vectorized-atan2.html
- *  - Simplifying the GNU C Sine Function:
- *    https://web.archive.org/web/20230605051610/https://www.awelm.com/posts/simplifying-the-gnu-c-sine-function/
+ *  @see x86 intrinsics: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
+ *  @see Arm intrinsics: https://developer.arm.com/architectures/instruction-sets/intrinsics/
+ *  @see Earth Ellipsoid: https://en.wikipedia.org/wiki/Earth_ellipsoid
+ *  @see Oblate Spheroid Geodesic: https://mathworld.wolfram.com/OblateSpheroidGeodesic.html
+ *  @see Speeding up atan2f by 50x: https://mazzo.li/posts/vectorized-atan2.html
+ *  @see Simplifying the GNU C Sine Function: https://web.archive.org/web/20230605051610/https://www.awelm.com/posts/simplifying-the-gnu-c-sine-function/
  *
  */
 #ifndef NK_GEOSPATIAL_H
@@ -117,9 +121,8 @@
 #include "numkong/types.h"
 #include "numkong/trigonometry.h"
 
-/*  Earth Ellipsoid Constants
- *  The default values use the IERS-2003 standard, but can be overridden before including this header.
- */
+/** Earth Ellipsoid Constants. The defaults use the IERS-2003 standard, overridable before this
+ *  header is included. */
 #ifndef NK_EARTH_MEDIATORIAL_RADIUS
 #define NK_EARTH_MEDIATORIAL_RADIUS (6335439.0)
 #endif

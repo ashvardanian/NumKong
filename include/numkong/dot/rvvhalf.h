@@ -1,20 +1,20 @@
 /**
- *  @brief SIMD-accelerated Dot Products for RISC-V FP16.
  *  @file include/numkong/dot/rvvhalf.h
  *  @author Ash Vardanian
  *  @date January 5, 2026
+ *  @brief SIMD-accelerated dot products for RISC-V FP16.
  *
  *  @sa include/numkong/dot.h
  *
- *  SiFive P670/X280 and similar chips implement RVV 1.0 with Zvfh extension.
- *  Zvfh provides native half-precision (f16) vector operations.
- *  Uses widening multiply (f16 ⨯ f16 → f32) for precision, then reduces to f32.
+ *  SiFive P670, X280 and similar chips implement RVV 1.0 with Zvfh, which provides native f16
+ *  vector operations; a widening f16 × f16 → f32 multiply keeps precision before reducing in f32.
  *
- *  For e2m3, e3m2, e4m3: conversion uses 256-entry VLUXEI16 LUT gathers from cast/rvv.h (3 instructions each).
- *  For e5m2: conversion uses pure shift (vzext + vsll) since e5m2 and f16 share the same exponent bias.
- *  All variants then use vfwmacc_vv for widening fused f16 ⨯ f16 → f32 multiply-accumulate.
+ *  For e2m3, e3m2 and e4m3, conversion gathers through the 256-entry VLUXEI16 tables of cast/rvv.h,
+ *  three instructions each, while e5m2 shares the f16 exponent bias and converts with a plain
+ *  @c vzext and @c vsll. Every variant then accumulates through @c vfwmacc_vv, which fuses a
+ *  widening f16 × f16 → f32 multiply-accumulate.
  *
- *  Requires: RVV 1.0 + Zvfh extension (GCC 14+ or Clang 18+)
+ *  Requires RVV 1.0 with Zvfh, from GCC 14 or Clang 18.
  */
 #ifndef NK_DOT_RVVHALF_H
 #define NK_DOT_RVVHALF_H

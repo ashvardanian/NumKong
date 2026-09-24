@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Similarity Measures for Probability Distributions.
  *  @file include/numkong/probability.h
  *  @author Ash Vardanian
  *  @date October 20, 2023
+ *  @brief SIMD-accelerated similarity measures for probability distributions.
  *
  *  Contains following similarity measures:
  *
@@ -31,37 +31,41 @@
  *  - Arm: NEON
  *  - x86: Haswell, Skylake, Sapphire
  *
- *  @section x86_instructions Relevant x86 Instructions
+ *  @section probability_x86_instructions Relevant x86 Instructions
  *
  *  KL/JS divergence requires log2(x) which decomposes into exponent extraction (VGETEXP) plus
  *  mantissa polynomial (using VGETMANT + FMA chain). This approach is faster than scalar log()
  *  calls. Division (for p/q ratio) uses either VDIVPS directly or VRCP14PS with Newton-Raphson
  *  refinement when ~14-bit precision suffices. Genoa's VGETEXP/VGETMANT are 25% faster than Ice.
  *
- *      Intrinsic          Instruction                  Icelake           Genoa
- *      _mm512_getexp_ps   VGETEXPPS (ZMM, ZMM)         4cy @ p0          3cy @ p23
- *      _mm512_getexp_pd   VGETEXPPD (ZMM, ZMM)         4cy @ p0          3cy @ p23
- *      _mm512_getmant_ps  VGETMANTPS (ZMM, ZMM, I8)    4cy @ p0          3cy @ p23
- *      _mm512_getmant_pd  VGETMANTPD (ZMM, ZMM, I8)    4cy @ p0          3cy @ p23
- *      _mm512_rcp14_ps    VRCP14PS (ZMM, ZMM)          7cy @ p0+p0+p05   5cy @ p01
- *      _mm512_div_ps      VDIVPS (ZMM, ZMM, ZMM)       17cy @ p0+p0+p05  11cy @ p01
- *      _mm512_fmadd_ps    VFMADD231PS (ZMM, ZMM, ZMM)  4cy @ p0          4cy @ p01
+ *  @verbatim
+ *  Intrinsic          Instruction                  Icelake           Genoa
+ *  _mm512_getexp_ps   VGETEXPPS (ZMM, ZMM)         4cy @ p0          3cy @ p23
+ *  _mm512_getexp_pd   VGETEXPPD (ZMM, ZMM)         4cy @ p0          3cy @ p23
+ *  _mm512_getmant_ps  VGETMANTPS (ZMM, ZMM, I8)    4cy @ p0          3cy @ p23
+ *  _mm512_getmant_pd  VGETMANTPD (ZMM, ZMM, I8)    4cy @ p0          3cy @ p23
+ *  _mm512_rcp14_ps    VRCP14PS (ZMM, ZMM)          7cy @ p0+p0+p05   5cy @ p01
+ *  _mm512_div_ps      VDIVPS (ZMM, ZMM, ZMM)       17cy @ p0+p0+p05  11cy @ p01
+ *  _mm512_fmadd_ps    VFMADD231PS (ZMM, ZMM, ZMM)  4cy @ p0          4cy @ p01
+ *  @endverbatim
  *
- *  @section arm_instructions Relevant ARM NEON/SVE Instructions
+ *  @section probability_arm_instructions Relevant ARM NEON/SVE Instructions
  *
  *  ARM lacks direct exponent/mantissa extraction, so log2 uses integer reinterpretation of the
  *  float bits followed by polynomial refinement. FRECPE provides ~8-bit reciprocal approximation
  *  for division, refined with FRECPS Newton-Raphson steps to ~22-bit precision.
  *
- *      Intrinsic    Instruction   M1 Firestorm  Graviton 3   Graviton 4
- *      vfmaq_f32    FMLA.S (vec)  4cy @ V0123   4cy @ V0123  4cy @ V0123
- *      vrecpeq_f32  FRECPE.S      3cy @ V02     3cy @ V02    3cy @ V02
- *      vrecpsq_f32  FRECPS.S      4cy @ V0123   4cy @ V0123  4cy @ V0123
+ *  @verbatim
+ *  Intrinsic    Instruction   M1 Firestorm  Graviton 3   Graviton 4
+ *  vfmaq_f32    FMLA.S (vec)  4cy @ V0123   4cy @ V0123  4cy @ V0123
+ *  vrecpeq_f32  FRECPE.S      3cy @ V02     3cy @ V02    3cy @ V02
+ *  vrecpsq_f32  FRECPS.S      4cy @ V0123   4cy @ V0123  4cy @ V0123
+ *  @endverbatim
  *
- *  @section references References
+ *  @section probability_references References
  *
- *  - x86 intrinsics: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
- *  - Arm intrinsics: https://developer.arm.com/architectures/instruction-sets/intrinsics/
+ *  @see x86 intrinsics: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
+ *  @see Arm intrinsics: https://developer.arm.com/architectures/instruction-sets/intrinsics/
  *
  */
 #ifndef NK_PROBABILITY_H

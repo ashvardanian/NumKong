@@ -1,8 +1,8 @@
 /**
- *  @brief Batch operation tests - AMX ISA family (Sapphire Rapids AMX).
  *  @file test/cross_amx.cpp
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief Batch operation tests - AMX ISA family, Sapphire Rapids AMX.
  */
 #include "test.hpp"
 #include "cross.cuh"

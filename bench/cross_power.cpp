@@ -1,8 +1,8 @@
 /**
- *  @brief Batch operation benchmarks - Power ISA family (VSX).
  *  @file bench/cross_power.cpp
  *  @author Ash Vardanian
  *  @date March 24, 2026
+ *  @brief Batch operation benchmarks, Power ISA family, VSX.
  */
 
 #include "numkong/dot.h"

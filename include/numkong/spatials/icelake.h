@@ -1,8 +1,8 @@
 /**
- *  @brief Batched Spatial Distances for Ice Lake (AVX-512 VNNI/VBMI).
  *  @file include/numkong/spatials/icelake.h
  *  @author Ash Vardanian
  *  @date February 23, 2026
+ *  @brief Batched spatial distances for Ice Lake, AVX-512 VNNI/VBMI.
  *
  *  @sa include/numkong/spatials.h
  */

@@ -1,4 +1,9 @@
-/* NumKong ISA probe: Granite Rapids AMX (AMX-TILE + AMX-FP16) */
+/**
+ *  @file probes/x86_graniteamx.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for Granite Rapids AMX, AMX-TILE plus AMX-FP16.
+ */
 #if defined(__APPLE__)
 #error "AVX-512 not available on macOS"
 #endif

@@ -1,14 +1,14 @@
 /**
- *  @brief SIMD-accelerated MaxSim (angular distance late-interaction) for ARM NEONSDOT.
  *  @file include/numkong/maxsim/neonsdot.h
  *  @author Ash Vardanian
  *  @date February 28, 2026
+ *  @brief SIMD-accelerated MaxSim, angular distance late-interaction, for ARM NEONSDOT.
  *
  *  @sa include/numkong/maxsim.h
  *
- *  Uses ARM SDOT (vdotq_s32) for coarse i8 screening — signed×signed natively, no bias correction.
- *  4x4 register tiling: 4 queries x 4 documents = 16 int32x4_t accumulators per depth loop.
- *  Depth steps at 16 bytes (128-bit NEON = 16 i8 lanes).
+ *  Uses ARM SDOT, vdotq_s32, for coarse i8 screening — signed×signed natively, no bias correction.
+ *  4x4 register tiling: 4 queries × 4 documents = 16 int32x4_t accumulators per depth loop. Depth
+ *  steps at 16 bytes, the 128-bit NEON width of 16 i8 lanes.
  */
 #ifndef NK_MAXSIM_NEONSDOT_H
 #define NK_MAXSIM_NEONSDOT_H

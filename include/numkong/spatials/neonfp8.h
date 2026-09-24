@@ -1,13 +1,13 @@
 /**
- *  @brief SIMD-accelerated Batched Spatial Distances for NEON FP8DOT4.
  *  @file include/numkong/spatials/neonfp8.h
  *  @author Ash Vardanian
  *  @date March 23, 2026
+ *  @brief SIMD-accelerated batched spatial distances for NEON FP8DOT4.
  *
  *  @sa include/numkong/spatials.h
  *
- *  Uses FDOT (FEAT_FP8DOT4) for native FP8 dot products, then derives angular
- *  and Euclidean distances via the batched dots/ infrastructure.
+ *  Uses FDOT (FEAT_FP8DOT4) for native FP8 dot products, then derives angular and Euclidean
+ *  distances via the batched dots/ infrastructure.
  */
 #ifndef NK_SPATIALS_NEONFP8_H
 #define NK_SPATIALS_NEONFP8_H

@@ -1,24 +1,27 @@
 /**
- *  @brief SIMD-accelerated Type Conversions for Skylake.
  *  @file include/numkong/cast/skylake.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated Type Conversions for Skylake.
  *
  *  @sa include/numkong/cast.h
  *
  *  @section skylake_cast_instructions AVX-512 Conversion Instructions
  *
- *      Intrinsic              Instruction                SKL        ICL        Genoa
- *      _mm512_cvtph_ps        VCVTPH2PS (ZMM, YMM)       5cy @ p05  5cy @ p05  4cy @ p01
- *      _mm512_cvtps_ph        VCVTPS2PH (YMM, ZMM, imm)  5cy @ p05  5cy @ p05  4cy @ p01
- *      _mm512_cvtps_epi32     VCVTPS2DQ (ZMM, ZMM)       4cy @ p0   4cy @ p0   3cy @ p01
- *      _mm512_cvtepi32_ps     VCVTDQ2PS (ZMM, ZMM)       4cy @ p0   4cy @ p0   3cy @ p01
- *      _mm512_cvtepi32_epi16  VPMOVDW (YMM, ZMM)         3cy @ p5   3cy @ p5   2cy @ p12
- *      _mm512_cvtsepi32_epi8  VPMOVSDB (XMM, ZMM)        3cy @ p5   3cy @ p5   2cy @ p12
+ *  @verbatim
+ *  Intrinsic              Instruction                SKL        ICL        Genoa
+ *  _mm512_cvtph_ps        VCVTPH2PS (ZMM, YMM)       5cy @ p05  5cy @ p05  4cy @ p01
+ *  _mm512_cvtps_ph        VCVTPS2PH (YMM, ZMM, imm)  5cy @ p05  5cy @ p05  4cy @ p01
+ *  _mm512_cvtps_epi32     VCVTPS2DQ (ZMM, ZMM)       4cy @ p0   4cy @ p0   3cy @ p01
+ *  _mm512_cvtepi32_ps     VCVTDQ2PS (ZMM, ZMM)       4cy @ p0   4cy @ p0   3cy @ p01
+ *  _mm512_cvtepi32_epi16  VPMOVDW (YMM, ZMM)         3cy @ p5   3cy @ p5   2cy @ p12
+ *  _mm512_cvtsepi32_epi8  VPMOVSDB (XMM, ZMM)        3cy @ p5   3cy @ p5   2cy @ p12
+ *  @endverbatim
  *
- *  F16 conversions use hardware F16C via VCVTPH2PS/VCVTPS2PH. BF16 lacks hardware support on Skylake,
- *  requiring emulation via VPMOVZXWD + VPSLLD for bf16-to-f32, achieving ~4cy total. FP8 (E4M3/E5M2)
- *  conversions use bit manipulation with VPTERNLOGD for sign/exp/mantissa composition.
+ *  F16 conversions use hardware F16C via VCVTPH2PS/VCVTPS2PH. BF16 has no hardware support on
+ *  Skylake, so it is emulated via VPMOVZXWD + VPSLLD for bf16-to-f32, at roughly 4 cycles total.
+ *  FP8 conversions - E4M3 and E5M2 - use VPTERNLOGD bit manipulation for sign, exponent, and
+ *  mantissa composition.
  */
 #ifndef NK_CAST_SKYLAKE_H
 #define NK_CAST_SKYLAKE_H

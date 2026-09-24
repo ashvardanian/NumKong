@@ -1,19 +1,22 @@
 /**
- *  @brief AVX-512 BF16 implementations for the redesigned reduction API (moments).
  *  @file include/numkong/reduce/genoa.h
  *  @author Ash Vardanian
  *  @date February 12, 2026
+ *  @brief AVX-512 BF16 implementations for the redesigned reduction API, moments.
  *
  *  @sa include/numkong/reduce.h
  *
  *  @section bf16_moments BF16 Moments
  *
- *  `_mm512_dpbf16_ps(acc, a, b)` (VDPBF16PS) computes paired bf16→f32 dot products:
- *  `acc[i] += bf16_to_f32(a[2i]) * bf16_to_f32(b[2i]) + bf16_to_f32(a[2i+1]) * bf16_to_f32(b[2i+1])`
- *  Processing 32 bf16 values into 16 f32 accumulators per instruction.
+ *  `_mm512_dpbf16_ps(accumulator, a, b)`, VDPBF16PS, computes paired bf16 to f32 dot products,
+ *  packing 32 bf16 values into 16 f32 accumulators per instruction:
  *
- *  For sum: use ones vector (bf16 1.0 = 0x3F80).
- *  For sumsq: dot product of data with itself.
+ *  @code{.c}
+ *  accumulator[i] += bf16_to_f32(a[2i]) * bf16_to_f32(b[2i]) + bf16_to_f32(a[2i+1]) * bf16_to_f32(b[2i+1]);
+ *  @endcode
+ *
+ *  - For sum: use the ones vector, bf16 1.0 = 0x3F80.
+ *  - For sumsq: take the dot product of data with itself.
  */
 #ifndef NK_REDUCE_GENOA_H
 #define NK_REDUCE_GENOA_H

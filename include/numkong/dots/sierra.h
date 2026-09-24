@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Batched Dot Products for Sierra Forest.
  *  @file include/numkong/dots/sierra.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated Batched Dot Products for Sierra Forest.
  *
  *  @sa include/numkong/dots.h
  *

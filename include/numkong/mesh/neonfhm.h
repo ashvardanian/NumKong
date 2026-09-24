@@ -1,27 +1,30 @@
 /**
- *  @brief SIMD-accelerated Point Cloud Alignment for NEON FP16 FHM (widening FMA).
  *  @file include/numkong/mesh/neonfhm.h
  *  @author Ash Vardanian
  *  @date April 15, 2026
+ *  @brief SIMD-accelerated point cloud alignment for NEON FP16 FHM, with widening FMA.
  *
  *  @sa include/numkong/mesh.h
  *
  *  @section mesh_neonfhm_instructions ARM NEON FP16 Matrix Instructions (ARMv8.4-FHM)
  *
- *      Intrinsic         Instruction                A76       M5
- *      vld3q_u16         LD3 (V.8H x 3)             6cy @ 1p  6cy @ 1p
- *      vfmlalq_low_f16   FMLAL (V.4S, V.8H, V.8H)   4cy @ 2p  4cy @ 4p
- *      vfmlalq_high_f16  FMLAL2 (V.4S, V.8H, V.8H)  4cy @ 2p  4cy @ 4p
- *      vcvt_f32_f16      FCVTL (V.4S, V.4H)         4cy @ 2p  3cy @ 4p
- *      vcvt_high_f32_f16 FCVTL2 (V.4S, V.8H)        4cy @ 2p  3cy @ 4p
- *      vfmaq_f32         FMLA (V.4S, V.4S, V.4S)    4cy @ 2p  3cy @ 4p
- *      vaddq_f32         FADD (V.4S, V.4S, V.4S)    2cy @ 2p  2cy @ 4p
- *      vaddvq_f32        FADDP+FADDP (V.4S)         5cy @ 1p  8cy @ 1p
+ *  @verbatim
+ *  Intrinsic         Instruction                A76       M5
+ *  vld3q_u16         LD3 (V.8H x 3)             6cy @ 1p  6cy @ 1p
+ *  vfmlalq_low_f16   FMLAL (V.4S, V.8H, V.8H)   4cy @ 2p  4cy @ 4p
+ *  vfmlalq_high_f16  FMLAL2 (V.4S, V.8H, V.8H)  4cy @ 2p  4cy @ 4p
+ *  vcvt_f32_f16      FCVTL (V.4S, V.4H)         4cy @ 2p  3cy @ 4p
+ *  vcvt_high_f32_f16 FCVTL2 (V.4S, V.8H)        4cy @ 2p  3cy @ 4p
+ *  vfmaq_f32         FMLA (V.4S, V.4S, V.4S)    4cy @ 2p  3cy @ 4p
+ *  vaddq_f32         FADD (V.4S, V.4S, V.4S)    2cy @ 2p  2cy @ 4p
+ *  vaddvq_f32        FADDP+FADDP (V.4S)         5cy @ 1p  8cy @ 1p
+ *  @endverbatim
  *
  *  The ARMv8.4-FHM extension (FEAT_FHM) provides FMLAL/FMLSL instructions that fuse FP16 to FP32
- *  widening with multiply-accumulate into a single operation. `vfmlalq_low_f16` operates on elements
- *  0-3 of the FP16 inputs; `vfmlalq_high_f16` operates on elements 4-7 — together they process a
- *  full `float16x8_t` of data into two `float32x4_t` accumulators with full FP32 accumulator precision.
+ *  widening with multiply-accumulate into a single operation. @c vfmlalq_low_f16 operates on
+ *  elements 0-3 of the FP16 inputs; @c vfmlalq_high_f16 operates on elements 4-7 — together they
+ *  process a full @c float16x8_t of data into two @c float32x4_t accumulators with full FP32
+ *  accumulator precision.
  *
  *  For 3D mesh alignment (RMSD, Kabsch, Umeyama), this replaces the two-step FP16→FP32 widen
  *  (`vcvt_f32_f16` + `vcvt_high_f32_f16`) followed by FP32 FMA (`vfmaq_f32`) in the covariance and

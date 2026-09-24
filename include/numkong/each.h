@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Elementwise Arithmetic.
  *  @file include/numkong/each.h
  *  @author Ash Vardanian
  *  @date October 16, 2024
+ *  @brief SIMD-accelerated elementwise arithmetic.
  *
  *  Contains following element-wise operations:
  *
@@ -41,47 +41,50 @@
  *  - x86: Haswell, Skylake, Ice Lake, Sapphire Rapids
  *  - RISC-V: RVV
  *
+ *  @section each_numerical_stability Numerical Stability
  *
- *  @section numerical_stability Numerical Stability
+ *  Integer sum is elementwise a[i]+b[i], clamped to the type's range. Serial widens to i64 and
+ *  clamps on store, while NEON uses hardware saturating adds, SQADD/UQADD. An f16/bf16/FP8 sum is
+ *  promoted to f32, added, and truncated back, so double rounding is possible. Scale/blend/fma use
+ *  float alpha/beta arithmetic, round to nearest with ties to even, then clamp. f32/f64 operations
+ *  are native precision with no widening.
  *
- *  Integer sum is elementwise a[i]+b[i] clamped to the type's range. Serial widens to
- *  i64 then clamps on store. NEON uses hardware saturating adds (SQADD/UQADD).
- *  f16/bf16/FP8 sum: promoted to f32, added, truncated back — double rounding possible.
- *  Scale/blend/fma: float alpha/beta arithmetic, result rounded to nearest, ties to even, then clamped.
- *  f32/f64 operations are native precision with no widening.
+ *  @section each_x86_instructions Relevant x86 Instructions
  *
- *  @section x86_instructions Relevant x86 Instructions
+ *  FP16 conversions, VCVTPH2PS/VCVTPS2PH, serve f16 scale/sum/blend/fma operations, converting to
+ *  f32 for arithmetic and back. The 6-7 cycle latency is amortized over vector-width elements.
+ *  Saturating integer adds, VPADDSW/VPADDUSW, protect i16/u16 sums from overflow without branching.
+ *  FMA, VFMADD231PS, is the workhorse for scale (alpha*x+beta) and blend (alpha*a+beta*b).
  *
- *  FP16 conversions (VCVTPH2PS/VCVTPS2PH) are used for f16 scale/sum/blend/fma operations, converting
- *  to f32 for arithmetic then back. The 6-7 cycle latency is amortized over vector-width elements.
- *  Saturating integer adds (VPADDSW/VPADDUSW) provide overflow protection for i16/u16 sums without
- *  branching. FMA (VFMADD231PS) is the workhorse for scale (alpha*x+beta) and blend (alpha*a+beta*b).
+ *  @verbatim
+ *  Intrinsic               Instruction                  Icelake      Genoa
+ *  _mm512_cvtph_ps         VCVTPH2PS (ZMM, YMM)         7cy @ p0+p5  6cy @ p12+p23
+ *  _mm512_cvtps_ph         VCVTPS2PH (YMM, ZMM, I8)     7cy @ p0+p5  7cy @ p12+p23
+ *  _mm256_adds_epi16       VPADDSW (YMM, YMM, YMM)      1cy @ p01    n/a
+ *  _mm256_adds_epu16       VPADDUSW (YMM, YMM, YMM)     1cy @ p01    n/a
+ *  _mm512_fpclass_ps_mask  VFPCLASSPS (K, ZMM, I8)      3cy @ p5     5cy @ p01
+ *  _mm256_fmadd_ps         VFMADD231PS (YMM, YMM, YMM)  4cy @ p01    4cy @ p01
+ *  @endverbatim
  *
- *      Intrinsic               Instruction                  Icelake      Genoa
- *      _mm512_cvtph_ps         VCVTPH2PS (ZMM, YMM)         7cy @ p0+p5  6cy @ p12+p23
- *      _mm512_cvtps_ph         VCVTPS2PH (YMM, ZMM, I8)     7cy @ p0+p5  7cy @ p12+p23
- *      _mm256_adds_epi16       VPADDSW (YMM, YMM, YMM)      1cy @ p01    n/a
- *      _mm256_adds_epu16       VPADDUSW (YMM, YMM, YMM)     1cy @ p01    n/a
- *      _mm512_fpclass_ps_mask  VFPCLASSPS (K, ZMM, I8)      3cy @ p5     5cy @ p01
- *      _mm256_fmadd_ps         VFMADD231PS (YMM, YMM, YMM)  4cy @ p01    4cy @ p01
- *
- *  @section arm_instructions Relevant ARM NEON/SVE Instructions
+ *  @section each_arm_instructions Relevant ARM NEON/SVE Instructions
  *
  *  On ARM, i8/u8 elementwise operations convert to f16 intermediates using FCVT to maintain high
  *  vector throughput (8 elements per 128-bit register vs 4 for f32). Saturating adds (SQADD/UQADD)
  *  handle integer overflow. FMLA provides fused multiply-add for floating-point scale/blend/fma.
  *
- *      Intrinsic       Instruction   M1 Firestorm  Graviton 3   Graviton 4
- *      vfmaq_f32       FMLA.S (vec)  4cy @ V0123   4cy @ V0123  4cy @ V0123
- *      vqaddq_s16      SQADD (vec)   3cy @ V0123   2cy @ V0123  2cy @ V0123
- *      vqaddq_u16      UQADD (vec)   3cy @ V0123   2cy @ V0123  2cy @ V0123
- *      vcvtq_f32_s32   SCVTF (vec)   3cy @ V0123   3cy @ V01    3cy @ V01
- *      vcvtnq_s32_f32  FCVTNS (vec)  3cy @ V0123   3cy @ V01    3cy @ V01
+ *  @verbatim
+ *  Intrinsic       Instruction   M1 Firestorm  Graviton 3   Graviton 4
+ *  vfmaq_f32       FMLA.S (vec)  4cy @ V0123   4cy @ V0123  4cy @ V0123
+ *  vqaddq_s16      SQADD (vec)   3cy @ V0123   2cy @ V0123  2cy @ V0123
+ *  vqaddq_u16      UQADD (vec)   3cy @ V0123   2cy @ V0123  2cy @ V0123
+ *  vcvtq_f32_s32   SCVTF (vec)   3cy @ V0123   3cy @ V01    3cy @ V01
+ *  vcvtnq_s32_f32  FCVTNS (vec)  3cy @ V0123   3cy @ V01    3cy @ V01
+ *  @endverbatim
  *
- *  @section references References
+ *  @section each_references References
  *
- *  - x86 intrinsics: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
- *  - Arm intrinsics: https://developer.arm.com/architectures/instruction-sets/intrinsics/
+ *  @see x86 intrinsics: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
+ *  @see Arm intrinsics: https://developer.arm.com/architectures/instruction-sets/intrinsics/
  *
  */
 #ifndef NK_EACH_H

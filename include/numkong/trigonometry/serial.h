@@ -1,8 +1,8 @@
 /**
- *  @brief SWAR-accelerated Trigonometric Functions for SIMD-free CPUs.
  *  @file include/numkong/trigonometry/serial.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SWAR-accelerated trigonometric functions for SIMD-free CPUs.
  *
  *  @sa include/numkong/trigonometry.h
  *  @see https://sleef.org

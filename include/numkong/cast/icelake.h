@@ -1,20 +1,22 @@
 /**
- *  @brief SIMD-accelerated Type Conversions for Ice Lake.
  *  @file include/numkong/cast/icelake.h
  *  @author Ash Vardanian
  *  @date January 2, 2026
+ *  @brief SIMD-accelerated type conversions for Ice Lake.
  *
  *  @section ice_cast_instructions AVX-512 VBMI2 Instructions
  *
- *      Intrinsic                  Instruction               Icelake    Genoa
- *      _mm512_permutex2var_epi16  VPERMI2W (ZMM, ZMM, ZMM)  3cy @ p5   2cy @ p12
- *      _mm512_test_epi16_mask     VPTESTMW (k, ZMM, ZMM)    3cy @ p5   2cy @ p01
- *      _mm512_mask_mov_epi16      VMOVDQU16 (ZMM{k}, ZMM)   1cy @ p05  1cy @ p05
- *      _mm512_cvtepi16_epi8       VPMOVWB (YMM, ZMM)        3cy @ p5   2cy @ p12
+ *  @verbatim
+ *  Intrinsic                  Instruction               Icelake    Genoa
+ *  _mm512_permutex2var_epi16  VPERMI2W (ZMM, ZMM, ZMM)  3cy @ p5   2cy @ p12
+ *  _mm512_test_epi16_mask     VPTESTMW (k, ZMM, ZMM)    3cy @ p5   2cy @ p01
+ *  _mm512_mask_mov_epi16      VMOVDQU16 (ZMM{k}, ZMM)   1cy @ p05  1cy @ p05
+ *  _mm512_cvtepi16_epi8       VPMOVWB (YMM, ZMM)        3cy @ p5   2cy @ p12
+ *  @endverbatim
  *
  *  Ice Lake's AVX-512 VBMI2 enables efficient 128-entry LUT lookups via dual VPERMI2W operations.
  *  FP8-to-BF16/F16 conversions use 4 ZMM LUT registers with VPTESTMW for range selection, achieving
- *  ~6 cycles for 32 FP8 conversions. E5M2-to-F16 simplifies to VPSLLW due to matching exponent bias.
+ *  ~6 cycles for 32 FP8 conversions. E5M2-to-F16 simplifies to VPSLLW, matching exponent bias.
  */
 #ifndef NK_CAST_ICELAKE_H
 #define NK_CAST_ICELAKE_H

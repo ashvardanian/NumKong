@@ -1,13 +1,14 @@
 /**
- *  @brief SIMD-accelerated Batched Dot Products for WASM.
  *  @file include/numkong/dots/v128.h
  *  @author Ash Vardanian
  *  @date September 12, 2026
+ *  @brief SIMD-accelerated Batched Dot Products for WASM.
  *
  *  @sa include/numkong/dots.h
  *
- *  Widens i8 and u8 to 16-bit lanes and multiplies adjacent pairs with `i32x4.dot_i16x8_s`, so every integer
- *  GEMM is exact without a correction pass; bf16 shifts the even and odd halves into f32 lanes.
+ *  Widens i8 and u8 to 16-bit lanes and multiplies adjacent pairs with `i32x4.dot_i16x8_s`, so
+ *  every integer GEMM is exact without a correction pass; bf16 shifts even and odd halves straight
+ *  into f32 lanes.
  */
 #ifndef NK_DOTS_V128_H
 #define NK_DOTS_V128_H

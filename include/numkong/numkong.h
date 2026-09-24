@@ -1,11 +1,11 @@
 /**
- *  @brief SIMD-accelerated Similarity Measures and Distance Functions.
  *  @file include/numkong/numkong.h
  *  @author Ash Vardanian
  *  @date March 14, 2023
+ *  @brief SIMD-accelerated Similarity Measures and Distance Functions.
  *
- *  Umbrella header that includes all domain-specific kernel headers
- *  and the runtime capability detection infrastructure.
+ *  Umbrella header that includes all domain-specific kernel headers and the runtime capability
+ *  detection infrastructure.
  */
 
 #ifndef NK_NUMKONG_H

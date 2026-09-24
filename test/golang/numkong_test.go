@@ -1,3 +1,6 @@
+// numkong/test/golang/numkong_test.go
+// Written by Ash Vardanian.
+
 package numkong_test
 
 import (
@@ -49,7 +52,7 @@ func TestDotU8(t *testing.T) {
 	}
 }
 
-// region Angular (Cosine) Distance Tests
+// region Angular Cosine Distance Tests
 
 func TestAngularI8(t *testing.T) {
 	a := []int8{1, 0}
@@ -213,7 +216,7 @@ func TestHammingU8Identical(t *testing.T) {
 	}
 }
 
-// region Scalar Set Tests (HammingU1, JaccardU1, JaccardU16, JaccardU32)
+// region Scalar Set Tests — HammingU1, JaccardU1, JaccardU16, JaccardU32
 
 func TestDimensionsPerValue(t *testing.T) {
 	for dtype, expected := range map[string]int{"f64": 1, "f32": 1, "i8": 1, "u8": 1, "u1": 8} {

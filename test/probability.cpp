@@ -1,8 +1,8 @@
 /**
- *  @brief KL-divergence and Jensen-Shannon distance tests.
  *  @file test/probability.cpp
  *  @author Ash Vardanian
  *  @date December 28, 2025
+ *  @brief KL-divergence and Jensen-Shannon distance tests.
  */
 
 #include "test.hpp"
@@ -10,10 +10,8 @@
 
 using namespace ashvardanian::numkong::test;
 
-/**
- *  @brief Template for KL divergence test.
- *  KLD requires probability distributions: all values > 0, sum to 1.
- */
+/** Template for the KL divergence test, whose inputs must be probability distributions: positive
+ *  values summing to 1. */
 template <typename scalar_type_>
 error_stats_t test_kld(typename scalar_type_::probability_kernel_t kernel) {
     using scalar_t = scalar_type_;
@@ -43,10 +41,8 @@ error_stats_t test_kld(typename scalar_type_::probability_kernel_t kernel) {
     return stats;
 }
 
-/**
- *  @brief Template for Jensen-Shannon distance test.
- *  JSD requires probability distributions: all values > 0, sum to 1.
- */
+/** Template for the Jensen-Shannon distance test, whose inputs must be probability distributions:
+ *  positive values summing to 1. */
 template <typename scalar_type_>
 error_stats_t test_jsd(typename scalar_type_::probability_kernel_t kernel) {
     using scalar_t = scalar_type_;

@@ -1,22 +1,24 @@
 /**
- *  @brief SIMD-accelerated Set Similarity Measures for Ice Lake.
  *  @file include/numkong/set/icelake.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated set similarity measures for Ice Lake.
  *
  *  @sa include/numkong/set.h
  *
  *  @section set_icelake_instructions Key AVX-512 Set Instructions
  *
- *      Intrinsic                Instruction              Ice Lake
- *      _mm512_popcnt_epi64      VPOPCNTQ (ZMM, ZMM)      3cy @ p5
- *      _mm512_and_si512         VPANDQ (ZMM, ZMM, ZMM)   1cy @ p05
- *      _mm512_or_si512          VPORQ (ZMM, ZMM, ZMM)    1cy @ p05
- *      _mm512_xor_si512         VPXORQ (ZMM, ZMM, ZMM)   1cy @ p05
- *      _mm512_maskz_loadu_epi8  VMOVDQU8 (ZMM, mem, k1)  7cy @ p23
+ *  @verbatim
+ *  Intrinsic                Instruction              Ice Lake
+ *  _mm512_popcnt_epi64      VPOPCNTQ (ZMM, ZMM)      3cy @ p5
+ *  _mm512_and_si512         VPANDQ (ZMM, ZMM, ZMM)   1cy @ p05
+ *  _mm512_or_si512          VPORQ (ZMM, ZMM, ZMM)    1cy @ p05
+ *  _mm512_xor_si512         VPXORQ (ZMM, ZMM, ZMM)   1cy @ p05
+ *  _mm512_maskz_loadu_epi8  VMOVDQU8 (ZMM, mem, k1)  7cy @ p23
+ *  @endverbatim
  *
- *  Ice Lake has native VPOPCNTQ instruction via AVX-512 VPOPCNTDQ extension, enabling
- *  efficient 64-bit element-wise popcount. We process 512 bits per iteration.
+ *  Ice Lake has native VPOPCNTQ instruction via AVX-512 VPOPCNTDQ extension, enabling efficient
+ *  64-bit element-wise popcount. We process 512 bits per iteration.
  *
  *  @section set_icelake_stateful Stateful Streaming Logic
  *
@@ -25,7 +27,7 @@
  *  - nk_hamming_u1x512_state_icelake_t for streaming Hamming distance
  *  - nk_jaccard_u1x512_state_icelake_t for streaming Jaccard similarity
  *
- *  @code{c}
+ *  @code{.c}
  *  nk_jaccard_u1x512_state_icelake_t state_first, state_second, state_third, state_fourth;
  *  nk_jaccard_u1x512_init_icelake(&state_first);
  *  // ... stream through packed binary vectors ...

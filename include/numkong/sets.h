@@ -1,11 +1,12 @@
 /**
- *  @brief SIMD-accelerated Batched Set Distances.
  *  @file include/numkong/sets.h
  *  @author Ash Vardanian
+ *  @date January 22, 2026
+ *  @brief SIMD-accelerated batched set distances.
  *
- *  This module provides efficient batched computation of Hamming and Jaccard distances
- *  between large collections of sets. Unlike the single-vector `set.h` module, this module
- *  is optimized for matrix-style operations where you compute distances between:
+ *  This module provides efficient batched computation of Hamming and Jaccard distances between
+ *  large collections of sets. Unlike the single-vector `set.h` module, this module is optimized for
+ *  matrix-style operations where you compute distances between:
  *
  *  - All pairs of rows in a query matrix Q against rows in values matrix V
  *  - All pairs within a single values matrix V (symmetric kernel)
@@ -19,11 +20,11 @@
  *  - Arm: NEON, SME+BI32
  *  - x86: Haswell, Ice Lake
  *
- *  @section numerical_stability Numerical Stability
+ *  @section sets_numerical_stability Numerical Stability
  *
- *  Hamming u1: u32 popcount accumulator. Overflows at n_bits > 2^32.
- *  Jaccard u1: u32 intersection count, f32 division. Popcount values above 2^24 lose
- *  precision in f32 cast. Streaming variants use u64 accumulation internally.
+ *  - Hamming u1: u32 popcount accumulator, overflowing at n_bits > 2^32.
+ *  - Jaccard u1: u32 intersection count and f32 division, so popcounts above 2^24 lose precision.
+ *  - Streaming variants: u64 accumulation internally.
  *
  *  @section use_cases Use Cases
  *
@@ -32,17 +33,18 @@
  *  - Locality-sensitive hashing (LSH): Build similarity graphs
  *  - Binary neural network inference: Compute distances for BNN outputs
  *
- *  @section math Mathematical Background
+ *  @section sets_math Mathematical Background
  *
- *  Hamming distance: Number of positions where bits differ
- *    hamming(a, b) = popcount(a XOR b)
+ *  Hamming distance counts the positions where bits differ, hamming(a, b) = popcount(a XOR b).
+ *  Jaccard distance is 1 minus the Jaccard similarity:
  *
- *  Jaccard distance: 1 minus the Jaccard similarity
- *    jaccard(a, b) = 1 - |a ∩ b| / |a ∪ b|
- *                  = 1 - popcount(a AND b) / popcount(a OR b)
+ *  @verbatim
+ *  jaccard(a, b) = 1 - |a ∩ b| / |a ∪ b|
+ *                = 1 - popcount(a AND b) / popcount(a OR b)
+ *  @endverbatim
  *
- *  For Jaccard, we use the identity: |a ∪ b| = |a| + |b| - |a ∩ b|
- *  This allows precomputing |a| and |b| (population counts) during packing.
+ *  For Jaccard, we use the identity |a ∪ b| = |a| + |b| - |a ∩ b|, which allows precomputing |a|
+ *  and |b|, population counts, during packing.
  */
 
 #ifndef NK_SETS_H

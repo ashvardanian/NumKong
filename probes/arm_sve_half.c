@@ -1,4 +1,9 @@
-/* NumKong ISA probe: SVE F16 (half-precision) */
+/**
+ *  @file probes/arm_sve_half.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for SVE F16, half-precision arithmetic.
+ */
 #if defined(_WIN32)
 #error "SVE/SME not supported on Windows ARM"
 #endif

@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """Test tensor API: constructors, slicing, reductions, scalar types, NumPy interop.
 
-Dtypes: float64, float32, int8, int32, bfloat16, float8_e4m3, float8_e5m2, float6_e2m3, float6_e3m2.
+DTypes: float64, float32, int8, int32, bfloat16, float8_e4m3, float8_e5m2, float6_e2m3, float6_e3m2.
 Matches C++ suite: test/tensor.cpp.
+
+File: test/tensor.py
+Author: Ash Vardanian
+Date: February 27, 2026
 """
 
-# Keep annotations lazy so module-scope `-> np.ndarray` hints don't evaluate `np` at import
-# time — this file has numpy-free tests (nk.iota-based) and must still collect without numpy
-# installed (restores the numpy-free capability from commit 19dd123f; regressed by aa7dddb5).
+# Keep annotations lazy so module-scope `-> np.ndarray` hints don't evaluate `np` at import time —
+# this file has NumPy-free tests, based on `nk.iota`, and must collect without NumPy installed.
 from __future__ import annotations
 
 import concurrent.futures
@@ -61,8 +64,6 @@ except ImportError:
     ml_dtypes = None  # type: ignore[assignment]
 
 
-# Reduction kernels consulted by the strided / transposed / subview tests below, where the
-# operation name varies at runtime.  Each entry is ``(numpy_reference, nk_method)``.
 KERNELS_TENSOR: dict[str, tuple[Callable, Callable]] = {
     "sum": (lambda a: np.sum(np.asarray(a)), lambda a: a.sum()),
     "min": (lambda a: np.min(np.asarray(a)), lambda a: a.min()),
@@ -70,6 +71,9 @@ KERNELS_TENSOR: dict[str, tuple[Callable, Callable]] = {
     "argmin": (lambda a: np.argmin(np.asarray(a)), lambda a: a.argmin()),
     "argmax": (lambda a: np.argmax(np.asarray(a)), lambda a: a.argmax()),
 }
+"""Reduction kernels consulted by the strided / transposed / subview tests below, where the
+operation name varies at runtime. Each entry is ``(numpy_reference, nk_method)``.
+"""
 
 
 _FLOAT_DTYPES = [pytest.param("float64", id="f64"), pytest.param("float32", id="f32")]
@@ -1027,7 +1031,7 @@ def test_ndarray_argmin_argmax_methods(dtype: str, shape, op: str, capability: s
     assert simd_kernel(nk_arr) == baseline_kernel(np_arr)
 
 
-# Per-op integer ranges keep products inside the dtype (multiply needs the tighter bound).
+# Per-op integer ranges keep products inside the dtype; multiply needs the tighter bound.
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize(
     "op, int_hi",
@@ -1617,9 +1621,8 @@ def test_gil_free_dots_symmetric_threading(nk_seed: int):
     )
 
 
-# region Block-Scaled (ScaledTensor)
+# region Block-Scaled — ScaledTensor
 
-# (dtype name, block size, per-element relative resolution = 2**-mantissa_bits)
 _SCALED_FORMATS = [
     ("nvfp4", 16, 0.5),
     ("mxfp4", 32, 0.5),
@@ -1629,6 +1632,7 @@ _SCALED_FORMATS = [
     ("mxfp8_e5m2", 32, 0.25),
     ("mxint8", 32, 0.05),
 ]
+"""(dtype name, block size, per-element relative resolution = 2**-mantissa_bits)."""
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is required for block-scaled tests")
@@ -1722,7 +1726,7 @@ def test_scaled_tensor_dlpack_components():
     assert tuple(nk.from_dlpack(quantized.elements).shape) == tuple(quantized.elements.shape)
 
 
-# endregion Block-Scaled (ScaledTensor)
+# endregion Block-Scaled — ScaledTensor
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is required for buffer-ingestion tests")

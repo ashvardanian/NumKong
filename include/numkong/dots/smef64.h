@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Batched Dot Products for SME F64.
  *  @file include/numkong/dots/smef64.h
  *  @author Ash Vardanian
  *  @date January 2, 2026
+ *  @brief SIMD-accelerated Batched Dot Products for SME F64.
  *
  *  @sa include/numkong/dots.h
  *
@@ -14,15 +14,14 @@
  *  - Native `f64` GEMM via 3-way Ozaki splitting (19+17+17 mantissa bits)
  *
  *  Ozaki splitting for `f64`:
- *  Each `f64` value is decomposed into 3 non-overlapping mantissa-masked slices
- *  that each fit in `f32` (max 19 significant bits < 24). All cross-products with
- *  index sum i+j <= 2 are accumulated via 6 FMOPAs into 3 merged accumulators.
- *  Products are exact in `f64` (max 19+19 = 38 < 53 mantissa bits).
- *  B is pre-split at pack time into interleaved `f32` slices; A is split in-register.
- *  A 2-column-tile fast path halves A memory traffic.
+ *  Each @c f64 value decomposes into 3 non-overlapping mantissa-masked slices that each fit in
+ *  @c f32, at most 19 significant bits < 24. All cross-products with index sum i + j ≤ 2 accumulate
+ *  via 6 FMOPAs into 3 merged accumulators. Products are exact in @c f64, at most 19 + 19 = 38 < 53
+ *  mantissa bits. B is pre-split at pack time into interleaved @c f32 slices; A is split
+ *  in-register. A 2-column-tile fast path halves A memory traffic.
  *
  *  Tile dimensions for SVL=512 (Apple M4):
- *  - `ZA64` tile: 8 × 8 `f64` elements (512B)
+ *  - @c ZA64 tile: @b [8,8] @c f64 elements, 512B total
  *  - `f64` vectors: 8 elements per SVE vector
  *  - `f32` vectors: 16 elements per SVE vector, converted to `f64`
  *

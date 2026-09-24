@@ -1,23 +1,25 @@
 /**
- *  @brief SIMD-accelerated Elementwise Arithmetic for Haswell.
  *  @file include/numkong/each/haswell.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated elementwise arithmetic for Haswell.
  *
  *  @sa include/numkong/each.h
  *
  *  @section haswell_elementwise_instructions Key AVX2 Elementwise Instructions
  *
- *      Intrinsic             Instruction             Haswell    Genoa
- *      _mm256_fmadd_ps       VFMADD (YMM, YMM, YMM)  5cy @ p01  4cy @ p01
- *      _mm256_add_ps         VADDPS (YMM, YMM, YMM)  3cy @ p01  3cy @ p23
- *      _mm256_mul_ps         VMULPS (YMM, YMM, YMM)  5cy @ p01  3cy @ p01
- *      _mm256_cvtepi32_ps    VCVTDQ2PS (YMM, YMM)    4cy @ p01  4cy @ p23
- *      _mm256_cvtepi8_epi32  VPMOVSXBD (YMM, XMM)    1cy @ p5   2cy @ p12
+ *  @verbatim
+ *  Intrinsic             Instruction             Haswell    Genoa
+ *  _mm256_fmadd_ps       VFMADD (YMM, YMM, YMM)  5cy @ p01  4cy @ p01
+ *  _mm256_add_ps         VADDPS (YMM, YMM, YMM)  3cy @ p01  3cy @ p23
+ *  _mm256_mul_ps         VMULPS (YMM, YMM, YMM)  5cy @ p01  3cy @ p01
+ *  _mm256_cvtepi32_ps    VCVTDQ2PS (YMM, YMM)    4cy @ p01  4cy @ p23
+ *  _mm256_cvtepi8_epi32  VPMOVSXBD (YMM, XMM)    1cy @ p5   2cy @ p12
+ *  @endverbatim
  *
- *  Elementwise operations (sum, scale, blend, fma) are compute-bound on FMA throughput. For mixed-
- *  precision operations, type conversion chains (e.g., i8->i32->f32) add ~7-10 cycles overhead.
- *  The FMA unit handles both multiply-add fusion and standalone multiply/add operations.
+ *  Elementwise operations — sum, scale, blend, fma — are compute-bound on FMA throughput. For
+ *  mixed-precision operations, type conversion chains, e.g. i8 → i32 → f32, add ~7-10 cycles of
+ *  overhead. The FMA unit handles both multiply-add fusion and standalone multiply/add operations.
  */
 #ifndef NK_EACH_HASWELL_H
 #define NK_EACH_HASWELL_H

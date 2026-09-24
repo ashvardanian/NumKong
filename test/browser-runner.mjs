@@ -1,6 +1,10 @@
 /**
- *  Playwright test runner for NumKong browser WASM tests
- *  Launches browser, runs tests, and reports results
+ *  @file test/browser-runner.mjs
+ *  @author Ash Vardanian
+ *  @date February 10, 2026
+ *  @brief Playwright test runner for NumKong browser WASM tests.
+ *
+ *  Launches the browser, runs the tests, and reports the results.
  */
 
 import { test, expect } from "@playwright/test";
@@ -15,7 +19,7 @@ test("NumKong WASM browser tests", async ({ page }) => {
   // Navigate to test page
   await page.goto(htmlPath);
 
-  // Wait for tests to complete (window.testResults is set when done)
+  // Wait for tests to complete, when `window.testResults` is set
   await page.waitForFunction(() => window.testResults, { timeout: 60000 });
 
   // Get test results from page

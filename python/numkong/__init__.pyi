@@ -1,3 +1,10 @@
+"""Type stubs for the NumKong Python bindings.
+
+File: python/numkong/__init__.pyi
+Author: Ash Vardanian
+Date: August 3, 2024
+"""
+
 from typing import Any, Literal, TypeAlias
 
 # Many annotation features depend on the Python version:
@@ -5,13 +12,12 @@ from typing import Any, Literal, TypeAlias
 # - `type` statements are supported from Python 3.12, replacing `typing.TypeAlias`.
 # - `typing.Literal` literal types are supported from Python 3.8.
 #
-# We cannot maintain a separate `.pyi` file for every Python version.
-# Assume Python 3.11 with NumPy available.
+# We cannot maintain a separate `.pyi` file for every Python version, so assume Python 3.11 with
+# NumPy available.
 from numpy.typing import NDArray
 
 # region Forward Declarations and Shared Types
 
-# Scalar dtype literals used throughout the API.
 _IntegralTypeName = Literal[
     "uint1",
     # Sub-byte integers
@@ -28,6 +34,7 @@ _IntegralTypeName = Literal[
     "uint16",
     "uint8",
 ]
+"""Integer dtype names, the first of the scalar dtype literals used throughout the API."""
 _FloatTypeName = Literal[
     "f64",
     "float64",
@@ -52,11 +59,21 @@ _ComplexTypeName = Literal[
     "bcomplex32",  #! Not supported by NumPy
     "complex32",  #! Not supported by NumPy
 ]
+_BlockScaledTypeName = Literal[
+    "nvfp4",
+    "mxfp4",
+    "mxfp6_e2m3",
+    "mxfp6_e3m2",
+    "mxfp8_e4m3",
+    "mxfp8_e5m2",
+    "mxint8",
+]
 _MetricName = Literal[
     "euclidean",
     "sqeuclidean",
     "inner",
     "dot",
+    "vdot",
     "angular",
     "hamming",
     "jaccard",
@@ -64,15 +81,13 @@ _MetricName = Literal[
     "kld",
     "jensenshannon",
     "jsd",
-    "intersection",
     "bilinear",
     "mahalanobis",
     "fma",
     "blend",
 ]
 
-# Scalar type classes for custom float formats.
-# These are registered on the module at runtime (see types.c).
+# Scalar type classes for custom float formats, registered on the module at runtime by types.c.
 
 class bfloat16:
     """BFloat16 scalar (sign + 8-bit exponent + 7-bit mantissa)."""
@@ -198,8 +213,8 @@ _MiniFloatType: TypeAlias = (
     type[bfloat16] | type[float16] | type[float8_e4m3] | type[float8_e5m2] | type[float6_e2m3] | type[float6_e3m2]
 )
 
-# Buffer-compatible tensor inputs accepted by most functions.
 _BufferType: TypeAlias = NDArray[Any] | memoryview
+"""Buffer-compatible tensor inputs accepted by most functions."""
 
 class Tensor(memoryview):
     """N-dimensional tensor type returned by NumKong operations.
@@ -285,6 +300,30 @@ class Tensor(memoryview):
         """Compare tensors for inequality."""
         ...
 
+    def __add__(self, other: Tensor | float | int) -> Tensor:
+        """Element-wise sum with another same-shape Tensor, or a broadcast scalar."""
+        ...
+
+    def __sub__(self, other: Tensor | float | int) -> Tensor:
+        """Element-wise difference with another same-shape Tensor, or a broadcast scalar."""
+        ...
+
+    def __mul__(self, other: Tensor | float | int) -> Tensor:
+        """Element-wise product with another same-shape Tensor, or a broadcast scalar."""
+        ...
+
+    def __matmul__(self, other: PackedMatrix) -> Tensor:
+        """Dot-product matrix multiplication against a pre-packed matrix; see `dots_packed`."""
+        ...
+
+    def __neg__(self) -> Tensor:
+        """Return the element-wise negation."""
+        ...
+
+    def __pos__(self) -> Tensor:
+        """Return a copy of the tensor."""
+        ...
+
     @property
     def __array_interface__(self) -> dict[str, Any]:
         """NumPy array interface dict for legacy interoperability."""
@@ -305,29 +344,39 @@ class Tensor(memoryview):
         """Return the DLPack device tuple. Always (1, 0) (kDLCPU)."""
         ...
 
+    def __array__(self, dtype: str | None = None, *, copy: bool | None = None) -> Any:
+        """Convert to a NumPy array, sharing data when possible."""
+        ...
+
     @property
     def T(self) -> Tensor:
         """Transpose of the tensor."""
         ...
 
-    def copy(self) -> Tensor:
-        """Return a deep copy of the tensor."""
+    def copy(self, *, out: Tensor | None = None) -> Tensor:
+        """Return a deep copy of the tensor, or write it into `out` and return `out`."""
         ...
 
     def reshape(self, *shape: int) -> Tensor:
         """Return tensor reshaped to given dimensions."""
         ...
 
-    def flatten(self) -> Tensor:
-        """Return a flattened 1D view (copies if non-contiguous)."""
+    def flatten(self, *, out: Tensor | None = None) -> Tensor:
+        """Return a flattened 1D view, or a copy if non-contiguous or `out` is given."""
         ...
 
-    def squeeze(self, axis: int | None = None) -> Tensor:
-        """Remove dimensions of size 1."""
+    def squeeze(self, /, *axes: int) -> Tensor:
+        """Remove the given size-1 dimensions, or every size-1 dimension when `axes` is empty."""
         ...
 
-    def astype(self, dtype: _IntegralTypeName | _FloatTypeName | _ComplexTypeName | _MiniFloatType, /) -> Tensor:
-        """Return a copy cast to the given NumKong dtype."""
+    def astype(
+        self,
+        dtype: _IntegralTypeName | _FloatTypeName | _ComplexTypeName | _MiniFloatType | _BlockScaledTypeName,
+        /,
+        *,
+        out: Tensor | None = None,
+    ) -> Tensor | ScaledTensor:
+        """Return a copy cast to the given dtype, quantizing to a ScaledTensor for a block-scaled target."""
         ...
 
     @property
@@ -381,12 +430,78 @@ class Tensor(memoryview):
         """Return the maximum element, or None if all elements are NaN."""
         ...
 
-    def argmin(self, axis: int | None = None, *, out: Tensor | None = None) -> int | Tensor | None:
+    def argmin(
+        self, axis: int | None = None, *, keepdims: bool = False, out: Tensor | None = None
+    ) -> int | Tensor | None:
         """Return the index of the minimum element, or None if all elements are NaN."""
         ...
 
-    def argmax(self, axis: int | None = None, *, out: Tensor | None = None) -> int | Tensor | None:
+    def argmax(
+        self, axis: int | None = None, *, keepdims: bool = False, out: Tensor | None = None
+    ) -> int | Tensor | None:
         """Return the index of the maximum element, or None if all elements are NaN."""
+        ...
+
+class ScaledTensor:
+    """Block-scaled tensor: the OCP MX family plus NVIDIA NVFP4.
+
+    Holds packed elements, per-block scales, and an optional per-tensor scale.
+    Produced by `Tensor.astype('nvfp4')`, `Tensor.astype('mxfp4')`, and similar block-scaled targets.
+    """
+
+    @property
+    def elements(self) -> Tensor:
+        """Packed sub-byte element Tensor, DLPack-exportable."""
+        ...
+
+    @property
+    def block_scales(self) -> Tensor:
+        """Per-block scale Tensor, DLPack-exportable."""
+        ...
+
+    @property
+    def tensor_scale(self) -> float | None:
+        """Per-tensor float multiplier, None for MX formats."""
+        ...
+
+    @property
+    def block_size(self) -> int:
+        """Number of elements per block."""
+        ...
+
+    @property
+    def dtype(self) -> _BlockScaledTypeName:
+        """Composite block-scaled dtype name."""
+        ...
+
+    @property
+    def shape(self) -> tuple[int, ...]:
+        """Logical, dense shape of the quantized tensor."""
+        ...
+
+    @property
+    def capacity(self) -> int:
+        """Allocated element capacity of the packed elements buffer."""
+        ...
+
+    def astype(
+        self,
+        dtype: _IntegralTypeName | _FloatTypeName | _ComplexTypeName | _MiniFloatType | _BlockScaledTypeName,
+        /,
+    ) -> Tensor | ScaledTensor:
+        """Materialize to a dense dtype, or transcode to another block-scaled dtype."""
+        ...
+
+    def resize(self, *shape: int) -> ScaledTensor:
+        """Resize the packed elements and block scales in lockstep, within capacity; returns self."""
+        ...
+
+    def __getitem__(self, key: int | slice | tuple[int | slice, ...]) -> ScaledTensor:
+        """Slice elements and block_scales in lockstep; the last axis must stay block-aligned."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a string representation."""
         ...
 
 class PackedMatrix:
@@ -428,7 +543,7 @@ class PackedMatrix:
         width: int,
         depth: int,
         /,
-        dtype: _IntegralTypeName | _FloatTypeName | _ComplexTypeName | _MiniFloatType = "bf16",
+        dtype: _IntegralTypeName | _FloatTypeName | _ComplexTypeName | _MiniFloatType,
     ) -> int:
         """Return packed buffer size in bytes for given dimensions and dtype."""
         ...
@@ -466,7 +581,7 @@ class MaxSimPackedMatrix:
         ...
 
     @classmethod
-    def pack_size(cls, vectors: int, depth: int, /, dtype: _FloatTypeName | _MiniFloatType = "bf16") -> int:
+    def pack_size(cls, vectors: int, depth: int, /, dtype: _FloatTypeName | _MiniFloatType) -> int:
         """Return packed buffer size in bytes for given dimensions and dtype."""
         ...
 
@@ -585,7 +700,7 @@ def dot(
     dtype: _FloatTypeName | _ComplexTypeName | _MiniFloatType | None = None,
     *,
     out: _BufferType | None = None,
-    out_dtype: _FloatTypeName | _ComplexTypeName | _MiniFloatType = None,
+    out_dtype: _FloatTypeName | _ComplexTypeName | _MiniFloatType | None = None,
 ) -> float | complex | Tensor | None: ...
 
 # Vector-vector dot product for complex conjugates, similar to: `numpy.vdot`.
@@ -596,7 +711,7 @@ def vdot(
     /,
     dtype: _ComplexTypeName | _MiniFloatType | None = None,
     *,
-    out: float | complex | Tensor | None = None,
+    out: _BufferType | None = None,
     out_dtype: _ComplexTypeName | _MiniFloatType | None = None,
 ) -> complex | Tensor | None: ...
 
@@ -615,10 +730,11 @@ def sqeuclidean(
     dtype: _IntegralTypeName | _FloatTypeName | _MiniFloatType | None = None,
     *,
     out: _BufferType | None = None,
-    out_dtype: _FloatTypeName | _MiniFloatType = None,
+    out_dtype: _FloatTypeName | _MiniFloatType | None = None,
 ) -> float | Tensor | None: ...
 
-# Vector-vector angular distance (also known as cosine distance), similar to: `scipy.spatial.distance.cosine`.
+# Vector-vector angular distance, also known as cosine distance, similar to:
+# `scipy.spatial.distance.cosine`.
 # https://docs.scipy.org/doc/scipy-1.11.4/reference/generated/scipy.spatial.distance.cosine.html
 def angular(
     a: _BufferType,
@@ -627,7 +743,7 @@ def angular(
     dtype: _IntegralTypeName | _FloatTypeName | _MiniFloatType | None = None,
     *,
     out: _BufferType | None = None,
-    out_dtype: _FloatTypeName | _MiniFloatType = None,
+    out_dtype: _FloatTypeName | _MiniFloatType | None = None,
 ) -> float | Tensor | None: ...
 
 # Vector-vector Euclidean distance, similar to: `scipy.spatial.distance.euclidean`.
@@ -656,7 +772,7 @@ def hamming(
     dtype: _IntegralTypeName | _MiniFloatType | None = None,
     *,
     out: _BufferType | None = None,
-    out_dtype: _FloatTypeName | _MiniFloatType = None,
+    out_dtype: _FloatTypeName | _MiniFloatType | None = None,
 ) -> float | Tensor | None: ...
 
 # Vector-vector Jaccard distance, similar to: `scipy.spatial.distance.jaccard`.
@@ -668,7 +784,7 @@ def jaccard(
     dtype: _IntegralTypeName | _MiniFloatType | None = None,
     *,
     out: _BufferType | None = None,
-    out_dtype: _FloatTypeName | _MiniFloatType = None,
+    out_dtype: _FloatTypeName | _MiniFloatType | None = None,
 ) -> float | Tensor | None: ...
 
 # endregion Binary Similarity
@@ -685,7 +801,7 @@ def jensenshannon(
     dtype: _FloatTypeName | _MiniFloatType | None = None,
     *,
     out: _BufferType | None = None,
-    out_dtype: _FloatTypeName | _MiniFloatType = None,
+    out_dtype: _FloatTypeName | _MiniFloatType | None = None,
 ) -> float | Tensor | None: ...
 def jsd(
     a: _BufferType,
@@ -694,7 +810,7 @@ def jsd(
     dtype: _FloatTypeName | _MiniFloatType | None = None,
     *,
     out: _BufferType | None = None,
-    out_dtype: _FloatTypeName | _MiniFloatType = None,
+    out_dtype: _FloatTypeName | _MiniFloatType | None = None,
 ) -> float | Tensor | None: ...
 
 # Vector-vector Kullback-Leibler divergence, similar to: `scipy.spatial.distance.kullback_leibler`.
@@ -706,7 +822,7 @@ def kullbackleibler(
     dtype: _FloatTypeName | _MiniFloatType | None = None,
     *,
     out: _BufferType | None = None,
-    out_dtype: _FloatTypeName | _MiniFloatType = None,
+    out_dtype: _FloatTypeName | _MiniFloatType | None = None,
 ) -> float | Tensor | None: ...
 def kld(
     a: _BufferType,
@@ -715,7 +831,7 @@ def kld(
     dtype: _FloatTypeName | _MiniFloatType | None = None,
     *,
     out: _BufferType | None = None,
-    out_dtype: _FloatTypeName | _MiniFloatType = None,
+    out_dtype: _FloatTypeName | _MiniFloatType | None = None,
 ) -> float | Tensor | None: ...
 
 # endregion Probability Distances
@@ -775,7 +891,7 @@ def vincenty(
 
 # Vector-vector intersection similarity, similar to: `numpy.intersect1d`.
 # https://numpy.org/doc/stable/reference/generated/numpy.intersect1d.html
-def intersect(array1: _BufferType, array2: _BufferType, /) -> float: ...
+def intersect(a: _BufferType, b: _BufferType, /) -> int: ...
 def sparse_dot(
     a_indices: _BufferType,
     a_values: _BufferType,
@@ -793,6 +909,7 @@ def from_pointer(
     address: int,
     shape: int | tuple[int, ...],
     dtype: _DTypeLike,
+    /,
     *,
     strides: tuple[int, ...] | None = None,
     owner: Any = None,
@@ -833,8 +950,8 @@ def full(
 ) -> Tensor: ...
 def iota(
     shape: int | tuple[int, ...],
-    seed: int | float = 0,
     /,
+    seed: int | float = 0,
     *,
     dtype: _IntegralTypeName | _FloatTypeName | _ComplexTypeName | _MiniFloatType = "float32",
 ) -> Tensor:
@@ -843,8 +960,8 @@ def iota(
 
 def diagonal(
     n: int,
-    seed: int | float = 1,
     /,
+    seed: int | float = 1,
     *,
     dtype: _IntegralTypeName | _FloatTypeName | _ComplexTypeName | _MiniFloatType = "float32",
 ) -> Tensor:
@@ -853,8 +970,8 @@ def diagonal(
 
 def hash(
     shape: int | tuple[int, ...],
-    seed: int = 0,
     /,
+    seed: int = 0,
     *,
     dtype: _IntegralTypeName | _FloatTypeName | _ComplexTypeName | _MiniFloatType = "float32",
 ) -> Tensor:
@@ -927,6 +1044,7 @@ def argmin(
     /,
     axis: int | None = None,
     *,
+    keepdims: bool = False,
     out: Tensor | None = None,
     dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
 ) -> int | Tensor | None: ...
@@ -935,6 +1053,7 @@ def argmax(
     /,
     axis: int | None = None,
     *,
+    keepdims: bool = False,
     out: Tensor | None = None,
     dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
 ) -> int | Tensor | None: ...
@@ -999,6 +1118,31 @@ def atan(
     out: _BufferType | None = None,
 ) -> Tensor | None: ...
 
+# NeoX split-half rotary position embedding.
+def rope(
+    x: _BufferType,
+    cos: _BufferType,
+    sin: _BufferType,
+    /,
+    heads: int,
+    half_dim: int,
+    *,
+    out: _BufferType | None = None,
+    input_scale: float = 1.0,
+) -> None:
+    """Rotate every channel pair of each head by the per-token angle grids, in place unless `out` is given.
+
+    Args:
+        x: `[rows,heads*2*half_dim]`, float32, bfloat16, or e4m3.
+        cos: `[rows,half_dim]` float32 angle grid, shared across heads.
+        sin: `[rows,half_dim]` float32 angle grid, shared across heads.
+        heads: Number of heads per token.
+        half_dim: Half the head dimension.
+        out: Output, same shape and dtype as `x`, may alias `x`, defaulting to `x`.
+        input_scale: Scale folded onto each loaded element.
+    """
+    ...
+
 # endregion Trigonometry
 
 # region Elementwise Arithmetic
@@ -1014,7 +1158,7 @@ def scale(
     out: _BufferType | None = None,
 ) -> Tensor | None: ...
 
-# Element-wise add (NumPy-compatible with broadcasting).
+# Element-wise add, NumPy-compatible with broadcasting.
 def add(
     a: _BufferType | float | int,
     b: _BufferType | float | int,
@@ -1026,7 +1170,7 @@ def add(
     out_dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
 ) -> Tensor | None: ...
 
-# Element-wise multiply (NumPy-compatible with broadcasting).
+# Element-wise multiply, NumPy-compatible with broadcasting.
 def multiply(
     a: _BufferType | float | int,
     b: _BufferType | float | int,
@@ -1040,6 +1184,55 @@ def multiply(
 
 # endregion Elementwise Arithmetic
 
+# region Fused Neural Primitives
+
+def rmsnorm(
+    x: _BufferType,
+    /,
+    gamma: _BufferType | None = None,
+    *,
+    out: _BufferType | None = None,
+    groups: int = 1,
+    eps: float = 1e-6,
+    input_scale: float = 1.0,
+) -> Tensor | None:
+    """Grouped RMSNorm, `y = x * rsqrt(mean(x^2) + eps) * gamma`, in place unless `out` is given.
+
+    Each row, spanning all axes but the last, holds `groups` independent sub-vectors of length
+    `x.shape[-1] // groups`, normalized separately.
+
+    Args:
+        x: Input of dtype float32, bfloat16, or e4m3, with a contiguous last axis.
+        gamma: Per-column float32 gain of length `cols`, defaulting to unit scale.
+        out: Output buffer, same shape and dtype as `x`, may alias `x`.
+        groups: Independent sub-vectors per row.
+        eps: Variance epsilon.
+        input_scale: Scale folded onto each loaded element.
+    """
+    ...
+
+def swiglu(
+    gate: _BufferType,
+    /,
+    up: _BufferType | None = None,
+    *,
+    out: _BufferType | None = None,
+    input_scale: float = 1.0,
+) -> Tensor | None:
+    """Fused SwiGLU, `y = silu(input_scale * gate) * (input_scale * up)`, in place unless `out` is given.
+
+    With `up` omitted this reduces to plain SiLU, `y = silu(input_scale * gate)`.
+
+    Args:
+        gate: Gate input of dtype float32, bfloat16, or e4m3, with a contiguous last axis.
+        up: Up input, same shape and dtype as `gate`, defaulting to plain SiLU.
+        out: Output buffer, same shape and dtype as `gate`, may alias `gate`.
+        input_scale: Scale folded onto each loaded element.
+    """
+    ...
+
+# endregion Fused Neural Primitives
+
 # region Symmetric Pairwise Operations
 def dots_symmetric(
     vectors: _BufferType,
@@ -1049,6 +1242,7 @@ def dots_symmetric(
     out: _BufferType | None = None,
     start_row: int | None = None,
     end_row: int | None = None,
+    threads: int = 1,
 ) -> Tensor: ...
 def hammings_symmetric(
     vectors: _BufferType,
@@ -1058,6 +1252,7 @@ def hammings_symmetric(
     out: _BufferType | None = None,
     start_row: int | None = None,
     end_row: int | None = None,
+    threads: int = 1,
 ) -> Tensor: ...
 def jaccards_symmetric(
     vectors: _BufferType,
@@ -1067,6 +1262,7 @@ def jaccards_symmetric(
     out: _BufferType | None = None,
     start_row: int | None = None,
     end_row: int | None = None,
+    threads: int = 1,
 ) -> Tensor: ...
 def angulars_symmetric(
     vectors: _BufferType,
@@ -1076,6 +1272,7 @@ def angulars_symmetric(
     out: _BufferType | None = None,
     start_row: int | None = None,
     end_row: int | None = None,
+    threads: int = 1,
 ) -> Tensor: ...
 def euclideans_symmetric(
     vectors: _BufferType,
@@ -1085,6 +1282,7 @@ def euclideans_symmetric(
     out: _BufferType | None = None,
     start_row: int | None = None,
     end_row: int | None = None,
+    threads: int = 1,
 ) -> Tensor: ...
 
 # endregion Symmetric Pairwise Operations
@@ -1107,6 +1305,7 @@ def dots_packed(
     out: _BufferType | None = None,
     start_row: int | None = None,
     end_row: int | None = None,
+    threads: int = 1,
 ) -> Tensor: ...
 
 # Pack a matrix for repeated Hamming distance computation.
@@ -1125,6 +1324,7 @@ def hammings_packed(
     out: _BufferType | None = None,
     start_row: int | None = None,
     end_row: int | None = None,
+    threads: int = 1,
 ) -> Tensor: ...
 
 # Jaccard distance computation with a pre-packed B matrix.
@@ -1136,6 +1336,7 @@ def jaccards_packed(
     out: _BufferType | None = None,
     start_row: int | None = None,
     end_row: int | None = None,
+    threads: int = 1,
 ) -> Tensor: ...
 
 # Angular distance computation with a pre-packed B matrix.
@@ -1147,6 +1348,7 @@ def angulars_packed(
     out: _BufferType | None = None,
     start_row: int | None = None,
     end_row: int | None = None,
+    threads: int = 1,
 ) -> Tensor: ...
 
 # Euclidean distance computation with a pre-packed B matrix.
@@ -1158,6 +1360,7 @@ def euclideans_packed(
     out: _BufferType | None = None,
     start_row: int | None = None,
     end_row: int | None = None,
+    threads: int = 1,
 ) -> Tensor: ...
 
 # endregion Packed Matrix Operations
@@ -1212,45 +1415,59 @@ def maxsim(
 # region Mesh Alignment
 
 class MeshAlignmentResult:
-    """Result of a mesh alignment operation (Kabsch, Umeyama, or RMSD)."""
+    """Result of a Kabsch, Umeyama, or RMSD mesh alignment.
+
+    Supports iteration and indexing, in field order, for destructuring.
+    """
 
     @property
     def rotation(self) -> Tensor:
-        """Rotation matrix."""
-        ...
-
-    @property
-    def translation(self) -> Tensor:
-        """Translation vector."""
+        """Rotation matrix, [3,3] or, batched, [batch,3,3]."""
         ...
 
     @property
     def scale(self) -> Tensor:
-        """Scale factor."""
+        """Scale factor, a 0D tensor or, batched, [batch]."""
         ...
 
     @property
     def rmsd(self) -> Tensor:
-        """Root mean square deviation."""
+        """Root mean square deviation, a 0D tensor or, batched, [batch]."""
         ...
 
-def kabsch(
-    source: _BufferType,
-    target: _BufferType,
-    /,
-    dtype: _FloatTypeName | _MiniFloatType | None = None,
-) -> MeshAlignmentResult: ...
-def umeyama(
-    source: _BufferType,
-    target: _BufferType,
-    /,
-    dtype: _FloatTypeName | _MiniFloatType | None = None,
-) -> MeshAlignmentResult: ...
-def rmsd(
-    source: _BufferType,
-    target: _BufferType,
-    /,
-    dtype: _FloatTypeName | _MiniFloatType | None = None,
-) -> float: ...
+    @property
+    def a_centroid(self) -> Tensor:
+        """Centroid of the first point cloud, [3] or, batched, [batch,3]."""
+        ...
+
+    @property
+    def b_centroid(self) -> Tensor:
+        """Centroid of the second point cloud, [3] or, batched, [batch,3]."""
+        ...
+
+    def __len__(self) -> int:
+        """Return 5, the number of fields."""
+        ...
+
+    def __getitem__(self, index: int) -> Tensor:
+        """Return the field at `index`, in the order rotation, scale, rmsd, a_centroid, b_centroid."""
+        ...
+
+# Point clouds accepted by kabsch, umeyama, and rmsd: shape [points,3] for a single pair, or
+# [batch,points,3] for a batch, float16, bfloat16, float32, or float64.
+def kabsch(a: _BufferType, b: _BufferType, /) -> MeshAlignmentResult:
+    """Compute the optimal rigid transformation, the Kabsch algorithm, aligning `a` onto `b`."""
+    ...
+
+def umeyama(a: _BufferType, b: _BufferType, /) -> MeshAlignmentResult:
+    """Compute the optimal similarity transformation, the Umeyama algorithm, aligning `a` onto `b`."""
+    ...
+
+def rmsd(a: _BufferType, b: _BufferType, /) -> MeshAlignmentResult:
+    """Compute raw RMSD between `a` and `b` without centering or alignment.
+
+    Returns identity rotation, scale 1.0, and zeroed centroids alongside the RMSD.
+    """
+    ...
 
 # endregion Mesh Alignment

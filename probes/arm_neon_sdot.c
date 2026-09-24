@@ -1,4 +1,9 @@
-/* NumKong ISA probe: NEON SDOT (ARMv8.2-A dot product) */
+/**
+ *  @file probes/arm_neon_sdot.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for the ARMv8.2-A NEON SDOT dot product.
+ */
 #include <arm_neon.h>
 int main(void) {
     int8x16_t a = vdupq_n_s8(1);

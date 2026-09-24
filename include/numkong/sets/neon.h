@@ -1,8 +1,8 @@
 /**
- *  @brief Batched Set Operations for NEON.
  *  @file include/numkong/sets/neon.h
  *  @author Ash Vardanian
  *  @date February 23, 2026
+ *  @brief Batched set operations for NEON.
  *
  *  @sa include/numkong/sets.h
  */

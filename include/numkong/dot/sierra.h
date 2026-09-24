@@ -1,48 +1,50 @@
 /**
- *  @brief SIMD-accelerated Dot Products for Sierra Forest.
  *  @file include/numkong/dot/sierra.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated dot products for Sierra Forest.
  *
  *  @sa include/numkong/dot.h
  *
  *  @section dot_sierra_instructions AVX-VNNI-INT8 Instructions
  *
- *      Intrinsic            Instruction
- *      _mm256_dpbssd_epi32  VPDPBSSD (YMM, YMM, YMM)  i8 × i8 → i32
- *      _mm256_dpbuud_epi32  VPDPBUUD (YMM, YMM, YMM)  u8 × u8 → u32
+ *  @verbatim
+ *  Intrinsic            Instruction
+ *  _mm256_dpbssd_epi32  VPDPBSSD (YMM, YMM, YMM)  i8 × i8 → i32
+ *  _mm256_dpbuud_epi32  VPDPBUUD (YMM, YMM, YMM)  u8 × u8 → u32
+ *  @endverbatim
  *
- *  Sierra Forest CPUs support AVX-VNNI-INT8, adding native signed*signed and
- *  unsigned*unsigned 8-bit dot products. This eliminates the algebraic sign
- *  transformations required on Alder Lake (AVX-VNNI only).
+ *  Sierra Forest CPUs support AVX-VNNI-INT8, adding native signed × signed and unsigned × unsigned
+ *  8-bit dot products. This eliminates the algebraic sign transformations that Alder Lake, limited
+ *  to AVX-VNNI, requires.
  *
  *  @section dot_sierra_stateful Stateful Streaming Logic
  *
- *  To build memory-optimal tiled algorithms, this file defines following structures and force-inlined
- *  `NK_HELPER_INLINE` functions:
+ *  To build memory-optimal tiled algorithms, this file defines following structures and
+ *  force-inlined @c NK_HELPER_INLINE functions:
  *
  *  - nk_dot_i8x32 for 8-bit signed integer inputs using native DPBSSD (no algebraic transform),
  *  - nk_dot_u8x32 for 8-bit unsigned integer inputs using native DPBUUD (no algebraic transform).
  *
  *  Each state struct contains only a single accumulator field (no correction terms needed).
  *
- *  @code{c}
+ *  @code{.c}
  *  nk_dot_i8x32_state_sierra_t state_first, state_second, state_third, state_fourth;
  *  nk_b256_vec_t query_i8x32, target_first_i8x32, target_second_i8x32, target_third_i8x32, target_fourth_i8x32;
  *  nk_dot_i8x32_init_sierra(&state_first);
  *  nk_dot_i8x32_init_sierra(&state_second);
  *  nk_dot_i8x32_init_sierra(&state_third);
  *  nk_dot_i8x32_init_sierra(&state_fourth);
- *  for (nk_size_t idx = 0; idx + 32 <= depth; idx += 32) {
- *      query_i8x32.ymm = _mm256_loadu_si256(query_ptr + idx);
- *      target_first_i8x32.ymm = _mm256_loadu_si256(target_first_ptr + idx);
- *      target_second_i8x32.ymm = _mm256_loadu_si256(target_second_ptr + idx);
- *      target_third_i8x32.ymm = _mm256_loadu_si256(target_third_ptr + idx);
- *      target_fourth_i8x32.ymm = _mm256_loadu_si256(target_fourth_ptr + idx);
- *      nk_dot_i8x32_update_sierra(&state_first, query_i8x32, target_first_i8x32, idx, 32);
- *      nk_dot_i8x32_update_sierra(&state_second, query_i8x32, target_second_i8x32, idx, 32);
- *      nk_dot_i8x32_update_sierra(&state_third, query_i8x32, target_third_i8x32, idx, 32);
- *      nk_dot_i8x32_update_sierra(&state_fourth, query_i8x32, target_fourth_i8x32, idx, 32);
+ *  for (nk_size_t index = 0; index + 32 <= depth; index += 32) {
+ *      query_i8x32.ymm = _mm256_loadu_si256(query_ptr + index);
+ *      target_first_i8x32.ymm = _mm256_loadu_si256(target_first_ptr + index);
+ *      target_second_i8x32.ymm = _mm256_loadu_si256(target_second_ptr + index);
+ *      target_third_i8x32.ymm = _mm256_loadu_si256(target_third_ptr + index);
+ *      target_fourth_i8x32.ymm = _mm256_loadu_si256(target_fourth_ptr + index);
+ *      nk_dot_i8x32_update_sierra(&state_first, query_i8x32, target_first_i8x32, index, 32);
+ *      nk_dot_i8x32_update_sierra(&state_second, query_i8x32, target_second_i8x32, index, 32);
+ *      nk_dot_i8x32_update_sierra(&state_third, query_i8x32, target_third_i8x32, index, 32);
+ *      nk_dot_i8x32_update_sierra(&state_fourth, query_i8x32, target_fourth_i8x32, index, 32);
  *  }
  *  nk_b128_vec_t results_i32x4;
  *  nk_dot_i8x32_finalize_sierra(&state_first, &state_second, &state_third, &state_fourth, depth, &results_i32x4);
@@ -50,23 +52,23 @@
  *
  *  The unsigned variant follows the same pattern with appropriate type changes:
  *
- *  @code{c}
+ *  @code{.c}
  *  nk_dot_u8x32_state_sierra_t state_first, state_second, state_third, state_fourth;
  *  nk_b256_vec_t query_u8x32, target_first_u8x32, target_second_u8x32, target_third_u8x32, target_fourth_u8x32;
  *  nk_dot_u8x32_init_sierra(&state_first);
  *  nk_dot_u8x32_init_sierra(&state_second);
  *  nk_dot_u8x32_init_sierra(&state_third);
  *  nk_dot_u8x32_init_sierra(&state_fourth);
- *  for (nk_size_t idx = 0; idx + 32 <= depth; idx += 32) {
- *      query_u8x32.ymm = _mm256_loadu_si256(query_ptr + idx);
- *      target_first_u8x32.ymm = _mm256_loadu_si256(target_first_ptr + idx);
- *      target_second_u8x32.ymm = _mm256_loadu_si256(target_second_ptr + idx);
- *      target_third_u8x32.ymm = _mm256_loadu_si256(target_third_ptr + idx);
- *      target_fourth_u8x32.ymm = _mm256_loadu_si256(target_fourth_ptr + idx);
- *      nk_dot_u8x32_update_sierra(&state_first, query_u8x32, target_first_u8x32, idx, 32);
- *      nk_dot_u8x32_update_sierra(&state_second, query_u8x32, target_second_u8x32, idx, 32);
- *      nk_dot_u8x32_update_sierra(&state_third, query_u8x32, target_third_u8x32, idx, 32);
- *      nk_dot_u8x32_update_sierra(&state_fourth, query_u8x32, target_fourth_u8x32, idx, 32);
+ *  for (nk_size_t index = 0; index + 32 <= depth; index += 32) {
+ *      query_u8x32.ymm = _mm256_loadu_si256(query_ptr + index);
+ *      target_first_u8x32.ymm = _mm256_loadu_si256(target_first_ptr + index);
+ *      target_second_u8x32.ymm = _mm256_loadu_si256(target_second_ptr + index);
+ *      target_third_u8x32.ymm = _mm256_loadu_si256(target_third_ptr + index);
+ *      target_fourth_u8x32.ymm = _mm256_loadu_si256(target_fourth_ptr + index);
+ *      nk_dot_u8x32_update_sierra(&state_first, query_u8x32, target_first_u8x32, index, 32);
+ *      nk_dot_u8x32_update_sierra(&state_second, query_u8x32, target_second_u8x32, index, 32);
+ *      nk_dot_u8x32_update_sierra(&state_third, query_u8x32, target_third_u8x32, index, 32);
+ *      nk_dot_u8x32_update_sierra(&state_fourth, query_u8x32, target_fourth_u8x32, index, 32);
  *  }
  *  nk_b128_vec_t results_u32x4;
  *  nk_dot_u8x32_finalize_sierra(&state_first, &state_second, &state_third, &state_fourth, depth, &results_u32x4);

@@ -1,14 +1,16 @@
-//  NumKong.swift
-//  NumKong
 //
-//  Created by Ash Vardanian on March 14, 2026.
+//  swift/NumKong.swift
+//  Geospatial distance protocols, capability detection, and thread configuration.
+//
+//  - Author: Ash Vardanian
+//  - Date: March 14, 2026
 //
 
 import CNumKong
 
 // MARK: - Geospatial Protocols
 
-/// A type that can compute SIMD-accelerated Haversine (great-circle) distances.
+/// A type that can compute SIMD-accelerated great-circle Haversine distances.
 public protocol NumKongHaversine: BinaryFloatingPoint {
     static func haversine(
         aLat: UnsafeBufferPointer<Self>,
@@ -24,7 +26,7 @@ public protocol NumKongHaversine: BinaryFloatingPoint {
     where A.Element == Self, B.Element == Self, C.Element == Self, D.Element == Self
 }
 
-/// A type that can compute SIMD-accelerated Vincenty (ellipsoidal) geodesic distances.
+/// A type that can compute SIMD-accelerated Vincenty ellipsoidal geodesic distances.
 public protocol NumKongVincenty: BinaryFloatingPoint {
     static func vincenty(
         aLat: UnsafeBufferPointer<Self>,
@@ -268,8 +270,8 @@ public enum Capabilities {
     /// Removes `capabilities` from ``enabled``. The serial fallback cannot be removed.
     public static func disable(_ capabilities: UInt64) { nk_capabilities_disable(capabilities) }
 
-    /// Configures the current thread for the capabilities that can run here, e.g. AMX tile
-    /// state on x86. Must be called once per thread before using AMX operations.
+    /// Configures the current thread for the capabilities that can run here, e.g. AMX tile state on
+    /// x86. Must be called once per thread before using AMX operations.
     /// - Returns: `true` on success.
     @discardableResult
     public static func configureThread() -> Bool { nk_configure_thread(available) != 0 }

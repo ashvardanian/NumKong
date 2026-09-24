@@ -1,8 +1,8 @@
 /**
- *  @brief C++ bindings for sparse-vector kernels.
  *  @file include/numkong/sparse.hpp
  *  @author Ash Vardanian
  *  @date February 5, 2026
+ *  @brief C++ bindings for sparse-vector kernels.
  */
 #ifndef NK_SPARSE_HPP
 #define NK_SPARSE_HPP
@@ -19,8 +19,9 @@ namespace ashvardanian::numkong {
 /**
  *  @brief Count intersection of two sorted index arrays
  *  @param[in] a,b Sorted index arrays (ascending, unique elements)
- *  @param[in] a_length,b_length Number of elements in each array
- *  @param[out] result Optional buffer for the matched indices, at least `min(a_length, b_length)` long
+ *  @param[in] a_length Number of elements in @p a
+ *  @param[in] b_length Number of elements in @p b
+ *  @param[out] result Optional buffer for matches, at least min( @p a_length, @p b_length) long
  *  @param[out] count Output intersection count
  *
  *  @tparam index_type_ Index type (u16_t, u32_t, u64_t)
@@ -57,8 +58,10 @@ void sparse_intersect(index_type_ const *a, index_type_ const *b, std::size_t a_
 /**
  *  @brief Sparse weighted dot product: Σ aₖ × bₖ over shared indices
  *  @param[in] a,b Sorted index arrays (ascending, unique elements)
- *  @param[in] a_weights,b_weights Weights corresponding to indices
- *  @param[in] a_length,b_length Number of elements in each array
+ *  @param[in] a_weights Weights corresponding to indices of @p a
+ *  @param[in] b_weights Weights corresponding to indices of @p b
+ *  @param[in] a_length Number of elements in @p a
+ *  @param[in] b_length Number of elements in @p b
  *  @param[out] product Output dot product
  *
  *  @tparam index_type_ Index type (u16_t, u32_t, u64_t)
@@ -66,7 +69,7 @@ void sparse_intersect(index_type_ const *a, index_type_ const *b, std::size_t a_
  *  @tparam result_type_ Result type, defaults to `f32_t`
  *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
  *
- *  @note Computes sum of a_weights[i] * b_weights[j] for all i,j where a[i] == b[j]
+ *  @note Computes sum of @p a_weights[i] * @p b_weights[j] for all i,j where a[i] == b[j]
  */
 template <numeric_dtype index_type_, numeric_dtype weight_t,
           numeric_dtype result_type_ = typename weight_t::dot_result_t, allow_simd_t allow_simd_ = prefer_simd_k>

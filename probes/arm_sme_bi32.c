@@ -1,4 +1,9 @@
-/* NumKong ISA probe: SME BI32 (boolean/integer 32-bit outer product) */
+/**
+ *  @file probes/arm_sme_bi32.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for SME BI32, the boolean and integer 32-bit outer product.
+ */
 #if defined(_WIN32)
 #error "SVE/SME not supported on Windows ARM"
 #endif

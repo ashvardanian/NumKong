@@ -1,8 +1,8 @@
 /**
- *  @brief Batch operation tests - BLAS/MKL comparisons.
  *  @file test/cross_blas.cpp
  *  @author Ash Vardanian
  *  @date January 14, 2025
+ *  @brief Batch operation tests - BLAS/MKL comparisons.
  */
 #include "numkong/dot.hpp" // `nk::dot` for BLAS comparison
 
@@ -16,8 +16,8 @@ using namespace ashvardanian::numkong::test;
 /**
  *  @brief Unified template to test unpacked GEMM against high-precision reference.
  *
- *  Validates BLAS/MKL/Accelerate GEMM implementations by comparing against
- *  nk::dots_unpacked with high-precision reference accumulation.
+ *  Validates BLAS/MKL/Accelerate GEMM implementations by comparing against @c nk::dots_unpacked
+ *  with high-precision reference accumulation.
  *
  *  @tparam scalar_type_ Input element type (e.g., f32_t, bf16_t)
  *  @tparam accumulator_type_ Output type from BLAS kernel (e.g., f32_t for bf16 GEMM)
@@ -57,8 +57,8 @@ error_stats_t test_dots_unpacked(kernel_type_ dots_fn) {
 /**
  *  @brief Like test_dots_unpacked, but uses conjugated reference (C = A × B^H).
  *
- *  For complex GEMM, BLAS computes the Hermitian inner product when called with
- *  CblasConjTrans. The reference must also conjugate B to match.
+ *  For complex GEMM, BLAS computes the Hermitian inner product when called with CblasConjTrans. The
+ *  reference must also conjugate B to match.
  */
 template <typename scalar_type_, typename accumulator_type_, typename kernel_type_>
 error_stats_t test_dots_unpacked_conjugated(kernel_type_ dots_fn) {
@@ -263,9 +263,7 @@ void dots_i16_with_mkl(i16_t const *a, i16_t const *b, i32_t *c, nk_size_t m, nk
 
 #endif // NK_COMPARE_TO_MKL
 
-/**
- *  @brief Single dot product test for BLAS.
- */
+/** Single dot product test for BLAS. */
 template <typename scalar_type_>
 error_stats_t test_dot_blas(typename scalar_type_::dot_kernel_t kernel) {
     using scalar_t = scalar_type_;
@@ -293,9 +291,7 @@ error_stats_t test_dot_blas(typename scalar_type_::dot_kernel_t kernel) {
     return stats;
 }
 
-/**
- *  @brief Conjugate dot product test for BLAS (vdot = conj(a) * b).
- */
+/** Conjugate dot product test for BLAS (vdot = conj(a) * b). */
 template <typename scalar_type_>
 error_stats_t test_vdot_blas(typename scalar_type_::vdot_kernel_t kernel) {
     using scalar_t = scalar_type_;

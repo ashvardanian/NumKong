@@ -1,8 +1,8 @@
 /**
- *  @brief Sparse operations tests.
  *  @file test/sparse.cpp
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief Sparse operations tests.
  */
 
 #include "test.hpp"
@@ -10,9 +10,7 @@
 
 using namespace ashvardanian::numkong::test;
 
-/**
- *  @brief Test set intersection (unified template for u16/u32 index types).
- */
+/** Test set intersection, a unified template for u16/u32 index types. */
 template <typename index_type_>
 error_stats_t test_intersect(typename index_type_::sparse_intersect_kernel_t kernel) {
     using index_t = index_type_;
@@ -49,9 +47,9 @@ error_stats_t test_intersect(typename index_type_::sparse_intersect_kernel_t ker
 /**
  *  @brief Test sparse dot product (unified template, parameterized by weight type).
  *
- *  Dispatch is by weight type (matching numkong.h dispatch tables):
- *  - bf16_t weights -> u16_t indices
- *  - f32_t weights -> u32_t indices
+ *  Dispatch is by weight type, matching the numkong.h dispatch tables:
+ *  - bf16_t weights → u16_t indices
+ *  - f32_t weights → u32_t indices
  */
 template <typename weight_type_>
 error_stats_t test_sparse_dot(typename weight_type_::sparse_dot_kernel_t kernel) {

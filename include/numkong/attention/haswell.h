@@ -1,23 +1,23 @@
 /**
- *  @brief Ragged attention for AVX2 Haswell generation CPUs.
  *  @file include/numkong/attention/haswell.h
  *  @author Ash Vardanian
  *  @date July 6, 2026
+ *  @brief Ragged attention for AVX2 Haswell generation CPUs.
  *
  *  @sa include/numkong/attention.h
  *
- *  Compatibility backend for AVX2/FMA machines. Storage follows the `dots/haswell.h`
- *  conventions exactly: both BF16 and E4M3 stay in their source encoding at rest —
- *  packing is a raw strided-row copy — and every value widens to F32 on the fly inside
- *  the compute loops, 8-wide on the FMA ports. That keeps the packed KV cache at 2 or
- *  even 1 byte per scalar, trading a couple of unpacking ops per FMA for halved-to-
- *  quartered streaming traffic, the same call the GEMM family made for this ISA.
+ *  Compatibility backend for AVX2/FMA machines. Storage follows the `dots/haswell.h` conventions
+ *  exactly: both BF16 and E4M3 stay in their source encoding at rest — packing is a raw strided-row
+ *  copy — and every value widens to F32 on the fly inside the compute loops, 8-wide on the FMA
+ *  ports. That keeps the packed KV cache at 2 or even 1 byte per scalar, trading a couple of
+ *  unpacking ops per FMA for halved-to-quartered streaming traffic, the same call the GEMM family
+ *  made for this ISA.
  *
- *  The panel structure matches the family design — per query row, KV is swept in panels
- *  with an exact online correction and the family's base-2 degree-4 softmax polynomial;
- *  scores keep four KV rows in flight. Packed payload per segment: K planes then V
- *  planes, `[key_value_head][position][channel]` in the source dtype with channels zero-padded to
- *  a multiple of 8. `depth > 256` routes to the width-agnostic serial tier.
+ *  The panel structure matches the family design — per query row, KV is swept in panels with an
+ *  exact online correction and the family's base-2 degree-4 softmax polynomial; scores keep four KV
+ *  rows in flight. Packed payload per segment: K planes then V planes,
+ *  `[key_value_head][position][channel]` in the source dtype with channels zero-padded to a
+ *  multiple of 8. `depth > 256` routes to the width-agnostic serial tier.
  */
 #ifndef NK_ATTENTION_HASWELL_H
 #define NK_ATTENTION_HASWELL_H

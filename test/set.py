@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Test set distances: nk.jaccard, nk.hamming.
 
-Dtypes: packed uint1 bits.
+DTypes: packed uint1 bits.
 Baselines: SciPy hamming/jaccard, NumPy logical operations.
 Matches C++ suite: test/set.cpp.
+
+File: test/set.py
+Author: Ash Vardanian
+Date: February 27, 2026
 """
 
 import array

@@ -1,13 +1,15 @@
 /**
- *  @brief Backend-neutral cross-kernel scenarios: batched dots, spatial and set distances, and ragged attention.
  *  @file test/cross.cuh
  *  @author Ash Vardanian
  *  @date January 14, 2025
+ *  @brief Backend-neutral cross-kernel scenarios: batched dots, spatial and set distances, and
+ *      ragged attention windows.
  *
- *  Every scenario is a template over the scalar type, its kernels, and a backend owning where kernel operands live,
- *  how a kernel is called, when its results become readable, and how its products accumulate: `host_backend_t` by
- *  default, `cuda_backend_t` from `test.cuh` for the CUDA suite. Set distances run on the host only. References always
- *  run the serial `nk::` templates on the host. Outputs start filled with `canary_k` bytes, so a stray write shows.
+ *  Every scenario is a template over the scalar type, its kernels, and a backend owning where
+ *  kernel operands live, how a kernel is called, when its results become readable, and how its
+ *  products accumulate: @c host_backend_t by default, @c cuda_backend_t from `test.cuh` for the
+ *  CUDA suite. Set distances run on the host only. References always run the serial `nk::`
+ *  templates on the host. Outputs start filled with @c canary_k bytes, so a stray write shows.
  */
 #pragma once
 #ifndef NK_TEST_CROSS_CUH
@@ -35,12 +37,21 @@ namespace ashvardanian::numkong::test {
 
 #pragma region Backend Policy
 
-/** Significant bits of the softmax weights as P·V reads them, which floors how close an attention output lands. */
+/** Significant bits of the softmax weights as P·V reads them, which floors how close an attention
+ *  output lands. */
 enum class attention_weights_t : unsigned {
-    unquantized_k = 0, ///< judged by the scale threshold alone
-    bits_4_k = 4,      ///< E4M3 weights
-    bits_8_k = 8,      ///< BF16 or U8 weights
-    bits_11_k = 11,    ///< F16 weights
+
+    /** Judged by the scale threshold alone. */
+    unquantized_k = 0,
+
+    /** E4M3 weights. */
+    bits_4_k = 4,
+
+    /** BF16 or U8 weights. */
+    bits_8_k = 8,
+
+    /** F16 weights. */
+    bits_11_k = 11,
 };
 
 /** Waits for @p backend, failing @p stats with the name of its first failed call. */
@@ -53,7 +64,7 @@ void synchronize(backend_type_ &backend, error_stats_t &stats) noexcept {
 
 #pragma region Tolerances
 
-/** The family a dot product is judged in: the ULP thresholds, bit for bit, or a bound of its own. */
+/** The family a dot product is judged in: ULP thresholds, bit for bit, or a bound of its own. */
 constexpr comparison_family_t dots_family(accumulation_t accumulation) noexcept {
     return accumulation == accumulation_t::family_thresholds_k ? comparison_family_t::approximate_k
            : accumulation == accumulation_t::exact_k           ? comparison_family_t::exact_k
@@ -66,13 +77,15 @@ constexpr comparison_family_t spatials_family(accumulation_t accumulation) noexc
                                                                : comparison_family_t::bounded_k;
 }
 
-/** The family an attention output is judged in: the scale threshold, or that threshold floored by the weights. */
+/** The family an attention output is judged in: the scale threshold, or that threshold floored by
+ *  the weights. */
 constexpr comparison_family_t attention_family(attention_weights_t weights) noexcept {
     return weights == attention_weights_t::unquantized_k ? comparison_family_t::normalized_reduction_k
                                                          : comparison_family_t::bounded_k;
 }
 
-/** The exponent of the lowest set bit of @p value's significand: @p value is an odd multiple of that power of two. */
+/** The exponent of the lowest set bit of @p value's significand: @p value is an odd multiple of
+ *  that power of two. */
 inline int grid_exponent(double value) noexcept {
     std::uint64_t const bits = std::bit_cast<std::uint64_t>(value);
     int const biased_exponent = static_cast<int>((bits >> 52) & 0x7FF);
@@ -80,11 +93,10 @@ inline int grid_exponent(double value) noexcept {
     return std::max(biased_exponent, 1) - 1075 + std::countr_zero(significand);
 }
 
-/**
- *  How far a dot product of @p depth terms may land from @p reference under @p accumulation, given Σ|a·b| as
- *  @p magnitude and the grid every product lies on as @p grid. A sum in p bits of terms on one grid is exact while
- *  Σ|a·b| stays below 2ᵖ grid steps, so F32 and F64 accumulations must then match exactly.
- */
+/** How far a dot product of @p depth terms may land from @p reference under @p accumulation, given
+ *  Σ|a·b| as @p magnitude and the grid every product lies on as @p grid. A sum in p bits of terms
+ *  on one grid is exact while Σ|a·b| stays below 2ᵖ grid steps, so F32 and F64 accumulations must
+ *  then match exactly. */
 inline double dot_bound(accumulation_t accumulation, double reference, double magnitude, int grid,
                         std::size_t depth) noexcept {
     double const steps = static_cast<double>(depth);
@@ -100,7 +112,8 @@ inline double dot_bound(accumulation_t accumulation, double reference, double ma
     }
 }
 
-/** A distance's tolerance over @p depth terms: absolute for angular, relative to ‖a‖² + ‖b‖² for squared euclidean. */
+/** A distance's tolerance over @p depth terms: absolute for angular, relative to ‖a‖² + ‖b‖² for
+ *  squared euclidean. */
 inline double spatial_tolerance(accumulation_t accumulation, std::size_t depth) noexcept {
     double const steps = static_cast<double>(depth);
     switch (accumulation) {
@@ -123,7 +136,8 @@ std::vector<double> decode_rows(nk::vector<scalar_type_, allocator_type_> const 
     return decoded;
 }
 
-/** Decodes @p rows rows of @p matrix when @p accumulation_ judges dots by a bound, and nothing otherwise. */
+/** Decodes @p rows rows of @p matrix when @p accumulation_ judges dots by a bound, and nothing
+ *  otherwise. */
 template <accumulation_t accumulation_, typename vector_type_>
 std::vector<double> decode_for(vector_type_ const &matrix, std::size_t rows, std::size_t depth,
                                std::size_t row_stride_values) {
@@ -131,7 +145,8 @@ std::vector<double> decode_for(vector_type_ const &matrix, std::size_t rows, std
     else return decode_rows(matrix, rows, depth, row_stride_values);
 }
 
-/** Folds one dot product into @p stats, bounded by the terms of the decoded rows when @p accumulation_ needs it. */
+/** Folds one dot product into @p stats, bounded by the terms of the decoded rows when @p
+ *  accumulation_ needs it. */
 template <accumulation_t accumulation_, typename result_type_, typename reference_type_>
 void accumulate_dot(error_stats_t &stats, result_type_ result, reference_type_ reference,
                     std::vector<double> const &first_rows, std::size_t first_row,
@@ -151,14 +166,16 @@ void accumulate_dot(error_stats_t &stats, result_type_ result, reference_type_ r
     }
 }
 
-/** Folds one angular distance into @p stats, within the tolerance of @p accumulation_ when it has one. */
+/** Folds one angular distance into @p stats, within the tolerance of @p accumulation_ when it has
+ *  one. */
 template <accumulation_t accumulation_, typename result_type_, typename reference_type_>
 void accumulate_angular(error_stats_t &stats, result_type_ result, reference_type_ reference, std::size_t depth) {
     if constexpr (accumulation_ == accumulation_t::family_thresholds_k) stats.accumulate(result, reference);
     else stats.accumulate_bounded(result, static_cast<double>(reference), spatial_tolerance(accumulation_, depth));
 }
 
-/** Folds one euclidean distance into @p stats; a tolerance bounds its square, relative to both squared norms. */
+/** Folds one euclidean distance into @p stats; a tolerance bounds its square, relative to both
+ *  squared norms. */
 template <accumulation_t accumulation_, typename result_type_, typename reference_type_>
 void accumulate_euclidean(error_stats_t &stats, result_type_ result, reference_type_ reference,
                           reference_type_ squared_norms, std::size_t depth) {
@@ -171,7 +188,8 @@ void accumulate_euclidean(error_stats_t &stats, result_type_ result, reference_t
     }
 }
 
-/** Folds every attention output into @p stats: the scale threshold of the largest reference, floored by @p weights_. */
+/** Folds every attention output into @p stats: the scale threshold of the largest reference,
+ *  floored by @p weights_. */
 template <attention_weights_t weights_, typename output_vector_, typename reference_vector_, typename values_vector_>
 void accumulate_attention(error_stats_t &stats, output_vector_ const &output, reference_vector_ const &reference,
                           values_vector_ const &values) {
@@ -196,7 +214,8 @@ void accumulate_attention(error_stats_t &stats, output_vector_ const &output, re
 
 #pragma region Canaries
 
-/** The byte outputs start as and stride padding holds: NaN in every 8- and 16-bit float, so a read past a row shows. */
+/** The byte outputs start as and stride padding holds: NaN in every 8- and 16-bit float, so a read
+ *  past a row shows. */
 constexpr unsigned char canary_k = 0xFF;
 
 /** Fills every byte of @p vector with `canary_k`. */
@@ -205,7 +224,8 @@ void fill_canary(vector_type_ &vector) noexcept {
     std::memset(vector.raw_values_data(), canary_k, vector.size_bytes());
 }
 
-/** Fills the bytes past @p row_bytes of each of @p rows rows, @p stride bytes apart, with `canary_k`. */
+/** Fills the bytes past @p row_bytes of each of @p rows rows, @p stride bytes apart, with
+ *  @c canary_k. */
 template <typename vector_type_>
 void fill_padding_canary(vector_type_ &matrix, std::size_t rows, std::size_t row_bytes, std::size_t stride) noexcept {
     auto *bytes = reinterpret_cast<unsigned char *>(matrix.raw_values_data());
@@ -213,7 +233,7 @@ void fill_padding_canary(vector_type_ &matrix, std::size_t rows, std::size_t row
         std::memset(bytes + row * stride + row_bytes, canary_k, stride - row_bytes);
 }
 
-/** Bytes in [@p begin, @p end) of @p vector that no longer hold `canary_k`. */
+/** Count of bytes from @p begin up to @p end of @p vector whose value differs from @c canary_k. */
 template <typename vector_type_>
 std::size_t overwritten_bytes(vector_type_ const &vector, std::size_t begin, std::size_t end) noexcept {
     auto const *bytes = reinterpret_cast<unsigned char const *>(vector.raw_values_data());
@@ -222,7 +242,8 @@ std::size_t overwritten_bytes(vector_type_ const &vector, std::size_t begin, std
     return overwritten;
 }
 
-/** Expects the stride padding past @p row_bytes of each of @p rows output rows to still hold `canary_k`. */
+/** Expects the stride padding past @p row_bytes of each of @p rows output rows to still hold
+ *  @c canary_k. */
 template <typename vector_type_>
 void expect_padding_untouched(error_stats_t &stats, vector_type_ const &output, std::size_t rows, std::size_t row_bytes,
                               std::size_t stride) noexcept {
@@ -232,8 +253,8 @@ void expect_padding_untouched(error_stats_t &stats, vector_type_ const &output, 
     stats.expect(overwritten == 0, "wrote into the output stride padding");
 }
 
-/** Expects a Gram matrix of @p count rows to hold `canary_k` below the diagonal and outside [@p row_start, @p row_end).
- */
+/** Expects a Gram matrix of @p count rows to hold @c canary_k below the diagonal and outside the
+ *  rows from @p row_start up to @p row_end. */
 template <typename result_type_, typename vector_type_>
 void expect_symmetric_untouched(error_stats_t &stats, vector_type_ const &output, std::size_t count, std::size_t stride,
                                 std::size_t row_start, std::size_t row_end) noexcept {
@@ -253,29 +274,39 @@ void expect_symmetric_untouched(error_stats_t &stats, vector_type_ const &output
 
 #pragma region Operands
 
-/** A ragged batch: keys per segment and the exclusive prefix sums of key and query counts, all kernel-readable. */
+/** A ragged batch: keys per segment and the exclusive prefix sums of key and query counts, all
+ *  kernel-readable. */
 template <typename backend_type_>
 struct attention_segments {
+
     /** Counts in @p backend_type_ memory. */
     using counts_t = nk::vector<nk_u32_t, typename backend_type_::template allocator<nk_u32_t>>;
 
-    counts_t lengths;       ///< keys per segment
-    counts_t key_offsets;   ///< first key row of every segment, then the key total
-    counts_t query_offsets; ///< first query row of every segment, then the query total
+    /** Keys per segment. */
+    counts_t lengths;
+
+    /** First key row of every segment, then the key total. */
+    counts_t key_offsets;
+
+    /** First query row of every segment, then the query total. */
+    counts_t query_offsets;
 
     /** Segments in the batch. */
     std::size_t count() const noexcept { return lengths.size(); }
+
     /** Key rows across every segment. */
     std::size_t key_tokens() const noexcept { return key_offsets.values_data()[count()]; }
+
     /** Query rows across every segment. */
     std::size_t query_tokens() const noexcept { return query_offsets.values_data()[count()]; }
+
     /** Query rows of @p segment. */
     std::size_t queries(std::size_t segment) const noexcept {
         return query_offsets.values_data()[segment + 1] - query_offsets.values_data()[segment];
     }
 };
 
-/** Lays out segments of @p lengths keys, each with the matching entry of @p query_counts queries. */
+/** Lays out segments of @p lengths keys, matched with the entries of @p query_counts queries. */
 template <typename backend_type_>
 attention_segments<backend_type_> make_attention_segments(std::initializer_list<nk_u32_t> lengths,
                                                           std::initializer_list<nk_u32_t> query_counts) {
@@ -295,27 +326,42 @@ attention_segments<backend_type_> make_attention_segments(std::initializer_list<
 
 /** Head counts, depth, and softmax scale of one attention call. */
 struct attention_layout_t {
-    std::size_t head_count;           ///< query heads per token
-    std::size_t key_value_head_count; ///< key and value heads per token, each shared by a group of query heads
-    std::size_t depth;                ///< elements per head
-    nk_f32_t scale;                   ///< logit multiplier ahead of the softmax
+
+    /** Query heads per token. */
+    std::size_t head_count;
+
+    /** Key and value heads per token, each shared by a group of query heads. */
+    std::size_t key_value_head_count;
+
+    /** Elements per head. */
+    std::size_t depth;
+
+    /** Logit multiplier ahead of the softmax. */
+    nk_f32_t scale;
 
     /** Elements in one token's query or output row. */
     std::size_t query_width() const noexcept { return head_count * depth; }
+
     /** Elements in one token's key or value row. */
     std::size_t key_value_width() const noexcept { return key_value_head_count * depth; }
 };
 
-/** Key and value heads of every attention case; each case's group sets how many query heads share one. */
+/** Key and value heads of every attention case; each case's group sets how many query heads share
+ *  one. */
 constexpr std::size_t attention_key_value_heads_k = 2;
 
 /** One bidirectional case: the query heads sharing each key-value head, and the head depth. */
 struct attention_bidirectional_case_t {
-    std::size_t group; ///< query heads per key-value head
-    std::size_t depth; ///< elements per head
+
+    /** Query heads per key-value head. */
+    std::size_t group;
+
+    /** Elements per head. */
+    std::size_t depth;
 };
 
-/** GQA 2:1 at depths on both sides of every panel edge, then GQA 1:1, 4:1 and 8:1 at one full panel. */
+/** GQA 2:1 at depths on both sides of every panel edge, then GQA 1:1, 4:1 and 8:1 at one full
+ *  panel. */
 inline std::vector<attention_bidirectional_case_t> attention_bidirectional_cases() {
     std::vector<attention_bidirectional_case_t> cases;
     for (std::size_t depth : {1ul, 64ul, 65ul, 127ul, 128ul, 129ul, 255ul, 257ul}) cases.push_back({2, depth});
@@ -323,22 +369,34 @@ inline std::vector<attention_bidirectional_case_t> attention_bidirectional_cases
     return cases;
 }
 
-/** One causal case: the long segment's key count, the GQA group, the head depth, and the mask it runs under. */
+/** One causal case: the long segment's key count, the GQA group, the head depth, and the mask it
+ *  runs under. */
 struct attention_causal_case_t {
-    nk_u32_t main_length;         ///< keys of the long segment, which a PAD and a 33-key decode segment follow
-    std::size_t group;            ///< query heads per key-value head
-    std::size_t depth;            ///< elements per head
-    std::int64_t diagonal_offset; ///< position of query row 0 among its segment's keys
-    std::size_t window;           ///< keys a query row may see, ending at its own position
+
+    /** Keys of the long segment, which a PAD and a 33-key decode segment follow. */
+    nk_u32_t main_length;
+
+    /** Query heads per key-value head. */
+    std::size_t group;
+
+    /** Elements per head. */
+    std::size_t depth;
+
+    /** Position of query row 0 among its segment's keys. */
+    std::int64_t diagonal_offset;
+
+    /** Keys a query row may see, ending at its own position. */
+    std::size_t window;
 };
 
-/** Queries of the long causal segment: about half its keys, capped to keep the per-row reference cheap. */
+/** Queries of the long causal segment: about half its keys, capped to keep the per-row reference
+ *  cheap. */
 inline nk_u32_t attention_causal_queries(nk_u32_t main_length) noexcept {
     return std::min<nk_u32_t>(main_length / 2 + 2, 24);
 }
 
-/** Panel edges and a 1000-key prefill in the main length, odd depths, cached and shifted diagonals, windows, and GQA.
- */
+/** Panel edges and a 1000-key prefill in the main length, odd depths, cached and shifted diagonals,
+ *  windows, and GQA. */
 inline std::vector<attention_causal_case_t> attention_causal_cases() {
     std::size_t const unbounded_window = static_cast<std::size_t>(-1);
     std::vector<attention_causal_case_t> cases;
@@ -358,7 +416,8 @@ inline std::vector<attention_causal_case_t> attention_causal_cases() {
     return cases;
 }
 
-/** Packs every segment through @p pack_fn in two task windows, the second clipped from past the grid. */
+/** Packs every segment through @p pack_fn in two task windows, the second clipped from past the
+ *  grid. */
 template <typename backend_type_, typename pack_kernel_type_, typename scalar_vector_type_,
           typename packed_vector_type_>
 void pack_attention_in_two_windows(backend_type_ &backend, pack_kernel_type_ pack_fn, scalar_vector_type_ const &keys,
@@ -374,10 +433,8 @@ void pack_attention_in_two_windows(backend_type_ &backend, pack_kernel_type_ pac
                      stride_bytes, stride_bytes, key_value_packed.raw_values_data(), window[0], window[1]);
 }
 
-/**
- *  Causal reference: the serial bidirectional kernel per query row, over a pack of exactly the keys that row may see,
- *  with zeros for rows that see none.
- */
+/** Causal reference: the serial bidirectional kernel per query row, over a pack of exactly the keys
+ *  that row may see, with zeros for rows that see none. */
 template <typename scalar_type_, typename allocator_type_, typename backend_type_>
 nk::vector<typename scalar_type_::attention_result_t> reference_by_rows(
     nk::vector<scalar_type_, allocator_type_> const &queries, nk::vector<scalar_type_, allocator_type_> const &keys,
@@ -424,28 +481,50 @@ nk::vector<typename scalar_type_::attention_result_t> reference_by_rows(
 
 #pragma region Dots
 
-/** Row strides of one dots case: the tightest the backend takes, or every operand padded past its row. */
+/** Row strides of one dots case: the tightest the backend takes, or every operand padded past its
+ *  row. */
 enum class dots_strides_t {
-    tight_k,  ///< A and vectors at the backend's row stride, B and C exactly one row
-    padded_k, ///< A and vectors 16 bytes past it, B one value past its row and off 16 bytes, C three results past
+
+    /** A and vectors at the backend's row stride, B and C exactly one row. */
+    tight_k,
+
+    /** A and vectors 16 bytes past it, B one value past its row and off 16 bytes, C three results
+     *  past. */
+    padded_k,
 };
 
 /** The values one dots case multiplies. */
 enum class dots_operands_t {
-    random_k,          ///< drawn from the configured distribution
-    ill_conditioned_k, ///< F64 halves cancelling to ~2⁻³³ of Σ|a·b|, which plain F64 accumulation visibly misses
+
+    /** Drawn from the configured distribution. */
+    random_k,
+
+    /** F64 halves cancelling to ~2⁻³³ of Σ|a·b|, which plain F64 accumulation visibly misses. */
+    ill_conditioned_k,
 };
 
-/** One C[height × width] = A[height × depth] × B[width × depth]ᵀ case. */
+/** One case: C shaped @b [height,width] equals A shaped @b [height,depth] times B transposed,
+ *  shaped @b [width,depth]. */
 struct dots_packed_case_t {
-    std::size_t height;       ///< rows of A and C
-    std::size_t width;        ///< rows of B and columns of C
-    std::size_t depth;        ///< dimensions per row, rounded up to whole values before use
-    dots_strides_t strides;   ///< tight or padded row strides
-    dots_operands_t operands; ///< random or ill-conditioned values
+
+    /** Rows of A and C. */
+    std::size_t height;
+
+    /** Rows of B and columns of C. */
+    std::size_t width;
+
+    /** Dimensions per row, rounded up to whole values before use. */
+    std::size_t depth;
+
+    /** Tight or padded row strides. */
+    dots_strides_t strides;
+
+    /** Random or ill-conditioned values. */
+    dots_operands_t operands;
 };
 
-/** The configured shape, single cells, odd edges, exact tiles, a deep reduction, and an ill-conditioned F64 product. */
+/** The configured shape, single cells, odd edges, exact tiles, a deep reduction, and an
+ *  ill-conditioned F64 product. */
 template <typename scalar_type_>
 std::vector<dots_packed_case_t> dots_packed_cases() {
     dots_strides_t const tight = dots_strides_t::tight_k, padded = dots_strides_t::padded_k;
@@ -466,7 +545,8 @@ std::vector<dots_packed_case_t> dots_packed_cases() {
     return cases;
 }
 
-/** Fills A and B so every product cancels: B repeats its first half, A negates its first half up to a 2⁻³³ nudge. */
+/** Fills A and B so every product cancels: B repeats its first half, A negates its first half up to
+ *  a 2⁻³³ nudge. */
 template <typename vector_type_, typename generator_type_>
 void fill_ill_conditioned(generator_type_ &generator, vector_type_ &first, std::size_t first_stride_values,
                           vector_type_ &second, std::size_t second_stride_values, std::size_t height, std::size_t width,
@@ -504,7 +584,8 @@ double naive_error_ulps(std::vector<double> const &first_rows, std::vector<doubl
     return worst;
 }
 
-/** Packed GEMM over `dots_packed_cases` against the serial `nk::` reference, with C stride padding left untouched. */
+/** Packed GEMM over @c dots_packed_cases against the serial `nk::` reference, with C stride padding
+ *  left untouched. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t,
           accumulation_t accumulation_ = backend_type_::template dots_accumulation<scalar_type_>(),
           typename pack_size_kernel_type_, typename pack_kernel_type_, typename dots_kernel_type_>
@@ -583,10 +664,9 @@ error_stats_t test_dots_packed(pack_size_kernel_type_ packed_size_fn, pack_kerne
     return stats;
 }
 
-/**
- *  The packed B layout over the widths and depths of `dots_packed_cases`: packing two column windows equals packing all
- *  columns at once byte for byte, and `packed_shape_fn_` reads back the width and depth the pack was given.
- */
+/** The packed B layout over the widths and depths of @c dots_packed_cases: packing two column
+ *  windows equals packing all columns at once byte for byte, and @c packed_shape_fn_ reads back the
+ *  width and depth the pack was given. */
 template <typename scalar_type_, typename backend_type_, auto packed_size_fn_, auto packed_shape_fn_, auto pack_fn_>
 error_stats_t test_dots_pack_layout() {
     using scalar_t = scalar_type_;
@@ -628,16 +708,28 @@ error_stats_t test_dots_pack_layout() {
     return stats;
 }
 
-/** One Gram-matrix case over `count` vectors, computing rows [row_start, row_start + row_count) clipped to `count`. */
+/** One Gram-matrix case over @c count vectors, computing rows [row_start, row_start + row_count)
+ *  clipped to @c count. */
 struct dots_symmetric_case_t {
-    std::size_t count;      ///< vectors, and rows and columns of the result
-    std::size_t depth;      ///< dimensions per vector, rounded up to whole values before use
-    std::size_t row_start;  ///< first result row computed
-    std::size_t row_count;  ///< result rows computed, clipped at the last vector
-    dots_strides_t strides; ///< tight or padded strides for the vectors and the result
+
+    /** Vectors, and rows and columns of the result. */
+    std::size_t count;
+
+    /** Dimensions per vector, rounded up to whole values before use. */
+    std::size_t depth;
+
+    /** First result row computed. */
+    std::size_t row_start;
+
+    /** Result rows computed, clipped at the last vector. */
+    std::size_t row_count;
+
+    /** Tight or padded strides for the vectors and the result. */
+    dots_strides_t strides;
 };
 
-/** The configured shape, then a single cell, whole matrices, a range cut through a tile, and one clipped at the end. */
+/** The configured shape, then a single cell, whole matrices, a range cut through a tile, and one
+ *  clipped at the end. */
 inline std::vector<dots_symmetric_case_t> dots_symmetric_cases() {
     dots_strides_t const tight = dots_strides_t::tight_k, padded = dots_strides_t::padded_k;
     return {
@@ -650,10 +742,8 @@ inline std::vector<dots_symmetric_case_t> dots_symmetric_cases() {
     };
 }
 
-/**
- *  Symmetric GEMM, A × Aᵀ, over `dots_symmetric_cases` against the serial `nk::` reference, on and above the diagonal
- * of the computed rows, with everything else in the output left untouched.
- */
+/** Symmetric GEMM, A × Aᵀ, over @c dots_symmetric_cases against the serial `nk::` reference, on and
+ *  above the diagonal of the computed rows, with everything else in the output left untouched. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t,
           accumulation_t accumulation_ = backend_type_::template dots_accumulation<scalar_type_>(),
           typename symmetric_kernel_type_>
@@ -708,11 +798,10 @@ error_stats_t test_dots_symmetric(symmetric_kernel_type_ symmetric_fn) {
     return stats;
 }
 
-/**
- *  The launch contract of a backend refusing misaligned operands, which a CPU backend has no part in: pack sizes over
- *  `dots_packed_cases` hold a 64-byte header, every B row and one norm per column, and an A or vectors pointer or
- *  stride off 16 bytes, or a C stride off the result size, is refused before launch with its output untouched.
- */
+/** The launch contract of a backend refusing misaligned operands, which a CPU backend has no part
+ *  in: pack sizes over @c dots_packed_cases hold a 64-byte header, every B row and one norm per
+ *  column, and an A or vectors pointer or stride off 16 bytes, or a C stride off the result size,
+ *  is refused before launch with its output untouched. */
 template <typename scalar_type_, typename backend_type_, auto packed_size_fn_, auto dots_fn_, auto symmetric_fn_>
 error_stats_t test_dots_launch_contract() {
     using scalar_t = scalar_type_;
@@ -820,8 +909,8 @@ error_stats_t test_hammings_packed(typename scalar_type_::hammings_pack_size_ker
     return stats;
 }
 
-/** Symmetric Hamming distances, exact against the serial `nk::` reference over the upper triangle, and untouched below
- * it. */
+/** Symmetric Hamming distances, exact against the serial `nk::` reference over the upper triangle,
+ *  and untouched below it. */
 template <typename scalar_type_>
 error_stats_t test_hammings_symmetric(typename scalar_type_::hammings_symmetric_kernel_t symmetric_fn) {
     using scalar_t = scalar_type_;
@@ -902,8 +991,8 @@ error_stats_t test_jaccards_packed(typename scalar_type_::jaccards_pack_size_ker
     return stats;
 }
 
-/** Symmetric Jaccard distances, exact against the serial `nk::` reference over the upper triangle, and untouched below
- * it. */
+/** Symmetric Jaccard distances, exact against the serial `nk::` reference over the upper triangle,
+ *  and untouched below it. */
 template <typename scalar_type_>
 error_stats_t test_jaccards_symmetric(typename scalar_type_::jaccards_symmetric_kernel_t symmetric_fn) {
     using scalar_t = scalar_type_;
@@ -1018,10 +1107,8 @@ error_stats_t test_angulars_packed(pack_size_kernel_type_ packed_size_fn, pack_k
     return stats;
 }
 
-/**
- *  Batched euclidean distances, √max(0, ‖a‖² + ‖b‖² − 2·dot), with B packed in two column windows. Row 0 of A is zero,
- *  so row 0 of C reads every packed norm back as √‖b‖².
- */
+/** Batched euclidean distances, √max(0, ‖a‖² + ‖b‖² − 2·dot), with B packed in two column windows.
+ *  Row 0 of A is zero, so row 0 of C reads every packed norm back as √‖b‖². */
 template <typename scalar_type_, typename backend_type_ = host_backend_t,
           accumulation_t accumulation_ = backend_type_::template spatials_accumulation<scalar_type_>(),
           typename pack_size_kernel_type_, typename pack_kernel_type_, typename euclideans_kernel_type_>
@@ -1097,7 +1184,8 @@ error_stats_t test_euclideans_packed(pack_size_kernel_type_ packed_size_fn, pack
     return stats;
 }
 
-/** Symmetric angular distances over the upper triangle, zeros on the diagonal, and untouched below it. */
+/** Symmetric angular distances over the upper triangle, zeros on the diagonal, and untouched below
+ *  it. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t,
           accumulation_t accumulation_ = backend_type_::template spatials_accumulation<scalar_type_>(),
           typename symmetric_kernel_type_>
@@ -1161,7 +1249,8 @@ error_stats_t test_angulars_symmetric(symmetric_kernel_type_ symmetric_fn) {
     return stats;
 }
 
-/** Symmetric euclidean distances over the upper triangle, zeros on the diagonal, and untouched below it. */
+/** Symmetric euclidean distances over the upper triangle, zeros on the diagonal, and untouched
+ *  below it. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t,
           accumulation_t accumulation_ = backend_type_::template spatials_accumulation<scalar_type_>(),
           typename symmetric_kernel_type_>
@@ -1230,10 +1319,9 @@ error_stats_t test_euclideans_symmetric(symmetric_kernel_type_ symmetric_fn) {
 
 #pragma region Attention
 
-/**
- *  Ragged bidirectional attention over `attention_bidirectional_cases` against the serial backend: a segment mix with a
- *  zero-length PAD, one spanning two 512-key panels, and a 1000-key segment, packed in two task windows.
- */
+/** Ragged bidirectional attention over @c attention_bidirectional_cases against the serial backend:
+ *  a segment mix with a zero-length PAD, one spanning two 512-key panels, and a 1000-key segment,
+ *  packed in two task windows. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t,
           attention_weights_t weights_ = attention_weights_t::unquantized_k, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename attention_kernel_type_>
@@ -1296,10 +1384,9 @@ error_stats_t test_attention_bidirectional_packed(pack_size_kernel_type_ packed_
     return stats;
 }
 
-/**
- *  Ragged causal attention over `attention_causal_cases`, against `reference_by_rows`. The pack runs in two task
- *  windows, and two attention task windows cover the grid, the second one relying on `task_count` clipping.
- */
+/** Ragged causal attention over @c attention_causal_cases, against @c reference_by_rows. The pack
+ *  runs in two task windows, and two attention task windows cover the grid, the second one relying
+ *  on @c task_count clipping. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t,
           attention_weights_t weights_ = attention_weights_t::unquantized_k, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename attention_kernel_type_>

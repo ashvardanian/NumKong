@@ -1,4 +1,9 @@
-/* NumKong ISA probe: Sapphire Rapids AMX (AMX-TILE + AMX-INT8) */
+/**
+ *  @file probes/x86_sapphireamx.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for Sapphire Rapids AMX, AMX-TILE plus AMX-INT8.
+ */
 #if defined(__APPLE__)
 #error "AVX-512 not available on macOS"
 #endif

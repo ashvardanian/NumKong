@@ -1,54 +1,56 @@
 /**
- *  @brief SIMD-accelerated Dot Products for NEON BF16.
  *  @file include/numkong/dot/neonbfdot.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated dot products for NEON BF16.
  *
  *  @sa include/numkong/dot.h
  *
  *  @section dot_neonbfdot_instructions ARM NEON BF16 Instructions (ARMv8.6-BF16)
  *
- *      Intrinsic      Instruction               A76       M5
- *      vbfdotq_f32    BFDOT (V.4S, V.8H, V.8H)  3cy @ 2p  2cy @ 1p
- *      vcvt_f32_bf16  BFCVTN (V.4H, V.4S)       3cy @ 2p  3cy @ 4p
- *      vld1q_bf16     LD1 (V.8H)                4cy @ 2p  4cy @ 3p
- *      vaddvq_f32     FADDP+FADDP (V.4S)        4cy @ 1p  8cy @ 1p
- *      vpaddq_f32     FADDP (V.4S, V.4S, V.4S)  2cy @ 2p  3cy @ 4p
- *      vfmaq_f32      FMLA (V.4S, V.4S, V.4S)   4cy @ 2p  3cy @ 4p
- *      vfmsq_f32      FMLS (V.4S, V.4S, V.4S)   4cy @ 2p  3cy @ 4p
+ *  @verbatim
+ *  Intrinsic      Instruction               A76       M5
+ *  vbfdotq_f32    BFDOT (V.4S, V.8H, V.8H)  3cy @ 2p  2cy @ 1p
+ *  vcvt_f32_bf16  BFCVTN (V.4H, V.4S)       3cy @ 2p  3cy @ 4p
+ *  vld1q_bf16     LD1 (V.8H)                4cy @ 2p  4cy @ 3p
+ *  vaddvq_f32     FADDP+FADDP (V.4S)        4cy @ 1p  8cy @ 1p
+ *  vpaddq_f32     FADDP (V.4S, V.4S, V.4S)  2cy @ 2p  3cy @ 4p
+ *  vfmaq_f32      FMLA (V.4S, V.4S, V.4S)   4cy @ 2p  3cy @ 4p
+ *  vfmsq_f32      FMLS (V.4S, V.4S, V.4S)   4cy @ 2p  3cy @ 4p
+ *  @endverbatim
  *
  *  The ARMv8.6-BF16 extension provides the BFDOT instruction for accelerated BF16 dot products,
  *  targeting machine learning inference workloads. BF16 trades mantissa precision (7 bits vs 10 in
  *  FP16) for a larger exponent range matching FP32, eliminating overflow concerns during training.
  *
  *  BFDOT computes two BF16 dot products per lane, accumulating directly into FP32 without explicit
- *  conversion. This provides higher throughput than FP16 convert-then-FMA sequences for ML inference
- *  where the reduced precision is acceptable.
+ *  conversion. This provides higher throughput than FP16 convert-then-FMA sequences for ML
+ *  inference where the reduced precision is acceptable.
  *
  *  @section dot_neonbfdot_stateful Stateful Streaming Logic
  *
- *  To build memory-optimal tiled algorithms, this file defines following structures and force-inlined
- *  `NK_HELPER_INLINE` functions:
+ *  To build memory-optimal tiled algorithms, this file defines following structures and
+ *  force-inlined @c NK_HELPER_INLINE functions:
  *
  *  - nk_dot_bf16x8 state with native BFDOT bf16 dot-products.
  *
- *  @code{c}
+ *  @code{.c}
  *  nk_dot_bf16x8_state_neonbfdot_t state_first, state_second, state_third, state_fourth;
  *  bfloat16x8_t query_bf16x8, target_first_bf16x8, target_second_bf16x8, target_third_bf16x8, target_fourth_bf16x8;
  *  nk_dot_bf16x8_init_neonbfdot(&state_first);
  *  nk_dot_bf16x8_init_neonbfdot(&state_second);
  *  nk_dot_bf16x8_init_neonbfdot(&state_third);
  *  nk_dot_bf16x8_init_neonbfdot(&state_fourth);
- *  for (nk_size_t idx = 0; idx + 8 <= depth; idx += 8) {
- *      query_bf16x8 = vld1q_bf16(query_ptr + idx);
- *      target_first_bf16x8 = vld1q_bf16(target_first_ptr + idx);
- *      target_second_bf16x8 = vld1q_bf16(target_second_ptr + idx);
- *      target_third_bf16x8 = vld1q_bf16(target_third_ptr + idx);
- *      target_fourth_bf16x8 = vld1q_bf16(target_fourth_ptr + idx);
- *      nk_dot_bf16x8_update_neonbfdot(&state_first, query_bf16x8, target_first_bf16x8, idx, 8);
- *      nk_dot_bf16x8_update_neonbfdot(&state_second, query_bf16x8, target_second_bf16x8, idx, 8);
- *      nk_dot_bf16x8_update_neonbfdot(&state_third, query_bf16x8, target_third_bf16x8, idx, 8);
- *      nk_dot_bf16x8_update_neonbfdot(&state_fourth, query_bf16x8, target_fourth_bf16x8, idx, 8);
+ *  for (nk_size_t index = 0; index + 8 <= depth; index += 8) {
+ *      query_bf16x8 = vld1q_bf16(query_ptr + index);
+ *      target_first_bf16x8 = vld1q_bf16(target_first_ptr + index);
+ *      target_second_bf16x8 = vld1q_bf16(target_second_ptr + index);
+ *      target_third_bf16x8 = vld1q_bf16(target_third_ptr + index);
+ *      target_fourth_bf16x8 = vld1q_bf16(target_fourth_ptr + index);
+ *      nk_dot_bf16x8_update_neonbfdot(&state_first, query_bf16x8, target_first_bf16x8, index, 8);
+ *      nk_dot_bf16x8_update_neonbfdot(&state_second, query_bf16x8, target_second_bf16x8, index, 8);
+ *      nk_dot_bf16x8_update_neonbfdot(&state_third, query_bf16x8, target_third_bf16x8, index, 8);
+ *      nk_dot_bf16x8_update_neonbfdot(&state_fourth, query_bf16x8, target_fourth_bf16x8, index, 8);
  *  }
  *  float32x4_t results_f32x4;
  *  nk_dot_bf16x8_finalize_neonbfdot(&state_first, &state_second, &state_third, &state_fourth, depth, &results_f32x4);

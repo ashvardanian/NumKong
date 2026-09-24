@@ -1,16 +1,17 @@
 /**
- *  @brief Ragged attention for the NVIDIA compute capability 12.x family.
  *  @file include/numkong/attention/blackwellrtx.cuh
  *  @author Ash Vardanian
  *  @date September 22, 2026
+ *  @brief Ragged attention for the NVIDIA compute capability 12.x family.
  *
  *  @sa include/numkong/attention.h
  *  @sa include/numkong/attention/ampere.cuh
  *
- *  The Ampere tile with E4M3 going to the tensor cores as it is: S takes one `mma.m16n8k32.kind::f8f6f4` per 16 × 8
- *  scores, at twice the F16 rate, and P is quantized to `e4m3(256 · p)` for the same instruction against the transposed
- *  V codes. The ×256 keeps every weight down to 2⁻¹⁴ of the row maximum in E4M3's normal range, and the row sum adds
- *  the dequantized weights, so the 256 cancels in the normalization. BF16 and I8 use the Ampere kernels.
+ *  The Ampere tile with E4M3 going to the tensor cores as it is: S takes one
+ *  `mma.m16n8k32.kind::f8f6f4` per 16 × 8 scores, at twice the F16 rate, and P is quantized to
+ *  e4m3(256 · p) for the same instruction against the transposed V codes. The ×256 keeps every
+ *  weight down to 2⁻¹⁴ of the row maximum in E4M3's normal range, and the row sum adds the
+ *  dequantized weights, so 256 cancels in the normalization. BF16 and I8 reuse Ampere's kernels.
  */
 #ifndef NK_ATTENTION_BLACKWELLRTX_CUH
 #define NK_ATTENTION_BLACKWELLRTX_CUH

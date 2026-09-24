@@ -1,4 +1,9 @@
-/* NumKong ISA probe: Sierra Forest (AVXVNNIINT8) */
+/**
+ *  @file probes/x86_sierra.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for Sierra Forest, AVXVNNIINT8.
+ */
 #if defined(__APPLE__)
 #error "AVX-512 not available on macOS"
 #endif

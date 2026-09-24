@@ -1,4 +1,9 @@
-/* NumKong ISA probe: Sapphire Rapids (AVX-512F/BW/DQ/VL + FP16) */
+/**
+ *  @file probes/x86_sapphire.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for Sapphire Rapids, AVX-512F/BW/DQ/VL plus FP16.
+ */
 #if defined(__APPLE__)
 #error "AVX-512 not available on macOS"
 #endif

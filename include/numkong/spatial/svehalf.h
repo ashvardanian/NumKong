@@ -1,29 +1,31 @@
 /**
- *  @brief SIMD-accelerated Spatial Similarity Measures for SVE FP16.
  *  @file include/numkong/spatial/svehalf.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated spatial similarity measures for SVE FP16.
  *
  *  @sa include/numkong/spatial.h
  *
  *  @section spatial_svehalf_instructions ARM SVE+FP16 Instructions
  *
- *      Intrinsic      Instruction                V1
- *      svld1_f16      LD1H (Z.H, P/Z, [Xn])      4-6cy @ 2p
- *      svsub_f16_x    FSUB (Z.H, P/M, Z.H, Z.H)  3cy @ 2p
- *      svmla_f16_x    FMLA (Z.H, P/M, Z.H, Z.H)  4cy @ 2p
- *      svaddv_f16     FADDV (H, P, Z.H)          6cy @ 1p
- *      svdupq_n_f16   DUP (Z.H, #imm)            1cy @ 2p
- *      svwhilelt_b16  WHILELT (P.H, Xn, Xm)      2cy @ 1p
- *      svptrue_b16    PTRUE (P.H, pattern)       1cy @ 2p
- *      svcnth         CNTH (Xd)                  1cy @ 2p
+ *  @verbatim
+ *  Intrinsic      Instruction                V1
+ *  svld1_f16      LD1H (Z.H, P/Z, [Xn])      4-6cy @ 2p
+ *  svsub_f16_x    FSUB (Z.H, P/M, Z.H, Z.H)  3cy @ 2p
+ *  svmla_f16_x    FMLA (Z.H, P/M, Z.H, Z.H)  4cy @ 2p
+ *  svaddv_f16     FADDV (H, P, Z.H)          6cy @ 1p
+ *  svdupq_n_f16   DUP (Z.H, #imm)            1cy @ 2p
+ *  svwhilelt_b16  WHILELT (P.H, Xn, Xm)      2cy @ 1p
+ *  svptrue_b16    PTRUE (P.H, pattern)       1cy @ 2p
+ *  svcnth         CNTH (Xd)                  1cy @ 2p
+ *  @endverbatim
  *
- *  SVE vector widths vary across implementations: Graviton3 uses 256-bit, while Graviton4/5
- *  and Apple M4+ use 128-bit. Code using svcntb() adapts automatically, but wider vectors
- *  process more elements per iteration with identical latencies.
+ *  SVE vector widths vary across implementations: Graviton3 uses 256-bit, while Graviton4/5 and
+ *  Apple M4+ use 128-bit. Code using svcntb() adapts automatically, but wider vectors process more
+ *  elements per iteration with identical latencies.
  *
- *  FP16 spatial operations trade precision for throughput, processing twice as many elements
- *  per cycle. This is particularly effective for embedding similarity in ML applications.
+ *  FP16 spatial operations trade precision for throughput, processing twice as many elements per
+ *  cycle, particularly effective for embedding similarity in ML applications.
  */
 #ifndef NK_SPATIAL_SVEHALF_H
 #define NK_SPATIAL_SVEHALF_H

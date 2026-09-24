@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Spatial Similarity Measures.
  *  @file include/numkong/spatial.h
  *  @author Ash Vardanian
  *  @date March 14, 2023
+ *  @brief SIMD-accelerated spatial similarity measures.
  *
  *  Contains following similarity measures:
  *
@@ -31,34 +31,31 @@
  *  - RISC-V: RVV, RVV+BF16, RVV+HALF
  *  - WASM: V128, V128Relaxed
  *
- *  @section numerical_stability Numerical Stability
+ *  @section spatial_numerical_stability Numerical Stability
  *
- *  Serial kernels use compensated summation for dot, a_norm_sq, b_norm_sq — O(1) error growth regardless of vector
- *  dimension. `f32` public outputs widen to `f64`, so widened paths use `f64` arithmetic and `sqrt64`.
- *  Angular finalization uses rsqrt via magic constant + 3 Newton-Raphson iterations (f32,
- *  ~34.9 correct bits) or 4 iterations (f64, ~69.3 correct bits), then clamps result ≥ 0.
- *  L2 uses conditional `dist_sq > 0 ? sqrt(dist_sq) : 0` to avoid NaN from rounding.
- *  Integer types (i8/u8/i4/u4) accumulate squared differences in i32 — overflows at
- *  n > 2^31/65,025 ≈ 33K for i8 (max diff² = 255²). Output is cast to f32.
+ *  Serial kernels use compensated summation for dot, a_norm_sq, b_norm_sq, giving O(1) error growth
+ *  regardless of vector dimension. @c f32 public outputs widen to @c f64, so widened paths use
+ *  @c f64 arithmetic and @c sqrt64. Angular finalization uses rsqrt via magic constant plus 3
+ *  Newton-Raphson iterations for ~34.9 correct bits in f32, or 4 iterations for ~69.3 bits in f64,
+ *  then clamps the result to ≥ 0. L2 clamps @c dist_sq to zero before the square root, avoiding NaN
+ *  from rounding error. Integer types, i8/u8/i4/u4, accumulate squared differences in i32,
+ *  overflowing at n > 2^31/65,025 ≈ 33K for i8, max diff² = 255². Output is cast to f32.
  *
- *  @section streaming_api Streaming API
+ *  @section spatial_streaming_api Streaming API
  *
- *  Angular and L2 distances can be computed from a single dot-product stream and precomputed magnitudes.
- *  The streaming helpers operate on 512-bit blocks (`nk_b512_vec_t`) and only accumulate $A*B$.
- *  Finalization takes the magnitudes of the full vectors (L2 norms) and computes the distance.
- *  Let the following be computed over the full vectors:
+ *  Angular and L2 distances can be computed from a single dot-product stream and precomputed
+ *  magnitudes. The streaming helpers operate on 512-bit blocks, @c nk_b512_vec_t, and accumulate
+ *  just the dot product a·b; finalization takes the L2 norms of the full vectors and computes:
  *
- *      ab   = Σᵢ (aᵢ × bᵢ)
- *      ‖a‖ = √(Σᵢ aᵢ²)
- *      ‖b‖ = √(Σᵢ bᵢ²)
+ *  @verbatim
+ *  a·b           = Σᵢ aᵢbᵢ
+ *  ‖a‖           = √Σᵢ aᵢ²
+ *  angular(a, b) = 1 − a·b / ‖a‖‖b‖
+ *  l2(a, b)      = √(‖a‖² + ‖b‖² − 2a·b)
+ *  @endverbatim
  *
- *  Finalization formulas:
- *
- *      angular(a, b) = 1 − ab / (‖a‖ × ‖b‖)
- *      l2(a, b)      = √( ‖a‖² + ‖b‖² − 2 × ab )
- *
- *  The angular distance is clamped to ≥ 0, with a 0 result when both norms are zero and a 1 result when $ab$ is zero.
- *  L2 clamps the argument of the square root at 0 to avoid negative values from rounding.
+ *  The angular distance is clamped to ≥ 0, with a 0 result when both norms are zero and a 1 result
+ *  when a·b is zero. L2 clamps its square-root argument at 0 to avoid negatives from rounding.
  *
  *  @code{.c}
  *  nk_b512_vec_t a_block, b_block;
@@ -71,63 +68,67 @@
  *
  *  @section rsqrt_notes Reciprocal Square Root and Newton-Raphson Notes
  *
- *  Angular distance normalization uses reciprocal square roots to avoid the
- *  latency of full sqrt/div pipelines. We refine the rsqrt estimate with one
- *  (x86) or two (Arm NEON) Newton-Raphson iterations to reduce error.
+ *  Angular distance normalization uses reciprocal square roots to avoid the latency of full
+ *  sqrt/div pipelines. We refine the rsqrt estimate with Newton-Raphson iterations to reduce error:
+ *  one on x86, two on Arm NEON.
  *
  *  Relevant instructions and caveats:
  *
- *      Intrinsic                Instruction      Notes
- *      _mm_rsqrt_ps             VRSQRTPS         fast approx; refine with NR
- *      _mm_maskz_rsqrt14_pd     VRSQRT14PD       higher-precision approx; MSVC masked-only
- *      _mm_sqrt_ps/_mm_sqrt_pd  VSQRTPS/VSQRTPD  higher latency, sqrt/div unit
+ *  @verbatim
+ *  Intrinsic                Instruction      Notes
+ *  _mm_rsqrt_ps             VRSQRTPS         fast approx; refine with NR
+ *  _mm_maskz_rsqrt14_pd     VRSQRT14PD       higher-precision approx; MSVC masked-only
+ *  _mm_sqrt_ps/_mm_sqrt_pd  VSQRTPS/VSQRTPD  higher latency, sqrt/div unit
+ *  @endverbatim
  *
- *  Latency/port notes (rule of thumb):
- *  - On Intel client cores, sqrt/rsqrt execute on the divide/sqrt unit (often
- *    port 0) and can bottleneck tight loops.
- *  - NR refinement uses mul/FMA ports and amortizes well when `ab` is reduced
- *    to a scalar and reused for finalization.
- *  - Arm NEON `rsqrt` accuracy is coarse; we apply two refinement steps to keep
- *    angular distance error bounded.
+ *  Latency/port notes, rule of thumb:
+ *  - On Intel client cores, sqrt/rsqrt execute on the divide/sqrt unit, often port 0, and can
+ *    bottleneck tight loops.
+ *  - NR refinement uses mul/FMA ports and amortizes well when @c ab is reduced to a scalar and
+ *    reused for finalization.
+ *  - Arm NEON @c rsqrt is coarse; two refinement steps keep angular distance error bounded.
  *
- *  @section x86_instructions Relevant x86 Instructions
+ *  @section spatial_x86_instructions Relevant x86 Instructions
  *
  *  AVX2 lacks signed 8-bit dot products, so Haswell widens to i16 and uses VPMADDWD.
  *  AVX-512 VNNI replaces that with VPDPWSSD. BF16 uses VDPBF16PS where available to avoid
  *  convert+FMA sequences; if the ISA lacks it, we fall back to f32 FMA in the AVX2/serial:
  *
- *      Intrinsic             Instruction                   Icelake    Genoa
- *      _mm256_fmadd_ps       VFMADD231PS (YMM, YMM, YMM)   4cy @ p01  4cy @ p01
- *      _mm256_fmadd_pd       VFMADD231PD (YMM, YMM, YMM)   4cy @ p01  4cy @ p01
- *      _mm256_madd_epi16     VPMADDWD (YMM, YMM, YMM)      5cy @ p01  3cy @ p01
- *      _mm512_dpwssd_epi32   VPDPWSSD (ZMM, K, ZMM, ZMM)   5cy @ p05  4cy @ p01
- *      _mm512_dpbf16_ps      VDPBF16PS (ZMM, K, ZMM, ZMM)  n/a        6cy @ p01
- *      _mm_rsqrt_ps          VRSQRTPS (XMM, XMM)           5cy @ p0   4cy @ p01
- *      _mm_maskz_rsqrt14_pd  VRSQRT14PD (XMM, K, XMM)      4cy @ p0   5cy @ p01
- *      _mm_sqrt_ps           VSQRTPS (XMM, XMM)            12cy @ p0  15cy @ p01
+ *  @verbatim
+ *  Intrinsic             Instruction                   Icelake    Genoa
+ *  _mm256_fmadd_ps       VFMADD231PS (YMM, YMM, YMM)   4cy @ p01  4cy @ p01
+ *  _mm256_fmadd_pd       VFMADD231PD (YMM, YMM, YMM)   4cy @ p01  4cy @ p01
+ *  _mm256_madd_epi16     VPMADDWD (YMM, YMM, YMM)      5cy @ p01  3cy @ p01
+ *  _mm512_dpwssd_epi32   VPDPWSSD (ZMM, K, ZMM, ZMM)   5cy @ p05  4cy @ p01
+ *  _mm512_dpbf16_ps      VDPBF16PS (ZMM, K, ZMM, ZMM)  n/a        6cy @ p01
+ *  _mm_rsqrt_ps          VRSQRTPS (XMM, XMM)           5cy @ p0   4cy @ p01
+ *  _mm_maskz_rsqrt14_pd  VRSQRT14PD (XMM, K, XMM)      4cy @ p0   5cy @ p01
+ *  _mm_sqrt_ps           VSQRTPS (XMM, XMM)            12cy @ p0  15cy @ p01
+ *  @endverbatim
  *
- *  @section arm_instructions Relevant Arm Instructions
+ *  @section spatial_arm_instructions Relevant Arm Instructions
  *
- *  The NEON/SVE kernels in this header are structured around FMLA/SDOT/BFDOT loops,
- *  which is why we avoid mul+add splits and keep reductions to scalars before square roots.
- *  Dot-product kernels for i8/u8 are only built when the "dotprod+i8mm" target is enabled;
- *  otherwise we rely on the serial backends. BF16 kernels are enabled only with BF16 dot
- *  instructions skipping `vbfmlal` and `vbfmlalt` alternatives to limit shuffle overhead
- *  and code complexity.
+ *  The NEON/SVE kernels in this header are structured around FMLA/SDOT/BFDOT loops, which is why we
+ *  avoid mul+add splits and keep reductions to scalars before square roots. Dot-product kernels for
+ *  i8/u8 are only built when the "dotprod+i8mm" target is enabled; otherwise we rely on the serial
+ *  backends. BF16 kernels are enabled only with BF16 dot instructions, skipping @c vbfmlal and
+ *  @c vbfmlalt to limit shuffle overhead and complexity.
  *
- *      Intrinsic     Instruction      M1 Firestorm
- *      vfmaq_f32     FMLA.S (vec)     4c / 4c
- *      vfmaq_f64     FMLA.D (vec)     4c / 4c
- *      vdotq_s32     SDOT.B (vec)     3c / 4c
- *      vbfdotq_f32   BFDOT (vec)      n/a
- *      vrsqrteq_f32  FRSQRTE.S (vec)  3c / 1c
- *      vrsqrtsq_f32  FRSQRTS.S (vec)  4c / 4c
- *      vsqrtq_f32    FSQRT.S (vec)    10c / 0.5c
+ *  @verbatim
+ *  Intrinsic     Instruction      M1 Firestorm
+ *  vfmaq_f32     FMLA.S (vec)     4c / 4c
+ *  vfmaq_f64     FMLA.D (vec)     4c / 4c
+ *  vdotq_s32     SDOT.B (vec)     3c / 4c
+ *  vbfdotq_f32   BFDOT (vec)      n/a
+ *  vrsqrteq_f32  FRSQRTE.S (vec)  3c / 1c
+ *  vrsqrtsq_f32  FRSQRTS.S (vec)  4c / 4c
+ *  vsqrtq_f32    FSQRT.S (vec)    10c / 0.5c
+ *  @endverbatim
  *
- *  @section references References
+ *  @section spatial_references References
  *
- *  - x86 intrinsics: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
- *  - Arm intrinsics: https://developer.arm.com/architectures/instruction-sets/intrinsics/
+ *  @see x86 intrinsics: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
+ *  @see Arm intrinsics: https://developer.arm.com/architectures/instruction-sets/intrinsics/
  *
  */
 #ifndef NK_SPATIAL_H

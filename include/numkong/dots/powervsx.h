@@ -1,20 +1,22 @@
 /**
- *  @brief SIMD-accelerated Batched Dot Products for Power ISA VSX.
  *  @file include/numkong/dots/powervsx.h
  *  @author Ash Vardanian
  *  @date March 23, 2026
+ *  @brief SIMD-accelerated Batched Dot Products for Power ISA VSX.
  *
  *  @sa include/numkong/dots.h
  *
  *  @section powervsx_dots_instructions Key Power9 VSX GEMM Instructions
  *
- *      Intrinsic      Instruction            P9
- *      vec_madd       xvmaddXsp/dp           6cy @ 2p    fused multiply-add
- *      vec_mul        xvmulXsp/dp            6cy @ 2p
- *      vec_add        xvaddXsp/dp            6cy @ 2p
- *      vec_doublee    xvcvspdp               6cy @ 1p    f32 even lanes → f64
- *      vec_xl         lxv                    5cy @ 1p    aligned vector load
- *      vec_xl_len     lxvll                  6cy @ 1p    partial vector load
+ *  @verbatim
+ *  Intrinsic      Instruction            P9
+ *  vec_madd       xvmaddXsp/dp           6cy @ 2p    fused multiply-add
+ *  vec_mul        xvmulXsp/dp            6cy @ 2p
+ *  vec_add        xvaddXsp/dp            6cy @ 2p
+ *  vec_doublee    xvcvspdp               6cy @ 1p    f32 even lanes → f64
+ *  vec_xl         lxv                    5cy @ 1p    aligned vector load
+ *  vec_xl_len     lxvll                  6cy @ 1p    partial vector load
+ *  @endverbatim
  *
  *  GEMM kernels use tiled dot products with 4-way parallel accumulation to hide FMA latency.
  *  Type-specific tile sizes: f32 uses depth_simd_dimensions=4, f64 uses depth_simd_dimensions=2,

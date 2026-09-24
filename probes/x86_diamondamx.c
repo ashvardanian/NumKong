@@ -1,4 +1,9 @@
-/* NumKong ISA probe: Diamond Rapids AMX (AMX-FP8 + AMX-AVX512) */
+/**
+ *  @file probes/x86_diamondamx.c
+ *  @author Ash Vardanian
+ *  @date July 7, 2026
+ *  @brief NumKong ISA probe for Diamond Rapids AMX, AMX-FP8 plus AMX-AVX512.
+ */
 #if defined(__APPLE__)
 #error "AMX not available on macOS"
 #endif

@@ -1,14 +1,14 @@
 /**
- *  @brief SIMD-accelerated Batched Dot Products for LoongArch ASX.
  *  @file include/numkong/dots/loongsonasx.h
  *  @author Ash Vardanian
  *  @date March 23, 2026
+ *  @brief SIMD-accelerated Batched Dot Products for LoongArch ASX.
  *
  *  @sa include/numkong/dots.h
  *
- *  GEMM kernels use tiled dot products with 4-way parallel accumulation to hide FMA latency.
- *  LASX is 256-bit, matching AVX2 in register width.
- *  Type-specific tile sizes: f32/f64 use depth_simd_dimensions=4, i8/u8 use depth_simd_dimensions=16.
+ *  GEMM kernels use tiled dot products with 4-way parallel accumulation to hide FMA latency. LASX
+ *  is 256-bit, matching AVX2 in register width. Type-specific tile sizes: f32/f64 use
+ *  depth_simd_dimensions=4, i8/u8 use depth_simd_dimensions=16.
  */
 #ifndef NK_DOTS_LOONGSONASX_H
 #define NK_DOTS_LOONGSONASX_H

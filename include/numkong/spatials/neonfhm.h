@@ -1,8 +1,8 @@
 /**
- *  @brief Batched Spatial Distances for NEON FHMA.
  *  @file include/numkong/spatials/neonfhm.h
  *  @author Ash Vardanian
  *  @date February 23, 2026
+ *  @brief Batched spatial distances for NEON FHMA.
  *
  *  @sa include/numkong/spatials.h
  */

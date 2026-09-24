@@ -1,4 +1,9 @@
-/* NumKong ISA probe: SME FA64 (FEAT_SME_FA64, full SVE2 in streaming mode) */
+/**
+ *  @file probes/arm_sme_fa64.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for SME FA64, @c FEAT_SME_FA64, full SVE2 in streaming mode.
+ */
 #if defined(_WIN32)
 #error "SVE/SME not supported on Windows ARM"
 #endif

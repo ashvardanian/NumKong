@@ -1,20 +1,22 @@
 /**
- *  @brief Ragged attention for NVIDIA Ampere and newer.
  *  @file include/numkong/attention/ampere.cuh
  *  @author Ash Vardanian
  *  @date September 22, 2026
+ *  @brief Ragged attention for NVIDIA Ampere and newer.
  *
  *  @sa include/numkong/attention.h
  *  @sa include/numkong/dots/ampere.cuh
  *
- *  FlashAttention-2 on warp-level `mma.sync`: four warps own 64 rows folding the GQA group, stream K and V panels
- *  through `cp.async`, and keep a base-2 online softmax per row; items of at most 16 rows split every panel across the
- *  warps instead. BF16 and widened E4M3 multiply on F16-class MMA, I8 on exact integer MMA with U8 probabilities, and
- *  depths above 256 fall back to a CUDA-core kernel.
+ *  FlashAttention-2 on warp-level `mma.sync`: four warps own 64 rows folding the GQA group, stream
+ *  K and V panels through `cp.async`, and keep a base-2 online softmax per row; items of at most 16
+ *  rows split every panel across the warps instead. BF16 and widened E4M3 multiply on F16-class
+ *  MMA, I8 on exact integer MMA with U8 probabilities, and depths above 256 fall back to a
+ *  CUDA-core kernel instead of MMA.
  *
- *  The pack keeps the serial header and directory, with 1-byte V transposed and permuted within every 16 positions so
- *  probabilities become MMA fragments without shuffles. Only `pack_size` reads `segment_lengths` on the host, so the
- *  pack and both attention kernels need device or managed memory for offsets and lengths.
+ *  The pack keeps the serial header and directory, with 1-byte V transposed and permuted within
+ *  every 16 positions so probabilities become MMA fragments without shuffles. Only @c pack_size
+ *  reads @c segment_lengths on the host, so the pack and both attention kernels need device or
+ *  managed memory for offsets and lengths.
  */
 #ifndef NK_ATTENTION_AMPERE_CUH
 #define NK_ATTENTION_AMPERE_CUH

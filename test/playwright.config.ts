@@ -1,3 +1,10 @@
+/**
+ *  @file test/playwright.config.ts
+ *  @author Ash Vardanian
+ *  @date February 15, 2026
+ *  @brief Playwright configuration for the browser test runners.
+ */
+
 import { defineConfig } from '@playwright/test';
 
 export default defineConfig({

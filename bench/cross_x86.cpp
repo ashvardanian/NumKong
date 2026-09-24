@@ -1,8 +1,8 @@
 /**
- *  @brief Batch operation benchmarks - x86 ISA family.
  *  @file bench/cross_x86.cpp
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief Batch operation benchmarks, x86 ISA family.
  *
  *  Covers Haswell, Skylake, Ice Lake, Genoa, Sapphire.
  */

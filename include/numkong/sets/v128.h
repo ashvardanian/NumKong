@@ -1,8 +1,8 @@
 /**
- *  @brief Batched Set Operations for WASM.
  *  @file include/numkong/sets/v128.h
  *  @author Ash Vardanian
  *  @date September 12, 2026
+ *  @brief Batched set operations for WASM.
  *
  *  @sa include/numkong/sets.h
  */

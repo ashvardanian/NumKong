@@ -1,30 +1,34 @@
 /**
- *  @brief Mesh alignment (Kabsch, Umeyama, RMSD) for NumKong Python bindings.
  *  @file python/mesh.c
  *  @author Ash Vardanian
  *  @date February 19, 2026
+ *  @brief Mesh alignment, Kabsch, Umeyama, RMSD, for NumKong Python bindings.
  *
- *  Implements the MeshAlignmentResult type and the three mesh-alignment API
- *  functions (kabsch, umeyama, rmsd).  The MeshAlignmentResultObject struct
- *  is opaque — only the PyTypeObject is exported.
+ *  Implements the MeshAlignmentResult type and the three mesh-alignment API functions, kabsch,
+ *  umeyama, rmsd. The MeshAlignmentResultObject struct is opaque; only its type is exported.
  */
 #include "mesh.h"
 #include "tensor.h"
 
 #include <structmember.h> // `PyMemberDef`, `T_OBJECT_EX`, `READONLY`, `offsetof`
 
-/** @brief Mesh alignment result type — structured return for kabsch/umeyama/rmsd. */
+/** Mesh alignment result type — structured return for kabsch/umeyama/rmsd. */
 typedef struct {
     PyObject_HEAD
-    /** (3,3) rotation matrix Tensor. */
+
+    /** Rotation matrix Tensor of shape @b [3,3]. */
     PyObject *rotation;
+
     /** 0-D scale factor Tensor. */
     PyObject *scale;
+
     /** 0-D RMSD Tensor. */
     PyObject *rmsd;
-    /** (3,) centroid of first point cloud. */
+
+    /** Centroid of the first point cloud, shape @b [3]. */
     PyObject *a_centroid;
-    /** (3,) centroid of second point cloud. */
+
+    /** Centroid of the second point cloud, shape @b [3]. */
     PyObject *b_centroid;
 } MeshAlignmentResultObject;
 
@@ -84,10 +88,10 @@ static PyMemberDef MeshAlignmentResult_members[] = {
     {NULL, 0, 0, 0, NULL},
 };
 
-static char const doc_mesh_alignment_result[] =                //
-    "Result of mesh alignment (Kabsch, Umeyama, RMSD).\n\n"    //
-    "Fields: rotation, scale, rmsd, a_centroid, b_centroid.\n" //
-    "Supports iteration and indexing for backward-compatible destructuring.";
+static char const doc_mesh_alignment_result[] =                                                    //
+    "Result of mesh alignment: Kabsch, Umeyama, or RMSD.\n\n"                                      //
+    "Fields: rotation, scale, rmsd, a_centroid, b_centroid. Supports iteration and indexing for\n" //
+    "backward-compatible destructuring.";
 
 PyTypeObject MeshAlignmentResultType = {
     PyVarObject_HEAD_INIT(NULL, 0).tp_name = "numkong.MeshAlignmentResult",
@@ -101,52 +105,61 @@ PyTypeObject MeshAlignmentResultType = {
     .tp_members = MeshAlignmentResult_members,
 };
 
-char const doc_kabsch[] =                                                                                        //
-    "Compute optimal rigid transformation (Kabsch algorithm) between two point clouds.\n\n"                      //
-    "Finds the optimal rotation matrix that minimizes RMSD between point clouds.\n"                              //
-    "The transformation aligns point cloud A to point cloud B:\n"                                                //
-    "    a'_i = scale * R * (a_i - a_centroid) + b_centroid\n\n"                                                 //
-    "Supports both single-pair and batched inputs:\n"                                                            //
-    "    - Single pair: (N, 3) -> rotation (3,3), scale (), rmsd (), centroids (3,)\n"                           //
-    "    - Batched: (B, N, 3) -> rotation (B,3,3), scale (B,), rmsd (B,), centroids (B,3)\n\n"                   //
-    "Parameters:\n"                                                                                              //
-    "    a (Tensor): First point cloud(s), shape (N, 3) or (B, N, 3), float16, bfloat16, float32, or float64.\n" //
-    "    b (Tensor): Second point cloud(s), shape (N, 3) or (B, N, 3), same dtype as a.\n\n"                     //
-    "Returns:\n"                                                                                                 //
-    "    MeshAlignmentResult: rotation, scale, rmsd, a_centroid, b_centroid fields.\n\n"                         //
-    "Example:\n"                                                                                                 //
-    "    >>> result = numkong.kabsch(a, b)\n"                                                                    //
-    "    >>> np.asarray(result.rotation)  # (3, 3) rotation matrix\n"                                            //
-    "    >>> float(result.scale)          # scale factor (always 1.0 for Kabsch)\n";
+char const doc_kabsch[] =                                                                              //
+    "Compute the optimal rigid transformation, the Kabsch algorithm, between two point clouds.\n\n"    //
+    "Finds the optimal rotation matrix that minimizes RMSD between point clouds. The transformation\n" //
+    "aligns point cloud A to point cloud B:\n"                                                         //
+    "    a'ᵢ = scale · R · (aᵢ − a_centroid) + b_centroid\n\n"                                         //
+    "Supports both single-pair and batched inputs:\n"                                                  //
+    "    - Single pair: input shape [N,3] returns rotation shape [3,3], scalar scale and rmsd, and\n"  //
+    "      centroids shape [3].\n"                                                                     //
+    "    - Batched: input shape [B,N,3] returns rotation shape [B,3,3], scale and rmsd shape [B],\n"   //
+    "      and centroids shape [B,3].\n\n"                                                             //
+    "Args:\n"                                                                                          //
+    "    a (Tensor): First point cloud(s), shape [N,3] or [B,N,3], float16, bfloat16, float32, or\n"   //
+    "        float64.\n"                                                                               //
+    "    b (Tensor): Second point cloud(s), shape [N,3] or [B,N,3], same dtype as a.\n\n"              //
+    "Returns:\n"                                                                                       //
+    "    MeshAlignmentResult: rotation, scale, rmsd, a_centroid, b_centroid fields.\n\n"               //
+    "Example:\n"                                                                                       //
+    "    >>> result = numkong.kabsch(a, b)\n"                                                          //
+    "    >>> np.asarray(result.rotation)  # shape [3,3] rotation matrix\n"                             //
+    "    >>> float(result.scale)  # scale factor, always 1.0 for Kabsch\n";
 
-char const doc_umeyama[] =                                                                                       //
-    "Compute optimal similarity transformation (Umeyama algorithm) between two point clouds.\n\n"                //
-    "Finds the optimal rotation matrix and uniform scaling factor that minimize RMSD.\n"                         //
-    "The transformation aligns point cloud A to point cloud B:\n"                                                //
-    "    a'_i = scale * R * (a_i - a_centroid) + b_centroid\n\n"                                                 //
-    "Supports both single-pair and batched inputs:\n"                                                            //
-    "    - Single pair: (N, 3) -> rotation (3,3), scale (), rmsd (), centroids (3,)\n"                           //
-    "    - Batched: (B, N, 3) -> rotation (B,3,3), scale (B,), rmsd (B,), centroids (B,3)\n\n"                   //
-    "Parameters:\n"                                                                                              //
-    "    a (Tensor): First point cloud(s), shape (N, 3) or (B, N, 3), float16, bfloat16, float32, or float64.\n" //
-    "    b (Tensor): Second point cloud(s), shape (N, 3) or (B, N, 3), same dtype as a.\n\n"                     //
-    "Returns:\n"                                                                                                 //
-    "    MeshAlignmentResult: rotation, scale, rmsd, a_centroid, b_centroid fields.\n\n"                         //
-    "Example:\n"                                                                                                 //
-    "    >>> result = numkong.umeyama(a, b)\n"                                                                   //
+char const doc_umeyama[] =                                                                                //
+    "Compute the optimal similarity transformation, the Umeyama algorithm, between two point clouds.\n\n" //
+    "Finds the optimal rotation matrix and uniform scaling factor that minimize RMSD. The\n"              //
+    "transformation aligns point cloud A to point cloud B:\n"                                             //
+    "    a'ᵢ = scale · R · (aᵢ − a_centroid) + b_centroid\n\n"                                            //
+    "Supports both single-pair and batched inputs:\n"                                                     //
+    "    - Single pair: input shape [N,3] returns rotation shape [3,3], scalar scale and rmsd, and\n"     //
+    "      centroids shape [3].\n"                                                                        //
+    "    - Batched: input shape [B,N,3] returns rotation shape [B,3,3], scale and rmsd shape [B],\n"      //
+    "      and centroids shape [B,3].\n\n"                                                                //
+    "Args:\n"                                                                                             //
+    "    a (Tensor): First point cloud(s), shape [N,3] or [B,N,3], float16, bfloat16, float32, or\n"      //
+    "        float64.\n"                                                                                  //
+    "    b (Tensor): Second point cloud(s), shape [N,3] or [B,N,3], same dtype as a.\n\n"                 //
+    "Returns:\n"                                                                                          //
+    "    MeshAlignmentResult: rotation, scale, rmsd, a_centroid, b_centroid fields.\n\n"                  //
+    "Example:\n"                                                                                          //
+    "    >>> result = numkong.umeyama(a, b)\n"                                                            //
     "    >>> float(result.scale)  # Will differ from 1.0 if point clouds have different scales\n";
 
-char const doc_rmsd[] =                                                                                          //
-    "Compute raw RMSD between two point clouds without centering or alignment.\n\n"                              //
-    "Computes √(Σ‖aᵢ − bᵢ‖² / n) directly on raw point differences.\n"                                           //
-    "Returns identity rotation, scale=1.0, and zeroed centroids.\n\n"                                            //
-    "Supports both single-pair and batched inputs:\n"                                                            //
-    "    - Single pair: (N, 3) -> rotation (3,3), scale (), rmsd (), centroids (3,)\n"                           //
-    "    - Batched: (B, N, 3) -> rotation (B,3,3), scale (B,), rmsd (B,), centroids (B,3)\n\n"                   //
-    "Parameters:\n"                                                                                              //
-    "    a (Tensor): First point cloud(s), shape (N, 3) or (B, N, 3), float16, bfloat16, float32, or float64.\n" //
-    "    b (Tensor): Second point cloud(s), shape (N, 3) or (B, N, 3), same dtype as a.\n\n"                     //
-    "Returns:\n"                                                                                                 //
+char const doc_rmsd[] =                                                                               //
+    "Compute raw RMSD between two point clouds without centering or alignment.\n\n"                   //
+    "Computes √(Σ‖aᵢ − bᵢ‖² / n) directly on raw point differences. Returns identity rotation,\n"     //
+    "scale=1.0, and zeroed centroids.\n\n"                                                            //
+    "Supports both single-pair and batched inputs:\n"                                                 //
+    "    - Single pair: input shape [N,3] returns rotation shape [3,3], scalar scale and rmsd, and\n" //
+    "      centroids shape [3].\n"                                                                    //
+    "    - Batched: input shape [B,N,3] returns rotation shape [B,3,3], scale and rmsd shape [B],\n"  //
+    "      and centroids shape [B,3].\n\n"                                                            //
+    "Args:\n"                                                                                         //
+    "    a (Tensor): First point cloud(s), shape [N,3] or [B,N,3], float16, bfloat16, float32, or\n"  //
+    "        float64.\n"                                                                              //
+    "    b (Tensor): Second point cloud(s), shape [N,3] or [B,N,3], same dtype as a.\n\n"             //
+    "Returns:\n"                                                                                      //
     "    MeshAlignmentResult: rotation, scale, rmsd, a_centroid, b_centroid fields.\n";
 
 static PyObject *implement_mesh_alignment(nk_kernel_kind_t metric_kind, PyObject *const *args,

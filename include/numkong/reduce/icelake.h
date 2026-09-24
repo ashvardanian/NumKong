@@ -1,16 +1,17 @@
 /**
- *  @brief AVX-512 VNNI implementations for the redesigned reduction API (moments).
  *  @file include/numkong/reduce/icelake.h
  *  @author Ash Vardanian
  *  @date February 12, 2026
+ *  @brief AVX-512 VNNI implementations for the redesigned reduction API, moments.
  *
  *  @sa include/numkong/reduce.h
  *
  *  @section vnni_advantage VNNI Advantage
  *
- *  `_mm512_dpwssd_epi32(acc, a, b)` (VPDPWSSD) fuses `acc + _mm512_madd_epi16(a, b)`
- *  into one instruction (5cy @ p0 on Ice Lake, 4cy @ p01 on Genoa), saving one
- *  `_mm512_add_epi32` per call vs the Skylake `madd + add` pair.
+ *  `_mm512_dpwssd_epi32(accumulator, a, b)`, the compiler builtin for VPDPWSSD, directly fuses
+ *  `accumulator + _mm512_madd_epi16(a, b)` into one instruction, 5 cycles at p0 on Ice Lake or 4
+ *  cycles at p01 on Genoa, saving one @c _mm512_add_epi32 per call versus the Skylake `madd + add`
+ *  pair it replaces.
  */
 #ifndef NK_REDUCE_ICELAKE_H
 #define NK_REDUCE_ICELAKE_H

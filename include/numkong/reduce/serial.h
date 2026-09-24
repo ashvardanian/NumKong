@@ -1,8 +1,8 @@
 /**
- *  @brief Serial fallbacks for the redesigned reduction API (moments + minmax).
  *  @file include/numkong/reduce/serial.h
  *  @author Ash Vardanian
  *  @date February 11, 2026
+ *  @brief Serial fallbacks for the redesigned reduction API, moments and minmax.
  *
  *  @sa include/numkong/reduce.h
  *

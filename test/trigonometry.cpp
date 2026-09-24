@@ -1,8 +1,8 @@
 /**
- *  @brief Trigonometry tests (sin, cos, atan).
  *  @file test/trigonometry.cpp
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief Trigonometry tests: sin, cos, atan.
  */
 
 #include "test.hpp"
@@ -10,9 +10,7 @@
 
 using namespace ashvardanian::numkong::test;
 
-/**
- *  @brief Test sine approximation kernel against `nk::sin<scalar_t, f118_t, nk::no_simd_k>`.
- */
+/** Test sine approximation kernel against `nk::sin<scalar_t, f118_t, nk::no_simd_k>`. */
 template <typename scalar_type_>
 error_stats_t test_sin(typename scalar_type_::trigonometry_kernel_t kernel) {
     using scalar_t = scalar_type_;
@@ -38,9 +36,7 @@ error_stats_t test_sin(typename scalar_type_::trigonometry_kernel_t kernel) {
     return stats;
 }
 
-/**
- *  @brief Test cosine approximation kernel against `nk::cos<scalar_t, f118_t, nk::no_simd_k>`.
- */
+/** Test cosine approximation kernel against `nk::cos<scalar_t, f118_t, nk::no_simd_k>`. */
 template <typename scalar_type_>
 error_stats_t test_cos(typename scalar_type_::trigonometry_kernel_t kernel) {
     using scalar_t = scalar_type_;
@@ -66,9 +62,7 @@ error_stats_t test_cos(typename scalar_type_::trigonometry_kernel_t kernel) {
     return stats;
 }
 
-/**
- *  @brief Test atan approximation kernel against `nk::atan<scalar_t, f118_t, nk::no_simd_k>`.
- */
+/** Test atan approximation kernel against `nk::atan<scalar_t, f118_t, nk::no_simd_k>`. */
 template <typename scalar_type_>
 error_stats_t test_atan(typename scalar_type_::trigonometry_kernel_t kernel) {
     using scalar_t = scalar_type_;

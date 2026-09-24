@@ -1,8 +1,8 @@
 /**
- *  @brief ARMv8.4-DotProd implementations for the redesigned reduction API (moments).
  *  @file include/numkong/reduce/neonsdot.h
  *  @author Ash Vardanian
  *  @date February 13, 2026
+ *  @brief ARMv8.4-DotProd implementations for the redesigned reduction API, moments.
  *
  *  @sa include/numkong/reduce.h
  */

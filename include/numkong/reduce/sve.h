@@ -1,18 +1,17 @@
 /**
- *  @brief SVE horizontal reduction helpers with MSan unpoisoning.
  *  @file include/numkong/reduce/sve.h
  *  @author Ash Vardanian
  *  @date April 12, 2026
+ *  @brief SVE horizontal reduction helpers with MSan unpoisoning.
  *
- *  LLVM's MSan does not instrument ARM SVE intrinsics — `svaddv` moves data
- *  from vector to scalar registers via architecture-specific paths invisible
- *  to the compiler, causing false-positive uninitialized-value reports.
- *  These macros wrap the reduction and unpoison the scalar result.
+ *  LLVM's MSan does not instrument ARM SVE intrinsics — @c svaddv moves data from vector to scalar
+ *  registers via architecture-specific paths invisible to the compiler, causing false-positive
+ *  uninitialized-value reports. These macros wrap the reduction and unpoison the scalar result.
  *
- *  The `svaddv` intrinsic stays inside a macro so it expands in the caller's
- *  target context — SVE and SME streaming translation units carry incompatible
- *  target attributes. The unpoisoning runs on the already-reduced scalar, so it
- *  lives in a target-agnostic `NK_HELPER_INLINE` helper called from the macro.
+ *  The @c svaddv intrinsic stays inside a macro so it expands in the caller's target context — SVE
+ *  and SME streaming translation units carry incompatible target attributes. The unpoisoning runs
+ *  on the already-reduced scalar, so it lives in a target-agnostic @c NK_HELPER_INLINE helper
+ *  called from the macro.
  *
  *  @sa include/numkong/reduce.h
  */

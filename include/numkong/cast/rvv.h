@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Type Conversions for RISC-V.
  *  @file include/numkong/cast/rvv.h
  *  @author Ash Vardanian
  *  @date January 13, 2026
+ *  @brief SIMD-accelerated Type Conversions for RISC-V.
  *
  *  @sa include/numkong/cast.h
  *
@@ -14,25 +14,27 @@
  *  - E5M2 ↔ F32 (FP8 format for ML training)
  *  - i4/u4 unpacking to i8/u8
  *
- *  Mini-float conversions use sign-symmetric magnitude LUTs: every mini-float
- *  format is sign|magnitude, so we store only the positive-half (magnitude)
- *  entries and extract the sign bit separately. This cuts LUT memory by 50-87%
- *  and fixes the E2M3FN NaN bug (E2M3FN has NO NaN; index 31 is +7.5, not NaN).
+ *  Mini-float conversions use sign-symmetric magnitude LUTs: every mini-float format is
+ *  sign|magnitude, so we store only the positive-half, magnitude, entries and extract the sign bit
+ *  separately. This cuts LUT memory by 50-87% and fixes the E2M3FN NaN bug — E2M3FN has no NaN,
+ *  index 31 is +7.5, not NaN.
  *
- *  8-bit formats (e4m3, e5m2): sign = bit 7, magnitude = bits 6:0 (128 entries)
- *  6-bit formats (e2m3, e3m2): sign = bit 5, magnitude = bits 4:0 (32 entries)
+ *  8-bit formats, e4m3 and e5m2: sign = bit 7, magnitude = bits 6:0, 128 entries. 6-bit formats,
+ *  e2m3 and e3m2: sign = bit 5, magnitude = bits 4:0, 32 entries.
  *
  *  @section rvv_cast_instructions Key RVV Cast Instructions
  *
- *      Intrinsic                       Purpose
- *      vzext_vf4_u32m4                 Zero-extend u8 → u32 (4x widening)
- *      vsext_vf4_i32m4                 Sign-extend i8 → i32 (4x widening)
- *      vsll_vx / vsrl_vx               Bit shifts for field extraction
- *      vand_vx                         Bit masking
- *      vor_vv                          Combining bit fields
- *      vfcvt_f_xu_v                    Unsigned int → float
- *      vmseq_vx                        Compare for conditional selection
- *      vmerge_vvm                      Conditional select (blend)
+ *  @verbatim
+ *  Intrinsic                       Purpose
+ *  vzext_vf4_u32m4                 Zero-extend u8 → u32 (4x widening)
+ *  vsext_vf4_i32m4                 Sign-extend i8 → i32 (4x widening)
+ *  vsll_vx / vsrl_vx               Bit shifts for field extraction
+ *  vand_vx                         Bit masking
+ *  vor_vv                          Combining bit fields
+ *  vfcvt_f_xu_v                    Unsigned int → float
+ *  vmseq_vx                        Compare for conditional selection
+ *  vmerge_vvm                      Conditional select (blend)
+ *  @endverbatim
  */
 #ifndef NK_CAST_RVV_H
 #define NK_CAST_RVV_H
@@ -59,8 +61,8 @@ extern "C" {
 /**
  *  @brief Convert bf16 (m1) to f32 (m2) register-to-register.
  *
- *  BF16 is the upper 16 bits of F32 (same sign + exponent + top 7 mantissa bits).
- *  Conversion is simply: f32_bits = bf16_bits << 16.
+ *  BF16 is the upper 16 bits of F32, same sign, exponent, and top 7 mantissa bits. Conversion is
+ *  simply: f32_bits = bf16_bits << 16.
  */
 NK_HELPER_INLINE vfloat32m2_t nk_bf16m1_to_f32m2_rvv_(vuint16m1_t bf16_u16m1, nk_size_t vector_length) {
     vuint32m2_t bits_u32m2 = __riscv_vzext_vf2_u32m2(bf16_u16m1, vector_length);
@@ -87,14 +89,14 @@ NK_HELPER_INLINE vuint16m1_t nk_f32m2_to_bf16m1_rvv_(vfloat32m2_t f32_f32m2, nk_
 /**
  *  @brief Convert f16 (m1) to f32 (m2) register-to-register.
  *
- *  F16 format: S EEEEE MMMMMMMMMM (1 sign, 5 exponent bits with bias=15, 10 mantissa bits)
- *  F32 format: S EEEEEEEE MMMMMMMMMMMMMMMMMMMMMMM (1 sign, 8 exponent bits with bias=127, 23 mantissa bits)
+ *  - F16: S EEEEE MMMMMMMMMM, 1 sign, 5 exponent, and 10 mantissa bits, exponent bias 15.
+ *  - F32: S EEEEEEEE MMMMMMMMMMMMMMMMMMMMMMM, 1 sign, 8 exponent, and 23 mantissa bits, bias 127.
  *
- *  Uses the Giesen magic-multiply trick: treat the magnitude bits as a denormal f32 and
- *  multiply by 2^112 to rebias the exponent.  This correctly handles ±zero, denormals,
- *  and normals in a single FP multiply; only inf/NaN needs a fixup compare+merge.
+ *  Uses the Giesen magic-multiply trick: treat the magnitude bits as a denormal f32 and multiply by
+ *  2^112 to rebias the exponent. This correctly handles ±zero, denormals, and normals in a single
+ *  FP multiply; only inf/NaN needs a fixup compare+merge.
  *
- *  https://fgiesen.wordpress.com/2012/03/28/half-to-float-done-quic/
+ *  @see Half to float done quick: https://fgiesen.wordpress.com/2012/03/28/half-to-float-done-quic/
  */
 NK_HELPER_INLINE vfloat32m2_t nk_f16m1_to_f32m2_rvv_(vuint16m1_t f16_u16m1, nk_size_t vector_length) {
     // Widen to 32-bit for manipulation
@@ -229,10 +231,12 @@ NK_HELPER_INLINE vuint16m1_t nk_f32m2_to_f16m1_rvv_(vfloat32m2_t f32_f32m2, nk_s
 }
 
 /**
- *  @brief Convert e4m3 (m1) to f32 (m4) via Giesen magic-multiply.
- *  Reinterprets magnitude bits as a tiny f32, then multiplies by 2^(127-bias) to rebias.
- *  Handles zero, subnormals, and normals in a single vfmul. NaN fixup for magnitude 0x7F.
- *  https://fgiesen.wordpress.com/2012/03/28/half-to-float-done-quic/
+ *  @brief Convert e4m3 (m1) to f32 (m4) via a Giesen magic-multiply.
+ *
+ *  Reinterprets magnitude bits as a tiny f32, then multiplies by 2^(127-bias) to rebias, handling
+ *  zero, subnormals, and normals in one vfmul, with a NaN fixup for magnitude 0x7F.
+ *
+ *  @see Half to float done quick: https://fgiesen.wordpress.com/2012/03/28/half-to-float-done-quic/
  */
 NK_HELPER_INLINE vfloat32m4_t nk_e4m3m1_to_f32m4_rvv_(vuint8m1_t e4m3_u8m1, nk_size_t vector_length) {
     // Extract sign: (raw & 0x80) → bit 7, shift to bit 31
@@ -261,10 +265,12 @@ NK_HELPER_INLINE vfloat32m4_t nk_e4m3m1_to_f32m4_rvv_(vuint8m1_t e4m3_u8m1, nk_s
 }
 
 /**
- *  @brief Convert e5m2 (m1) to f32 (m4) via Giesen magic-multiply.
- *  Reinterprets magnitude bits as a tiny f32, then multiplies by 2^(127-bias) to rebias.
- *  Handles zero, subnormals, and normals in a single vfmul. Inf/NaN fixup for exp=31.
- *  https://fgiesen.wordpress.com/2012/03/28/half-to-float-done-quic/
+ *  @brief Convert e5m2 (m1) to f32 (m4) via a Giesen magic-multiply.
+ *
+ *  Reinterprets magnitude bits as a tiny f32, then multiplies by 2^(127-bias) to rebias, handling
+ *  zero, subnormals, and normals in one vfmul, with an inf/NaN fixup for exp=31.
+ *
+ *  @see Half to float done quick: https://fgiesen.wordpress.com/2012/03/28/half-to-float-done-quic/
  */
 NK_HELPER_INLINE vfloat32m4_t nk_e5m2m1_to_f32m4_rvv_(vuint8m1_t e5m2_u8m1, nk_size_t vector_length) {
     // Extract sign: (raw & 0x80) → bit 7, shift to bit 31
@@ -294,10 +300,12 @@ NK_HELPER_INLINE vfloat32m4_t nk_e5m2m1_to_f32m4_rvv_(vuint8m1_t e5m2_u8m1, nk_s
 }
 
 /**
- *  @brief Convert e2m3 (m1) to f32 (m4) via Giesen magic-multiply.
- *  Reinterprets magnitude bits as a tiny f32, then multiplies by 2^(127-bias) to rebias.
- *  Handles zero, subnormals, and normals in a single vfmul. No inf/NaN in E2M3FN.
- *  https://fgiesen.wordpress.com/2012/03/28/half-to-float-done-quic/
+ *  @brief Convert e2m3 (m1) to f32 (m4) via a Giesen magic-multiply.
+ *
+ *  Reinterprets magnitude bits as a tiny f32, then multiplies by 2^(127-bias) to rebias, handling
+ *  zero, subnormals, and normals in one vfmul. No inf/NaN in E2M3FN.
+ *
+ *  @see Half to float done quick: https://fgiesen.wordpress.com/2012/03/28/half-to-float-done-quic/
  */
 NK_HELPER_INLINE vfloat32m4_t nk_e2m3m1_to_f32m4_rvv_(vuint8m1_t e2m3_u8m1, nk_size_t vector_length) {
     // Extract sign: bit 5 → bit 31
@@ -322,10 +330,12 @@ NK_HELPER_INLINE vfloat32m4_t nk_e2m3m1_to_f32m4_rvv_(vuint8m1_t e2m3_u8m1, nk_s
 }
 
 /**
- *  @brief Convert e3m2 (m1) to f32 (m4) via Giesen magic-multiply.
- *  Reinterprets magnitude bits as a tiny f32, then multiplies by 2^(127-bias) to rebias.
- *  Handles zero, subnormals, and normals in a single vfmul. No inf/NaN in E3M2FN.
- *  https://fgiesen.wordpress.com/2012/03/28/half-to-float-done-quic/
+ *  @brief Convert e3m2 (m1) to f32 (m4) via a Giesen magic-multiply.
+ *
+ *  Reinterprets magnitude bits as a tiny f32, then multiplies by 2^(127-bias) to rebias, handling
+ *  zero, subnormals, and normals in one vfmul. No inf/NaN in E3M2FN.
+ *
+ *  @see Half to float done quick: https://fgiesen.wordpress.com/2012/03/28/half-to-float-done-quic/
  */
 NK_HELPER_INLINE vfloat32m4_t nk_e3m2m1_to_f32m4_rvv_(vuint8m1_t e3m2_u8m1, nk_size_t vector_length) {
     // Extract sign: bit 5 → bit 31
@@ -349,8 +359,11 @@ NK_HELPER_INLINE vfloat32m4_t nk_e3m2m1_to_f32m4_rvv_(vuint8m1_t e3m2_u8m1, nk_s
     return __riscv_vreinterpret_v_u32m4_f32m4(result_u32m4);
 }
 
-/** @brief Convert e4m3 (m1) to bf16 (m2) via Giesen magic-multiply.
- *  Magic-multiply to f32, truncate upper 16 bits to bf16. NaN fixup for magnitude 0x7F. */
+/**
+ *  @brief Convert e4m3 (m1) to bf16 (m2) via a Giesen magic-multiply.
+ *
+ *  Magic-multiplies to f32 and truncates to the upper 16 bits, with a NaN fixup for magnitude 0x7F.
+ */
 NK_HELPER_INLINE vuint16m2_t nk_e4m3m1_to_bf16m2_rvv_(vuint8m1_t e4m3_u8m1, nk_size_t vector_length) {
     vuint8m1_t sign_u8m1 = __riscv_vand_vx_u8m1(e4m3_u8m1, 0x80, vector_length);
     vuint8m1_t nonsign_u8m1 = __riscv_vand_vx_u8m1(e4m3_u8m1, 0x7F, vector_length);
@@ -371,8 +384,11 @@ NK_HELPER_INLINE vuint16m2_t nk_e4m3m1_to_bf16m2_rvv_(vuint8m1_t e4m3_u8m1, nk_s
     return __riscv_vor_vv_u16m2(result_u16m2, sign_u16m2, vector_length);
 }
 
-/** @brief Convert e5m2 (m1) to bf16 (m2) via Giesen magic-multiply.
- *  Magic-multiply to f32, inf/NaN fixup, truncate upper 16 bits to bf16. */
+/**
+ *  @brief Convert e5m2 (m1) to bf16 (m2) via a Giesen magic-multiply.
+ *
+ *  Magic-multiplies to f32 and truncates to the upper 16 bits, with an inf/NaN fixup.
+ */
 NK_HELPER_INLINE vuint16m2_t nk_e5m2m1_to_bf16m2_rvv_(vuint8m1_t e5m2_u8m1, nk_size_t vector_length) {
     vuint8m1_t sign_u8m1 = __riscv_vand_vx_u8m1(e5m2_u8m1, 0x80, vector_length);
     vuint8m1_t nonsign_u8m1 = __riscv_vand_vx_u8m1(e5m2_u8m1, 0x7F, vector_length);
@@ -394,8 +410,11 @@ NK_HELPER_INLINE vuint16m2_t nk_e5m2m1_to_bf16m2_rvv_(vuint8m1_t e5m2_u8m1, nk_s
     return __riscv_vor_vv_u16m2(result_u16m2, sign_u16m2, vector_length);
 }
 
-/** @brief Convert e2m3 (m1) to bf16 (m2) via Giesen magic-multiply.
- *  Magic-multiply to f32, truncate upper 16 bits to bf16. No inf/NaN in E2M3FN. */
+/**
+ *  @brief Convert e2m3 (m1) to bf16 (m2) via a Giesen magic-multiply.
+ *
+ *  Magic-multiplies to f32 and truncates to the upper 16 bits. No inf/NaN in E2M3FN.
+ */
 NK_HELPER_INLINE vuint16m2_t nk_e2m3m1_to_bf16m2_rvv_(vuint8m1_t e2m3_u8m1, nk_size_t vector_length) {
     vuint8m1_t sign_u8m1 = __riscv_vand_vx_u8m1(e2m3_u8m1, 0x20, vector_length);
     vuint8m1_t nonsign_u8m1 = __riscv_vand_vx_u8m1(e2m3_u8m1, 0x1F, vector_length);
@@ -414,8 +433,11 @@ NK_HELPER_INLINE vuint16m2_t nk_e2m3m1_to_bf16m2_rvv_(vuint8m1_t e2m3_u8m1, nk_s
     return __riscv_vor_vv_u16m2(result_u16m2, sign_u16m2, vector_length);
 }
 
-/** @brief Convert e3m2 (m1) to bf16 (m2) via Giesen magic-multiply.
- *  Magic-multiply to f32, truncate upper 16 bits to bf16. No inf/NaN in E3M2FN. */
+/**
+ *  @brief Convert e3m2 (m1) to bf16 (m2) via a Giesen magic-multiply.
+ *
+ *  Magic-multiplies to f32 and truncates to the upper 16 bits. No inf/NaN in E3M2FN.
+ */
 NK_HELPER_INLINE vuint16m2_t nk_e3m2m1_to_bf16m2_rvv_(vuint8m1_t e3m2_u8m1, nk_size_t vector_length) {
     vuint8m1_t sign_u8m1 = __riscv_vand_vx_u8m1(e3m2_u8m1, 0x20, vector_length);
     vuint8m1_t nonsign_u8m1 = __riscv_vand_vx_u8m1(e3m2_u8m1, 0x1F, vector_length);
@@ -434,7 +456,7 @@ NK_HELPER_INLINE vuint16m2_t nk_e3m2m1_to_bf16m2_rvv_(vuint8m1_t e3m2_u8m1, nk_s
     return __riscv_vor_vv_u16m2(result_u16m2, sign_u16m2, vector_length);
 }
 
-/** @brief Convert e4m3 (m1) to f16 (m2) via sign-symmetric magnitude LUT. Sign bit 7 → f16 bit 15 (<<8). */
+/** Convert e4m3 (m1) to f16 (m2) via a sign-symmetric magnitude LUT: bit 7 → f16 bit 15 (<<8). */
 NK_HELPER_INLINE vuint16m2_t nk_e4m3m1_to_f16m2_rvv_(vuint8m1_t e4m3_u8m1, nk_size_t vector_length) {
     static nk_u16_t const nk_e4m3_mag_to_f16_lut_[128] = {
         0x0000u, 0x1800u, 0x1C00u, 0x1E00u, 0x2000u, 0x2100u, 0x2200u, 0x2300u, /* [  0..  7] */
@@ -463,7 +485,7 @@ NK_HELPER_INLINE vuint16m2_t nk_e4m3m1_to_f16m2_rvv_(vuint8m1_t e4m3_u8m1, nk_si
     return __riscv_vor_vv_u16m2(result_u16m2, sign_u16m2, vector_length);
 }
 
-/** @brief Convert e2m3 (m1) to f16 (m2) via sign-symmetric magnitude LUT. Sign bit 5 → f16 bit 15 (<<10). */
+/** Convert e2m3 (m1) to f16 (m2) via a sign-symmetric magnitude LUT: bit 5 → f16 bit 15 (<<10). */
 NK_HELPER_INLINE vuint16m2_t nk_e2m3m1_to_f16m2_rvv_(vuint8m1_t e2m3_u8m1, nk_size_t vector_length) {
     static nk_u16_t const nk_e2m3_mag_to_f16_lut_[32] = {
         0x0000u, 0x3000u, 0x3400u, 0x3600u, 0x3800u, 0x3900u, 0x3A00u, 0x3B00u, /* [  0..  7] */
@@ -481,7 +503,7 @@ NK_HELPER_INLINE vuint16m2_t nk_e2m3m1_to_f16m2_rvv_(vuint8m1_t e2m3_u8m1, nk_si
     return __riscv_vor_vv_u16m2(result_u16m2, sign_u16m2, vector_length);
 }
 
-/** @brief Convert e3m2 (m1) to f16 (m2) via sign-symmetric magnitude LUT. Sign bit 5 → f16 bit 15 (<<10). */
+/** Convert e3m2 (m1) to f16 (m2) via a sign-symmetric magnitude LUT: bit 5 → f16 bit 15 (<<10). */
 NK_HELPER_INLINE vuint16m2_t nk_e3m2m1_to_f16m2_rvv_(vuint8m1_t e3m2_u8m1, nk_size_t vector_length) {
     static nk_u16_t const nk_e3m2_mag_to_f16_lut_[32] = {
         0x0000u, 0x2C00u, 0x3000u, 0x3200u, 0x3400u, 0x3500u, 0x3600u, 0x3700u, /* [  0..  7] */
@@ -545,8 +567,8 @@ NK_HELPER_INLINE vuint8m1x2_t nk_u4m1_to_u8m2_rvv_(vuint8m1_t packed_u8m1, nk_si
 /**
  *  @brief Pack i8 (m2) to i4 (m1) nibbles register-to-register.
  *
- *  Takes a tuple of two m1 vectors (high nibbles, low nibbles from segment load).
- *  Values are clamped to [-8, 7] before packing.
+ *  Takes a tuple of two m1 vectors, high nibbles and low nibbles from segment load. Values are
+ *  clamped to [-8, 7] before packing.
  */
 NK_HELPER_INLINE vuint8m1_t nk_i8m2_to_i4m1_rvv_(vint8m1_t high_i8m1, vint8m1_t low_i8m1, nk_size_t vector_length) {
     // Clamp to [-8, 7]
@@ -564,8 +586,8 @@ NK_HELPER_INLINE vuint8m1_t nk_i8m2_to_i4m1_rvv_(vint8m1_t high_i8m1, vint8m1_t 
 /**
  *  @brief Pack u8 (m2) to u4 (m1) nibbles register-to-register.
  *
- *  Takes a tuple of two m1 vectors (high nibbles, low nibbles from segment load).
- *  Values are clamped to [0, 15] before packing.
+ *  Takes a tuple of two m1 vectors, high nibbles and low nibbles from segment load. Values are
+ *  clamped to [0, 15] before packing.
  */
 NK_HELPER_INLINE vuint8m1_t nk_u8m2_to_u4m1_rvv_(vuint8m1_t high_u8m1, vuint8m1_t low_u8m1, nk_size_t vector_length) {
     // Clamp to [0, 15]
@@ -579,9 +601,9 @@ NK_HELPER_INLINE vuint8m1_t nk_u8m2_to_u4m1_rvv_(vuint8m1_t high_u8m1, vuint8m1_
 /**
  *  @brief Convert f32 (m4) to e4m3 (m1) register-to-register.
  *
- *  E4M3FN format: S EEEE MMM (1 sign, 4 exponent bits with bias=7, 3 mantissa bits)
- *  Handles normal, subnormal, overflow, and NaN. Uses RNE mantissa rounding.
- *  E4M3FN quirk: exp=15 with mant=7 is NaN (0x7F), so max finite is 0x7E (exp=15, mant=6).
+ *  E4M3FN format: S EEEE MMM, 1 sign bit, 4 exponent bits with bias 7, 3 mantissa bits. Handles
+ *  normal, subnormal, overflow, and NaN. Uses RNE mantissa rounding. E4M3FN quirk: exp=15 with
+ *  mant=7 is NaN (0x7F), so max finite is 0x7E (exp=15, mant=6).
  */
 NK_HELPER_INLINE vuint8m1_t nk_f32m4_to_e4m3m1_rvv_(vfloat32m4_t f32_f32m4, nk_size_t vector_length) {
     vuint32m4_t bits_u32m4 = __riscv_vreinterpret_v_f32m4_u32m4(f32_f32m4);
@@ -662,8 +684,8 @@ NK_HELPER_INLINE vuint8m1_t nk_f32m4_to_e4m3m1_rvv_(vfloat32m4_t f32_f32m4, nk_s
 /**
  *  @brief Convert f32 (m4) to e5m2 (m1) register-to-register.
  *
- *  E5M2 format: S EEEEE MM (1 sign, 5 exponent bits with bias=15, 2 mantissa bits)
- *  Handles normal, subnormal, overflow (→ infinity), and NaN. Uses RNE mantissa rounding.
+ *  E5M2 format: S EEEEE MM, 1 sign bit, 5 exponent bits with bias 15, 2 mantissa bits. Handles
+ *  normal, subnormal, overflow to infinity, and NaN. Uses RNE mantissa rounding.
  */
 NK_HELPER_INLINE vuint8m1_t nk_f32m4_to_e5m2m1_rvv_(vfloat32m4_t f32_f32m4, nk_size_t vector_length) {
     vuint32m4_t bits_u32m4 = __riscv_vreinterpret_v_f32m4_u32m4(f32_f32m4);
@@ -733,7 +755,7 @@ NK_HELPER_INLINE vuint8m1_t nk_f32m4_to_e5m2m1_rvv_(vfloat32m4_t f32_f32m4, nk_s
     return __riscv_vncvt_x_x_w_u8m1(result_u16m2, vector_length);
 }
 
-#pragma endregion Register - to - Register Helpers
+#pragma endregion Register to Register Helpers
 
 #pragma region Unified Cast Dispatcher
 

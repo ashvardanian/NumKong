@@ -1,44 +1,48 @@
 /**
- *  @brief SIMD-accelerated MaxSim (ColBERT late-interaction) for SME.
  *  @file include/numkong/maxsim/sme.h
  *  @author Ash Vardanian
  *  @date February 10, 2026
+ *  @brief SIMD-accelerated MaxSim, ColBERT late-interaction, for SME.
  *
  *  Computes MaxSim(Q, D) = Σᵢ maxⱼ dot(qᵢ, dⱼ) using ARM SME outer products.
  *
- *  Both Q and D are pre-packed with `nk_dots_pack_bf16_sme` from `dots/sme.h`.
- *  This frees all 4 ZA tiles for accumulation (vs 3 with A-side staging).
+ *  Both Q and D are pre-packed with @c nk_dots_pack_bf16_sme from `dots/sme.h`, which frees all 4
+ *  ZA tiles for accumulation, versus 3 with A-side staging.
  *
- *  Key optimization: vertical column reads for max reduction.
- *  Traditional extraction reads tile rows then calls `svmaxv` (horizontal max, ~8cy).
- *  Our approach reads tile columns with `svread_ver_za32_f32_m`:
+ *  Key optimization: vertical column reads for max reduction. Traditional extraction reads tile
+ *  rows, then calls @c svmaxv, a horizontal max at ~8cy. Our approach reads tile columns with
+ *  @c svread_ver_za32_f32_m:
  *
- *    - Each column read gives dot products of all query tokens vs one doc token.
- *    - Element-wise `svmax` (~1cy) updates a running max vector across doc tokens.
- *    - Only `svaddv` at the very end: ⌈n_q/16⌉ = 2 horizontal reductions total.
+ *  @verbatim
+ *  - Each column read gives dot products of all query tokens vs one doc token.
+ *  - Element-wise svmax   (~1cy) updates a running max vector across doc tokens.
+ *  - Only svaddv   at the very end: ⌈n_q/16⌉ = 2 horizontal reductions total.
+ *  @endverbatim
  *
  *  This is ~100x fewer horizontal reductions for typical ColBERT dimensions.
  *
- *  ZA tile layout after BFMOPA accumulation (16x16 f32):
+ *  ZA tile layout after BFMOPA accumulation, 16x16 f32:
  *
  *  - Row i, Column j = dot(q_{tile_row_start + i}, d_{tile_col_start + j})
  *  - Vertical column read of column j → similarities of all 16 q tokens to doc token j
  *  - Element-wise max across columns → per-query-token max over doc tokens in this tile group
  *
- *  Benchmark results (Apple M4, SVL=512):
+ *  Benchmark results, Apple M4, SVL=512:
  *
- *      Dimensions              dots_packed GEMM    maxsim fused    GEMM speedup    End-to-end speedup
- *      32×128×128 (ColBERT)    840 GFLOPS          1516 GFLOPS     1.81×           5.10×
- *      32×256×128              1037 GFLOPS         1591 GFLOPS     1.53×           5.17×
- *      64×512×128              1016 GFLOPS         1651 GFLOPS     1.62×           5.42×
- *      32×128×256              859 GFLOPS          1725 GFLOPS     2.01×           4.06×
- *      32×1024×768 (BERT)      1124 GFLOPS         1932 GFLOPS     1.72×           2.61×
+ *  @verbatim
+ *  Dimensions              GEMM GFLOPS         fused GFLOPS    GEMM ×          end-to-end ×
+ *  32×128×128 (ColBERT)    840 GFLOPS          1516 GFLOPS     1.81×           5.10×
+ *  32×256×128              1037 GFLOPS         1591 GFLOPS     1.53×           5.17×
+ *  64×512×128              1016 GFLOPS         1651 GFLOPS     1.62×           5.42×
+ *  32×128×256              859 GFLOPS          1725 GFLOPS     2.01×           4.06×
+ *  32×1024×768 (BERT)      1124 GFLOPS         1932 GFLOPS     1.72×           2.61×
+ *  @endverbatim
  *
  *  Speedup sources:
  *
- *  1. Pre-packing both sides → 4 ZA tiles for accumulation (vs 3 with A-staging): +33% MOPA throughput
+ *  1. Pre-packing both sides → 4 ZA tiles, vs 3 with A-staging: +33% MOPA throughput
  *  2. No output matrix materialization → eliminates M×N f32 memory round-trip
- *  3. Vertical column reads → ~128 element-wise svmax (1cy) vs ~256 svmaxv horizontal reductions (8cy)
+ *  3. Vertical column reads → ~128 element-wise svmax, 1cy, vs ~256 svmaxv reductions, 8cy
  */
 #ifndef NK_MAXSIM_SME_H
 #define NK_MAXSIM_SME_H

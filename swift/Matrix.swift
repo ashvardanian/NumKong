@@ -1,7 +1,9 @@
-//  Matrix.swift
-//  NumKong
 //
-//  Created by Ash Vardanian on March 14, 2026.
+//  swift/Matrix.swift
+//  Views, spans, and protocols for row-major matrices and packed kernel right-hand sides.
+//
+//  - Author: Ash Vardanian
+//  - Date: March 14, 2026
 //
 
 import CNumKong
@@ -14,7 +16,7 @@ public enum NumKongMatrixError: Error {
     case invalidStride
     /// The output matrix shape does not match the expected dimensions.
     case outputShapeMismatch
-    /// The vector depth (cols) of the two matrices differs.
+    /// The vector depth, cols, of the two matrices differs.
     case depthMismatch
     /// The requested row window exceeds matrix bounds.
     case rowWindowOutOfBounds
@@ -268,7 +270,7 @@ extension PackedMatrix where Element: NumKongDotsMatrixElement {
         self.init(rows: matrix.rows, cols: matrix.cols, byteCount: bytes, rawPointer: ptr)
     }
 
-    /// Reads the packed matrix shape (rows, cols) back from the buffer's self-describing header.
+    /// Reads the packed matrix shape, __[rows,cols]__, from the buffer's self-describing header.
     public var shape: (rows: Int, cols: Int) {
         var r = 0
         var c = 0

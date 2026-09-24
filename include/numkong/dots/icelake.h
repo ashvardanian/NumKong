@@ -1,18 +1,20 @@
 /**
- *  @brief SIMD-accelerated Batched Dot Products for Ice Lake.
  *  @file include/numkong/dots/icelake.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated Batched Dot Products for Ice Lake.
  *
  *  @sa include/numkong/dots.h
  *
  *  @section ice_dots_instructions Relevant Instructions
  *
- *      Intrinsic             Instruction               Icelake    Genoa
- *      _mm512_dpbusd_epi32   VPDPBUSD (ZMM, ZMM, ZMM)  5cy @ p0   4cy @ p01
- *      _mm512_dpwssd_epi32   VPDPWSSD (ZMM, ZMM, ZMM)  5cy @ p0   4cy @ p01
- *      _mm512_cvtepi8_epi32  VPMOVSXBD (ZMM, XMM)      3cy @ p5   3cy @ p12
- *      _mm512_loadu_si512    VMOVDQU64 (ZMM, M512)     7cy @ p23  7cy @ p23
+ *  @verbatim
+ *  Intrinsic             Instruction               Icelake    Genoa
+ *  _mm512_dpbusd_epi32   VPDPBUSD (ZMM, ZMM, ZMM)  5cy @ p0   4cy @ p01
+ *  _mm512_dpwssd_epi32   VPDPWSSD (ZMM, ZMM, ZMM)  5cy @ p0   4cy @ p01
+ *  _mm512_cvtepi8_epi32  VPMOVSXBD (ZMM, XMM)      3cy @ p5   3cy @ p12
+ *  _mm512_loadu_si512    VMOVDQU64 (ZMM, M512)     7cy @ p23  7cy @ p23
+ *  @endverbatim
  *
  *  Ice Lake's VNNI instructions accelerate int8 GEMM by computing 4-element dot products per lane.
  *  VPDPBUSD/VPDPWSSD bottleneck on port 0, limiting throughput to 1/cy. AMD Genoa achieves 0.5/cy

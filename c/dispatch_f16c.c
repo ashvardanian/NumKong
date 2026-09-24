@@ -1,8 +1,8 @@
 /**
- *  @brief Dispatch Initialization for F16C Data Types.
  *  @file c/dispatch_f16c.c
  *  @author Ash Vardanian
  *  @date February 3, 2026
+ *  @brief Dispatch initialization for F16C data types.
  */
 #include "dispatch.h"
 

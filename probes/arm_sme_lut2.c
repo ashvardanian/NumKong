@@ -1,4 +1,9 @@
-/* NumKong ISA probe: SME LUT2 (FEAT_SME_LUTv2) */
+/**
+ *  @file probes/arm_sme_lut2.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for SME LUT2, @c FEAT_SME_LUTv2.
+ */
 #if defined(_WIN32)
 #error "SVE/SME not supported on Windows ARM"
 #endif

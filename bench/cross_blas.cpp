@@ -1,8 +1,8 @@
 /**
- *  @brief Batch operation benchmarks - BLAS/MKL comparisons.
  *  @file bench/cross_blas.cpp
  *  @author Ash Vardanian
  *  @date January 14, 2025
+ *  @brief Batch operation benchmarks, BLAS/MKL comparisons.
  */
 
 #include <cstring> // `std::memcpy`

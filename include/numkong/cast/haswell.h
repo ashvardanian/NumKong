@@ -1,21 +1,23 @@
 /**
- *  @brief SIMD-accelerated Type Conversions for Haswell.
  *  @file include/numkong/cast/haswell.h
  *  @author Ash Vardanian
  *  @date January 2, 2026
+ *  @brief SIMD-accelerated type conversions for Haswell.
  *
  *  @section haswell_cast_instructions Key F16C/AVX2 Conversion Instructions
  *
- *      Intrinsic              Instruction                     Haswell     Genoa
- *      _mm256_cvtph_ps        VCVTPH2PS (YMM, XMM)            5cy @ p01   4cy @ p12+p23
- *      _mm256_cvtps_ph        VCVTPS2PH (XMM, YMM, I8)        5cy @ p01   4cy @ p12+p23
- *      _mm256_cvtepi16_epi32  VPMOVSXWD (YMM, XMM)            1cy @ p5    2cy @ p12
- *      _mm256_slli_epi32      VPSLLD (YMM, YMM, I8)           1cy @ p0    1cy @ p23
- *      _mm256_blendv_ps       VBLENDVPS (YMM, YMM, YMM, YMM)  2cy @ p015  1cy @ p01
+ *  @verbatim
+ *  Intrinsic              Instruction                     Haswell     Genoa
+ *  _mm256_cvtph_ps        VCVTPH2PS (YMM, XMM)            5cy @ p01   4cy @ p12+p23
+ *  _mm256_cvtps_ph        VCVTPS2PH (XMM, YMM, I8)        5cy @ p01   4cy @ p12+p23
+ *  _mm256_cvtepi16_epi32  VPMOVSXWD (YMM, XMM)            1cy @ p5    2cy @ p12
+ *  _mm256_slli_epi32      VPSLLD (YMM, YMM, I8)           1cy @ p0    1cy @ p23
+ *  _mm256_blendv_ps       VBLENDVPS (YMM, YMM, YMM, YMM)  2cy @ p015  1cy @ p01
+ *  @endverbatim
  *
- *  F16C provides hardware F16<->F32 conversion. BF16 lacks hardware support and is emulated via
- *  bit manipulation (shift upper 16 bits). FP8 formats (E4M3/E5M2) use lookup tables for subnormal
- *  handling combined with arithmetic for normal values. All conversions hub through F32.
+ *  F16C provides hardware F16 ↔ F32 conversion. BF16 lacks hardware support and is emulated via bit
+ *  manipulation, shifting the upper 16 bits. FP8 formats, E4M3 and E5M2, use lookup tables for
+ *  subnormal handling combined with arithmetic for normal values. All conversions hub through F32.
  */
 #ifndef NK_CAST_HASWELL_H
 #define NK_CAST_HASWELL_H

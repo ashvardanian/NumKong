@@ -1,8 +1,8 @@
 /**
- *  @brief Batched Spatial Distances for Serial (non-SIMD) Backends.
  *  @file include/numkong/spatials/serial.h
  *  @author Ash Vardanian
  *  @date February 23, 2026
+ *  @brief Batched spatial distances for serial, non-SIMD, backends.
  *
  *  @sa include/numkong/spatials.h
  */

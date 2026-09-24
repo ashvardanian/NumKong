@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Curved Space Similarity for SME F64.
  *  @file include/numkong/curved/smef64.h
  *  @author Ash Vardanian
  *  @date January 14, 2026
+ *  @brief SIMD-accelerated curved-space similarity for SME F64.
  *
  *  @sa include/numkong/curved.h
  *
@@ -12,38 +12,35 @@
  *  - f32c complex: 4-FMOPA complex GEMV with FMOPS for the cᵢₘ×bᵢₘ subtraction
  *  - f64c complex: interleaved Dot2 with permute + deferred XOR sign-flip
  *
- *  Complex number history — approaches tried and abandoned:
+ *  Complex number history — approaches tried and abandoned.
  *
- *  1. Ozaki 3-way FMOPA (f64c): Split each f64 into 19+17+17 bit mantissa parts,
- *     compute 7 ZA tiles of FMOPA/FMOPS per inner step (24 tile ops total).
- *     Abandoned: the 3× split + 4× complex cross-terms = 12× tile ops vs real,
- *     with staging overhead dominating at GEMV (not GEMM) granularity.
+ *  Ozaki 3-way FMOPA for f64c splits each f64 into 19+17+17-bit mantissa parts and computes 7 ZA
+ *  tiles of FMOPA/FMOPS per inner step, 24 tile ops total. It was abandoned because the 3× split
+ *  and 4× complex cross-terms multiply to 12× the tile ops of the real case, with staging overhead
+ *  dominating at GEMV, not GEMM, granularity.
  *
- *  2. Deinterleaved 4-accumulator SVE Dot2 (f64c): Separate real/imaginary via
- *     UZP1/UZP2, run 4 independent Dot2 chains (rr, ii, ri, ir). Theoretically
- *     matches the serial kernel's arithmetic intensity, but UZP on SVE requires
- *     loading 2 vectors to produce 1 full-width deinterleaved vector, and the
- *     total ops/byte is identical to the interleaved approach (~28 SVE ops/iter).
+ *  Deinterleaved 4-accumulator SVE Dot2 for f64c separates real and imaginary parts via UZP1/UZP2
+ *  and runs 4 independent Dot2 chains for rr, ii, ri, and ir. It theoretically matches the serial
+ *  kernel's arithmetic intensity, but UZP on SVE requires loading 2 vectors to produce 1 full-width
+ *  deinterleaved vector, so total ops/byte matches interleaved at ~28 SVE ops/iteration.
  *
- *  3. Simple (non-Ozaki) f64 FMOPA for complex: Would give ~5-10 GFLOP/s but
- *     drops Dot2 compensation entirely (naive f64 accumulation, ~BLAS precision).
- *     Not implemented because precision is a core requirement for f64 kernels.
+ *  A simple, non-Ozaki, f64 FMOPA for complex would give ~5-10 GFLOP/s but drops Dot2 compensation
+ *  entirely, falling back to naive f64 accumulation at ~BLAS precision. It was not implemented
+ *  because precision is a core requirement for f64 kernels.
  *
- *  The current interleaved Dot2 approach (2 accumulators + svtbl swap + XOR sign
- *  flip) is the best balance found: ~15 SVE ops/iter vs ~28 for deinterleaved,
- *  with identical Dot2 precision. The ~1.5 GFLOP/s throughput is limited by the
- *  SME coprocessor's slow per-instruction pipeline — the serial version achieves
- *  ~2.2 GFLOP/s despite using software Dekker FMA (~20 ops/TwoProd vs SVE's 3)
- *  because it runs on the faster main core.
+ *  The current interleaved Dot2 approach (2 accumulators + svtbl swap + XOR sign flip) is the best
+ *  balance found: ~15 SVE ops/iteration vs ~28 deinterleaved, with identical Dot2 precision. The
+ *  ~1.5 GFLOP/s throughput is limited by the SME coprocessor's slow per-instruction pipeline — the
+ *  serial version achieves ~2.2 GFLOP/s despite using software Dekker FMA (~20 ops/TwoProd vs SVE's
+ *  3) because it runs on the faster main core.
  *
- *  On Apple M4, SVE instructions are only available inside SME streaming mode.
- *  Functions using SVE intrinsics are marked `__arm_locally_streaming` in a
- *  `_streaming_` helper; the NK_API_COMPTIME entry point is a thin non-streaming
- *  wrapper. NEON intrinsics cannot be called from streaming mode, so Mahalanobis
- *  functions split into a streaming helper (SVE) and a non-streaming wrapper
- *  (NEON sqrt).
+ *  On Apple M4, SVE instructions are only available inside SME streaming mode. Functions using SVE
+ *  intrinsics are marked @c __arm_locally_streaming in a @c _streaming_ helper; the NK_API_COMPTIME
+ *  entry point is a thin non-streaming wrapper. NEON intrinsics cannot be called from streaming
+ *  mode, so Mahalanobis functions split into a streaming SVE helper and a non-streaming NEON
+ *  wrapper for the sqrt.
  *
- *  @see Ogita, T., Rump, S.M., Oishi, S. (2005). "Accurate Sum and Dot Product"
+ *  Dot2 follows Ogita, T., Rump, S.M., Oishi, S. (2005), "Accurate Sum and Dot Product".
  */
 #ifndef NK_CURVED_SMEF64_H
 #define NK_CURVED_SMEF64_H

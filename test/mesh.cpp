@@ -1,8 +1,8 @@
 /**
- *  @brief RMSD, Kabsch, and Umeyama alignment tests.
  *  @file test/mesh.cpp
  *  @author Ash Vardanian
  *  @date December 28, 2025
+ *  @brief RMSD, Kabsch, and Umeyama alignment tests.
  */
 
 #include "test.hpp"
@@ -10,9 +10,7 @@
 
 using namespace ashvardanian::numkong::test;
 
-/**
- *  @brief Test RMSD kernel.
- */
+/** Test RMSD kernel. */
 template <typename scalar_type_>
 error_stats_t test_rmsd(typename scalar_type_::mesh_kernel_t kernel) {
     using scalar_t = scalar_type_;
@@ -56,9 +54,7 @@ error_stats_t test_rmsd(typename scalar_type_::mesh_kernel_t kernel) {
     return stats;
 }
 
-/**
- *  @brief Test Kabsch alignment kernel.
- */
+/** Test Kabsch alignment kernel. */
 template <typename scalar_type_>
 error_stats_t test_kabsch(typename scalar_type_::mesh_kernel_t kernel) {
     using scalar_t = scalar_type_;
@@ -102,9 +98,7 @@ error_stats_t test_kabsch(typename scalar_type_::mesh_kernel_t kernel) {
     return stats;
 }
 
-/**
- *  @brief Test Umeyama alignment kernel.
- */
+/** Test Umeyama alignment kernel. */
 template <typename scalar_type_>
 error_stats_t test_umeyama(typename scalar_type_::mesh_kernel_t kernel) {
     using scalar_t = scalar_type_;

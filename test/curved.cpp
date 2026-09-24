@@ -1,8 +1,8 @@
 /**
- *  @brief Bilinear and Mahalanobis tests.
  *  @file test/curved.cpp
  *  @author Ash Vardanian
  *  @date December 28, 2025
+ *  @brief Bilinear and Mahalanobis tests.
  */
 
 #include "test.hpp"
@@ -11,11 +11,11 @@
 using namespace ashvardanian::numkong::test;
 
 /**
- *  @brief Makes a square matrix positive semi-definite in-place via symmetrization + diagonal dominance.
+ *  @brief Makes a square matrix positive semi-definite via symmetrization and diagonal dominance.
  *
- *  Uses Gershgorin's circle theorem: a symmetric matrix with each diagonal entry exceeding
- *  the absolute row sum of its off-diagonal entries is positive definite. This ensures
- *  `(a-b)^T M (a-b) >= 0`, preventing NaN from sqrt in Mahalanobis distance.
+ *  Uses Gershgorin's circle theorem, so that (a − b)ᵀ × M × (a − b) ≥ 0 keeps the Mahalanobis
+ *  square root from NaN: a symmetric matrix whose diagonal entries each exceed the absolute row sum
+ *  of their off-diagonal entries is positive definite.
  */
 template <typename scalar_type_>
 void make_psd(scalar_type_ *data, nk_size_t n) {
@@ -35,9 +35,7 @@ void make_psd(scalar_type_ *data, nk_size_t n) {
     }
 }
 
-/**
- *  @brief Template for bilinear form test: a^T * M * b
- */
+/** Template for bilinear form test: a^T * M * b. */
 template <typename scalar_type_>
 error_stats_t test_bilinear(typename scalar_type_::curved_kernel_t kernel) {
     using scalar_t = scalar_type_;
@@ -70,9 +68,7 @@ error_stats_t test_bilinear(typename scalar_type_::curved_kernel_t kernel) {
     return stats;
 }
 
-/**
- *  @brief Template for Mahalanobis distance test: sqrt((a-b)^T * M * (a-b))
- */
+/** Template for Mahalanobis distance test: sqrt((a-b)^T * M * (a-b)). */
 template <typename scalar_type_>
 error_stats_t test_mahalanobis(typename scalar_type_::curved_kernel_t kernel) {
     using scalar_t = scalar_type_;

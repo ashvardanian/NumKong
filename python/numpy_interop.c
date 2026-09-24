@@ -1,17 +1,17 @@
 /**
- *  @brief Register NumKong scalars as NumPy custom dtypes via runtime capsule API.
  *  @file python/numpy_interop.c
  *  @author Ash Vardanian
  *  @date March 14, 2026
+ *  @brief Register NumKong scalars as NumPy custom dtypes via runtime capsule API.
  *
- *  Registers custom NumPy dtypes for bfloat16, float16, float8_e4m3, float8_e5m2,
- *  float6_e2m3, and float6_e3m2 without including any numpy headers. Instead, we
- *  define minimal ABI-compatible struct layouts and extract the C API function pointers
- *  at runtime from NumPy's capsule.
+ *  Registers custom NumPy dtypes for bfloat16, float16, float8_e4m3, float8_e5m2, float6_e2m3, and
+ *  float6_e3m2 without including any NumPy headers. Instead, we define minimal ABI-compatible
+ *  struct layouts and extract the C API function pointers at runtime from NumPy's capsule.
  *
  *  NumPy 2.x uses two different descriptor layouts:
- *  - PyArray_DescrProto (1.x-compatible layout) — input to RegisterDataType.
- *  - PyArray_Descr (2.x layout) — returned by DescrFromType, input to RegisterCastFunc.
+ *  - PyArray_DescrProto, 1.x-compatible layout — input to RegisterDataType.
+ *  - PyArray_Descr, 2.x layout — returned by DescrFromType, input to RegisterCastFunc.
+ *
  *  We define both to avoid struct layout mismatches that caused crashes on NumPy 2.4.
  */
 
@@ -57,9 +57,8 @@ enum {
 /**
  *  @brief ABI-compatible layout for PyArray_ArrFuncs.
  *
- *  CRITICAL: The struct starts with `cast[21]` (NPY_NTYPES_ABI_COMPATIBLE = 21)
- *  function pointers. Omitting this shifts every subsequent field by 168 bytes
- *  on 64-bit, causing memory corruption.
+ *  CRITICAL: The struct starts with `cast[21]`, NPY_NTYPES_ABI_COMPATIBLE = 21, function pointers.
+ *  Omitting this shifts every subsequent field by 168 bytes on 64-bit, causing memory corruption.
  */
 typedef struct {
     void (*cast[NK_NPY_NTYPES_ABI_COMPATIBLE])(void *, void *, npy_intp, void *, void *);
@@ -88,10 +87,10 @@ typedef struct {
 } nk_PyArray_ArrFuncs;
 
 /**
- *  @brief PyArray_DescrProto layout (1.x-compatible) — input to RegisterDataType.
+ *  @brief PyArray_DescrProto layout, 1.x-compatible — input to RegisterDataType.
  *
- *  Uses `int elsize`, `int alignment`, includes `subarray`, `fields`, `names`,
- *  `f` (ArrFuncs pointer), `metadata`, `c_metadata`, `hash`.
+ *  Uses `int elsize`, `int alignment`, includes @c subarray, @c fields, @c names, @c f, the
+ *  ArrFuncs pointer, @c metadata, @c c_metadata, @c hash.
  */
 typedef struct {
     PyObject_HEAD PyTypeObject *typeobj;
@@ -112,7 +111,7 @@ typedef struct {
 } nk_PyArray_DescrProto;
 
 /**
- *  @brief PyArray_Descr layout (2.x) — returned by DescrFromType, input to RegisterCastFunc.
+ *  @brief PyArray_Descr layout, 2.x — returned by DescrFromType, input to RegisterCastFunc.
  *
  *  Uses `npy_intp elsize`, `npy_intp alignment`, no `f` pointer. Much smaller.
  *  We only read `type_num` from this; remaining fields are opaque.
@@ -180,7 +179,7 @@ static inline int nk_register_can_cast(nk_PyArray_Descr *descr, int totype, int 
     return ((nk_RegisterCanCast_t)nk_numpy_api[NK_NPY_API_RegisterCanCast])(descr, totype, scalar);
 }
 
-/** @brief DType conversion ops — one per custom dtype. */
+/** DType conversion ops — one per custom dtype. */
 typedef struct {
     size_t elem_size;
     void (*to_f32)(void const *src, nk_f32_t *dst);
@@ -203,7 +202,7 @@ static nk_np_dtype_ops_t const nk_ops_e2m3 = {sizeof(nk_e2m3_t), (nk_to_f32_fn_t
 static nk_np_dtype_ops_t const nk_ops_e3m2 = {sizeof(nk_e3m2_t), (nk_to_f32_fn_t)nk_e3m2_to_f32,
                                               (nk_from_f32_fn_t)nk_f32_to_e3m2};
 
-/** @brief Generic ArrFuncs implementations — parameterized by ops. */
+/*  Generic ArrFuncs implementations, parameterized by ops. */
 
 static PyObject *nk_np_getitem_generic(void *data, nk_np_dtype_ops_t const *ops) {
     nk_f32_t f32;
@@ -239,9 +238,9 @@ static int nk_np_nonzero_generic(void *data, nk_np_dtype_ops_t const *ops) {
     return f32 != 0.0f;
 }
 
-// Per-dtype trampolines: NumPy's ArrFuncs/cast signatures don't carry user-data,
-// so each dtype needs thin wrappers that close over the ops struct.
-// 5 ArrFuncs x 6 dtypes = 30, plus 4 cast directions x 6 dtypes = 24 using nk_cast.
+/*  Per-dtype trampolines: NumPy's ArrFuncs/cast signatures don't carry user-data, so each dtype
+ *  needs thin wrappers that close over the ops struct. 5 ArrFuncs × 6 dtypes = 30, plus 4 cast
+ *  directions × 6 dtypes = 24 using nk_cast. */
 
 // clang-format off
 static PyObject *nk_np_getitem_bf16(void *d, void *a) { nk_unused_(a); return nk_np_getitem_generic(d, &nk_ops_bf16); }
@@ -310,7 +309,7 @@ static void nk_np_cast_f64_to_e2m3(void *f, void *t, npy_intp n, void *fa, void 
 static void nk_np_cast_f64_to_e3m2(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast(f, nk_f64_k, (nk_size_t)n, t, nk_e3m2_k); }
 // clang-format on
 
-/** @brief Initialize an ArrFuncs struct with the 5 required function pointers. */
+/** Initialize an ArrFuncs struct with the 5 required function pointers. */
 static void nk_init_arrfuncs(nk_PyArray_ArrFuncs *af,                              //
                              PyObject *(*getitem)(void *, void *),                 //
                              int (*setitem)(PyObject *, void *, void *),           //
@@ -327,10 +326,10 @@ static void nk_init_arrfuncs(nk_PyArray_ArrFuncs *af,                           
 }
 
 /**
- *  @brief Initialize a DescrProto (1.x layout) for a custom dtype.
+ *  @brief Initialize a DescrProto, 1.x layout, for a custom dtype.
  *
- *  We borrow the ob_type (metaclass) from an existing NumPy descriptor
- *  so that NumPy recognizes our descriptor as a valid PyArray_Descr subclass.
+ *  We borrow the ob_type, metaclass, from an existing NumPy descriptor so that NumPy recognizes our
+ *  descriptor as a valid PyArray_Descr subclass.
  */
 static void nk_init_proto(nk_PyArray_DescrProto *proto, nk_PyArray_ArrFuncs *af, PyTypeObject *scalar_type, char kind,
                           char type_char, int elsize) {
@@ -353,7 +352,7 @@ static void nk_init_proto(nk_PyArray_DescrProto *proto, nk_PyArray_ArrFuncs *af,
     proto->hash = -1;
 }
 
-/** @brief Register cast functions for a custom dtype to/from float32 and float64. */
+/** Register cast functions for a custom dtype to/from float32 and float64. */
 static int nk_register_casts(nk_PyArray_DescrProto *proto,                                    //
                              void (*cast_to_f32)(void *, void *, npy_intp, void *, void *),   //
                              void (*cast_from_f32)(void *, void *, npy_intp, void *, void *), //
@@ -372,7 +371,7 @@ static int nk_register_casts(nk_PyArray_DescrProto *proto,                      
     return 0;
 }
 
-/** @brief Set the `.dtype` attribute on a scalar type to its registered NumPy descriptor. */
+/** Set the `.dtype` attribute on a scalar type to its registered NumPy descriptor. */
 static int nk_set_dtype_attr(PyTypeObject *scalar_type, int type_num) {
     nk_PyArray_Descr *d = nk_descr_from_type(type_num);
     if (!d) return -1;
@@ -387,7 +386,7 @@ static int nk_set_dtype_attr(PyTypeObject *scalar_type, int type_num) {
     return rc;
 }
 
-/** @brief Registration descriptor for one custom dtype. */
+/** Registration descriptor for one custom dtype. */
 typedef struct {
     PyTypeObject *scalar_type;
     char kind, type_char;

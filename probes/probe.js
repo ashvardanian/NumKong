@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 /**
- * NumKong ISA probe script for Node.js / node-gyp builds.
+ *  @file probes/probe.js
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe script for Node.js and node-gyp builds.
  *
- * Try-compiles each probe .c file from probes/ to determine which ISA
- * extensions the current compiler supports. Writes results to
- * build/nk_probes.h as #define NK_TARGET_FOO 1/0.
+ *  Try-compiles each probe .c file from probes/ to determine which ISA extensions the current
+ *  compiler supports, and writes the results to build/nk_probes.h as `#define NK_TARGET_FOO 1/0`.
  *
- * Usage: node scripts/probe_isa.js
- * Called automatically via package.json "preinstall" hook.
+ *  Usage: node scripts/probe_isa.js, called automatically via the package.json "preinstall" hook.
  */
 
 const { execSync } = require("child_process");
@@ -39,9 +40,9 @@ function probeIsa(probeFile, flags) {
     }
 }
 
-// Probe table: [define, probeFile, gccFlags, msvcFlags]
-// x86 probes: GCC flags are minimal — each implies its prerequisites.
-// E.g., -mavx512vnni implies -mavx512f; -mavxvnni implies -mavx2.
+/** Probe table of `[define, probeFile, gccFlags, msvcFlags]` rows. The x86 GCC flags are minimal,
+ *  as each implies its prerequisites: `-mavx512vnni` implies `-mavx512f`, and `-mavxvnni` implies
+ *  `-mavx2`. */
 const PROBES = [
     // x86
     ["NK_TARGET_HASWELL", "probes/x86_haswell.c", ["-mavx2", "-mfma", "-mf16c"], ["/arch:AVX2"]],
@@ -55,9 +56,8 @@ const PROBES = [
     ["NK_TARGET_TURIN", "probes/x86_turin.c", ["-mavx512vp2intersect"], ["/arch:AVX512"]],
     ["NK_TARGET_ALDER", "probes/x86_alder.c", ["-mavxvnni"], ["/arch:AVX2"]],
     ["NK_TARGET_SIERRA", "probes/x86_sierra.c", ["-mavxvnniint8"], ["/arch:AVX2"]],
-    // ARM NEON base probes — msvc_flags are empty because MSVC does not define
-    // __ARM_FEATURE_* macros via /arch: flags. For MSVC header-only builds,
-    // types.h infers features from __ARM_ARCH level instead.
+    // ARM NEON base probes, with empty MSVC flags because MSVC does not define `__ARM_FEATURE_*`
+    // macros via /arch: flags, so its header-only builds infer them from `__ARM_ARCH` in types.h.
     ["NK_TARGET_NEON", "probes/arm_neon.c", ["-march=armv8-a+simd"], []], // FEAT_AdvSIMD
     ["NK_TARGET_NEONHALF", "probes/arm_neon_half.c", ["-march=armv8.2-a+simd+fp16"], ["/arch:armv8.2"]], // FEAT_FP16
     ["NK_TARGET_NEONSDOT", "probes/arm_neon_sdot.c", ["-march=armv8.2-a+dotprod"], ["/arch:armv8.4"]], // FEAT_DotProd

@@ -1,4 +1,9 @@
-/* NumKong ISA probe: SVE2P1 */
+/**
+ *  @file probes/arm_sve2p1.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for SVE2P1.
+ */
 #if defined(_WIN32)
 #error "SVE/SME not supported on Windows ARM"
 #endif

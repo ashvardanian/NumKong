@@ -1,11 +1,11 @@
 /**
- *  @brief Trigonometry and RoPE declarations for NumKong Python bindings.
  *  @file python/trigonometry.h
  *  @author Ash Vardanian
  *  @date July 7, 2026
+ *  @brief Trigonometry and RoPE declarations for NumKong Python bindings.
  *
- *  Forward declarations for the trigonometric (sin/cos/atan) and rotary position
- *  embedding (RoPE) api_* functions, and their documentation strings.
+ *  Forward declarations for the trigonometric, sin/cos/atan, and rotary position embedding, RoPE,
+ *  api_* functions, and their documentation strings.
  */
 #ifndef NK_PYTHON_TRIGONOMETRY_H
 #define NK_PYTHON_TRIGONOMETRY_H
@@ -16,13 +16,16 @@
 extern "C" {
 #endif
 
-/** @brief Elementwise sine. */
+/** Elementwise sine. */
 PyObject *api_sin(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
-/** @brief Elementwise cosine. */
+
+/** Elementwise cosine. */
 PyObject *api_cos(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
-/** @brief Elementwise arctangent. */
+
+/** Elementwise arctangent. */
 PyObject *api_atan(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
-/** @brief NeoX split-half rotary position embedding (RoPE), separate aliasable output. */
+
+/** NeoX split-half rotary position embedding, RoPE, separate aliasable output. */
 PyObject *api_rope(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
 extern char const doc_sin[];

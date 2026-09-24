@@ -1,8 +1,8 @@
 /**
- *  @brief Shared definitions for the NumKong library.
  *  @file include/numkong/types.h
  *  @author Ash Vardanian
  *  @date October 2, 2023
+ *  @brief Shared definitions for the NumKong library.
  *
  *  Defines:
  *
@@ -10,69 +10,73 @@
  *  - Macros for internal compiler/hardware checks, like: `NK_TARGET_ARM64_`.
  *  - Macros for feature controls, like: `NK_TARGET_NEON`
  *
- *  @section fp8_types FP8 Numeric Types
+ *  @section types_fp8 FP8 Numeric Types
  *
- *  There are several variants of 8-bit floating point types supported by different industry memebers
- *  with different hardware support. None are part of the IEEE 754 standard, but some are part of the
- *  Open Compute Project (OCP) 8-bit Floating Point Specification (OFP8):
+ *  There are several 8-bit floating-point variants from different industry members, with different
+ *  hardware support. None are part of the IEEE 754 standard, but some are part of the Open Compute
+ *  Project's OCP 8-bit Floating Point Specification, OFP8:
  *
- *      Format    Bias  Sign  Exp  Mant  Range   Infinity            NaN               Standard
- *      E4M3FN    7     1     4    3     ±448    ❌ No               Only 0x7F/0xFF    OCP, NVIDIA, ONNX
- *      E5M2      15    1     5    2     ±57344  ✅ Yes (0x7C/0xFC)  0x7D-7F, 0xFD-FF  OCP, IEEE-like
- *      E4M3FNUZ  8     1     4    3     ±240    ❌ No               0x80 only         GraphCore, ONNX
- *      E5M2FNUZ  16    1     5    2     ±57344  ❌ No               0x80 only         GraphCore, ONNX
+ *  @verbatim
+ *  Format    Bias  Sign  Exp  Mant  Range   Infinity        NaN               Standard
+ *  E4M3FN    7     1     4    3     ±448    No              Only 0x7F/0xFF    OCP, NVIDIA, ONNX
+ *  E5M2      15    1     5    2     ±57344  Yes (0x7C/0xFC) 0x7D-7F, 0xFD-FF  OCP, IEEE-like
+ *  E4M3FNUZ  8     1     4    3     ±240    No              0x80 only         GraphCore, ONNX
+ *  E5M2FNUZ  16    1     5    2     ±57344  No              0x80 only         GraphCore, ONNX
+ *  @endverbatim
  *
- *  In currently available and soon incoming harware, only two series of models prioritze FNUZ over OCP:
+ *  Only two series of currently available and upcoming models prioritize FNUZ over OCP:
  *
  *  - GraphCore IPUs were the original platform proposing FNUZ
  *  - AMD MI300 series based on CDNA3 implements FNUZ, but not OCP
  *  - AMD MI350+ series based on CDNA4 switch to OCP and remove FNUZ
  *  - NVIDIA Hopper and Blackwell only support E4M3FN, E5M2
- *  - Intel AVX10.2 defines HF8 (E4M3FN) and BF8 (E5M2) - OCP-aligned
- *  - Arm implements E4M3 (meaning E4M3FN) and E5M2 with a shared `__mfp8` type and a `FPMR` format selector
+ *  - Intel AVX10.2 defines HF8 as E4M3FN and BF8 as E5M2, OCP-aligned
+ *  - Arm implements E4M3, meaning E4M3FN, and E5M2 sharing one @c __mfp8 type and @c FPMR selector
  *
- *  For brevety, across NumKong, "E4M3" implies "E4M3FN".
+ *  For brevity, across NumKong, "E4M3" implies "E4M3FN".
  *
  *  @see https://www.opencompute.org/documents/ocp-8-bit-floating-point-specification-ofp8-revision-1-0-2023-12-01-pdf-1
  *  @see FP8 Formats for Deep Learning: https://arxiv.org/pdf/2209.05433
  *  @see ONNX Float8 Types: https://onnx.ai/onnx/technical/float8.html
  *
- *  @section fp6_types FP6 Numeric Types
+ *  @section types_fp6 FP6 Numeric Types
  *
- *  The OCP Microscaling (MX) v1.0 specification defines two 6-bit floating-point formats
- *  for block-scaled quantization. Both are "FN" (finite-numeric): all bit patterns map
- *  to real numbers with no Inf or NaN codes. Stored byte-aligned with 2 bits of padding.
+ *  The OCP Microscaling, MX, v1.0 specification defines two 6-bit floating-point formats for
+ *  block-scaled quantization. Both are "FN", short for finite-numeric: all bit patterns map to real
+ *  numbers with no Inf or NaN codes, stored byte-aligned with 2 bits of padding.
  *
- *      Format  Bias  Sign  Exp  Mant  Range   Subnormals  Infinity  NaN  Standard
- *      E2M3    1     1     2    3     ±7.5    14 of 64    ❌ No     ❌   OCP MX v1.0
- *      E3M2    3     1     3    2     ±28     6 of 64     ❌ No     ❌   OCP MX v1.0
+ *  @verbatim
+ *  Format  Bias  Sign  Exp  Mant  Range   Subnormals  Infinity  NaN  Standard
+ *  E2M3    1     1     2    3     ±7.5    14 of 64    No        No   OCP MX v1.0
+ *  E3M2    3     1     3    2     ±28     6 of 64     No        No   OCP MX v1.0
+ *  @endverbatim
  *
- *  E2M3 favors mantissa precision (3 bits) for narrow dynamic range — ideal for activations.
- *  E3M2 favors exponent range (3 bits) for wider dynamic range — suited for weights.
- *  Both follow IEEE 754 subnormal rules: when exp=0, the implicit leading bit is 0,
- *  giving value = (-1)^s × 0.mmm × 2^(1-bias). This provides gradual underflow to zero.
+ *  E2M3 favors 3-bit mantissa precision for narrow dynamic range, ideal for activations. E3M2
+ *  favors 3-bit exponent range for wider dynamic range, suited for weights. Both follow IEEE 754
+ *  subnormal rules: when exp=0, the implicit leading bit is 0, giving value = (-1)^s × 0.mmm ×
+ *  2^(1-bias), which provides gradual underflow to zero.
  *
- *  No hardware directly computes on FP6. On Arm with FEAT_FP8DOT4, E2M3 values can be
- *  losslessly promoted to E4M3 (same mantissa width, rebias exponent by +6) and E3M2 to
- *  E5M2 (same mantissa width, rebias exponent by +12), then fed to FDOT instructions.
- *  Subnormal values (exp=0) require normalization during this promotion.
+ *  No hardware directly computes on FP6. On Arm with FEAT_FP8DOT4, E2M3 values can be losslessly
+ *  promoted to E4M3 — same mantissa width, rebias exponent by +6 — and E3M2 to E5M2 — same mantissa
+ *  width, rebias exponent by +12 — then fed to FDOT instructions. Subnormal values, exp=0, require
+ *  normalization during this promotion.
  *
  *  @see https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf
- *  @see https://arxiv.org/abs/2401.14112 (FP6-LLM paper)
+ *  @see The FP6-LLM paper: https://arxiv.org/abs/2401.14112
  */
 #ifndef NK_TYPES_H
 #define NK_TYPES_H
 
-// On Linux, `_GNU_SOURCE` must be defined before any system headers
-// to expose `syscall` and other GNU extensions when C extensions are disabled.
+/** On Linux, @c _GNU_SOURCE must be defined before any system headers to expose @c syscall and
+ *  other GNU extensions when C extensions are disabled. */
 #if defined(__linux__) && !defined(_GNU_SOURCE)
 #define _GNU_SOURCE
 #endif
 
-// MSan (MemorySanitizer) cannot track data flow through SVE horizontal reductions
-// like `svaddv`, which move data from vector registers to scalar registers via
-// architecture-specific paths invisible to the compiler. `nk_unpoison_` marks the
-// resulting scalar as initialized so MSan does not report false positives.
+/*  MSan, short for MemorySanitizer, cannot track data flow through SVE horizontal reductions like
+ *  @c svaddv, which move data from vector registers to scalar registers via architecture-specific
+ *  paths invisible to the compiler. @c nk_unpoison_ marks the resulting scalar as initialized so
+ *  MSan does not report false positives. */
 #if defined(__has_feature)
 #if __has_feature(memory_sanitizer)
 #include <sanitizer/msan_interface.h>
@@ -83,7 +87,7 @@
 #define nk_unpoison_(ptr, size) (void)(ptr), (void)(size)
 #endif
 
-// Inferring target OS: Windows, macOS, Linux, or FreeBSD
+/* Inferring target OS: Windows, macOS, Linux, or FreeBSD */
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
 #define NK_DEFINED_WINDOWS_ 1
 #elif defined(__APPLE__) && defined(__MACH__)
@@ -94,14 +98,13 @@
 #define NK_DEFINED_FREEBSD_ 1
 #endif
 
-/*  Function annotations on two axes — role and, for internal helpers, inlining policy:
- *  - `NK_API_COMPTIME`    public API, ISA tier resolved at compile time (header-inline).
- *  - `NK_API_RUNTIME`     public API dispatched at runtime — the only role with cross-TU linkage.
- *  - `NK_HELPER_AUTO`     internal helper; compiler decides inlining (same expansion as `NK_API_COMPTIME`).
- *  - `NK_HELPER_INLINE`   internal helper forced inline (structural: devirtualizing driver loops).
- *  - `NK_HELPER_NOINLINE` internal helper forced out-of-line. Omits `inline` deliberately — GCC ignores
- *    `noinline` on an `inline` function. */
-
+/** Base of function annotations, which run on two axes — role and, for helpers, inlining policy:
+ *  - @c NK_API_COMPTIME    public API, ISA tier resolved at compile time, header-inline.
+ *  - @c NK_API_RUNTIME     public API dispatched at runtime — the only role with cross-TU linkage.
+ *  - @c NK_HELPER_AUTO     internal helper; compiler decides inlining, same as @c NK_API_COMPTIME.
+ *  - @c NK_HELPER_INLINE   internal helper forced inline, for devirtualizing driver loops.
+ *  - @c NK_HELPER_NOINLINE internal helper forced out-of-line; omits @c inline since GCC ignores
+ *    @c noinline on an @c inline function. */
 #define NK_C_INLINE inline static
 
 #if defined(__GNUC__) || defined(__clang__)
@@ -121,7 +124,7 @@
 #define NK_API_COMPTIME NK_MAYBE_UNUSED NK_C_INLINE
 #define NK_HELPER_AUTO  NK_MAYBE_UNUSED NK_C_INLINE
 
-// Exported symbol under runtime dispatch; otherwise the header-inline tier.
+/** Exported symbol under runtime dispatch; otherwise the header-inline tier. */
 #if NK_RUNTIME_DISPATCH
 #if defined(_WIN32) || defined(__CYGWIN__)
 #define NK_API_RUNTIME __declspec(dllexport)
@@ -134,8 +137,8 @@
 #define NK_API_RUNTIME NK_C_INLINE
 #endif // NK_RUNTIME_DISPATCH
 
-// Vector union types use type punning by design (write as f16, read as f32, etc.).
-// Without this, GCC at -O2 assumes strict aliasing and may optimize away valid accesses.
+/** Vector union types use type punning by design — write as f16, read as f32, and so on. Without
+ *  this, GCC at -O2 assumes strict aliasing and may optimize away valid accesses. */
 #if defined(__GNUC__) || defined(__clang__)
 #define NK_MAY_ALIAS_ __attribute__((may_alias))
 #else
@@ -148,24 +151,23 @@
 #define nk_has_builtin_(x) 0
 #endif
 
-// True when the compiler reserves `x` as a type keyword rather than treating it as a plain
-// identifier. Clang-only; the wrapper is what lets `#if` mention it on GCC, where the preprocessor
-// would still have to parse `__is_identifier(...)` even behind a `defined()` guard.
+/** True when the compiler reserves @c x as a type keyword rather than treating it as a plain
+ *  identifier. Clang-only; the wrapper is what lets `#if` mention it on GCC, where the preprocessor
+ *  would still have to parse `__is_identifier(...)` even behind a `defined()` guard. */
 #if defined(__is_identifier)
 #define nk_is_keyword_(x) (!__is_identifier(x))
 #else
 #define nk_is_keyword_(x) 0
 #endif
 
-// Allow SIMD kernels to redirect small inputs to serial implementations.
-// Enabled by default for production use. Tests and benchmarks may disable
-// this to isolate SIMD path behavior on small inputs.
+/** Allow SIMD kernels to redirect small inputs to serial implementations. Enabled by default for
+ *  production use. Tests and benchmarks may disable this to isolate SIMD path behavior. */
 #if !defined(NK_ALLOW_ISA_REDIRECT)
 #define NK_ALLOW_ISA_REDIRECT 1
 #endif
 
-// Compiling for 64-bit Arm: NK_TARGET_ARM64_
-// https://arm-software.github.io/acle/main/acle.html
+/*  Compiling for 64-bit Arm: NK_TARGET_ARM64_
+ *  @see Arm C Language Extensions: https://arm-software.github.io/acle/main/acle.html */
 #if !defined(NK_TARGET_ARM64_)
 #if defined(__aarch64__) || defined(_M_ARM64)
 #define NK_TARGET_ARM64_ 1
@@ -174,8 +176,8 @@
 #endif // defined(__aarch64__) || defined(_M_ARM64)
 #endif // !defined(NK_TARGET_ARM64_)
 
-// Compiling for x86: NK_TARGET_X8664_
-// https://www.intel.com/content/www/us/en/docs/dpcpp-cpp-compiler/developer-guide-reference/2024-2/additional-predefined-macros.html
+/*  Compiling for x86: NK_TARGET_X8664_
+ *  @see Intel predefined macros: https://www.intel.com/content/www/us/en/docs/dpcpp-cpp-compiler/developer-guide-reference/2024-2/additional-predefined-macros.html */
 #if !defined(NK_TARGET_X8664_)
 #if defined(__x86_64__) || defined(_M_X64)
 #define NK_TARGET_X8664_ 1
@@ -184,7 +186,7 @@
 #endif // defined(__x86_64__) || defined(_M_X64)
 #endif // !defined(NK_TARGET_X8664_)
 
-// Compiling for RISC-V: NK_TARGET_RISCV64_
+/* Compiling for RISC-V: NK_TARGET_RISCV64_ */
 #if !defined(NK_TARGET_RISCV64_)
 #if defined(__riscv) && (__riscv_xlen == 64)
 #define NK_TARGET_RISCV64_ 1
@@ -193,7 +195,7 @@
 #endif // defined(__riscv) && (__riscv_xlen == 64)
 #endif // !defined(NK_TARGET_RISCV64_)
 
-// Compiling for LoongArch: NK_TARGET_LOONGARCH64_
+/* Compiling for LoongArch: NK_TARGET_LOONGARCH64_ */
 #if !defined(NK_TARGET_LOONGARCH64_)
 #if defined(__loongarch__)
 #define NK_TARGET_LOONGARCH64_ 1
@@ -202,7 +204,7 @@
 #endif // defined(__loongarch__)
 #endif // !defined(NK_TARGET_LOONGARCH64_)
 
-// Compiling for Power: NK_TARGET_POWER64_
+/* Compiling for Power: NK_TARGET_POWER64_ */
 #if !defined(NK_TARGET_POWER64_)
 #if defined(__powerpc64__) || defined(__ppc64__) || defined(_ARCH_PPC64)
 #define NK_TARGET_POWER64_ 1
@@ -211,7 +213,7 @@
 #endif // defined(__powerpc64__) || defined(__ppc64__) || defined(_ARCH_PPC64)
 #endif // !defined(NK_TARGET_POWER64_)
 
-// Compiling for WASM: NK_TARGET_WASM_
+/* Compiling for WASM: NK_TARGET_WASM_ */
 #if !defined(NK_TARGET_WASM_)
 #if defined(__wasm__) || defined(__EMSCRIPTEN__)
 #define NK_TARGET_WASM_ 1
@@ -220,7 +222,7 @@
 #endif
 #endif // !defined(NK_TARGET_WASM_)
 
-// Compiling for NVIDIA GPUs: NK_TARGET_CUDA_, set by both NVCC and Clang CUDA
+/* Compiling for NVIDIA GPUs: NK_TARGET_CUDA_, set by both NVCC and Clang CUDA */
 #if !defined(NK_TARGET_CUDA_)
 #if defined(__CUDACC__) && !defined(__HIP_PLATFORM_AMD__)
 #define NK_TARGET_CUDA_ 1
@@ -228,7 +230,7 @@
 #define NK_TARGET_CUDA_ 0
 #endif // defined(__CUDACC__) && !defined(__HIP_PLATFORM_AMD__)
 #endif // !defined(NK_TARGET_CUDA_)
-// Compiling for AMD GPUs: NK_TARGET_HIP_, set by HIP-Clang
+/* Compiling for AMD GPUs: NK_TARGET_HIP_, set by HIP-Clang */
 #if !defined(NK_TARGET_HIP_)
 #if defined(__HIP__) && defined(__HIP_PLATFORM_AMD__)
 #define NK_TARGET_HIP_ 1
@@ -236,22 +238,22 @@
 #define NK_TARGET_HIP_ 0
 #endif // defined(__HIP__) && defined(__HIP_PLATFORM_AMD__)
 #endif // !defined(NK_TARGET_HIP_)
-// Compiling for Apple GPUs: NK_TARGET_METAL_, set by the build since no C compiler predefines it
+
+/** Compiling for Apple GPUs: set by the build, since no C compiler predefines it. */
 #if !defined(NK_TARGET_METAL_)
 #define NK_TARGET_METAL_ 0
 #endif // !defined(NK_TARGET_METAL_)
 
-// WASI hosted mode: NK_DEFINED_WASI_
-// When NK_WASI_HOSTED=ON in CMake, this is predefined to 1 so the library
-// imports capability probes (nk_has_v128, nk_has_relaxed) from the host.
-// Standalone runtimes (Wasmer, Wasmtime CLI) cannot supply those imports,
-// so the default for plain __wasi__ builds is 0 (compile-time detection).
+/** WASI hosted mode, NK_DEFINED_WASI_:
+ *  When NK_WASI_HOSTED=ON in CMake, this is predefined to 1 so the library imports capability
+ *  probes — nk_has_v128, nk_has_relaxed — from the host. Wasmer and Wasmtime CLI cannot supply
+ *  them, so plain __wasi__ builds default to 0, detected at compile time. */
 #if !defined(NK_DEFINED_WASI_)
 #define NK_DEFINED_WASI_ 0
 #endif // !defined(NK_DEFINED_WASI_)
 
-// Compiling for WASM with SIMD128: NK_TARGET_V128
-// A module carries one SIMD tier, decided by the toolchain's `-msimd128`, so the flag alone sets it.
+/*  Compiling for WASM with SIMD128, NK_TARGET_V128:
+ *  A module carries one SIMD tier, chosen by the toolchain's `-msimd128` flag alone. */
 #undef NK_TARGET_V128
 #if NK_TARGET_WASM_ && defined(__wasm_simd128__)
 #define NK_TARGET_V128 1
@@ -259,8 +261,8 @@
 #define NK_TARGET_V128 0
 #endif
 
-// Compiling for WASM with Relaxed SIMD: NK_TARGET_V128RELAXED
-// Requires -mrelaxed-simd for FMA instructions (f32x4.relaxed_madd, f64x2.relaxed_madd)
+/*  Compiling for WASM with Relaxed SIMD, NK_TARGET_V128RELAXED:
+ *  Requires -mrelaxed-simd for FMA instructions: f32x4.relaxed_madd, f64x2.relaxed_madd */
 #undef NK_TARGET_V128RELAXED
 #if NK_TARGET_V128 && defined(__wasm_relaxed_simd__)
 #define NK_TARGET_V128RELAXED 1
@@ -268,7 +270,7 @@
 #define NK_TARGET_V128RELAXED 0
 #endif
 
-// Compiling for RISC-V Vector: NK_TARGET_RVV
+/* Compiling for RISC-V Vector: NK_TARGET_RVV */
 #if !defined(NK_TARGET_RVV) || (NK_TARGET_RVV && !NK_TARGET_RISCV64_)
 #if defined(__riscv_v) && (__riscv_v >= 1000000)
 #define NK_TARGET_RVV 1
@@ -278,8 +280,8 @@
 #endif // defined(__riscv_v) && (__riscv_v >= 1000000)
 #endif // !defined(NK_TARGET_RVV) || ...
 
-// Compiling for RISC-V Vector with Zvfh (f16): NK_TARGET_RVVHALF
-// Requires GCC 14+ or Clang 18+ for full intrinsic support
+/*  Compiling for RISC-V Vector with Zvfh, f16, NK_TARGET_RVVHALF:
+ *  Requires GCC 14+ or Clang 18+ for full intrinsic support */
 #if !defined(NK_TARGET_RVVHALF) || (NK_TARGET_RVVHALF && !NK_TARGET_RVV)
 #if defined(__riscv_zvfh) && (__riscv_zvfh > 0)
 #define NK_TARGET_RVVHALF 1
@@ -289,8 +291,8 @@
 #endif // defined(__riscv_zvfh) && (__riscv_zvfh > 0)
 #endif // !defined(NK_TARGET_RVVHALF) || ...
 
-// Compiling for RISC-V Vector with Zvfbfwma (bf16 widening FMA): NK_TARGET_RVVBF16
-// Requires GCC 14+ or Clang 18+ for full intrinsic support
+/*  Compiling for RISC-V Vector with Zvfbfwma, bf16 widening FMA, NK_TARGET_RVVBF16:
+ *  Requires GCC 14+ or Clang 18+ for full intrinsic support */
 #if !defined(NK_TARGET_RVVBF16) || (NK_TARGET_RVVBF16 && !NK_TARGET_RVV)
 #if defined(__riscv_zvfbfwma) && (__riscv_zvfbfwma > 0)
 #define NK_TARGET_RVVBF16 1
@@ -300,8 +302,8 @@
 #endif // defined(__riscv_zvfbfwma) && (__riscv_zvfbfwma > 0)
 #endif // !defined(NK_TARGET_RVVBF16) || ...
 
-// Compiling for RISC-V Vector with Zvbb (basic bit-manipulation): NK_TARGET_RVVBB
-// Provides vcpop.v (per-element popcount), vclz.v, vctz.v, vbrev.v, vrol.v, vror.v
+/*  Compiling for RISC-V Vector with Zvbb, basic bit-manipulation, NK_TARGET_RVVBB:
+ *  Provides per-element popcount via vcpop.v, plus vclz.v, vctz.v, vbrev.v, vrol.v, vror.v */
 #if !defined(NK_TARGET_RVVBB) || (NK_TARGET_RVVBB && !NK_TARGET_RVV)
 #if defined(__riscv_zvbb) && (__riscv_zvbb > 0)
 #define NK_TARGET_RVVBB 1
@@ -311,9 +313,9 @@
 #endif // defined(__riscv_zvbb) && (__riscv_zvbb > 0)
 #endif // !defined(NK_TARGET_RVVBB) || ...
 
-// Compiling for LoongArch LASX (256-bit SIMD): NK_TARGET_LOONGSONASX
-// LASX provides 32 × 256-bit vector registers, widening integer multiply-accumulate,
-// and f32-to-f64 conversion (xvfcvtl_d_s / xvfcvth_d_s) but no widening FMA.
+/*  Compiling for LoongArch LASX, 256-bit SIMD, NK_TARGET_LOONGSONASX:
+ *  LASX provides 32 × 256-bit vector registers, widening integer multiply-accumulate, and
+ *  f32-to-f64 conversion via xvfcvtl_d_s / xvfcvth_d_s, but no widening FMA. */
 #if !defined(NK_TARGET_LOONGSONASX) || (NK_TARGET_LOONGSONASX && !NK_TARGET_LOONGARCH64_)
 #if defined(__loongarch_asx)
 #define NK_TARGET_LOONGSONASX 1
@@ -323,10 +325,10 @@
 #endif // defined(__loongarch_asx)
 #endif // !defined(NK_TARGET_LOONGSONASX) || ...
 
-// Compiling for Power VSX (128-bit SIMD, POWER9+ baseline): NK_TARGET_POWERVSX
-// VSX provides 64 × 128-bit registers, FMA (vec_madd), vec_msum (multiply-sum), hardware f16
-// conversion (vec_extract_fp32_from_shorth/l), length-limited loads (vec_xl_len), per-byte
-// popcount (vec_popcnt), and vec_cmpne. Requires POWER9 (ISA 3.0) or newer.
+/*  Compiling for Power VSX, 128-bit SIMD, POWER9+ baseline, NK_TARGET_POWERVSX:
+ *  VSX provides 64 × 128-bit registers, FMA via vec_madd, vec_msum for multiply-sum, hardware f16
+ *  conversion via vec_extract_fp32_from_shorth/l, length-limited loads via vec_xl_len, per-byte
+ *  popcount via vec_popcnt, and vec_cmpne. Requires POWER9, ISA 3.0, or newer. */
 #if !defined(NK_TARGET_POWERVSX) || (NK_TARGET_POWERVSX && !NK_TARGET_POWER64_)
 #if defined(__VSX__) && defined(__POWER9_VECTOR__)
 #define NK_TARGET_POWERVSX 1
@@ -336,7 +338,7 @@
 #endif // defined(__VSX__)
 #endif // !defined(NK_TARGET_POWERVSX) || ...
 
-// Compiling for Arm: NK_TARGET_NEON (AArch64 only, AArch32 NEON is not supported)
+/* Compiling for Arm: NK_TARGET_NEON, AArch64 only — AArch32 NEON is not supported. */
 #if !defined(NK_TARGET_NEON) || (NK_TARGET_NEON && !NK_TARGET_ARM64_)
 #if (defined(__ARM_NEON) && defined(__aarch64__)) || (defined(_MSC_VER) && defined(_M_ARM64))
 #define NK_TARGET_NEON 1
@@ -346,7 +348,7 @@
 #endif // (defined(__ARM_NEON) && defined(__aarch64__)) || ...
 #endif // !defined(NK_TARGET_NEON) || ...
 
-// Compiling for Arm: NK_TARGET_NEONSDOT (FEAT_DotProd, AArch64 only)
+/* Compiling for Arm: NK_TARGET_NEONSDOT, FEAT_DotProd, AArch64 only. */
 #if !defined(NK_TARGET_NEONSDOT) || (NK_TARGET_NEONSDOT && !NK_TARGET_ARM64_)
 #if (defined(__ARM_FEATURE_DOTPROD) && defined(__aarch64__)) || \
     (defined(_MSC_VER) && defined(_M_ARM64) && __ARM_ARCH >= 804)
@@ -357,7 +359,7 @@
 #endif
 #endif // !defined(NK_TARGET_NEONSDOT) || ...
 
-// Compiling for Arm: NK_TARGET_NEONHALF (FEAT_FP16, AArch64 only)
+/* Compiling for Arm: NK_TARGET_NEONHALF, FEAT_FP16, AArch64 only. */
 #if !defined(NK_TARGET_NEONHALF) || (NK_TARGET_NEONHALF && !NK_TARGET_ARM64_)
 #if (defined(__ARM_FEATURE_FP16_VECTOR_ARITHMETIC) && defined(__aarch64__)) || \
     (defined(_MSC_VER) && defined(_M_ARM64) && __ARM_ARCH >= 802)
@@ -368,7 +370,7 @@
 #endif
 #endif // !defined(NK_TARGET_NEONHALF) || ...
 
-// Compiling for Arm: NK_TARGET_NEONFHM (FEAT_FHM, AArch64 only)
+/* Compiling for Arm: NK_TARGET_NEONFHM, FEAT_FHM, AArch64 only. */
 #if !defined(NK_TARGET_NEONFHM) || (NK_TARGET_NEONFHM && !NK_TARGET_ARM64_)
 #if (defined(__ARM_FEATURE_FP16_FML) && defined(__aarch64__)) || \
     (defined(_MSC_VER) && defined(_M_ARM64) && __ARM_ARCH >= 804)
@@ -379,7 +381,7 @@
 #endif
 #endif // !defined(NK_TARGET_NEONFHM) || ...
 
-// Compiling for Arm: NK_TARGET_NEONBFDOT (FEAT_BF16, AArch64 only)
+/* Compiling for Arm: NK_TARGET_NEONBFDOT, FEAT_BF16, AArch64 only. */
 #if !defined(NK_TARGET_NEONBFDOT) || (NK_TARGET_NEONBFDOT && !NK_TARGET_ARM64_)
 #if (defined(__ARM_FEATURE_BF16_VECTOR_ARITHMETIC) && defined(__aarch64__)) || \
     (defined(_MSC_VER) && defined(_M_ARM64) && __ARM_ARCH >= 806)
@@ -390,9 +392,9 @@
 #endif
 #endif // !defined(NK_TARGET_NEONBFDOT) || ...
 
-// Compiling for Arm: NK_TARGET_NEONFP8 (NEON FP8 extensions, FEAT_FP8DOT4)
-// ACLE macro __ARM_FEATURE_FP8DOT4 defined by GCC 15+ and Clang 21+ when +fp8dot4 is enabled.
-// Older compilers lack mfloat8x16_t and the fp8dot4 target attribute entirely.
+/*  Compiling for Arm: NK_TARGET_NEONFP8, NEON FP8 extensions, FEAT_FP8DOT4. ACLE macro
+ *  __ARM_FEATURE_FP8DOT4 defined by GCC 15+ and Clang 21+ when +fp8dot4 is enabled. Older compilers
+ *  lack mfloat8x16_t and the fp8dot4 target attribute entirely. */
 #if !defined(NK_TARGET_NEONFP8) || (NK_TARGET_NEONFP8 && !NK_TARGET_ARM64_)
 #if defined(__ARM_FEATURE_FP8DOT4) && defined(__aarch64__)
 #define NK_TARGET_NEONFP8 1
@@ -402,7 +404,7 @@
 #endif // defined(__ARM_FEATURE_FP8DOT4)
 #endif // !defined(NK_TARGET_NEONFP8)  || ...
 
-// Compiling for Arm: NK_TARGET_SVE
+/* Compiling for Arm: NK_TARGET_SVE */
 #if !defined(NK_TARGET_SVE) || (NK_TARGET_SVE && !NK_TARGET_ARM64_)
 #if defined(__ARM_FEATURE_SVE)
 #define NK_TARGET_SVE 1
@@ -412,7 +414,7 @@
 #endif // defined(__ARM_FEATURE_SVE)
 #endif // !defined(NK_TARGET_SVE) || ...
 
-// Compiling for Arm: NK_TARGET_SVESDOT
+/* Compiling for Arm: NK_TARGET_SVESDOT */
 #if !defined(NK_TARGET_SVESDOT) || (NK_TARGET_SVESDOT && !NK_TARGET_ARM64_)
 #if defined(__ARM_FEATURE_SVE)
 #define NK_TARGET_SVESDOT 1
@@ -422,7 +424,7 @@
 #endif // defined(__ARM_FEATURE_SVE)
 #endif // !defined(NK_TARGET_SVESDOT) || ...
 
-// Compiling for Arm: NK_TARGET_SVEHALF
+/* Compiling for Arm: NK_TARGET_SVEHALF */
 #if !defined(NK_TARGET_SVEHALF) || (NK_TARGET_SVEHALF && !NK_TARGET_ARM64_)
 #if defined(__ARM_FEATURE_SVE)
 #define NK_TARGET_SVEHALF 1
@@ -432,7 +434,7 @@
 #endif // defined(__ARM_FEATURE_SVE)
 #endif // !defined(NK_TARGET_SVEHALF) || ...
 
-// Compiling for Arm: NK_TARGET_SVEBFDOT
+/* Compiling for Arm: NK_TARGET_SVEBFDOT */
 #if !defined(NK_TARGET_SVEBFDOT) || (NK_TARGET_SVEBFDOT && !NK_TARGET_ARM64_)
 #if defined(__ARM_FEATURE_SVE)
 #define NK_TARGET_SVEBFDOT 1
@@ -442,7 +444,7 @@
 #endif // defined(__ARM_FEATURE_SVE)
 #endif // !defined(NK_TARGET_SVEBFDOT) || ...
 
-// Compiling for Arm: NK_TARGET_SVE2
+/* Compiling for Arm: NK_TARGET_SVE2 */
 #if !defined(NK_TARGET_SVE2) || (NK_TARGET_SVE2 && !NK_TARGET_ARM64_)
 #if defined(__ARM_FEATURE_SVE2)
 #define NK_TARGET_SVE2 1
@@ -452,13 +454,13 @@
 #endif // defined(__ARM_FEATURE_SVE2)
 #endif // !defined(NK_TARGET_SVE2) || ...
 
-// Compiling for Arm: NK_TARGET_SVE2P1
+/* Compiling for Arm: NK_TARGET_SVE2P1 */
 #if !defined(NK_TARGET_SVE2P1) || (NK_TARGET_SVE2P1 && !NK_TARGET_ARM64_)
 #undef NK_TARGET_SVE2P1
 #define NK_TARGET_SVE2P1 0
 #endif // !defined(NK_TARGET_SVE2P1) || ...
 
-// Compiling for Arm: NK_TARGET_SME (Scalable Matrix Extension)
+/* Compiling for Arm: NK_TARGET_SME, the Scalable Matrix Extension. */
 #if !defined(NK_TARGET_SME) || (NK_TARGET_SME && !NK_TARGET_ARM64_)
 #if defined(__ARM_FEATURE_SME)
 #define NK_TARGET_SME 1
@@ -477,8 +479,8 @@
 #endif // defined(__ARM_FEATURE_SME2)
 #endif // !defined(NK_TARGET_SME2) || ...
 
-// Compiling for Arm: NK_TARGET_SME2P1 (FEAT_SME2p1)
-// ACLE macro: __ARM_FEATURE_SME2p1 (note lowercase 'p')
+/*  Compiling for Arm: NK_TARGET_SME2P1, FEAT_SME2p1. ACLE macro: __ARM_FEATURE_SME2p1 — note the
+ *  lowercase 'p'. */
 #if !defined(NK_TARGET_SME2P1) || (NK_TARGET_SME2P1 && !NK_TARGET_ARM64_)
 #if defined(__ARM_FEATURE_SME2p1)
 #define NK_TARGET_SME2P1 1
@@ -488,8 +490,8 @@
 #endif // defined(__ARM_FEATURE_SME2p1)
 #endif // !defined(NK_TARGET_SME2P1) || ...
 
-// AppleClang 17 exposes SME sub-features through `arm_sme.h` builtin aliases,
-// not dedicated `__ARM_FEATURE_*` predefines for every matrix subtype.
+/*  AppleClang 17 exposes SME sub-features through `arm_sme.h` builtin aliases, not dedicated
+ *  `__ARM_FEATURE_*` predefines for every matrix subtype. */
 #if !defined(NK_TARGET_SMEF64) || (NK_TARGET_SMEF64 && !NK_TARGET_ARM64_)
 #if defined(__ARM_FEATURE_SME_F64F64) || nk_has_builtin_(__builtin_sme_svmopa_za64_f64_m)
 #define NK_TARGET_SMEF64 1
@@ -535,7 +537,7 @@
 #endif // nk_has_builtin_(__builtin_sme_svluti4_zt_u8_x4)
 #endif // !defined(NK_TARGET_SMELUT2) || ...
 
-// Compiling for Arm: NK_TARGET_SMEFA64 (FEAT_SME_FA64, full SVE2 in streaming mode)
+/* Compiling for Arm: NK_TARGET_SMEFA64, FEAT_SME_FA64, full SVE2 in streaming mode. */
 #if !defined(NK_TARGET_SMEFA64) || (NK_TARGET_SMEFA64 && !NK_TARGET_ARM64_)
 #if defined(__ARM_FEATURE_SME_FA64)
 #define NK_TARGET_SMEFA64 1
@@ -545,22 +547,23 @@
 #endif // defined(__ARM_FEATURE_SME_FA64)
 #endif // !defined(NK_TARGET_SMEFA64) || ...
 
-// Compiling for x86: NK_TARGET_HASWELL
-//
-// Starting with Ivy Bridge, Intel supports the `F16C` extensions for fast half-precision
-// to single-precision floating-point conversions. On AMD those instructions
-// are supported on all CPUs starting with Jaguar 2009.
-// Starting with Sandy Bridge, Intel adds basic AVX support in their CPUs and in 2013
-// extends it with AVX2 in the Haswell generation. Moreover, Haswell adds FMA support.
-//
-// On MSVC, most GCC-style ISA macros are unavailable. MSVC defines __AVX__, __AVX2__,
-// __AVX512F/BW/CD/DQ/VL__, and __AVX10_VER__, but NOT __AVXVNNI__, __AVX512VNNI__,
-// __AVX512BF16__, __AVX512FP16__, __AMX_*__, etc.
-// Instead, MSVC makes all intrinsics available once the toolset version supports them,
-// without requiring `/arch:AVX512`. We gate on _MSC_VER to auto-enable targets:
-//   - _MSC_VER >= 1900 (VS 2015+): AVX2/FMA/F16C (Haswell)
-//   - _MSC_VER >= 1920 (VS 2019+): AVX-512 base (Skylake, Icelake), AVX-VNNI (Alder)
-//   - _MSC_VER >= 1944 (VS 2022 17.14+): BF16, FP16, VP2INTERSECT, VNNI-INT8 (Sierra), AMX
+/*  Compiling for x86: NK_TARGET_HASWELL
+ *
+ *  Starting with Ivy Bridge, Intel supports the @c F16C extensions for fast half-precision to
+ *  single-precision floating-point conversions. On AMD those instructions are supported on all CPUs
+ *  starting with Jaguar 2009.
+ *
+ *  Starting with Sandy Bridge, Intel adds basic AVX support in their CPUs and in 2013 extends it
+ *  with AVX2 in the Haswell generation. Moreover, Haswell adds FMA support.
+ *
+ *  On MSVC, most GCC-style ISA macros are unavailable. MSVC defines __AVX__, __AVX2__,
+ *  __AVX512F/BW/CD/DQ/VL__, and __AVX10_VER__, but NOT __AVXVNNI__, __AVX512VNNI__, __AVX512BF16__,
+ *  __AVX512FP16__, __AMX_*__, etc. Instead, MSVC makes all intrinsics available once the toolset
+ *  version supports them, without requiring `/arch:AVX512`. We gate on _MSC_VER to auto-enable
+ *  targets:
+ *  - _MSC_VER >= 1900, VS 2015+: AVX2/FMA/F16C, matching Haswell
+ *  - _MSC_VER >= 1920, VS 2019+: AVX-512 base plus AVX-VNNI, matching Skylake, Icelake, and Alder
+ *  - _MSC_VER >= 1944, VS 2022 17.14+: BF16, FP16, VP2INTERSECT, VNNI-INT8, AMX, matching Sierra */
 #if !defined(NK_TARGET_HASWELL) || (NK_TARGET_HASWELL && !NK_TARGET_X8664_)
 #if (defined(__AVX2__) && defined(__FMA__) && defined(__F16C__)) || (defined(_MSC_VER) && _MSC_VER >= 1900)
 #define NK_TARGET_HASWELL 1
@@ -570,13 +573,22 @@
 #endif // defined(__AVX2__)
 #endif // !defined(NK_TARGET_HASWELL) || ...
 
-// Compiling for x86: NK_TARGET_SKYLAKE, NK_TARGET_ICELAKE, NK_TARGET_GENOA,
-// NK_TARGET_SAPPHIRE, NK_TARGET_TURIN, NK_TARGET_SIERRA
-//
-// To list all available macros for x86, take a recent compiler, like GCC 12 and run:
-//      gcc-12 -march=sapphirerapids -dM -E - < /dev/null | egrep "SSE|AVX" | sort
-// On Arm machines you may want to check for other flags:
-//      gcc-12 -march=native -dM -E - < /dev/null | egrep "NEON|SVE|FP16|FMA" | sort
+/*
+ *  Compiling for x86: NK_TARGET_SKYLAKE, NK_TARGET_ICELAKE, NK_TARGET_GENOA, NK_TARGET_SAPPHIRE,
+ *  NK_TARGET_TURIN, NK_TARGET_SIERRA
+ *
+ *  To list all available macros for x86, take a recent compiler, like GCC 12 and run:
+ *
+ *  @code{.sh}
+ *  gcc-12 -march=sapphirerapids -dM -E - < /dev/null | egrep "SSE|AVX" | sort
+ *  @endcode
+ *
+ *  On Arm machines you may want to check for other flags:
+ *
+ *  @code{.sh}
+ *  gcc-12 -march=native -dM -E - < /dev/null | egrep "NEON|SVE|FP16|FMA" | sort
+ *  @endcode
+ */
 #if !defined(NK_TARGET_SKYLAKE) || (NK_TARGET_SKYLAKE && !NK_TARGET_X8664_)
 #if (defined(__AVX512F__) && defined(__AVX512CD__) && defined(__AVX512VL__) && defined(__AVX512DQ__) && \
      defined(__AVX512BW__)) ||                                                                          \
@@ -608,11 +620,12 @@
 #endif // defined(__AVX512BF16__) || ...
 #endif // !defined(NK_TARGET_GENOA) || ...
 
-// Compiling for x86: NK_TARGET_DIAMOND (AVX10.2, Diamond Rapids)
-// GCC 15+: defines __AVX10_2__ with -mavx10.2, target attribute `avx10.2`
-// Clang 20+: defines __AVX10_2__ with -mavx10.2
-// The target attribute spells it `avx10.2-512` up to clang 21, and `avx10.2` from clang 22 and GCC 15
-// MSVC: defines __AVX10_VER__ >= 2 with /arch:AVX10.2 (VS 2026+, not yet released)
+/*  Compiling for x86: NK_TARGET_DIAMOND, AVX10.2, Diamond Rapids
+ *
+ *  - GCC 15+ defines __AVX10_2__ with -mavx10.2, target attribute `avx10.2`.
+ *  - Clang 20+ defines __AVX10_2__ with -mavx10.2. The target attribute spells it `avx10.2-512` up
+ *    to Clang 21, and `avx10.2` from Clang 22 and GCC 15.
+ *  - MSVC defines __AVX10_VER__ >= 2 with /arch:AVX10.2, VS 2026+, not yet released. */
 #if !defined(NK_TARGET_DIAMOND) || (NK_TARGET_DIAMOND && !NK_TARGET_X8664_)
 #if defined(__AVX10_2__) || (defined(__AVX10_VER__) && __AVX10_VER__ >= 2)
 #define NK_TARGET_DIAMOND 1
@@ -686,7 +699,7 @@
 #endif
 #endif // !defined(NK_TARGET_SIERRA) || ...
 
-// Compiling for NVIDIA GPUs from compute capability 8.0, `mma.sync`: NK_TARGET_AMPERE
+/* Compiling for NVIDIA GPUs from compute capability 8.0, `mma.sync`: NK_TARGET_AMPERE */
 #if !defined(NK_TARGET_AMPERE) || (NK_TARGET_AMPERE && !NK_TARGET_CUDA_)
 #if NK_TARGET_CUDA_
 #define NK_TARGET_AMPERE 1
@@ -696,7 +709,7 @@
 #endif // NK_TARGET_CUDA_
 #endif // !defined(NK_TARGET_AMPERE) || ...
 
-// Compiling for NVIDIA GPUs of compute capability 9.0, warpgroup MMA: NK_TARGET_HOPPER
+/* Compiling for NVIDIA GPUs of compute capability 9.0, warpgroup MMA: NK_TARGET_HOPPER */
 #if !defined(NK_TARGET_HOPPER) || (NK_TARGET_HOPPER && !NK_TARGET_CUDA_)
 #if NK_TARGET_CUDA_
 #define NK_TARGET_HOPPER 1
@@ -706,7 +719,7 @@
 #endif // NK_TARGET_CUDA_
 #endif // !defined(NK_TARGET_HOPPER) || ...
 
-// Compiling for NVIDIA GPUs of compute capability 10.x, tensor memory: NK_TARGET_BLACKWELL
+/* Compiling for NVIDIA GPUs of compute capability 10.x, tensor memory: NK_TARGET_BLACKWELL */
 #if !defined(NK_TARGET_BLACKWELL) || (NK_TARGET_BLACKWELL && !NK_TARGET_CUDA_)
 #if NK_TARGET_CUDA_
 #define NK_TARGET_BLACKWELL 1
@@ -716,7 +729,7 @@
 #endif // NK_TARGET_CUDA_
 #endif // !defined(NK_TARGET_BLACKWELL) || ...
 
-// Compiling for NVIDIA GPUs of compute capability 12.x, Float6 and Float4 MMA: NK_TARGET_BLACKWELLRTX
+/* Compiling for NVIDIA GPUs, compute capability 12.x, Float6/Float4 MMA: NK_TARGET_BLACKWELLRTX */
 #if !defined(NK_TARGET_BLACKWELLRTX) || (NK_TARGET_BLACKWELLRTX && !NK_TARGET_CUDA_)
 #if NK_TARGET_CUDA_
 #define NK_TARGET_BLACKWELLRTX 1
@@ -726,7 +739,7 @@
 #endif // NK_TARGET_CUDA_
 #endif // !defined(NK_TARGET_BLACKWELLRTX) || ...
 
-// Compiling for AMD Instinct MI350 GPUs, gfx950: NK_TARGET_CDNA4
+/* Compiling for AMD Instinct MI350 GPUs, gfx950: NK_TARGET_CDNA4 */
 #if !defined(NK_TARGET_CDNA4) || (NK_TARGET_CDNA4 && !NK_TARGET_HIP_)
 #if NK_TARGET_HIP_
 #define NK_TARGET_CDNA4 1
@@ -736,7 +749,7 @@
 #endif // NK_TARGET_HIP_
 #endif // !defined(NK_TARGET_CDNA4) || ...
 
-// Compiling for AMD Instinct MI400 GPUs: NK_TARGET_CDNA5
+/* Compiling for AMD Instinct MI400 GPUs: NK_TARGET_CDNA5 */
 #if !defined(NK_TARGET_CDNA5) || (NK_TARGET_CDNA5 && !NK_TARGET_HIP_)
 #if NK_TARGET_HIP_
 #define NK_TARGET_CDNA5 1
@@ -746,7 +759,7 @@
 #endif // NK_TARGET_HIP_
 #endif // !defined(NK_TARGET_CDNA5) || ...
 
-// Compiling for Apple GPUs of Metal family 9, M3 and M4: NK_TARGET_APPLE9
+/* Compiling for Apple GPUs of Metal family 9, M3 and M4: NK_TARGET_APPLE9 */
 #if !defined(NK_TARGET_APPLE9) || (NK_TARGET_APPLE9 && !NK_TARGET_METAL_)
 #if NK_TARGET_METAL_
 #define NK_TARGET_APPLE9 1
@@ -756,7 +769,7 @@
 #endif // NK_TARGET_METAL_
 #endif // !defined(NK_TARGET_APPLE9) || ...
 
-// Compiling for Apple GPUs of Metal family 10, M5: NK_TARGET_APPLE10
+/* Compiling for Apple GPUs of Metal family 10, M5: NK_TARGET_APPLE10 */
 #if !defined(NK_TARGET_APPLE10) || (NK_TARGET_APPLE10 && !NK_TARGET_METAL_)
 #if NK_TARGET_METAL_
 #define NK_TARGET_APPLE10 1
@@ -766,7 +779,7 @@
 #endif // NK_TARGET_METAL_
 #endif // !defined(NK_TARGET_APPLE10) || ...
 
-// Include the relevant intrinsics headers
+/* Include the relevant intrinsics headers */
 #if defined(_MSC_VER)
 #include <intrin.h>
 #endif
@@ -812,31 +825,25 @@
 #define NK_F16_DIVISION_EPSILON (1e-3f)
 #endif
 
-/**
- *  @brief  The compile-time constant defining the capacity of `nk_tensor_position_t`.
- *          Matches `PyBUF_MAX_NDIM` by default.
- */
+/** The compile-time constant defining the capacity of @c nk_tensor_position_t, matching
+ *  @c PyBUF_MAX_NDIM by default. */
 #if !defined(NK_TENSOR_MAX_RANK)
 #define NK_TENSOR_MAX_RANK (64)
 #endif
 
-/**
- *  @brief  Aligns a variable to a 64-byte boundary using compiler extensions for
- *          compatibility with C 99, as `alignas(64)` is only available in C 11 or C++.
- *          Used internally and recommended for external users.
- */
+/** Aligns a variable to a 64-byte boundary using compiler extensions, since `alignas(64)` is only
+ *  available in C11 or C++. Used internally and recommended for external users. */
 #if defined(_MSC_VER)
 #define NK_ALIGN64 __declspec(align(64))
 #elif defined(__GNUC__) || defined(__clang__)
 #define NK_ALIGN64 __attribute__((aligned(64)))
 #endif
 
-/**
- *  ARM Streaming attributes (require SME-capable compiler: GCC 14+, Clang 16+).
- *  NK_STREAMING_ marks functions that require streaming SVE mode (e.g. FCVTLT).
- *  NK_STREAMING_COMPATIBLE_ marks helpers callable from both streaming and non-streaming mode.
- *  NK_STREAMING_OUTLINED_ replaces `static` where GCC would frame an inlined body by VL, spilling at SVL.
- */
+/** ARM streaming attributes, requiring an SME-capable compiler: GCC 14+, Clang 16+.
+ *  @c NK_STREAMING_ marks functions that require streaming SVE mode, such as FCVTLT.
+ *  @c NK_STREAMING_COMPATIBLE_ marks helpers callable from both streaming and non-streaming mode.
+ *  @c NK_STREAMING_OUTLINED_ replaces @c static where GCC would frame an inlined body by VL,
+ *  spilling at SVL. */
 #if NK_TARGET_ARM64_ && NK_TARGET_SME
 #define NK_STREAMING_            __arm_streaming
 #define NK_STREAMING_COMPATIBLE_ __arm_streaming_compatible
@@ -850,19 +857,15 @@
 #define NK_STREAMING_OUTLINED_ static
 #endif
 
-/**
- *  NK_HELPER_DEVICE_INLINE marks helpers that kernels call, forced inline on the device. CUDA and HIP share the
- *  spelling, and kernels spell their global qualifier directly, so this is the only device qualifier.
- */
+/** @c NK_HELPER_DEVICE_INLINE marks helpers that kernels call, forced inline on the device. CUDA
+ *  and HIP share the spelling, and kernels spell their own global qualifier — the only one here. */
 #if NK_TARGET_CUDA_ || NK_TARGET_HIP_
 #define NK_HELPER_DEVICE_INLINE static __device__ __forceinline__
 #endif
 
-/**
- *  @brief  Portable casts between SIMD vector types.
- *          MSVC typedefs `__m512bh`, `__m512h`, `__m256bh` as aliases for `__m512i`/`__m256i`,
- *          but rejects C-style casts between them. GCC/Clang define them as distinct types.
- */
+/** Portable casts between SIMD vector types. MSVC typedefs @c __m512bh, @c __m512h, and @c __m256bh
+ *  as aliases for @c __m512i and @c __m256i, but rejects C-style casts between them; GCC and Clang
+ *  define them as distinct types. */
 #if NK_TARGET_X8664_
 #if defined(_MSC_VER)
 #define nk_m512bh_from_m512i_(x) (x)
@@ -879,9 +882,8 @@
 #endif
 #endif
 
-/*  AltiVec defines `bool`, `vector`, and `pixel` as macros, which conflict with C++.
- *  We use `__vector` directly in our code, so undef the problematic macros.
- */
+/*  AltiVec defines @c bool, @c vector, and @c pixel as macros, which conflict with C++. We use
+ *  @c __vector directly in our code, so undef the problematic macros. */
 #if NK_TARGET_POWERVSX
 #ifdef __cplusplus
 #undef bool
@@ -914,15 +916,15 @@ typedef __vector double nk_vf64x2_t;
 /**
  *  @brief C99 static array parameter annotation for minimum array size.
  *
- *  In C, expands to `static n` enabling compiler bounds checking.
- *  In C++, expands to nothing as this syntax is not supported.
- *  @see https://lwn.net/Articles/1046840/
+ *  In C it expands to `static n`, which lets the compiler check bounds at every call; C++ and MSVC
+ *  have no such syntax, so there it expands to nothing:
  *
- *  Example usage:
  *  @code{.c}
- *      void hash_digest(uint8_t digest[nk_at_least_(32)]);
- *      void lookup(uint8_t const lut[nk_at_least_(256)]);
+ *  void hash_digest(uint8_t digest[nk_at_least_(32)]);
+ *  void lookup(uint8_t const lut[nk_at_least_(256)]);
  *  @endcode
+ *
+ *  @see LWN, static bounds on array parameters: https://lwn.net/Articles/1046840/
  */
 #if defined(__cplusplus) || defined(_MSC_VER)
 #define nk_at_least_(n)

@@ -7,25 +7,27 @@
 //!
 //! # Algorithms
 //!
-//! All three entry points align point cloud A onto point cloud B by minimising
-//! residual squared distance, returning a [`MeshAlignmentResult`] that bundles the
-//! transformation — rotation matrix, scale, and the two centroids — together with
-//! the RMSD of the aligned pairs:
+//! All three entry points align point cloud A onto point cloud B by minimising residual squared
+//! distance, returning a [`MeshAlignmentResult`] that bundles the transformation — rotation matrix,
+//! scale, and the two centroids — together with the RMSD of the aligned pairs:
 //!
-//! - **RMSD** only reports the root-mean-square deviation between correspondent
+//! - __RMSD__ only reports the root-mean-square deviation between correspondent
 //!   points without solving for a transform — useful when the clouds are already
 //!   aligned.
-//! - **Kabsch** solves the classic orthogonal Procrustes problem: assume both
+//! - __Kabsch__ solves the classic orthogonal Procrustes problem: assume both
 //!   clouds have matching centroids, find the 3×3 rotation matrix `R` that
 //!   minimises `Σᵢ ‖R·aᵢ − bᵢ‖²`. Scale is always reported as `1.0`, rigid body
 //!   only. Uses an SVD of the cross-covariance matrix under the hood.
-//! - **Umeyama** extends Kabsch with a uniform scale factor — the same SVD core,
+//! - __Umeyama__ extends Kabsch with a uniform scale factor — the same SVD core,
 //!   but the result also reports an optimal `s > 0` so rescaled copies of the
 //!   same cloud align cleanly.
 //!
-//! Inputs are `[[Scalar; 3]]` slices, length ≥ 3 and matching on both sides;
-//! mismatched or too-small inputs return `None`. The struct-returning API makes
-//! downstream `transform_point` / `transform_points` calls trivial.
+//! Inputs are `[[Scalar; 3]]` slices, length ≥ 3 and matching on both sides; mismatched or
+//! too-small inputs return `None`. The struct-returning API makes downstream `transform_point` /
+//! `transform_points` calls trivial.
+//!
+//! File: rust/mesh.rs
+//! Author: Ash Vardanian
 
 use crate::types::{bf16, f16};
 
@@ -155,9 +157,8 @@ extern "C" {
 
 /// Result of mesh alignment operations: RMSD, Kabsch, Umeyama.
 ///
-/// Contains the rigid-body transformation — rotation, scale, translation —
-/// that best aligns point cloud A onto point cloud B, along with the
-/// root-mean-square deviation of the aligned points.
+/// Contains the rigid-body transformation — rotation, scale, translation — that best aligns point
+/// cloud A onto point cloud B, along with the root-mean-square deviation of the aligned points.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MeshAlignmentResult<TTransform, TMetric> {
     /// 3×3 rotation matrix in row-major order.
@@ -247,17 +248,16 @@ pub trait MeshAlignment: Sized {
     type Transform: Default + Copy;
     type Metric: Default + Copy;
 
-    /// Root-mean-square deviation between two point-for-point correspondent
-    /// clouds, without solving for a transform. Returns `None` if the lengths
-    /// differ or are below the 3-point minimum.
+    /// Root-mean-square deviation between two point-for-point correspondent clouds, without solving
+    /// for a transform. Returns `None` if the lengths differ or are below the 3-point minimum.
     fn rmsd(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>>;
 
-    /// Kabsch rigid-body alignment: recovers the best-fit 3×3 rotation matrix
-    /// with no scaling that aligns `a` onto `b`, plus the residual RMSD. The
-    /// returned struct's `scale` is always `1.0` by construction.
+    /// Kabsch rigid-body alignment: recovers the best-fit 3×3 rotation matrix with no scaling that
+    /// aligns `a` onto `b`, plus the residual RMSD. The returned struct's `scale` is always `1.0`
+    /// by construction.
     ///
-    /// Returns `None` if `a.len() != b.len()` or if either cloud has fewer than
-    /// three points — a degenerate SVD.
+    /// Returns `None` if `a.len() != b.len()` or if either cloud has fewer than three points — a
+    /// degenerate SVD.
     ///
     /// # Examples
     ///
@@ -276,9 +276,8 @@ pub trait MeshAlignment: Sized {
     /// ```
     fn kabsch(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>>;
 
-    /// Umeyama similarity alignment: like Kabsch but also recovers an optimal
-    /// uniform scale factor `s > 0`. Useful when the two clouds are related by
-    /// rotation **and** scaling.
+    /// Umeyama similarity alignment: like Kabsch but also recovers an optimal uniform scale factor
+    /// `s > 0`. Useful when the two clouds are related by rotation __and__ scaling.
     fn umeyama(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>>;
 }
 

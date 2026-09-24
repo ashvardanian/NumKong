@@ -1,8 +1,8 @@
 /**
- *  @brief Batched Set Operations for LoongArch LASX (256-bit).
  *  @file include/numkong/sets/loongsonasx.h
  *  @author Ash Vardanian
  *  @date March 25, 2026
+ *  @brief 256-bit LASX batched set operations for LoongArch.
  *
  *  @sa include/numkong/sets.h
  */

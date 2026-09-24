@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Curved Space Distances for RISC-V.
  *  @file include/numkong/curved/rvv.h
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief SIMD-accelerated curved-space distances for RISC-V.
  *
  *  @sa include/numkong/curved.h
  *

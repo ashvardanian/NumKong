@@ -1,8 +1,8 @@
 /**
- *  @brief Batch operation benchmarks - AMX ISA family (Sapphire Rapids AMX).
  *  @file bench/cross_amx.cpp
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief Batch operation benchmarks, AMX ISA family, Sapphire Rapids AMX.
  */
 
 #include "numkong/attention.h"

@@ -1,4 +1,9 @@
-/* NumKong ISA probe: RVV Zvbb (basic bit-manipulation) */
+/**
+ *  @file probes/riscv_rvv_bb.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for RVV Zvbb, basic bit manipulation.
+ */
 #if !defined(__riscv_zvbb)
 #error "Feature not available"
 #endif

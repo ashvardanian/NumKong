@@ -1,34 +1,36 @@
 /**
- *  @brief SIMD-accelerated Geospatial Distances for RISC-V.
  *  @file include/numkong/geospatial/rvv.h
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief SIMD-accelerated geospatial distances for RISC-V.
  *
  *  @sa include/numkong/geospatial.h
  *
- *  Implements Haversine and Vincenty geodesic distance computations using RVV 1.0 intrinsics
- *  with LMUL=4 (m4) grouping for maximum throughput. The variable-length vector loop uses
- *  `__riscv_vsetvl_e64m4` / `__riscv_vsetvl_e32m4` so each iteration processes as many
+ *  Implements Haversine and Vincenty geodesic distance computations using RVV 1.0 intrinsics with
+ *  LMUL=4, m4, grouping for maximum throughput. The variable-length vector loop uses
+ *  @c __riscv_vsetvl_e64m4 and @c __riscv_vsetvl_e32m4, so each iteration processes as many
  *  point-pairs as the hardware vector length allows, with no scalar tail handling needed.
  *
- *  Trigonometric helpers (sin, cos, atan2) come from trigonometry/rvv.h which provides
- *  polynomial approximations operating on `vfloat64m4_t` / `vfloat32m4_t` vectors.
+ *  Trigonometric helpers — sin, cos, atan2 — come from trigonometry/rvv.h, which provides
+ *  polynomial approximations operating on @c vfloat64m4_t and @c vfloat32m4_t vectors.
  *
  *  Vincenty convergence tracking uses RVV mask registers (`vbool16_t` / `vbool8_t`) with
- *  `__riscv_vcpop_m` to check if all lanes have converged, and `__riscv_vmerge` for
- *  per-lane conditional updates.
+ *  @c __riscv_vcpop_m to check if all lanes have converged, and @c __riscv_vmerge for per-lane
+ *  conditional updates.
  *
  *  @section rvv_geospatial_instructions Key RVV Geospatial Instructions
  *
- *      Intrinsic                               Purpose
- *      __riscv_vfsqrt_v_f64m4(x, vl)           Square root (f64, LMUL=4)
- *      __riscv_vfsqrt_v_f32m4(x, vl)           Square root (f32, LMUL=4)
- *      __riscv_vfdiv_vv_f64m4(a, b, vl)        Division (f64, LMUL=4)
- *      __riscv_vfdiv_vv_f32m4(a, b, vl)        Division (f32, LMUL=4)
- *      __riscv_vfmadd_vv_f64m4(a, b, c, vl)    Fused multiply-add: a*b+c (f64)
- *      __riscv_vfmadd_vv_f32m4(a, b, c, vl)    Fused multiply-add: a*b+c (f32)
- *      __riscv_vcpop_m_b16(mask, vl)           Count set bits in mask (convergence check)
- *      __riscv_vmerge_vvm_f64m4(a, b, m, vl)   Conditional merge (per-lane select)
+ *  @verbatim
+ *  Intrinsic                               Purpose
+ *  __riscv_vfsqrt_v_f64m4(x, vl)           Square root (f64, LMUL=4)
+ *  __riscv_vfsqrt_v_f32m4(x, vl)           Square root (f32, LMUL=4)
+ *  __riscv_vfdiv_vv_f64m4(a, b, vl)        Division (f64, LMUL=4)
+ *  __riscv_vfdiv_vv_f32m4(a, b, vl)        Division (f32, LMUL=4)
+ *  __riscv_vfmadd_vv_f64m4(a, b, c, vl)    Fused multiply-add: a*b+c (f64)
+ *  __riscv_vfmadd_vv_f32m4(a, b, c, vl)    Fused multiply-add: a*b+c (f32)
+ *  __riscv_vcpop_m_b16(mask, vl)           Count set bits in mask (convergence check)
+ *  __riscv_vmerge_vvm_f64m4(a, b, m, vl)   Conditional merge (per-lane select)
+ *  @endverbatim
  */
 #ifndef NK_GEOSPATIAL_RVV_H
 #define NK_GEOSPATIAL_RVV_H

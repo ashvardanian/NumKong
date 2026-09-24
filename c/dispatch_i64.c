@@ -1,8 +1,8 @@
 /**
- *  @brief Dispatch Initialization for I64 Data Types.
  *  @file c/dispatch_i64.c
  *  @author Ash Vardanian
  *  @date February 3, 2026
+ *  @brief Dispatch initialization for I64 data types.
  */
 #include "dispatch.h"
 

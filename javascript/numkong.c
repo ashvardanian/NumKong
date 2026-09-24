@@ -1,8 +1,8 @@
 /**
- *  @brief JavaScript bindings for NumKong.
  *  @file javascript/numkong.c
  *  @author Ash Vardanian
  *  @date October 18, 2023
+ *  @brief JavaScript bindings for NumKong.
  *
  *  @see NodeJS docs: https://nodejs.org/api/n-api.html
  */
@@ -17,10 +17,10 @@
 
 #pragma region Helpers
 
-/** @brief Parses a dtype string (e.g. "f32", "f16", "bf16") into a nk_dtype_t enum value. */
+/** Parses a dtype string, e.g. "f32", "f16", "bf16", into an nk_dtype_t enum value. */
 static nk_dtype_t parse_dtype_string(char const *str) { return nk_dtype_named(str, strlen(str)); }
 
-/** @brief Validates that the N-API TypedArray type is compatible with the claimed dtype. */
+/** Validates that the N-API TypedArray type is compatible with the claimed dtype. */
 static int is_compatible_napi_type(napi_typedarray_type napi_type, nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k: return napi_type == napi_float64_array;
@@ -46,9 +46,9 @@ static int is_compatible_napi_type(napi_typedarray_type napi_type, nk_dtype_t dt
 
 /**
  *  @brief Converts an nk_scalar_buffer_t result to a JavaScript number.
- *  @param env N-API environment.
- *  @param result The scalar buffer containing the result.
- *  @param out_dtype The dtype of the value stored in the buffer.
+ *  @param[in] env N-API environment.
+ *  @param[in] result The scalar buffer containing the result.
+ *  @param[in] out_dtype The dtype of the value stored in the buffer.
  *  @return napi_value containing the result as a JavaScript Number, or NULL on error.
  */
 static napi_value nk_scalar_buffer_to_js_number(napi_env env, nk_scalar_buffer_t const *result, nk_dtype_t out_dtype) {
@@ -71,10 +71,10 @@ static napi_value nk_scalar_buffer_to_js_number(napi_env env, nk_scalar_buffer_t
     return js_result;
 }
 
-/** @brief Returns the byte width for a given dtype. */
+/** Returns the byte width for a given dtype. */
 static inline size_t dtype_byte_width(nk_dtype_t dtype) { return nk_dtype_bits(dtype) / NK_BITS_PER_BYTE; }
 
-/** @brief Returns the N-API typed array type for a given output dtype. */
+/** Returns the N-API typed array type for a given output dtype. */
 static inline napi_typedarray_type napi_type_for_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k: return napi_float64_array;
@@ -89,7 +89,7 @@ static inline napi_typedarray_type napi_type_for_dtype(nk_dtype_t dtype) {
 
 #pragma region Distance API
 
-/** @brief Core distance computation — resolves dtype, dispatches kernel, converts result. */
+/** Core distance computation — resolves dtype, dispatches kernel, converts result. */
 static napi_value dense(napi_env env, napi_callback_info info, nk_kernel_kind_t kernel_kind, nk_dtype_t dtype) {
     size_t argc = 3;
     napi_value args[3];
@@ -177,33 +177,40 @@ static napi_value dense(napi_env env, napi_callback_info info, nk_kernel_kind_t 
     return nk_scalar_buffer_to_js_number(env, &result, out_dtype);
 }
 
-/** @brief N-API entry for inner product (dot).  */
+/** N-API entry for inner product, dot. */
 napi_value api_ip(napi_env env, napi_callback_info info) {
     return dense(env, info, nk_kernel_dot_k, nk_dtype_unknown_k);
 }
-/** @brief N-API entry for angular distance.  */
+
+/** N-API entry for angular distance. */
 napi_value api_angular(napi_env env, napi_callback_info info) {
     return dense(env, info, nk_kernel_angular_k, nk_dtype_unknown_k);
 }
-/** @brief N-API entry for squared Euclidean distance.  */
+
+/** N-API entry for squared Euclidean distance. */
 napi_value api_sqeuclidean(napi_env env, napi_callback_info info) {
     return dense(env, info, nk_kernel_sqeuclidean_k, nk_dtype_unknown_k);
 }
-/** @brief N-API entry for Euclidean distance.  */
+
+/** N-API entry for Euclidean distance. */
 napi_value api_euclidean(napi_env env, napi_callback_info info) {
     return dense(env, info, nk_kernel_euclidean_k, nk_dtype_unknown_k);
 }
-/** @brief N-API entry for Kullback-Leibler divergence.  */
+
+/** N-API entry for Kullback-Leibler divergence. */
 napi_value api_kld(napi_env env, napi_callback_info info) {
     return dense(env, info, nk_kernel_kld_k, nk_dtype_unknown_k);
 }
-/** @brief N-API entry for Jensen-Shannon distance.  */
+
+/** N-API entry for Jensen-Shannon distance. */
 napi_value api_jsd(napi_env env, napi_callback_info info) {
     return dense(env, info, nk_kernel_jsd_k, nk_dtype_unknown_k);
 }
-/** @brief N-API entry for Hamming distance.  */
+
+/** N-API entry for Hamming distance. */
 napi_value api_hamming(napi_env env, napi_callback_info info) { return dense(env, info, nk_kernel_hamming_k, nk_u1_k); }
-/** @brief N-API entry for Jaccard distance.  */
+
+/** N-API entry for Jaccard distance. */
 napi_value api_jaccard(napi_env env, napi_callback_info info) { return dense(env, info, nk_kernel_jaccard_k, nk_u1_k); }
 
 #pragma endregion Distance API
@@ -214,8 +221,8 @@ napi_value api_jaccard(napi_env env, napi_callback_info info) { return dense(env
  *  @brief Returns the SIMD capabilities this CPU supports, as a bitmask.
  *  @return BigInt bitmask of nk_capability_t flags.
  *
- *  Describes the machine only. A capability reported here whose kernels were not compiled in
- *  will never run — see @b api_get_capabilities_available().
+ *  Describes the machine only. A capability reported here whose kernels were not compiled in will
+ *  never run — see @b api_get_capabilities_available().
  */
 napi_value api_get_capabilities_detected(napi_env env, napi_callback_info info) {
     napi_value result;
@@ -255,7 +262,7 @@ napi_value api_get_capabilities_enabled(napi_env env, napi_callback_info info) {
     return result;
 }
 
-/** @brief Reads a BigInt capability mask from the first argument. Returns 0 on error. */
+/** Reads a BigInt capability mask from the first argument. Returns 0 on error. */
 static int parse_capability_mask(napi_env env, napi_callback_info info, nk_capability_t *mask) {
     size_t argc = 1;
     napi_value args[1];
@@ -310,7 +317,7 @@ napi_value api_capabilities_disable(napi_env env, napi_callback_info info) {
 
 #pragma region Cast API
 
-/** @brief Converts a single value from a narrow type to f32. Reads uint32 bits, returns double. */
+/** Converts a single value from a narrow type to f32. Reads uint32 bits, returns double. */
 static napi_value cast_to_f32(napi_env env, napi_callback_info info, nk_dtype_t src_dtype) {
     size_t argc = 1;
     napi_value args[1];
@@ -334,7 +341,7 @@ static napi_value cast_to_f32(napi_env env, napi_callback_info info, nk_dtype_t 
     return result;
 }
 
-/** @brief Converts a single f32 value to a narrow type. Reads double, returns uint32 bits. */
+/** Converts a single f32 value to a narrow type. Reads double, returns uint32 bits. */
 static napi_value cast_from_f32(napi_env env, napi_callback_info info, nk_dtype_t dst_dtype) {
     size_t argc = 1;
     napi_value args[1];
@@ -359,32 +366,40 @@ static napi_value cast_from_f32(napi_env env, napi_callback_info info, nk_dtype_
     return result;
 }
 
-/** @brief N-API entry for scalar f16-to-f32 conversion.  */
+/** N-API entry for scalar f16-to-f32 conversion. */
 napi_value api_cast_f16_to_f32(napi_env env, napi_callback_info info) { return cast_to_f32(env, info, nk_f16_k); }
-/** @brief N-API entry for scalar f32-to-f16 conversion.  */
+
+/** N-API entry for scalar f32-to-f16 conversion. */
 napi_value api_cast_f32_to_f16(napi_env env, napi_callback_info info) { return cast_from_f32(env, info, nk_f16_k); }
-/** @brief N-API entry for scalar bf16-to-f32 conversion.  */
+
+/** N-API entry for scalar bf16-to-f32 conversion. */
 napi_value api_cast_bf16_to_f32(napi_env env, napi_callback_info info) { return cast_to_f32(env, info, nk_bf16_k); }
-/** @brief N-API entry for scalar f32-to-bf16 conversion.  */
+
+/** N-API entry for scalar f32-to-bf16 conversion. */
 napi_value api_cast_f32_to_bf16(napi_env env, napi_callback_info info) { return cast_from_f32(env, info, nk_bf16_k); }
-/** @brief N-API entry for scalar e4m3-to-f32 conversion.  */
+
+/** N-API entry for scalar e4m3-to-f32 conversion. */
 napi_value api_cast_e4m3_to_f32(napi_env env, napi_callback_info info) { return cast_to_f32(env, info, nk_e4m3_k); }
-/** @brief N-API entry for scalar f32-to-e4m3 conversion.  */
+
+/** N-API entry for scalar f32-to-e4m3 conversion. */
 napi_value api_cast_f32_to_e4m3(napi_env env, napi_callback_info info) { return cast_from_f32(env, info, nk_e4m3_k); }
-/** @brief N-API entry for scalar e5m2-to-f32 conversion.  */
+
+/** N-API entry for scalar e5m2-to-f32 conversion. */
 napi_value api_cast_e5m2_to_f32(napi_env env, napi_callback_info info) { return cast_to_f32(env, info, nk_e5m2_k); }
-/** @brief N-API entry for scalar f32-to-e5m2 conversion.  */
+
+/** N-API entry for scalar f32-to-e5m2 conversion. */
 napi_value api_cast_f32_to_e5m2(napi_env env, napi_callback_info info) { return cast_from_f32(env, info, nk_e5m2_k); }
 
 /**
  *  @brief Buffer casting function using nk_cast.
- *  @param env N-API environment
- *  @param info Callback info containing 4 arguments:
- *              - src: source TypedArray
- *              - srcType: source dtype string
- *              - dst: destination TypedArray
- *              - dstType: destination dtype string
- *  @return null (modifies dst in place)
+ *
+ *  @code{.ts}
+ *  (source: TypedArray, sourceType: string, destination: TypedArray, destinationType: string)
+ *  @endcode
+ *
+ *  @param[in] env N-API environment.
+ *  @param[in] info Callback info, the 4 positional arguments above.
+ *  @return null, modifies the destination buffer in place.
  */
 napi_value api_cast(napi_env env, napi_callback_info info) {
     size_t argc = 4;
@@ -429,7 +444,7 @@ napi_value api_cast(napi_env env, napi_callback_info info) {
 
 #pragma region Packed API
 
-/** @brief Query packed buffer byte count: dotsPackedSize(width, depth, dtype) → number */
+/** Query packed buffer byte count, dotsPackedSize(width, depth, dtype) → number. */
 static napi_value api_dots_pack_size(napi_env env, napi_callback_info info) {
     size_t argc = 3;
     napi_value args[3];
@@ -467,7 +482,9 @@ static napi_value api_dots_pack_size(napi_env env, napi_callback_info info) {
     return result;
 }
 
-/** @brief Pack B matrix: dotsPack(data, width, depth, strideBytes, dtype) → { buffer, width, depth, byteLength } */
+/** Packs matrix B, returning a packed ArrayBuffer for dotsPacked, angularsPacked, or
+ *  euclideansPacked:
+ *  dotsPack(data, width, depth, strideBytes, dtype) → { buffer, width, depth, byteLength }. */
 static napi_value api_dots_pack(napi_env env, napi_callback_info info) {
     size_t argc = 5;
     napi_value args[5];
@@ -542,7 +559,7 @@ static napi_value api_dots_pack(napi_env env, napi_callback_info info) {
     return result_obj;
 }
 
-/** @brief One tile of rows of C = A × Bᵀ with B pre-packed. */
+/** One tile of rows of C = A × Bᵀ with B pre-packed. */
 typedef struct packed_task_t {
     nk_dots_packed_punned_t kernel;
     char const *a;
@@ -565,10 +582,12 @@ static void packed_tile_(nk_size_t tile_index, void *context) {
 }
 
 /**
- *  @brief Shared dispatcher for packed operations (dots, angulars, euclideans).
+ *  @brief Shared dispatcher for packed operations, dots, angulars and euclideans.
  *
- *  Args: TypedArray a, ArrayBuffer packed, TypedArray result,
- *  numbers height/width/depth/aStride/resultStride, string dtype
+ *  @code{.ts}
+ *  (a: TypedArray, packed: ArrayBuffer, result: TypedArray, height: number, width: number,
+ *      depth: number, aStride: number, resultStride: number, dtype: string, threads?: number)
+ *  @endcode
  */
 static napi_value api_packed_common(napi_env env, napi_callback_info info, nk_kernel_kind_t kernel_kind) {
     size_t argc = 10;
@@ -649,7 +668,7 @@ static napi_value api_euclideans_packed(napi_env env, napi_callback_info info) {
     return api_packed_common(env, info, nk_kernel_euclideans_packed_k);
 }
 
-/** @brief One tile of rows of C = A × Aᵀ. */
+/** One tile of rows of C = A × Aᵀ. */
 typedef struct symmetric_task_t {
     nk_dots_symmetric_punned_t kernel;
     void const *vectors;
@@ -673,10 +692,13 @@ static void symmetric_tile_(nk_size_t tile_index, void *context) {
 }
 
 /**
- *  @brief Shared dispatcher for symmetric operations (dots, angulars, euclideans).
+ *  @brief Shared dispatcher for symmetric operations, dots, angulars and euclideans.
  *
- *  Args: TypedArray vectors, TypedArray result,
- *  numbers nVectors/depth/vectorsStride/resultStride/rowStart/rowCount, string dtype
+ *  @code{.ts}
+ *  (vectors: TypedArray, result: TypedArray, nVectors: number, depth: number,
+ *      vectorsStride: number, resultStride: number, rowStart: number, rowCount: number,
+ *      dtype: string, threads?: number)
+ *  @endcode
  */
 static napi_value api_symmetric_common(napi_env env, napi_callback_info info, nk_kernel_kind_t kernel_kind) {
     size_t argc = 10;
@@ -760,7 +782,7 @@ static napi_value api_euclideans_symmetric(napi_env env, napi_callback_info info
 
 #pragma region Module Init
 
-/** @brief Registers a C function as a named JavaScript export. */
+/** Registers a C function as a named JavaScript export. */
 static napi_status export_function(napi_env env, napi_value exports, char const *name, napi_callback func) {
     napi_value fn;
     napi_status status = napi_create_function(env, name, NAPI_AUTO_LENGTH, func, NULL, &fn);
@@ -768,7 +790,7 @@ static napi_status export_function(napi_env env, napi_value exports, char const 
     return napi_set_named_property(env, exports, name, fn);
 }
 
-/** @brief Module initialization — exports all functions, detects CPU capabilities.  */
+/** Module initialization — exports all functions, detects CPU capabilities. */
 napi_value Init(napi_env env, napi_value exports) {
     if (export_function(env, exports, "dot", api_ip) != napi_ok ||
         export_function(env, exports, "inner", api_ip) != napi_ok ||

@@ -1,19 +1,21 @@
 /**
- *  @brief SIMD-accelerated Point Cloud Alignment for Haswell.
  *  @file include/numkong/mesh/haswell.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated point cloud alignment for Haswell.
  *
  *  @sa include/numkong/mesh.h
  *
  *  @section haswell_mesh_instructions Key AVX2 Mesh Instructions
  *
- *      Intrinsic               Instruction                     Haswell         Genoa
- *      _mm256_fmadd_ps         VFMADD (YMM, YMM, YMM)          5cy @ p01       4cy @ p01
- *      _mm256_hadd_ps          VHADDPS (YMM, YMM, YMM)         7cy @ p1+p5     4cy @ p123+p23+p23
- *      _mm256_permute2f128_ps  VPERM2F128 (YMM, YMM, YMM, I8)  3cy @ p5        2cy @ p12
- *      _mm256_extractf128_ps   VEXTRACTF128 (XMM, YMM, I8)     3cy @ p5        1cy @ p0123
- *      _mm256_i32gather_ps     VGATHERDPS (YMM, M, YMM, YMM)   22cy (34 uops)  19cy (17 uops)
+ *  @verbatim
+ *  Intrinsic               Instruction                     Haswell         Genoa
+ *  _mm256_fmadd_ps         VFMADD (YMM, YMM, YMM)          5cy @ p01       4cy @ p01
+ *  _mm256_hadd_ps          VHADDPS (YMM, YMM, YMM)         7cy @ p1+p5     4cy @ p123+p23+p23
+ *  _mm256_permute2f128_ps  VPERM2F128 (YMM, YMM, YMM, I8)  3cy @ p5        2cy @ p12
+ *  _mm256_extractf128_ps   VEXTRACTF128 (XMM, YMM, I8)     3cy @ p5        1cy @ p0123
+ *  _mm256_i32gather_ps     VGATHERDPS (YMM, M, YMM, YMM)   22cy (34 uops)  19cy (17 uops)
+ *  @endverbatim
  *
  *  Point cloud operations (centroid, covariance, Kabsch alignment) use gather instructions for
  *  stride-3 xyz deinterleaving. Multiple FMA accumulators hide the 5-cycle FMA latency. VHADDPS

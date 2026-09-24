@@ -1,13 +1,12 @@
 /**
- *  @brief NumKong packed_matrix type for efficient GEMM.
  *  @file include/numkong/matrix.hpp
  *  @author Ash Vardanian
  *  @date March 2026
+ *  @brief NumKong packed_matrix type for efficient GEMM.
  *
- *  Provides a pre-packed matrix type that wraps `dots_pack` / `dots_packed` for
- *  cache-efficient matrix multiplication.
+ *  Provides a pre-packed matrix type over @c dots_pack and @c dots_packed for cache-efficient GEMM.
  *
- *  @code
+ *  @code{.cpp}
  *  auto b = nk::tensor<nk::f32_t>::try_zeros({256, 512});
  *  auto packed = nk::packed_matrix<nk::f32_t>::try_pack(b.view());
  *  // multiply many times with different A matrices
@@ -62,7 +61,7 @@ NK_API_COMPTIME size_t dots_pack_size(size_t row_count, size_t depth) {
 
 /**
  *  @brief Packs matrix B into row-major form for efficient dots_packed access.
- *  @param[in] b Input matrix B in row-major form [row_count x depth]
+ *  @param[in] b Input matrix B, row-major, of shape @b [row_count,depth]
  *  @param[in] row_count Number of rows in B (n)
  *  @param[in] depth Number of dimensions per row (k)
  *  @param[in] b_stride_in_bytes Stride between rows of B in bytes
@@ -178,8 +177,8 @@ NK_API_COMPTIME void maxsim_pack(typename in_type_::raw_t const *vectors, std::s
 
 /**
  *  @brief Owning, move-only, pre-packed matrix for efficient GEMM.
- *  @tparam value_type_ Element type (e.g., f32_t, bf16_t).
- *  @tparam allocator_type_ Allocator for the packed buffer (default: aligned_allocator<char>).
+ *  @tparam value_type_ Element type, e.g., f32_t, bf16_t.
+ *  @tparam allocator_type_ Allocator for the packed buffer, default aligned_allocator<char>.
  *
  *  Wraps `dots_pack` to pre-arrange a matrix B into a cache-friendly layout.
  *  Use `try_pack()` to create from a matrix_view, then pass to `dots_packed()` for computation.
@@ -230,8 +229,8 @@ struct packed_matrix {
 
     /**
      *  @brief Pack a 2D matrix_view into cache-efficient layout.
-     *  @param b 2D matrix view. Uses extents[0] as rows, extents[1] as depth.
-     *  @param alloc Allocator instance.
+     *  @param[in] b 2D matrix view. Uses extents[0] as rows, extents[1] as depth.
+     *  @param[in] alloc Allocator instance.
      *  @return Non-empty packed_matrix on success, empty on failure.
      */
     [[nodiscard]] static packed_matrix try_pack(matrix_view<value_type_> b, allocator_type_ alloc = {}) noexcept {
@@ -253,28 +252,27 @@ struct packed_matrix {
         return pm;
     }
 
-    /** @brief Number of rows in the packed matrix (n). */
+    /** Number of rows in the packed matrix (n). */
     constexpr size_type rows() const noexcept { return rows_; }
 
-    /** @brief Number of columns / depth (k). */
+    /** Number of columns / depth (k). */
     constexpr size_type depth() const noexcept { return depth_; }
 
-    /** @brief Size of the packed buffer in bytes. */
+    /** Size of the packed buffer in bytes. */
     constexpr size_type size_bytes() const noexcept { return size_bytes_; }
 
-    /** @brief True if no matrix is packed. */
+    /** True if no matrix is packed. */
     constexpr bool empty() const noexcept { return data_ == nullptr; }
 
-    /** @brief Raw pointer to the packed data. */
+    /** Raw pointer to the packed data. */
     constexpr void const *data() const noexcept { return data_; }
 };
 
 /**
- *  @brief Pre-packed vector set for MaxSim (ColBERT late-interaction).
+ *  @brief Pre-packed vector set for MaxSim — ColBERT late-interaction.
  *
- *  MaxSim computes Σᵢ minⱼ angular(qᵢ, dⱼ) using quantized i8 screening
- *  followed by full-precision refinement. Both queries and documents must
- *  be independently packed before calling `maxsim()`.
+ *  MaxSim computes Σᵢ minⱼ angular(qᵢ, dⱼ) using quantized i8 screening followed by full-precision
+ *  refinement. Both queries and documents must be independently packed before calling `maxsim()`.
  *
  *  Supported types: bf16_t, f32_t, f16_t.
  */
@@ -316,7 +314,7 @@ class packed_maxsim {
     packed_maxsim(packed_maxsim const &) = delete;
     packed_maxsim &operator=(packed_maxsim const &) = delete;
 
-    /** @brief Pack a 2D matrix of vectors. Returns empty on failure. */
+    /** Pack a 2D matrix of vectors. Returns empty on failure. */
     [[nodiscard]] static packed_maxsim try_pack(matrix_view<value_type_> vectors, allocator_type_ alloc = {}) noexcept {
         packed_maxsim pm(alloc);
         if (vectors.rank() < 2) return pm;

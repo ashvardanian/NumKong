@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Vector Reductions.
  *  @file include/numkong/reduce.h
  *  @author Ash Vardanian
  *  @date December 27, 2024
+ *  @brief SIMD-accelerated vector reductions.
  *
  *  Provides horizontal reduction operations over vectors with:
  *  - `nk_reduce_moments_*` — sum + sum-of-squares in one pass
@@ -38,31 +38,24 @@
  *  - RISC-V: RVV
  *  - WASM: V128, V128Relaxed
  *
- *  @section numerical_stability Numerical stability
+ *  @section reduce_numerical_stability Numerical stability
  *
  *  All accumulations are performed with stable techniques and @b saturation in mind.
- *  Single-precision inputs are aggregated in double-precision. Double-precision
- *  inputs are handled with @b Neumaier-like compensated summation schemes. Mini-floats
- *  are propagated to more hardware-friendly types. And integer are handled with
- *  proper saturation logic, as opposed to simple pairwise saturation, meaning that
- *  if several extremely large values are followed by equal negative values, the
- *  sum will be zero.
+ *  Single-precision inputs are aggregated in double-precision. Double-precision inputs are handled
+ *  with @b Neumaier-like compensated summation schemes. Mini-floats are propagated to more
+ *  hardware-friendly types. And integers are handled with proper saturation logic, as opposed to
+ *  simple pairwise saturation, meaning that if several extremely large values are followed by equal
+ *  negative values, the sum will be zero.
  *
- *  @code{.c}
- *
- *  @endcode{.c}
- *
- *
- *  All MinMax scans are performed with respect to NaN values beyond simple total ordering.
- *  All positive and negative NaN values are masked out on the fly and can never be included
- *  in the output. For empty or NaN-only inputs, the returned argmin/argmax positions will
- *  be set to sentinel value @b `NK_SIZE_MAX`.
+ *  All MinMax scans are performed with respect to NaN values beyond simple total ordering. All
+ *  positive and negative NaN values are masked out on the fly and can never be included in the
+ *  output. For empty or NaN-only inputs, the returned argmin/argmax positions will be set to
+ *  sentinel value @c NK_SIZE_MAX.
  *
  *  @section reduction_strategy Reduction Strategy
  *
- *  The key insight is that `_mm512_reduce_add_ps()` and similar intrinsics are
- *  actually serial operations - they don't parallelize the reduction across lanes.
- *  The correct approach is:
+ *  The key insight is that `_mm512_reduce_add_ps()` and similar intrinsics are actually serial
+ *  operations, they don't parallelize the reduction across lanes. The correct approach is:
  *
  *  1. Accumulate vertically in SIMD registers throughout the entire loop
  *  2. Perform a single horizontal reduction at the very end, reconstructing the lane positions
@@ -70,7 +63,7 @@
  *  @code{.c}
  *  __m512 sum_f32x16 = _mm512_setzero_ps();
  *  for (...) {
- *      __m512 data_f32x16 = _mm512_loadu_ps(ptr);
+ *      __m512 data_f32x16 = _mm512_loadu_ps(data_pointer);
  *      sum_f32x16 = _mm512_add_ps(sum_f32x16, data_f32x16);
  *  }
  *  // Single horizontal reduce at the END only
@@ -83,16 +76,17 @@
  *  - Large stride with gather support: Use gather instructions (32/64-bit types)
  *  - Otherwise: Serial fallback
  *
- *  @section argminmax Argmin/Argmax Strategy
+ *  @section reduce_argminmax Argmin/Argmax Strategy
  *
  *  Single-pass algorithm tracking both value and index in SIMD registers:
+ *
  *  @code{.c}
  *  __m512 min_f32x16 = _mm512_set1_ps(FLT_MAX);
  *  __m512i min_idx_i32x16 = _mm512_setzero_si512();
  *  __m512i current_idx_i32x16 = _mm512_setr_epi32(0,1,2,3,...,15);
  *  __m512i step_i32x16 = _mm512_set1_epi32(16);
  *  for (...) {
- *      __m512 data_f32x16 = _mm512_loadu_ps(ptr);
+ *      __m512 data_f32x16 = _mm512_loadu_ps(data_pointer);
  *      __mmask16 lt_mask = _mm512_cmp_ps_mask(data_f32x16, min_f32x16, _CMP_LT_OQ);
  *      min_f32x16 = _mm512_mask_mov_ps(min_f32x16, lt_mask, data_f32x16);
  *      min_idx_i32x16 = _mm512_mask_mov_epi32(min_idx_i32x16, lt_mask, current_idx_i32x16);
@@ -113,7 +107,7 @@ extern "C" {
  *  @brief  Horizontal moments reduction (sum + sum-of-squares) over a strided array.
  *  @param[in] data Pointer to the input data.
  *  @param[in] count Counts dimensions, a multiple of the values per byte.
- *  @param[in] stride_bytes Stride between elements in bytes, equal to `sizeof(*data)` for contiguous arrays.
+ *  @param[in] stride_bytes Byte stride between elements, `sizeof(*data)` for contiguous arrays.
  *  @param[out] sum_ptr Output sum.
  *  @param[out] sumsq_ptr Output sum of squares.
  */
@@ -124,7 +118,7 @@ NK_API_RUNTIME void nk_reduce_moments_f64(nk_f64_t const *data, nk_size_t count,
  *  @brief  Horizontal min+max reduction with argmin/argmax over a strided array.
  *  @param[in] data Pointer to the input data.
  *  @param[in] count Counts dimensions, a multiple of the values per byte.
- *  @param[in] stride_bytes Stride between elements in bytes, equal to `sizeof(*data)` for contiguous arrays.
+ *  @param[in] stride_bytes Byte stride between elements, `sizeof(*data)` for contiguous arrays.
  *  @param[out] min_value_ptr Output minimum value.
  *  @param[out] min_index_ptr Output index of the minimum value.
  *  @param[out] max_value_ptr Output maximum value.
@@ -279,15 +273,15 @@ NK_API_RUNTIME void nk_reduce_minmax_u1(nk_u1x8_t const *data, nk_size_t count, 
                                         nk_size_t *max_index_ptr);
 
 /**
- *  @brief  Grouped RMSNorm: y = x * rsqrt(mean(x^2) + eps) * gamma, with gamma = NULL meaning unit scale.
- *  @param[in] x Input matrix; each row holds `groups` independent `cols`-vectors, normalized separately.
- *  @param[in] gamma Per-column gain of length `cols`, shared across groups and rows; NULL for unit scale.
- *  @param[out] y Output matrix, same shape and dtype as `x`; may alias `x` for in-place operation.
+ *  @brief Grouped RMSNorm: y = x * rsqrt(mean(x^2) + eps) * gamma; NULL means unit scale.
+ *  @param[in] x Input matrix; each row holds @p groups separately normalized @p cols-vectors.
+ *  @param[in] gamma Per-column gain, length @p cols, shared by groups and rows; NULL is unit scale.
+ *  @param[out] y Output matrix, same shape/dtype as @p x; may alias @p x for in-place operation.
  *  @param[in] rows Number of rows in the input and output matrices.
  *  @param[in] groups Number of independent normalization groups per row.
  *  @param[in] cols Number of columns per group.
- *  @param[in] x_row_stride Row (outer) stride of `x` in bytes; groups are packed at `group * cols`.
- *  @param[in] y_row_stride Row (outer) stride of `y` in bytes.
+ *  @param[in] x_row_stride Row (outer) stride of @p x in bytes; groups pack at `group * cols`.
+ *  @param[in] y_row_stride Row (outer) stride of @p y in bytes.
  *  @param[in] eps Variance epsilon added before the reciprocal square root.
  *  @param[in] input_scale Scalar folded onto every loaded element (E4M3 descale; 1.0 for BF16/F32).
  */

@@ -1,8 +1,8 @@
 /**
- *  @brief Bilinear and Mahalanobis distance benchmarks.
  *  @file bench/curved.cpp
  *  @author Ash Vardanian
  *  @date March 14, 2023
+ *  @brief Bilinear and Mahalanobis distance benchmarks.
  */
 
 #include <complex> // std::complex
@@ -81,10 +81,10 @@ void bilinear_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t c
 #endif // NK_COMPARE_TO_BLAS || NK_COMPARE_TO_MKL || NK_COMPARE_TO_ACCELERATE
 
 /**
- *  @brief Measures the performance of a @b curved (bilinear/Mahalanobis) kernel function using Google Benchmark.
- *  @param state The benchmark state object provided by Google Benchmark.
- *  @param kernel The kernel function to benchmark.
- *  @param dimensions The number of dimensions in the vectors.
+ *  @brief Measures a @b curved kernel, bilinear or Mahalanobis, using Google Benchmark.
+ *  @param[inout] state The benchmark state object provided by Google Benchmark.
+ *  @param[in] kernel The kernel function to benchmark.
+ *  @param[in] dimensions The number of dimensions in the vectors.
  */
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
 void measure_curved(bm::State &state, kernel_type_ kernel, std::size_t dimensions) {

@@ -1,17 +1,18 @@
 /**
- *  @brief SIMD-accelerated MaxSim (angular distance late-interaction) for Haswell (AVX2).
  *  @file include/numkong/maxsim/haswell.h
  *  @author Ash Vardanian
  *  @date February 28, 2026
+ *  @brief SIMD-accelerated MaxSim, angular distance late-interaction, for Haswell, AVX2.
  *
  *  @sa include/numkong/maxsim.h
  *
- *  Uses AVX2 VPMADDUBSW (u8×i8→i16) + VPMADDWD (i16→i32) for coarse i8 screening.
- *  Quantization range [-79, 79] ensures no i16 saturation: worst pair sum = 2 × 207 × 79 = 32706 < 32767.
- *  Bias correction via XOR-0x80 converts signed queries to unsigned, then subtracts 128 × sum_quantized.
+ *  Uses AVX2 VPMADDUBSW, u8×i8 → i16, plus VPMADDWD, i16 → i32, for coarse i8 screening.
+ *  Quantization range [-79, 79] ensures no i16 saturation, as the worst pair sum is 2 × 207 × 79 =
+ *  32706, under the 32767 i16 ceiling. Bias correction via XOR-0x80 converts signed queries to
+ *  unsigned, then subtracts 128 × sum_quantized.
  *
- *  4x4 register tiling: 4 queries × 4 documents = 16 YMM accumulators per depth loop.
- *  Depth steps at 32 bytes (YMM width in bytes).
+ *  4x4 register tiling: 4 queries × 4 documents = 16 YMM accumulators per depth loop. Depth steps
+ *  at 32 bytes, the YMM width in bytes.
  */
 #ifndef NK_MAXSIM_HASWELL_H
 #define NK_MAXSIM_HASWELL_H

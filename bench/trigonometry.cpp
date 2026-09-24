@@ -1,8 +1,8 @@
 /**
- *  @brief Trigonometry benchmarks (sin, cos, atan).
  *  @file bench/trigonometry.cpp
  *  @author Ash Vardanian
  *  @date March 14, 2023
+ *  @brief Trigonometry benchmarks, sin, cos, atan.
  */
 
 #include "numkong/trigonometry.h"
@@ -32,10 +32,10 @@ void elementwise_with_stl(scalar_type_ const *ins, nk_size_t n, scalar_type_ *ou
 }
 
 /**
- *  @brief Measures the performance of trigonometric operations (sin, cos, atan) using Google Benchmark.
- *  @param state The benchmark state object provided by Google Benchmark.
- *  @param kernel The kernel function to benchmark.
- *  @param dimensions The number of dimensions in the vectors.
+ *  @brief Measures trigonometric operations, sin, cos, atan, using Google Benchmark.
+ *  @param[inout] state The benchmark state object provided by Google Benchmark.
+ *  @param[in] kernel The kernel function to benchmark.
+ *  @param[in] dimensions The number of dimensions in the vectors.
  */
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
 void measure_trigonometry(bm::State &state, kernel_type_ kernel, std::size_t dimensions) {

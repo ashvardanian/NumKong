@@ -1,8 +1,8 @@
 /**
- *  @brief Mesh alignment benchmarks (RMSD, Kabsch, Umeyama).
  *  @file bench/mesh.cpp
  *  @author Ash Vardanian
  *  @date March 14, 2023
+ *  @brief Mesh alignment benchmarks, RMSD, Kabsch, Umeyama.
  */
 
 #include "numkong/mesh.h"
@@ -12,10 +12,10 @@
 using namespace ashvardanian::numkong::bench;
 
 /**
- *  @brief Measures the performance of a @b mesh kernel function (RMSD/Kabsch/Umeyama) using Google Benchmark.
- *  @param state The benchmark state object provided by Google Benchmark.
- *  @param kernel The kernel function to benchmark.
- *  @param points_count The number of 3D points in each point cloud.
+ *  @brief Measures a @b mesh kernel, RMSD, Kabsch or Umeyama, using Google Benchmark.
+ *  @param[inout] state The benchmark state object provided by Google Benchmark.
+ *  @param[in] kernel The kernel function to benchmark.
+ *  @param[in] points_count The number of 3D points in each point cloud.
  */
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
 void measure_mesh(bm::State &state, kernel_type_ kernel, std::size_t points_count) {

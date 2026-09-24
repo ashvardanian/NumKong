@@ -1,15 +1,14 @@
 /**
- *  @brief SIMD-accelerated Scalar Math Helpers for LoongArch LASX.
  *  @file include/numkong/scalar/loongsonasx.h
  *  @author Ash Vardanian
  *  @date March 23, 2026
+ *  @brief SIMD-accelerated scalar math helpers for LoongArch LASX.
  *
  *  @sa include/numkong/scalar.h
  *
- *  LASX provides `xvfrsqrt` (full-precision reciprocal sqrt) and `xvfsqrt`
- *  (full-precision sqrt). No Newton-Raphson refinement needed.
- *  Full-precision sqrt uses the hardware `xvfsqrt` instruction.
- *  Broadcast via `xvreplgr2vr`, extract via `xvpickve2gr` — no memory round-trips.
+ *  LASX provides @c xvfrsqrt, a full-precision reciprocal sqrt, and @c xvfsqrt, a full-precision
+ *  sqrt, so no Newton-Raphson refinement is needed. Broadcast goes via @c xvreplgr2vr and
+ *  extraction via @c xvpickve2gr, with no memory round-trips.
  */
 #ifndef NK_SCALAR_LOONGSONASX_H
 #define NK_SCALAR_LOONGSONASX_H

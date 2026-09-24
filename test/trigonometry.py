@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Test trigonometric functions: nk.sin, nk.cos, nk.atan.
 
-Dtypes: float64, float32.
+DTypes: float64, float32.
 Baselines: math.sin/cos/atan (C libm double precision), NumPy references.
 Matches C++ suite: test/trigonometry.cpp.
+
+File: test/trigonometry.py
+Author: Ash Vardanian
+Date: February 27, 2026
 """
 
 import atexit
@@ -104,9 +108,10 @@ KERNELS_TRIGONOMETRY: dict[str, tuple[Callable, Callable, Callable]] = {
     "atan": (baseline_atan, nk.atan, precise_atan),
 }
 
-# Trig ops are shape-invariant: sweep a couple of rank-N shapes (NumPy-only) alongside the 1-D
-# `dense_dimensions` so the N-D chunk walker is exercised; comparison flattens for rank-agnosticism.
 trigonometry_shapes = [(d,) for d in dense_dimensions] + ([(6, 8), (4, 5, 3)] if numpy_available else [])
+"""Trig ops are shape-invariant: sweep a couple of NumPy-only rank-N shapes alongside the 1-D
+`dense_dimensions` so the N-D chunk walker is exercised; comparison flattens for rank-agnosticism.
+"""
 
 
 @pytest.mark.repeat(randomized_repetitions_count)

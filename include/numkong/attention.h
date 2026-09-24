@@ -1,15 +1,15 @@
 /**
- *  @brief SIMD-accelerated ragged Transformer attention.
  *  @file include/numkong/attention.h
  *  @author Ash Vardanian
  *  @date January 11, 2026
+ *  @brief SIMD-accelerated ragged Transformer attention.
  *
  *  Contains the following kernel families, each with a size/pack/compute triple:
  *
  *  - `nk_attention_pack_size_<dtype>` - bytes needed to pack a ragged K/V batch
  *  - `nk_attention_pack_<dtype>` - one-time K/V packing into a backend-opaque layout
- *  - `nk_attention_bidirectional_packed_<dtype>` - bidirectional scaled-dot-product attention over the batch
- *  - `nk_attention_causal_packed_<dtype>` - causal, optionally sliding-window, attention over the same pack
+ *  - `nk_attention_bidirectional_packed_<dtype>` - bidirectional attention over the batch
+ *  - `nk_attention_causal_packed_<dtype>` - causal, optionally windowed attention over the pack
  *
  *  For dtypes:
  *
@@ -25,11 +25,10 @@
  *
  *  @section attention_usage Usage and Benefits
  *
- *  Transformer inference packs many variable-length segments into one flat token buffer;
- *  this family computes attention for the whole batch in one call, following UForm's
- *  `segment_offsets` / `segment_lengths` convention (cu_seqlens-style prefix sums).
- *  Self-attention, cross-attention, and single-query pooling are all the same kernel —
- *  only the per-segment query counts differ:
+ *  Transformer inference packs many variable-length segments into one flat token buffer, and this
+ *  family computes attention for the whole batch in one call over UForm's @c segment_offsets and
+ *  @c segment_lengths prefix sums, the cu_seqlens convention. Self-attention, cross-attention, and
+ *  single-query pooling share one kernel and differ only in their per-segment query counts:
  *
  *  @code{.c}
  *  nk_u32_t offsets[] = {0, 100, 630, 663}, lengths[] = {100, 530, 33};   // 3 ragged segments
@@ -43,84 +42,78 @@
  *                                         scale, 0, NK_SIZE_MAX);
  *  @endcode
  *
- *  Q, K, V, O use the activations-natural `[tokens, heads × depth]` layout with byte
- *  strides, so a fused QKV projection output `[tokens, 3 × hidden]` is consumable in place.
- *  Packing takes a half-open `(task_begin, task_end)` window over the flat `segments × kv_heads` grid,
- *  and attention a `(task_start, task_count)` window over `segments × heads`; tasks touch disjoint outputs,
- *  so callers parallelize by distributing tasks across threads — one per physical core,
- *  longest segments first. Outputs are F32: every consumer in a transformer block
- *  (normalization, residual epilogues) wants the accumulator precision anyway.
+ *  Q, K, V, O use the activations-natural layout of shape @b [tokens,heads,depth] with byte
+ *  strides, so a fused QKV projection output of shape @b [tokens,3,hidden] is consumable in place.
+ *  Packing takes a half-open `(task_begin, task_end)` window over the flat @b [segments,kv_heads]
+ *  grid, and attention a `(task_start, task_count)` window over the flat @b [segments,heads] grid;
+ *  tasks touch disjoint outputs, so callers parallelize by distributing tasks across threads — one
+ *  per physical core, longest segments first. Outputs are F32: every consumer in a transformer
+ *  block — normalization, residual epilogues — wants the accumulator precision anyway.
  *
- *  Unlike cuDNN's fused attention (head dims ≤ 256 and a multiple of 8 for 16-bit dtypes),
- *  any `depth ≥ 1` is supported: SIMD backends cover 1…256 with internal zero-padding,
- *  and larger head dimensions transparently fall back to the width-agnostic serial tier —
- *  the fallback rule is a pure function of the arguments, so packing and attention always
- *  agree on the buffer format. Causal masking lives in `nk_attention_causal_packed_<dtype>`,
- *  a separate symbol over the same pack, rather than a flag on the bidirectional kernel.
+ *  Unlike cuDNN's fused attention — head dimensions ≤ 256 and a multiple of 8 for 16-bit dtypes —
+ *  any `depth ≥ 1` is supported: SIMD backends cover 1…256 with internal zero-padding, and larger
+ *  head dimensions transparently fall back to the width-agnostic serial tier — the fallback rule is
+ *  a pure function of the arguments, so packing and attention always agree on the buffer format.
+ *  Causal masking lives in `nk_attention_causal_packed_<dtype>`, a separate symbol over the same
+ *  pack, rather than a flag on the bidirectional kernel.
  *
  *  @section attention_research Open Research Directions
  *
  *  Score-function replacements. On AMX, tile registers support only load/store/zero and
- *  matrix-multiply — no elementwise ops — so any per-pair scoring function (softmax,
- *  sigmoid, ReLU²) forces the O(n²) score matrix through one memory→vector→memory round
- *  trip per panel. Measured on one Sapphire Rapids core at q = kv = 1024, d = 128:
- *  softmax ≈ 0.82 TFLOPS, ReLU² ≈ 1.1 TFLOPS, sigmoid ≈ softmax (the division costs what
- *  the max/sum bookkeeping saves), and the tile ops alone ≈ 3.1 TFLOPS. ReLU²-scored
- *  attention is the cheapest per-pair option, but has no known production deployments and
- *  requires training-time adoption with QK-norm, LayerScale, and 1/n scaling; validation
- *  loss does not predict its downstream failures, so retrieval-style probes are the gate.
- *  No zero-shot (quantization-style) softmax→ReLU² conversion exists; the nearest
+ *  matrix-multiply — no elementwise ops — so any per-pair scoring function — softmax, sigmoid,
+ *  ReLU² — forces the O(n²) score matrix through one memory → vector → memory round trip per panel.
+ *  Measured on one Sapphire Rapids core at q = kv = 1024, d = 128: softmax ≈ 0.82 TFLOPS, ReLU² ≈
+ *  1.1 TFLOPS, sigmoid ≈ softmax — the division costs what the max/sum bookkeeping saves — and the
+ *  tile ops alone ≈ 3.1 TFLOPS. ReLU²-scored attention is the cheapest per-pair option, but has no
+ *  known production deployments and requires training-time adoption with QK-norm, LayerScale, and
+ *  1/n scaling; validation loss does not predict its downstream failures, so retrieval-style probes
+ *  are the gate. No zero-shot, quantization-style, softmax → ReLU² conversion exists; the nearest
  *  published path is a short annealing phase at the end of pretraining.
  *
- *  @see https://arxiv.org/abs/2309.08586 - ReLU/n scoring at softmax parity in ViTs
- *  @see https://arxiv.org/abs/2409.04431 - sigmoid attention theory; also benchmarks the
- *       ReLU² baselines and the QK-norm + LayerScale stabilizer stack
- *  @see https://arxiv.org/abs/2605.20798 - 1-3B replication of 20 modifications; documents
- *       the sigmoid retrieval collapse that validation loss never showed
- *  @see https://arxiv.org/abs/2410.18613 - polynomial substitutes for softmax, framed as
- *       Frobenius-norm regularization of the attention matrix
+ *  @see ReLU/n scoring at softmax parity in ViTs: https://arxiv.org/abs/2309.08586
+ *  @see Sigmoid attention theory, with ReLU² baselines and the QK-norm plus LayerScale stack: https://arxiv.org/abs/2409.04431
+ *  @see 1-3B replication of 20 modifications, showing the hidden sigmoid retrieval collapse: https://arxiv.org/abs/2605.20798
+ *  @see Polynomial softmax substitutes as Frobenius-norm regularization of attention: https://arxiv.org/abs/2410.18613
  *
- *  Linearized (kernelized) attention. `O = φ(Q) · (φ(K)ᵀ V)` moves the nonlinearity from
- *  per-pair to per-token: the O(n·d) feature maps run on vector units while both
- *  contractions stay in the matrix unit, meeting at a d×d intermediate — the only
- *  attention class with no O(n²) tile↔vector crossover at all, and O(n·d²) complexity
- *  (≈128× less arithmetic at 16K tokens, d = 128). Bottlenecks: quality at contrastive
- *  encoder scale is unproven; production encoder adoption is near zero; converting
- *  pretrained softmax checkpoints needs distillation (0.005-2% of pretraining tokens),
- *  never a gradient-free swap; and the d×d state must requantize to BF16 between the two
- *  matrix multiplications.
+ *  Linearized attention, also called kernelized, computes O = φ(Q) · (φ(K)ᵀ V), moving the
+ *  nonlinearity from per-pair to per-token: the O(n·d) feature maps run on vector units while both
+ *  contractions stay in the matrix unit, meeting at a d×d intermediate — the only attention class
+ *  with no O(n²) tile ↔ vector crossover at all, and O(n·d²) complexity — ≈128× less arithmetic at
+ *  16K tokens, d = 128. Bottlenecks: quality at contrastive encoder scale is unproven; production
+ *  encoder adoption is near zero; converting pretrained softmax checkpoints needs distillation —
+ *  0.005-2% of pretraining tokens — never a gradient-free swap; and the d×d state must requantize
+ *  to BF16 between the two matrix multiplications.
  *
- *  @see https://arxiv.org/abs/2402.05008 - EfficientViT-SAM, a shipped ReLU-kernel linear
- *       attention encoder at SAM-ViT-H quality
- *  @see https://arxiv.org/abs/2410.10254 - LoLCATs low-rank linearization of Llamas
- *  @see https://arxiv.org/abs/2505.03005 - RADLADS conversion at <0.005% of pretraining
- *  @see https://arxiv.org/abs/2402.04347 - Hedgehog: why zero-shot kernel swaps collapse
+ *  @see EfficientViT-SAM, a shipped ReLU-kernel linear attention encoder at SAM-ViT-H quality: https://arxiv.org/abs/2402.05008
+ *  @see LoLCATs low-rank linearization of Llamas: https://arxiv.org/abs/2410.10254
+ *  @see RADLADS conversion at <0.005% of pretraining: https://arxiv.org/abs/2505.03005
+ *  @see Hedgehog, why zero-shot kernel swaps collapse: https://arxiv.org/abs/2402.04347
  *
  *  @section attention_causal Causal and Sliding-Window Attention
  *
  *  `nk_attention_causal_packed_*` covers decoder inference with two scalars: query row `r` sits at
- *  position `p = r + diagonal_offset` and sees the `window` keys ending at `p`, inclusive. `offset = 0`
- *  gives causal prefill, `offset = position_count − row_count` gives decode and chunked prefill against a
- *  longer cache, a finite `window` gives sliding-window attention, and the ragged segment directory
- *  already provides block-diagonal document masking for packed batches. Rows whose range is empty,
- *  such as `p < 0` or `window = 0`, produce zeros, as do segments with no keys in both modes.
+ *  position `p = r + diagonal_offset` and sees the @c window keys ending at @c p, inclusive.
+ *  `offset = 0` gives causal prefill, `offset = position_count − row_count` gives decode and
+ *  chunked prefill against a longer cache, a finite @c window gives sliding-window attention, and
+ *  the ragged segment directory already provides block-diagonal document masking for packed
+ *  batches. Rows whose range is empty, such as `p < 0` or `window = 0`, produce zeros, as do
+ *  segments with no keys in both modes.
  *
- *  Masking clips each row's key range instead of writing −∞ scores, because the clamped `exp2`,
- *  SME rounding, and I8 score differences all misbehave on sentinels. KV panels outside every row of a
- *  query block are skipped outright, so causality is ≈2× fewer FLOPs at equal context, and a row that
- *  sees no key of a panel keeps its running maximum. Deliberately out of scope: ALiBi, logit
- *  soft-capping, and paged KV caches.
+ *  Masking clips each row's key range instead of writing −∞ scores, because the clamped @c exp2,
+ *  SME rounding, and I8 score differences all misbehave on sentinels. KV panels outside every row
+ *  of a query block are skipped outright, so causality is ≈2× fewer FLOPs at equal context, and a
+ *  row that sees no key of a panel keeps its running maximum. Deliberately out of scope: ALiBi,
+ *  logit soft-capping, and paged KV caches.
  *
- *  @see https://arxiv.org/abs/2307.08691 - FlashAttention-2 causal tiling and work skipping
- *  @see https://arxiv.org/abs/2310.06825 - Mistral 7B: sliding-window attention in production
+ *  @see FlashAttention-2 causal tiling and work skipping: https://arxiv.org/abs/2307.08691
+ *  @see Mistral 7B, sliding-window attention in production: https://arxiv.org/abs/2310.06825
  *
  *  @section attention_references References
  *
- *  - FlashAttention-2 tiling and the online softmax: https://arxiv.org/abs/2307.08691
- *  - cuDNN attention shape constraints for comparison:
- *    https://docs.nvidia.com/deeplearning/cudnn/latest/operations/Attention.html
- *  - x86 intrinsics: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
- *  - Arm intrinsics: https://developer.arm.com/architectures/instruction-sets/intrinsics/
+ *  @see FlashAttention-2 tiling and the online softmax: https://arxiv.org/abs/2307.08691
+ *  @see cuDNN attention shape constraints for comparison: https://docs.nvidia.com/deeplearning/cudnn/latest/operations/Attention.html
+ *  @see x86 intrinsics: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
+ *  @see Arm intrinsics: https://developer.arm.com/architectures/instruction-sets/intrinsics/
  */
 #ifndef NK_ATTENTION_H
 #define NK_ATTENTION_H

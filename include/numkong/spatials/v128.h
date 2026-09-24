@@ -1,8 +1,8 @@
 /**
- *  @brief Batched Spatial Distances for WASM.
  *  @file include/numkong/spatials/v128.h
  *  @author Ash Vardanian
  *  @date September 12, 2026
+ *  @brief Batched spatial distances for WASM.
  *
  *  @sa include/numkong/spatials.h
  */

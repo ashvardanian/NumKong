@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Square Roots and Reciprocal Square Roots for WASM.
  *  @file include/numkong/scalar/v128.h
  *  @author Ash Vardanian
  *  @date September 12, 2026
+ *  @brief SIMD-accelerated square roots and reciprocal square roots for WASM.
  *
  *  @sa include/numkong/scalar.h
  */

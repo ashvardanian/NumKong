@@ -1,4 +1,9 @@
-/* NumKong ISA probe: Alder Lake (AVX-VNNI 256-bit) */
+/**
+ *  @file probes/x86_alder.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for Alder Lake, AVX-VNNI 256-bit.
+ */
 #if defined(__APPLE__)
 #error "AVX-512 not available on macOS"
 #endif

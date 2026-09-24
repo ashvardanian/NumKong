@@ -1,20 +1,20 @@
 /**
- *  @brief SIMD-accelerated Dot Products for LoongArch LASX (256-bit).
  *  @file include/numkong/dot/loongsonasx.h
  *  @author Ash Vardanian
  *  @date March 23, 2026
+ *  @brief SIMD-accelerated dot products for LoongArch LASX, 256-bit.
  *
  *  @sa include/numkong/dot.h
  *
  *  @section dot_loongsonasx_instructions Key LASX Dot Product Instructions
  *
- *  LASX provides 256-bit SIMD operations using __m256i as the universal vector type.
- *  All intrinsics are prefixed with __lasx_. Float operations reinterpret __m256i as
- *  f32x8 or f64x4. Integer widening multiply-accumulate chains handle i8/u8 dot products.
+ *  LASX provides 256-bit SIMD operations with @c __m256i as the universal vector type, and every
+ *  intrinsic carries the @c __lasx_ prefix. Float operations reinterpret @c __m256i as f32x8 or
+ *  f64x4, and integer widening multiply-accumulate chains handle i8 and u8 dot products.
  *
- *  For F32 dot products, upcasting to F64 and downcasting back is faster than stable
- *  summation algorithms. For F64 we use the Dot2 algorithm (Ogita-Rump-Oishi, 2005)
- *  for compensated accumulation via TwoSum/TwoProd.
+ *  For F32 dot products, upcasting to F64 and downcasting back is faster than stable summation
+ *  algorithms. For F64 we use the Dot2 algorithm (Ogita-Rump-Oishi, 2005) for compensated
+ *  accumulation via TwoSum/TwoProd.
  *
  *  @section dot_loongsonasx_stateful Stateful Streaming Logic
  *

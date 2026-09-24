@@ -1,3 +1,6 @@
+// numkong/golang/spatials.go
+// Written by Ash Vardanian.
+
 package numkong
 
 /*
@@ -10,10 +13,11 @@ package numkong
 import "C"
 import "unsafe"
 
-// region Packed Batch Operations (Angulars / Euclideans)
+// region Packed Angulars / Euclideans
 
-// AngularsPackedF64 computes the angular distance from each of height float64 rows of a to every packed row of b.
-// Each row has b.Depth() dimensions, and result holds at least height * b.Width() entries.
+// AngularsPackedF64 computes the angular distance from each of height float64 rows of a to every
+// packed row of b. Each row has [DotsPackedMatrix.Depth] dimensions, and result holds at least
+// height * [DotsPackedMatrix.Width] entries.
 func AngularsPackedF64(a []float64, b DotsPackedMatrix, result []float64, height int) {
 	if b.DType() != "f64" {
 		panic("DotsPackedMatrix dtype must be f64")
@@ -33,8 +37,9 @@ func AngularsPackedF64(a []float64, b DotsPackedMatrix, result []float64, height
 		C.nk_size_t(b.width*8))
 }
 
-// AngularsPackedF32 computes the angular distance from each of height float32 rows of a to every packed row of b.
-// Each row has b.Depth() dimensions, and result holds at least height * b.Width() entries.
+// AngularsPackedF32 computes the angular distance from each of height float32 rows of a to every
+// packed row of b. Each row has [DotsPackedMatrix.Depth] dimensions, and result holds at least
+// height * [DotsPackedMatrix.Width] entries.
 func AngularsPackedF32(a []float32, b DotsPackedMatrix, result []float64, height int) {
 	if b.DType() != "f32" {
 		panic("DotsPackedMatrix dtype must be f32")
@@ -54,8 +59,9 @@ func AngularsPackedF32(a []float32, b DotsPackedMatrix, result []float64, height
 		C.nk_size_t(b.width*8))
 }
 
-// AngularsPackedI8 computes the angular distance from each of height int8 rows of a to every packed row of b.
-// Each row has b.Depth() dimensions, and result holds at least height * b.Width() entries.
+// AngularsPackedI8 computes the angular distance from each of height int8 rows of a to every packed
+// row of b. Each row has [DotsPackedMatrix.Depth] dimensions, and result holds at least height *
+// [DotsPackedMatrix.Width] entries.
 func AngularsPackedI8(a []int8, b DotsPackedMatrix, result []float32, height int) {
 	if b.DType() != "i8" {
 		panic("DotsPackedMatrix dtype must be i8")
@@ -75,8 +81,9 @@ func AngularsPackedI8(a []int8, b DotsPackedMatrix, result []float32, height int
 		C.nk_size_t(b.width*4))
 }
 
-// AngularsPackedU8 computes the angular distance from each of height uint8 rows of a to every packed row of b.
-// Each row has b.Depth() dimensions, and result holds at least height * b.Width() entries.
+// AngularsPackedU8 computes the angular distance from each of height uint8 rows of a to every
+// packed row of b. Each row has [DotsPackedMatrix.Depth] dimensions, and result holds at least
+// height * [DotsPackedMatrix.Width] entries.
 func AngularsPackedU8(a []uint8, b DotsPackedMatrix, result []float32, height int) {
 	if b.DType() != "u8" {
 		panic("DotsPackedMatrix dtype must be u8")
@@ -96,8 +103,9 @@ func AngularsPackedU8(a []uint8, b DotsPackedMatrix, result []float32, height in
 		C.nk_size_t(b.width*4))
 }
 
-// EuclideansPackedF64 computes the Euclidean distance from each of height float64 rows of a to every packed row of b.
-// Each row has b.Depth() dimensions, and result holds at least height * b.Width() entries.
+// EuclideansPackedF64 computes the Euclidean distance from each of height float64 rows of a to
+// every packed row of b. Each row has [DotsPackedMatrix.Depth] dimensions, and result holds at
+// least height * [DotsPackedMatrix.Width] entries.
 func EuclideansPackedF64(a []float64, b DotsPackedMatrix, result []float64, height int) {
 	if b.DType() != "f64" {
 		panic("DotsPackedMatrix dtype must be f64")
@@ -117,8 +125,9 @@ func EuclideansPackedF64(a []float64, b DotsPackedMatrix, result []float64, heig
 		C.nk_size_t(b.width*8))
 }
 
-// EuclideansPackedF32 computes the Euclidean distance from each of height float32 rows of a to every packed row of b.
-// Each row has b.Depth() dimensions, and result holds at least height * b.Width() entries.
+// EuclideansPackedF32 computes the Euclidean distance from each of height float32 rows of a to
+// every packed row of b. Each row has [DotsPackedMatrix.Depth] dimensions, and result holds at
+// least height * [DotsPackedMatrix.Width] entries.
 func EuclideansPackedF32(a []float32, b DotsPackedMatrix, result []float64, height int) {
 	if b.DType() != "f32" {
 		panic("DotsPackedMatrix dtype must be f32")
@@ -138,8 +147,9 @@ func EuclideansPackedF32(a []float32, b DotsPackedMatrix, result []float64, heig
 		C.nk_size_t(b.width*8))
 }
 
-// EuclideansPackedI8 computes the Euclidean distance from each of height int8 rows of a to every packed row of b.
-// Each row has b.Depth() dimensions, and result holds at least height * b.Width() entries.
+// EuclideansPackedI8 computes the Euclidean distance from each of height int8 rows of a to every
+// packed row of b. Each row has [DotsPackedMatrix.Depth] dimensions, and result holds at least
+// height * [DotsPackedMatrix.Width] entries.
 func EuclideansPackedI8(a []int8, b DotsPackedMatrix, result []float32, height int) {
 	if b.DType() != "i8" {
 		panic("DotsPackedMatrix dtype must be i8")
@@ -159,8 +169,9 @@ func EuclideansPackedI8(a []int8, b DotsPackedMatrix, result []float32, height i
 		C.nk_size_t(b.width*4))
 }
 
-// EuclideansPackedU8 computes the Euclidean distance from each of height uint8 rows of a to every packed row of b.
-// Each row has b.Depth() dimensions, and result holds at least height * b.Width() entries.
+// EuclideansPackedU8 computes the Euclidean distance from each of height uint8 rows of a to every
+// packed row of b. Each row has [DotsPackedMatrix.Depth] dimensions, and result holds at least
+// height * [DotsPackedMatrix.Width] entries.
 func EuclideansPackedU8(a []uint8, b DotsPackedMatrix, result []float32, height int) {
 	if b.DType() != "u8" {
 		panic("DotsPackedMatrix dtype must be u8")
@@ -182,10 +193,11 @@ func EuclideansPackedU8(a []uint8, b DotsPackedMatrix, result []float32, height 
 
 // endregion
 
-// region Symmetric Operations (Angulars / Euclideans)
+// region Symmetric Angulars / Euclideans
 
-// AngularsSymmetricF64 computes the angular distance between every pair of nVectors float64 vectors of depth dimensions.
-// The vectors are stored row-major, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
+// AngularsSymmetricF64 computes the angular distance between every pair of nVectors row-major
+// float64 vectors of depth dimensions, writing only entries with row <= column into result, which
+// holds at least nVectors * nVectors entries.
 func AngularsSymmetricF64(vectors []float64, nVectors, depth int, result []float64) {
 	if len(vectors) < nVectors*depth {
 		panic("input slice too short for the given nVectors and depth")
@@ -206,8 +218,9 @@ func angularsSymmetricF64(vectors []float64, nVectors, depth int, result []float
 		C.nk_size_t(rowStart), C.nk_size_t(rowCount))
 }
 
-// AngularsSymmetricF32 computes the angular distance between every pair of nVectors float32 vectors of depth dimensions.
-// The vectors are stored row-major, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
+// AngularsSymmetricF32 computes the angular distance between every pair of nVectors row-major
+// float32 vectors of depth dimensions, writing only entries with row <= column into result, which
+// holds at least nVectors * nVectors entries.
 func AngularsSymmetricF32(vectors []float32, nVectors, depth int, result []float64) {
 	if len(vectors) < nVectors*depth {
 		panic("input slice too short for the given nVectors and depth")
@@ -228,8 +241,9 @@ func angularsSymmetricF32(vectors []float32, nVectors, depth int, result []float
 		C.nk_size_t(rowStart), C.nk_size_t(rowCount))
 }
 
-// AngularsSymmetricI8 computes the angular distance between every pair of nVectors int8 vectors of depth dimensions.
-// The vectors are stored row-major, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
+// AngularsSymmetricI8 computes the angular distance between every pair of nVectors row-major int8
+// vectors of depth dimensions, writing only entries with row <= column into result, which holds at
+// least nVectors * nVectors entries.
 func AngularsSymmetricI8(vectors []int8, nVectors, depth int, result []float32) {
 	if len(vectors) < nVectors*depth {
 		panic("input slice too short for the given nVectors and depth")
@@ -250,8 +264,9 @@ func angularsSymmetricI8(vectors []int8, nVectors, depth int, result []float32, 
 		C.nk_size_t(rowStart), C.nk_size_t(rowCount))
 }
 
-// AngularsSymmetricU8 computes the angular distance between every pair of nVectors uint8 vectors of depth dimensions.
-// The vectors are stored row-major, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
+// AngularsSymmetricU8 computes the angular distance between every pair of nVectors row-major uint8
+// vectors of depth dimensions, writing only entries with row <= column into result, which holds at
+// least nVectors * nVectors entries.
 func AngularsSymmetricU8(vectors []uint8, nVectors, depth int, result []float32) {
 	if len(vectors) < nVectors*depth {
 		panic("input slice too short for the given nVectors and depth")
@@ -272,8 +287,9 @@ func angularsSymmetricU8(vectors []uint8, nVectors, depth int, result []float32,
 		C.nk_size_t(rowStart), C.nk_size_t(rowCount))
 }
 
-// EuclideansSymmetricF64 computes the Euclidean distance between every pair of nVectors float64 vectors of depth dimensions.
-// The vectors are stored row-major, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
+// EuclideansSymmetricF64 computes the Euclidean distance between every pair of nVectors row-major
+// float64 vectors of depth dimensions, writing only entries with row <= column into result, which
+// holds at least nVectors * nVectors entries.
 func EuclideansSymmetricF64(vectors []float64, nVectors, depth int, result []float64) {
 	if len(vectors) < nVectors*depth {
 		panic("input slice too short for the given nVectors and depth")
@@ -294,8 +310,9 @@ func euclideansSymmetricF64(vectors []float64, nVectors, depth int, result []flo
 		C.nk_size_t(rowStart), C.nk_size_t(rowCount))
 }
 
-// EuclideansSymmetricF32 computes the Euclidean distance between every pair of nVectors float32 vectors of depth dimensions.
-// The vectors are stored row-major, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
+// EuclideansSymmetricF32 computes the Euclidean distance between every pair of nVectors row-major
+// float32 vectors of depth dimensions, writing only entries with row <= column into result, which
+// holds at least nVectors * nVectors entries.
 func EuclideansSymmetricF32(vectors []float32, nVectors, depth int, result []float64) {
 	if len(vectors) < nVectors*depth {
 		panic("input slice too short for the given nVectors and depth")
@@ -316,8 +333,9 @@ func euclideansSymmetricF32(vectors []float32, nVectors, depth int, result []flo
 		C.nk_size_t(rowStart), C.nk_size_t(rowCount))
 }
 
-// EuclideansSymmetricI8 computes the Euclidean distance between every pair of nVectors int8 vectors of depth dimensions.
-// The vectors are stored row-major, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
+// EuclideansSymmetricI8 computes the Euclidean distance between every pair of nVectors row-major
+// int8 vectors of depth dimensions, writing only entries with row <= column into result, which
+// holds at least nVectors * nVectors entries.
 func EuclideansSymmetricI8(vectors []int8, nVectors, depth int, result []float32) {
 	if len(vectors) < nVectors*depth {
 		panic("input slice too short for the given nVectors and depth")
@@ -338,8 +356,9 @@ func euclideansSymmetricI8(vectors []int8, nVectors, depth int, result []float32
 		C.nk_size_t(rowStart), C.nk_size_t(rowCount))
 }
 
-// EuclideansSymmetricU8 computes the Euclidean distance between every pair of nVectors uint8 vectors of depth dimensions.
-// The vectors are stored row-major, and only entries with row <= column are written into result, which holds at least nVectors * nVectors entries.
+// EuclideansSymmetricU8 computes the Euclidean distance between every pair of nVectors row-major
+// uint8 vectors of depth dimensions, writing only entries with row <= column into result, which
+// holds at least nVectors * nVectors entries.
 func EuclideansSymmetricU8(vectors []uint8, nVectors, depth int, result []float32) {
 	if len(vectors) < nVectors*depth {
 		panic("input slice too short for the given nVectors and depth")

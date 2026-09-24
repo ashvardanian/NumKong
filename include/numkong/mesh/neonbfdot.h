@@ -1,35 +1,37 @@
 /**
- *  @brief SIMD-accelerated Point Cloud Alignment for NEON BF16.
  *  @file include/numkong/mesh/neonbfdot.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated point cloud alignment for NEON BF16.
  *
  *  @sa include/numkong/mesh.h
  *
  *  @section mesh_neonbfdot_instructions ARM NEON BF16 Instructions (ARMv8.6-BF16)
  *
- *      Intrinsic    Instruction               A76       M5
- *      vld3q_u16    LD3 (V.8H x 3)            4cy @ 1p  4cy @ 1p
- *      vld3_u16     LD3 (V.4H x 3)            4cy @ 1p  4cy @ 1p
- *      vbfdotq_f32  BFDOT (V.4S, V.8H, V.8H)  3cy @ 2p  2cy @ 1p
- *      vshll_n_u16  USHLL (V.4S, V.4H, #16)   2cy @ 2p  2cy @ 4p
- *      vfmaq_f32    FMLA (V.4S, V.4S, V.4S)   4cy @ 2p  3cy @ 4p
- *      vaddq_f32    FADD (V.4S, V.4S, V.4S)   2cy @ 2p  2cy @ 4p
- *      vsubq_f32    FSUB (V.4S, V.4S, V.4S)   2cy @ 2p  2cy @ 4p
- *      vmulq_f32    FMUL (V.4S, V.4S, V.4S)   3cy @ 2p  3cy @ 4p
- *      vdupq_n_f32  DUP (V.4S, scalar)        2cy @ 2p  2cy @ 4p
- *      vaddvq_f32   FADDP+FADDP (V.4S)        5cy @ 1p  8cy @ 1p
+ *  @verbatim
+ *  Intrinsic    Instruction               A76       M5
+ *  vld3q_u16    LD3 (V.8H x 3)            4cy @ 1p  4cy @ 1p
+ *  vld3_u16     LD3 (V.4H x 3)            4cy @ 1p  4cy @ 1p
+ *  vbfdotq_f32  BFDOT (V.4S, V.8H, V.8H)  3cy @ 2p  2cy @ 1p
+ *  vshll_n_u16  USHLL (V.4S, V.4H, #16)   2cy @ 2p  2cy @ 4p
+ *  vfmaq_f32    FMLA (V.4S, V.4S, V.4S)   4cy @ 2p  3cy @ 4p
+ *  vaddq_f32    FADD (V.4S, V.4S, V.4S)   2cy @ 2p  2cy @ 4p
+ *  vsubq_f32    FSUB (V.4S, V.4S, V.4S)   2cy @ 2p  2cy @ 4p
+ *  vmulq_f32    FMUL (V.4S, V.4S, V.4S)   3cy @ 2p  3cy @ 4p
+ *  vdupq_n_f32  DUP (V.4S, scalar)        2cy @ 2p  2cy @ 4p
+ *  vaddvq_f32   FADDP+FADDP (V.4S)        5cy @ 1p  8cy @ 1p
+ *  @endverbatim
  *
  *  The ARMv8.6-BF16 extension enables BF16 storage with F32 computation for 3D mesh alignment
- *  operations. BF16's wider exponent range (matching F32) prevents overflow in geometric calculations
- *  while halving memory bandwidth compared to F32.
+ *  operations. BF16's wider exponent range, matching F32, prevents overflow in geometric
+ *  calculations while halving memory bandwidth compared to F32.
  *
- *  For point cloud registration (Kabsch, Umeyama), BF16 data is loaded using VLD3 de-interleave
- *  operations and processed directly with BFDOT (`vbfdotq_f32`), which computes two BF16 products
- *  per 32-bit lane with FP32 accumulation. This skips the explicit bf16→f32 widening that the
- *  prior vshll+fmaq approach required, halving the front-end pressure on the covariance/centroid
- *  stats pass. RMSD keeps the widen+subtract+fmaq pipeline because it needs the (a - b) difference
- *  before squaring, which BFDOT can't express directly.
+ *  For Kabsch and Umeyama point cloud registration, BF16 data is loaded using VLD3 de-interleave
+ *  operations and processed directly with BFDOT, @c vbfdotq_f32, which computes two BF16 products
+ *  per 32-bit lane with FP32 accumulation. This skips the explicit bf16 → f32 widening that a
+ *  vshll+fmaq approach requires, halving the front-end pressure on the covariance and centroid
+ *  stats pass. RMSD keeps the widen+subtract+fmaq pipeline because it needs the a − b difference
+ *  before squaring, which BFDOT cannot express directly.
  */
 #ifndef NK_MESH_NEONBFDOT_H
 #define NK_MESH_NEONBFDOT_H

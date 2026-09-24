@@ -1,29 +1,31 @@
 /**
- *  @brief Python bindings for the trigonometry family (sin/cos/atan) and RoPE.
  *  @file python/trigonometry.c
+ *  @author Ash Vardanian
+ *  @date July 7, 2026
+ *  @brief Python bindings for the trigonometry family, sin/cos/atan, and RoPE.
  *
- *  Trig entry points extracted from each.c: they build on the shared elementwise binding
- *  machinery (elementwise_prepare_out, each_unary_recursive) declared in tensor.h.
+ *  Trig entry points extracted from each.c: they build on the shared elementwise binding machinery,
+ *  elementwise_prepare_out, each_unary_recursive, declared in tensor.h.
  */
 
 #include "trigonometry.h"
 #include "tensor.h"
 
-char const doc_rope[] =                                                                             //
-    "NeoX split-half rotary position embedding (RoPE).\n\n"                                         //
-    "Rotates every channel pair (channel i against i+half_dim) of each head by the per-token\n"     //
-    "angle grids. Bake position lookup and multi-axis (M-RoPE) assignment into the `[rows,\n"       //
-    "half_dim]` cos/sin grids so a single call rotates the whole head.\n\n"                         //
-    "Parameters:\n"                                                                                 //
-    "    x (Tensor): `[rows, heads * 2*half_dim]`, float32/bfloat16/e4m3.\n"                        //
-    "    cos, sin (Tensor): `[rows, half_dim]` float32 angle grids, shared across heads.\n"         //
-    "    heads (int): Number of heads per token.\n"                                                 //
-    "    half_dim (int): Half the head dimension.\n"                                                //
-    "    out (Tensor, optional): Output, same shape/dtype as x; may alias x. Defaults to x.\n"      //
-    "    input_scale (float, optional): Scale folded onto each loaded element, 1.0 by default.\n\n" //
-    "Returns:\n"                                                                                    //
-    "    None: The result is written into `out` (or `x` in place).\n\n"                             //
-    "Signature:\n"                                                                                  //
+char const doc_rope[] =                                                                                   //
+    "NeoX split-half rotary position embedding, RoPE.\n\n"                                                //
+    "Rotates every channel pair (channel i against i+half_dim) of each head by the per-token angle\n"     //
+    "grids. Bake position lookup and multi-axis, M-RoPE, assignment into the `[rows,half_dim]` cos/sin\n" //
+    "grids so a single call rotates the whole head.\n\n"                                                  //
+    "Args:\n"                                                                                             //
+    "    x (Tensor): [rows,heads×2×half_dim], float32/bfloat16/e4m3.\n"                                   //
+    "    cos, sin (Tensor): `[rows, half_dim]` float32 angle grids, shared across heads.\n"               //
+    "    heads (int): Number of heads per token.\n"                                                       //
+    "    half_dim (int): Half the head dimension.\n"                                                      //
+    "    out (Tensor, optional): Output, same shape/dtype as x; may alias x. Defaults to x.\n"            //
+    "    input_scale (float, optional): Scale folded onto each loaded element, 1.0 by default.\n\n"       //
+    "Returns:\n"                                                                                          //
+    "    None: The result is written into `out`, or into `x` in place.\n\n"                               //
+    "Signature:\n"                                                                                        //
     "    >>> def rope(x, cos, sin, heads, half_dim, /, *, out, input_scale) -> None: ...";
 
 PyObject *api_rope(PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count,
@@ -182,7 +184,7 @@ cleanup:
 
 char const doc_sin[] =                                                                                 //
     "Element-wise trigonometric sine.\n\n"                                                             //
-    "Parameters:\n"                                                                                    //
+    "Args:\n"                                                                                          //
     "    a (Tensor): Input tensor of any rank, angles in radians.\n"                                   //
     "    dtype (Union[IntegralType, FloatType], optional): Override the presumed numeric type name.\n" //
     "    out (Tensor, optional): Vector for resulting values.\n\n"                                     //
@@ -194,7 +196,7 @@ char const doc_sin[] =                                                          
 
 char const doc_cos[] =                                                                                 //
     "Element-wise trigonometric cosine.\n\n"                                                           //
-    "Parameters:\n"                                                                                    //
+    "Args:\n"                                                                                          //
     "    a (Tensor): Input tensor of any rank, angles in radians.\n"                                   //
     "    dtype (Union[IntegralType, FloatType], optional): Override the presumed numeric type name.\n" //
     "    out (Tensor, optional): Vector for resulting values.\n\n"                                     //
@@ -206,7 +208,7 @@ char const doc_cos[] =                                                          
 
 char const doc_atan[] =                                                                                //
     "Element-wise trigonometric arctangent.\n\n"                                                       //
-    "Parameters:\n"                                                                                    //
+    "Args:\n"                                                                                          //
     "    a (Tensor): Input vector of values.\n"                                                        //
     "    dtype (Union[IntegralType, FloatType], optional): Override the presumed numeric type name.\n" //
     "    out (Tensor, optional): Vector for resulting angles in radians.\n\n"                          //

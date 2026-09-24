@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Mesh Operations for RISC-V.
  *  @file include/numkong/mesh/rvv.h
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief SIMD-accelerated mesh operations for RISC-V.
  *
  *  @sa include/numkong/mesh.h
  *
@@ -20,20 +20,21 @@
  *  - `nk_centroid_and_cross_covariance_and_variance_*_rvv_`: same outputs, used by Umeyama
  *
  *  Math for fused centroid+covariance:
- *    H[i][j] = Σ (a[i] - ca[i]) * (b[j] - cb[j])
- *            = Σ a[i] * b[j] - n * ca[i] * cb[j]
+ *
+ *    H[i][j] = Σ (a[i] - ca[i]) * (b[j] - cb[j]) = Σ a[i] * b[j] - n * ca[i] * cb[j]
+ *
  *  So we accumulate raw Σ a[i] * b[j] in the loop, then fix up after.
  *
  *  Key RVV-specific optimizations (vs. scalar or x86 backends):
  *
- *  - Deferred horizontal reduction in bicentroid: per-lane `vfwadd_wv` (f32)
- *    or `vfadd_vv` (f64) accumulation across loop iterations, with a single
- *    `vfredusum` after the loop — eliminates 6 `vfredusum` per iteration.
- *  - `vfwmacc_vv` in f32 SSD: accumulates widened squared distances per-lane
- *    (dx²+dy²+dz²) before a single reduction — saves 2 `vfredusum` per iteration.
- *  - Vectorized R = V×Uᵀ via `vfmul_vf`/`vfmacc_vf`: each output row computed
- *    as a 3-element vector dot product — 15 vector ops vs 45 scalar ops.
- *  - `vfncvt_f_f_w` for f64→f32 narrowing of H matrix before SVD.
+ *  - Deferred horizontal reduction in bicentroid: per-lane @c vfwadd_wv for f32 or @c vfadd_vv for
+ *    f64 accumulation across loop iterations, with a single @c vfredusum after the loop, eliminates
+ *    6 @c vfredusum per iteration.
+ *  - @c vfwmacc_vv in f32 SSD: accumulates widened squared distances dx² + dy² + dz² per lane
+ *    before a single reduction, saving 2 @c vfredusum per iteration.
+ *  - Vectorized R = V × Uᵀ via @c vfmul_vf and @c vfmacc_vf: each output row is a 3-element vector
+ *    dot product, 15 vector ops versus 45 scalar ops.
+ *  - @c vfncvt_f_f_w for the f64 → f32 narrowing of the H matrix before SVD.
  */
 #ifndef NK_MESH_RVV_H
 #define NK_MESH_RVV_H

@@ -13,10 +13,10 @@
 //! `none_set` / `all_set` directly so the bit-reduction spelling matches the
 //! [`crate::reduce::BitwiseReductionsOps`] trait used on tensor containers.
 //!
-//! All types use [`StorageElement`] as their element bound, with sub-byte types
-//! (i4x2, u4x2, u1x8) supported via `try_get`/`try_set` and iterators.
+//! All types use [`StorageElement`] as their element bound, with sub-byte types such as i4x2, u4x2,
+//! and u1x8 supported via `try_get`/`try_set` and iterators.
 //!
-//! # Signed (Python-style) indexing
+//! # Python-style signed indexing
 //!
 //! Negative indices count from the end, mirroring Python's `list[-1]` idiom:
 //!
@@ -33,8 +33,8 @@
 //!
 //! # Sub-byte element iteration
 //!
-//! For packed types such as `i4x2`, `u4x2`, and `u1x8`, iteration yields one
-//! logical dimension per step, not one packed storage value:
+//! For packed types such as `i4x2`, `u4x2`, and `u1x8`, iteration yields one logical dimension per
+//! step, not one packed storage value:
 //!
 //! ```ignore
 //! use numkong::vector::Vector;
@@ -46,6 +46,9 @@
 //! assert_eq!(v.try_get(0_usize).unwrap(), 1);
 //! assert_eq!(v.try_get(1_usize).unwrap(), 0);
 //! ```
+//!
+//! File: rust/vector.rs
+//! Author: Ash Vardanian
 
 use core::marker::PhantomData;
 use core::ptr::NonNull;
@@ -242,11 +245,11 @@ impl VectorIndex for i64 {
 
 /// Immutable reference to a single bit within a packed byte.
 ///
-/// Obtained by iterating over or indexing into a `Vector<u1x8>`. The `mask`
-/// selects which of the eight bits the proxy represents; the byte itself is
-/// shared with the seven sibling proxies for the same byte.
+/// Obtained by iterating over or indexing into a `Vector<u1x8>`. The `mask` selects which of the
+/// eight bits the proxy represents; the byte itself is shared with the seven sibling proxies for
+/// the same byte.
 ///
-/// # Example
+/// # Examples
 ///
 /// ```ignore
 /// use numkong::vector::Vector;
@@ -274,11 +277,10 @@ impl<'a> BitRef<'a> {
 
 /// Mutable reference to a single bit within a packed byte.
 ///
-/// Obtained via mutable iteration / indexing of a `Vector<u1x8>`. Writes OR or
-/// AND the stored byte so sibling bits are preserved; the `mask` selects which
-/// bit this proxy represents.
+/// Obtained via mutable iteration / indexing of a `Vector<u1x8>`. Writes OR or AND the stored byte
+/// so sibling bits are preserved; the `mask` selects which bit this proxy represents.
 ///
-/// # Example
+/// # Examples
 ///
 /// ```ignore
 /// use numkong::vector::Vector;
@@ -324,8 +326,8 @@ impl<'a> BitRefMut<'a> {
 
 /// Owning, non-resizable, SIMD-aligned vector.
 ///
-/// Size is fixed at construction. Uses [`StorageElement`] for element types,
-/// including sub-byte packed types via `Scalar::dimensions_per_value()`.
+/// Size is fixed at construction. Uses [`StorageElement`] for element types, including sub-byte
+/// packed types via `Scalar::dimensions_per_value()`.
 ///
 /// For normal types (`dimensions_per_value() == 1`), supports `Index`/`IndexMut`.
 /// For sub-byte types, use `try_get`/`try_set` or iterators.
@@ -388,8 +390,8 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
 
     /// An empty vector that owns no allocation, holding only the given allocator.
     ///
-    /// Cannot fail, because nothing is allocated until the first
-    /// [`try_reserve`](Self::try_reserve) or [`try_resize`](Self::try_resize).
+    /// Cannot fail, because nothing is allocated until the first [`try_reserve`](Self::try_reserve)
+    /// or [`try_resize`](Self::try_resize).
     pub fn empty_in(alloc: Alloc) -> Self {
         Self {
             data: NonNull::dangling(),
@@ -444,8 +446,8 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
     /// Try to create an uninitialized vector.
     ///
     /// # Safety
-    /// The returned vector's contents are uninitialized. Reading from it before
-    /// writing is undefined behavior.
+    /// The returned vector's contents are uninitialized. Reading from it before writing is
+    /// undefined behavior.
     pub unsafe fn try_empty_in(dims: usize, alloc: Alloc) -> Result<Self, TensorError> {
         ensure_whole_values::<Scalar>(dims)?;
         let storage_count = Scalar::dimensions_to_values(dims);
@@ -514,8 +516,8 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
     #[inline]
     pub fn is_empty(&self) -> bool { self.dims == 0 }
 
-    /// Allocated storage-value capacity (`Scalar` slots) — the ceiling [`try_resize`](Self::try_resize)
-    /// honors. Always `>= size_values()`.
+    /// Allocated storage-value capacity (`Scalar` slots) — the ceiling
+    /// [`try_resize`](Self::try_resize) honors. Always `>= size_values()`.
     #[inline]
     pub fn capacity(&self) -> usize { self.capacity }
 
@@ -612,8 +614,9 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
 
     /// Try to get the logical dimension at `index`; supports signed indexing.
     ///
-    /// Returns the native `DimScalar` type, e.g. `f64` for `Vector<f64>` or `i8` for `Vector<i4x2>`.
-    /// For sub-byte types, unpacks the appropriate sub-dimension from the packed storage value.
+    /// Returns the native `DimScalar` type, e.g. `f64` for `Vector<f64>` or `i8` for
+    /// `Vector<i4x2>`. For sub-byte types, unpacks the appropriate sub-dimension from the packed
+    /// storage value.
     ///
     /// # Examples
     ///
@@ -678,8 +681,8 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
         Ok(())
     }
 
-    /// Get a slice of the underlying storage values. For sub-byte types this returns
-    /// the packed storage values, not the logical dimensions.
+    /// Get a slice of the underlying storage values. For sub-byte types this returns the packed
+    /// storage values, not the logical dimensions.
     #[inline]
     pub fn as_slice(&self) -> &[Scalar] {
         let storage_count = Scalar::dimensions_to_values(self.dims);
@@ -754,8 +757,8 @@ impl<Scalar: StorageElement> Vector<Scalar, Global> {
     /// Create an uninitialized vector.
     ///
     /// # Safety
-    /// The returned vector's contents are uninitialized. Reading from it before
-    /// writing is undefined behavior.
+    /// The returned vector's contents are uninitialized. Reading from it before writing is
+    /// undefined behavior.
     pub unsafe fn try_empty(dims: usize) -> Result<Self, TensorError> { unsafe { Self::try_empty_in(dims, Global) } }
 
     /// Create a vector from scalar f32 values.
@@ -856,20 +859,19 @@ impl<Scalar: StorageElement> Default for Vector<Scalar, Global> {
 
 /// Immutable, possibly strided, non-owning view into a vector.
 ///
-/// `VectorView` is a zero-copy borrow: it holds a raw pointer, a dimension
-/// count, and a byte stride between consecutive logical elements. It never
-/// frees its memory and is tied to the lifetime `'a` of whatever owns the
-/// storage — typically a [`Vector`] obtained via [`Vector::view`], or a row /
+/// `VectorView` is a zero-copy borrow: it holds a raw pointer, a dimension count, and a byte stride
+/// between consecutive logical elements. It never frees its memory and is tied to the lifetime `'a`
+/// of whatever owns the storage — typically a [`Vector`] obtained via [`Vector::view`], or a row /
 /// column of a tensor.
 ///
-/// Because the stride is stored in bytes and may be negative, views can walk
-/// memory in either direction, skip entries (see [`VectorView::try_strided`]),
-/// or expose a reversed iteration order (see [`VectorView::rev`]).
+/// Because the stride is stored in bytes and may be negative, views can walk memory in either
+/// direction, skip entries via [`VectorView::try_strided`], or expose a reversed iteration order
+/// via [`VectorView::rev`].
 ///
-/// Use [`VectorView`] when only read access is needed. Its mutable counterpart
-/// is [`VectorSpan`], which offers the same striding semantics plus element
-/// writes. Both types support the [`VectorIndex`] trait, so `view[0_usize]`,
-/// `view[-1_i32]`, and friends all resolve via the same Python-style rules.
+/// Use [`VectorView`] when only read access is needed. Its mutable counterpart is [`VectorSpan`],
+/// which offers the same striding semantics plus element writes. Both types support the
+/// [`VectorIndex`] trait, so `view[0_usize]`, `view[-1_i32]`, and friends all resolve via the same
+/// Python-style rules.
 pub struct VectorView<'a, Scalar: StorageElement> {
     data: *const Scalar,
     dims: usize,
@@ -938,8 +940,8 @@ impl<'a, Scalar: StorageElement> VectorView<'a, Scalar> {
 
     /// Try to get element at index; supports signed indexing.
     ///
-    /// Returns the native `DimScalar` type. For sub-byte types, uses value_index
-    /// for stride-based pointer walks to avoid buffer overread.
+    /// Returns the native `DimScalar` type. For sub-byte types, uses value_index for stride-based
+    /// pointer walks to avoid buffer overread.
     #[inline]
     pub fn try_get<AnyIndex: VectorIndex>(&self, index: AnyIndex) -> Result<Scalar::DimScalar, TensorError>
     where
@@ -959,8 +961,8 @@ impl<'a, Scalar: StorageElement> VectorView<'a, Scalar> {
 
     /// Create a reversed view by negating the stride and pointing to the last element.
     ///
-    /// The returned view has the same number of dimensions but iterates in the
-    /// opposite direction. For an empty view, returns a copy unchanged.
+    /// The returned view has the same number of dimensions but iterates in the opposite direction.
+    /// For an empty view, returns a copy unchanged.
     pub fn rev(&self) -> Self {
         if self.dims == 0 {
             return *self;
@@ -1042,17 +1044,15 @@ impl<'a, AnyIndex: VectorIndex, Scalar: StorageElement> core::ops::Index<AnyInde
 
 /// Mutable, possibly strided, non-owning view into a vector.
 ///
-/// `VectorSpan` is the read-write counterpart of [`VectorView`]: it still
-/// performs zero-copy borrowing via a raw pointer, dimension count, and byte
-/// stride, but additionally allows element writes through `try_set`, `fill`,
-/// `iter_mut`, and `IndexMut`. Spans are typically obtained via
+/// `VectorSpan` is the read-write counterpart of [`VectorView`]: it still performs zero-copy
+/// borrowing via a raw pointer, dimension count, and byte stride, but additionally allows element
+/// writes through `try_set`, `fill`, `iter_mut`, and `IndexMut`. Spans are typically obtained via
 /// [`Vector::span`] or a mutable slice of a tensor row.
 ///
-/// Like views, spans support signed ([`VectorIndex`]) indexing, negative
-/// strides via [`VectorSpan::as_view`] + [`VectorView::rev`], and Python-style
-/// slicing through their view projection. The `'a` lifetime mirrors the owner
-/// of the underlying memory, and Rust's borrow checker prevents aliasing a
-/// single span with any other reference for the duration of `'a`.
+/// Like views, spans support signed [`VectorIndex`] indexing, negative strides via
+/// [`VectorSpan::as_view`] + [`VectorView::rev`], and Python-style slicing through their view
+/// projection. The `'a` lifetime mirrors the owner of the underlying memory, and Rust's borrow
+/// checker prevents aliasing a single span with any other reference for the duration of `'a`.
 pub struct VectorSpan<'a, Scalar: StorageElement> {
     data: *mut Scalar,
     dims: usize,
@@ -1130,8 +1130,8 @@ impl<'a, Scalar: StorageElement> VectorSpan<'a, Scalar> {
 
     /// Try to set the element at `index`.
     ///
-    /// Accepts the native `DimScalar` type. For sub-byte types, uses value_index
-    /// for stride-based pointer walks to avoid buffer overwrite.
+    /// Accepts the native `DimScalar` type. For sub-byte types, uses value_index for stride-based
+    /// pointer walks to avoid buffer overwrite.
     #[inline]
     pub fn try_set<AnyIndex: VectorIndex>(
         &mut self,
@@ -1239,10 +1239,9 @@ use crate::types::u1x8;
 
 /// Population count of a contiguous packed-bit storage slice.
 ///
-/// Shared body for the inherent `popcount` methods on `Vector<u1x8>`,
-/// `VectorView<u1x8>`, and `VectorSpan<u1x8>`. Sub-byte vector views always
-/// have a one-byte stride — you cannot stride by less than a byte — so
-/// contiguous storage is implied — the slice form is always valid.
+/// Shared body for the inherent `popcount` methods on `Vector<u1x8>`, `VectorView<u1x8>`, and
+/// `VectorSpan<u1x8>`. Sub-byte vector views always have a one-byte stride — you cannot stride by
+/// less than a byte — so contiguous storage is implied — the slice form is always valid.
 fn popcount_u1x8_storage(storage: &[u1x8]) -> u64 {
     if storage.is_empty() {
         return 0;
@@ -1590,7 +1589,7 @@ impl<'a, Scalar: FloatConvertible> DoubleEndedIterator for VectorSpanIterator<'a
 
 // endregion: Iterators
 
-// region: IntoIterator (immutable)
+// region: IntoIterator, Immutable
 
 impl<'a, Scalar: FloatConvertible, Alloc: Allocator> IntoIterator for &'a Vector<Scalar, Alloc> {
     type Item = DimRef<'a, Scalar>;
@@ -1610,9 +1609,9 @@ impl<'a, Scalar: FloatConvertible> IntoIterator for &'a VectorSpan<'a, Scalar> {
     fn into_iter(self) -> Self::IntoIter { self.iter() }
 }
 
-// endregion: IntoIterator (immutable)
+// endregion: IntoIterator, Immutable
 
-// region: IntoIterator (mutable)
+// region: IntoIterator, Mutable
 
 impl<'a, Scalar: FloatConvertible, Alloc: Allocator> IntoIterator for &'a mut Vector<Scalar, Alloc> {
     type Item = DimMut<'a, Scalar>;
@@ -1626,7 +1625,7 @@ impl<'a, Scalar: FloatConvertible> IntoIterator for &'a mut VectorSpan<'a, Scala
     fn into_iter(self) -> Self::IntoIter { self.iter_mut() }
 }
 
-// endregion: IntoIterator (mutable)
+// endregion: IntoIterator, Mutable
 
 // region: AsRef
 
@@ -1678,8 +1677,8 @@ where
 {
     /// Check if all elements are within tolerance of `other`.
     ///
-    /// Uses the formula `|a - b| <= atol + rtol * |b|` per element.
-    /// Returns `false` if dimensions differ.
+    /// Returns `false` if dimensions differ; otherwise checks the formula |a − b| ≤ atol + rtol ×
+    /// |b| per element.
     pub fn allclose<OtherAlloc: Allocator>(&self, other: &Vector<Scalar, OtherAlloc>, atol: f64, rtol: f64) -> bool {
         self.dims == other.dims
             && self
@@ -1695,8 +1694,8 @@ where
 {
     /// Check if all elements are within tolerance of `other`.
     ///
-    /// Uses the formula `|a - b| <= atol + rtol * |b|` per element.
-    /// Returns `false` if dimensions differ.
+    /// Returns `false` if dimensions differ; otherwise checks the formula |a − b| ≤ atol + rtol ×
+    /// |b| per element.
     pub fn allclose(&self, other: &Self, atol: f64, rtol: f64) -> bool {
         self.dims == other.dims
             && self
@@ -1712,8 +1711,8 @@ where
 {
     /// Check if all elements are within tolerance of `other`.
     ///
-    /// Uses the formula `|a - b| <= atol + rtol * |b|` per element.
-    /// Returns `false` if dimensions differ.
+    /// Returns `false` if dimensions differ; otherwise checks the formula |a − b| ≤ atol + rtol ×
+    /// |b| per element.
     pub fn allclose(&self, other: &Self, atol: f64, rtol: f64) -> bool {
         self.dims == other.dims
             && self

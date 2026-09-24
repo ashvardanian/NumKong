@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Test batch distance operations: nk.dots_symmetric, nk.dots_packed, nk.cdist.
 
-Dtypes: float64, float32, float16, bfloat16, e4m3, e5m2, e2m3, e2m1, e3m2, int8, uint8, complex64, complex128.
+DTypes: float64, float32, float16, bfloat16, e4m3, e5m2, e2m3, e2m1, e3m2, int8, uint8, complex64, complex128.
 Baselines: high-precision Decimal matrix multiplication, NumPy matmul.
 Matches C++ suite: test/cross_*.cpp.
+
+File: test/cross.py
+Author: Ash Vardanian
+Date: February 27, 2026
 """
 
 import atexit

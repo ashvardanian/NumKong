@@ -1,8 +1,8 @@
 /**
- *  @brief Batched Spatial Distances for NEON.
  *  @file include/numkong/spatials/neon.h
  *  @author Ash Vardanian
  *  @date February 23, 2026
+ *  @brief Batched spatial distances for NEON.
  *
  *  @sa include/numkong/spatials.h
  */

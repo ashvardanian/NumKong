@@ -1,28 +1,28 @@
 /**
- *  @brief SIMD-accelerated Batched Dot Products for SME.
  *  @file include/numkong/dots/sme.h
  *  @author Ash Vardanian
  *  @date January 2, 2026
+ *  @brief SIMD-accelerated Batched Dot Products for SME.
  *
  *  @sa include/numkong/dots.h
  *
- *  Uses ARM Scalable Matrix Extension (SME) for efficient matrix multiplication
- *  with `ZA32` tiles supporting `f16`, `bf16`, `i8`, `u8`, and `e4m3` input types:
+ *  Uses ARM Scalable Matrix Extension, SME, for efficient matrix multiplication with @c ZA32 tiles
+ *  supporting @c f16, @c bf16, @c i8, @c u8, and @c e4m3 input types:
  *
- *  - `svmopa_za32_f16_m`: `f16` × `f16` outer product accumulate to `f32`
- *  - `svmopa_za32_bf16_m`: `bf16` × `bf16` outer product accumulate to `f32`
- *  - `svmopa_za32_s8_m`: `i8` × `i8` outer product accumulate to `i32`
- *  - `svmopa_za32_u8_m`: `u8` × `u8` outer product accumulate to `u32`
+ *  - @c svmopa_za32_f16_m: f16 × f16 outer product accumulate to f32
+ *  - @c svmopa_za32_bf16_m: bf16 × bf16 outer product accumulate to f32
+ *  - @c svmopa_za32_s8_m: i8 × i8 outer product accumulate to i32
+ *  - @c svmopa_za32_u8_m: u8 × u8 outer product accumulate to u32
  *
- *  SME tile dimensions (for SVL=512, i.e., Apple M4):
+ *  SME tile dimensions, for SVL=512, i.e., Apple M4:
  *
- *  - `ZA32` tile: 16 × 16 `f32`/`i32` elements (1KB)
+ *  - @c ZA32 tile: @b [16,16] @c f32 and @c i32 elements, 1KB
  *  - `f16`/`bf16` vectors: 32 elements per SVE vector
  *  - `i8`/`u8` vectors: 64 elements per SVE vector
  *  - `f32`/`i32` vectors: 16 elements per SVE vector
  *
- *  Output pattern: Each `svmopa` accumulates a 16 × 16 tile from input vectors.
- *  We process multiple ZA tiles (0-3) to form larger output blocks.
+ *  Output pattern: each @c svmopa accumulates a 16 × 16 tile from input vectors. We process
+ *  multiple ZA tiles, 0-3, to form larger output blocks.
  *
  *  Performance characteristics (Apple M4):
  *
@@ -39,21 +39,23 @@
  *
  *  @section dots_sme_instructions ARM SME Instructions
  *
- *      Intrinsic                       Instruction                         Latency     Throughput
- *      `svmopa_za32_f16_m`             `FMOPA` (ZA.S, P/M, Z.H, Z.H)       16cy        amortized
- *      `svmopa_za32_bf16_m`            `BFMOPA` (ZA.S, P/M, Z.H, Z.H)      16cy        amortized
- *      `svmopa_za32_s8_m`              `SMOPA` (ZA.S, P/M, Z.B, Z.B)       16cy        amortized
- *      `svmopa_za32_u8_m`              `UMOPA` (ZA.S, P/M, Z.B, Z.B)       16cy        amortized
- *      `svzero_za`                     `ZERO` (ZA)                         2cy         1/cy
- *      `svld1_hor_za32`                `LD1W` (ZA.S[Ws, #imm], P/Z)        4-6cy       1/cy
- *      `svst1_hor_za32`                `ST1W` (ZA.S[Ws, #imm], P)          4cy         1/cy
- *      `svwrite_hor_za32_f32_m`        `MOVA` (ZA.S[Ws, #imm], P/M, Z.S)   2cy         1/cy
- *      `svread_ver_za32_f32_m`         `MOVA` (Z.S, P/M, ZA.S[Ws, #imm])   2cy         1/cy
- *      `__arm_streaming`               `SMSTART`                           ~50-100cy
- *      `__arm_streaming` (exit)        `SMSTOP`                            ~50-100cy
- *      `__arm_new("za")`               ZA tile allocation                  0cy
- *      `svcntw`                        `CNTW` (Xd)                         1cy         2/cy
- *      `svcnth`                        `CNTH` (Xd)                         1cy         2/cy
+ *  @verbatim
+ *  Intrinsic                       Instruction                         Latency     Throughput
+ *  svmopa_za32_f16_m               FMOPA   (ZA.S, P/M, Z.H, Z.H)       16cy        amortized
+ *  svmopa_za32_bf16_m              BFMOPA   (ZA.S, P/M, Z.H, Z.H)      16cy        amortized
+ *  svmopa_za32_s8_m                SMOPA   (ZA.S, P/M, Z.B, Z.B)       16cy        amortized
+ *  svmopa_za32_u8_m                UMOPA   (ZA.S, P/M, Z.B, Z.B)       16cy        amortized
+ *  svzero_za                       ZERO   (ZA)                         2cy         1/cy
+ *  svld1_hor_za32                  LD1W   (ZA.S[Ws, #imm], P/Z)        4-6cy       1/cy
+ *  svst1_hor_za32                  ST1W   (ZA.S[Ws, #imm], P)          4cy         1/cy
+ *  svwrite_hor_za32_f32_m          MOVA   (ZA.S[Ws, #imm], P/M, Z.S)   2cy         1/cy
+ *  svread_ver_za32_f32_m           MOVA   (Z.S, P/M, ZA.S[Ws, #imm])   2cy         1/cy
+ *  __arm_streaming                 SMSTART                             ~50-100cy
+ *  __arm_streaming   (exit)        SMSTOP                              ~50-100cy
+ *  __arm_new("za")                 ZA tile allocation                  0cy
+ *  svcntw                          CNTW   (Xd)                         1cy         2/cy
+ *  svcnth                          CNTH   (Xd)                         1cy         2/cy
+ *  @endverbatim
  */
 #ifndef NK_DOTS_SME_H
 #define NK_DOTS_SME_H

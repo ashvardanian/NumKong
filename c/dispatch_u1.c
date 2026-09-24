@@ -1,8 +1,8 @@
 /**
- *  @brief Dispatch Initialization for U1 Data Types.
  *  @file c/dispatch_u1.c
  *  @author Ash Vardanian
  *  @date February 3, 2026
+ *  @brief Dispatch initialization for U1 data types.
  */
 #include "dispatch.h"
 

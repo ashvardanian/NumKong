@@ -1,8 +1,8 @@
 /**
- *  @brief Batch operation benchmarks - RVV ISA family (RISC-V Vector).
  *  @file bench/cross_rvv.cpp
  *  @author Ash Vardanian
  *  @date February 15, 2026
+ *  @brief Batch operation benchmarks, RVV ISA family, RISC-V Vector.
  */
 
 #include "numkong/attention.h"

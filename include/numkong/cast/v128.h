@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Type Conversions for WASM.
  *  @file include/numkong/cast/v128.h
  *  @author Ash Vardanian
  *  @date September 12, 2026
+ *  @brief SIMD-accelerated Type Conversions for WASM.
  */
 
 #ifndef NK_CAST_V128_H

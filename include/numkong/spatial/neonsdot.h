@@ -1,30 +1,32 @@
 /**
- *  @brief SIMD-accelerated Spatial Similarity Measures for NEON SDOT.
  *  @file include/numkong/spatial/neonsdot.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated spatial similarity measures for NEON SDOT.
  *
  *  @sa include/numkong/spatial.h
  *
  *  @section spatial_neonsdot_instructions ARM NEON SDOT/UDOT Instructions (ARMv8.4-DotProd)
  *
- *      Intrinsic   Instruction                 A76       M5
- *      vdotq_s32   SDOT (V.4S, V.16B, V.16B)   3cy @ 2p  3cy @ 4p
- *      vdotq_u32   UDOT (V.4S, V.16B, V.16B)   3cy @ 2p  3cy @ 4p
- *      vabdq_s8    SABD (V.16B, V.16B, V.16B)  3cy @ 2p  3cy @ 2p
- *      vabdq_u8    UABD (V.16B, V.16B, V.16B)  3cy @ 2p  3cy @ 2p
- *      vld1q_s8    LD1 (V.16B)                 4cy @ 2p  4cy @ 3p
- *      vld1q_u8    LD1 (V.16B)                 4cy @ 2p  4cy @ 3p
- *      vaddvq_s32  ADDV (V.4S)                 4cy @ 1p  5cy @ 1p
- *      vaddvq_u32  ADDV (V.4S)                 4cy @ 1p  5cy @ 1p
+ *  @verbatim
+ *  Intrinsic   Instruction                 A76       M5
+ *  vdotq_s32   SDOT (V.4S, V.16B, V.16B)   3cy @ 2p  3cy @ 4p
+ *  vdotq_u32   UDOT (V.4S, V.16B, V.16B)   3cy @ 2p  3cy @ 4p
+ *  vabdq_s8    SABD (V.16B, V.16B, V.16B)  3cy @ 2p  3cy @ 2p
+ *  vabdq_u8    UABD (V.16B, V.16B, V.16B)  3cy @ 2p  3cy @ 2p
+ *  vld1q_s8    LD1 (V.16B)                 4cy @ 2p  4cy @ 3p
+ *  vld1q_u8    LD1 (V.16B)                 4cy @ 2p  4cy @ 3p
+ *  vaddvq_s32  ADDV (V.4S)                 4cy @ 1p  5cy @ 1p
+ *  vaddvq_u32  ADDV (V.4S)                 4cy @ 1p  5cy @ 1p
+ *  @endverbatim
  *
  *  The ARMv8.4-DotProd extension provides SDOT/UDOT for int8 dot products and SABD/UABD for
  *  absolute differences, enabling L2 and angular distance on quantized embeddings.
  *  For L2 distance, SABD computes |a-b| per byte, then UDOT squares and accumulates.
  *
  *  Angular distance uses SDOT/UDOT directly for dot product and norm computations. This enables
- *  similarity search on int8-quantized embeddings, achieving 4x memory reduction vs FP32
- *  while maintaining reasonable precision for nearest-neighbor search applications.
+ *  similarity search on int8-quantized embeddings, achieving 4x memory reduction vs FP32 while
+ *  maintaining reasonable precision for nearest-neighbor search applications.
  */
 #ifndef NK_SPATIAL_NEONSDOT_H
 #define NK_SPATIAL_NEONSDOT_H

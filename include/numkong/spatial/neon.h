@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Spatial Similarity Measures for NEON.
  *  @file include/numkong/spatial/neon.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated spatial similarity measures for NEON.
  *
  *  @sa include/numkong/spatial.h
  *
@@ -10,14 +10,16 @@
  *
  *  ARM NEON instructions for distance computations:
  *
- *      Intrinsic     Instruction              A76        M5
- *      vfmaq_f32     FMLA (V.4S, V.4S, V.4S)  4cy @ 2p   3cy @ 4p
- *      vmulq_f32     FMUL (V.4S, V.4S, V.4S)  3cy @ 2p   3cy @ 4p
- *      vaddq_f32     FADD (V.4S, V.4S, V.4S)  2cy @ 2p   2cy @ 4p
- *      vsubq_f32     FSUB (V.4S, V.4S, V.4S)  2cy @ 2p   2cy @ 4p
- *      vrsqrteq_f32  FRSQRTE (V.4S, V.4S)     2cy @ 2p   3cy @ 1p
- *      vsqrtq_f32    FSQRT (V.4S, V.4S)       12cy @ 1p  9cy @ 1p
- *      vrecpeq_f32   FRECPE (V.4S, V.4S)      2cy @ 2p   3cy @ 1p
+ *  @verbatim
+ *  Intrinsic     Instruction              A76        M5
+ *  vfmaq_f32     FMLA (V.4S, V.4S, V.4S)  4cy @ 2p   3cy @ 4p
+ *  vmulq_f32     FMUL (V.4S, V.4S, V.4S)  3cy @ 2p   3cy @ 4p
+ *  vaddq_f32     FADD (V.4S, V.4S, V.4S)  2cy @ 2p   2cy @ 4p
+ *  vsubq_f32     FSUB (V.4S, V.4S, V.4S)  2cy @ 2p   2cy @ 4p
+ *  vrsqrteq_f32  FRSQRTE (V.4S, V.4S)     2cy @ 2p   3cy @ 1p
+ *  vsqrtq_f32    FSQRT (V.4S, V.4S)       12cy @ 1p  9cy @ 1p
+ *  vrecpeq_f32   FRECPE (V.4S, V.4S)      2cy @ 2p   3cy @ 1p
+ *  @endverbatim
  *
  *  FRSQRTE provides ~8-bit precision; two Newton-Raphson iterations via vrsqrtsq_f32 achieve
  *  ~23-bit precision, sufficient for f32. This is much faster than FSQRT (0.25/cy).

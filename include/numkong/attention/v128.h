@@ -1,16 +1,16 @@
 /**
- *  @brief Ragged attention packing for WASM with SIMD128.
  *  @file include/numkong/attention/v128.h
  *  @author Ash Vardanian
  *  @date September 12, 2026
+ *  @brief Ragged attention packing for WASM with SIMD128.
  *
  *  @sa include/numkong/attention.h
  *
  *  Portable 128-bit packing side of the WebAssembly backend: the packed-KV layout, its size and
- *  shape queries, and the raw strided-row repack.
- *  Storage follows the `attention/haswell.h` conventions exactly: BF16, E4M3, and I8 stay in
- *  their source encoding at rest — packing is a raw strided-row copy with channels zero-padded
- *  to a multiple of 8. The compute kernels over that layout live in `attention/v128relaxed.h`.
+ *  shape queries, and the raw strided-row repack. Storage follows the `attention/haswell.h`
+ *  conventions exactly: BF16, E4M3, and I8 stay in their source encoding at rest — packing is a raw
+ *  strided-row copy with channels zero-padded to a multiple of 8. The compute kernels over that
+ *  layout live in `attention/v128relaxed.h`.
  */
 #ifndef NK_ATTENTION_V128_H
 #define NK_ATTENTION_V128_H

@@ -1,18 +1,16 @@
 /**
- *  @brief SIMD-accelerated Probability Distribution Similarity Measures for RISC-V.
  *  @file include/numkong/probability/rvv.h
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief SIMD-accelerated probability distribution similarity measures for RISC-V.
  *
  *  @sa include/numkong/probability.h
  *
- *  Implements KLD and JSD using RVV 1.0 vector intrinsics for f32, f64, f16, and bf16.
- *  The log2 approximation uses the same polynomial as the Haswell implementation,
- *  ported to RVV's vector fused-multiply-add instructions.
+ *  Implements KLD and JSD with RVV 1.0 vector intrinsics for f32, f64, f16, and bf16, porting the
+ *  log2 polynomial of the Haswell implementation to RVV's vector fused-multiply-add instructions.
  *
- *  For f64, uses the s-series 14-term Horner log2 approximation (matching Skylake).
- *  For f16/bf16, converts to f32 using the cast helpers from cast/rvv.h,
- *  then uses the f32 algorithm.
+ *  For f64, uses the s-series 14-term Horner log2 approximation, matching Skylake. For f16 and
+ *  bf16, converts to f32 using the cast helpers from cast/rvv.h, then uses the f32 algorithm.
  */
 #ifndef NK_PROBABILITY_RVV_H
 #define NK_PROBABILITY_RVV_H

@@ -1,8 +1,8 @@
 /**
- *  @brief Batch operation tests - RVV ISA family (RISC-V Vector).
  *  @file test/cross_rvv.cpp
  *  @author Ash Vardanian
  *  @date February 15, 2026
+ *  @brief Batch operation tests - RVV ISA family, RISC-V Vector.
  */
 #include "test.hpp"
 #include "cross.cuh"

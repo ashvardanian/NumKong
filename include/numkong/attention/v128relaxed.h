@@ -1,35 +1,33 @@
 /**
- *  @brief Ragged attention for WASM with Relaxed SIMD.
  *  @file include/numkong/attention/v128relaxed.h
  *  @author Ash Vardanian
  *  @date July 7, 2026
+ *  @brief Ragged attention for WASM with Relaxed SIMD.
  *
  *  @sa include/numkong/attention.h
  *
- *  Portable 128-bit backend for WebAssembly engines with the Relaxed SIMD proposal.
- *  Storage follows the `attention/haswell.h` conventions exactly: BF16, E4M3, and I8 stay
- *  in their source encoding at rest — packing is a raw strided-row copy with channels
- *  zero-padded to a multiple of 8, done by `attention/v128.h` — and every value widens to
- *  F32 on the fly inside the compute loops through the `cast/v128.h` and `cast/v128relaxed.h`
- *  helpers. Per query row, KV is swept in 512-position panels with an exact online running-max
- *  correction; the F32 score row (2 KB) stays L1-resident. `depth > 256` routes to the
- *  width-agnostic serial tier.
+ *  Portable 128-bit backend for WebAssembly engines with the Relaxed SIMD proposal. Storage follows
+ *  the `attention/haswell.h` conventions exactly: BF16, E4M3, and I8 stay in their source encoding
+ *  at rest — packing is a raw strided-row copy with channels zero-padded to a multiple of 8, done
+ *  by `attention/v128.h` — and every value widens to F32 on the fly inside the compute loops
+ *  through the `cast/v128.h` and `cast/v128relaxed.h` helpers. Per query row, KV is swept in
+ *  512-position panels with an exact online running-max correction; the F32 score row, 2 KB, stays
+ *  L1-resident. `depth > 256` routes to the width-agnostic serial tier.
  *
  *  The base-2 exponent is the family's shared degree-4 polynomial, evaluated 4-wide with
  *  `wasm_f32x4_relaxed_madd` after a `wasm_f32x4_nearest` range reduction and the same
- *  denormal-avoiding [−125, 127] clamps as `nk_f32_exp2_serial_`; scalar panel tails call
- *  the serial helper directly to keep the family polynomial end-to-end.
+ *  denormal-avoiding [−125, 127] clamps as @c nk_f32_exp2_serial_; scalar panel tails call the
+ *  serial helper directly to keep the family polynomial end-to-end.
  *
- *  The I8 path keeps QK scores exact in I32: `wasm_i32x4_relaxed_dot_i8x16_i7x16_add`
- *  requires a 7-bit second operand, so K is bit-split as `k = k₇ − 128·[k < 0]` — the dot
- *  runs on the low 7 bits while an I16 pairwise correction (Σq over K-negative lanes, ×128)
- *  is folded into the I32 sum vector before the single horizontal reduce per position.
- *  Attention weights quantize to U8 exactly like serial, `trunc(2^(s₂−m₂) · 255 + 0.5)`,
- *  vectorized 4-wide with the same separate multiply and add so the rounding matches the
- *  scalar reference bit-for-bit. In the PV accumulation `wasm_f32x4_relaxed_madd` is safe
- *  even under that bit-exactness contract: a U8 weight (≤ 255) times an I8 plane value
- *  (|v| ≤ 128) is at most 32640 < 2^24, so every product is exactly representable in F32
- *  and fusing the multiply into the add cannot change a single bit of the accumulation.
+ *  The I8 path keeps QK scores exact in I32: @c wasm_i32x4_relaxed_dot_i8x16_i7x16_add requires a
+ *  7-bit second operand, so K is bit-split as k = k₇ − 128·[k < 0] — the dot runs on the low 7 bits
+ *  while an I16 pairwise correction — Σq over K-negative lanes, ×128 — is folded into the I32 sum
+ *  vector before the single horizontal reduce per position. Attention weights quantize to U8
+ *  exactly like serial, trunc(2^(s₂−m₂) · 255 + 0.5), vectorized 4-wide with the same separate
+ *  multiply and add so the rounding matches the scalar reference bit-for-bit. In the PV
+ *  accumulation @c wasm_f32x4_relaxed_madd is safe even under that bit-exactness contract: a U8
+ *  weight (≤ 255) times an I8 plane value (|v| ≤ 128) is at most 32640 < 2^24, so every product is
+ *  exactly representable in F32, and fusing multiply into add cannot change one accumulated bit.
  */
 #ifndef NK_ATTENTION_V128RELAXED_H
 #define NK_ATTENTION_V128RELAXED_H

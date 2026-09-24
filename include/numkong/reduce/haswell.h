@@ -1,20 +1,20 @@
 /**
- *  @brief AVX2 implementations for the redesigned reduction API (moments + minmax).
  *  @file include/numkong/reduce/haswell.h
  *  @author Ash Vardanian
  *  @date February 12, 2026
+ *  @brief AVX2 implementations for the redesigned reduction API, moments and minmax.
  *
  *  @sa include/numkong/reduce.h
  *
- *  @section reduce_block_caps Block-Cap Overflow Thresholds
+ *  @section reduce_haswell_block_caps Block-Cap Overflow Thresholds
  *
  *  Dispatch functions use pairwise recursion when `count` exceeds a block cap.
  *  The cap is sized so the iteration counter in the contiguous kernel never wraps.
  *
- *  Iteration counters start at 0 (initial load) and increment by 1 per SIMD chunk.
- *  A u8 counter holds 0..255 → 256 iterations → processes 256 × lanes elements.
- *  A u16 counter holds 0..65535 → 65536 iterations → processes 65536 × lanes elements.
- *  A u32 counter holds 0..4294967295 → ~4.3 billion iterations.
+ *  Iteration counters start at 0, initial load, and increment by 1 per SIMD chunk. A u8 counter
+ *  holds 0..255, 256 iterations, processing 256 × lanes elements; a u16 counter holds 0..65535,
+ *  65536 iterations, processing 65536 × lanes elements; a u32 counter holds 0..4294967295, about
+ *  4.3 billion iterations.
  *
  *  Threshold formula: count > (COUNTER_MAX + 1) × lanes_per_chunk
  *    - u8 minmax:  (NK_U8_MAX  + 1) × lanes   (e.g. 256 × 32 = 8192 for i8x32)

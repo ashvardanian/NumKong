@@ -1,8 +1,8 @@
 /**
- *  @brief Binary set metric benchmarks (hamming, jaccard).
  *  @file bench/set.cpp
  *  @author Ash Vardanian
  *  @date March 14, 2023
+ *  @brief Binary set metric benchmarks, hamming and jaccard.
  */
 
 #include "numkong/set.h"

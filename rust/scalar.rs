@@ -1,11 +1,14 @@
 //! Scalar math primitives — square root and reciprocal square root.
 //!
-//! Small per-scalar kernels that route into NumKong's runtime-dispatched implementations
-//! rather than the standard library.
+//! Small per-scalar kernels that route into NumKong's runtime-dispatched implementations rather
+//! than the standard library.
 //!
 //! This module provides:
 //!
 //! - [`Roots`]: Scalar square root and reciprocal square root
+//!
+//! File: rust/scalar.rs
+//! Author: Ash Vardanian
 
 use crate::types::f16;
 
@@ -22,13 +25,14 @@ extern "C" {
 
 /// Scalar square-root and reciprocal-square-root operations backed by NumKong's exported kernels.
 ///
-/// Unlike `f32::sqrt` / `f64::sqrt`, this routes into the hand-tuned NumKong C kernels; on ISAs with
-/// a dedicated reciprocal-sqrt, such as `vrsqrte` on NEON or `vrsqrt14` on AVX-512, `rsqrt` uses a single
-/// Newton refinement to ~1 ULP — roughly 2-4× faster than computing `1.0 / sqrt(x)` explicitly.
+/// Unlike `f32::sqrt` / `f64::sqrt`, this routes into the hand-tuned NumKong C kernels; on ISAs
+/// with a dedicated reciprocal-sqrt, such as `vrsqrte` on NEON or `vrsqrt14` on AVX-512, `rsqrt`
+/// uses a single Newton refinement to ~1 ULP — roughly 2-4× faster than computing 1 / √x
+/// explicitly.
 pub trait Roots: Sized {
     /// Non-negative square root of `self`, routed through NumKong's runtime-dispatched kernel.
     fn sqrt(self) -> Self;
-    /// Reciprocal square root `1 / sqrt(self)` as a single primitive op where the hardware allows.
+    /// Reciprocal square root 1 / √x of `self` as a single primitive op where the hardware allows.
     fn rsqrt(self) -> Self;
 }
 

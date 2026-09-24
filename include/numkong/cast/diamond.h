@@ -1,13 +1,13 @@
 /**
- *  @brief SIMD-accelerated Type Conversions for Diamond Rapids.
  *  @file include/numkong/cast/diamond.h
  *  @author Ash Vardanian
  *  @date March 23, 2026
+ *  @brief SIMD-accelerated Type Conversions for Diamond Rapids.
  *
  *  @sa include/numkong/cast/icelake.h
  *
- *  Uses VCVTHF82PH (E4M3→FP16) and VCVTBF82PH (E5M2→FP16) for native 1-instruction
- *  FP8→FP16 conversion. Both conversions are exact (no rounding needed).
+ *  Uses VCVTHF82PH for E4M3 → FP16 and VCVTBF82PH for E5M2 → FP16, both native single-instruction
+ *  conversions, exact and needing no rounding.
  */
 #ifndef NK_CAST_DIAMOND_H
 #define NK_CAST_DIAMOND_H

@@ -1,34 +1,37 @@
 /**
- *  @brief NumKong C++ Benchmark Suite using Google Benchmark - Main entry point.
  *  @file bench/bench.cpp
  *  @author Ash Vardanian
  *  @date March 14, 2023
+ *  @brief NumKong C++ benchmark suite using Google Benchmark, main entry point.
  *
- *  Comprehensive benchmarks for NumKong SIMD-optimized functions measuring
- *  throughput performance. Run with:
+ *  Comprehensive benchmarks for NumKong SIMD-optimized functions measuring throughput performance.
+ *  Run the benchmarks with:
  *
- *  ```bash
+ *  @code{.sh}
  *  cmake -B build_release -D NK_BUILD_BENCH=1
  *  cmake --build build_release
  *  build_release/nk_bench
- *  ```
+ *  @endcode
  *
  *  Environment Variables:
- *    NK_FILTER=<pattern>           - Filter benchmarks by name regex (default: run all)
- *    NK_SEED=N                     - RNG seed (default: 42)
- *    NK_BUDGET_SECS=<seconds>      - Min time per benchmark (default: 10)
- *    NK_BUDGET_MB=N                - Memory budget in MB for inputs (default: 1024)
  *
- *    NK_DENSE_DIMENSIONS=N         - Vector dimension for dot/spatial benchmarks (default: 1536)
- *    NK_MESH_POINTS=N              - Point count for mesh benchmarks (default: 1000)
- *    NK_MATRIX_HEIGHT=N            - GEMM M dimension (default: 1024), like dataset size for kNN
- *    NK_MATRIX_WIDTH=N             - GEMM N dimension (default: 128), like queries count for kNN
- *    NK_MATRIX_DEPTH=N             - GEMM K dimension (default: 1536), like vector dimensions in KNN
+ *  @verbatim
+ *  NK_FILTER=<pattern>        - Filter benchmarks by name regex, default run all
+ *  NK_SEED=N                  - RNG seed, default 42
+ *  NK_BUDGET_SECS=<seconds>   - Min time per benchmark, default 10
+ *  NK_BUDGET_MB=N             - Memory budget in MB for inputs, default 1024
  *
- *    NK_CURVED_DIMENSIONS=N        - Vector dimension for curved benchmarks (default: 64)
- *    NK_SPARSE_FIRST_LENGTH=N      - First set size for sparse benchmarks (default: 1024)
- *    NK_SPARSE_SECOND_LENGTH=N     - Second set size for sparse benchmarks (default: 8192)
- *    NK_SPARSE_INTERSECTION=F      - Intersection share 0.0-1.0 (default: 0.5)
+ *  NK_DENSE_DIMENSIONS=N      - Vector dimension for dot/spatial benchmarks, default 1536
+ *  NK_MESH_POINTS=N           - Point count for mesh benchmarks, default 1000
+ *  NK_MATRIX_HEIGHT=N         - GEMM M dimension, default 1024, like dataset size for kNN
+ *  NK_MATRIX_WIDTH=N          - GEMM N dimension, default 128, like query count for kNN
+ *  NK_MATRIX_DEPTH=N          - GEMM K dimension, default 1536, like vector dimension for kNN
+ *
+ *  NK_CURVED_DIMENSIONS=N     - Vector dimension for curved benchmarks, default 64
+ *  NK_SPARSE_FIRST_LENGTH=N   - First set size for sparse benchmarks, default 1024
+ *  NK_SPARSE_SECOND_LENGTH=N  - Second set size for sparse benchmarks, default 8192
+ *  NK_SPARSE_INTERSECTION=F   - Intersection share 0.0-1.0, default 0.5
+ *  @endverbatim
  */
 
 #include <cstdio> // `std::printf`

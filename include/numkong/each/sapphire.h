@@ -1,25 +1,27 @@
 /**
- *  @brief SIMD-accelerated Elementwise Arithmetic for Sapphire Rapids.
  *  @file include/numkong/each/sapphire.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated elementwise arithmetic for Sapphire Rapids.
  *
  *  @sa include/numkong/each.h
  *
  *  @section sapphire_elementwise_instructions Relevant Instructions
  *
- *      Intrinsic                 Instruction                Sapphire   Genoa
- *      _mm512_add_ph             VADDPH (ZMM, ZMM, ZMM)     4cy @ p05  3cy @ p01
- *      _mm512_mul_ph             VMULPH (ZMM, ZMM, ZMM)     4cy @ p05  3cy @ p01
- *      _mm512_fmadd_ph           VFMADD (ZMM, ZMM, ZMM)     4cy @ p05  4cy @ p01
- *      _mm512_cvtepi16_ph        VCVTW2PH (ZMM, ZMM)        4cy @ p05  4cy @ p01
- *      _mm512_cvtph_epi16        VCVTPH2W (ZMM, ZMM)        4cy @ p05  4cy @ p01
- *      _mm512_cvtepi8_epi16      VPMOVSXBW (ZMM, YMM)       3cy @ p5   3cy @ p12
- *      _mm512_cvtsepi16_epi8     VPMOVSWB (YMM, ZMM)        4cy @ p5   4cy @ p12
- *      _mm512_packus_epi16       VPACKUSWB (ZMM, ZMM, ZMM)  1cy @ p5   1cy @ p12
- *      _mm256_add_ph             VADDPH (YMM, YMM, YMM)     4cy @ p05  3cy @ p01
- *      _mm512_maskz_loadu_epi16  VMOVDQU16 (ZMM {K}, M512)  7cy @ p23  7cy @ p23
- *      _mm512_mask_storeu_epi16  VMOVDQU16 (M512 {K}, ZMM)  4cy @ p4   4cy @ p4
+ *  @verbatim
+ *  Intrinsic                 Instruction                Sapphire   Genoa
+ *  _mm512_add_ph             VADDPH (ZMM, ZMM, ZMM)     4cy @ p05  3cy @ p01
+ *  _mm512_mul_ph             VMULPH (ZMM, ZMM, ZMM)     4cy @ p05  3cy @ p01
+ *  _mm512_fmadd_ph           VFMADD (ZMM, ZMM, ZMM)     4cy @ p05  4cy @ p01
+ *  _mm512_cvtepi16_ph        VCVTW2PH (ZMM, ZMM)        4cy @ p05  4cy @ p01
+ *  _mm512_cvtph_epi16        VCVTPH2W (ZMM, ZMM)        4cy @ p05  4cy @ p01
+ *  _mm512_cvtepi8_epi16      VPMOVSXBW (ZMM, YMM)       3cy @ p5   3cy @ p12
+ *  _mm512_cvtsepi16_epi8     VPMOVSWB (YMM, ZMM)        4cy @ p5   4cy @ p12
+ *  _mm512_packus_epi16       VPACKUSWB (ZMM, ZMM, ZMM)  1cy @ p5   1cy @ p12
+ *  _mm256_add_ph             VADDPH (YMM, YMM, YMM)     4cy @ p05  3cy @ p01
+ *  _mm512_maskz_loadu_epi16  VMOVDQU16 (ZMM {K}, M512)  7cy @ p23  7cy @ p23
+ *  _mm512_mask_storeu_epi16  VMOVDQU16 (M512 {K}, ZMM)  4cy @ p4   4cy @ p4
+ *  @endverbatim
  */
 #ifndef NK_EACH_SAPPHIRE_H
 #define NK_EACH_SAPPHIRE_H

@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Scalar Math Helpers for Sapphire Rapids.
  *  @file include/numkong/scalar/sapphire.h
  *  @author Ash Vardanian
  *  @date March 1, 2026
+ *  @brief SIMD-accelerated scalar math helpers for Sapphire Rapids.
  *
  *  @sa include/numkong/scalar.h
  *

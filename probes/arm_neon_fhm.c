@@ -1,4 +1,9 @@
-/* NumKong ISA probe: NEON FHM (ARMv8.2-A FP16 fused multiply-add) */
+/**
+ *  @file probes/arm_neon_fhm.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for ARMv8.2-A NEON FP16 fused multiply-add.
+ */
 #include <arm_neon.h>
 int main(void) {
     float16x8_t a = vdupq_n_f16(1.0f);

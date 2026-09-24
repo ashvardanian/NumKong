@@ -1,23 +1,23 @@
 /**
- *  @brief SWAR-accelerated MaxSim (ColBERT late-interaction) for SIMD-free CPUs.
  *  @file include/numkong/maxsim/serial.h
  *  @author Ash Vardanian
  *  @date February 17, 2026
+ *  @brief SWAR-accelerated MaxSim, ColBERT late-interaction, for SIMD-free CPUs.
  *
  *  @sa include/numkong/maxsim.h
  *
- *  Defines the packed buffer header and per-vector metadata structures used by all MaxSim ISA backends,
- *  plus scalar reference implementations for correctness validation.
+ *  Defines the packed buffer header and per-vector metadata structures used by all MaxSim ISA
+ *  backends, plus scalar reference implementations for correctness validation.
  *
  *  MaxSim computes: result = Σᵢ minⱼ angular(qᵢ, dⱼ) — angular distance late-interaction scoring.
  *
- *  Strategy: coarse i8-quantized screening with running argmax (dot as proxy for argmin angular),
- *  then full-precision refinement of the winning (query, document) pairs via existing nk_dot_* primitives,
- *  finalized with angular distance: 1 - dot / sqrt(||q||² × ||d||²).
+ *  Strategy: coarse i8-quantized screening with running argmax, dot as proxy for argmin angular,
+ *  then full-precision refinement of the winning query, document pairs via existing nk_dot_*
+ *  primitives, finalized with angular distance: 1 - dot / sqrt(||q||² × ||d||²).
  *
  *  @section packed_layout Packed Buffer Layout
  *
- *  [Header 64B] [i8 vectors, 64B-aligned] [metadata, 64B-aligned] [originals row-major, 64B-aligned]
+ *  [Header 64B] [i8 vectors 64B-aligned] [metadata 64B-aligned] [originals row-major, 64B-aligned]
  *
  *  - i8 region: row-major with padded depth for SIMD alignment
  *  - Metadata region: vector_count x 12 bytes (scale + sum + norm_squared per vector)
@@ -361,11 +361,8 @@ NK_API_COMPTIME void nk_maxsim_pack_f16_serial( //
 #pragma GCC pop_options
 #endif
 
-/**
- *  @brief DType-agnostic coarse i8 argmax kernel for the serial backend.
- *  Produces per-query best document indices using signed i8×i8 dot products.
- *  No bias correction needed — serial uses native signed×signed multiplication.
- */
+/** DType-agnostic coarse i8 argmax kernel for the serial backend, producing per-query best document
+ *  indices from signed i8 × i8 dot products, which need no bias correction here. */
 NK_HELPER_INLINE void nk_maxsim_coarse_argmax_serial_( //
     nk_i8_t const *query_i8, nk_i8_t const *document_i8, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth_i8_padded, nk_u32_t *best_document_indices) {

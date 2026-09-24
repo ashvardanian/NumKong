@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Test inner products: nk.inner, nk.dot, nk.vdot.
 
-Dtypes: float64, float32, float16, bfloat16, e4m3, e5m2, e2m3, e3m2, int8, uint8, complex64, complex128.
+DTypes: float64, float32, float16, bfloat16, e4m3, e5m2, e2m3, e3m2, int8, uint8, complex64, complex128.
 Baselines: high-precision Decimal accumulation, NumPy np.inner.
 Matches C++ suite: test/dot.cpp.
+
+File: test/dot.py
+Author: Ash Vardanian
+Date: February 27, 2026
 """
 
 import atexit

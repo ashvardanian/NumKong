@@ -4,6 +4,10 @@
 Provides random data generators, capability detection, high-precision baselines
 via ``precise_decimal()``, and assertion helpers. Mirrors ``test.hpp`` from the
 C++ test suite.
+
+File: test/base.py
+Author: Ash Vardanian
+Date: February 27, 2026
 """
 
 from __future__ import annotations
@@ -77,9 +81,10 @@ dense_dimensions: list[int] = (
     else _nk_possible_dimensions
 )
 
-# Deterministic random subsamples for multi-dimensional parametrization (height × width × depth),
-# matching the C API naming in dots.h. Override via NK_MATRIX_HEIGHT/WIDTH/DEPTH env vars.
 _dim_sample_k = min(6, len(dense_dimensions))
+"""Deterministic random subsamples for multi-dimensional parametrization shaped [height,width,depth],
+matching the C API naming in dots.h. Override via NK_MATRIX_HEIGHT/WIDTH/DEPTH env vars.
+"""
 test_height_dimensions: list[int] = (
     [int(d) for d in s.split(",")]
     if (s := os.environ.get("NK_MATRIX_HEIGHT")) is not None
@@ -137,8 +142,6 @@ except ImportError:
 NK_RTOL = 0.1
 NK_ATOL = 0.1
 
-# Map dtype → the NumPy dtype used for "native precision" baseline computation.
-# f64 types compute at f64; everything else at f32 (for floats) or i64 (for ints).
 NATIVE_COMPUTE_DTYPE: dict[str, type] = (
     {
         "float64": np.float64,
@@ -167,6 +170,9 @@ NATIVE_COMPUTE_DTYPE: dict[str, type] = (
     if numpy_available
     else {}
 )
+"""Map dtype → the NumPy dtype used for "native precision" baseline computation. f64 types compute at
+f64; everything else at f32 for floats, or i64 for ints.
+"""
 
 
 PACKING_GRANULARITY: dict[str, int] = {
@@ -190,7 +196,7 @@ def precise_decimal(dtype: str | None = None) -> Generator[tuple[Callable, Calla
     """Yield ``(upcast, sqrt, ln)`` helpers for high-precision baselines.
 
     When *dtype* is a small type (float32, float16, int8, …) native ``float``
-    already exceeds its precision, so we skip the Decimal overhead.  For
+    already exceeds its precision, so we skip the Decimal overhead. For
     float64/complex128 we use 120-digit Decimal arithmetic.
 
     Usage::
@@ -317,7 +323,7 @@ def i8_downcast_to_i4(array):
     """Pack signed 8-bit integers into signed 4-bit pairs (2 per byte).
 
     Layout matches C ``nk_i4x2_t``: high nibble = even index, low nibble = odd index.
-    Input values must be in [-8, 7].  Preserves leading dimensions for 2-D+ inputs.
+    Input values must be in [-8, 7]. Preserves leading dimensions for 2-D+ inputs.
     """
     array = np.asarray(array, dtype=np.int8)
     assert np.all(array >= -8) and np.all(array <= 7), "values must be in [-8, 7]"
@@ -328,7 +334,7 @@ def u8_downcast_to_u4(array):
     """Pack unsigned 8-bit integers into unsigned 4-bit pairs (2 per byte).
 
     Layout matches C ``nk_u4x2_t``: high nibble = even index, low nibble = odd index.
-    Input values must be in [0, 15].  Preserves leading dimensions for 2-D+ inputs.
+    Input values must be in [0, 15]. Preserves leading dimensions for 2-D+ inputs.
     """
     array = np.asarray(array, dtype=np.uint8)
     assert np.all(array <= 15), "values must be in [0, 15]"
@@ -563,9 +569,10 @@ def downcast_f32_to_dtype(f32_arr: np.ndarray, dtype: str) -> tuple[np.ndarray, 
     return raw, raw.astype(np.float64)
 
 
-# Must be `available`, not `runtime`: parametrizing over a capability this CPU has but this
-# binary lacks silently tests the serial fallback while claiming to cover the SIMD kernel.
 available_capabilities: dict[str, str] = nk.get_capabilities_available()
+"""Must be `available`, not `runtime`: parametrizing over a capability this CPU has but this binary
+lacks silently tests the serial fallback while claiming to cover the SIMD kernel.
+"""
 
 # fmt: off
 possible_x86_capabilities: list[str] = [
@@ -993,7 +1000,7 @@ def seed_rng(__pytest_repeat_step_number: int) -> int:
     """Auto-seed NumPy RNG before every test and return the computed seed.
 
     When NK_SEED is set, each @pytest.mark.repeat() step gets a unique
-    derived seed.  Tests that use ``nk.hash`` can accept this fixture as a
+    derived seed. Tests that use ``nk.hash`` can accept this fixture as a
     parameter and pass the return value as the ``seed=`` argument so that
     repeated runs exercise different data.
     """
@@ -1014,13 +1021,13 @@ def nk_seed(seed_rng: int) -> int:
     return seed_rng
 
 
-# Map nk dtype → (array.array typecode, low, high)
 ARRAY_TYPECODES = {
     "float64": ("d", -10.0, 10.0),
     "float32": ("f", -10.0, 10.0),
     "int8": ("b", -128, 127),
     "uint8": ("B", 0, 255),
 }
+"""Map nk dtype to its array.array typecode along with the low and high representable values."""
 
 
 def make_random_buffer(n: int, dtype: str = "float32") -> array.array:

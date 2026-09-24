@@ -1,14 +1,14 @@
 /**
- *  @brief SIMD-accelerated Batched Dot Products for Granite Rapids.
  *  @file include/numkong/dots/graniteamx.h
  *  @author Ash Vardanian
  *  @date April 9, 2026
+ *  @brief SIMD-accelerated Batched Dot Products for Granite Rapids.
  *
  *  @sa include/numkong/dots.h
  *
- *  Native FP16×FP16→FP32 GEMM kernels using Intel AMX-FP16 (TDPFP16PS) on Granite Rapids CPUs.
- *  Same tile geometry as BF16 (16 rows × 32 FP16 = 1KB per tile), same 2×2 output blocking,
- *  same packing format — only the tile multiply instruction differs.
+ *  Native FP16×FP16 → FP32 GEMM kernels using Intel AMX-FP16 via TDPFP16PS on Granite Rapids CPUs.
+ *  Same tile geometry as BF16 — 16 rows × 32 FP16 = 1KB per tile — same 2×2 output blocking, same
+ *  packing format — only the tile multiply instruction differs.
  *
  *  Tile register allocation:
  *
@@ -20,48 +20,51 @@
  *
  *  FP16 matrix multiply (AMX-FP16):
  *
- *      Intrinsic                   Instruction                     Operation
- *      _tile_dpfp16ps              TDPFP16PS (TMM, TMM, TMM)       C += A × B (fp16 → f32)
+ *  @verbatim
+ *  Intrinsic                   Instruction                     Operation
+ *  _tile_dpfp16ps              TDPFP16PS (TMM, TMM, TMM)       C += A × B (fp16 → f32)
+ *  @endverbatim
  *
  *  TDPFP16PS: 16 × 16 × 32 = 8192 FP16 MACs per instruction (same throughput as TDPBF16PS).
  *
  *  @section ozaki_limitations F32→F64 via Ozaki Scheme — Attempted and Abandoned
  *
  *  We explored using AMX-FP16 tiles to compute F32→F64 GEMMs via the Ozaki decomposition scheme,
- *  splitting each F32 scalar into 2 or 3 FP16 terms and performing cross-product TDPFP16PS operations.
+ *  splitting each F32 scalar into 2 or 3 FP16 terms and cross-multiplying via TDPFP16PS.
  *
  *  Results on Intel Xeon 6776P (Granite Rapids), single-threaded:
  *
- *  | Variant              | Speed (gso/s) | Precision | Notes                                      |
- *  |----------------------|:-------------:|:---------:|:------------------------------------------:|
- *  | 2-term, 2×1 blocking |    ~150       |  ~22 bits | Split accumulators, N=16 F64 flush         |
- *  | 3-term, 1×1 blocking |    ~110       |  ~22 bits | 3 accumulators by magnitude band           |
- *  | Pipelined 2-term     |    ~156       |  ~22 bits | Double-buffered A split, AMX/AVX-512 overlap|
- *  | MKL SGEMM            |    ~170       |  ~20 bits | Pure F32, no decomposition                 |
- *  | Skylake F64 accum    |     ~50       |  ~48 bits | F32×F32 multiply, F64 accumulation         |
+ *  @verbatim
+ *  Variant                  Speed       Precision  Notes
+ *  2-term, 2×1 blocking     ~150 gso/s  ~22 bits   Split accumulators, N=16 F64 flush
+ *  3-term, 1×1 blocking     ~110 gso/s  ~22 bits   3 accumulators by magnitude band
+ *  Pipelined 2-term         ~156 gso/s  ~22 bits   Double-buffered A split, AMX/AVX-512 overlap
+ *  MKL SGEMM                ~170 gso/s  ~20 bits   Pure F32, no decomposition
+ *  Skylake F64 accumulator  ~50 gso/s   ~48 bits   F32×F32 multiply, F64 accumulation
+ *  @endverbatim
  *
- *  The fundamental bottleneck is TDPFP16PS's internal F32 accumulation: each instruction sums
- *  32 FP16×FP16 products into an F32 register (23-bit mantissa). Even with Ozaki cross-term
- *  separation into distinct TMM accumulators (preventing magnitude mixing) and periodic extraction
- *  to F64 running sums, the per-instruction accumulation of 32 products loses ~5 bits
+ *  The fundamental bottleneck is TDPFP16PS's internal F32 accumulation: each instruction sums 32
+ *  FP16×FP16 products into an F32 register, a 23-bit mantissa. Even with Ozaki cross-term
+ *  separation into distinct TMM accumulators — preventing magnitude mixing — and periodic
+ *  extraction to F64 running sums, the per-instruction accumulation of 32 products loses ~5 bits
  *  (log2(32) = 5), capping effective precision at ~28 - 5 = ~23 bits — barely exceeding F32 BLAS.
  *
  *  Approaches attempted:
  *
- *  - 2-term decomposition (a = a_high + a_low): 4 TDPFP16PS per depth tile, ~20-bit products.
- *    With split accumulators (main + correction) merged in F64: ~22-bit effective precision.
- *    Faster than MKL at small depths (≤512) but precision plateaus at ~22 bits.
+ *  - 2-term decomposition (a = a_high + a_low): 4 TDPFP16PS per depth tile, ~20-bit products. With
+ *    split accumulators, main plus correction, merged in F64: ~22-bit effective precision. Faster
+ *    than MKL when depth is at most 512, but precision plateaus at ~22 bits.
  *
  *  - 3-term decomposition (a = a_high + a_mid + a_low): 6 TDPFP16PS per depth tile, ~30-bit
  *    products. No precision improvement over 2-term because the F32 TMM accumulation is the
  *    bottleneck, not the decomposition quality. Strictly slower and no more precise.
  *
- *  - Periodic F64 flush (extract TMM accumulators to F64 every N depth tiles): prevents precision
- *    degradation at large depths. With N=16, ~15% overhead. Effective precision still ~24 bits
- *    (limited by per-TDPFP16PS accumulation of 32 products, not by inter-tile accumulation).
+ *  - Periodic F64 flush, extracting TMM accumulators to F64 every N depth tiles: prevents precision
+ *    degradation at large depths. With N=16, ~15% overhead. Effective precision still ~24 bits,
+ *    limited by per-TDPFP16PS accumulation of 32 products, not by inter-tile accumulation.
  *
- *  - AMX/AVX-512 pipelining (double-buffered A splitting overlapped with AMX compute): ~7%
- *    speedup at large sizes. Does not affect precision.
+ *  - AMX/AVX-512 pipelining, double-buffered A splitting overlapped with AMX compute: ~7% speedup
+ *    at large sizes. Does not affect precision.
  *
  *  Conclusion: AMX-FP16's F32 tile accumulation fundamentally limits Ozaki to ~22-24 bits —
  *  comparable to F32 BLAS, far short of the ~48-bit F64 precision needed to justify the complexity.
@@ -113,7 +116,7 @@ typedef struct {
 
 #pragma region Helpers
 
-/* Initialize FP16 output state to zero */
+/** Initialize FP16 output state to zero. */
 NK_HELPER_INLINE void nk_dots_f16_init_graniteamx_(nk_dots_f16_state_graniteamx_t *state) {
     __m512 zero_f32x16 = _mm512_setzero_ps();
     for (nk_size_t row_idx = 0; row_idx < 16; row_idx++) { _mm512_store_ps(state->data[row_idx], zero_f32x16); }
@@ -731,25 +734,23 @@ NK_API_COMPTIME void nk_dots_symmetric_f16_graniteamx(                          
 
 #pragma endregion F16 Native
 
-#pragma region E5M2 Source (widened to FP16 tiles)
-
-/*  E5M2 Granite AMX kernels: same F16 tile shapes, same TDPFP16PS compute body as the F16 path.
- *  The only difference is byte-to-word widening during A-load and B-pack: E5M2 shares F16's
- *  exponent bias (15), so `(byte << 8)` is the exact F16 bit pattern for every E5M2 value,
- *  including zero/subnormals/Inf/NaN. Tile buffers hold F16 after widen — "e5m2" in the
- *  typedefs refers to the source dtype, not the on-tile representation.
+/*  E5M2 Granite AMX kernels: same F16 tile shapes, same TDPFP16PS compute body as the F16 path. The
+ *  only difference is byte-to-word widening during A-load and B-pack: E5M2 shares F16's exponent
+ *  bias of 15, so `(byte << 8)` is the exact F16 bit pattern for every E5M2 value, including
+ *  zero/subnormals/Inf/NaN. Tile buffers hold F16 after widen — "e5m2" in the typedefs refers to
+ *  the source dtype, not the on-tile representation.
  *
- *  The tile types below alias the F16 types (identical memory layout) so we can reuse the
- *  F16 init/store/output2x2/update internal helpers by pointer cast at the boundary. Only the
- *  public entry points and the load-A widen helper are new.
- */
+ *  The tile types below alias the F16 types — identical memory layout — so we can reuse the F16
+ *  init/store/output2x2/update internal helpers by pointer cast at the boundary. Only the public
+ *  entry points and the load-A widen helper are new. */
+#pragma region E5M2 Source Widened to FP16 Tiles
 
 typedef nk_dots_f16_a16x32_graniteamx_t nk_dots_e5m2_a16x32_graniteamx_t;
 typedef nk_dots_f16_b32x16_graniteamx_t nk_dots_e5m2_b32x16_graniteamx_t;
 typedef nk_dots_f16_state_graniteamx_t nk_dots_e5m2_state_graniteamx_t;
 typedef nk_dots_f16_state2x2_graniteamx_t nk_dots_e5m2_state2x2_graniteamx_t;
 
-/* Load A tile from E5M2 row-major source, widen to F16 via `(byte << 8)` into the F16 tile buffer. */
+/* Loads A tile from E5M2 row-major source, widens to F16 via `(byte << 8)` into the tile buffer. */
 NK_HELPER_INLINE void nk_dots_e5m2_load_a_graniteamx_(   //
     nk_dots_e5m2_a16x32_graniteamx_t *a_tile,            //
     nk_e5m2_t const *src, nk_size_t src_stride_elements, //

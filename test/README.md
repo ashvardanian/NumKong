@@ -62,7 +62,7 @@ Foreign flag mapping for muscle-memory compatibility:
 | `NK_ULP_THRESHOLD_F32`   |           `4` | Max allowed ULP distance for f32                     |
 | `NK_ULP_THRESHOLD_F16`   |          `32` | Max allowed ULP distance for f16                     |
 | `NK_ULP_THRESHOLD_BF16`  |         `256` | Max allowed ULP distance for bf16                    |
-| `NK_RANDOM_DISTRIBUTION` | `lognormal_k` | Distribution: `uniform_k`, `lognormal_k`, `cauchy_k` |
+| `NK_RANDOM_DISTRIBUTION` |   `lognormal` | Distribution: `uniform`, `lognormal`, `cauchy`       |
 | `NO_COLOR`               |         unset | Disable colored output                               |
 | `FORCE_COLOR`            |         unset | Force colored output even without TTY                |
 

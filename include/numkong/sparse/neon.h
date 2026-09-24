@@ -1,8 +1,8 @@
 /**
- *  @brief NEON-accelerated Sparse Vector Operations.
  *  @file include/numkong/sparse/neon.h
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief NEON-accelerated sparse vector operations.
  *
  *  @sa include/numkong/sparse.h
  */

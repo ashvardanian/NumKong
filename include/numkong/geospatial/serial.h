@@ -1,8 +1,8 @@
 /**
- *  @brief Serial Geospatial Distances.
  *  @file include/numkong/geospatial/serial.h
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief Serial geospatial distances.
  *
  *  @sa include/numkong/geospatial.h
  */

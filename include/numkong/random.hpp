@@ -1,8 +1,8 @@
 /**
- *  @brief Random number generation utilities for NumKong types.
  *  @file include/numkong/random.hpp
  *  @author Ash Vardanian
  *  @date February 5, 2026
+ *  @brief Random number generation utilities for NumKong types.
  *
  *  Lightweight header with random fill functions for testing and benchmarking.
  *  Only depends on types.hpp to minimize compilation overhead.
@@ -17,7 +17,7 @@
 
 namespace ashvardanian::numkong {
 
-/** @brief Lightweight clamp to avoid pulling in `<algorithm>` for `std::clamp`. */
+/** Lightweight clamp to avoid pulling in `<algorithm>` for @c std::clamp. */
 template <typename scalar_type_>
 scalar_type_ clamp(scalar_type_ val, scalar_type_ low, scalar_type_ high) noexcept {
     return val < low ? low : val > high ? high : val;
@@ -26,11 +26,12 @@ scalar_type_ clamp(scalar_type_ val, scalar_type_ low, scalar_type_ high) noexce
 /**
  *  @brief Fill array with uniform random values.
  *
- *  @tparam value_type_ A NumKong wrapper type (e.g., f32_t, f64_t, i32_t).
- *  @tparam generator_type_ A random number generator type (e.g., std::mt19937_64).
- *  @param generator The random number generator.
- *  @param values_ptr Pointer to the array to fill.
- *  @param values_count Number of storage values to fill (not dimensions for sub-byte types).
+ *  @tparam value_type_ A NumKong wrapper type, e.g., f32_t, f64_t, i32_t.
+ *  @tparam generator_type_ A random number generator type, e.g., @c std::mt19937_64.
+ *
+ *  @param[inout] generator The random number generator.
+ *  @param[out] values_ptr Pointer to the array to fill.
+ *  @param[in] values_count Number of storage values to fill, not dimensions for sub-byte types.
  */
 template <typename value_type_, typename generator_type_, typename component_type_ = typename value_type_::component_t>
 void fill_uniform(generator_type_ &generator, value_type_ *values_ptr, std::size_t values_count,
@@ -72,9 +73,7 @@ void fill_uniform(generator_type_ &generator, value_type_ *values_ptr, std::size
     }
 }
 
-/**
- *  @brief Fill array with uniform random values within specified range.
- */
+/** Fill array with uniform random values within specified range. */
 template <typename value_type_, typename generator_type_>
 void fill_uniform(generator_type_ &generator, value_type_ *values_ptr, std::size_t values_count) noexcept {
 
@@ -90,16 +89,15 @@ void fill_uniform(generator_type_ &generator, value_type_ *values_ptr, std::size
 }
 
 /**
- *  @brief Fill array with lognormal distribution (good for detecting numerical edge cases).
+ *  @brief Fill array with lognormal distribution, good for detecting numerical edge cases.
  *
  *  Probability Density Function (PDF):
  *
  *      f(x; μ, σ) = 1 / (x · σ · √(2π)) · exp(−(ln x − μ)² / (2σ²)),  x > 0
  *
- *  Equivalently, if X ~ 𝒩(μ, σ²), then eˣ ~ LogNormal(μ, σ).
- *  Values span many orders of magnitude, which is useful for exercising overflow/underflow
- *  paths in low-precision arithmetic. Common in modeling latencies, file sizes, and token
- *  frequencies in NLP.
+ *  Equivalently, if X ~ 𝒩(μ, σ²), then eˣ ~ LogNormal(μ, σ). Values span many orders of magnitude,
+ *  which is useful for exercising overflow/underflow paths in low-precision arithmetic. Common in
+ *  modeling latencies, file sizes, and NLP token frequencies.
  */
 template <typename value_type_, typename generator_type_>
 void fill_lognormal(generator_type_ &generator, value_type_ *values_ptr, std::size_t values_count, //
@@ -146,16 +144,15 @@ void fill_lognormal(generator_type_ &generator, value_type_ *values_ptr, std::si
 }
 
 /**
- *  @brief Fill array with Cauchy distribution (heavy tails for stress testing).
+ *  @brief Fill array with Cauchy distribution, heavy tails for stress testing.
  *
  *  Probability Density Function (PDF):
  *
  *      f(x; x₀, γ) = 1 / (π · γ · (1 + ((x − x₀) / γ)²))
  *
- *  The Cauchy distribution has no defined mean or variance — all moments diverge.
- *  This makes it ideal for stress-testing numerical stability with extreme outliers.
- *  Common in robust Bayesian priors (half-Cauchy), Levy flights in metaheuristic
- *  optimization, and adversarial robustness evaluation.
+ *  The Cauchy distribution has no defined mean or variance, as all its moments diverge, making it
+ *  ideal for stress-testing numerical stability with extreme outliers. Common in robust Bayesian
+ *  priors, half-Cauchy, metaheuristic Levy flights, and adversarial robustness evaluation.
  */
 template <typename value_type_, typename generator_type_>
 void fill_cauchy(generator_type_ &generator, value_type_ *values_ptr, std::size_t values_count, //
@@ -194,9 +191,7 @@ void fill_cauchy(generator_type_ &generator, value_type_ *values_ptr, std::size_
     }
 }
 
-/**
- *  @brief Fill arrays with latitude and longitude coordinate values in radians.
- */
+/** Fill arrays with latitude and longitude coordinate values in radians. */
 template <typename value_type_, typename generator_type_>
 void fill_coordinates(generator_type_ &generator, value_type_ *lats_ptr, value_type_ *lons_ptr,
                       std::size_t values_count) noexcept {
@@ -214,9 +209,9 @@ void fill_coordinates(generator_type_ &generator, value_type_ *lats_ptr, value_t
 /**
  *  @brief Fill destination coordinate arrays within a max angular separation of origin coordinates.
  *
- *  Uses the great-circle destination formula to place each destination point at a random
- *  angular distance (uniform in [0, max_separation_rad]) and random bearing from the
- *  corresponding origin point. Coordinates are in radians.
+ *  Uses the great-circle destination formula to place each destination point at a random angular
+ *  distance (uniform in [0, @p max_separation_rad]) and random bearing from the corresponding
+ *  origin point. Coordinates are in radians.
  */
 template <typename value_type_, typename generator_type_>
 void fill_nearby_coordinates(generator_type_ &generator, value_type_ const *origin_lats_ptr,
@@ -242,9 +237,7 @@ void fill_nearby_coordinates(generator_type_ &generator, value_type_ const *orig
     }
 }
 
-/**
- *  @brief Fill array as a probability distribution (sums to 1.0).
- */
+/** Fill array as a probability distribution (sums to 1.0). */
 template <typename value_type_, typename generator_type_>
 void fill_probability(generator_type_ &generator, value_type_ *values_ptr, std::size_t values_count) noexcept {
 
@@ -263,12 +256,11 @@ void fill_probability(generator_type_ &generator, value_type_ *values_ptr, std::
 }
 
 /**
- *  @brief Fill array with sorted unique random integer values (in-place).
+ *  @brief Fill array with sorted unique random integer values, in-place.
  *
- *  Draws @p values_count values from [0, max_val - values_count], sorts once, then adds
- *  the index to each element. This guarantees uniqueness (duplicates become distinct)
- *  and preserves sorted order — all in O(n log n) with exactly one sort, no retry loop.
- *  Requires @p max_val >= @p values_count.
+ *  Draws @p values_count values from [0, @p max_val - values_count], sorts once, then adds each
+ *  element's index. Duplicates become distinct, which guarantees uniqueness and keeps sorted order
+ *  in O(n log n) with one sort and no retry loop. Requires @p max_val ≥ @p values_count.
  */
 template <typename value_type_, typename generator_type_>
 void fill_sorted_unique(generator_type_ &generator, value_type_ *values_ptr, std::size_t values_count,

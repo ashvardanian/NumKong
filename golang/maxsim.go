@@ -1,3 +1,6 @@
+// numkong/golang/maxsim.go
+// Written by Ash Vardanian.
+
 package numkong
 
 /*
@@ -53,8 +56,8 @@ func NewMaxSimPackedMatrixF32(vectorsData []float32, vectorsCount, depth int) Ma
 	return MaxSimPackedMatrix{data: data, vectors: vectorsCount, depth: depth}
 }
 
-// MaxSimF32 sums, over the query vectors, the angular distance from each to its nearest document vector.
-// Both matrices must have the same depth.
+// MaxSimF32 sums, over the query vectors, the angular distance from each to its nearest document
+// vector. Both matrices must have the same depth.
 func MaxSimF32(query, document MaxSimPackedMatrix) float64 {
 	if query.depth != document.depth {
 		panic("query and document must have the same depth")

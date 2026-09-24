@@ -1,6 +1,10 @@
 /**
- *  Playwright test runner for NumKong self-contained browser WASM bundle.
- *  Validates that the auto-initializing bundle works without manual initWasm().
+ *  @file test/browser-bundle-runner.mjs
+ *  @author Ash Vardanian
+ *  @date February 10, 2026
+ *  @brief Playwright test runner for the self-contained NumKong browser WASM bundle.
+ *
+ *  Validates that the auto-initializing bundle works without a manual `initWasm()` call.
  */
 
 import { test, expect } from "@playwright/test";

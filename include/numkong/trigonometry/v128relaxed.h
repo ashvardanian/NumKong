@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Trigonometric Functions for WASM.
  *  @file include/numkong/trigonometry/v128relaxed.h
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief SIMD-accelerated trigonometric functions for WASM.
  *
  *  @sa include/numkong/trigonometry.h
  *  @see https://sleef.org
@@ -11,25 +11,27 @@
  *  F32 sin/cos use 3-term polynomials with Cody-Waite range reduction; f64 uses 8-term Estrin.
  *  F32 atan uses an 8-term Horner scheme; f64 atan uses 19 terms. Atan2 adds quadrant correction.
  *
- *  Polynomial chains rely on relaxed FMA (`relaxed_madd`/`relaxed_nmadd`) for throughput.
- *  Range reduction uses `nearest` rounding (avoiding int-float roundtrips); `trunc_sat` only
- *  for integer parity checks. F32 atan uses division for reciprocal (no approximate reciprocal
- *  available in WASM). All type punning is free since `v128_t` is untyped.
+ *  Polynomial chains rely on relaxed FMA, @c relaxed_madd and @c relaxed_nmadd, for throughput.
+ *  Range reduction uses @c nearest rounding, avoiding int-float roundtrips; @c trunc_sat only for
+ *  integer parity checks. F32 atan uses division for reciprocal, since no approximate reciprocal is
+ *  available in WASM. All type punning is free since @c v128_t is untyped.
  *
  *  @section wasm_trig_instructions Key WASM SIMD Instructions
  *
- *      Intrinsic                               Operation
- *      wasm_f32x4_relaxed_madd(a, b, c)        a*b + c  (relaxed FMA)
- *      wasm_f32x4_relaxed_nmadd(a, b, c)       -(a*b) + c  (relaxed FNMA)
- *      wasm_f64x2_relaxed_madd(a, b, c)        a*b + c  (relaxed FMA)
- *      wasm_f64x2_relaxed_nmadd(a, b, c)       -(a*b) + c  (relaxed FNMA)
- *      wasm_f32x4_nearest(a)                   Round to nearest integer
- *      wasm_f64x2_nearest(a)                   Round to nearest integer
- *      wasm_v128_bitselect(true, false, mask)  Bitwise select
- *      wasm_i32x4_relaxed_laneselect(a, b, m)  Lane select (1 instr vs 3 on x86)
- *      wasm_i64x2_relaxed_laneselect(a, b, m)  Lane select for f64 masks
- *      wasm_i32x4_relaxed_trunc_f32x4(a)       Truncate without sat fixup (1 vs 7 on x86)
- *      wasm_i32x4_relaxed_trunc_f64x2_zero(a)  Truncate f64→i32 without sat fixup (1 vs 7 on x86)
+ *  @verbatim
+ *  Intrinsic                               Operation
+ *  wasm_f32x4_relaxed_madd(a, b, c)        a*b + c  (relaxed FMA)
+ *  wasm_f32x4_relaxed_nmadd(a, b, c)       -(a*b) + c  (relaxed FNMA)
+ *  wasm_f64x2_relaxed_madd(a, b, c)        a*b + c  (relaxed FMA)
+ *  wasm_f64x2_relaxed_nmadd(a, b, c)       -(a*b) + c  (relaxed FNMA)
+ *  wasm_f32x4_nearest(a)                   Round to nearest integer
+ *  wasm_f64x2_nearest(a)                   Round to nearest integer
+ *  wasm_v128_bitselect(true, false, mask)  Bitwise select
+ *  wasm_i32x4_relaxed_laneselect(a, b, m)  Lane select (1 instr vs 3 on x86)
+ *  wasm_i64x2_relaxed_laneselect(a, b, m)  Lane select for f64 masks
+ *  wasm_i32x4_relaxed_trunc_f32x4(a)       Truncate without sat fixup (1 vs 7 on x86)
+ *  wasm_i32x4_relaxed_trunc_f64x2_zero(a)  Truncate f64→i32 without sat fixup (1 vs 7 on x86)
+ *  @endverbatim
  */
 #ifndef NK_TRIGONOMETRY_V128RELAXED_H
 #define NK_TRIGONOMETRY_V128RELAXED_H

@@ -1,4 +1,9 @@
-/* NumKong ISA probe: Diamond Rapids (AVX10.2) */
+/**
+ *  @file probes/x86_diamond.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for Diamond Rapids, AVX10.2.
+ */
 #if defined(__APPLE__)
 #error "AVX-512 not available on macOS"
 #endif

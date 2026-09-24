@@ -1,8 +1,8 @@
 /**
- *  @brief KL-divergence and Jensen-Shannon distance benchmarks.
  *  @file bench/probability.cpp
  *  @author Ash Vardanian
  *  @date March 14, 2023
+ *  @brief KL-divergence and Jensen-Shannon distance benchmarks.
  */
 
 #include "numkong/probability.h"

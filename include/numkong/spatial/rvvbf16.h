@@ -1,18 +1,15 @@
 /**
- *  @brief SIMD-accelerated Spatial Similarity Measures for RISC-V BF16.
  *  @file include/numkong/spatial/rvvbf16.h
  *  @author Ash Vardanian
  *  @date January 5, 2026
+ *  @brief SIMD-accelerated spatial similarity measures for RISC-V BF16.
  *
  *  @sa include/numkong/spatial.h
  *
- *  Zvfbfwma provides widening bf16 fused multiply-accumulate to f32:
- *    vfwmaccbf16: f32 ← bf16 × bf16
+ *  Zvfbfwma adds @c vfwmaccbf16, a widening fused multiply-accumulate of bf16 × bf16 into f32, and
+ *  L2 distances expand (a − b)² = a² + b² − 2 × a × b so that every accumulation goes through it.
  *
- *  For L2 distance, we use the identity: (a−b)² = a² + b² − 2 × a × b
- *  This allows us to use vfwmaccbf16 for all computations.
- *
- *  Requires: RVV 1.0 + Zvfbfwma extension (GCC 14+ or Clang 18+)
+ *  Requires RVV 1.0 with Zvfbfwma, from GCC 14 or Clang 18.
  */
 #ifndef NK_SPATIAL_RVVBF16_H
 #define NK_SPATIAL_RVVBF16_H

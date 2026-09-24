@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Point Cloud Alignment.
  *  @file include/numkong/mesh.h
  *  @author Ash Vardanian
  *  @date June 19, 2024
+ *  @brief SIMD-accelerated point cloud alignment.
  *
  *  Contains:
  *
@@ -12,20 +12,20 @@
  *
  *  Precision policy is intentionally mixed across algorithm phases:
  *
- *  - `f64` inputs keep both the geometric transform and the scalar fit metric in `f64`
- *  - `f32` inputs keep transform outputs narrow (`a_centroid`, `b_centroid`, `rotation`, `scale`) but widen
- *    the scalar fit metric to `f64`
- *  - `f16` and `bf16` inputs keep transform and metric outputs in `f32`
+ *  - @c f64 inputs keep both the geometric transform and the scalar fit metric in @c f64
+ *  - @c f32 inputs keep the @c a_centroid, @c b_centroid, @c rotation, and @c scale outputs narrow,
+ *    but widen the scalar fit metric to @c f64
+ *  - @c f16 and @c bf16 inputs keep transform and metric outputs in @c f32
  *
- *  This keeps `f32` mesh kernels materially faster than `f64` kernels by preserving narrower input bandwidth,
- *  while still widening the numerically sensitive stages that dominate alignment quality.
+ *  This keeps @c f32 mesh kernels much faster than @c f64 ones by preserving narrower input
+ *  bandwidth, while still widening the numerically sensitive stages that govern alignment quality.
  *
  *  For hardware architectures:
  *
  *  - x86 (AVX2, AVX512)
  *  - Arm (NEON, SVE)
  *
- *  @section applications Applications
+ *  @section mesh_applications Applications
  *
  *  These routines are the core of point-cloud alignment pipelines:
  *
@@ -48,52 +48,59 @@
  *
  *  @section algorithm_overview Algorithm Overview
  *
- *  - RMSD: Raw √(Σ‖aᵢ − bᵢ‖² / n) without centering or alignment. R = identity, scale = 1.0, centroids zeroed
+ *  - RMSD: raw √(Σ‖aᵢ − bᵢ‖² / n) without centering or alignment; R = identity, scale = 1.0,
+ *    centroids zeroed
  *  - Kabsch: Finds optimal rotation R minimizing ‖R × (a - ā) - (b - b̄)‖. scale = 1.0
  *  - Umeyama: Finds optimal rotation R and scale c minimizing ‖c × R × (a - ā) - (b - b̄)‖
  *
- *  Kabsch and Umeyama compute a 3×3 cross-covariance matrix H = Σ(aᵢ - ā)(bᵢ - b̄)ᵀ
- *  and recover R from the SVD of H. Umeyama additionally estimates a uniform scale from the
- *  singular values and the variance of the centered source points.
+ *  Kabsch and Umeyama compute a 3×3 cross-covariance matrix H = Σ(aᵢ - ā)(bᵢ - b̄)ᵀ and recover R
+ *  from the SVD of H. Umeyama additionally estimates a uniform scale from the singular values and
+ *  the variance of the centered source points.
  *
  *  The 3×3 SVD implementation is based on the McAdams et al. paper:
- *  "Computing the Singular Value Decomposition of 3×3 matrices with minimal branching
- *  and elementary floating point operations", University of Wisconsin - Madison TR1690, 2011.
+ *  "Computing the Singular Value Decomposition of 3×3 matrices with minimal branching and
+ *  elementary floating point operations", University of Wisconsin - Madison TR1690, 2011.
  *
  *  @section numerical_notes Numerical Notes
  *
  *  Let `n` be the number of 3D points:
  *
- *  - `O(n)` stages are the point-cloud passes for centroids, cross-covariance, source variance, and transformed SSD.
- *  - `O(1)` stages are the fixed-size 3×3 SVD/eigensolve, determinant/reflection fix, and scale construction.
+ *  - `O(n)` stages are the point-cloud passes for centroids, cross-covariance, source variance, and
+ *    transformed SSD.
+ *  - `O(1)` stages are the fixed-size @b [3,3] SVD/eigensolve, scale construction, and
+ *    determinant/reflection fix.
  *
  *  Kernel policy:
  *
- *  - `f64`: both `O(n)` reductions and the `O(1)` 3×3 solve run in `f64`.
- *  - `f32`: point coordinates load as `f32`, widen before arithmetic, keep `O(n)` reductions in `f64`,
- *    keep the `O(1)` 3×3 solve in `f64`, and only narrow public transform outputs on store.
+ *  - @c f64: both `O(n)` reductions and the `O(1)` @b [3,3] solve run in @c f64.
+ *  - @c f32: point coordinates load as @c f32, widen before arithmetic, keep `O(n)` reductions in
+ *    @c f64, keep the `O(1)` @b [3,3] solve in @c f64, and only narrow public transform outputs on
+ *    store.
  *  - `f16`/`bf16`: keep both `O(n)` and `O(1)` stages in `f32`.
  *
- *  - `f32` transform outputs stay narrow because they are typically applied back onto `f32` point clouds.
+ *  - @c f32 transform outputs stay narrow because they are typically applied back onto @c f32 point
+ *    clouds.
  *  - Reflections are handled by flipping the last singular vector when det(R) < 0.
  *  - For very small point sets, the loops are scalar-heavy and dominate over SIMD setup costs.
  *
- *  @section x86_instructions Relevant x86 Instructions
+ *  @section mesh_x86_instructions Relevant x86 Instructions
  *
  *  The SIMD kernels are dominated by FMA, permutes, and gathers:
  *
- *      Intrinsic                  Instruction  Notes
- *      _mm256_fmadd_ps/pd         VFMADD*      FMA on FP ports (Haswell/Skylake: ports 0/1)
- *      _mm256_i32gather_ps        VGATHERDPS   High-latency; memory-bound
- *      _mm512_permutex2var_ps/pd  VPERMT2*     Shuffle-heavy; can bottleneck on shuffle ports
- *      _mm512_reduce_add_ps/pd    (sequence)   Implemented via shuffles + adds
+ *  @verbatim
+ *  Intrinsic                  Instruction  Notes
+ *  _mm256_fmadd_ps/pd         VFMADD*      FMA on FP ports (Haswell/Skylake: ports 0/1)
+ *  _mm256_i32gather_ps        VGATHERDPS   High-latency; memory-bound
+ *  _mm512_permutex2var_ps/pd  VPERMT2*     Shuffle-heavy; can bottleneck on shuffle ports
+ *  _mm512_reduce_add_ps/pd    (sequence)   Implemented via shuffles + adds
+ *  @endverbatim
  *
  *  Gather-heavy tails are intentionally isolated to keep the steady-state loop on contiguous loads.
  *
- *  @section references References
+ *  @section mesh_references References
  *
- *  - x86 intrinsics: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
- *  - Arm intrinsics: https://developer.arm.com/architectures/instruction-sets/intrinsics/
+ *  @see x86 intrinsics: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
+ *  @see Arm intrinsics: https://developer.arm.com/architectures/instruction-sets/intrinsics/
  *
  */
 #ifndef NK_MESH_H

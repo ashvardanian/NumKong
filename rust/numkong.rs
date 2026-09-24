@@ -1,13 +1,14 @@
 //! # NumKong - Hardware-Accelerated Numerics
 //!
-//! Provides SIMD-accelerated distance metrics, elementwise operations, and tensor algebra
-//! targeting ARM NEON/SVE/SME and x86 AVX2/AVX-512 backends.
+//! Provides SIMD-accelerated distance metrics, elementwise operations, and tensor algebra targeting
+//! ARM NEON/SVE/SME and x86 AVX2/AVX-512 backends.
 //!
 //! ## Modules
 //!
-//! - [`types`]: Mixed-precision scalar types (`f16`, `bf16`, FP8, packed integers) and [`FloatLike`] trait
+//! - [`types`]: Mixed-precision scalar types (`f16`, `bf16`, FP8, packed integers) and
+//!   [`FloatLike`] trait
 //! - [`dot`]: Real and complex dot products
-//! - [`spatial`]: Angular (cosine) and Euclidean distances
+//! - [`spatial`]: Angular, also called cosine, and Euclidean distances
 //! - [`each`]: Elementwise operations — scale, sum, blend, FMA
 //! - [`trigonometry`]: Elementwise trigonometry — sin, cos, atan, RoPE
 //! - [`reduce`]: Statistical reductions — moments, min/max
@@ -20,7 +21,7 @@
 //! - [`sparse`]: Sparse set operations
 //! - [`mod@cast`]: Type casting between scalar formats
 //! - [`capabilities`]: Runtime SIMD feature detection
-//! - [`dots`]: Batch matrix multiplication (GEMM) over pre-packed matrices
+//! - [`dots`]: Batched GEMM over pre-packed matrices
 //! - [`spatials`]: Batched spatial distances — angular, Euclidean — over pre-packed matrices
 //! - [`sets`]: Batched binary/set metrics — Hamming, Jaccard — over pre-packed matrices
 //! - [`maxsim`]: Late-interaction MaxSim scoring over pre-packed matrices
@@ -30,13 +31,13 @@
 //!
 //! ## Implemented operations include:
 //!
-//! * Euclidean (L2), inner product, and angular (cosine) spatial distances.
-//! * Hamming and Jaccard binary distances.
-//! * Kullback-Leibler divergence and Jensen-Shannon distance.
-//! * Elementwise scale, sum, blend, and FMA operations.
-//! * Trigonometric functions — sin, cos, atan.
-//! * Type casting between all scalar formats.
-//! * Matrix multiplication with pre-packing (GEMM).
+//! - Euclidean L2, inner-product, and angular cosine spatial distances.
+//! - Hamming and Jaccard binary distances.
+//! - Kullback-Leibler divergence and Jensen-Shannon distance.
+//! - Elementwise scale, sum, blend, and FMA operations.
+//! - Trigonometric functions — sin, cos, atan.
+//! - Type casting between all scalar formats.
+//! - Matrix multiplication with pre-packing, i.e. GEMM.
 //!
 //! ## Example
 //!
@@ -99,7 +100,7 @@
 //! - `scale(a, alpha, beta, result)`: Element-wise `result[i] = α × a[i] + β`.
 //! - `sum(a, b, result)`: Element-wise `result[i] = a[i] + b[i]`.
 //! - `blend(a, b, alpha, beta, result)`: Blend `result[i] = α × a[i] + β × b[i]`.
-//! - `fma(a, b, c, alpha, beta, result)`: Fused multiply-add `result[i] = α × a[i] × b[i] + β × c[i]`.
+//! - `fma(a, b, c, alpha, beta, result)`: FMA `result[i] = α × a[i] × b[i] + β × c[i]`.
 //!
 //! The `Trigonometry` trait, combining `TrigSin`, `TrigCos`, `TrigAtan`, covers:
 //!
@@ -110,10 +111,12 @@
 //! Additional traits: `VDot` for complex dot products, `Roots` for scalar square root and
 //! reciprocal square root, and `SparseDot` / `SparseIntersect` for sparse set operations.
 //!
+//! File: rust/numkong.rs
+//! Author: Ash Vardanian
 #![allow(non_camel_case_types)]
 #![allow(clippy::too_many_arguments)]
 #![cfg_attr(all(not(test), not(feature = "std")), no_std)]
-// docs.rs builds with `--cfg docsrs` (see Cargo.toml); this enables the "Available on feature …"
+// docs.rs builds with `--cfg docsrs`, per Cargo.toml; this enables the "Available on feature …"
 // badges on feature-gated items. It's a nightly-only feature, gated behind `docsrs` so stable
 // builds ignore it.
 #![cfg_attr(docsrs, feature(doc_cfg))]
@@ -223,8 +226,7 @@ pub use sets::{HammingsPackedParallelOps, JaccardsPackedParallelOps};
 // Re-export vector types
 pub use vector::{Vector, VectorIndex, VectorIterator, VectorSpan, VectorSpanIterator, VectorView, VectorViewIterator};
 
-// Re-export maxsim types
-// Re-export attention types
+// Re-export maxsim and attention types
 pub use attention::{Attention, AttentionPackedMatrix};
 
 pub use maxsim::{MaxSim, MaxSimPackedMatrix};
@@ -457,8 +459,8 @@ mod tests {
 
 // region: WASM Runtime Tests
 
-/// WASM runtime integration tests using Wasmtime
-/// These tests validate that WASI builds work correctly with standalone runtimes
+/// WASM runtime integration tests using Wasmtime. These tests validate that WASI builds work
+/// correctly with standalone runtimes.
 #[cfg(all(test, feature = "wasm-runtime"))]
 mod wasm_runtime_tests {
     use std::fs;

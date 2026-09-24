@@ -1,4 +1,9 @@
-/* NumKong ISA probe: SVE (Scalable Vector Extension) */
+/**
+ *  @file probes/arm_sve.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for SVE, the Scalable Vector Extension.
+ */
 #if defined(_WIN32)
 #error "SVE/SME not supported on Windows ARM"
 #endif

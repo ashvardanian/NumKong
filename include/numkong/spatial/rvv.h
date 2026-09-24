@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Spatial Similarity Measures for RISC-V.
  *  @file include/numkong/spatial/rvv.h
  *  @author Ash Vardanian
  *  @date January 5, 2026
+ *  @brief SIMD-accelerated spatial similarity measures for RISC-V.
  *
  *  @sa include/numkong/spatial.h
  *

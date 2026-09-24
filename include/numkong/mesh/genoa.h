@@ -1,23 +1,25 @@
 /**
- *  @brief SIMD-accelerated Point Cloud Alignment for Genoa (AVX-512-BF16).
  *  @file include/numkong/mesh/genoa.h
  *  @author Ash Vardanian
  *  @date December 28, 2025
+ *  @brief SIMD-accelerated point cloud alignment for Genoa, AVX-512-BF16.
  *
  *  @sa include/numkong/mesh.h
  *
  *  @section genoa_mesh_instructions Key AVX-512 BF16 Mesh Instructions
  *
- *      Intrinsic                 Instruction                  Genoa      Sapphire
- *      _mm512_dpbf16_ps          VDPBF16PS (ZMM, ZMM, ZMM)    6cy @ p01  6cy @ p05
- *      _mm512_permutexvar_epi16  VPERMW (ZMM, ZMM, ZMM)       3cy @ p5   6cy @ p5
- *      _mm512_maskz_loadu_epi16  VMOVDQU16 (ZMM{k}, M)        9cy @ L1   9cy @ L1
+ *  @verbatim
+ *  Intrinsic                 Instruction                  Genoa      Sapphire
+ *  _mm512_dpbf16_ps          VDPBF16PS (ZMM, ZMM, ZMM)    6cy @ p01  6cy @ p05
+ *  _mm512_permutexvar_epi16  VPERMW (ZMM, ZMM, ZMM)       3cy @ p5   6cy @ p5
+ *  _mm512_maskz_loadu_epi16  VMOVDQU16 (ZMM{k}, M)        9cy @ L1   9cy @ L1
+ *  @endverbatim
  *
  *  The bf16 mesh kernels use a 15-lane channel-grouped layout: 10 xyz triplets per ZMM (30 bf16
- *  values laid out as [x0..x9, y0..y9, z0..z9, _, _] after a single VPERMW). That maps cleanly
- *  onto VDPBF16PS, which pairs adjacent bf16 values per fp32 lane; 5 channel-consecutive pairs
- *  give a single H-cell per lane-range. Three product accumulators (a*b, a*rot1(b), a*rot2(b))
- *  cover the 9 cross-covariance cells, matching the Skylake structure.
+ *  values laid out as [x0..x9, y0..y9, z0..z9, _, _] after a single VPERMW). That maps cleanly onto
+ *  VDPBF16PS, which pairs adjacent bf16 values per fp32 lane; 5 channel-consecutive pairs give a
+ *  single H-cell per lane-range. Three product accumulators (a*b, a*rot1(b), a*rot2(b)) cover the 9
+ *  cross-covariance cells, matching the Skylake structure.
  */
 #ifndef NK_MESH_GENOA_H
 #define NK_MESH_GENOA_H

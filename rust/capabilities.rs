@@ -1,7 +1,7 @@
 //! SIMD capability reporting, along two independent axes.
 //!
-//! Capability bits (`cap::*`) are reported along two axes that have nothing to do with each
-//! other, plus the sets derived from them:
+//! Capability bits (`cap::*`) are reported along two axes that have nothing to do with each other,
+//! plus the sets derived from them:
 //!
 //! - [`detected`]: what this CPU can execute, from CPUID / `getauxval` / HWCAP
 //! - [`compiled`]: what this binary contains, from the ISA probes run at build time
@@ -9,8 +9,8 @@
 //! - [`enabled`]: the subset dispatch is currently restricted to
 //!
 //! Reach for [`available`] unless you specifically mean one of the raw axes. [`detected`] alone
-//! describes the machine and says nothing about whether a kernel was compiled in, so selecting
-//! on it claims hardware support for code that may not exist in this build.
+//! describes the machine and says nothing about whether a kernel was compiled in, so selecting on
+//! it claims hardware support for code that may not exist in this build.
 //!
 //! This module also provides:
 //!
@@ -19,6 +19,9 @@
 //! - [`configure_thread`]: Enable optimal SIMD settings for the current thread
 //! - [`uses_runtime_dispatch`]: Check if the library selects kernels at runtime
 //! - [`cap`]: Constants for individual capability bits — NEON, SKYLAKE, etc.
+//!
+//! File: rust/capabilities.rs
+//! Author: Ash Vardanian
 
 #[link(name = "numkong")]
 extern "C" {
@@ -37,8 +40,8 @@ extern "C" {
 /// compiled in. See [`available`] for the set that can actually run.
 pub fn detected() -> u64 { unsafe { nk_capabilities_detected() } }
 
-/// Returns the bitmask of capabilities whose kernels were compiled into this binary,
-/// whether or not this CPU supports them.
+/// Returns the bitmask of capabilities whose kernels were compiled into this binary, whether or not
+/// this CPU supports them.
 pub fn compiled() -> u64 { unsafe { nk_capabilities_compiled() } }
 
 /// Returns the bitmask of capabilities that can actually execute here: [`detected`] & [`compiled`].
@@ -66,8 +69,7 @@ pub fn enabled() -> u64 { unsafe { nk_capabilities_enabled() } }
 /// False both when this CPU lacks the feature and when its kernels were not compiled in.
 pub fn has(capability: u64) -> bool { available() & capability != 0 }
 
-/// Restricts dispatch to `capabilities`, clamped to [`available`]; the serial fallback is
-/// always retained.
+/// Restricts dispatch to `capabilities`, clamped to [`available`]; serial fallback always remains.
 pub fn restrict(capabilities: u64) { unsafe { nk_capabilities_restrict(capabilities) } }
 
 /// Adds `capabilities` to [`enabled`]. Anything not in [`available`] is ignored.
@@ -76,9 +78,9 @@ pub fn enable(capabilities: u64) { unsafe { nk_capabilities_enable(capabilities)
 /// Removes `capabilities` from [`enabled`]. The serial fallback cannot be removed.
 pub fn disable(capabilities: u64) { unsafe { nk_capabilities_disable(capabilities) } }
 
-/// Configures the current thread for optimal SIMD performance.
-/// On x86, this enables AMX tile state via `arch_prctl`. On other platforms this is a no-op.
-/// Must be called once per thread before using AMX (Advanced Matrix Extensions) operations.
+/// Configures the current thread for optimal SIMD performance. On x86, this enables AMX tile state
+/// via `arch_prctl`. On other platforms this is a no-op. Must be called once per thread before
+/// using AMX, Advanced Matrix Extensions, operations.
 pub fn configure_thread() -> bool {
     // Ask only for what can run here — requesting state for kernels that were never compiled
     // in, or that this CPU lacks, is meaningless.

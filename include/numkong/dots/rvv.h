@@ -1,44 +1,46 @@
 /**
- *  @brief SIMD-accelerated Batched Dot Products for RISC-V.
  *  @file include/numkong/dots/rvv.h
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief SIMD-accelerated Batched Dot Products for RISC-V.
  *
  *  @sa include/numkong/dots.h
  *
- *  Custom RVV-native register-tiled GEMM implementation, analogous to how AMX
- *  (dots/sapphireamx.h) and SME (dots/sme.h) each have their own unique implementations
- *  independent of the cross-product macros.
+ *  Custom RVV-native register-tiled GEMM implementation, analogous to how AMX in dots/sapphireamx.h
+ *  and SME in dots/sme.h each have their own unique implementations independent of the
+ *  cross-product macros.
  *
- *  RVV's variable-length vectors and widening multiply-accumulate (`vfwmacc`) make it
+ *  RVV's variable-length vectors and widening multiply-accumulate, @c vfwmacc, make it
  *  fundamentally different from fixed-width SIMD. Key design choices:
  *
- *  - f32 GEMM: Uses `vfwmacc_vv_f64m4` for f64 accumulation (vector-vector widened FMA),
- *    Process 4 rows per tile (rows_per_tile=4). Narrowed to f32 on store.
- *  - f64 GEMM: Uses `vfmul`+Kahan with Kahan compensation,
- *    Process 2 rows per tile (rows_per_tile=2, tighter register budget at LMUL=4).
- *  - B packing: Column-panel layout with cache-line padding. Each depth step stores
- *    contiguous elements along depth — one `vle32`/`vle64` per vectorized chunk.
- *  - Edge handling: RVV's `vsetvl` returns actual VL for partial vectors — no separate
- *    edge kernel needed.
- *  - Vectorization axis: depth (k dimension). Each inner loop iteration loads a chunk of
- *    both A and B along depth, computing element-wise widened FMA.
+ *  - f32 GEMM: uses @c vfwmacc_vv_f64m4 for f64 accumulation, a vector-vector widened FMA,
+ *    processing 4 rows per tile via rows_per_tile=4. Narrowed to f32 on store.
+ *  - f64 GEMM: uses @c vfmul plus Kahan compensation, processing 2 rows per tile via
+ *    rows_per_tile=2, a tighter register budget at LMUL=4.
+ *  - B packing: column-panel layout with cache-line padding. Each depth step stores contiguous
+ *    elements along depth — one @c vle32 and @c vle64 per vectorized chunk.
+ *  - Edge handling: RVV's @c vsetvl returns actual VL for partial vectors — no separate edge kernel
+ *    needed.
+ *  - Vectorization axis: depth, the k dimension. Each inner loop iteration loads a chunk of both A
+ *    and B along depth, computing element-wise widened FMA.
  *
- *  - e2m3 GEMM: Integer arithmetic via LUT (5-bit magnitude → i8 value×16).
- *    B is pre-packed as signed i8. A is converted on-the-fly via `vluxei8` gather.
- *    Uses `vwmul` (i8→i16) then `vwadd_wv` (i32+=i16) for K-vectorized accumulation.
- *    Final result scaled by 1/256. Process 4 rows per tile (rows_per_tile=4).
- *  - e3m2 GEMM: Integer arithmetic via LUT (5-bit magnitude → i16 value×16).
- *    B is pre-packed as signed i16. A is converted on-the-fly via `vluxei16` gather.
- *    Uses `vwmacc` (i16×i16→i32) for K-vectorized widening MAC.
- *    Final result scaled by 1/256. Process 2 rows per tile (rows_per_tile=2, wider accumulator elements).
- *  - e4m3 GEMM: f32 LUT gather (7-bit magnitude → f32 bit pattern, 128 entries).
- *    B is pre-packed as f32. A is converted on-the-fly via `vluxei32` gather with
- *    sign injection (bit 7 → bit 31). Uses `vfwmacc_vv_f64m4` for f64 accumulation.
- *    Process 2 rows per tile (rows_per_tile=2, u32m2 gather + f64m4 accumulator is register-heavy).
- *  - e5m2 GEMM: Same f32 LUT gather approach as e4m3, different LUT contents.
- *    E5M2 has 5 exponent bits (wider range, lower precision than e4m3).
- *    Process 2 rows per tile (rows_per_tile=2).
+ *  e2m3 GEMM uses integer arithmetic via a LUT, mapping a 5-bit magnitude to an i8 value times 16.
+ *  B is pre-packed as signed i8, and A is converted on-the-fly via a @c vluxei8 gather. @c vwmul
+ *  widens i8 to i16, then @c vwadd_wv accumulates i32+=i16 for K-vectorized accumulation, with the
+ *  final result scaled by 1/256. It processes 4 rows per tile via rows_per_tile=4.
+ *
+ *  e3m2 GEMM uses integer arithmetic via a LUT, mapping a 5-bit magnitude to an i16 value times 16.
+ *  B is pre-packed as signed i16, and A is converted on-the-fly via a @c vluxei16 gather. @c vwmacc
+ *  performs a widening i16×i16 → i32 K-vectorized MAC, with the final result scaled by 1/256. It
+ *  processes 2 rows per tile via rows_per_tile=2, a wider accumulator element.
+ *
+ *  e4m3 GEMM gathers from an f32 LUT, mapping a 7-bit magnitude to an f32 bit pattern across 128
+ *  entries. B is pre-packed as f32, and A is converted on-the-fly via a @c vluxei32 gather with
+ *  sign injection, bit 7 to bit 31. It uses @c vfwmacc_vv_f64m4 for f64 accumulation and processes
+ *  2 rows per tile via rows_per_tile=2, a u32m2 gather plus f64m4 accumulator being register-heavy.
+ *
+ *  e5m2 GEMM reuses e4m3's f32 LUT gather with different contents; its 5 exponent bits trade range
+ *  for precision versus e4m3, at 2 rows/tile via rows_per_tile=2.
  */
 #ifndef NK_DOTS_RVV_H
 #define NK_DOTS_RVV_H

@@ -1,8 +1,8 @@
 /**
- *  @brief MaxSim (ColBERT late-interaction) precision tests.
  *  @file test/maxsim.cpp
  *  @author Ash Vardanian
  *  @date February 28, 2026
+ *  @brief MaxSim precision tests, ColBERT late-interaction.
  */
 
 #include "test.hpp"

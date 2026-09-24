@@ -1,11 +1,11 @@
 /**
- *  @brief Batch operation benchmarks - WASM ISA family.
  *  @file bench/cross_wasm.cpp
  *  @author Ash Vardanian
  *  @date March 5, 2026
+ *  @brief Batch operation benchmarks, WASM ISA family.
  *
- *  The strict tier carries the bf16, i8, u8 and u1 GEMMs and the packing routines every module shares;
- *  the relaxed tier carries every other dtype and its own bf16, i8 and u8 twins.
+ *  The strict tier carries the bf16, i8, u8 and u1 GEMMs and the packing routines every module
+ *  shares; the relaxed tier carries every other dtype and its own bf16, i8 and u8 twins.
  */
 
 #include "numkong/attention.h"

@@ -8,6 +8,9 @@
 //! - [`SymmetricHammingsOps`] / [`SymmetricJaccardsOps`]: self-metric upper triangle
 //!
 //! The right-hand operand is a [`DotsPackedMatrix`] from the [`crate::dots`] module.
+//!
+//! File: rust/sets.rs
+//! Author: Ash Vardanian
 use crate::tensor::{Allocator, Global, Tensor, TensorError, TensorMut, TensorRef, TensorView};
 use crate::types::{u1x8, StorageElement};
 
@@ -66,7 +69,7 @@ extern "C" {
 
 // region: Hammings Trait
 
-/// Low-level trait for batched **Hamming distance** operations.
+/// Low-level trait for batched __Hamming distance__ operations.
 ///
 /// Given A ∈ {0,1}ᵐˣᵏ and packed B ∈ {0,1}ⁿˣᵏ, computes C ∈ ℕᵐˣⁿ where:
 /// Cᵢⱼ = popcount(aᵢ ⊕ bⱼ)
@@ -75,18 +78,17 @@ extern "C" {
 ///
 /// # When to use
 ///
-/// Binary feature vectors, bit-packed into `u1x8`, are common in approximate
-/// nearest-neighbour search and bloom-filter-style retrieval. Packing the
-/// query set once and running Hamming distance against many candidate rows is
-/// the hot path. Results accumulate in `u32`, wide enough for any practical
-/// binary vector length.
+/// Binary feature vectors, bit-packed into `u1x8`, are common in approximate nearest-neighbour
+/// search and bloom-filter-style retrieval. Packing the query set once and running Hamming distance
+/// against many candidate rows is the hot path. Results accumulate in `u32`, wide enough for any
+/// practical binary vector length.
 pub trait Hammings: Dots {
     /// Computes Hamming distances between values matrix rows and packed query rows.
     ///
     /// # Safety
     /// - `a` must point to valid memory for the values matrix
-    /// - `packed` must be a buffer previously filled by `Dots::dots_pack`
-    /// - `result` must point to valid memory for `height * width` u32 elements
+    /// - `packed` must be a buffer filled by `Dots::dots_pack`
+    /// - `result` must point to valid memory for `height` × `width` u32 elements
     unsafe fn hammings_packed(
         queries: *const Self,
         packed: *const u8,
@@ -165,7 +167,7 @@ impl Hammings for u1x8 {
 
 // region: Jaccards Trait
 
-/// Low-level trait for batched **Jaccard distance** operations.
+/// Low-level trait for batched __Jaccard distance__ operations.
 ///
 /// Given A ∈ {0,1}ᵐˣᵏ and packed B ∈ {0,1}ⁿˣᵏ, computes C ∈ ℝᵐˣⁿ where:
 /// Cᵢⱼ = 1 − popcount(aᵢ ∧ bⱼ) / popcount(aᵢ ∨ bⱼ)
@@ -174,10 +176,9 @@ impl Hammings for u1x8 {
 ///
 /// # When to use
 ///
-/// Jaccard distance measures set dissimilarity and is the natural metric for
-/// binary feature presence/absence. Pack the query set once and query many
-/// candidates in a single batched kernel call. The result type is `f32`
-/// because the ratio is inherently fractional.
+/// Jaccard distance measures set dissimilarity and is the natural metric for binary feature
+/// presence/absence. Pack the query set once and query many candidates in a single batched kernel
+/// call. The result type is `f32` because the ratio is inherently fractional.
 pub trait Jaccards: Dots {
     /// Result type for Jaccard distances.
     type JaccardResult: StorageElement;
@@ -186,8 +187,8 @@ pub trait Jaccards: Dots {
     ///
     /// # Safety
     /// - `a` must point to valid memory for the values matrix
-    /// - `packed` must be a buffer previously filled by `Dots::dots_pack`
-    /// - `result` must point to valid memory for `height * width` elements
+    /// - `packed` must be a buffer filled by `Dots::dots_pack`
+    /// - `result` must point to valid memory for `height` × `width` elements
     unsafe fn jaccards_packed(
         queries: *const Self,
         packed: *const u8,
@@ -310,9 +311,8 @@ impl<Scalar: Hammings, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<S
 pub trait HammingsPackedOps<Scalar: Hammings, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
     /// Hamming distances: C = self × packed_rightᵀ
     ///
-    /// self must be 2D (m × k) with contiguous rows.
-    /// packed_right contains B (n × k) packed.
-    /// Returns C (m × n) using the global allocator.
+    /// self must be 2D __[m,k]__ with contiguous rows. packed_right contains B __[n,k]__ packed.
+    /// Returns C __[m,n]__ using the global allocator.
     ///
     /// Returns `Err` if:
     /// - self is not 2D
@@ -350,9 +350,9 @@ pub trait HammingsPackedOps<Scalar: Hammings, const MAX_RANK: usize>: TensorRef<
 
     /// Hamming distances into an existing output, avoiding allocation.
     ///
-    /// The output may be a `&mut Tensor<...>` or `&mut TensorSpan<...>`; any
-    /// writable tensor container that implements [`TensorMut`] works. The
-    /// kernel overwrites `c` — it need not be pre-initialized.
+    /// The output may be a `&mut Tensor<...>` or `&mut TensorSpan<...>`; any writable tensor
+    /// container that implements [`TensorMut`] works. The kernel overwrites `c` entirely, so it
+    /// need not arrive pre-initialized.
     fn try_hammings_packed_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
@@ -427,9 +427,8 @@ impl<Scalar: Jaccards, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<S
 pub trait JaccardsPackedOps<Scalar: Jaccards, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
     /// Jaccard distances: C = self × packed_rightᵀ
     ///
-    /// self must be 2D (m × k) with contiguous rows.
-    /// packed_right contains B (n × k) packed.
-    /// Returns C (m × n) using the global allocator.
+    /// self must be 2D __[m,k]__ with contiguous rows. packed_right contains B __[n,k]__ packed.
+    /// Returns C __[m,n]__ using the global allocator.
     ///
     /// Returns `Err` if:
     /// - self is not 2D
@@ -470,9 +469,9 @@ pub trait JaccardsPackedOps<Scalar: Jaccards, const MAX_RANK: usize>: TensorRef<
 
     /// Jaccard distances into an existing output, avoiding allocation.
     ///
-    /// The output may be a `&mut Tensor<...>` or `&mut TensorSpan<...>`; any
-    /// writable tensor container that implements [`TensorMut`] works. The
-    /// kernel overwrites `c` — it need not be pre-initialized.
+    /// The output may be a `&mut Tensor<...>` or `&mut TensorSpan<...>`; any writable tensor
+    /// container that implements [`TensorMut`] works. The kernel overwrites `c` entirely, so it
+    /// need not arrive pre-initialized.
     fn try_jaccards_packed_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
@@ -839,8 +838,8 @@ impl<'queries, Scalar: Hammings, const MAX_RANK: usize> TensorView<'queries, Sca
         Ok(result)
     }
 
-    /// Computes symmetric Hamming distances into pre-allocated output.
-    /// Only the upper triangle is written.
+    /// Computes symmetric Hamming distances into pre-allocated output, touching only the upper
+    /// triangle of it.
     pub fn try_hammings_symmetric_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         output: &mut OutputTensor,
@@ -878,8 +877,8 @@ impl<'queries, Scalar: Jaccards, const MAX_RANK: usize> TensorView<'queries, Sca
         Ok(result)
     }
 
-    /// Computes symmetric Jaccard distances into pre-allocated output.
-    /// Only the upper triangle is written.
+    /// Computes symmetric Jaccard distances into pre-allocated output, touching only the upper
+    /// triangle of it.
     pub fn try_jaccards_symmetric_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         output: &mut OutputTensor,
@@ -908,24 +907,22 @@ impl<'queries, Scalar: Jaccards, const MAX_RANK: usize> TensorView<'queries, Sca
 // endregion: TensorView
 
 // region: Symmetric Extension Traits
+
 /// Extension trait: symmetric Hamming distance matrix for any [`TensorRef`] implementor.
 ///
-/// Blanket-implemented for every `TensorRef<Scalar, R>`, exposing
-/// `try_hammings_symmetric` on owned [`Tensor`] as well as borrowed views.
-/// The kernel writes only the upper triangle (including the diagonal) — the
-/// lower triangle is not touched, so mirror it if you need a fully-populated
-/// matrix.
+/// Blanket-implemented for every `TensorRef<Scalar, R>`, exposing `try_hammings_symmetric` on owned
+/// [`Tensor`] as well as borrowed views. The kernel writes only the upper triangle, including the
+/// diagonal — the lower triangle is not touched, so mirror it if you need a fully-populated matrix.
 ///
-/// Prefer this trait when writing generic code over `TensorRef`; use the
-/// inherent [`TensorView::try_hammings_symmetric`] when you already hold a
-/// view.
+/// Prefer this trait when writing generic code over `TensorRef`; use the inherent
+/// [`TensorView::try_hammings_symmetric`] when you already hold a view.
 pub trait SymmetricHammingsOps<Scalar: Hammings, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
     fn try_hammings_symmetric(&self) -> Result<Tensor<u32, Global, MAX_RANK>, TensorError> {
         self.view().try_hammings_symmetric()
     }
 
-    /// Writes the symmetric Hamming-distance matrix into pre-allocated output.
-    /// Only the upper triangle is written.
+    /// Writes the symmetric Hamming-distance matrix into pre-allocated output, touching only the
+    /// upper triangle of it.
     fn try_hammings_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(
         &self,
         output: &mut Out,
@@ -944,22 +941,20 @@ impl<Scalar: Hammings, const R: usize, OutputTensor: TensorRef<Scalar, R>> Symme
 
 /// Extension trait: symmetric Jaccard distance matrix for any [`TensorRef`] implementor.
 ///
-/// Blanket-implemented for every `TensorRef<Scalar, R>`, so
-/// `vectors.try_jaccards_symmetric()` is available on both owned [`Tensor`]
-/// and borrowed views. The kernel writes only the upper triangle (including
-/// the diagonal); mirror to the lower triangle yourself if a dense symmetric
+/// Blanket-implemented for every `TensorRef<Scalar, R>`, so `vectors.try_jaccards_symmetric()` is
+/// available on both owned [`Tensor`] and borrowed views. The kernel writes only the upper
+/// triangle, including the diagonal; mirror to the lower triangle yourself if a dense symmetric
 /// result is required.
 ///
-/// Prefer this trait when writing generic code over `TensorRef`; use the
-/// inherent [`TensorView::try_jaccards_symmetric`] when you already hold a
-/// view.
+/// Prefer this trait when writing generic code over `TensorRef`; use the inherent
+/// [`TensorView::try_jaccards_symmetric`] when you already hold a view.
 pub trait SymmetricJaccardsOps<Scalar: Jaccards, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
     fn try_jaccards_symmetric(&self) -> Result<Tensor<Scalar::JaccardResult, Global, MAX_RANK>, TensorError> {
         self.view().try_jaccards_symmetric()
     }
 
-    /// Writes the symmetric Jaccard-distance matrix into pre-allocated output.
-    /// Only the upper triangle is written.
+    /// Writes the symmetric Jaccard-distance matrix into pre-allocated output, touching only the
+    /// upper triangle of it.
     fn try_jaccards_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(
         &self,
         output: &mut Out,

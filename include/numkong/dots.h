@@ -1,11 +1,12 @@
 /**
- *  @brief SIMD-accelerated Batched Dot Products.
  *  @file include/numkong/dots.h
  *  @author Ash Vardanian
  *  @date September 14, 2024
+ *  @brief SIMD-accelerated Batched Dot Products.
  *
- *  Implements batch dot-product kernels computing C[m × n] = A[m × k] × B[n × k]ᵀ
- *  with row-major A and arbitrary B, optimized for ML inference and similarity workloads.
+ *  Implements batch dot-product kernels computing output @b C of shape @b [rows,columns] as A × Bᵀ,
+ *  from row-major @b A of shape @b [rows,depth] and arbitrary @b B of shape @b [columns,depth],
+ *  optimized for ML inference and similarity workloads.
  *
  *  Primary Use Cases (1-to-N focus):
  *
@@ -48,12 +49,14 @@
  *  - Arm: NEON, NEON+HALF, NEON+FHM, NEON+BF16, NEON+SDOT, SVE, SME, SME+F64, SME+BI32
  *  - x86: Haswell, Skylake, Ice Lake, Genoa, Sapphire Rapids (AMX), Sierra Forest
  *  - RISC-V: RVV
- *  - NVIDIA: Ampere (`mma.sync`, every device from 8.0), Blackwell RTX (native Float8, Float6 and Float4 MMA)
+ *  - NVIDIA: Ampere, `mma.sync` from compute capability 8.0 on; Blackwell RTX, native Float8,
+ *    Float6 and Float4 MMA
  *
- *  @section numerical_stability Numerical Stability
+ *  @section dots_numerical_stability Numerical Stability
  *
  *  - f64: Dot2 (Ogita-Rump-Oishi) on the accurate backends, otherwise native f64 FMA accumulation.
- *  - f32: public outputs widen to f64. Packed and symmetric kernels keep payloads narrow but widen accumulation.
+ *  - f32: public outputs widen to f64. Packed and symmetric kernels keep payloads narrow but widen
+ *    accumulation.
  *  - bf16/f16: f32 accumulation. VDPBF16PS on Genoa does bf16×bf16→f32 natively.
  *  - e2m3/e3m2: f16 intermediate with flush to f32 every 128 elements (Sapphire).
  *  - i8: i32 accumulation. AMX TDPBSSD gives i8×i8→i32 tiles. Overflows at k > ~131K.
@@ -61,11 +64,11 @@
  *
  *  @section cuda_backends CUDA Backends
  *
- *  The NVIDIA backends keep every signature and the packed layout, and add a trailing `cudaStream_t` and a
- *  `cudaError_t` result: pointers are device-reachable and calls return without waiting on the device.
- *  A, `vectors` and their strides must be multiples of 16 bytes, since rows stream into shared memory through
- *  `cp.async`, and C and its stride must be multiples of the result's size, or the call returns
- *  `cudaErrorMisalignedAddress`.
+ *  The NVIDIA backends keep every signature and the packed layout, and add a trailing
+ *  @c cudaStream_t and a @c cudaError_t result: pointers are device-reachable and calls return
+ *  without waiting on the device. A, @c vectors and their strides must be multiples of 16 bytes,
+ *  since rows stream into shared memory through `cp.async`, and C and its stride must be multiples
+ *  of the result's size, or the call returns @c cudaErrorMisalignedAddress.
  *
  *  @section memory_layout Memory Layout and Transpose Semantics
  *
@@ -83,9 +86,9 @@
  *  To compute standard A × B (where B is k × n), pass Bᵀ to the packing function:
  *
  *  @code{.c}
- *  // Standard matmul: C[m × n] = A[m × k] × B[k × n]
- *  // B is stored row-major as k rows of n elements
- *  // Treat it as Bᵀ: n rows of k elements with stride = sizeof(element)
+ *  // Standard matmul: C rows-by-columns from A rows-by-depth times B depth-by-columns
+ *  // B is stored row-major as depth rows of columns elements
+ *  // Treat it as Bᵀ: columns rows of depth elements with stride = sizeof(element)
  *  nk_dots_pack_bf16(b, width, depth, sizeof(nk_bf16_t), b_packed);
  *  nk_dots_packed_bf16(a, b_packed, c, height, width, depth, a_stride, c_stride);
  *  // Result: C = A × (Bᵀ)ᵀ = A × B
@@ -93,13 +96,13 @@
  *
  *  @section two_phase_api Two-Phase API for Static Weights
  *
- *  Matrix multiplication hardware (AMX, SME) requires specific data layouts that differ
- *  from standard row-major ordering. Since one matrix (typically weights in neural networks)
- *  is often static, we provide a two-phase API: pack once, multiply many times.
+ *  Matrix multiplication hardware, AMX and SME, requires specific data layouts that differ from
+ *  standard row-major ordering. Since one matrix, typically weights in neural networks, is often
+ *  static, we provide a two-phase API: pack once, multiply many times.
  *
  *  @code{.c}
- *  // Similarity search: C[m × n] = queries[m × k] × database[n × k]ᵀ
- *  // Both matrices stored row-major, each row is one vector of dimension k
+ *  // Similarity search: C rows-by-columns from queries rows-by-depth, database columns-by-depth
+ *  // Both matrices stored row-major, each row is one vector of dimension depth
  *  nk_size_t packed_bytes = nk_dots_pack_size_bf16(width, depth);
  *  void *b_packed = malloc(packed_bytes);
  *  nk_dots_pack_bf16(database, width, depth, depth * sizeof(nk_bf16_t), b_packed);
@@ -112,23 +115,25 @@
  *
  *  @section why_int8 Why INT8 and Not UINT8?
  *
- *  Unsigned 8-bit integers were considered but deprioritized. The industry has converged on
- *  signed INT8 as the standard for quantized inference:
+ *  Unsigned 8-bit integers were considered but deprioritized. The industry has converged on signed
+ *  INT8 as the standard for quantized inference:
  *
- *      Framework           Default     Notes
- *      PyTorch             qint8       New X86 backend uses INT8 via oneDNN
- *      TensorFlow Lite     int8        Actively removing UINT8 support
- *      ONNX Runtime        S8S8        "Should be the first choice"
- *      TensorRT            INT8        Symmetric [-128,127], no UINT8 option
- *      ARM CMSIS-NN        int8        Follows TFLite INT8 spec exactly
+ *  @verbatim
+ *  Framework           Default     Notes
+ *  PyTorch             qint8       New x86 backend uses INT8 via oneDNN
+ *  TensorFlow Lite     int8        Actively removing UINT8 support
+ *  ONNX Runtime        S8S8        "Should be the first choice"
+ *  TensorRT            INT8        Symmetric [-128,127], no UINT8 option
+ *  ARM CMSIS-NN        int8        Follows TFLite INT8 spec exactly
+ *  @endverbatim
  *
  *  @section why_no_scaling Why No Alpha/Beta Scaling?
  *
- *  BLAS-style `C = α × A × B + β × C` scaling was considered but omitted. While useful for scientific
- *  computing (iterative solvers, matrix factorizations), it's rarely used in ML inference where
- *  frameworks handle such operations via graph fusion. More importantly, on chips with separate
- *  physical registers for vector and matrix operations (like AMX), moving scalars between register
- *  files adds transfer latency that negates any benefit.
+ *  BLAS-style scaling, C = α × A × B + β × C, was considered but omitted. While useful for
+ *  scientific computing — iterative solvers, matrix factorizations — it's rarely used in ML
+ *  inference, where frameworks handle such operations via graph fusion. More importantly, on chips
+ *  with separate physical registers for vector and matrix operations, like AMX, moving scalars
+ *  between register files adds transfer latency that negates any benefit.
  *
  *  @section why_no_pad Why Not Pad N Dimension to Eliminate Edge Handling?
  *
@@ -136,37 +141,40 @@
  *  the separate AVX-512 edge kernel for N remainder rows. While this sounds simpler ("pure AMX"),
  *  it actually increases code size by ~125 lines because:
  *
- *  - The AVX-512 edge fallback is compact (~40 lines) and handles both full-M × N-edge and
- *    M-edge × N-edge cases through a single reusable function
- *  - Replacing it with "AMX + masked stores" requires verbose tile handling code duplicated
- *    across all 4 multiply functions (aligned/misaligned × BF16/I8)
+ *  - The AVX-512 edge fallback is compact, ~40 lines, and handles both full-M × N-edge and M-edge ×
+ *    N-edge cases through a single reusable function
+ *  - Replacing it with "AMX + masked stores" requires verbose tile handling code duplicated across
+ *    all 4 multiply functions — aligned or misaligned, BF16 or I8
  *  - Each function needs a new "trailing N tile for full M blocks" section (~50 lines each)
  *
  *  The current hybrid layout (AMX for full tiles, AVX-512 for edges) is more maintainable despite
- *  being conceptually less uniform. Memory overhead of the edge region is negligible (<2% worst case).
+ *  being conceptually less uniform. Memory overhead of the edge region is negligible, under 2% in
+ *  the worst case.
  *
- *  @section x86_instructions Relevant x86 Instructions
+ *  @section dots_x86_instructions Relevant x86 Instructions
  *
- *  Low-precision matmul relies on VPMADD* (AVX2), VNNI dot-products, and BF16 dot-products
- *  on AVX-512. Zen4 improves throughput by dual-issuing many integer ops on FP ports.
+ *  Low-precision matmul relies on VPMADD* from AVX2, VNNI dot-products, and BF16 dot-products on
+ *  AVX-512. Zen4 improves throughput by dual-issuing many integer ops on FP ports.
  *
- *      Intrinsic             Instruction                   Haswell   Genoa
- *      _mm256_maddubs_epi16  VPMADDUBSW (YMM, YMM, YMM)    5cy @ p0  3cy @ p01
- *      _mm256_madd_epi16     VPMADDWD (YMM, YMM, YMM)      5cy @ p0  3cy @ p01
- *      _mm256_dpbusd_epi32   VPDPBUSD (YMM, K, YMM, YMM)   n/a       4cy @ p01
- *      _mm256_dpwssds_epi32  VPDPWSSDS (YMM, K, YMM, YMM)  n/a       4cy @ p01
- *      _mm256_dpbf16_ps      VDPBF16PS (YMM, YMM, YMM)     n/a       6cy @ p01
+ *  @verbatim
+ *  Intrinsic             Instruction                   Haswell   Genoa
+ *  _mm256_maddubs_epi16  VPMADDUBSW (YMM, YMM, YMM)    5cy @ p0  3cy @ p01
+ *  _mm256_madd_epi16     VPMADDWD (YMM, YMM, YMM)      5cy @ p0  3cy @ p01
+ *  _mm256_dpbusd_epi32   VPDPBUSD (YMM, K, YMM, YMM)   n/a       4cy @ p01
+ *  _mm256_dpwssds_epi32  VPDPWSSDS (YMM, K, YMM, YMM)  n/a       4cy @ p01
+ *  _mm256_dpbf16_ps      VDPBF16PS (YMM, YMM, YMM)     n/a       6cy @ p01
+ *  @endverbatim
  *
  *  AMX tile ops (TDPBF16PS/TDPBUSD/TDPBSSD) are not covered by the uops.info 2022 dataset.
  *
- *  @section references References
+ *  @section dots_references References
  *
- *  - x86 intrinsics: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
- *  - Arm intrinsics: https://developer.arm.com/architectures/instruction-sets/intrinsics/
- *  - uops.info: https://uops.info/
- *  - Matrix Multiplication in 40 lines: https://en.algorithmica.org/hpc/algorithms/matmul/
- *  - LLaMA CPU optimization: https://justine.lol/matmul/
- *  - SME outer-product notes: https://github.com/tzakharko/m4-sme-exploration
+ *  @see x86 intrinsics: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
+ *  @see Arm intrinsics: https://developer.arm.com/architectures/instruction-sets/intrinsics/
+ *  @see uops.info: https://uops.info/
+ *  @see Matrix Multiplication in 40 lines: https://en.algorithmica.org/hpc/algorithms/matmul/
+ *  @see LLaMA CPU optimization: https://justine.lol/matmul/
+ *  @see SME outer-product notes: https://github.com/tzakharko/m4-sme-exploration
  *
  */
 #ifndef NK_DOTS_H

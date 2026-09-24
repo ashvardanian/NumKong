@@ -1,23 +1,25 @@
 /**
- *  @brief SIMD-accelerated Type Conversions for Sapphire Rapids.
  *  @file include/numkong/cast/sapphire.h
  *  @author Ash Vardanian
  *  @date January 2, 2026
+ *  @brief SIMD-accelerated Type Conversions for Sapphire Rapids.
  *
  *  @section sapphire_cast_instructions Relevant Instructions
  *
- *      Intrinsic                 Instruction                   Sapphire   Genoa
- *      _mm_cvtss_sh              VCVTSS2SH (XMM, XMM, XMM)     5cy @ p05  5cy @ p01
- *      _mm_cvtsh_ss              VCVTSH2SS (XMM, XMM, XMM)     5cy @ p05  5cy @ p01
- *      _mm256_cvtepu8_epi16      VPMOVZXBW (YMM, XMM)          3cy @ p5   3cy @ p12
- *      _mm256_mul_ph             VMULPH (YMM, YMM, YMM)        4cy @ p05  3cy @ p01
- *      _mm256_cvtepi16_ph        VCVTW2PH (YMM, YMM)           4cy @ p05  4cy @ p01
- *      _mm256_cvtph_epi16        VCVTPH2W (YMM, YMM)           4cy @ p05  4cy @ p01
- *      _mm256_mask_blend_epi16   VPBLENDMW (YMM, K, YMM, YMM)  1cy @ p05  1cy @ p0123
- *      _mm256_testn_epi16_mask   VPTESTNMW (K, YMM, YMM)       3cy @ p5   3cy @ p0
- *      _mm256_cvtepi16_epi8      VPMOVWB (XMM, YMM)            4cy @ p5   4cy @ p12
- *      _mm_maskz_loadu_epi8      VMOVDQU8 (XMM {K}, M128)      7cy @ p23  7cy @ p23
- *      _mm256_mask_storeu_epi16  VMOVDQU16 (M256 {K}, YMM)     4cy @ p4   4cy @ p4
+ *  @verbatim
+ *  Intrinsic                 Instruction                   Sapphire   Genoa
+ *  _mm_cvtss_sh              VCVTSS2SH (XMM, XMM, XMM)     5cy @ p05  5cy @ p01
+ *  _mm_cvtsh_ss              VCVTSH2SS (XMM, XMM, XMM)     5cy @ p05  5cy @ p01
+ *  _mm256_cvtepu8_epi16      VPMOVZXBW (YMM, XMM)          3cy @ p5   3cy @ p12
+ *  _mm256_mul_ph             VMULPH (YMM, YMM, YMM)        4cy @ p05  3cy @ p01
+ *  _mm256_cvtepi16_ph        VCVTW2PH (YMM, YMM)           4cy @ p05  4cy @ p01
+ *  _mm256_cvtph_epi16        VCVTPH2W (YMM, YMM)           4cy @ p05  4cy @ p01
+ *  _mm256_mask_blend_epi16   VPBLENDMW (YMM, K, YMM, YMM)  1cy @ p05  1cy @ p0123
+ *  _mm256_testn_epi16_mask   VPTESTNMW (K, YMM, YMM)       3cy @ p5   3cy @ p0
+ *  _mm256_cvtepi16_epi8      VPMOVWB (XMM, YMM)            4cy @ p5   4cy @ p12
+ *  _mm_maskz_loadu_epi8      VMOVDQU8 (XMM {K}, M128)      7cy @ p23  7cy @ p23
+ *  _mm256_mask_storeu_epi16  VMOVDQU16 (M256 {K}, YMM)     4cy @ p4   4cy @ p4
+ *  @endverbatim
  */
 #ifndef NK_CAST_SAPPHIRE_H
 #define NK_CAST_SAPPHIRE_H

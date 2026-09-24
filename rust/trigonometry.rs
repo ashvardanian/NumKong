@@ -1,17 +1,20 @@
-//! Trigonometry — element-wise sin/cos/atan plus NeoX split-half rotary position embedding (RoPE).
+//! Trigonometry — element-wise sin/cos/atan plus NeoX split-half rotary position embedding, RoPE.
 //!
-//! Rotates channel pairs `(i, i + half_dim)` of every head by per-token angle grids. The caller bakes
-//! position lookup and multi-axis (M-RoPE) assignment into the `[rows, half_dim]` cos/sin grids, so a
-//! single call rotates the whole head. The rotation writes every channel it is given, so it is done in
-//! place over the `[rows, heads * 2 * half_dim]` slice.
+//! Rotates channel pairs `(i, i + half_dim)` of every head by per-token angle grids. The caller
+//! bakes position lookup and multi-axis M-RoPE assignment into the __[rows,half_dim]__ cos/sin
+//! grids, so a single call rotates the whole head. The rotation writes every channel it is given,
+//! so it is done in place over the __[rows,heads * 2 * half_dim]__ slice.
+//!
+//! File: rust/trigonometry.rs
+//! Author: Ash Vardanian
 
 use crate::tensor::{Global, Tensor, TensorError, TensorMut, TensorRef};
 use crate::types::{bf16, e4m3, f16, StorageElement};
 
 /// Precision of the RoPE `cos`/`sin` rotation coefficients — always `f32`, deliberately decoupled
-/// from the rotated element dtype — BF16/E4M3 inputs rotate through f32 angles, since a lower-precision
-/// angle would corrupt the rotation. Mirrors the C `nk_rope_angle_t` typedef and the `rope_angle_t`
-/// element-trait alias in `types.hpp`.
+/// from the rotated element dtype — BF16/E4M3 inputs rotate through f32 angles, since a
+/// lower-precision angle would corrupt the rotation. Mirrors the C `nk_rope_angle_t` typedef and
+/// the `rope_angle_t` element-trait alias in `types.hpp`.
 pub type RopeAngle = f32;
 
 #[link(name = "numkong")]
@@ -63,13 +66,13 @@ extern "C" {
     fn nk_trig_atan_f16(inputs: *const u16, n: usize, outputs: *mut u16);
 }
 
-/// In-place NeoX split-half RoPE over a row-major `[rows, heads * 2 * half_dim]` tensor.
+/// In-place NeoX split-half RoPE over a row-major __[rows,heads * 2 * half_dim]__ tensor.
 pub trait TrigRope: Sized + StorageElement {
-    /// Rotates a 2D `[rows, heads * 2 * half_dim]` tensor in place using the `[rows, half_dim]`
-    /// `cos`/`sin` angle grids (row `r` at `r * half_dim`), shared across heads.
+    /// Rotates a 2D __[rows,heads * 2 * half_dim]__ tensor in place using the __[rows,half_dim]__
+    /// `cos`/`sin` angle grids, row `r` at `r * half_dim`, shared across heads.
     ///
-    /// The row stride is read from the tensor, so `x` may be a non-contiguous sub-span, for example the Q
-    /// or K column-section of a fused QKV buffer. Returns `Err` on a shape mismatch.
+    /// The row stride is read from the tensor, so `x` may be a non-contiguous sub-span, for example
+    /// the Q or K column-section of a fused QKV buffer. Returns `Err` on a shape mismatch.
     fn rope_into<XMut, const RX: usize>(
         x: &mut XMut,
         cos: &[RopeAngle],
@@ -252,14 +255,14 @@ impl TrigRope for e4m3 {
 
 // region: TrigSin
 
-/// Computes **element-wise sine** of a vector.
+/// Computes __element-wise sine__ of a vector.
 pub trait TrigSin: Sized + StorageElement {
     fn sin(inputs: &[Self], outputs: &mut [Self]) -> Option<()>;
 
     /// In-place sine: `data[i] = sin(data[i])`.
     ///
-    /// Both source and destination pointers are derived from the single `&mut`,
-    /// so no aliased `&[Self]` + `&mut [Self]` over the same storage is formed.
+    /// Both source and destination pointers are derived from the single `&mut`, so no aliased
+    /// `&[Self]` + `&mut [Self]` over the same storage is formed.
     fn sin_inplace(data: &mut [Self]) -> Option<()>;
 }
 
@@ -324,14 +327,14 @@ impl TrigSin for f16 {
 
 // region: TrigCos
 
-/// Computes **element-wise cosine** of a vector.
+/// Computes __element-wise cosine__ of a vector.
 pub trait TrigCos: Sized + StorageElement {
     fn cos(inputs: &[Self], outputs: &mut [Self]) -> Option<()>;
 
     /// In-place cosine: `data[i] = cos(data[i])`.
     ///
-    /// Both source and destination pointers are derived from the single `&mut`,
-    /// so no aliased `&[Self]` + `&mut [Self]` over the same storage is formed.
+    /// Both source and destination pointers are derived from the single `&mut`, so no aliased
+    /// `&[Self]` + `&mut [Self]` over the same storage is formed.
     fn cos_inplace(data: &mut [Self]) -> Option<()>;
 }
 
@@ -396,14 +399,14 @@ impl TrigCos for f16 {
 
 // region: TrigAtan
 
-/// Computes **element-wise arctangent** of a vector.
+/// Computes __element-wise arctangent__ of a vector.
 pub trait TrigAtan: Sized + StorageElement {
     fn atan(inputs: &[Self], outputs: &mut [Self]) -> Option<()>;
 
     /// In-place arctangent: `data[i] = atan(data[i])`.
     ///
-    /// Both source and destination pointers are derived from the single `&mut`,
-    /// so no aliased `&[Self]` + `&mut [Self]` over the same storage is formed.
+    /// Both source and destination pointers are derived from the single `&mut`, so no aliased
+    /// `&[Self]` + `&mut [Self]` over the same storage is formed.
     fn atan_inplace(data: &mut [Self]) -> Option<()>;
 }
 

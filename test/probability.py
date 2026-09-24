@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Test probability divergences: nk.jensenshannon, nk.kullbackleibler.
 
-Dtypes: float32, float16.
+DTypes: float32, float16.
 Baselines: high-precision Decimal with ln(), SciPy jensenshannon / rel_entr.
 Matches C++ suite: test/probability.cpp.
+
+File: test/probability.py
+Author: Ash Vardanian
+Date: February 27, 2026
 """
 
 import atexit

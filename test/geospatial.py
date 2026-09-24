@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """Test geospatial distances: nk.haversine, nk.vincenty.
 
-Dtypes: float64, float32.
+DTypes: float64, float32.
 Baselines: NumPy great-circle and iterative Vincenty formulas.
 Vincenty at float32 shows high relative error near antipodal points.
 Matches C++ suite: test/geospatial.cpp.
+
+File: test/geospatial.py
+Author: Ash Vardanian
+Date: February 27, 2026
 """
 
 import atexit

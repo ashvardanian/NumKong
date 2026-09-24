@@ -1,8 +1,8 @@
 /**
- *  @brief Serial Probability Distribution Similarity Measures.
  *  @file include/numkong/probability/serial.h
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief Serial probability distribution similarity measures.
  *
  *  @sa include/numkong/probability.h
  */

@@ -1,8 +1,8 @@
 /**
- *  @brief Batch operation benchmarks - Serial fallback.
  *  @file bench/cross_serial.cpp
  *  @author Ash Vardanian
  *  @date January 14, 2025
+ *  @brief Batch operation benchmarks, serial fallback.
  */
 
 #include "numkong/attention.h"

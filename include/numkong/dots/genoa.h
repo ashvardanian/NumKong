@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Batched Dot Products for Genoa.
  *  @file include/numkong/dots/genoa.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated Batched Dot Products for Genoa.
  *
  *  @sa include/numkong/dots.h
  */

@@ -1,41 +1,43 @@
 /**
- *  @brief SIMD-accelerated Elementwise Arithmetic for NEON FP16.
  *  @file include/numkong/each/neonhalf.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated elementwise arithmetic for NEON FP16.
  *
  *  @sa include/numkong/each.h
  *
  *  @section elementwise_neonhalf_instructions ARM NEON FP16 Instructions (ARMv8.2-FP16)
  *
- *      Intrinsic       Instruction                  A76       M5
- *      vld1q_f16       LD1 (V.8H)                   4cy @ 2p  4cy @ 3p
- *      vst1q_f16       ST1 (V.8H)                   2cy @ 2p  2cy @ 3p
- *      vaddq_f16       FADD (V.8H, V.8H, V.8H)      2cy @ 2p  2cy @ 4p
- *      vmulq_f16       FMUL (V.8H, V.8H, V.8H)      3cy @ 2p  3cy @ 4p
- *      vmulq_n_f16     FMUL (V.8H, V.8H, scalar)    3cy @ 2p  3cy @ 4p
- *      vfmaq_f16       FMLA (V.8H, V.8H, V.8H)      4cy @ 2p  4cy @ 4p
- *      vfmaq_n_f16     FMLA (V.8H, V.8H, scalar)    4cy @ 2p  4cy @ 4p
- *      vdupq_n_f16     DUP (V.8H, scalar)           2cy @ 2p  2cy @ 4p
- *      vld1_u8         LD1 (V.8B)                   4cy @ 2p  4cy @ 3p
- *      vld1_s8         LD1 (V.8B)                   4cy @ 2p  4cy @ 3p
- *      vmovl_u8        UXTL (V.8H, V.8B)            2cy @ 2p  2cy @ 4p
- *      vmovl_s8        SXTL (V.8H, V.8B)            2cy @ 2p  2cy @ 4p
- *      vcvtq_f16_u16   UCVTF (V.8H, V.8H)           3cy @ 2p  3cy @ 4p
- *      vcvtq_f16_s16   SCVTF (V.8H, V.8H)           3cy @ 2p  3cy @ 4p
- *      vcvtnq_u16_f16  FCVTNU (V.8H, V.8H)          3cy @ 2p  3cy @ 4p
- *      vcvtnq_s16_f16  FCVTNS (V.8H, V.8H)          3cy @ 2p  3cy @ 4p
- *      vqmovn_u16      UQXTN (V.8B, V.8H)           3cy @ 2p  3cy @ 4p
- *      vqmovn_s16      SQXTN (V.8B, V.8H)           3cy @ 2p  3cy @ 4p
- *      vqaddq_u8       UQADD (V.16B, V.16B, V.16B)  2cy @ 2p  3cy @ 2p
- *      vqaddq_s8       SQADD (V.16B, V.16B, V.16B)  2cy @ 2p  3cy @ 2p
+ *  @verbatim
+ *  Intrinsic       Instruction                  A76       M5
+ *  vld1q_f16       LD1 (V.8H)                   4cy @ 2p  4cy @ 3p
+ *  vst1q_f16       ST1 (V.8H)                   2cy @ 2p  2cy @ 3p
+ *  vaddq_f16       FADD (V.8H, V.8H, V.8H)      2cy @ 2p  2cy @ 4p
+ *  vmulq_f16       FMUL (V.8H, V.8H, V.8H)      3cy @ 2p  3cy @ 4p
+ *  vmulq_n_f16     FMUL (V.8H, V.8H, scalar)    3cy @ 2p  3cy @ 4p
+ *  vfmaq_f16       FMLA (V.8H, V.8H, V.8H)      4cy @ 2p  4cy @ 4p
+ *  vfmaq_n_f16     FMLA (V.8H, V.8H, scalar)    4cy @ 2p  4cy @ 4p
+ *  vdupq_n_f16     DUP (V.8H, scalar)           2cy @ 2p  2cy @ 4p
+ *  vld1_u8         LD1 (V.8B)                   4cy @ 2p  4cy @ 3p
+ *  vld1_s8         LD1 (V.8B)                   4cy @ 2p  4cy @ 3p
+ *  vmovl_u8        UXTL (V.8H, V.8B)            2cy @ 2p  2cy @ 4p
+ *  vmovl_s8        SXTL (V.8H, V.8B)            2cy @ 2p  2cy @ 4p
+ *  vcvtq_f16_u16   UCVTF (V.8H, V.8H)           3cy @ 2p  3cy @ 4p
+ *  vcvtq_f16_s16   SCVTF (V.8H, V.8H)           3cy @ 2p  3cy @ 4p
+ *  vcvtnq_u16_f16  FCVTNU (V.8H, V.8H)          3cy @ 2p  3cy @ 4p
+ *  vcvtnq_s16_f16  FCVTNS (V.8H, V.8H)          3cy @ 2p  3cy @ 4p
+ *  vqmovn_u16      UQXTN (V.8B, V.8H)           3cy @ 2p  3cy @ 4p
+ *  vqmovn_s16      SQXTN (V.8B, V.8H)           3cy @ 2p  3cy @ 4p
+ *  vqaddq_u8       UQADD (V.16B, V.16B, V.16B)  2cy @ 2p  3cy @ 2p
+ *  vqaddq_s8       SQADD (V.16B, V.16B, V.16B)  2cy @ 2p  3cy @ 2p
+ *  @endverbatim
  *
  *  The ARMv8.2-FP16 extension enables native half-precision element-wise operations, processing 8
  *  F16 elements per instruction. Operations like sum, scale, blend, and fma work directly in F16,
  *  avoiding conversion overhead while halving memory bandwidth vs F32.
  *
- *  For int8 element-wise operations, values are widened to F16 for arithmetic via UCVTF/SCVTF,
- *  then narrowed back with saturating conversion (FCVTA + UQXTN/SQXTN) to handle overflow gracefully.
+ *  For int8 element-wise operations, values are widened to F16 for arithmetic via UCVTF/SCVTF, then
+ *  narrowed back with saturating conversion, FCVTA + UQXTN/SQXTN, to handle overflow gracefully.
  */
 #ifndef NK_EACH_NEONHALF_H
 #define NK_EACH_NEONHALF_H

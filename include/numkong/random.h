@@ -1,13 +1,13 @@
 /**
- *  @brief SIMD-accelerated Pseudo-Random Number Generators.
  *  @file include/numkong/random.h
  *  @author Ash Vardanian
  *  @date January 11, 2026
+ *  @brief SIMD-accelerated Pseudo-Random Number Generators.
  *
  *  Implements following statistical distributions
  *
  *  - Uniform Distribution
- *  - Gaussian (Normal) Distribution
+ *  - Gaussian / Normal Distribution
  *
  *  For dtypes:
  *
@@ -23,14 +23,12 @@
  *  - Arm: NEON, SSVE
  *  - x86: Haswell, Ice Lake, Skylake, Genoa
  *
- *  @section usage Usage and Benefits
+ *  @section random_usage Usage and Benefits
  *
+ *  @section random_references References
  *
- *
- *  @section references References
- *
- *  - x86 intrinsics: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
- *  - Arm intrinsics: https://developer.arm.com/architectures/instruction-sets/intrinsics/
+ *  @see x86 intrinsics: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
+ *  @see Arm intrinsics: https://developer.arm.com/architectures/instruction-sets/intrinsics/
  *
  */
 #ifndef NK_RANDOM_H

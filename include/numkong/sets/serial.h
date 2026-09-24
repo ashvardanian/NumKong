@@ -1,8 +1,8 @@
 /**
- *  @brief Batched Set Operations for Serial (non-SIMD) Backends.
  *  @file include/numkong/sets/serial.h
  *  @author Ash Vardanian
  *  @date February 23, 2026
+ *  @brief Batched set operations for serial, non-SIMD backends.
  *
  *  @sa include/numkong/sets.h
  */

@@ -1,8 +1,8 @@
 /**
- *  @brief Batch operation benchmarks - SME ISA.
  *  @file bench/cross_sme.cpp
  *  @author Ash Vardanian
  *  @date January 14, 2025
+ *  @brief Batch operation benchmarks, SME ISA.
  */
 
 #include "numkong/attention.h"

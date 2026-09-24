@@ -8,6 +8,10 @@ intersection) and `enabled` (the subset dispatch is restricted to).
 Conflating the axes is a silent performance cliff rather than a build error, which is how
 SIMD-free wheels once shipped with every check green: `detected` is true of the machine no
 matter what was compiled in.
+
+File: test/capabilities.py
+Author: Ash Vardanian
+Date: July 16, 2026
 """
 
 import os
@@ -19,12 +23,13 @@ import pytest
 import numkong as nk
 
 
-#: The ISA every supported toolchain emits for a given 64-bit architecture. A machine that
-#: detects one of these but did not compile it in has a broken probe, not a slow CPU.
 BASELINE_BY_MACHINE: dict[tuple[str, ...], str] = {
     ("x86_64", "amd64", "x64"): "haswell",
     ("arm64", "aarch64"): "neon",
 }
+"""The ISA every supported toolchain emits for a given 64-bit architecture. A machine that detects
+one of these but did not compile it in has a broken probe, not a slow CPU.
+"""
 
 
 def enabled_names(capabilities: dict[str, bool]) -> set[str]:

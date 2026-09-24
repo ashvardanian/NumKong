@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Type Conversions for Power VSX.
  *  @file include/numkong/cast/powervsx.h
  *  @author Ash Vardanian
  *  @date March 23, 2026
+ *  @brief SIMD-accelerated Type Conversions for Power VSX.
  *
  *  @sa include/numkong/cast.h
  *
@@ -10,58 +10,72 @@
  *
  *  Float16 hardware conversion (POWER9+):
  *
- *      Intrinsic                        Instruction       Notes
- *      vec_extract_fp32_from_shorth     xvcvhpsp          High 4 f16 → f32x4 (1 instruction!)
- *      vec_extract_fp32_from_shortl     xvcvhpsp          Low 4 f16 → f32x4 (1 instruction!)
+ *  @verbatim
+ *  Intrinsic                        Instruction       Notes
+ *  vec_extract_fp32_from_shorth     xvcvhpsp          High 4 f16 → f32x4, one instruction
+ *  vec_extract_fp32_from_shortl     xvcvhpsp          Low 4 f16 → f32x4, one instruction
+ *  @endverbatim
  *
  *  Scalar f16 ↔ f32 (POWER9 inline asm):
  *
- *      Instruction   Notes
- *      lxsihzx       Load f16 → VSR (zero-extended)
- *      xscvhpdp      Convert half → double precision
- *      xscvdphp      Convert double → half precision
- *      stxsihx       Store f16 from VSR
+ *  @verbatim
+ *  Instruction   Notes
+ *  lxsihzx       Load f16 → VSR, zero-extended
+ *  xscvhpdp      Convert half → double precision
+ *  xscvdphp      Convert double → half precision
+ *  stxsihx       Store f16 from VSR
+ *  @endverbatim
  *
  *  Scalar sqrt (POWER9 inline asm):
  *
- *      Instruction   Notes
- *      xssqrtsp      Scalar single-precision sqrt
- *      xssqrtdp      Scalar double-precision sqrt
+ *  @verbatim
+ *  Instruction   Notes
+ *  xssqrtsp      Scalar single-precision sqrt
+ *  xssqrtdp      Scalar double-precision sqrt
+ *  @endverbatim
  *
  *  Float ↔ integer conversions:
  *
- *      Intrinsic   Instruction   Notes
- *      vec_cts     xvcvspsxws    f32x4 → i32x4 (truncation)
- *      vec_ctu     xvcvspuxws    f32x4 → u32x4 (truncation)
- *      vec_ctf     xvcvsxwsp     i32x4 → f32x4
- *      vec_ctf     xvcvuxwsp     u32x4 → f32x4
+ *  @verbatim
+ *  Intrinsic   Instruction   Notes
+ *  vec_cts     xvcvspsxws    f32x4 → i32x4, truncation
+ *  vec_ctu     xvcvspuxws    f32x4 → u32x4, truncation
+ *  vec_ctf     xvcvsxwsp     i32x4 → f32x4
+ *  vec_ctf     xvcvuxwsp     u32x4 → f32x4
+ *  @endverbatim
  *
  *  Integer narrowing/widening:
  *
- *      Intrinsic     Instruction   Notes
- *      vec_pack      vpkuwum       u32x4 → u16x8 (modular)
- *      vec_packs     vpkswss       i32x4 → i16x8 (signed saturation)
- *      vec_packsu    vpkswus       i32x4 → u16x8 (unsigned saturation from signed)
- *      vec_unpackh   vupkhsh       i16x8 → i32x4 (sign-extend high half)
- *      vec_mergeh    vmrghh        Interleave high halves (zero-extend via merge with zero)
+ *  @verbatim
+ *  Intrinsic     Instruction   Notes
+ *  vec_pack      vpkuwum       u32x4 → u16x8, modular
+ *  vec_packs     vpkswss       i32x4 → i16x8, signed saturation
+ *  vec_packsu    vpkswus       i32x4 → u16x8, unsigned saturation from signed
+ *  vec_unpackh   vupkhsh       i16x8 → i32x4, sign-extend high half
+ *  vec_mergeh    vmrghh        Interleave high halves, zero-extend via merge with zero
+ *  @endverbatim
  *
  *  Partial-length load:
  *
- *      Intrinsic     Instruction   Notes
- *      vec_xl_len    lxvl          Load up to 16 bytes with runtime length (POWER9)
+ *  @verbatim
+ *  Intrinsic     Instruction   Notes
+ *  vec_xl_len    lxvl          Load up to 16 bytes with runtime length, POWER9
+ *  @endverbatim
  *
  *  Load/store:
  *
- *      Intrinsic   Instruction   Notes
- *      vec_xl      lxvd2x        Aligned/unaligned load
- *      vec_xst     stxvd2x       Aligned/unaligned store
+ *  @verbatim
+ *  Intrinsic   Instruction   Notes
+ *  vec_xl      lxvd2x        Aligned/unaligned load
+ *  vec_xst     stxvd2x       Aligned/unaligned store
+ *  @endverbatim
  *
  *  BF16 conversions use bit manipulation (no hardware support):
  *  - bf16 → f32: zero-extend u16 → u32 via vec_mergeh with zero, reinterpret
  *  - f32 → bf16: RNE rounding + vec_sr by 16 + vec_pack
  *
- *  FP8 (E4M3/E5M2/E2M3/E3M2) types have no Power hardware support.
- *  Serial fallback via cast/serial.h is used for those formats.
+ *  FP8 types — E4M3, E5M2, E2M3, E3M2 — have no Power hardware support, so cast/serial.h supplies
+ *  the fallback for those formats.
  */
 #ifndef NK_CAST_POWERVSX_H
 #define NK_CAST_POWERVSX_H
@@ -73,8 +87,8 @@
 #include "numkong/cast/serial.h"   // `nk_cast_serial`, `nk_dtype_bits`
 #include "numkong/reduce/serial.h" // `nk_reduce_moments_f32_serial`
 
-// Power VSX vector typedefs — wrapping altivec built-in vector types.
-// These may move to `numkong/types.h` in the future.
+/** Power VSX vector typedefs, wrapping altivec built-in vector types, may move to `numkong/types.h`
+ *  in the future. */
 #ifndef NK_POWERVSX_TYPES_DEFINED_
 #define NK_POWERVSX_TYPES_DEFINED_
 #endif // NK_POWERVSX_TYPES_DEFINED_

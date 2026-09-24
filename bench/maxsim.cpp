@@ -1,8 +1,8 @@
 /**
- *  @brief MaxSim (ColBERT late-interaction) benchmarks.
  *  @file bench/maxsim.cpp
  *  @author Ash Vardanian
  *  @date February 28, 2026
+ *  @brief MaxSim, ColBERT late-interaction, benchmarks.
  */
 #include "numkong/maxsim.h"
 

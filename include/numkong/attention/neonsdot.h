@@ -1,21 +1,21 @@
 /**
- *  @brief Arm NEON ragged attention backend for I8, using `SDOT`.
  *  @file include/numkong/attention/neonsdot.h
  *  @author Ash Vardanian
  *  @date July 8, 2026
+ *  @brief Arm NEON ragged attention backend for I8, using @c SDOT.
  *
  *  @sa include/numkong/attention.h
  *
  *  Mirrors the `v128relaxed` panel-flash shape with the family-shared packed header, segment
- *  directory, base-2 streaming softmax, and `(task_start, task_count)` windows. Scores stay
- *  exact in I32: four KV rows in flight through `SDOT` over row-major I8 planes, with one
- *  lane-wise reduction per score. Softmax weights quantize to `trunc(2^(s₂−m₂)·255 + 0.5)`
- *  like the whole I8 family — the maximum position lands on exactly 255, so the weight sum
- *  never vanishes and the 255 cancels in normalization. The weighted V accumulation runs as
- *  `UDOT` over V tiles packed 4-positions × 4-channels with a +128 offset: since the weights
- *  are U8, `Σ w·(v+128) − 128·Σw = Σ w·v` exactly, the bias subtracts in integer before the
- *  single F32 conversion, and every panel total stays under 2^24 — bit-exact with serial at
- *  a 6× faster inner loop, still on the baseline `dotprod` extension.
+ *  directory, base-2 streaming softmax, and `(task_start, task_count)` windows. Scores stay exact
+ *  in I32: four KV rows in flight through @c SDOT over row-major I8 planes, with one lane-wise
+ *  reduction per score. Softmax weights quantize to trunc(2^(s₂−m₂)·255 + 0.5) like the whole I8
+ *  family — the maximum position lands on exactly 255, so the weight sum never vanishes and the 255
+ *  cancels in normalization. The weighted V accumulation runs as @c UDOT over V tiles packed
+ *  4-positions × 4-channels with a +128 offset: since the weights are U8, the identity Σ w·(v+128)
+ *  − 128·Σw = Σ w·v holds exactly, the bias subtracts in integer before the single F32 conversion,
+ *  and every panel total stays under 2^24 — bit-exact with serial at a 6× faster inner loop, still
+ *  on the baseline @c dotprod extension.
  */
 #ifndef NK_ATTENTION_NEONSDOT_H
 #define NK_ATTENTION_NEONSDOT_H

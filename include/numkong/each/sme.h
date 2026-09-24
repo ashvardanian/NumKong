@@ -1,13 +1,13 @@
 /**
- *  @brief SIMD-accelerated Elementwise Helpers for Arm SME.
  *  @file include/numkong/each/sme.h
  *  @author Ash Vardanian
  *  @date September 15, 2026
+ *  @brief SIMD-accelerated elementwise helpers for Arm SME.
  *
  *  @sa include/numkong/each.h
  *
- *  Streaming-mode SVE register helpers shared by the SME kernels: the base-2 exponent in F32,
- *  its F16 polynomial fragment, and the integer U8 weight exponent.
+ *  Streaming-mode SVE register helpers shared by the SME kernels: the base-2 exponent in F32, its
+ *  F16 polynomial fragment, and the integer U8 weight exponent.
  */
 #ifndef NK_EACH_SME_H
 #define NK_EACH_SME_H

@@ -1,8 +1,8 @@
 /**
- *  @brief Serial Sparse Vector Operations.
  *  @file include/numkong/sparse/serial.h
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief Serial sparse vector operations.
  *
  *  @sa include/numkong/sparse.h
  */

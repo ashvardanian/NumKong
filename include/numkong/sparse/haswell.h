@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Sparse Vector Dot Products for Haswell.
  *  @file include/numkong/sparse/haswell.h
  *  @author Matt Stuchlik
  *  @date May 30, 2026
+ *  @brief SIMD-accelerated sparse vector dot products for Haswell.
  *
  *  @sa include/numkong/sparse.h
  */

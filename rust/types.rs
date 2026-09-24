@@ -1,32 +1,31 @@
 //! Scalar types and conversion trait for mixed-precision computing.
 //!
-//! This module defines **15+ numeric types** spanning 1-bit packed storage to
-//! 128-bit complex. All of them implement [`StorageElement`] for containers and
-//! [`NumberLike`] for conversion to / from `f32` / `f64`, so generic code can
-//! treat them uniformly.
+//! This module defines __15+ numeric types__ spanning 1-bit packed storage to 128-bit complex. All
+//! of them implement [`StorageElement`] for containers and [`NumberLike`] for conversion to / from
+//! `f32` / `f64`, so generic code can treat them uniformly.
 //!
 //! ## IEEE / Brain Floats
 //!
 //! - [`struct@f16`]: IEEE 754 half-precision (16-bit) floating point
-//! - [`bf16`]: Brain floating point (bfloat16) — truncated single precision
+//! - [`bf16`]: Brain floating point, bfloat16, truncated single precision
 //! - The Rust primitives [`f32`](prim@f32) and [`f64`](prim@f64) also implement
 //!   these traits
 //!
 //! ## 8-bit Floats (OCP / MX)
 //!
-//! - [`e4m3`]: 4-exponent, 3-mantissa FP8 (max ≈ 448)
-//! - [`e5m2`]: 5-exponent, 2-mantissa FP8 (wider range, ~57 344 max)
-//! - [`e2m3`]: 2-exponent, 3-mantissa 6-bit float padded to 8-bit (max 7.5)
-//! - [`e3m2`]: 3-exponent, 2-mantissa 6-bit float padded to 8-bit (max 28)
+//! - [`e4m3`]: 4-exponent, 3-mantissa FP8, max ≈ 448
+//! - [`e5m2`]: 5-exponent, 2-mantissa FP8, wider range, ~57 344 max
+//! - [`e2m3`]: 2-exponent, 3-mantissa 6-bit float padded to 8-bit, max 7.5
+//! - [`e3m2`]: 3-exponent, 2-mantissa 6-bit float padded to 8-bit, max 28
 //!
 //! ## Signed / Unsigned Integers
 //!
-//! `i8` / `u8`, `i16` / `u16`, `i32` / `u32`, `i64` / `u64` all implement
-//! [`StorageElement`] and [`NumberLike`] via the primitive blanket impls below.
+//! `i8` / `u8`, `i16` / `u16`, `i32` / `u32`, `i64` / `u64` all implement [`StorageElement`] and
+//! [`NumberLike`] via the primitive blanket impls below.
 //!
 //! ## Sub-byte Packed Types
 //!
-//! - [`i4x2`]: Packed pair of signed 4-bit integers (one byte → two values)
+//! - [`i4x2`]: Packed pair of signed 4-bit integers, one byte holding two values
 //! - [`u4x2`]: Packed pair of unsigned 4-bit integers
 //! - [`u1x8`]: Packed 8 binary values in a single byte
 //! - [`e2m1x2`]: Packed pair of E2M1 4-bit floats
@@ -36,8 +35,11 @@
 //! - [`f16c`], [`bf16c`], [`f32c`], [`f64c`] — generic `complex<Scalar>` wrappers
 //!   that expose `re`, `im`, `conj`, and arithmetic operators.
 //!
-//! All types support standard arithmetic operations and conversion to / from
-//! `f32` via the [`FloatLike`] trait.
+//! All types support standard arithmetic operations and conversion to / from `f32` via the
+//! [`FloatLike`] trait.
+//!
+//! File: rust/types.rs
+//! Author: Ash Vardanian
 
 #![allow(non_camel_case_types)]
 
@@ -89,7 +91,7 @@ pub(crate) fn f64_round_compat(x: f64) -> f64 {
     }
 }
 
-/// Check whether two values are within tolerance: `|a - b| <= atol + rtol * |b|`.
+/// Check whether two values are within tolerance: |a − b| ≤ atol + rtol × |b|.
 #[inline]
 pub fn is_close(a: f64, b: f64, atol: f64, rtol: f64) -> bool {
     let diff = if a > b { a - b } else { b - a };
@@ -101,9 +103,8 @@ pub fn is_close(a: f64, b: f64, atol: f64, rtol: f64) -> bool {
 /// Half-precision (16-bit) IEEE 754 floating-point number.
 ///
 /// Layout: sign(1) + exponent(5) + mantissa(10), bias=15.
-/// Range: ±65504, epsilon at 1.0 ≈ 9.77×10⁻⁴, subnormal min ≈ 5.96×10⁻⁸.
-/// 30 722 of 63 488 finite values (48.4%) fall in [−1, +1].
-/// All arithmetic via f32 upcast/downcast.
+/// Range: ±65504, epsilon at 1.0 ≈ 9.77×10⁻⁴, subnormal min ≈ 5.96×10⁻⁸. 30 722 of 63 488 finite
+/// values (48.4%) fall in [−1, +1]. All arithmetic via f32 upcast/downcast.
 ///
 /// # Examples
 ///
@@ -130,7 +131,7 @@ impl f16 {
     pub const ONE: Self = f16(0x3C00);
     /// Negative one.
     pub const NEG_ONE: Self = f16(0xBC00);
-    /// Quiet NaN (Not a Number).
+    /// Quiet NaN, i.e. Not a Number.
     pub const NAN: Self = f16(0x7E00);
 
     /// Converts an `f32` value to `f16`. Out-of-range values saturate.
@@ -272,9 +273,9 @@ impl core::cmp::PartialOrd for f16 {
 /// BFloat16 (16-bit) floating-point number — truncated IEEE 754 single-precision.
 ///
 /// Layout: sign(1) + exponent(8) + mantissa(7), bias=127.
-/// Range: ±3.39×10³⁸ (same dynamic range as f32), epsilon at 1.0 ≈ 7.81×10⁻³.
-/// 32 514 of 65 280 finite values (49.8%) fall in [−1, +1].
-/// Wider dynamic range than f16 but lower precision (7 vs 10 mantissa bits).
+/// Range: ±3.39×10³⁸, same dynamic range as f32, epsilon at 1.0 ≈ 7.81×10⁻³. 32 514 of 65 280
+/// finite values (49.8%) fall in [−1, +1]. Wider dynamic range than f16 but lower precision, 7 vs
+/// 10 mantissa bits.
 ///
 /// # Examples
 ///
@@ -297,7 +298,7 @@ impl bf16 {
 
     /// Negative one.
     pub const NEG_ONE: Self = bf16(0xBF80);
-    /// Quiet NaN (Not a Number).
+    /// Quiet NaN, i.e. Not a Number.
     pub const NAN: Self = bf16(0x7FC0);
 
     /// Converts an `f32` value to `bf16`. Out-of-range values saturate.
@@ -434,12 +435,11 @@ impl core::cmp::PartialOrd for bf16 {
 
 // region: e4m3 Type
 
-/// 8-bit E4M3 floating-point number (OCP FP8).
+/// 8-bit E4M3 floating-point number, OCP FP8.
 ///
 /// Layout: sign(1) + exponent(4) + mantissa(3), bias=7.
-/// Range: ±448, no infinities (all-ones exponent → NaN).
-/// 114 of 254 finite values (44.9%) fall in [−1, +1].
-/// Exact integer dot products via exponent-sum binning (29 bins).
+/// Range: ±448, no infinities, all-ones exponent means NaN. 114 of 254 finite values (44.9%) fall
+/// in [−1, +1]. Exact integer dot products via exponent-sum binning across 29 bins.
 ///
 /// # Examples
 ///
@@ -457,7 +457,7 @@ impl e4m3 {
     pub const ZERO: Self = e4m3(0x00);
     pub const ONE: Self = e4m3(0x38);
     pub const NEG_ONE: Self = e4m3(0xB8);
-    /// Quiet NaN (Not a Number).
+    /// Quiet NaN, i.e. Not a Number.
     pub const NAN: Self = e4m3(0x7F);
 
     /// Converts an `f32` value to `e4m3`. Out-of-range values saturate.
@@ -493,8 +493,8 @@ impl e4m3 {
     #[inline(always)]
     pub fn is_infinite(self) -> bool { false }
 
-    /// Returns true if this number is neither infinite nor NaN.
-    /// Note: E4M3 format has no infinities.
+    /// Returns true if this number is neither infinite nor NaN. Note: the E4M3 format has no
+    /// infinities at all.
     #[inline(always)]
     pub fn is_finite(self) -> bool { !self.is_nan() }
 
@@ -595,12 +595,12 @@ impl core::cmp::PartialOrd for e4m3 {
 
 // region: e5m2 Type
 
-/// 8-bit E5M2 floating-point number (OCP FP8).
+/// 8-bit E5M2 floating-point number, OCP FP8.
 ///
 /// Layout: sign(1) + exponent(5) + mantissa(2), bias=15.
-/// Range: ±57 344, supports infinities. Only 4 mantissa levels per exponent.
-/// 122 of 248 finite values (49.2%) fall in [−1, +1].
-/// High cancellation risk in dot products — consider compensated accumulation.
+/// Range: ±57 344, supports infinities. Only 4 mantissa levels per exponent. 122 of 248 finite
+/// values (49.2%) fall in [−1, +1]. High cancellation risk in dot products — consider compensated
+/// accumulation.
 ///
 /// # Examples
 ///
@@ -623,7 +623,7 @@ impl e5m2 {
 
     /// Negative one.
     pub const NEG_ONE: Self = e5m2(0xBC);
-    /// Quiet NaN (Not a Number).
+    /// Quiet NaN, i.e. Not a Number.
     pub const NAN: Self = e5m2(0x7F);
 
     /// Convert an `f32` value to `e5m2`. Out-of-range values saturate.
@@ -773,9 +773,9 @@ impl core::cmp::PartialOrd for e5m2 {
 /// 6-bit E2M3 micro-float, padded to 8-bit storage.
 ///
 /// Layout: sign(1) + exponent(2) + mantissa(3), bias=1.
-/// Range: ±7.5, no infinities. Only 64 total codes; 18 (28.1%) fall in [−1, +1].
-/// 72% of codes lie outside [−1, +1] — poor resolution for normalized vectors.
-/// Exact integer dot products via exponent-sum binning (15 bins).
+/// Range: ±7.5, no infinities. Only 64 total codes; 18 (28.1%) fall in [−1, +1]. 72% of codes lie
+/// outside [−1, +1] — poor resolution for normalized vectors. Exact integer dot products via
+/// exponent-sum binning across 15 bins.
 ///
 /// # Examples
 ///
@@ -824,20 +824,18 @@ impl e2m3 {
         result
     }
 
-    /// Returns true if this value is NaN.
-    /// E2M3FN has no infinities - all special values are NaN.
+    /// Returns true if this value is NaN. E2M3FN has no infinities - all special values are NaN.
     #[inline(always)]
     pub fn is_nan(self) -> bool {
         false // E2M3FN has no NaN representation
     }
 
-    /// Returns true if this value is positive or negative infinity.
-    /// E2M3FN format has no infinities.
+    /// Returns true if this value is positive or negative infinity. E2M3FN has no infinities.
     #[inline(always)]
     pub fn is_infinite(self) -> bool { false }
 
-    /// Returns true if this number is neither infinite nor NaN.
-    /// Note: E2M3FN format has no infinities or NaN.
+    /// Returns true if this number is neither infinite nor NaN. Note: E2M3FN format has no
+    /// infinities or NaN.
     #[inline(always)]
     pub fn is_finite(self) -> bool { true }
 
@@ -943,8 +941,8 @@ impl core::cmp::PartialOrd for e2m3 {
 /// 6-bit E3M2 micro-float, padded to 8-bit storage.
 ///
 /// Layout: sign(1) + exponent(3) + mantissa(2), bias=3.
-/// Range: ±28, supports infinities. Only 64 total codes; 26 (40.6%) fall in [−1, +1].
-/// Exact integer dot products via exponent-sum binning (15 bins).
+/// Range: ±28, supports infinities. Only 64 total codes; 26 (40.6%) fall in [−1, +1]. Exact integer
+/// dot products via exponent-sum binning across 15 bins.
 ///
 /// # Examples
 ///
@@ -1112,7 +1110,7 @@ impl core::cmp::PartialOrd for e3m2 {
 
 // endregion: e3m2 Type
 
-// region: Block-Scale Bytes (Ue4m3, Ue8m0)
+// region: Block-Scale Bytes, Ue4m3 and Ue8m0
 
 /// NVFP4 per-block scale byte: an unsigned E4M3 magnitude with the sign bit forced to 0.
 ///
@@ -1137,8 +1135,8 @@ impl Ue4m3 {
 
     /// Encodes an `f32` magnitude into a UE4M3 scale byte — absolute value, round-to-nearest.
     ///
-    /// UE4M3 is E4M3 with the sign bit forced to 0, so this reuses the linkable E4M3 encoder
-    /// on `|value|` and masks off the sign. NaN maps to the E4M3 NaN code (`0x7F`).
+    /// UE4M3 is E4M3 with the sign bit forced to 0, so this reuses the linkable E4M3 encoder on
+    /// `|value|` and masks off the sign. NaN maps to the E4M3 NaN code (`0x7F`).
     #[inline(always)]
     pub fn from_f32(value: f32) -> Self {
         if value.is_nan() {
@@ -1164,11 +1162,11 @@ impl StorageElement for Ue4m3 {
     fn one() -> Self { Ue4m3::from_f32(1.0) }
 }
 
-/// MX-family per-block scale byte: an unsigned power-of-two exponent (UE8M0).
+/// MX-family per-block scale byte: an unsigned power-of-two exponent, UE8M0.
 ///
-/// Stores one scale per 32-element MX block. Layout matches `nk_ue8m0_t` (1 byte).
-/// Decodes to a positive power-of-two `f32` multiplier; `from_f32` rounds the
-/// magnitude UP to the smallest power of two that is ≥ `|value|`.
+/// Stores one scale per 32-element MX block, a 1-byte layout matching `nk_ue8m0_t`. Decodes to a
+/// positive power-of-two `f32` multiplier; `from_f32` rounds the magnitude UP to the smallest power
+/// of two that is ≥ `|value|`.
 ///
 /// # Examples
 ///
@@ -1185,9 +1183,9 @@ pub struct Ue8m0(pub u8);
 impl Ue8m0 {
     /// Encodes an `f32` magnitude into a UE8M0 scale byte.
     ///
-    /// Rounds the magnitude to the NEAREST power of two — round-to-nearest in log2 space, the
-    /// OCP MX convention; the split point is the geometric midpoint √2·2ᵉ. NaN → `0xFF`
-    /// (block-NaN sentinel), zero/subnormal → `0x00`, overflow/±∞ → `0xFE`.
+    /// Rounds the magnitude to the NEAREST power of two — round-to-nearest in log2 space, the OCP
+    /// MX convention; the split point is the geometric midpoint √2·2ᵉ. NaN → `0xFF`, block-NaN
+    /// sentinel, zero/subnormal → `0x00`, overflow/±∞ → `0xFE`.
     #[inline(always)]
     pub fn from_f32(value: f32) -> Self {
         let abs_bits = value.to_bits() & 0x7FFF_FFFF;
@@ -1214,7 +1212,7 @@ impl Ue8m0 {
 
     /// Decodes this UE8M0 scale byte to a power-of-two `f32` multiplier.
     ///
-    /// `0x00` → `0.0`, `0xFF` → NaN, otherwise `2^(byte - 127)`.
+    /// `0x00` → `0.0`, `0xFF` → NaN, otherwise 2^(byte − 127).
     #[inline(always)]
     pub fn to_f32(self) -> f32 {
         let raw = self.0;
@@ -1240,7 +1238,7 @@ impl StorageElement for Ue8m0 {
     fn one() -> Self { Ue8m0::from_f32(1.0) }
 }
 
-// endregion: Block-Scale Bytes (Ue4m3, Ue8m0)
+// endregion: Block-Scale Bytes, Ue4m3 and Ue8m0
 
 // region: From<f32> Conversions
 
@@ -1470,8 +1468,8 @@ impl From<u4x2> for (u8, u8) {
 
 /// Packed 4-bit signed integer pair (2 × i4 in one byte).
 ///
-/// Layout: high nibble = first element, low nibble = second element (two's complement).
-/// Range per element: [−8, +7]. Elements sign-extended to i8 for arithmetic.
+/// Layout: high nibble = first element, low nibble = second element, two's complement. Range per
+/// element: [−8, +7]. Elements sign-extended to i8 for arithmetic.
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub struct i4x2(pub u8);
@@ -1561,13 +1559,13 @@ impl From<i4x2> for (i8, i8) {
 
 // region: e2m1x2 Type
 
-/// Packed FP4 (E2M1) element pair: two 4-bit elements share one byte.
+/// Packed FP4, E2M1, element pair: two 4-bit elements share one byte.
 ///
-/// This is the storage scalar for the `elements` tensor of NVFP4 / MXFP4. Like the
-/// other sub-byte packers ([`u4x2`]), it reports
-/// `dimensions_per_value() == 2` so a tensor of logical shape `(rows, cols)` allocates
-/// `rows * cols / 2` bytes — exactly `nk_block_scaled_elements_size`. Bytes are produced
-/// and consumed by the C kernel (`element_dtype = nk_e2m1_k`); Rust never unpacks nibbles.
+/// This is the storage scalar for the `elements` tensor of NVFP4 / MXFP4. Like the other sub-byte
+/// packers ([`u4x2`]), it reports `dimensions_per_value() == 2` so a tensor of logical shape
+/// __[rows,columns]__ allocates `rows * cols / 2` bytes — exactly `nk_block_scaled_elements_size`.
+/// Bytes are produced and consumed by the C kernel (`element_dtype = nk_e2m1_k`); Rust never
+/// unpacks the nibbles itself.
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub struct e2m1x2(pub u8);
@@ -1595,11 +1593,11 @@ pub trait StorageElement: Sized + Copy + Clone + Default + core::fmt::Debug {
 
     /// Storage values needed to hold `dims` logical dimensions.
     ///
-    /// `dims` counts dimensions, a multiple of the values per byte, so the division is exact.
-    /// This is the conversion between the two counts a packed container tracks, and every
-    /// bounds check that guards a storage offset must be written in these units — a check counting
-    /// dimensions paired with an offset counting storage values is how an index eight times too
-    /// large passes as in-range.
+    /// `dims` counts dimensions, a multiple of the values per byte, so the division is exact, and
+    /// every bounds check that guards a storage offset must be written in these units, the
+    /// conversion between the two counts a packed container tracks — a check counting dimensions
+    /// paired with an offset counting storage values is how an index eight times too large passes
+    /// as in-range.
     #[inline]
     fn dimensions_to_values(dims: usize) -> usize { dims / Self::dimensions_per_value() }
 
@@ -1620,8 +1618,8 @@ pub trait StorageElement: Sized + Copy + Clone + Default + core::fmt::Debug {
 
 /// Where one logical dimension lives inside packed storage.
 ///
-/// Produced by [`StorageElement::locate_dim`]. For the full-byte types both fields degenerate
-/// — `value_index` is the dimension index and `sub_index` is always zero — so code written against
+/// Produced by [`StorageElement::locate_dim`]. For the full-byte types both fields degenerate —
+/// `value_index` is the dimension index and `sub_index` is always zero — so code written against
 /// this stays correct for every scalar without branching on the packing factor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DimLocation {
@@ -1660,8 +1658,8 @@ impl DimLocation {
 
 /// Trait for types that support conversion to/from f32 with classification and constants.
 ///
-/// Provides a unified interface for all numeric types used in NumKong,
-/// including half-precision floats, mini-floats, integers, and packed types.
+/// Provides a unified interface for all numeric types used in NumKong, including half-precision
+/// floats, mini-floats, integers, and packed types.
 pub trait NumberLike: StorageElement {
     /// Convert from f32 to this type.
     fn from_f32(v: f32) -> Self;
@@ -2178,7 +2176,8 @@ impl<Scalar: ComplexComponent> complex<Scalar> {
     pub fn norm_sqr(self) -> Scalar::Norm { self.re.norm_component() + self.im.norm_component() }
 }
 
-/// Half-precision (32-bit) complex number — two [`struct@f16`] components. Kernel outputs widened to f32c.
+/// Half-precision (32-bit) complex number — two [`struct@f16`] components. Kernel outputs are
+/// widened to f32c.
 pub type f16c = complex<f16>;
 /// BFloat16 (32-bit) complex number — two [`bf16`] components. Kernel outputs widened to f32c.
 pub type bf16c = complex<bf16>;
@@ -2316,9 +2315,9 @@ impl<Scalar: ComplexComponent> FloatConvertible for complex<Scalar> {
 
 /// Trait for types that can unpack/pack logical sub-dimensions.
 ///
-/// For normal scalar types (`dimensions_per_value() == 1`), `DimScalar = Self` and
-/// `Unpacked = [Self; 1]`. For packed sub-byte types, `DimScalar` is the natural
-/// scalar type for individual sub-dimensions, such as `i8` for `i4x2`.
+/// For normal scalar types (`dimensions_per_value() == 1`), `DimScalar = Self` and `Unpacked =
+/// [Self; 1]`. For packed sub-byte types, `DimScalar` is the natural scalar type for individual
+/// sub-dimensions, such as `i8` for `i4x2`.
 pub trait FloatConvertible: NumberLike {
     /// Scalar type for individual sub-dimensions.
     type DimScalar: Copy + Default + NumberLike;
@@ -2594,17 +2593,17 @@ where
 
 /// Mutable proxy for a single logical dimension within a packed storage value.
 ///
-/// On [`Drop`], performs a read-modify-write: reads the current storage value,
-/// overwrites the sub-dimension at `sub_index`, and writes back.
+/// On [`Drop`], performs a read-modify-write: reads the current storage value, overwrites the
+/// sub-dimension at `sub_index`, and writes back.
 ///
 /// For normal types (`dimensions_per_value() == 1`), this is equivalent to `&mut Scalar`.
 /// For sub-byte types, this enables modifying individual nibbles/bits.
 ///
 /// # Aliasing
 ///
-/// In a standard `for` loop each proxy is dropped before the next is created.
-/// Holding multiple proxies to sub-dimensions of the same storage value
-/// simultaneously is safe but uses last-writer-wins semantics.
+/// In a standard `for` loop each proxy is dropped before the next is created; holding multiple
+/// proxies to sub-dimensions of the same storage value simultaneously is safe but uses
+/// last-writer-wins semantics.
 pub struct DimMut<'a, Scalar: FloatConvertible> {
     ptr: *mut Scalar,
     sub_index: usize,
@@ -2664,7 +2663,7 @@ where
 
 // endregion: Dimension Proxies
 
-// region: TestableType Trait (test-only)
+// region: TestableType Trait, test-only
 
 #[cfg(test)]
 pub(crate) trait TestableType: FloatLike {
@@ -2712,8 +2711,8 @@ pub(crate) fn align_depth<Scalar: StorageElement>(depth: usize) -> usize {
     depth.div_ceil(dims_per_value) * dims_per_value
 }
 
-/// Compare only the upper-triangle elements of two NxN buffers; symmetric kernels
-/// do not write the lower triangle.
+/// Compare only the upper-triangle elements of two __[n,n]__ buffers; symmetric kernels do not
+/// write the lower triangle.
 #[cfg(test)]
 pub(crate) fn assert_upper_triangle_eq<X: Copy + PartialEq + core::fmt::Debug>(
     left: &[X],

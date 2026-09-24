@@ -1,4 +1,4 @@
-//! Spatial similarity: angular (cosine) and Euclidean distances.
+//! Spatial similarity: angular, also called cosine, and Euclidean distances.
 //!
 //! This module provides:
 //!
@@ -8,19 +8,19 @@
 //!
 //! # Accumulator Widening — The Core Value Proposition
 //!
-//! Every spatial kernel promotes its accumulator to a wider type than the inputs.
-//! This is not cosmetic — on long vectors of low-precision data, naive same-width
-//! accumulation overflows silently for integers or loses huge amounts of precision
-//! for half-floats. NumKong widens systematically so every kernel in this module
-//! returns a result that matches a textbook-accurate reference in the wide type:
+//! Every spatial kernel promotes its accumulator to a wider type than the inputs, which is not
+//! cosmetic — on long vectors of low-precision data, naive same-width accumulation overflows
+//! silently for integers or loses huge amounts of precision for half-floats. NumKong widens
+//! systematically so every kernel in this module returns a result that matches a textbook-accurate
+//! reference in the wide type:
 //!
-//! - **`f32` → `f64`**: single-precision inputs accumulate in double precision.
-//! - **`f16` → `f32`** and **`bf16` → `f32`**: half-precision norms and distances
+//! - __`f32` → `f64`__: single-precision inputs accumulate in double precision.
+//! - __`f16` → `f32`__ and __`bf16` → `f32`__: half-precision norms and distances
 //!   accumulate in `f32` rather than clamping at `f16::MAX = 65 504`.
-//! - **`i8` → `i32`** (unsigned `u8` → `u32`): byte-level quantised inputs widen
+//! - __`i8` → `i32`__ (unsigned `u8` → `u32`): byte-level quantised inputs widen
 //!   into 32-bit integer accumulators.
-//! - **FP8 variants** — `e4m3` / `e5m2` / `e2m3` / `e3m2` — all accumulate in `f32`.
-//! - **4-bit packed** `i4x2` / `u4x2` behave like `i8` / `u8` but compute over
+//! - __FP8 variants__ — `e4m3` / `e5m2` / `e2m3` / `e3m2` — all accumulate in `f32`.
+//! - __4-bit packed__ `i4x2` / `u4x2` behave like `i8` / `u8` but compute over
 //!   double the element count because each byte holds two logical values.
 //!
 //! # Example — Euclidean Distance
@@ -33,6 +33,9 @@
 //! let dist = f32::euclidean(&a, &b).unwrap();
 //! assert!((dist - 27.0_f64.sqrt()).abs() < 1e-6);
 //! ```
+//!
+//! File: rust/spatial.rs
+//! Author: Ash Vardanian
 
 // Supplies the `Dot` supertrait bound for the `SpatialSimilarity` bundle below.
 use crate::dot::Dot;
@@ -86,14 +89,14 @@ extern "C" {
 
 // region: Angular
 
-/// Computes the **angular distance** (cosine distance) between two vectors.
+/// Computes the __angular distance__, also called cosine distance, between two vectors.
 ///
 /// d = 1 − (a · b) / (‖a‖ × ‖b‖)
 ///
 /// Range: \[0, 2\]. Returns `None` if lengths differ.
 ///
-/// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`,
-/// `e4m3`, `e5m2`, `e2m3`, `e3m2`, `i4x2`, `u4x2`.
+/// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`, `e4m3`, `e5m2`, `e2m3`, `e3m2`,
+/// `i4x2`, and `u4x2`.
 pub trait Angular: StorageElement {
     type Output;
     fn angular(a: &[Self], b: &[Self]) -> Option<Self::Output>;
@@ -266,22 +269,22 @@ impl Angular for u4x2 {
 
 // region: Euclidean
 
-/// Computes the **Euclidean distance** (L2) between two vectors.
+/// Computes the __Euclidean distance__, the L2 norm of the difference, between two vectors.
 ///
 /// d = √(∑ᵢ (aᵢ − bᵢ)²)
 ///
 /// Range: \[0, ∞). Returns `None` if lengths differ.
 ///
-/// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`,
-/// `e4m3`, `e5m2`, `e2m3`, `e3m2`, `i4x2`, `u4x2`.
+/// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`, `e4m3`, `e5m2`, `e2m3`, `e3m2`,
+/// `i4x2`, and `u4x2`.
 pub trait Euclidean: StorageElement {
     type SqEuclideanOutput;
     type EuclideanOutput;
 
-    /// Squared Euclidean distance (L2²). Faster than `euclidean` for comparisons.
+    /// Squared Euclidean distance, i.e. L2². Faster than `euclidean` for comparisons.
     fn sqeuclidean(a: &[Self], b: &[Self]) -> Option<Self::SqEuclideanOutput>;
 
-    /// Euclidean distance (L2). True metric distance.
+    /// Euclidean distance, i.e. L2. True metric distance.
     fn euclidean(a: &[Self], b: &[Self]) -> Option<Self::EuclideanOutput>;
 }
 

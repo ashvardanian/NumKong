@@ -1,4 +1,9 @@
-/* NumKong ISA probe: WASM SIMD128 (v128) */
+/**
+ *  @file probes/wasm_v128.c
+ *  @author Ash Vardanian
+ *  @date September 13, 2026
+ *  @brief NumKong ISA probe for WASM SIMD128, @c v128.
+ */
 #if !defined(__wasm_simd128__)
 #error "WASM SIMD128 not available"
 #endif

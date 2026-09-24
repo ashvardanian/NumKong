@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Test MaxSim late-interaction scoring: nk.maxsim, nk.maxsim_pack, nk.maxsim_packed.
 
-Dtypes: float32, bfloat16, float16.
+DTypes: float32, bfloat16, float16.
 Baselines: high-precision Decimal angular distances, NumPy reference.
 Matches C++ suite: test/maxsim.cpp.
+
+File: test/maxsim.py
+Author: Ash Vardanian
+Date: March 9, 2026
 """
 
 import atexit

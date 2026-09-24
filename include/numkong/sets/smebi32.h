@@ -1,22 +1,17 @@
 /**
- *  @brief SIMD-accelerated Batched Set Distances for SME.
  *  @file include/numkong/sets/smebi32.h
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief SIMD-accelerated batched set distances for SME.
  *  @sa include/numkong/sets.h
  *
- *  Uses ARM Scalable Matrix Extension (SME) for efficient binary set operations.
- *  Leverages streaming mode's wider vectors (512-bit on Apple M4) for fast
- *  XOR+POPCNT operations on binary vectors.
+ *  Runs binary set operations on the Arm Scalable Matrix Extension, whose streaming mode offers
+ *  512-bit vectors on Apple M4 for fast XOR and POPCNT over binary vectors.
  *
  *  @section smebi32_math Mathematical Foundation
  *
- *  Hamming distance: popcount(a XOR b) = number of differing bits
- *
- *  Jaccard distance using intersection:
- *    intersection = popcount(a AND b)
- *    union = popcount(a) + popcount(b) - intersection
- *    jaccard = 1 - intersection / union
+ *  Hamming distance is popcount(a ⊕ b), the number of differing bits. Jaccard distance is 1 − ∩ / ∪
+ *  over the intersection ∩ = popcount(a ∧ b) and the union ∪ = popcount(a) + popcount(b) − ∩.
  *
  *  @section smebi32_tiles SME Dimensions (512-bit SVL)
  *

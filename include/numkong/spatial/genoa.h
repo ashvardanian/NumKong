@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Spatial Similarity Measures for Genoa.
  *  @file include/numkong/spatial/genoa.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated spatial similarity measures for Genoa.
  *
  *  @sa include/numkong/spatial.h
  */

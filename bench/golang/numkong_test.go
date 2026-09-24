@@ -1,3 +1,6 @@
+// numkong/bench/golang/numkong_test.go
+// Written by Ash Vardanian.
+
 package numkong_test
 
 import (

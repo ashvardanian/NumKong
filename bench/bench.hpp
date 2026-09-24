@@ -1,12 +1,11 @@
 /**
- *  @brief NumKong C++ Benchmark Suite using Google Benchmark - Header file.
  *  @file bench/bench.hpp
  *  @author Ash Vardanian
  *  @date March 14, 2023
+ *  @brief NumKong C++ benchmark suite using Google Benchmark, header file.
  *
- *  Comprehensive benchmarks for NumKong SIMD-optimized functions measuring
- *  throughput performance. This header contains measurement infrastructure
- *  and helper templates used across multiple benchmark files.
+ *  Comprehensive benchmarks for NumKong SIMD-optimized functions measuring throughput performance.
+ *  This header holds measurement infrastructure and templates shared across many benchmark files.
  */
 
 #pragma once
@@ -40,15 +39,16 @@
 #endif
 
 #if NK_COMPARE_TO_MKL
+/*  MKL provides additional GEMM routines:
+ *  - cblas_gemm_bf16bf16f32: BF16 inputs to F32 output
+ *  - cblas_hgemm: F16 GEMM, if available */
 #include <mkl.h>
-// MKL provides additional GEMM routines:
-// - cblas_gemm_bf16bf16f32: BF16 inputs -> F32 output
-// - cblas_hgemm: F16 GEMM (if available)
 #elif NK_COMPARE_TO_ACCELERATE
 #include <Accelerate/Accelerate.h> // Apple Accelerate framework
 #elif NK_COMPARE_TO_BLAS
 #include <cblas.h> // Generic CBLAS (OpenBLAS, etc.)
-// OpenBLAS thread control (weak symbol to avoid link errors if not present)
+
+/** OpenBLAS thread control, weak symbol to avoid link errors if not present. */
 extern "C" void openblas_set_num_threads(int) __attribute__((weak));
 #endif
 
@@ -62,28 +62,40 @@ namespace nk = ashvardanian::numkong;
 namespace ashvardanian::numkong::bench {
 
 struct bench_config_t {
+
     /** Vector dimension for dot products and spatial metrics. Override: `NK_DENSE_DIMENSIONS`. */
     std::size_t dense_dimensions = 1536;
+
     /** Curved metric dimensions (quadratic impact). Override: `NK_CURVED_DIMENSIONS`. */
     std::size_t curved_dimensions = 64;
+
     /** Number of 3D points for mesh metrics (RMSD, Kabsch). Override: `NK_MESH_POINTS`. */
     std::size_t mesh_points = 1000;
+
     /** GEMM M dimension. Override: `NK_MATRIX_HEIGHT`. */
     std::size_t matrix_height = 1024;
+
     /** GEMM N dimension. Override: `NK_MATRIX_WIDTH`. */
     std::size_t matrix_width = 128;
+
     /** GEMM K dimension. Override: `NK_MATRIX_DEPTH`. */
     std::size_t matrix_depth = 1536;
+
     /** Random seed for reproducible benchmarks. Override: `NK_SEED`. */
     std::uint32_t seed = 42;
+
     /** First sparse set size. Override: `NK_SPARSE_FIRST_LENGTH`. */
     std::size_t sparse_first_length = 1024;
+
     /** Second sparse set size. Override: `NK_SPARSE_SECOND_LENGTH`. */
     std::size_t sparse_second_length = 8192;
+
     /** Sparse intersection share [0.0, 1.0]. Override: `NK_SPARSE_INTERSECTION`. */
     double sparse_intersection_share = 0.5;
-    /** Max angular separation in degrees for geospatial benchmarks. Override: `NK_MAX_COORD_ANGLE`. */
+
+    /** Max geospatial angular separation, in degrees. Override: @c NK_MAX_COORD_ANGLE. */
     float max_coord_angle = 180.0f;
+
     /** Memory budget in bytes for pre-allocated inputs. Override: `NK_BUDGET_MB`. */
 #if defined(__wasi__)
     std::size_t budget_bytes = std::size_t(32) * 1024 * 1024;
@@ -91,7 +103,8 @@ struct bench_config_t {
     std::size_t budget_bytes = std::size_t(1024) * 1024 * 1024;
 #endif
 
-    /** Applies the `NK_*` environment overrides, keeping the default wherever a value is unset or out of range. */
+    /** Applies the `NK_*` environment overrides, keeping the default wherever a value is unset or
+     *  out of range. */
     void load_environment() noexcept {
         auto load_count = [](char const *name, std::size_t &value) {
             if (char const *text = std::getenv(name); text && std::atoll(text) > 0)
@@ -119,7 +132,7 @@ struct bench_config_t {
 
 extern bench_config_t bench_config;
 
-/** Translates foreign flags, injects `NK_FILTER` and `NK_BUDGET_SECS`, and initializes Google Benchmark. */
+/** Translates foreign flags, injects @c NK_FILTER and @c NK_BUDGET_SECS, runs Google Benchmark. */
 inline bool initialize_benchmarks(int argc, char **argv) {
     std::vector<std::string> arguments = {argv[0]};
     bool user_set_min_time = false;
@@ -212,7 +225,7 @@ inline bool initialize_benchmarks(int argc, char **argv) {
 inline std::mt19937 make_random_engine() { return std::mt19937(bench_config.seed); }
 
 /**
- *  @brief Compute byte count for `count` elements of `dtype`, handling sub-byte and complex types.
+ *  @brief Byte count for @p count elements of @p dtype, handling sub-byte and complex types.
  *
  *  Uses `nk_dtype_bits` to get the correct bits per element, then rounds up to whole bytes.
  */
@@ -223,8 +236,8 @@ inline std::size_t bench_dtype_bytes(nk_dtype_t dtype, std::size_t count) {
 /**
  *  @brief Compute the number of pre-allocated input sets that fit within `bench_budget`.
  *
- *  Returns a power-of-two count in [1, 1024] so the benchmark loop can use
- *  `iterations & (count - 1)` as a fast modulo for input cycling.
+ *  Returns a power-of-two count in [1, 1024]; the benchmark loop uses it as a fast modulo:
+ *  `iterations & (count - 1)` for input cycling.
  */
 inline std::size_t bench_input_count(std::size_t bytes_per_set) {
     std::size_t count = bench_config.budget_bytes / std::max(bytes_per_set, std::size_t(1));
@@ -233,7 +246,7 @@ inline std::size_t bench_input_count(std::size_t bytes_per_set) {
     return count;
 }
 
-/** @brief Factory function to allocate vectors, potentially raising bad-allocs. */
+/** Factory function to allocate vectors, potentially raising bad-allocs. */
 template <typename type_>
 [[nodiscard]] nk::vector<type_> make_vector(std::size_t count) {
     auto result = nk::vector<type_>::try_zeros(count);
@@ -250,9 +263,9 @@ template <typename type_>
  *
  *  Used by: dot.cpp, spatial.cpp, set.cpp, probability.cpp
  *
- *  @param state The benchmark state object provided by Google Benchmark.
- *  @param kernel The kernel function to benchmark.
- *  @param dimensions The number of dimensions in the vectors.
+ *  @param[inout] state The benchmark state object provided by Google Benchmark.
+ *  @param[in] kernel The kernel function to benchmark.
+ *  @param[in] dimensions The number of dimensions in the vectors.
  */
 template <nk_dtype_t input_dtype_, nk_dtype_t output_dtype_, typename kernel_type_ = void>
 void measure_dense(bm::State &state, kernel_type_ kernel, std::size_t dimensions) {
@@ -294,10 +307,7 @@ void run_dense(std::string name, kernel_type_ *kernel) {
                           bench_config.dense_dimensions);
 }
 
-/**
- *  @brief Measure packed Hamming distance computation.
- *  Used by: all bench/cross_*.cpp files
- */
+/** Measures packed Hamming distance computation, used by every bench/cross_*.cpp file. */
 template <nk_dtype_t input_dtype_>
 void measure_hammings_packed(                                                              //
     bm::State &state,                                                                      //
@@ -350,9 +360,7 @@ void measure_hammings_packed(                                                   
     state.counters["scalar-ops"] = bm::Counter(1.0 * iterations * m * n * k, bm::Counter::kIsRate);
 }
 
-/**
- *  @brief Measure symmetric Hamming distance matrix computation.
- */
+/** Measure symmetric Hamming distance matrix computation. */
 template <nk_dtype_t input_dtype_>
 void measure_hammings_symmetric(                                                   //
     bm::State &state,                                                              //
@@ -418,9 +426,7 @@ void run_hammings_symmetric(std::string name, //
                           kernel, bench_config.matrix_height, bench_config.matrix_depth);
 }
 
-/**
- *  @brief Measure packed Jaccard distance matrix computation.
- */
+/** Measure packed Jaccard distance matrix computation. */
 template <nk_dtype_t input_dtype_>
 void measure_jaccards_packed(                                                              //
     bm::State &state,                                                                      //
@@ -469,9 +475,7 @@ void measure_jaccards_packed(                                                   
     state.counters["scalar-ops"] = bm::Counter(1.0 * iterations * m * n * k, bm::Counter::kIsRate);
 }
 
-/**
- *  @brief Measure symmetric Jaccard distance matrix computation.
- */
+/** Measure symmetric Jaccard distance matrix computation. */
 template <nk_dtype_t input_dtype_>
 void measure_jaccards_symmetric(                                                   //
     bm::State &state,                                                              //
@@ -535,7 +539,7 @@ void run_jaccards_symmetric(std::string name, //
 
 } // namespace ashvardanian::numkong::bench
 
-// Forward declarations for benchmark registration functions (defined in separate files)
+/** Forward declarations for benchmark registration functions, defined in separate files. */
 void bench_dot();
 void bench_spatial();
 void bench_set();
@@ -551,7 +555,7 @@ void bench_cast();
 void bench_reduce();
 void bench_maxsim();
 
-// Forward declarations for cross/batch operations (ISA-family files)
+/** Forward declarations for cross/batch operations, ISA-family files. */
 void bench_cross_serial();
 void bench_cross_x86();
 void bench_cross_amx();

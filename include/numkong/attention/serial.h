@@ -1,44 +1,48 @@
 /**
- *  @brief Serial (SIMD-free) ragged attention baseline.
  *  @file include/numkong/attention/serial.h
  *  @author Ash Vardanian
  *  @date July 6, 2026
+ *  @brief Serial (SIMD-free) ragged attention baseline.
  *
  *  @sa include/numkong/attention.h
  *
- *  Width-agnostic reference implementation of the ragged scaled-dot-product attention
- *  family: any `depth ≥ 1`, any segment lengths, GQA/MQA, the same base-2 softmax
- *  formulation and the same `(task_start, task_count)` windows over the segment × head
- *  grid as the SIMD backends, in both the bidirectional and the causal mode.
+ *  Width-agnostic reference implementation of the ragged scaled-dot-product attention family: any
+ *  `depth ≥ 1`, any segment lengths, GQA/MQA, the same base-2 softmax formulation and the same
+ *  `(task_start, task_count)` windows over the flat @b [segment,head] grid as the SIMD backends, in
+ *  both the bidirectional and the causal mode.
  *
  *  @section attention_serial_roles Roles in the Family
  *
- *  Serves three roles:
- *
  *  1. Ground truth for every SIMD backend's conformance tests.
  *  2. Final runtime-dispatch fallback on CPUs without any compiled SIMD target.
- *  3. Fallback for shapes outside a SIMD backend's fast-path envelope (`depth > 256`),
- *     invoked from those backends' own entry points so pack and attention always agree
- *     on the packed-buffer format.
+ *  3. Fallback for shapes outside a SIMD backend's fast-path envelope (`depth > 256`), invoked from
+ *     those backends so pack and attention always agree on the packed-buffer format.
  *
  *  @section attention_serial_layout Packed Layout
  *
  *  This file also owns the family-shared packed-KV header and offsets layout:
- *  `[64 B header][offsets: u64 payload_offsets[segments+1] + u32 segment_lengths[segments],
- *  64-byte padded][per-backend payload]`. The payload is backend-opaque; serial stores
- *  K and V as plain F32 row-major planes `[key_value_head][position][channel]` per segment, so both
- *  input dtypes (BF16, E4M3) share one compute path after per-element conversion at pack.
  *
- *  Like the rest of the serial tier, no libm: the base-2 exponent uses the same degree-4
- *  polynomial and the same denormal-avoiding clamp as the AVX-512 helper, so serial and
- *  vector paths agree to polynomial precision (@see nk_f32_exp2_serial_).
+ *  @verbatim
+ *  [64 B header]
+ *  [offsets: u64 payload_offsets[segments+1] + u32 segment_lengths[segments], 64-byte padded]
+ *  [per-backend payload]
+ *  @endverbatim
+ *
+ *  The payload is backend-opaque; serial stores K and V as plain F32 row-major planes
+ *  `[key_value_head][position][channel]` per segment, so both input dtypes — BF16, E4M3 — share one
+ *  compute path after per-element conversion at pack.
+ *
+ *  Like the rest of the serial tier, no libm: the base-2 exponent uses the same degree-4 polynomial
+ *  and the same denormal-avoiding clamp as the AVX-512 helper, so serial and vector paths agree to
+ *  polynomial precision.
+ *
+ *  @sa nk_f32_exp2_serial_
  *
  *  @section attention_serial_i8 I8 Weight Quantization
  *
- *  The I8 path keeps scores exact in I32 integer arithmetic and quantizes softmax weights
- *  to U8 as `round(255 · 2^(s₂ − m₂))`; the max-scoring position always lands on 255, so
- *  the weight sum can never be zero. Normalizing by the sum of the quantized weights
- *  makes the 255 cancel — no descale constant remains.
+ *  The I8 path keeps scores exact in I32 integer arithmetic and quantizes softmax weights to U8 as
+ *  round(255 · 2^(s₂ − m₂)); the max-scoring position always lands on 255, so the weight sum can
+ *  never be zero. Normalizing by that sum cancels the 255, so no descale constant remains.
  */
 #ifndef NK_ATTENTION_SERIAL_H
 #define NK_ATTENTION_SERIAL_H

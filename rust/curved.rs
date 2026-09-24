@@ -4,6 +4,9 @@
 //!
 //! - [`Bilinear`]: Bilinear form aᵀ × C × b with a metric tensor
 //! - [`Mahalanobis`]: Mahalanobis distance √((a−b)ᵀ × C × (a−b))
+//!
+//! File: rust/curved.rs
+//! Author: Ash Vardanian
 
 use crate::types::{bf16, bf16c, f16, f16c, f32c, f64c, StorageElement};
 
@@ -27,8 +30,8 @@ extern "C" {
 
 /// Bilinear form computation: aᵀ × C × b where C is a metric tensor.
 ///
-/// Computes the bilinear form of two vectors `a` and `b` with respect to
-/// a symmetric matrix `C`, given in row-major order as a flat slice of length n².
+/// Computes the bilinear form of two vectors `a` and `b` with respect to a symmetric matrix `C`,
+/// given in row-major order as a flat slice of length n².
 pub trait Bilinear: StorageElement {
     /// Output type for results. `f32` widens to `f64`; f16/bf16 use f32.
     type Output;
@@ -36,9 +39,9 @@ pub trait Bilinear: StorageElement {
     /// Computes the bilinear form aᵀ × C × b.
     ///
     /// # Arguments
-    /// * `a` - First vector of length n
-    /// * `b` - Second vector of length n
-    /// * `c` - Metric tensor — n×n matrix in row-major order, length n²
+    /// - `a` - First vector of length n
+    /// - `b` - Second vector of length n
+    /// - `c` - Metric tensor, symmetric __[n,n]__ matrix in row-major order, flattened to length n²
     ///
     /// # Returns
     /// `Some(result)` if inputs are valid, `None` if lengths are incompatible.
@@ -223,8 +226,8 @@ impl Bilinear for bf16c {
 
 /// Mahalanobis distance: √((a−b)ᵀ × C × (a−b)).
 ///
-/// Computes the Mahalanobis distance between two vectors `a` and `b` with respect
-/// to an inverse covariance matrix `C`, given in row-major order as a flat slice of length n².
+/// Computes the Mahalanobis distance between two vectors `a` and `b` with respect to an inverse
+/// covariance matrix `C`, given in row-major order as a flat slice of length n².
 pub trait Mahalanobis: StorageElement {
     /// Output type for results. `f32` widens to `f64`; f16/bf16 use f32.
     type Output;
@@ -232,9 +235,10 @@ pub trait Mahalanobis: StorageElement {
     /// Computes the Mahalanobis distance √((a−b)ᵀ × C × (a−b)).
     ///
     /// # Arguments
-    /// * `a` - First vector of length n
-    /// * `b` - Second vector of length n
-    /// * `c` - Inverse covariance matrix — n×n matrix in row-major order, length n²
+    /// - `a` - First vector of length n
+    /// - `b` - Second vector of length n
+    /// - `c` - Inverse covariance matrix, a symmetric __[n,n]__ matrix in row-major order,
+    ///   flattened to length n²
     ///
     /// # Returns
     /// `Some(result)` if inputs are valid, `None` if lengths are incompatible.

@@ -1,122 +1,117 @@
 /**
- *  @brief Panel-based FlashAttention kernels for Intel Sapphire Rapids AMX.
  *  @file include/numkong/attention/sapphireamx.h
  *  @author Ash Vardanian
  *  @date July 6, 2026
+ *  @brief Panel-based FlashAttention kernels for Intel Sapphire Rapids AMX.
  *
  *  @sa include/numkong/attention.h
  *
- *  Implements bidirectional and causal scaled dot-product attention over a @b ragged
- *  batch of independent segments:
+ *  Implements bidirectional and causal scaled dot-product attention over a @b ragged batch of
+ *  independent segments, O[s] = softmax(Q[s] × K[s]ᵀ · scale) × V[s] for each segment s.
  *
- *      O[s] = softmax(Q[s] × K[s]ᵀ · scale) × V[s]      for each segment s
+ *  BF16, E4M3, and I8 inputs, F32 outputs, any @c depth from 1 to 256: channels are zero-padded to
+ *  32-deep AMX tiles internally, exact math, padded K channels add zero to every score, padded V
+ *  channels are never stored back, and `depth > 256` routes to the width-agnostic serial tier from
+ *  all entry points, so packing and attention always agree on the buffer format. E4M3 has no AMX
+ *  tile type on Sapphire Rapids, so it widens to BF16 at the boundaries — K/V during packing, Q
+ *  during tile loads — and shares every instruction of the BF16 panel pipeline, the @c dots
+ *  family's E4M3 recipe. I8 keeps its own pipeline shape-for-shape: exact I32 scores via TDPBSSD
+ *  over 64-channel-deep quad-interleaved tiles, softmax weights quantized to U8 as round(255 ·
+ *  2^(s₂ − m₂)), the running-max position lands on 255, so the weight sum is never zero and the 255
+ *  cancels in normalization, and P×V via TDPBUSD — the serial I8 tier defines that contract.
  *
- *  BF16, E4M3, and I8 inputs, F32 outputs, any `depth` from 1 to 256: channels are
- *  zero-padded to 32-deep AMX tiles internally (exact math — padded K channels add zero
- *  to every score, padded V channels are never stored back), and `depth > 256` routes
- *  to the width-agnostic serial tier from all entry points, so packing and attention
- *  always agree on the buffer format. E4M3 has no AMX tile type on Sapphire Rapids, so
- *  it widens to BF16 at the boundaries — K/V during packing, Q during tile loads — and
- *  shares every instruction of the BF16 panel pipeline (the `dots` family's E4M3 recipe).
- *  I8 keeps its own pipeline shape-for-shape: exact I32 scores via TDPBSSD over
- *  64-channel-deep quad-interleaved tiles, softmax weights quantized to U8 as
- *  `round(255 · 2^(s₂ − m₂))` (the running-max position lands on 255, so the weight sum
- *  is never zero and the 255 cancels in normalization), and P×V via TDPBUSD — the serial
- *  I8 tier defines that contract.
- *
- *  The ragged form is the only form: transformer inference packs many variable-length
- *  segments into one token buffer (UForm's `segment_offsets` / `segment_lengths`
- *  convention), and a single-segment call is just `segment_count == 1`. Grouped-query
- *  attention is supported via `num_kv_heads`; cross-attention and pooling fall out of
- *  per-segment query counts that differ from the packed KV lengths — the attention pool
- *  is `query_offsets = {0, 1, 2, …}`, one learned query per segment. Causal masking clips
- *  each row's key range: panels outside a query block's union are skipped, row maxima cover
- *  only the row's own columns, and weights outside it are zeroed with tail masks.
+ *  The ragged form is the only form: transformer inference packs many variable-length segments into
+ *  one token buffer, UForm's @c segment_offsets and @c segment_lengths convention, and a
+ *  single-segment call is just `segment_count == 1`. Grouped-query attention is supported via
+ *  @c num_kv_heads; cross-attention and pooling fall out of per-segment query counts that differ
+ *  from the packed KV lengths — the attention pool is `query_offsets = {0, 1, 2, …}`, one learned
+ *  query per segment. Causal masking clips each row's key range: panels outside a query block's
+ *  union are skipped, row maxima cover only the row's own columns, and weights outside it are
+ *  zeroed with tail masks.
  *
  *  @section attention_sapphireamx_layout Tensor Layout
  *
- *  Q, K, V, and O all use the activations-natural layout `[tokens, heads × depth]` with
- *  an explicit row stride in bytes: element `(head, token, channel)` lives at
- *  `base + token · stride + (head · depth + channel) · sizeof(scalar)`.
- *  A fused QKV projection output `[tokens, 3 × hidden]` is therefore consumable in place —
- *  pass interior pointers and `3 × hidden × sizeof(scalar)` strides, no copies.
+ *  Q, K, V, and O all use the activations-natural layout of shape @b [tokens,heads,depth] with an
+ *  explicit row stride in bytes: element (head, token, channel) lives at base + token · stride +
+ *  (head · depth + channel) · sizeof(scalar). A fused QKV projection output of shape @b
+ *  [tokens,3,hidden] is therefore consumable in place — pass interior pointers and 3 · hidden ·
+ *  sizeof(scalar) strides, no copies.
  *
- *  Packing takes a half-open `(task_begin, task_end)` window over the flat `segment × kv_head` grid
- *  and attention a `(task_start, task_count)` window over `segment × head`, so a
- *  parallel caller distributes tasks across threads — one thread per physical core,
- *  longest segments first — without any second entry point. Tasks touch disjoint outputs;
- *  packing tasks write disjoint tile blocks (the tiny header/directory bytes are written
- *  identically by every packing call).
+ *  Packing takes a half-open `(task_begin, task_end)` window over the flat @b [segment,kv_head]
+ *  grid and attention a `(task_start, task_count)` window over the flat @b [segment,head] grid, so
+ *  a parallel caller distributes tasks across threads — one thread per physical core, longest
+ *  segments first — without any second entry point. Tasks touch disjoint outputs; packing tasks
+ *  write disjoint tile blocks, and the tiny header/directory bytes come out identical no matter
+ *  which task performs the write.
  *
  *  @section attention_sapphireamx_design Design
  *
- *  Classic FlashAttention tiling (Bᶜ = 32) interleaves a 16×32 score block, an online
- *  softmax, and a P×V accumulation. Ablation on that sequence shows the AMX work plus all
- *  tile moves cost ~275 cycles per block while the online softmax chain costs ~600 (the
- *  horizontal `reduce_max`/`reduce_add` chains, not the exponent) and the TMM→memory→ZMM
- *  output round-trip another ~400 — the matrix unit idles ~85% of the time. This kernel
- *  instead sweeps KV in @b panels of 512 columns — FlashAttention with Bᶜ = 512,
- *  mathematically exact — with three structural choices, each validated by A/B measurement
- *  against the alternative it replaced:
+ *  Classic FlashAttention tiling, Bᶜ = 32, interleaves a 16×32 score block, an online softmax, and
+ *  a P×V accumulation. Ablation on that sequence shows the AMX work plus all tile moves cost ~275
+ *  cycles per block while the online softmax chain costs ~600, the horizontal @c reduce_max and
+ *  @c reduce_add chains, not the exponent, and the TMM → memory → ZMM output round-trip another
+ *  ~400 — the matrix unit idles ~85% of the time. This kernel instead sweeps KV in @b panels of 512
+ *  columns — FlashAttention with Bᶜ = 512, mathematically exact — with three structural choices,
+ *  each validated by A/B measurement against the alternative it replaced:
  *
- *  1. @b 32-row register blocking. Scores accumulate as a 2×2 grid of TMM tiles
- *     (two 16-row Q tiles × two 16-column K tiles), so every loaded operand tile feeds
- *     two MACs: one tile load per `tdpbf16ps` in both matmuls, versus 1.5 for the 16-row
- *     variant this replaced, and all per-query-block fixed costs amortize over twice the
- *     rows. P×V holds four F32 accumulator tiles TMM-resident per 32-channel slice of
- *     the head across the panel's whole depth; the accumulator crosses into ZMM once per
- *     panel per slice, fused with the online correction as a single FMA:
- *     `O = O · 2^(m_old − m_new) + O_panel`.
- *  2. @b KV-reuse chunking. Four 32-row query blocks share each KV panel sweep, cutting
- *     packed-K/V traffic 4× — at 16K-token sequences (the Large-tier segment budget),
- *     where K+V no longer fit in L2, this alone is worth ~1.45×.
- *  3. @b Base-2 streaming softmax. `softmax(x) = softmax₂(x · log₂e)`, with log₂e folded
- *     into the score scale, so the exponent is `2^r` with an @b exact range reduction
- *     (`r = x − round(x)`; no Cody-Waite ladder) and a shorter polynomial. The pass is
- *     row-major with running sums in registers: one horizontal reduction per row per
- *     panel, no per-block online state. The exponent's lower clamp is −125, keeping the
- *     smallest result `2⁻¹²⁵` a @b normal float: values in the last 1.7 octaves above
- *     F32's true limit are denormal, and one denormal operand in the correction FMA costs
- *     a ~150-cycle FP assist per element — measured as a 2.5× whole-kernel slowdown.
+ *  @b 32-row register blocking accumulates scores as a 2×2 grid of TMM tiles, two 16-row Q tiles ×
+ *  two 16-column K tiles, so every loaded operand tile feeds two MACs: one tile load per
+ *  @c tdpbf16ps in both matmuls, versus 1.5 for the 16-row variant this replaced, and all
+ *  per-query-block fixed costs amortize over twice the rows. P×V holds four F32 accumulator tiles
+ *  TMM-resident per 32-channel slice of the head across the panel's whole depth; the accumulator
+ *  crosses into ZMM once per panel per slice, fused with the online correction as a single FMA: O =
+ *  O · 2^(m_old − m_new) + O_panel.
  *
- *  Rejected by measurement: exp/P×V instruction interleaving (wins at 16-row blocking,
- *  loses at 32-row where the vector stage dominates each step), sigmoid scoring (the
- *  division costs what the max/sum bookkeeping saves), software prefetching.
+ *  @b KV-reuse chunking shares each KV panel sweep across four 32-row query blocks, cutting
+ *  packed-K/V traffic 4×. At 16K-token sequences, the Large-tier segment budget, where K+V no
+ *  longer fit in L2, this alone is worth ~1.45×.
  *
- *  Measured on a single Sapphire Rapids core (Xeon 8468, ~3.2 GHz sustained), BF16,
- *  `depth = 128`: ~0.63 TFLOPS at `q = kv = 256`, ~0.82 at 1024², ~0.80 at 4096²,
- *  ~0.81 at 16384², against ~3.4 TFLOPS `tdpbf16ps` peak and ~0.36 TFLOPS for the classic
- *  Bᶜ=32 flash schedule this file previously drafted. On a ragged 52-segment batch
- *  (128–4096-token mix), task-parallel scaling reaches ~96% efficiency at one thread per
- *  physical core.
+ *  @b Base-2 streaming softmax computes softmax(x) = softmax₂(x · log₂e), with log₂e folded into
+ *  the score scale, so the exponent is 2^r with an @b exact range reduction, r = x − round(x), no
+ *  Cody-Waite ladder, and a shorter polynomial. The pass is row-major with running sums in
+ *  registers: one horizontal reduction per row per panel, no per-block online state. The exponent's
+ *  lower clamp is −125, keeping the smallest result 2⁻¹²⁵ a @b normal float: values in the last 1.7
+ *  octaves above F32's true limit are denormal, and one denormal operand in the correction FMA
+ *  costs a ~150-cycle FP assist per element — measured as a 2.5× whole-kernel slowdown.
+ *
+ *  Rejected by measurement: exp/P×V instruction interleaving — wins at 16-row blocking, loses at
+ *  32-row where the vector stage dominates each step — sigmoid scoring, the division costs what the
+ *  max/sum bookkeeping saves, and software prefetching.
+ *
+ *  Measured on a single Sapphire Rapids core, Xeon 8468 at ~3.2 GHz sustained, BF16, `depth = 128`:
+ *  ~0.63 TFLOPS at `q = kv = 256`, ~0.82 at 1024², ~0.80 at 4096², ~0.81 at 16384², against ~3.4
+ *  TFLOPS @c tdpbf16ps peak and ~0.36 TFLOPS for the classic Bᶜ=32 flash schedule this kernel
+ *  replaces. On a ragged 52-segment batch, a 128–4096-token mix, task-parallel scaling reaches ~96%
+ *  efficiency at one thread per physical core.
  *
  *  @section attention_sapphireamx_packing Packed KV Format
  *
- *  `[64 B header][directory][segment 0 tiles][segment 1 tiles]…`, where the directory is
- *  `nk_u64_t tile_offsets[segment_count + 1]` (bytes, relative to the first tile block;
- *  the last entry is the total) followed by `nk_u32_t segment_lengths[segment_count]`,
- *  padded to 64 bytes. Every segment's sequence is zero-padded to a multiple of 32 and
- *  its channels to a multiple of 32; each block holds K tiles for all KV heads, then V
- *  tiles, always as BF16 regardless of the input dtype. K is packed transposed for Q×Kᵀ
- *  as pair-interleaved B-tiles `[kv_tile][depth_tile]` (`kv_tile` = 16 positions,
- *  `depth_tile` = 32 channels). V is packed for P×V as pair-interleaved B-tiles
- *  `[depth_tile_idx][position_block_idx]` — depth-major so each output tile's depth accumulation streams
- *  contiguous 1 KB tiles (one depth tile = 16 channels, one position block = 32 positions).
- *  Zero-padded K rows yield zero scores, which the column-bounded softmax turns into zero
- *  weights; padded V rows and channels are multiplied by those zero weights or skipped
- *  at the final store.
+ *  `[64 B header][directory][segment 0 tiles][segment 1 tiles]…`, where the packed directory is
+ *  `nk_u64_t tile_offsets[segment_count + 1]`, bytes relative to the first tile block, the last
+ *  entry is the total, followed by `nk_u32_t segment_lengths[segment_count]`, padded to 64 bytes.
+ *  Every segment's sequence is zero-padded to a multiple of 32 and its channels to a multiple of
+ *  32; each block holds K tiles for all KV heads, then V tiles, always as BF16 regardless of the
+ *  input dtype. K is packed transposed for Q×Kᵀ as pair-interleaved B-tiles `[kv_tile][depth_tile]`
+ *  — @c kv_tile is 16 positions, @c depth_tile is 32 channels. V is packed for P×V as
+ *  pair-interleaved B-tiles `[depth_tile_idx][position_block_idx]` — depth-major so each output
+ *  tile's depth accumulation streams contiguous 1 KB tiles, one depth tile is 16 channels, one
+ *  position block is 32 positions. Zero-padded K rows yield zero scores, which the column-bounded
+ *  softmax turns into zero weights; padded V rows and channels are multiplied by those zero weights
+ *  or skipped at the final store.
  *
- *  The kernel keeps ~350 KB of scratch on the stack: a 64 KB F32 score panel, a 32 KB
- *  BF16 weight panel, four 32 KB output accumulators, and 64 KB of packed Q tiles.
+ *  The kernel keeps ~350 KB of scratch on the stack: a 64 KB F32 score panel, a 32 KB BF16 weight
+ *  panel, four 32 KB output accumulators, and 64 KB of packed Q tiles.
  *
  *  @section attention_sapphireamx_instructions Relevant Instructions
  *
- *      Intrinsic                   Instruction                     Sapphire
- *      _tile_dpbf16ps              TDPBF16PS (TMM, TMM, TMM)       16cy throughput (16×16×32)
- *      _tile_loadd                 TILELOADD (TMM, MEM)            ~8cy @ p23, ~45cy latency
- *      _tile_stored                TILESTORED (MEM, TMM)           ~16cy @ p49
- *      _mm512_cvtneps_pbh          VCVTNEPS2BF16 (YMM, ZMM)        4cy @ p05
- *      _mm256_permutex2var_epi16   VPERMT2W (YMM, YMM, YMM)        3cy @ p5
+ *  @verbatim
+ *  Intrinsic                   Instruction                     Sapphire
+ *  _tile_dpbf16ps              TDPBF16PS (TMM, TMM, TMM)       16cy throughput (16×16×32)
+ *  _tile_loadd                 TILELOADD (TMM, MEM)            ~8cy @ p23, ~45cy latency
+ *  _tile_stored                TILESTORED (MEM, TMM)           ~16cy @ p49
+ *  _mm512_cvtneps_pbh          VCVTNEPS2BF16 (YMM, ZMM)        4cy @ p05
+ *  _mm256_permutex2var_epi16   VPERMT2W (YMM, YMM, YMM)        3cy @ p5
+ *  @endverbatim
  */
 #ifndef NK_ATTENTION_SAPPHIREAMX_H
 #define NK_ATTENTION_SAPPHIREAMX_H

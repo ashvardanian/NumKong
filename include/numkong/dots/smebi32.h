@@ -1,14 +1,17 @@
 /**
- *  @brief SIMD-accelerated Batched Dot Products for SME (u1 binary vectors).
  *  @file include/numkong/dots/smebi32.h
  *  @author Ash Vardanian
  *  @date February 24, 2026
+ *  @brief SIMD-accelerated Batched Dot Products for SME, u1 binary vectors.
  *
  *  @sa include/numkong/dots.h
  *
- *  Uses ARM SME BMOPA instruction for binary dot products:
- *    BMOPA gives: matching = popcount(XNOR(a,b))
- *    dot(a,b) = popcount(a AND b) = (pop_a + pop_b - depth + matching) / 2
+ *  Uses ARM SME BMOPA instruction for binary dot products.
+ *
+ *  @verbatim
+ *  matching = popcount(XNOR(a, b))
+ *  dot(a, b) = popcount(a AND b) = (pop_a + pop_b - depth + matching) / 2
+ *  @endverbatim
  */
 #ifndef NK_DOTS_SMEBI32_H
 #define NK_DOTS_SMEBI32_H

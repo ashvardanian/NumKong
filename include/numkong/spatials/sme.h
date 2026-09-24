@@ -1,8 +1,8 @@
 /**
- *  @brief Batched Spatial Distances for ARM SME.
  *  @file include/numkong/spatials/sme.h
  *  @author Ash Vardanian
  *  @date February 23, 2026
+ *  @brief Batched spatial distances for ARM SME.
  *
  *  @sa include/numkong/spatials.h
  */

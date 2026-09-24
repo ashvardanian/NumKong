@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Set Similarity Measures.
  *  @file include/numkong/set.h
  *  @author Ash Vardanian
  *  @date July 1, 2023
+ *  @brief SIMD-accelerated set similarity measures.
  *
  *  Contains following similarity measures:
  *
@@ -18,52 +18,56 @@
  *  - RISC-V: RVV, RVV+BB
  *  - WASM: V128
  *
- *  @section numerical_stability Numerical Stability
+ *  @section set_numerical_stability Numerical Stability
  *
- *  Hamming u1: u32 popcount accumulator. Overflows at n_bits > 2^32 (~4.3 billion).
- *  The streaming u1x512 variant uses u64, safe for any practical dimension.
- *  Jaccard u1: u32 intersection/union counts, f32 division at finalization.
- *  Popcount values above 2^24 lose precision in f32 cast (24-bit mantissa).
- *  Byte-level Hamming/Jaccard u8: u32 mismatch counter. Overflows at n > 2^32.
+ *  - Hamming u1: u32 popcount accumulator, overflowing at n_bits > 2^32, about 4.3 billion. The
+ *    streaming u1x512 variant uses u64, safe for any practical dimension.
+ *  - Jaccard u1: u32 intersection and union counts, f32 division at finalization. Popcounts above
+ *    2^24 lose precision in the f32 cast, as its mantissa has 24 bits.
+ *  - Byte-level Hamming and Jaccard u8: u32 mismatch counter, overflowing at n > 2^32.
  *
  *  @section popcount_strategies Population Count Strategies
  *
  *  Jaccard distances are extremely common and also fairly cheap to compute on binary vectors.
  *  The hardest part of optimizing binary similarity measures is the population count operation.
- *  It's natively supported by almost every instruction set, but the throughput and latency can
- *  be suboptimal. There are several ways to optimize this operation:
+ *  It's natively supported by almost every instruction set, but the throughput and latency can be
+ *  suboptimal. There are several ways to optimize this operation:
  *
  *  - Lookup tables, mostly using nibbles (4-bit lookups)
  *  - Harley-Seal population counts using Carry-Save Adders (CSA)
  *
- *  @section x86_instructions Relevant x86 Instructions
+ *  @section set_x86_instructions Relevant x86 Instructions
  *
- *  On binary vectors, when computing Jaccard distance, the CPU often struggles to compute the
- *  large number of required population counts. There are several instructions we should keep in mind:
+ *  On binary vectors, when computing Jaccard distance, the CPU often struggles to compute the large
+ *  number of required population counts. There are several instructions we should keep in mind:
  *
- *      Intrinsic                  Instruction                     Icelake    Genoa
- *      _mm512_popcnt_epi64        VPOPCNTQ (ZMM, K, ZMM)          3cy @ p5   2cy @ p01
- *      _mm512_shuffle_epi8        VPSHUFB (ZMM, ZMM, ZMM)         1cy @ p5   2cy @ p12
- *      _mm512_sad_epu8            VPSADBW (ZMM, ZMM, ZMM)         3cy @ p5   3cy @ p01
- *      _mm512_ternarylogic_epi64  VPTERNLOGQ (ZMM, ZMM, ZMM, I8)  1cy @ p05  1cy @ p0123
- *      _mm512_gf2p8mul_epi8       VGF2P8MULB (ZMM, ZMM, ZMM)      5cy @ p0   3cy @ p01
+ *  @verbatim
+ *  Intrinsic                  Instruction                     Icelake    Genoa
+ *  _mm512_popcnt_epi64        VPOPCNTQ (ZMM, K, ZMM)          3cy @ p5   2cy @ p01
+ *  _mm512_shuffle_epi8        VPSHUFB (ZMM, ZMM, ZMM)         1cy @ p5   2cy @ p12
+ *  _mm512_sad_epu8            VPSADBW (ZMM, ZMM, ZMM)         3cy @ p5   3cy @ p01
+ *  _mm512_ternarylogic_epi64  VPTERNLOGQ (ZMM, ZMM, ZMM, I8)  1cy @ p05  1cy @ p0123
+ *  _mm512_gf2p8mul_epi8       VGF2P8MULB (ZMM, ZMM, ZMM)      5cy @ p0   3cy @ p01
+ *  @endverbatim
  *
- *  On Ice Lake, VPOPCNTQ bottlenecks on port 5. On AMD Genoa/Turin, it dual-issues
- *  on ports 0-1, making native popcount significantly faster without CSA tricks.
+ *  On Ice Lake, VPOPCNTQ bottlenecks on port 5. On AMD Genoa/Turin, it dual-issues on ports 0-1,
+ *  making native popcount significantly faster without CSA tricks.
  *
  *  @section harley_seal Harley-Seal Carry-Save Adders
  *
- *  The Harley-Seal algorithm uses Carry-Save Adders (CSA) to accumulate population counts
- *  with fewer VPOPCNTQ instructions. A CSA computes (a + b + c) as (sum, carry) using only
- *  bitwise operations, deferring expensive popcounts to the final reduction.
+ *  The Harley-Seal algorithm uses Carry-Save Adders, CSA, to accumulate population counts with
+ *  fewer VPOPCNTQ instructions. A CSA computes (a + b + c) as (sum, carry) using only bitwise
+ *  operations, deferring expensive popcounts to the final reduction.
  *
  *  Performance varies significantly by architecture and buffer size (cycles/byte):
  *
- *      Method              Buffer      Ice Lake    Sapphire    Genoa
- *      Native VPOPCNTQ     any         ~0.12       ~0.10       ~0.06
- *      Harley-Seal CSA     1 KB        0.107       0.095       0.08
- *      Harley-Seal CSA     4 KB        0.056       0.052       0.05
- *      VPSHUFB lookup      4 KB        0.063       0.058       0.07
+ *  @verbatim
+ *  Method              Buffer      Ice Lake    Sapphire    Genoa
+ *  Native VPOPCNTQ     any         ~0.12       ~0.10       ~0.06
+ *  Harley-Seal CSA     1 KB        0.107       0.095       0.08
+ *  Harley-Seal CSA     4 KB        0.056       0.052       0.05
+ *  VPSHUFB lookup      4 KB        0.063       0.058       0.07
+ *  @endverbatim
  *
  *  For small buffers (<1KB), loop overhead dominates and unrolled native VPOPCNTQ wins.
  *  Harley-Seal shines on large buffers where CSA chains amortize the setup cost.
@@ -71,8 +75,8 @@
  *
  *  @section jaccard_norms Jaccard Optimization via Norms
  *
- *  There is a trivial optimization to halve the number of population counts needed for
- *  binary Jaccard distance, if one knows the set magnitudes ahead of time:
+ *  There is a trivial optimization to halve the number of population counts needed for binary
+ *  Jaccard distance, if one knows the set magnitudes ahead of time:
  *
  *      J = |A ∩ B| / |A ∪ B| = |A ∩ B| / (|A| + |B| - |A ∩ B|)
  *
@@ -85,13 +89,12 @@
  *  - nk_jaccard_u1x512_update_<isa> - Updates the running state with 2 new 512-bit vectors
  *  - nk_jaccard_u1x512_finalize_<isa> - Finalizes the running state and produces the distance
  *
- *  @section streaming_api Streaming API
+ *  @section set_streaming_api Streaming API
  *
- *  The streaming variants aren't always strictly equivalent to their counterparts above
- *  and their usage also differs quite drastically. For large-scale batch processing where
- *  vectors won't be reused, consider non-temporal loads (`_mm512_stream_load_si512`) to
- *  bypass the cache and avoid pollution. This is especially beneficial when computing
- *  distances across millions of vectors in a single pass.
+ *  The streaming variants aren't always strictly equivalent to their counterparts above and their
+ *  usage also differs quite drastically. For large-scale batch processing where vectors won't be
+ *  reused, consider @c _mm512_stream_load_si512 non-temporal loads to bypass the cache and avoid
+ *  pollution, especially when computing distances across millions of vectors in a single pass.
  *
  *  @code{.c}
  *  // 1024-dimensional binary vectors, one query and four targets
@@ -117,19 +120,19 @@
  *
  *  @section tail_handling Tail Handling
  *
- *  The trickiest part is handling the tails of the vectors when their size isn't divisible
- *  by our step size. In such cases, it's recommended to use masked loads when supported by
- *  the ISA, or fall back to scalar code and a local on-stack buffer.
+ *  The trickiest part is handling the tails of the vectors when their size isn't divisible by our
+ *  step size. In such cases, it's recommended to use masked loads when supported by the ISA, or
+ *  fall back to scalar code and a local on-stack buffer.
  *
- *  @section references References
+ *  @section set_references References
  *
- *  - Intel Intrinsics Guide: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
- *  - Arm Intrinsics Reference: https://developer.arm.com/architectures/instruction-sets/intrinsics/
- *  - Muła et al. "Faster Population Counts": https://arxiv.org/pdf/1611.07612
- *  - Muła SSE POPCOUNT experiments: https://github.com/WojciechMula/sse-popcount
- *  - NumKong binary R&D tracker: https://github.com/ashvardanian/NumKong/pull/138
+ *  @see Intel Intrinsics Guide: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
+ *  @see Arm Intrinsics Reference: https://developer.arm.com/architectures/instruction-sets/intrinsics/
+ *  @see Muła et al. "Faster Population Counts": https://arxiv.org/pdf/1611.07612
+ *  @see Muła SSE POPCOUNT experiments: https://github.com/WojciechMula/sse-popcount
+ *  @see NumKong binary R&D tracker: https://github.com/ashvardanian/NumKong/pull/138
  *
- *  @section Finalize Output Types
+ *  @section set_finalize_output_types Finalize Output Types
  *
  *  Jaccard similarity finalize outputs to f32:
  *  - Jaccard = intersection / union, always ∈ [0.0, 1.0]
@@ -137,8 +140,8 @@
  *  - Matches spatial.h convention for non-f64 distance outputs
  *  - Reduces memory footprint in large-scale binary similarity search
  *
- *  The intersection and union counts are u64 internally for correctness,
- *  but the final ratio fits comfortably in f32.
+ *  The intersection and union counts are u64 internally for correctness, but the final ratio fits
+ *  comfortably in f32.
  *
  */
 #ifndef NK_SET_H

@@ -1,18 +1,19 @@
 /**
- *  @brief Batch operation benchmarks - CUDA kernels against cuBLASLt, cuBLAS, cuDNN and cuVS.
  *  @file bench/cross_cuda.cu
  *  @author Ash Vardanian
  *  @date September 22, 2026
+ *  @brief Batch operation benchmarks, CUDA kernels against cuBLASLt, cuBLAS, cuDNN and cuVS.
  *
- *  Runs the drivers of `cross.cuh` through the shared `cuda_backend_t` over device-resident operands, launching
- *  on `cudaStreamPerThread`, with timed windows of launches bracketed by CUDA events and reported through
- *  `UseManualTime`, so launch latency and host synchronization stay outside the measurement. The Time column is per
- *  window, and the `calls` counter recovers the per-call rate. Input sets rotate until their footprint is at least
- *  twice the L2.
+ *  Runs the drivers of `cross.cuh` through the shared @c cuda_backend_t over device-resident
+ *  operands, launching on @c cudaStreamPerThread, with timed windows of launches bracketed by CUDA
+ *  events and reported through @c UseManualTime, so launch latency and host synchronization stay
+ *  outside the measurement. The Time column is per window, and the @c calls counter recovers the
+ *  per-call rate. Input sets rotate until their footprint is at least twice the L2.
  *
- *  The `attention` rows time prefill, 4096 queries on 4096 keys, and decode, 1 query on 4096 keys, with 32 query heads
- *  over 8 K and V heads of depth 128. Every baseline enters the same drivers as a kernel callable, so it shares their
- *  inputs, timing and counters, and compiles in only under its `NK_COMPARE_TO_*` CMake option.
+ *  The @c attention rows time prefill, 4096 queries on 4096 keys, and decode, 1 query on 4096 keys,
+ *  with 32 query heads over 8 K and V heads of depth 128. Every baseline enters the same drivers as
+ *  a kernel callable, so it shares their inputs, timing and counters, and compiles in only under
+ *  its `NK_COMPARE_TO_*` CMake option.
  */
 
 #include <cmath>   // `std::sqrt`, `INFINITY`
@@ -56,11 +57,13 @@ using nk::test::print_isa;
 
 /** The shared CUDA backend over device memory, timing windows of launches with CUDA events. */
 struct cuda_backend_t : nk::test::cuda_backend_t {
+
     /** Device memory, so timed buffers never page-migrate. */
     template <typename value_type_>
     using allocator = nk::test::cuda_device_allocator<value_type_>;
 
-    /** Rotation sets of @p bytes_per_set each: enough to cover twice the L2, a power of two within the budget. */
+    /** Rotation sets of @p bytes_per_set each: enough to cover twice the L2, a power of two within
+     *  the budget. */
     std::size_t input_sets(std::size_t bytes_per_set) const noexcept {
         int l2_bytes = 0, device = 0;
         cudaGetDevice(&device);
@@ -115,7 +118,8 @@ void print_skipped(std::string const &name, char const *reason) {
     std::printf("  Skipping %s: %s\n", name.c_str(), reason);
 }
 
-/** Registers a baseline @p kernel over dense B rows through `register_packed`, with a copy of B as its pack. */
+/** Registers a baseline @p kernel over dense B rows through @c register_packed, with a copy of B as
+ *  its pack. */
 template <nk_dtype_t input_dtype_, typename output_type_, typename kernel_type_>
 void register_unpacked(std::string const &name, reference_metric_t metric, kernel_type_ kernel) {
     using input_t = typename nk::type_for<input_dtype_>::type;
@@ -290,7 +294,7 @@ void bench_cross_ampere([[maybe_unused]] nk_capability_t available) {
 #endif // NK_TARGET_AMPERE
 }
 
-/** Every Blackwell RTX entry point, compiled only when the architecture list includes the family. */
+/** Every Blackwell RTX entry point, compiled only when the architecture list includes it. */
 void bench_cross_blackwellrtx([[maybe_unused]] nk_capability_t available) {
 #if NK_TARGET_BLACKWELLRTX
     if (!(available & nk_cap_blackwellrtx_k)) return;
@@ -394,7 +398,8 @@ cudaDataType_t cublaslt_input_type(nk_dtype_t dtype) noexcept {
     }
 }
 
-/** cuBLASLt's accumulator, scalar and output type for @p dtype: F64, I32 for integers, F32 for other floats. */
+/** cuBLASLt's accumulator, scalar and output type for @p dtype: F64, I32 for integers, F32 for
+ *  other floats. */
 cudaDataType_t cublaslt_output_type(nk_dtype_t dtype) noexcept {
     switch (dtype) {
     case nk_f64_k: return CUDA_R_64F;
@@ -406,7 +411,8 @@ cudaDataType_t cublaslt_output_type(nk_dtype_t dtype) noexcept {
     }
 }
 
-/** Elements per block scale cuBLASLt requires of @p dtype: 32 for 6-bit floats, 16 for 4-bit ones, 0 for none. */
+/** Elements per block scale cuBLASLt requires of @p dtype: 32 for 6-bit floats, 16 for 4-bit ones,
+ *  0 for none. */
 std::size_t cublaslt_scale_block(nk_dtype_t dtype) noexcept {
     switch (dtype) {
     case nk_e3m2_k:
@@ -419,19 +425,21 @@ std::size_t cublaslt_scale_block(nk_dtype_t dtype) noexcept {
 /**
  *  @brief One planned `cublasLtMatmul` for row-major C = A × Bᵀ.
  *
- *  Row-major C is column-major Cᵀ = B × Aᵀ, so B goes in as the transposed first operand and A as the second.
- *  Leading dimensions count elements, so a nibble-pair row of K elements has a leading dimension of K.
+ *  Row-major C is column-major Cᵀ = B × Aᵀ, so B goes in as the transposed first operand and A as
+ *  the second. Leading dimensions count elements, so a nibble-pair row of K elements has a leading
+ *  dimension of K. Block-scaled inputs share one buffer of unit scales between A and B, and the
+ *  output type also types alpha and beta.
  */
 struct cublaslt_plan_t {
-    cublasLtHandle_t handle = nullptr;              ///< library context
-    cublasLtMatmulDesc_t operation = nullptr;       ///< compute type, transposes and scale modes
-    cublasLtMatrixLayout_t first_layout = nullptr;  ///< B, transposed
-    cublasLtMatrixLayout_t second_layout = nullptr; ///< A
-    cublasLtMatrixLayout_t output_layout = nullptr; ///< C
-    cublasLtMatmulHeuristicResult_t heuristic {};   ///< the chosen algorithm
-    device_vector<char> workspace;                  ///< scratch the algorithm asked for
-    device_vector<char> scales;                     ///< unit block scales, shared by A and B
-    cudaDataType_t output_type = CUDA_R_32F;        ///< type of alpha, beta and C
+    cublasLtHandle_t handle = nullptr;
+    cublasLtMatmulDesc_t operation = nullptr;
+    cublasLtMatrixLayout_t first_layout = nullptr;
+    cublasLtMatrixLayout_t second_layout = nullptr;
+    cublasLtMatrixLayout_t output_layout = nullptr;
+    cublasLtMatmulHeuristicResult_t heuristic {};
+    device_vector<char> workspace;
+    device_vector<char> scales;
+    cudaDataType_t output_type = CUDA_R_32F;
 
     ~cublaslt_plan_t() {
         if (output_layout) cublasLtMatrixLayoutDestroy(output_layout);
@@ -441,7 +449,8 @@ struct cublaslt_plan_t {
         if (handle) cublasLtDestroy(handle);
     }
 
-    /** Builds the plan for A of @p a_leading elements per row, or returns why cuBLASLt offers no algorithm. */
+    /** Builds the plan for A of @p a_leading elements per row, or returns why cuBLASLt offers no
+     *  algorithm. */
     cublasStatus_t build(nk_dtype_t dtype, std::size_t height, std::size_t width, std::size_t depth,
                          std::size_t a_leading) {
         cudaDataType_t const input_type = cublaslt_input_type(dtype);
@@ -522,7 +531,8 @@ void register_dots_with_cublaslt(std::string const &name) {
                cudaStream_t stream) { return plan->launch(a, b, c, stream); });
 }
 
-/** Registers DGEMM through cuBLAS's fixed-point emulation, which only the handle API runs on 12.x devices. */
+/** Registers DGEMM through cuBLAS's fixed-point emulation, which only the handle API runs on 12.x
+ *  devices. */
 void register_dots_f64_with_cublas(std::string const &name) {
     cublasHandle_t raw_handle = nullptr;
     if (cublasStatus_t const status = cublasCreate(&raw_handle))
@@ -579,10 +589,12 @@ cudnnDataType_t cudnn_data_type(nk_dtype_t dtype) noexcept {
     }
 }
 
-/** Where a graph tensor lives: in device memory, in a host scalar passed by value, or only between operations. */
+/** Where a graph tensor lives: in device memory, in a host scalar passed by value, or only between
+ *  operations. */
 enum class cudnn_binding_t { device_k, host_k, virtual_k };
 
-/** Graph tensor identifiers; from `query_length_k` on, each also indexes the 32-bit words of `parameters`. */
+/** Graph tensor identifiers; from @c query_length_k on, each also indexes the 32-bit words of
+ *  @c parameters. */
 enum class cudnn_uid_t : std::int64_t {
     queries_k = 1,
     keys_k,
@@ -612,22 +624,25 @@ enum class cudnn_uid_t : std::int64_t {
 /**
  *  @brief One cuDNN SDPA forward plan over a ragged segment of queries at the end of a key cache.
  *
- *  Query heads are grouped over K and V heads, and causal masks are a bottom-right diagonal-band subgraph.
- *  E4M3 plans quantize probabilities with a scale of 256, so the 1/4096-sized weights of a flat softmax stay normal.
+ *  Query heads are grouped over K and V heads, and causal masks are a bottom-right diagonal-band
+ *  subgraph. E4M3 plans quantize probabilities with a scale of 256, so the 1/4096-sized weights of
+ *  a flat softmax stay normal. The handle is bound to the per-thread stream, descriptors are
+ *  destroyed in reverse, and the variant pack lists Q, K, V and O first. The softmax scale, the
+ *  masked-score value and the window travel by value, and @c status keeps the first build failure.
  */
 struct cudnn_attention_plan_t {
-    cudnnHandle_t handle = nullptr;                    ///< library context, bound to the per-thread stream
-    std::vector<cudnnBackendDescriptor_t> descriptors; ///< every descriptor built, destroyed in reverse
-    cudnnBackendDescriptor_t plan = nullptr;           ///< the finalized execution plan
-    std::vector<std::int64_t> uids;                    ///< variant-pack identifiers, Q, K, V and O first
-    std::vector<void *> addresses;                     ///< variant-pack addresses matching `uids`
-    device_vector<std::uint32_t> parameters;           ///< lengths, ragged offsets, E4M3 scales and maxima
-    device_vector<char> workspace;                     ///< scratch for the plan
-    float scale = 0;                                   ///< softmax scale, passed by value
-    float negative_infinity = -INFINITY;               ///< what masked scores become, passed by value
-    std::int32_t window = 0;                           ///< visible keys per query of a windowed row, passed by value
-    std::size_t key_bytes = 0;                         ///< bytes of K, and of V after it in the packed cache
-    cudnnStatus_t status = CUDNN_STATUS_SUCCESS;       ///< first failure while building
+    cudnnHandle_t handle = nullptr;
+    std::vector<cudnnBackendDescriptor_t> descriptors;
+    cudnnBackendDescriptor_t plan = nullptr;
+    std::vector<std::int64_t> uids;
+    std::vector<void *> addresses;
+    device_vector<std::uint32_t> parameters;
+    device_vector<char> workspace;
+    float scale = 0;
+    float negative_infinity = -INFINITY;
+    std::int32_t window = 0;
+    std::size_t key_bytes = 0;
+    cudnnStatus_t status = CUDNN_STATUS_SUCCESS;
 
     ~cudnn_attention_plan_t() {
         for (auto descriptor = descriptors.rbegin(); descriptor != descriptors.rend(); ++descriptor)
@@ -684,7 +699,8 @@ struct cudnn_attention_plan_t {
         return tensor(uid, type, {1, 1, 1, 1}, {1, 1, 1, 1}, binding, address);
     }
 
-    /** Builds the graph and the first plan cuDNN's heuristics offer that finalizes, or returns why none did. */
+    /** Builds the graph and the first plan cuDNN's heuristics offer that finalizes, or returns why
+     *  none did. */
     cudnnStatus_t build(nk_dtype_t dtype, attention_visibility_t visibility, attention_shape_t shape) {
         std::int64_t const heads = shape.head_count, key_value_heads = shape.key_value_head_count, depth = shape.depth,
                            queries = shape.queries, keys = shape.keys;
@@ -850,7 +866,8 @@ struct cudnn_attention_plan_t {
     }
 };
 
-/** Registers one cuDNN row of @p shape through `register_attention`, with K and V copied into each set's cache. */
+/** Registers one cuDNN row of @p shape through @c register_attention, with K and V copied into each
+ *  set's cache. */
 template <nk_dtype_t input_dtype_, attention_visibility_t visibility_>
 void register_attention_with_cudnn(std::string const &name, attention_shape_t shape) {
     auto const plan = std::make_shared<cudnn_attention_plan_t>();
@@ -875,7 +892,8 @@ void register_attention_with_cudnn(std::string const &name, attention_shape_t sh
         shape);
 }
 
-/** Registers cuDNN rows beside the NumKong ones: bidirectional, causal, and windowed where the window clips. */
+/** Registers cuDNN rows beside the NumKong ones: bidirectional, causal, and windowed where the
+ *  window clips. */
 template <nk_dtype_t input_dtype_>
 void run_attention_with_cudnn(std::string const &bidirectional_name, std::string const &causal_name) {
     for (attention_shape_t const shape : cuda_backend_t::attention_shapes()) {
@@ -889,7 +907,8 @@ void run_attention_with_cudnn(std::string const &bidirectional_name, std::string
 
 #endif // NK_COMPARE_TO_CUDNN
 
-/** Every cuDNN row: BF16 and E4M3 attention, bidirectional, causal, and windowed where the window clips. */
+/** Every cuDNN row: BF16 and E4M3 attention, bidirectional, causal, and windowed where the window
+ *  clips. */
 void bench_cross_cudnn() {
 #if NK_COMPARE_TO_CUDNN
     run_attention_with_cudnn<nk_bf16_k>("attention_bidirectional_bf16_with_cudnn", "attention_causal_bf16_with_cudnn");
@@ -912,7 +931,8 @@ DLManagedTensor dlpack_matrix(void const *data, std::int64_t *shape, std::uint8_
     return tensor;
 }
 
-/** Registers `cuvsPairwiseDistance` as a cosine or L2-expanded row beside NumKong's angular or euclidean one. */
+/** Registers @c cuvsPairwiseDistance as a cosine or L2-expanded row beside NumKong's angular or
+ *  euclidean one. */
 template <nk_dtype_t input_dtype_>
 void register_spatials_with_cuvs(std::string const &name, reference_metric_t metric) {
     std::shared_ptr<cuvsResources_t> const resources(new cuvsResources_t {}, [](cuvsResources_t *resources) {
@@ -952,7 +972,8 @@ void bench_cross_cuvs() {
 }
 #pragma endregion cuVS
 
-/** Prints the device, the baselines compiled in, and the kernel families compiled in or runnable on it. */
+/** Prints the device, the baselines compiled in, and the kernel families compiled in or runnable on
+ *  it. */
 void print_cuda_header() {
     cudaDeviceProp properties {};
     int device = 0;

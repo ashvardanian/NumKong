@@ -1,8 +1,8 @@
 /**
- *  @brief Batched Spatial Distances for NEON Signed/Unsigned Dot Product.
  *  @file include/numkong/spatials/neonsdot.h
  *  @author Ash Vardanian
  *  @date February 23, 2026
+ *  @brief Batched spatial distances for NEON signed/unsigned dot product.
  *
  *  @sa include/numkong/spatials.h
  */

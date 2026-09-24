@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
- * @brief Comprehensive dtype tests for NumKong JavaScript API
- * @file test/dtypes.mjs
- * @author Claude & Ash Vardanian
- * @date February 3, 2026
+ *  @file test/dtypes.mjs
+ *  @author Ash Vardanian
+ *  @date February 3, 2026
+ *  @brief Comprehensive dtype tests for NumKong JavaScript API.
  *
- * Tests all functions with all compatible data types across multiple dimensions.
+ *  Tests all functions with all compatible data types across multiple dimensions.
  */
 
 import { test } from "node:test";
@@ -18,13 +18,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const builddir = path.join(__dirname, ".."); // Root directory where binding.gyp is
 
-// Load NumKong native addon
+/** NumKong native addon. */
 const numkong = build(builddir);
 
-// Dtypes that require explicit dtype argument (not auto-detected from TypedArray type)
+/** DTypes that need an explicit dtype argument, as the TypedArray type does not reveal them. */
 const CUSTOM_DTYPES = new Set(["bf16", "f16", "e5m2", "e4m3", "e3m2", "e2m3"]);
 
-// Configuration from environment variables
+/** Configuration from environment variables. */
 const CONFIG = {
   seed: parseInt(process.env.NK_SEED || "42"),
   dimensions: process.env.NK_DENSE_DIMENSIONS
@@ -32,7 +32,7 @@ const CONFIG = {
     : [3, 16, 128, 1536],
 };
 
-// Test matrix configuration
+/** Test matrix configuration. */
 const TEST_MATRIX = {
   functions: {
     dot: ["f64", "f32", "bf16", "f16", "e5m2", "e4m3", "e3m2", "e2m3", "i8", "u8"],
@@ -48,8 +48,8 @@ const TEST_MATRIX = {
   dimensions: CONFIG.dimensions,
 };
 
-// Sub-byte packing ratio — mirrors nk_dimensions_per_value in types.h.
-// A single storage byte holds this many logical elements for the given dtype.
+/** Sub-byte packing ratio, equal to `nk_dimensions_per_value` in types.h. A single storage byte
+ *  holds this many logical elements for the given dtype. */
 function dimensionsPerValue(dtype) {
   switch (dtype) {
     case "u1":
@@ -62,13 +62,13 @@ function dimensionsPerValue(dtype) {
   }
 }
 
-// Round a logical dimension up to the nearest packed-value boundary.
+/** Rounds a logical dimension up to the nearest packed-value boundary. */
 function alignDimension(dimension, dtype) {
   const dpv = dimensionsPerValue(dtype);
   return Math.ceil(dimension / dpv) * dpv;
 }
 
-// Simple PRNG for reproducible tests
+/** Simple PRNG for reproducible tests. */
 class Random {
   constructor(seed) {
     this.seed = seed;
@@ -80,11 +80,9 @@ class Random {
   }
 }
 
-/**
- * @brief Generate test data for a specific dtype.
- * For custom dtypes (f16, bf16, e4m3, e5m2, e2m3, e3m2), generates f32 source data
- * and uses numkong.cast() to convert to the proper backing array type.
- */
+/** Generates test data for a specific dtype. For the custom dtypes f16, bf16, e4m3, e5m2, e2m3 and
+ *  e3m2, generates f32 source data and uses `numkong.cast()` to convert it to the proper backing
+ *  array type. */
 function generateTestData(dtype, length, seed = CONFIG.seed) {
   const rng = new Random(seed);
 
@@ -131,10 +129,8 @@ function generateTestData(dtype, length, seed = CONFIG.seed) {
   }
 }
 
-/**
- * @brief Generate positive probability-like data suitable for KLD/JSD.
- * Values are in [0.1, 1.0] range to avoid precision issues with narrow types.
- */
+/** Generates positive probability-like data suitable for KLD/JSD. Values are in the [0.1, 1.0]
+ *  range to avoid precision issues with narrow types. */
 function generateProbabilityData(dtype, length, seed = CONFIG.seed) {
   const rng = new Random(seed);
 
@@ -158,18 +154,14 @@ function generateProbabilityData(dtype, length, seed = CONFIG.seed) {
   }
 }
 
-/**
- * @brief Validate result is a valid number
- */
+/** Validates that the result is a finite number. */
 function validateResult(result, funcName, dtype) {
   assert.strictEqual(typeof result, "number", `${funcName}(${dtype}) should return a number`);
   assert.ok(!isNaN(result), `${funcName}(${dtype}) should not return NaN`);
   assert.ok(isFinite(result), `${funcName}(${dtype}) should return finite value`);
 }
 
-/**
- * @brief Expected result ranges for different functions
- */
+/** Checks the result against the expected range of each function. */
 function validateResultRange(result, funcName, dtype, dimension) {
   switch (funcName) {
     case "dot":
@@ -224,16 +216,12 @@ function validateResultRange(result, funcName, dtype, dimension) {
   }
 }
 
-/**
- * @brief Call a distance function, passing dtype as 3rd arg for custom types.
- */
+/** Calls a distance function, passing the dtype as the 3rd argument for custom types. */
 function callFunc(funcName, a, b, dtype) {
   return CUSTOM_DTYPES.has(dtype) ? numkong[funcName](a, b, dtype) : numkong[funcName](a, b);
 }
 
-/**
- * @brief Test determinism - same inputs should produce same output
- */
+/** Tests determinism: the same inputs should produce the same output. */
 function testDeterminism(funcName, dtype, dimension) {
   const a = genData(funcName, dtype, dimension, 123);
   const b = genData(funcName, dtype, dimension, 456);
@@ -244,9 +232,7 @@ function testDeterminism(funcName, dtype, dimension) {
   assert.strictEqual(result1, result2, `${funcName}(${dtype}, dim=${dimension}) should be deterministic`);
 }
 
-/**
- * @brief Test commutativity for symmetric functions
- */
+/** Tests commutativity of symmetric functions. */
 function testCommutativity(funcName, dtype, dimension) {
   // Only symmetric functions
   const symmetric = ["dot", "inner", "sqeuclidean", "euclidean", "hamming", "jaccard"];
@@ -268,9 +254,7 @@ function testCommutativity(funcName, dtype, dimension) {
   );
 }
 
-/**
- * @brief Test self-distance properties
- */
+/** Tests self-distance properties. */
 function testSelfDistance(funcName, dtype, dimension) {
   const a = genData(funcName, dtype, dimension, 111);
 
@@ -321,16 +305,16 @@ console.log(`  - ${Object.keys(TEST_MATRIX.functions).length} functions`);
 console.log(`  - ${new Set(Object.values(TEST_MATRIX.functions).flat()).size} data types`);
 console.log(`  - ${TEST_MATRIX.dimensions.length} dimension sizes\n`);
 
-// Known issues to skip:
-// - sqeuclidean/euclidean e4m3 < 16 dims: SIMD overread crash in kernel
-// - kld/jsd f16: precision loss causes NaN/Infinity with test data
+/** Known issues to skip:
+ *  - sqeuclidean/euclidean e4m3 below 16 dims: SIMD overread crash in kernel
+ *  - kld/jsd f16: precision loss causes NaN/Infinity with test data */
 function isKnownBroken(funcName, dtype, dimension) {
   if ((funcName === "sqeuclidean" || funcName === "euclidean") && dtype === "e4m3" && dimension < 16) return true;
   if ((funcName === "kullbackleibler" || funcName === "jensenshannon") && dtype === "f16") return true;
   return false;
 }
 
-// Divergence functions need probability-like (positive) test data
+/** Divergence functions need positive, probability-like test data. */
 const DIVERGENCE_FUNCS = new Set(["kullbackleibler", "jensenshannon"]);
 function genData(funcName, dtype, length, seed) {
   return DIVERGENCE_FUNCS.has(funcName)
@@ -361,7 +345,7 @@ for (const [funcName, supportedDTypes] of Object.entries(TEST_MATRIX.functions))
         testDeterminism(funcName, dtype, dimension);
       });
 
-      // Test 3: Commutativity (for symmetric functions)
+      // Test 3: Commutativity of symmetric functions
       test(`${funcName}(${dtype}, dim=${dimension}): commutativity`, () => {
         testCommutativity(funcName, dtype, dimension);
       });
@@ -379,7 +363,7 @@ test("Edge case: empty vectors", () => {
   const a = new Float32Array(0);
   const b = new Float32Array(0);
 
-  // Should handle gracefully (may throw or return 0)
+  // Should handle gracefully, either throwing or returning 0
   try {
     const result = numkong.dot(a, b);
     assert.ok(typeof result === "number");

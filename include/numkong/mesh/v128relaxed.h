@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Point Cloud Alignment for WASM Relaxed SIMD.
  *  @file include/numkong/mesh/v128relaxed.h
  *  @author Ash Vardanian
  *  @date March 10, 2026
+ *  @brief SIMD-accelerated point cloud alignment for WASM Relaxed SIMD.
  *
  *  @sa include/numkong/mesh.h
  *
@@ -10,21 +10,23 @@
  *
  *  Point cloud operations use these WASM Relaxed SIMD instructions:
  *
- *      Intrinsic                       Operation
- *      wasm_f32x4_relaxed_madd         Fused multiply-add (4-way f32)
- *      wasm_f64x2_relaxed_madd         Fused multiply-add (2-way f64)
- *      wasm_f32x4_mul                  Multiply (4-way f32)
- *      wasm_f64x2_mul                  Multiply (2-way f64)
- *      wasm_f32x4_add/sub              Add/subtract (4-way f32)
- *      wasm_f64x2_add/sub              Add/subtract (2-way f64)
- *      wasm_f32x4_splat                Broadcast scalar to all lanes
- *      wasm_f64x2_splat                Broadcast scalar to all lanes
- *      wasm_i32x4_shuffle              Cross-vector lane permutation (f32)
- *      wasm_i64x2_shuffle              Cross-vector lane permutation (f64)
+ *  @verbatim
+ *  Intrinsic                       Operation
+ *  wasm_f32x4_relaxed_madd         Fused multiply-add (4-way f32)
+ *  wasm_f64x2_relaxed_madd         Fused multiply-add (2-way f64)
+ *  wasm_f32x4_mul                  Multiply (4-way f32)
+ *  wasm_f64x2_mul                  Multiply (2-way f64)
+ *  wasm_f32x4_add/sub              Add/subtract (4-way f32)
+ *  wasm_f64x2_add/sub              Add/subtract (2-way f64)
+ *  wasm_f32x4_splat                Broadcast scalar to all lanes
+ *  wasm_f64x2_splat                Broadcast scalar to all lanes
+ *  wasm_i32x4_shuffle              Cross-vector lane permutation (f32)
+ *  wasm_i64x2_shuffle              Cross-vector lane permutation (f64)
+ *  @endverbatim
  *
- *  WASM lacks hardware stride-3 deinterleaving (no LD3 equivalent), so XYZ
- *  deinterleaving is done via shuffle chains. No dual-accumulator unrolling is
- *  used since WASM engines already handle instruction scheduling.
+ *  WASM lacks hardware stride-3 deinterleaving, no LD3 equivalent, so XYZ deinterleaving is done
+ *  via shuffle chains. No dual-accumulator unrolling is used since WASM engines already handle
+ *  instruction scheduling.
  */
 #ifndef NK_MESH_V128RELAXED_H
 #define NK_MESH_V128RELAXED_H

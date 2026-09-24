@@ -1,8 +1,8 @@
 /**
- *  @brief Batched Set Operations for Power VSX.
  *  @file include/numkong/sets/powervsx.h
  *  @author Ash Vardanian
  *  @date March 23, 2026
+ *  @brief Batched set operations for Power VSX.
  *
  *  @sa include/numkong/sets.h
  */

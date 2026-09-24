@@ -1,22 +1,22 @@
 /**
- *  @brief Ragged attention for Diamond Rapids AMX — E4M3 (FP8) variant only.
  *  @file include/numkong/attention/diamondamx.h
  *  @author Ash Vardanian
  *  @date July 7, 2026
+ *  @brief Ragged attention for Diamond Rapids AMX — the FP8 E4M3 variant only.
  *
  *  @sa include/numkong/attention.h
  *
  *  Diamond Rapids AMX debuts ~2027. This backend provides only the E4M3 variant: Diamond's
- *  differentiator over Sapphire Rapids is native FP8 (`_tile_dphf8ps`), whereas its I8/BF16
- *  tile pipelines are near-clones of `attention/sapphireamx.h` (same TDPBSSD/TDPBUSD/TDPBF16PS)
+ *  differentiator over Sapphire Rapids is native FP8, via @c _tile_dphf8ps, whereas its I8/BF16
+ *  tile pipelines are near-clones of `attention/sapphireamx.h`, the same TDPBSSD/TDPBUSD/TDPBF16PS,
  *  and are served there. It keeps the Sapphire Rapids panel-flash structure — 2×2 register
- *  blocking, KV-reuse chunking, and the base-2 streaming softmax reused from the Skylake tier —
- *  and layers on Diamond's two upgrades:
+ *  blocking, KV-reuse chunking, and the base-2 streaming softmax reused from the Skylake tier — and
+ *  layers on Diamond's two upgrades:
  *
- *  - Accumulator tiles drain straight into ZMMs with a tile-row move instead of a
- *    `_tile_stored` memory round-trip: `_tile_movrow` casts an FP32-accumulator row into a ZMM
- *    (`_tile_cvtrowd2ps` for the INT32→FP32 case).
- *  - E4M3 runs natively through `_tile_dphf8ps` on raw E4M3 tiles — quad-interleaved like the I8
+ *  - Accumulator tiles drain straight into ZMMs with a tile-row move instead of a @c _tile_stored
+ *    memory round-trip: @c _tile_movrow casts an FP32-accumulator row into a ZMM,
+ *    @c _tile_cvtrowd2ps for the INT32 → FP32 case.
+ *  - E4M3 runs natively through @c _tile_dphf8ps on raw E4M3 tiles — quad-interleaved like the I8
  *    layout, so the packed KV blob is half the Sapphire Rapids BF16-widened size — with softmax
  *    probabilities quantized to E4M3.
  *

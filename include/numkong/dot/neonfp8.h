@@ -1,22 +1,24 @@
 /**
- *  @brief SIMD-accelerated Dot Products for NEON FP8DOT4.
  *  @file include/numkong/dot/neonfp8.h
  *  @author Ash Vardanian
  *  @date March 23, 2026
+ *  @brief SIMD-accelerated dot products for NEON FP8DOT4.
  *
  *  @sa include/numkong/dot.h
  *
  *  @section dot_neonfp8_instructions ARM NEON FP8DOT4 Instructions (FEAT_FP8DOT4)
  *
- *      Intrinsic          Instruction                V1
- *      vdotq_f32_mf8      FDOT (V.4S, V.16B, V.16B)  4cy @ 2p
- *      vld1q_u8           LD1 (V.16B)                4cy @ 2p
- *      vaddvq_f32         FADDP+FADDP (V.4S)         4cy @ 1p
- *      vpaddq_f32         FADDP (V.4S, V.4S, V.4S)   2cy @ 2p
+ *  @verbatim
+ *  Intrinsic          Instruction                V1
+ *  vdotq_f32_mf8      FDOT (V.4S, V.16B, V.16B)  4cy @ 2p
+ *  vld1q_u8           LD1 (V.16B)                4cy @ 2p
+ *  vaddvq_f32         FADDP+FADDP (V.4S)         4cy @ 1p
+ *  vpaddq_f32         FADDP (V.4S, V.4S, V.4S)   2cy @ 2p
+ *  @endverbatim
  *
  *  FEAT_FP8DOT4 adds NEON FDOT instructions that take two 128-bit vectors of FP8 (E4M3 or E5M2),
- *  perform 4-way multiply-accumulate into FP32 per lane. Each FDOT processes 16 FP8 elements
- *  into 4 FP32 accumulators. The FP8 format is selected by the FPMR register.
+ *  perform 4-way multiply-accumulate into FP32 per lane. Each FDOT processes 16 FP8 elements into 4
+ *  FP32 accumulators. The FP8 format is selected by the FPMR register.
  *
  *  FP6 types (E2M3, E3M2) are losslessly promoted to FP8 (E4M3, E5M2) by rebiasing the exponent.
  *  Normal values: magnitude += 48. Subnormal values (exp=0): 8-entry or 4-entry TBL lookup.
@@ -37,9 +39,10 @@
 #include "numkong/types.h"
 #include "numkong/cast/serial.h" // `nk_partial_load_b8x16_serial_`
 
-/** @brief FPM immediate for E4M3 × E4M3 dot products: src1=E4M3(1), src2=E4M3(1). */
+/** FPM immediate for E4M3 × E4M3 dot products: src1=E4M3(1), src2=E4M3(1). */
 #define NK_FPM_E4M3_ ((fpm_t)((1ull << 0) | (1ull << 3)))
-/** @brief FPM immediate for E5M2 × E5M2 dot products: src1=E5M2(0), src2=E5M2(0). */
+
+/** FPM immediate for E5M2 × E5M2 dot products: src1=E5M2(0), src2=E5M2(0). */
 #define NK_FPM_E5M2_ ((fpm_t)0)
 
 #if defined(__cplusplus)

@@ -1,21 +1,23 @@
 /**
- *  @brief SIMD-accelerated Spatial Similarity Measures for NEON BF16.
  *  @file include/numkong/spatial/neonbfdot.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated spatial similarity measures for NEON BF16.
  *
  *  @sa include/numkong/spatial.h
  *
  *  @section spatial_neonbfdot_instructions ARM NEON BF16 Instructions (ARMv8.6-BF16)
  *
- *      Intrinsic      Instruction               A76       M5
- *      vbfdotq_f32    BFDOT (V.4S, V.8H, V.8H)  3cy @ 2p  2cy @ 1p
- *      vcvt_f32_bf16  BFCVTN (V.4H, V.4S)       3cy @ 2p  3cy @ 4p
- *      vld1q_bf16     LD1 (V.8H)                4cy @ 2p  4cy @ 3p
- *      vsubq_f32      FSUB (V.4S, V.4S, V.4S)   2cy @ 2p  2cy @ 4p
- *      vfmaq_f64      FMLA (V.2D, V.2D, V.2D)   4cy @ 2p  3cy @ 4p
- *      vaddvq_f32     FADDP+FADDP (V.4S)        5cy @ 1p  8cy @ 1p
- *      vaddvq_f64     FADDP (V.2D)              3cy @ 1p  3cy @ 2p
+ *  @verbatim
+ *  Intrinsic      Instruction               A76       M5
+ *  vbfdotq_f32    BFDOT (V.4S, V.8H, V.8H)  3cy @ 2p  2cy @ 1p
+ *  vcvt_f32_bf16  BFCVTN (V.4H, V.4S)       3cy @ 2p  3cy @ 4p
+ *  vld1q_bf16     LD1 (V.8H)                4cy @ 2p  4cy @ 3p
+ *  vsubq_f32      FSUB (V.4S, V.4S, V.4S)   2cy @ 2p  2cy @ 4p
+ *  vfmaq_f64      FMLA (V.2D, V.2D, V.2D)   4cy @ 2p  3cy @ 4p
+ *  vaddvq_f32     FADDP+FADDP (V.4S)        5cy @ 1p  8cy @ 1p
+ *  vaddvq_f64     FADDP (V.2D)              3cy @ 1p  3cy @ 2p
+ *  @endverbatim
  *
  *  The ARMv8.6-BF16 extension provides BFDOT for accelerated dot products on BF16 data, useful for
  *  angular distance (cosine similarity) computations. BF16's larger exponent range (matching FP32)

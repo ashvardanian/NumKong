@@ -1,14 +1,16 @@
-//  MaxSim.swift
-//  NumKong
 //
-//  Created by Ash Vardanian on March 14, 2026.
+//  swift/MaxSim.swift
+//  Protocol and conformances for late-interaction MaxSim scoring over packed matrices.
+//
+//  - Author: Ash Vardanian
+//  - Date: March 14, 2026
 //
 
 import CNumKong
 
 // MARK: - MaxSim Protocol
 
-/// Element type that supports MaxSim (late-interaction) scoring with packed representations.
+/// Element type that supports late-interaction MaxSim scoring with packed representations.
 public protocol NumKongMaxSimElement {
     associatedtype MaxSimOutput
     static func _nk_maxsim_pack_size(_ vectors: Int, _ depth: Int) -> Int
@@ -56,7 +58,7 @@ public final class MaxSimPackedMatrix<Element: NumKongMaxSimElement>: @unchecked
         self.init(vectors: matrix.rows, depth: matrix.cols, byteCount: bytes, rawPointer: ptr)
     }
 
-    /// Computes the MaxSim score between this (query) and a document's packed matrix.
+    /// Computes the MaxSim score between this query and a document's packed matrix.
     public func score(_ document: MaxSimPackedMatrix<Element>) -> Element.MaxSimOutput {
         let ptr = UnsafeMutablePointer<Element.MaxSimOutput>.allocate(capacity: 1)
         let raw = UnsafeMutableRawPointer(ptr)
@@ -73,7 +75,7 @@ public final class MaxSimPackedMatrix<Element: NumKongMaxSimElement>: @unchecked
         return ptr.pointee
     }
 
-    /// Reads the packed vector-set shape (vectors, depth) back from the buffer's self-describing header.
+    /// Reads the packed shape, __[vectors,depth]__, from the buffer's self-describing header.
     public var shape: (vectors: Int, depth: Int) {
         var v = 0
         var d = 0

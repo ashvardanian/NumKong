@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Test elementwise operations: nk.scale, nk.add, nk.blend, nk.fma, nk.multiply.
 
-Dtypes: float64, float32, float16, int8, uint8.
+DTypes: float64, float32, float16, int8, uint8.
 Baselines: high-precision Decimal per-element, NumPy at native precision.
 Matches C++ suite: test/each.cpp.
+
+File: test/each.py
+Author: Ash Vardanian
+Date: February 27, 2026
 """
 
 import atexit
@@ -66,11 +70,12 @@ def normalize_elementwise(r, dtype_new):
     return r.astype(dtype_new)
 
 
-# Elementwise ops are shape-invariant: sweep a couple of rank-N shapes (NumPy-only — the Decimal
-# baseline and the flattening below need it) alongside the 1-D `dense_dimensions`, so the N-D chunk
-# walkers are exercised. The baselines run on the flattened data; the SIMD op runs on the real
-# rank-N tensor and its result is flattened for comparison.
 elementwise_shapes = [(d,) for d in dense_dimensions] + ([(6, 8), (4, 5, 3)] if numpy_available else [])
+"""Elementwise ops are shape-invariant: sweep a couple of rank-N shapes (NumPy-only — the Decimal
+baseline and the flattening below need it) alongside the 1-D `dense_dimensions`, so the N-D chunk
+walkers are exercised. The baselines run on the flattened data; the SIMD op runs on the real
+rank-N tensor and its result is flattened for comparison.
+"""
 
 
 def flatten_for_baseline(x):

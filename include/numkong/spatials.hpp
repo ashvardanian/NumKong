@@ -1,8 +1,8 @@
 /**
- *  @brief C++ wrappers for SIMD-accelerated Batched Spatial Distance Matrices.
  *  @file include/numkong/spatials.hpp
  *  @author Ash Vardanian
  *  @date March 2026
+ *  @brief C++ wrappers for SIMD-accelerated batched spatial distance matrices.
  */
 #ifndef NK_SPATIALS_HPP
 #define NK_SPATIALS_HPP
@@ -19,14 +19,14 @@ namespace ashvardanian::numkong {
 
 /**
  *  @brief Symmetric angular distance matrix: C[i,j] = angular(A[i], A[j])
- *  @param[in] a Matrix A [vectors_count x depth]
- *  @param[in] vectors_count Number of vectors (n)
+ *  @param[in] a Matrix A, shape @b [vectors_count,depth]
+ *  @param[in] vectors_count Number of vectors, n
  *  @param[in] depth Counts dimensions, a multiple of the values per byte.
  *  @param[in] a_stride_in_bytes Stride between vectors in A
- *  @param[out] c Output matrix C [n x n]
+ *  @param[out] c Output matrix C, shape @b [n,n]
  *  @param[in] c_stride_in_bytes Stride between rows of C in bytes
- *  @param[in] row_start Starting row index (default 0)
- *  @param[in] row_count Number of rows to compute (default all)
+ *  @param[in] row_start Starting row index, default 0
+ *  @param[in] row_count Number of rows to compute, default all
  *
  *  @tparam in_type_ Input element type
  *  @tparam result_type_ Output type, defaults to `in_type_::angular_result_t`
@@ -107,14 +107,14 @@ void angulars_symmetric(in_type_ const *a, std::size_t vectors_count, std::size_
 
 /**
  *  @brief Symmetric Euclidean distance matrix: C[i,j] = euclidean(A[i], A[j])
- *  @param[in] a Matrix A [vectors_count x depth]
- *  @param[in] vectors_count Number of vectors (n)
+ *  @param[in] a Matrix A, shape @b [vectors_count,depth]
+ *  @param[in] vectors_count Number of vectors, n
  *  @param[in] depth Counts dimensions, a multiple of the values per byte.
  *  @param[in] a_stride_in_bytes Stride between vectors in A
- *  @param[out] c Output matrix C [n x n]
+ *  @param[out] c Output matrix C, shape @b [n,n]
  *  @param[in] c_stride_in_bytes Stride between rows of C in bytes
- *  @param[in] row_start Starting row index (default 0)
- *  @param[in] row_count Number of rows to compute (default all)
+ *  @param[in] row_start Starting row index, default 0
+ *  @param[in] row_count Number of rows to compute, default all
  *
  *  @tparam in_type_ Input element type
  *  @tparam result_type_ Output type, defaults to `in_type_::euclidean_result_t`
@@ -190,12 +190,12 @@ void euclideans_symmetric(in_type_ const *a, std::size_t vectors_count, std::siz
 
 /**
  *  @brief Packed angular distances: C = angular(A, B_packed)
- *  @param[in] a Matrix A [row_count x depth]
- *  @param[in] b_packed Packed B matrix (produced by nk_dots_pack_*)
- *  @param[out] c Output matrix C [row_count x column_count]
- *  @param[in] row_count Rows of A and C (m)
- *  @param[in] column_count Columns of B and C (n)
- *  @param[in] depth Shared inner dimension (k). Counts dimensions, a multiple of the values per byte.
+ *  @param[in] a Matrix A, shape @b [row_count,depth]
+ *  @param[in] b_packed Packed B matrix, produced by nk_dots_pack_*
+ *  @param[out] c Output matrix C, shape @b [row_count,column_count]
+ *  @param[in] row_count Rows of A and C, m
+ *  @param[in] column_count Columns of B and C, n
+ *  @param[in] depth Shared inner dimension, k, in multiples of the values per byte.
  *  @param[in] a_stride_in_bytes Stride between rows of A in bytes
  *  @param[in] c_stride_in_bytes Stride between rows of C in bytes
  *
@@ -283,12 +283,12 @@ void angulars_packed(in_type_ const *a, void const *b_packed, result_type_ *c, s
 
 /**
  *  @brief Packed Euclidean distances: C = euclidean(A, B_packed)
- *  @param[in] a Matrix A [row_count x depth]
- *  @param[in] b_packed Packed B matrix (produced by nk_dots_pack_*)
- *  @param[out] c Output matrix C [row_count x column_count]
- *  @param[in] row_count Rows of A and C (m)
- *  @param[in] column_count Columns of B and C (n)
- *  @param[in] depth Shared inner dimension (k). Counts dimensions, a multiple of the values per byte.
+ *  @param[in] a Matrix A, shape @b [row_count,depth]
+ *  @param[in] b_packed Packed B matrix, produced by nk_dots_pack_*
+ *  @param[out] c Output matrix C, shape @b [row_count,column_count]
+ *  @param[in] row_count Rows of A and C, m
+ *  @param[in] column_count Columns of B and C, n
+ *  @param[in] depth Shared inner dimension, k, in multiples of the values per byte.
  *  @param[in] a_stride_in_bytes Stride between rows of A in bytes
  *  @param[in] c_stride_in_bytes Stride between rows of C in bytes
  *
@@ -376,7 +376,7 @@ namespace ashvardanian::numkong {
 
 #pragma region Concept Constrained Symmetric Spatial Distances
 
-/** @brief Symmetric angular distances: C[i,j] = angular(A[i], A[j]). */
+/** Symmetric angular distances: C[i,j] = angular(A[i], A[j]). */
 template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
           mutable_matrix_of<typename value_type_::angular_result_t> output_matrix_>
 bool angulars_symmetric(input_matrix_ const &input, output_matrix_ &&output) noexcept {
@@ -388,7 +388,7 @@ bool angulars_symmetric(input_matrix_ const &input, output_matrix_ &&output) noe
     return true;
 }
 
-/** @brief Allocating symmetric angular distances. */
+/** Allocating symmetric angular distances. */
 template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
           typename allocator_type_ = aligned_allocator<typename value_type_::angular_result_t>>
 matrix<typename value_type_::angular_result_t, allocator_type_> try_angulars_symmetric(
@@ -403,7 +403,7 @@ matrix<typename value_type_::angular_result_t, allocator_type_> try_angulars_sym
     return result;
 }
 
-/** @brief Symmetric Euclidean distances: C[i,j] = euclidean(A[i], A[j]). */
+/** Symmetric Euclidean distances: C[i,j] = euclidean(A[i], A[j]). */
 template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
           mutable_matrix_of<typename value_type_::euclidean_result_t> output_matrix_>
 bool euclideans_symmetric(input_matrix_ const &input, output_matrix_ &&output) noexcept {
@@ -415,7 +415,7 @@ bool euclideans_symmetric(input_matrix_ const &input, output_matrix_ &&output) n
     return true;
 }
 
-/** @brief Allocating symmetric Euclidean distances. */
+/** Allocating symmetric Euclidean distances. */
 template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
           typename allocator_type_ = aligned_allocator<typename value_type_::euclidean_result_t>>
 matrix<typename value_type_::euclidean_result_t, allocator_type_> try_euclideans_symmetric(
@@ -430,7 +430,7 @@ matrix<typename value_type_::euclidean_result_t, allocator_type_> try_euclideans
     return result;
 }
 
-/** @brief Partitioned symmetric angular distances for parallel row-range work. */
+/** Partitioned symmetric angular distances for parallel row-range work. */
 template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
           mutable_matrix_of<typename value_type_::angular_result_t> output_matrix_>
 bool angulars_symmetric(input_matrix_ const &input, output_matrix_ &&output, std::size_t row_start,
@@ -443,7 +443,7 @@ bool angulars_symmetric(input_matrix_ const &input, output_matrix_ &&output, std
     return true;
 }
 
-/** @brief Partitioned symmetric Euclidean distances for parallel row-range work. */
+/** Partitioned symmetric Euclidean distances for parallel row-range work. */
 template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
           mutable_matrix_of<typename value_type_::euclidean_result_t> output_matrix_>
 bool euclideans_symmetric(input_matrix_ const &input, output_matrix_ &&output, std::size_t row_start,
@@ -460,7 +460,7 @@ bool euclideans_symmetric(input_matrix_ const &input, output_matrix_ &&output, s
 
 #pragma region Concept Constrained Packed Spatial Distances
 
-/** @brief Packed angular distances: C = angular(A, B_packed). */
+/** Packed angular distances: C = angular(A, B_packed). */
 template <numeric_dtype value_type_, packed_matrix_like packed_type_, const_matrix_of<value_type_> input_matrix_,
           mutable_matrix_of<typename value_type_::angular_result_t> output_matrix_>
 bool angulars_packed(input_matrix_ const &a, packed_type_ const &packed_b, output_matrix_ &&c) noexcept {
@@ -473,7 +473,7 @@ bool angulars_packed(input_matrix_ const &a, packed_type_ const &packed_b, outpu
     return true;
 }
 
-/** @brief Allocating packed angular distances. */
+/** Allocating packed angular distances. */
 template <numeric_dtype value_type_, packed_matrix_like packed_type_, const_matrix_of<value_type_> input_matrix_,
           typename allocator_type_ = aligned_allocator<typename value_type_::angular_result_t>>
 matrix<typename value_type_::angular_result_t, allocator_type_> try_angulars_packed(
@@ -487,7 +487,7 @@ matrix<typename value_type_::angular_result_t, allocator_type_> try_angulars_pac
     return c;
 }
 
-/** @brief Packed Euclidean distances: C = euclidean(A, B_packed). */
+/** Packed Euclidean distances: C = euclidean(A, B_packed). */
 template <numeric_dtype value_type_, packed_matrix_like packed_type_, const_matrix_of<value_type_> input_matrix_,
           mutable_matrix_of<typename value_type_::euclidean_result_t> output_matrix_>
 bool euclideans_packed(input_matrix_ const &a, packed_type_ const &packed_b, output_matrix_ &&c) noexcept {
@@ -500,7 +500,7 @@ bool euclideans_packed(input_matrix_ const &a, packed_type_ const &packed_b, out
     return true;
 }
 
-/** @brief Allocating packed Euclidean distances. */
+/** Allocating packed Euclidean distances. */
 template <numeric_dtype value_type_, packed_matrix_like packed_type_, const_matrix_of<value_type_> input_matrix_,
           typename allocator_type_ = aligned_allocator<typename value_type_::euclidean_result_t>>
 matrix<typename value_type_::euclidean_result_t, allocator_type_> try_euclideans_packed(

@@ -1,8 +1,8 @@
 /**
- *  @brief Sparse operations benchmarks (sparse_intersect).
  *  @file bench/sparse.cpp
  *  @author Ash Vardanian
  *  @date March 14, 2023
+ *  @brief Sparse operations benchmarks, sparse_intersect.
  */
 
 #include "numkong/sparse.h"
@@ -12,12 +12,12 @@
 using namespace ashvardanian::numkong::bench;
 
 /**
- *  @brief Measures the performance of a @b sparse (set intersection) kernel function using Google Benchmark.
- *  @param state The benchmark state object provided by Google Benchmark.
- *  @param kernel The kernel function to benchmark.
- *  @param first_size The number of elements in the first (smaller) set.
- *  @param second_size The number of elements in the second (larger) set.
- *  @param intersection_size The expected number of common elements between the sets.
+ *  @brief Measures a @b sparse kernel, set intersection, using Google Benchmark.
+ *  @param[inout] state The benchmark state object provided by Google Benchmark.
+ *  @param[in] kernel The kernel function to benchmark.
+ *  @param[in] first_size The number of elements in the first, smaller, set.
+ *  @param[in] second_size The number of elements in the second, larger, set.
+ *  @param[in] intersection_size The expected number of common elements between the sets.
  */
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
 void measure_sparse(bm::State &state, kernel_type_ kernel, std::size_t first_size, std::size_t second_size,
@@ -104,12 +104,12 @@ void bench_sparse() {
 }
 
 /**
- *  @brief Measures the performance of a @b sparse dot-product kernel function using Google Benchmark.
- *  @param state The benchmark state object provided by Google Benchmark.
- *  @param kernel The kernel function to benchmark.
- *  @param first_size The number of elements in the first (smaller) set.
- *  @param second_size The number of elements in the second (larger) set.
- *  @param intersection_size The expected number of common elements between the sets.
+ *  @brief Measures a @b sparse dot-product kernel using Google Benchmark.
+ *  @param[inout] state The benchmark state object provided by Google Benchmark.
+ *  @param[in] kernel The kernel function to benchmark.
+ *  @param[in] first_size The number of elements in the first, smaller, set.
+ *  @param[in] second_size The number of elements in the second, larger, set.
+ *  @param[in] intersection_size The expected number of common elements between the sets.
  */
 template <nk_dtype_t index_dtype_, nk_dtype_t weight_dtype_, typename kernel_type_ = void>
 void measure_sparse_dot(bm::State &state, kernel_type_ kernel, std::size_t first_size, std::size_t second_size,

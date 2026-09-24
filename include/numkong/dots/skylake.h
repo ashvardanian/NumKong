@@ -1,22 +1,24 @@
 /**
- *  @brief SIMD-accelerated Batched Dot Products for Skylake.
  *  @file include/numkong/dots/skylake.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated Batched Dot Products for Skylake.
  *
  *  @sa include/numkong/dots.h
  *
  *  @section skylake_dots_instructions Relevant Instructions
  *
- *      Intrinsic        Instruction                  SKL        ICL        Genoa
- *      _mm512_fmadd_ps  VFMADD132PS (ZMM, ZMM, ZMM)  4cy @ p05  4cy @ p05  4cy @ p01
- *      _mm512_fmadd_pd  VFMADD132PD (ZMM, ZMM, ZMM)  4cy @ p05  4cy @ p05  4cy @ p01
- *      _mm512_cvtph_ps  VCVTPH2PS (ZMM, YMM)         5cy @ p05  5cy @ p05  5cy @ p01
- *      _mm512_loadu_ps  VMOVUPS (ZMM, M512)          7cy @ p23  7cy @ p23  7cy @ p23
+ *  @verbatim
+ *  Intrinsic        Instruction                  SKL        ICL        Genoa
+ *  _mm512_fmadd_ps  VFMADD132PS (ZMM, ZMM, ZMM)  4cy @ p05  4cy @ p05  4cy @ p01
+ *  _mm512_fmadd_pd  VFMADD132PD (ZMM, ZMM, ZMM)  4cy @ p05  4cy @ p05  4cy @ p01
+ *  _mm512_cvtph_ps  VCVTPH2PS (ZMM, YMM)         5cy @ p05  5cy @ p05  5cy @ p01
+ *  _mm512_loadu_ps  VMOVUPS (ZMM, M512)          7cy @ p23  7cy @ p23  7cy @ p23
+ *  @endverbatim
  *
  *  GEMM micro-kernels tile the K dimension to maximize FMA throughput. Skylake-X server chips with
- *  dual FMA units achieve 0.5cy throughput, enabling 32 FLOPs/cycle for f32 or 16 FLOPs/cycle for f64.
- *  FP8 types (E4M3, E5M2) convert to f32 for accumulation, adding ~5cy latency per conversion.
+ *  dual FMA units achieve 0.5cy throughput, enabling 32 FLOPs/cycle for f32 or 16 FLOPs/cycle for
+ *  f64. FP8 types, E4M3 and E5M2, convert to f32 first, costing ~5cy of extra latency each.
  */
 #ifndef NK_DOTS_SKYLAKE_H
 #define NK_DOTS_SKYLAKE_H

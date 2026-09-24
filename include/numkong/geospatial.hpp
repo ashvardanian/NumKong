@@ -1,8 +1,8 @@
 /**
- *  @brief Geospatial kernels: haversine, vincenty.
  *  @file include/numkong/geospatial.hpp
  *  @author Ash Vardanian
  *  @date February 5, 2026
+ *  @brief Geospatial kernels: haversine, vincenty.
  */
 #ifndef NK_GEOSPATIAL_HPP
 #define NK_GEOSPATIAL_HPP
@@ -18,8 +18,10 @@ namespace ashvardanian::numkong {
 
 /**
  *  @brief Batched Haversine: 2R × arcsin(√(sin²(Δφ/2) + cos φ₁ × cos φ₂ × sin²(Δλ/2)))
- *  @param[in] a_lats,a_lons Arrays of latitudes/longitudes for first points (radians)
- *  @param[in] b_lats,b_lons Arrays of latitudes/longitudes for second points (radians)
+ *  @param[in] a_lats Latitudes of the first points (radians)
+ *  @param[in] a_lons Longitudes of the first points (radians)
+ *  @param[in] b_lats Latitudes of the second points (radians)
+ *  @param[in] b_lons Longitudes of the second points (radians)
  *  @param[in] d Number of point pairs
  *  @param[out] results Output array of distances (meters)
  *
@@ -74,8 +76,10 @@ void haversine(in_type_ const *a_lats, in_type_ const *a_lons, in_type_ const *b
 
 /**
  *  @brief Batched Vincenty distance (geodesic on WGS-84 ellipsoid)
- *  @param[in] a_lats,a_lons Arrays of latitudes/longitudes for first points (radians)
- *  @param[in] b_lats,b_lons Arrays of latitudes/longitudes for second points (radians)
+ *  @param[in] a_lats Latitudes of the first points (radians)
+ *  @param[in] a_lons Longitudes of the first points (radians)
+ *  @param[in] b_lats Latitudes of the second points (radians)
+ *  @param[in] b_lons Longitudes of the second points (radians)
  *  @param[in] d Number of point pairs
  *  @param[out] results Output array of distances (meters)
  *

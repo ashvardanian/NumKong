@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Scalar Math Helpers for RISC-V.
  *  @file include/numkong/scalar/rvv.h
  *  @author Ash Vardanian
  *  @date March 1, 2026
+ *  @brief SIMD-accelerated scalar math helpers for RISC-V.
  *
  *  @sa include/numkong/scalar.h
  *

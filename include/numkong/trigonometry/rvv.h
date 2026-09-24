@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Trigonometric Functions for RISC-V.
  *  @file include/numkong/trigonometry/rvv.h
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief SIMD-accelerated trigonometric functions for RISC-V.
  *
  *  @sa include/numkong/trigonometry.h
  *  @see https://sleef.org
@@ -15,24 +15,26 @@
  *  F64 sin/cos use 8-term Estrin-style evaluation for better ILP with high-low pi splitting.
  *  F64 atan uses a 19-term Horner polynomial for full double-precision accuracy.
  *
- *  F16 variants convert to f32 (m2) via nk_f16m1_to_f32m2_rvv_, compute in f32, then convert
- *  back via nk_f32m2_to_f16m1_rvv_.
+ *  F16 variants convert to f32 at m2 via nk_f16m1_to_f32m2_rvv_, compute in f32, then convert back
+ *  via nk_f32m2_to_f16m1_rvv_.
  *
- *  Sign flipping for sin/cos uses XOR with the low bit of the integer quotient shifted to the
- *  sign position, avoiding branch-based selection. Atan uses vmerge for conditional blend.
+ *  Sign flipping for sin/cos uses XOR with the low bit of the integer quotient shifted to the sign
+ *  position, avoiding branch-based selection. Atan uses vmerge for conditional blend.
  *
  *  @section rvv_trig_instructions Key RVV Trigonometry Instructions
  *
- *      Intrinsic                               Purpose
- *      __riscv_vfmadd_vv_f32m4                 FMA: a = a*b + c (Horner step)
- *      __riscv_vfmacc_vv_f32m4                 FMA: a = b*c + a (accumulate form)
- *      __riscv_vfnmsac_vf_f32m4                FNMS: a = a - b*c (range reduction)
- *      __riscv_vfcvt_x_f_v_i32m4              Round-to-nearest float → int
- *      __riscv_vfcvt_f_x_v_f32m4              Int → float conversion
- *      __riscv_vfabs_v_f32m4                   Absolute value
- *      __riscv_vmerge_vvm_f32m4                Conditional select (blend)
- *      __riscv_vfrdiv_vf_f32m4                 Scalar / vector division (reciprocal)
- *      __riscv_vfdiv_vv_f32m4                  Vector / vector division
+ *  @verbatim
+ *  Intrinsic                               Purpose
+ *  __riscv_vfmadd_vv_f32m4                 FMA: a = a*b + c (Horner step)
+ *  __riscv_vfmacc_vv_f32m4                 FMA: a = b*c + a (accumulate form)
+ *  __riscv_vfnmsac_vf_f32m4                FNMS: a = a - b*c (range reduction)
+ *  __riscv_vfcvt_x_f_v_i32m4              Round-to-nearest float → int
+ *  __riscv_vfcvt_f_x_v_f32m4              Int → float conversion
+ *  __riscv_vfabs_v_f32m4                   Absolute value
+ *  __riscv_vmerge_vvm_f32m4                Conditional select (blend)
+ *  __riscv_vfrdiv_vf_f32m4                 Scalar / vector division (reciprocal)
+ *  __riscv_vfdiv_vv_f32m4                  Vector / vector division
+ *  @endverbatim
  */
 #ifndef NK_TRIGONOMETRY_RVV_H
 #define NK_TRIGONOMETRY_RVV_H

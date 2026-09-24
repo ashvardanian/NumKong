@@ -1,4 +1,9 @@
-/* NumKong ISA probe: NEON BF16 (ARMv8.6-A bfloat16 dot product) */
+/**
+ *  @file probes/arm_neon_bfdot.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for ARMv8.6-A NEON bfloat16 dot products.
+ */
 #include <arm_neon.h>
 int main(void) {
     bfloat16x8_t a = vdupq_n_bf16(1.0f);

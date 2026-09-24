@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Dot Products for RISC-V.
  *  @file include/numkong/dot/rvv.h
  *  @author Ash Vardanian
  *  @date January 5, 2026
+ *  @brief SIMD-accelerated dot products for RISC-V.
  *
  *  @sa include/numkong/dot.h
  *

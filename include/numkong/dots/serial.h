@@ -1,8 +1,8 @@
 /**
- *  @brief SWAR-accelerated Batched Dot Products for SIMD-free CPUs.
  *  @file include/numkong/dots/serial.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SWAR-accelerated Batched Dot Products for SIMD-free CPUs.
  *
  *  @sa include/numkong/dots.h for API overview and use cases
  *
@@ -13,7 +13,7 @@
  *
  *  Both use the same B packing format (see below), enabling pack-once-use-anywhere.
  *
- *  @section packing B Matrix Packing Format
+ *  @section dots_serial_packing B Matrix Packing Format
  *
  *  Computing C = A × Bᵀ where:
  *
@@ -33,41 +33,47 @@
  *
  *  Memory layout example - B[8, 8] with 8 output columns (j), 8 depth (k):
  *
- *            k=0   k=1   k=2   k=3   k=4   k=5   k=6   k=7
- *         ┌─────────────────────────────────────────────────┐
- *    j=0  │  a0    a1    a2    a3    a4    a5    a6    a7   │
- *    j=1  │  b0    b1    b2    b3    b4    b5    b6    b7   │
- *    j=2  │  c0    c1    c2    c3    c4    c5    c6    c7   │
- *    j=3  │  d0    d1    d2    d3    d4    d5    d6    d7   │
- *    j=4  │  e0    e1    e2    e3    e4    e5    e6    e7   │
- *    j=5  │  f0    f1    f2    f3    f4    f5    f6    f7   │
- *    j=6  │  g0    g1    g2    g3    g4    g5    g6    g7   │
- *    j=7  │  h0    h1    h2    h3    h4    h5    h6    h7   │
- *         └─────────────────────────────────────────────────┘
+ *  @verbatim
+ *          k=0   k=1   k=2   k=3   k=4   k=5   k=6   k=7
+ *       ┌─────────────────────────────────────────────────┐
+ *  j=0  │  a0    a1    a2    a3    a4    a5    a6    a7   │
+ *  j=1  │  b0    b1    b2    b3    b4    b5    b6    b7   │
+ *  j=2  │  c0    c1    c2    c3    c4    c5    c6    c7   │
+ *  j=3  │  d0    d1    d2    d3    d4    d5    d6    d7   │
+ *  j=4  │  e0    e1    e2    e3    e4    e5    e6    e7   │
+ *  j=5  │  f0    f1    f2    f3    f4    f5    f6    f7   │
+ *  j=6  │  g0    g1    g2    g3    g4    g5    g6    g7   │
+ *  j=7  │  h0    h1    h2    h3    h4    h5    h6    h7   │
+ *       └─────────────────────────────────────────────────┘
+ *  @endverbatim
  *
  *  Packed as B_packed[column_count_padded, depth] (grouped for alignment):
  *
- *    Group 0 (j=0..7, padded to 16):
- *      ┌───────────────────────────────────┐
- *      │ a0 a1 a2 a3 a4 a5 a6 a7 │  j=0    │  ← row 0 copied as-is
- *      │ b0 b1 b2 b3 b4 b5 b6 b7 │  j=1    │
- *      │ c0 c1 c2 c3 c4 c5 c6 c7 │  j=2    │
- *      │ d0 d1 d2 d3 d4 d5 d6 d7 │  j=3    │
- *      │ e0 e1 e2 e3 e4 e5 e6 e7 │  j=4    │
- *      │ f0 f1 f2 f3 f4 f5 f6 f7 │  j=5    │
- *      │ g0 g1 g2 g3 g4 g5 g6 g7 │  j=6    │
- *      │ h0 h1 h2 h3 h4 h5 h6 h7 │  j=7    │
- *      │ 00 00 00 00 00 00 00 00 │ padding │
- *      │ ...                     │ ...     │
- *      └───────────────────────────────────┘
+ *  @verbatim
+ *  Group 0 (j=0..7, padded to 16):
+ *    ┌───────────────────────────────────┐
+ *    │ a0 a1 a2 a3 a4 a5 a6 a7 │  j=0    │  ← row 0 copied as-is
+ *    │ b0 b1 b2 b3 b4 b5 b6 b7 │  j=1    │
+ *    │ c0 c1 c2 c3 c4 c5 c6 c7 │  j=2    │
+ *    │ d0 d1 d2 d3 d4 d5 d6 d7 │  j=3    │
+ *    │ e0 e1 e2 e3 e4 e5 e6 e7 │  j=4    │
+ *    │ f0 f1 f2 f3 f4 f5 f6 f7 │  j=5    │
+ *    │ g0 g1 g2 g3 g4 g5 g6 g7 │  j=6    │
+ *    │ h0 h1 h2 h3 h4 h5 h6 h7 │  j=7    │
+ *    │ 00 00 00 00 00 00 00 00 │ padding │
+ *    │ ...                     │ ...     │
+ *    └───────────────────────────────────┘
+ *  @endverbatim
  *
  *  Addressing formula for B_packed[j, k]:
  *
- *      group = j / group_size
- *      j_in_group = j % group_size
- *      B_packed[j, k] = packed[group * group_size * depth + j_in_group * depth + k]
+ *  @verbatim
+ *  group = j / group_size
+ *  j_in_group = j % group_size
+ *  B_packed[j, k] = packed[group * group_size * depth + j_in_group * depth + k]
+ *  @endverbatim
  *
- *  Inner loop accesses B_packed[j, k:k+simd] which is contiguous - just ptr + k.
+ *  The inner loop accesses B_packed[j, k:k+simd], which is contiguous, at just `pointer + k`.
  */
 
 #ifndef NK_DOTS_SERIAL_H
@@ -79,8 +85,8 @@
 #include "numkong/spatial/serial.h" // `nk_f32_sqrt_serial`
 #include "numkong/reduce.h"         // `nk_reduce_moments_*`
 
-/*  GCC's -Wstringop-overflow produces false positives on the padded accumulator arrays
- *  in nk_define_cross_symmetric_ macro expansions (accumulators[4][7] with runtime indexing). */
+/*  GCC's -Wstringop-overflow produces false positives on the padded accumulator arrays in
+ *  nk_define_cross_symmetric_ macro expansions — accumulators[4][7] with runtime indexing. */
 #if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstringop-overflow"
@@ -90,16 +96,15 @@
 extern "C" {
 #endif
 
-/*  Packed buffer header (64-byte aligned).
- *  Used by all packed matmul backends (serial, NEON, AVX-512, SVE).
+/*  Packed buffer header, 64-byte aligned. Used by all packed matmul backends — serial, NEON,
+ *  AVX-512, SVE.
  *
  *  Important units clarification:
  *  - For types where dimensions_per_value = 1 (f32, i8, u8, etc.): dimensions == values
  *  - For sub-byte types (i4x2, u4x2): dimensions ≠ values
  *    - dimensions = individual 4-bit nibbles (e.g., 128 nibbles)
  *    - values = storage bytes containing nibbles (e.g., 64 bytes for 128 nibbles)
- *    - dimensions_per_value = 2 (2 nibbles per byte)
- */
+ *    - dimensions_per_value = 2 (2 nibbles per byte) */
 typedef struct {
     nk_u32_t column_count;        // Actual number of columns (not padded)
     nk_u32_t depth_dimensions;    // Logical depth in dimensions (nibbles for i4/u4, values for i8/f32)
@@ -107,10 +112,8 @@ typedef struct {
     nk_u32_t reserved[13];        // Padding to 64 bytes
 } nk_cross_packed_buffer_header_t;
 
-/*  Norm compute helpers for packing.
- *  Each computes the norm (sum-of-squares or popcount) of a contiguous row.
- *  Used by `nk_define_cross_pack_` to append per-column norms to packed buffers.
- */
+/*  Norm helpers that @c nk_define_cross_pack_ uses to append per-column norms to packed buffers.
+ *  Each computes the norm, sum-of-squares or popcount, of a contiguous row. */
 NK_HELPER_INLINE nk_f64_t nk_dots_reduce_sumsq_f64_(nk_f64_t const *data, nk_size_t count) {
     nk_f64_t sum, sumsq;
     nk_reduce_moments_f64(data, count, sizeof(nk_f64_t), &sum, &sumsq);
@@ -184,10 +187,9 @@ NK_HELPER_INLINE nk_u32_t nk_dots_reduce_sum_u1_(nk_u1x8_t const *data, nk_size_
     return (nk_u32_t)sum;
 }
 
-/*  Combined moment trampolines for compensated GEMM.
- *  Each computes BOTH sum and norm (sum-of-squares) in a single nk_reduce_moments call.
- *  Used by nk_define_cross_compensated_pack_ to store both in the packed buffer.
- */
+/*  Combined moment trampolines for compensated GEMM. Each computes both the sum and the norm,
+ *  sum-of-squares, in a single @c nk_reduce_moments call, and @c nk_define_cross_compensated_pack_
+ *  stores both in the packed buffer. */
 NK_HELPER_INLINE void nk_dots_reduce_moments_i8_(nk_i8_t const *data, nk_size_t count, nk_i32_t *sum, nk_u32_t *norm) {
     nk_i64_t s;
     nk_u64_t sq;
@@ -210,10 +212,8 @@ NK_HELPER_INLINE void nk_dots_reduce_moments_i4_(nk_i4x2_t const *data, nk_size_
     *norm = (nk_u32_t)sq;
 }
 
-/*  A-row sum helpers for compensated GEMM finalization.
- *  i8/u8: no A-side correction needed, stubs return 0.
- *  i4: needs A-side sum for correction term.
- */
+/*  A-row sum helpers for compensated GEMM finalization. i8/u8: no A-side correction needed, stubs
+ *  return 0. i4: needs A-side sum for correction term. */
 NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i8_stub_(nk_i8_t const *d, nk_size_t c) {
     nk_unused_(d);
     nk_unused_(c);
@@ -235,18 +235,19 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
  *  @brief Generates function to calculate packed B matrix buffer size for GEMM micro-kernels.
  *
  *  Memory layout: B_packed[column_count, depth_padded] with header storing metadata.
- *  Buffer size: sizeof(header) + column_count × depth_padded × sizeof(packed_value_type) + column_count × sizeof(norm)
- *  Depth padding logic: Round up to `depth_simd_dimensions` multiple, then add `depth_simd_dimensions`
- *  if stride is power-of-2.
+ *  Buffer size: sizeof(header) + column_count × depth_padded × sizeof(packed_value_type) +
+ *  column_count × sizeof(norm).
+ *  Depth padding logic: Round up to @c depth_simd_dimensions multiple, then add
+ *  @c depth_simd_dimensions if stride is power-of-2.
  *
- *  @param api_name Operation name (hammings, dots)
- *  @param input_type_name Original type's name of B matrix values (i4, f16, bf16, e4m3, e5m2, f32, etc.)
- *  @param isa_suffix Platform Instruct Set Architecture suffix (serial, haswell, icelake, etc.)
- *  @param input_value_type Original type of B matrix values (i4x2, f16, bf16, e4m3, e5m2, f32, etc.)
- *  @param packed_value_type Internal storage type in packed buffer (often bf16 or f32 for mixed precision)
- *  @param norm_value_type Type of per-column norm values (f32, f64, u32) appended after packed data
- *  @param depth_simd_dimensions SIMD vector width in values for this platform/type combination
- *  @param dimensions_per_value Number of logical dimensions in a single value of input_type_name.
+ *  @param[in] api_name Operation name, hammings or dots.
+ *  @param[in] input_type_name B matrix's original type name, e.g. i4, f16, bf16, e4m3, e5m2, f32.
+ *  @param[in] isa_suffix Platform ISA suffix, e.g. serial, haswell, icelake.
+ *  @param[in] input_value_type B matrix's original type, e.g. i4x2, f16, bf16, e4m3, e5m2, f32.
+ *  @param[in] packed_value_type Packed storage type, often bf16 or f32 for mixed precision.
+ *  @param[in] norm_value_type Per-column norm type, f32/f64/u32, appended after packed data.
+ *  @param[in] depth_simd_dimensions SIMD vector width in values for this platform/type combination.
+ *  @param[in] dimensions_per_value Logical dimensions per single input_type_name value.
  */
 #define nk_define_cross_pack_size_(api_name, input_type_name, isa_suffix, input_value_type, packed_value_type,   \
                                    norm_value_type, depth_simd_dimensions, dimensions_per_value)                 \
@@ -296,15 +297,15 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
 /**
  *  @brief Generates pack function using SIMD load/store helpers.
  *
- *  Packs the B matrix into padded row-major layout with optional type conversion,
- *  using vectorized load/store for the bulk copy and a small scalar tail for padding.
+ *  Packs the B matrix into padded row-major layout with optional type conversion, using vectorized
+ *  load/store for the bulk copy and a small scalar tail for padding.
  *
- *  @param vec_type SIMD vector type (nk_b512_vec_t, nk_b256_vec_t, nk_b128_vec_t)
- *  @param load_fn Full load: void fn(void const*, vec_type*)
- *  @param partial_load_fn Masked/partial load: void fn(void const*, vec_type*, nk_size_t)
- *  @param store_fn Full store: void fn(vec_type const*, void*)
- *  @param partial_store_fn Masked/partial store: void fn(vec_type const*, void*, nk_size_t)
- *  @param simd_width Elements per SIMD load/store operation
+ *  @param[in] vec_type SIMD vector type, nk_b512_vec_t, nk_b256_vec_t, or nk_b128_vec_t.
+ *  @param[in] load_fn Full load: void fn(void const*, vec_type*).
+ *  @param[in] partial_load_fn Masked/partial load: void fn(void const*, vec_type*, nk_size_t).
+ *  @param[in] store_fn Full store: void fn(vec_type const*, void*).
+ *  @param[in] partial_store_fn Masked/partial store: void fn(vec_type const*, void*, nk_size_t).
+ *  @param[in] simd_width Elements per SIMD load/store operation.
  */
 #define nk_define_cross_pack_(api_name, input_type_name, isa_suffix, input_value_type, packed_value_type, vec_type,   \
                               load_fn, partial_load_fn, store_fn, partial_store_fn, simd_width, norm_value_type,      \
@@ -362,9 +363,9 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
 /**
  *  @brief Generates function to calculate packed B matrix buffer size for compensated GEMM.
  *
- *  Like nk_define_cross_pack_size_ but the buffer stores BOTH norms AND column sums.
- *  Layout: [ Header 64B ] [ Packed data ] [ Norms (norm_type) ] [ Column sums (sum_type) ]
- *  Norms first → existing nk_define_cross_normalized_packed_ reads norms at the same offset.
+ *  Like nk_define_cross_pack_size_, but the buffer stores both norms and column sums, laid out as
+ *  `[header 64B] [packed data] [norms, norm_type] [column sums, sum_type]`. Norms come first, so
+ *  nk_define_cross_normalized_packed_ reads them at the same offset.
  */
 #define nk_define_cross_compensated_pack_size_(api_name, input_type_name, isa_suffix, input_value_type,          \
                                                packed_value_type, sum_value_type, norm_value_type,               \
@@ -384,6 +385,7 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
 
 /**
  *  @brief Like nk_define_cross_pack_ but stores both per-column norms AND column sums.
+ *
  *  Layout: [ Header 64B ] [ Packed data ] [ Norms (norm_type) ] [ Column sums (sum_type) ]
  */
 #define nk_define_cross_compensated_pack_(api_name, input_type_name, isa_suffix, input_value_type, packed_value_type, \
@@ -444,13 +446,16 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
 /**
  *  @brief Generates optimized GEMM implementation: C = A × Bᵀ with pre-packed B matrix.
  *
- *  This macro creates a complete batched matrix multiplication kernel with THREE specialized
- *  code paths that are automatically selected based on the remaining work at each blocking level.
- *  The kernel requires B to be pre-packed using nk_define_cross_pack_ before invocation.
+ *  This macro creates a complete batched matrix multiplication kernel with three specialized code
+ *  paths that are automatically selected based on the remaining work at each blocking level. The
+ *  kernel requires B to be pre-packed using nk_define_cross_pack_ before invocation.
  *
  *  @par Mathematical Operation
- *    C[row_count, column_count] = A[row_count, depth] × Bᵀ[column_count, depth]
- *  where operation can be dot product, Hamming distance, Jaccard similarity, etc.
+ *
+ *  @verbatim
+ *  C[row_count, column_count] = A[row_count, depth] × Bᵀ[column_count, depth] where operation can
+ *  be dot product, Hamming distance, Jaccard similarity, etc.
+ *  @endverbatim
  *
  *  @par Three Kernel Variants for Adaptive Performance
  *
@@ -494,54 +499,60 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
  *  @par Pre-Packing Benefits
  *
  *  B matrix is pre-packed using nk_define_cross_pack_ before kernel invocation:
- *  - @b Type @b conversion @b amortization: Convert B values once (e.g., bf16→f32) rather than
- *    per A row access. Saves (row_count - 1) × column_count conversions.
+ *  - @b Type @b conversion @b amortization: Convert B values once, bf16 → f32 for example, rather
+ *    than per A row access. Saves (row_count - 1) × column_count conversions.
  *  - @b Cache @b line @b optimization: Pad depth to break power-of-2 strides that cause cache
  *    associativity conflicts (e.g., 8192 → 8200 values).
  *  - @b Spatial @b locality: Transpose B so columns are contiguous, enabling efficient SIMD loads.
  *
  *  @par Loop Structure
  *
- *    for column_block in columns (step: varies based on available columns):
- *      for row_block in rows (step: varies based on available rows):
- *        for row_tile in row_block (step: 4 or 1 depending on variant):
- *          for column_tile in column_block (step: 4 or 8 depending on variant):
- *            accumulator_tiles[row_tile][column_tile] = init_accumulator_fn()
- *            for depth_index in depth (step: depth_simd_dimensions):
- *              a_vectors = load_a_vec_fn(A[row_tile, depth_index])
- *              b_vectors = load_b_vec_fn(B_packed[column_tile, depth_index])
- *              accumulator_tiles = inner_product_fn(accumulator_tiles, a_vectors, b_vectors)
- *            results = reduce_accumulators_fn(accumulator_tiles)
- *            partial_store_fn(results, C[row_tile, column_tile])
+ *  @code{.py}
+ *  for column_block in columns:        # step varies based on available columns
+ *      for row_block in rows:          # step varies based on available rows
+ *          for row_tile in row_block:      # step 4 or 1 depending on variant
+ *              for column_tile in column_block:  # step 4 or 8 depending on variant
+ *                  accumulator_tiles[row_tile][column_tile] = init_accumulator_fn()
+ *                  for depth_index in depth:     # step depth_simd_dimensions
+ *                      a_vectors = load_a_vec_fn(A[row_tile, depth_index])
+ *                      b_vectors = load_b_vec_fn(B_packed[column_tile, depth_index])
+ *                      accumulator_tiles = inner_product_fn(accumulator_tiles, a_vectors, b_vectors)
+ *                  results = reduce_accumulators_fn(accumulator_tiles)
+ *                  partial_store_fn(results, C[row_tile, column_tile])
+ *  @endcode
  *
  *  @par Generated Function
  *
+ *  @code{.c}
  *  nk_##api_name##_packed_##input_type_name##_##isa_suffix##_aligned_(
  *      A_matrix, B_packed_buffer, C_matrix, row_count, column_count, depth,
  *      A_stride_bytes, C_stride_bytes)
+ *  @endcode
  *
- *  @param api_name Operation family (dots, hammings, jaccards) for codegen namespace
- *  @param input_type_name Type identifier for codegen (f32, bf16, i8, u1, etc.)
- *  @param isa_suffix ISA backend identifier (serial, haswell, neon, sve, icelake, etc.)
- *  @param input_value_type C type of input matrix values (f32, bf16, i8, u1x8, etc.)
- *  @param packed_value_type Storage type in packed B buffer (often bf16 or f32 for mixed precision)
- *  @param result_value_type C type of output matrix C values (f32, u32, f64, etc.)
- *  @param vec_type SIMD vector type for depth dimension (e.g., __m256, nk_b256_vec_t)
- *  @param state_type Accumulator state type (often vec_type or wider, e.g., __m256 or __m512)
- *  @param result_vec_type SIMD vector type for reduction results (e.g., __m128 for 4 f32 results)
- *  @param init_accumulator_fn Initialize accumulator: void fn(state_type*)
- *  @param load_a_vec_fn Full A vector load: vec_type fn(input_value_type const*, nk_size_t offset)
- *  @param partial_load_a_vec_fn Partial A load for remainder
- *  @param load_b_vec_fn Full B vector load: vec_type fn(packed_value_type const*, nk_size_t offset)
- *  @param partial_load_b_vec_fn Partial B load for remainder
- *  @param inner_product_fn Inner product accumulate
- *  @param reduce_accumulators_fn Reduce 4 accumulators
- *  @param store_fn Full-width store for results
- *  @param partial_store_fn Partial store for results
- *  @param depth_simd_dimensions SIMD vector width in logical dimensions (e.g., 8 for f32 on AVX2, 128 for u1 on serial)
- *  @param dimensions_per_value Packing ratio: dimensions per storage value (1 for f32, 2 for i4x2, 8 for u1x8)
+ *  @param[in] api_name Operation family, dots/hammings/jaccards, for codegen namespace.
+ *  @param[in] input_type_name Type identifier for codegen, e.g. f32, bf16, i8, u1.
+ *  @param[in] isa_suffix ISA backend identifier, e.g. serial, haswell, neon, sve, icelake.
+ *  @param[in] input_value_type C type of input matrix values, e.g. f32, bf16, i8, u1x8.
+ *  @param[in] packed_value_type Packed B storage type, often bf16 or f32 for mixed precision.
+ *  @param[in] result_value_type C type of output matrix C values, e.g. f32, u32, f64.
+ *  @param[in] vec_type SIMD vector type for depth dimension, e.g. __m256, nk_b256_vec_t.
+ *  @param[in] state_type Accumulator state type, often vec_type or wider, e.g. __m256 or __m512.
+ *  @param[in] result_vec_type Reduction-result SIMD vector type, e.g. __m128 for 4 f32 results.
+ *  @param[in] init_accumulator_fn Initialize accumulator: void fn(state_type*).
+ *  @param[in] load_a_vec_fn Full A load: vec_type fn(input_value_type const*, nk_size_t offset).
+ *  @param[in] partial_load_a_vec_fn Partial A load for remainder.
+ *  @param[in] load_b_vec_fn Full B load: vec_type fn(packed_value_type const*, nk_size_t offset).
+ *  @param[in] partial_load_b_vec_fn Partial B load for remainder.
+ *  @param[in] inner_product_fn Inner product accumulate.
+ *  @param[in] reduce_accumulators_fn Reduce 4 accumulators.
+ *  @param[in] store_fn Full-width store for results.
+ *  @param[in] partial_store_fn Partial store for results.
+ *  @param[in] depth_simd_dimensions SIMD vector width in logical dimensions, e.g. 8 for f32 on
+ *      AVX2, 128 for u1 on serial.
+ *  @param[in] dimensions_per_value Packing ratio: dimensions per storage value, 1 for f32, 2 for
+ *      i4x2, 8 for u1x8.
  *
- *  @sa nk_define_cross_symmetric_ for symmetric C = A × Aᵀ computation (upper triangle only)
+ *  @sa nk_define_cross_symmetric_ for symmetric C = A × Aᵀ computation, upper triangle only.
  *  @sa nk_define_cross_pack_size_ for calculating B_packed buffer size
  *  @sa nk_define_cross_pack_ for packing B matrix into optimized layout
  *  @sa include/numkong/set/serial.h for state type definitions
@@ -1104,16 +1115,16 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
 /**
  *  @brief Generates compensated GEMM: C = A × Bᵀ with precomputed B column sums.
  *
- *  Like nk_define_cross_packed_ but the finalize function receives precomputed B column sums
- *  and per-row A sums to apply algebraic correction inline. This eliminates correction
- *  accumulators from the inner loop state, halving register pressure for integer dot products.
+ *  Like nk_define_cross_packed_ but the finalize function receives precomputed B column sums and
+ *  per-row A sums to apply algebraic correction inline. This eliminates correction accumulators
+ *  from the inner loop state, halving register pressure for integer dot products.
  *
  *  The compensated_finalize_fn signature differs from the standard reduce_accumulators_fn:
  *    compensated_finalize_fn(state_a, state_b, state_c, state_d, depth, a_sum, b_sums_vec, result)
  *  where a_sum is a scalar A row sum and b_sums_vec contains 4 B column sums as SIMD vector.
  *
- *  Buffer layout: [ Header ] [ Packed data ] [ Norms ] [ Column sums ]
- *  The norms occupy the same position as in non-compensated packs, so spatial functions work.
+ *  Buffer layout: [ Header ] [ Packed data ] [ Norms ] [ Column sums ]. The norms occupy the same
+ *  position as in non-compensated packs, so spatial functions work.
  */
 #define nk_define_cross_compensated_packed_(                                                                           \
     api_name, input_type_name, isa_suffix, input_value_type, packed_value_type, result_value_type, sum_value_type,     \
@@ -1489,13 +1500,13 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
 /**
  *  @brief Generates compensated symmetric Gram matrix: C = A × Aᵀ with inline correction.
  *
- *  Like nk_define_cross_symmetric_ but the finalize function receives precomputed sums.
- *  For symmetric computation, both row and column vectors come from the same matrix A,
- *  so A sums serve as both row and column sums.
+ *  Like nk_define_cross_symmetric_ but the finalize function receives precomputed sums. For
+ *  symmetric computation, both row and column vectors come from the same matrix A, so A sums serve
+ *  as both row and column sums.
  *
- *  The off-diagonal helper uses 4×4 tiling (matching nk_define_cross_symmetric_) with
- *  progressive sum accumulation: SAD runs on port 5 alongside DPBUSD on ports 0+1 for
- *  zero throughput overhead on Alder Lake and Ice Lake.
+ *  The off-diagonal helper uses 4×4 tiling, matching nk_define_cross_symmetric_, with progressive
+ *  sum accumulation: SAD runs on port 5 alongside DPBUSD on ports 0+1 for zero throughput overhead
+ *  on Alder Lake and Ice Lake.
  */
 #define nk_define_cross_compensated_symmetric_(                                                                        \
     api_name, input_type_name, isa_suffix, input_value_type, result_value_type, sum_value_type, norm_value_type,       \
@@ -1755,7 +1766,7 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
             }                                                                                                          \
         }                                                                                                              \
     }                                                                                                                  \
-    /* Off-diagonal helper: 4×4 tiling with inline sum accumulation (16 FMAs + up to 8 SADs per depth step) */         \
+    /* Off-diagonal helper: 4×4 tiling, inline sums — 16 FMAs + up to 8 SADs per depth step */                         \
     NK_HELPER_INLINE void nk_##api_name##_symmetric_offdiagonal_##input_type_name##_##isa_suffix##_(                   \
         nk_##input_value_type##_t const **row_ptrs_macro, nk_##input_value_type##_t const **col_ptrs_macro,            \
         nk_size_t i_macro, nk_size_t j_macro, nk_size_t macro_i_size, nk_size_t macro_j_size, nk_size_t aligned_depth, \
@@ -1991,8 +2002,11 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
  *  triangle and avoiding redundant computation and storage.
  *
  *  @par Mathematical Operation For each pair (i,j) where i ≤ j:
- *    C[i,j] = operation(A[i,:], A[j,:])
- *  where operation can be dot product, Hamming distance, Jaccard similarity, etc.
+ *
+ *  @verbatim
+ *  C[i,j] = operation(A[i,:], A[j,:]) where operation can be dot product, Hamming distance,
+ *  Jaccard similarity, etc.
+ *  @endverbatim
  *
  *  @par Architecture - Three-Level Tiling Hierarchy
  *
@@ -2041,24 +2055,26 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
  *  2. nk_##api_name##_symmetric_offdiagonal_##input_type_name##_##isa_suffix##_ (NK_HELPER_INLINE)
  *  3. nk_##api_name##_symmetric_##input_type_name##_##isa_suffix (NK_API_COMPTIME wrapper)
  *
- *  @param api_name Operation family (dots, hammings, jaccards) for codegen namespace
- *  @param input_type_name Type identifier for codegen (f32, bf16, i8, u1, etc.)
- *  @param isa_suffix ISA backend identifier (serial, haswell, neon, sve, icelake, etc.)
- *  @param input_value_type C type of input matrix values (f32, bf16, i8, u1x8, etc.)
- *  @param result_value_type C type of output matrix values (f32, u32, f64, etc.)
- *  @param vec_type SIMD vector type for input vectors (e.g., __m256, nk_b256_vec_t)
- *  @param state_type Accumulator state type (often vec_type or wider, e.g., __m256 or __m512)
- *  @param result_vec_type SIMD vector type for reduction results (e.g., __m128 for 4 f32 results)
- *  @param init_accumulator_fn Initialize accumulator: void fn(state_type*)
- *  @param load_vec_fn Full vector load: vec_type fn(input_value_type const*, nk_size_t offset)
- *  @param partial_load_vec_fn Partial vector load for remainder
- *  @param inner_product_fn Inner product accumulate
- *  @param reduce_accumulators_fn Reduce 4 accumulators
- *  @param partial_store_fn Partial store for results
- *  @param depth_simd_dimensions SIMD vector width in logical dimensions (e.g., 8 for f32 on AVX2, 128 for u1 on serial)
- *  @param dimensions_per_value Packing ratio: dimensions per storage value (1 for f32, 2 for i4x2, 8 for u1x8)
+ *  @param[in] api_name Operation family, dots/hammings/jaccards, for codegen namespace.
+ *  @param[in] input_type_name Type identifier for codegen, e.g. f32, bf16, i8, u1.
+ *  @param[in] isa_suffix ISA backend identifier, e.g. serial, haswell, neon, sve, icelake.
+ *  @param[in] input_value_type C type of input matrix values, e.g. f32, bf16, i8, u1x8.
+ *  @param[in] result_value_type C type of output matrix values, e.g. f32, u32, f64.
+ *  @param[in] vec_type SIMD vector type for input vectors, e.g. __m256, nk_b256_vec_t.
+ *  @param[in] state_type Accumulator state type, often vec_type or wider, e.g. __m256 or __m512.
+ *  @param[in] result_vec_type Reduction-result SIMD vector type, e.g. __m128 for 4 f32 results.
+ *  @param[in] init_accumulator_fn Initialize accumulator: void fn(state_type*).
+ *  @param[in] load_vec_fn Full vector load: vec_type fn(input_value_type const*, nk_size_t offset).
+ *  @param[in] partial_load_vec_fn Partial vector load for remainder.
+ *  @param[in] inner_product_fn Inner product accumulate.
+ *  @param[in] reduce_accumulators_fn Reduce 4 accumulators.
+ *  @param[in] partial_store_fn Partial store for results.
+ *  @param[in] depth_simd_dimensions SIMD vector width in logical dimensions, e.g. 8 for f32 on
+ *      AVX2, 128 for u1 on serial.
+ *  @param[in] dimensions_per_value Packing ratio: dimensions per storage value, 1 for f32, 2 for
+ *      i4x2, 8 for u1x8.
  *
- *  @sa nk_define_cross_packed_ for asymmetric C = A × Bᵀ computation
+ *  @sa nk_define_cross_packed_ for asymmetric C = A × Bᵀ computation.
  *  @sa nk_define_cross_pack_size_ for calculating packed buffer size
  *  @sa nk_define_cross_pack_ for packing B matrix
  *  @sa include/numkong/set/serial.h for state type definitions
@@ -2456,15 +2472,14 @@ NK_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_
         }                                                                                                              \
     }
 
-/*  Keep the serial instantiations below actually scalar, regardless of build type.
- *  Without this, -O3 + LTO can vectorize or clone the serial kernels under AVX-512
- *  callers in dispatch_*.c, which wastes ~1 MB of binary and — more importantly —
- *  breaks the nk_*_serial-as-scalar-oracle contract that tests and the numerical-
- *  stability docs in this header rely on.
+/*  Keep the serial instantiations below actually scalar, regardless of build type. Without this,
+ *  -O3 + LTO can vectorize or clone the serial kernels under AVX-512 callers in dispatch_*.c, which
+ *  wastes ~1 MB of binary and — more importantly — breaks the nk_*_serial-as-scalar-oracle contract
+ *  that tests and the numerical-stability docs in this header rely on.
  *
  *  Clang gets no blanket region here: one expansion of `nk_define_cross_packed_` /
- *  `nk_define_cross_symmetric_` emits `always_inline` `_aligned_` fast paths next to the kernel, and
- *  clang rejects `noinline` on those. `no-ipa-cp-clone` is the knob that stops the cloning anyway. */
+ *  @c nk_define_cross_symmetric_ emits @c always_inline @c _aligned_ fast paths next to the kernel,
+ *  and clang rejects @c noinline there; `no-ipa-cp-clone` stops the cloning instead. */
 #if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC push_options
 #pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
@@ -2654,7 +2669,7 @@ nk_define_cross_packed_(dots, e2m3, serial, e2m3, e2m3, f32, nk_b128_vec_t, nk_d
                         nk_dot_e2m3x16_finalize_serial, nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
                         /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 
-/* E2M1 GEMM: depth_simd_dimensions=16 (8 bytes = 16 nibbles), doubled values in an I32 accumulator */
+/* E2M1 GEMM: depth_simd_dimensions=16, 8 bytes = 16 nibbles, doubled values in I32 accumulator */
 nk_define_cross_pack_size_(dots, e2m1, serial, e2m1x2, e2m1x2, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/16,
                            /*dimensions_per_value=*/2)
 nk_define_cross_packed_shape_(dots, e2m1, serial)
@@ -2766,11 +2781,10 @@ nk_define_cross_packed_(dots, u1, serial, u1x8, u1x8, u32, nk_b128_vec_t, nk_dot
 #pragma GCC pop_options
 #endif
 
-/*  BF16 compact: truncate F32 → BF16 in-place.
- *  Reads F32 matrix with c_stride_in_bytes, writes BF16 tightly packed (stride_in_bytes = column_count × sizeof(bf16)).
- */
 NK_API_COMPTIME void nk_dots_compact_bf16_serial(void *c, nk_size_t row_count, nk_size_t column_count,
                                                  nk_size_t c_stride_in_bytes) {
+    // Truncates F32 → BF16 in place, reading the F32 matrix with c_stride_in_bytes and writing BF16
+    // tightly packed, stride_in_bytes = column_count × sizeof(bf16).
     nk_size_t const c_stride_in_values = c_stride_in_bytes / sizeof(nk_f32_t);
     nk_f32_t const *c_f32 = (nk_f32_t const *)c;
     nk_bf16_t *c_bf16 = (nk_bf16_t *)c;
@@ -2784,13 +2798,11 @@ NK_API_COMPTIME void nk_dots_compact_bf16_serial(void *c, nk_size_t row_count, n
     }
 }
 
-/*  I8 compact: re-normalize I32 → I8 using precomputed squared norms.
- *  Formula: c_i8[i][j] = c_i32[i][j] × 127 / sqrt(a_norm[i] × b_norm[j])
- *  Output is tightly packed (stride_in_bytes = column_count × sizeof(i8)).
- */
 NK_API_COMPTIME void nk_dots_compact_i8_serial(void *c, nk_size_t row_count, nk_size_t column_count,
                                                nk_size_t c_stride_in_bytes, nk_i32_t const *a_squared_norms,
                                                nk_i32_t const *b_squared_norms) {
+    // Re-normalizes I32 → I8 using precomputed squared norms, c_i8[i][j] = c_i32[i][j] × 127 /
+    // √(a_norm[i] × b_norm[j]), writing rows tightly packed at column_count × sizeof(i8) bytes.
     nk_size_t const c_stride_in_values = c_stride_in_bytes / sizeof(nk_i32_t);
     nk_i32_t const *c_i32 = (nk_i32_t const *)c;
     nk_i8_t *c_i8 = (nk_i8_t *)c;

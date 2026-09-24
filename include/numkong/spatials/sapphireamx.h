@@ -1,8 +1,8 @@
 /**
- *  @brief Batched Spatial Distances for Sapphire Rapids (AMX) with AVX-512 Finalization.
  *  @file include/numkong/spatials/sapphireamx.h
  *  @author Ash Vardanian
  *  @date February 23, 2026
+ *  @brief Batched spatial distances for Sapphire Rapids, AMX, with AVX-512 finalization.
  *
  *  @sa include/numkong/spatials.h
  */

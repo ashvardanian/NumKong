@@ -1,8 +1,8 @@
 /**
- *  @brief Geospatial distance benchmarks (haversine, vincenty).
  *  @file bench/geospatial.cpp
  *  @author Ash Vardanian
  *  @date March 14, 2023
+ *  @brief Geospatial distance benchmarks, haversine, vincenty.
  */
 
 #include "numkong/geospatial.h"
@@ -12,10 +12,10 @@
 using namespace ashvardanian::numkong::bench;
 
 /**
- *  @brief Measures the performance of geospatial operations (Haversine/Vincenty) using Google Benchmark.
- *  @param state The benchmark state object provided by Google Benchmark.
- *  @param kernel The kernel function to benchmark.
- *  @param coordinates_count The number of coordinate pairs to process.
+ *  @brief Measures geospatial operations, Haversine or Vincenty, using Google Benchmark.
+ *  @param[inout] state The benchmark state object provided by Google Benchmark.
+ *  @param[in] kernel The kernel function to benchmark.
+ *  @param[in] coordinates_count The number of coordinate pairs to process.
  */
 template <nk_dtype_t dtype_, typename kernel_type_ = void>
 void measure_geospatial(bm::State &state, kernel_type_ kernel, std::size_t coordinates_count) {

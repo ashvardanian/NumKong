@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Dot Products for POWER9 VSX.
  *  @file include/numkong/dot/powervsx.h
  *  @author Ash Vardanian
  *  @date March 23, 2026
+ *  @brief SIMD-accelerated dot products for POWER9 VSX.
  *
  *  @sa include/numkong/dot.h
  *
@@ -10,27 +10,29 @@
  *
  *  Key Power9 VSX instructions for dot products:
  *
- *      Intrinsic                        Instruction           POWER9
- *      vec_madd(a, b, c)                XVMADDADP/XVMADDASP   5cy  FMA: a×b+c
- *      vec_msub(a, b, c)                XVMSUBADP/XVMSUBASP   5cy  FMS: a×b−c
- *      vec_msum(a, b, c)                VMSUMUBM/VMSUMMBM     5cy  i8/u8 widening multiply-sum → i32/u32
- *      vec_msum(a, b, c)                VMSUMSHM/VMSUMUHM     5cy  i16/u16 widening multiply-sum → i32/u32
- *      vec_doublee(a)                   XVCVSPDP              3cy  Widen even f32 lanes → f64x2
- *      vec_doubleo(a)                   XVCVSPDP (odd)        3cy  Widen odd f32 lanes → f64x2
- *      vec_unpackh(a)                   VUPKHSB/VUPKHSH       2cy  Sign-extend high half (i8→i16 or i16→i32)
- *      vec_unpackl(a)                   VUPKLSB/VUPKLSH       2cy  Sign-extend low half (i8→i16 or i16→i32)
- *      vec_xor(a, b)                    VXOR/XXLXOR           1cy  Bitwise XOR
- *      vec_xl(off, ptr)                 LXV                   5cy  Aligned 16-byte load
- *      vec_xl_len(ptr, len)             LXVL                  5cy  Partial load (Power9), zero-fills tail
- *      vec_extract_fp32_from_shorth     XVCVHPSP (high)       5cy  f16x4 → f32x4 from high half
- *      vec_extract_fp32_from_shortl     XVCVHPSP (low)        5cy  f16x4 → f32x4 from low half
- *      vec_popcnt(a)                    VPOPCNTB/H/W/D        2cy  Per-element popcount
- *      vec_sum4s(a, b)                  VSUM4UBS/VSUM4SBS     5cy  Sum groups of 4 bytes → i32/u32
- *      vec_sums(a, b)                   VSUMSWS               5cy  Signed i32x4 horizontal → i32 (lane 3)
+ *  @verbatim
+ *  Intrinsic                        Instruction           POWER9
+ *  vec_madd(a, b, c)                XVMADDADP/XVMADDASP   5cy  FMA: a×b+c
+ *  vec_msub(a, b, c)                XVMSUBADP/XVMSUBASP   5cy  FMS: a×b−c
+ *  vec_msum(a, b, c)                VMSUMUBM/VMSUMMBM     5cy  i8/u8 widen-mul-sum → i32/u32
+ *  vec_msum(a, b, c)                VMSUMSHM/VMSUMUHM     5cy  i16/u16 widen-mul-sum → i32/u32
+ *  vec_doublee(a)                   XVCVSPDP              3cy  Widen even f32 lanes → f64x2
+ *  vec_doubleo(a)                   XVCVSPDP (odd)        3cy  Widen odd f32 lanes → f64x2
+ *  vec_unpackh(a)                   VUPKHSB/VUPKHSH       2cy  Sign-extend high: i8→i16/i16→i32
+ *  vec_unpackl(a)                   VUPKLSB/VUPKLSH       2cy  Sign-extend low: i8→i16, i16→i32
+ *  vec_xor(a, b)                    VXOR/XXLXOR           1cy  Bitwise XOR
+ *  vec_xl(offset, address)          LXV                   5cy  Aligned 16-byte load
+ *  vec_xl_len(address, length)      LXVL                  5cy  Partial load, zero-fills tail
+ *  vec_extract_fp32_from_shorth     XVCVHPSP (high)       5cy  f16x4 → f32x4 from high half
+ *  vec_extract_fp32_from_shortl     XVCVHPSP (low)        5cy  f16x4 → f32x4 from low half
+ *  vec_popcnt(a)                    VPOPCNTB/H/W/D        2cy  Per-element popcount
+ *  vec_sum4s(a, b)                  VSUM4UBS/VSUM4SBS     5cy  Sum groups of 4 bytes → i32/u32
+ *  vec_sums(a, b)                   VSUMSWS               5cy  i32x4 horiz sum → i32 in lane 3
+ *  @endverbatim
  *
  *  Power9 (POWER ISA 3.0) provides `vec_xl_len` for partial loads that zero-fill unused bytes,
- *  enabling branchless tail handling: zero × anything = zero, so partial vectors contribute
- *  no spurious terms to dot-product accumulators.
+ *  enabling branchless tail handling: zero × anything = zero, so partial vectors contribute no
+ *  spurious terms to dot-product accumulators.
  *
  *  @section dot_powervsx_stateful Stateful Streaming Logic
  *

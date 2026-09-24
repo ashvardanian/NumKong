@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Sparse Vector Dot Products.
  *  @file include/numkong/sparse.h
  *  @author Ash Vardanian
  *  @date March 21, 2024
+ *  @brief SIMD-accelerated sparse vector dot products.
  *
  *  Contains:
  *
@@ -24,59 +24,65 @@
  *
  *  @section intersection_algorithm Intersection by Merge
  *
- *  The core primitive is analogous to `std::set_intersection`, taking two sorted arrays
- *  of unique values and producing the intersection size:
+ *  The core primitive is analogous to @c std::set_intersection, taking two sorted arrays of unique
+ *  values and producing the intersection size:
  *
- *      std::size_t intersection_size = 0;
- *      while (i != a_length && j != b_length) {
- *          scalar_t ai = a[i], bj = b[j];
- *          intersection_size += ai == bj;
- *          i += ai < bj;
- *          j += ai ≥ bj;
- *      }
+ *  @code{.cpp}
+ *  std::size_t intersection_size = 0;
+ *  while (i != a_length && j != b_length) {
+ *      scalar_t ai = a[i], bj = b[j];
+ *      intersection_size += ai == bj;
+ *      i += ai < bj;
+ *      j += ai ≥ bj;
+ *  }
+ *  @endcode
  *
- *  Weighted sparse dot-products follow the same merge loop, but accumulate a product
- *  for matching indices. For the `u32+f32` family the matched products are widened before
- *  accumulation, matching the widened `f64` public result.
+ *  Weighted sparse dot-products follow the same merge loop, but accumulate a product for matching
+ *  indices. For the `u32+f32` family the matched products are widened before accumulation, matching
+ *  the widened @c f64 public result.
  *
- *      double product = 0;
- *      while (i != a_length && j != b_length) {
- *          scalar_t ai = a[i], bj = b[j];
- *          product += ai == bj ? a_weights[i] * b_weights[j] : 0;
- *          i += ai < bj;
- *          j += ai ≥ bj;
- *      }
+ *  @code{.cpp}
+ *  double product = 0;
+ *  while (i != a_length && j != b_length) {
+ *      scalar_t ai = a[i], bj = b[j];
+ *      product += ai == bj ? a_weights[i] * b_weights[j] : 0;
+ *      i += ai < bj;
+ *      j += ai ≥ bj;
+ *  }
+ *  @endcode
  *
  *  @section galloping_search Galloping vs Linear
  *
  *  When the arrays are highly imbalanced, linear merge wastes cycles skipping elements.
  *  The serial implementation switches to a galloping search to jump over large gaps.
  *
- *  @section x86_instructions Relevant x86 Instructions
+ *  @section sparse_x86_instructions Relevant x86 Instructions
  *
- *  The Ice Lake kernels are shuffle/compare heavy; their throughput is often gated by port 5.
- *  On Genoa, many integer ops dual-issue on FP ports, often improving throughput despite higher latency.
+ *  The Ice Lake kernels are shuffle/compare heavy; their throughput is often gated by port 5. On
+ *  Genoa, many integer ops dual-issue on FP ports, often improving throughput even though each op
+ *  runs with higher latency.
  *
- *      Intrinsic                      Instruction                   Icelake           Genoa
- *      _mm512_shuffle_epi32           VPSHUFD (ZMM, ZMM, I8)        1cy @ p5          1cy @ p123
- *      _mm512_mask_cmpneq_epi32_mask  VPCMPD (K, ZMM, ZMM, I8)      3cy @ p5          5cy @ p01
- *      _mm512_alignr_epi32            VALIGND (ZMM, ZMM, ZMM, I8)   3cy @ p5          6cy @ p12
- *      _mm512_conflict_epi32          VPCONFLICTD (ZMM, ZMM)        26cy @ p0+p05+p5  7cy @ p01+p12
- *      _mm256_maskz_compress_epi16    VPCOMPRESSW (YMM, K, YMM)     3-6cy @ p5+p5     4-8cy @ p01+p12
- *      _mm256_dpwssds_epi32           VPDPWSSDS (YMM, K, YMM, YMM)  4-5cy @ p01       4cy @ p01
- *      _mm256_dpbf16_ps               VDPBF16PS (YMM, YMM, YMM)     n/a               6cy @ p01
+ *  @verbatim
+ *  Intrinsic                     Instruction                  Icelake          Genoa
+ *  _mm512_shuffle_epi32          VPSHUFD (ZMM, ZMM, I8)       1cy @ p5         1cy @ p123
+ *  _mm512_mask_cmpneq_epi32_mask VPCMPD (K, ZMM, ZMM, I8)     3cy @ p5         5cy @ p01
+ *  _mm512_alignr_epi32           VALIGND (ZMM, ZMM, ZMM, I8)  3cy @ p5         6cy @ p12
+ *  _mm512_conflict_epi32         VPCONFLICTD (ZMM, ZMM)       26cy @ p0+p05+p5 7cy @ p01+p12
+ *  _mm256_maskz_compress_epi16   VPCOMPRESSW (YMM, K, YMM)    3-6cy @ p5+p5    4-8cy @ p01+p12
+ *  _mm256_dpwssds_epi32          VPDPWSSDS (YMM, K, YMM, YMM) 4-5cy @ p01      4cy @ p01
+ *  _mm256_dpbf16_ps              VDPBF16PS (YMM, YMM, YMM)    n/a              6cy @ p01
+ *  @endverbatim
  *
  *  VP2INTERSECTD is unsupported on Ice Lake and not yet covered by uops.info for Zen5/Turin.
  *  Tiger Lake measures ~36-41cy @ p5 for ZMM variants, which is why we always avoid it on Intel.
  *
- *  @section references References
+ *  @section sparse_references References
  *
- *  - uops.info: https://uops.info/
- *  - Intel Intrinsics Guide: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
- *  - Arm Intrinsics Reference: https://developer.arm.com/architectures/instruction-sets/intrinsics/
- *  - vp2intersect experiments: https://github.com/mozonaut/vp2intersect
- *  - Diez-Canas "Faster-Than-Native Alternatives for x86 VP2INTERSECT Instructions":
- *    https://arxiv.org/pdf/2112.06342.pdf
+ *  @see uops.info: https://uops.info/
+ *  @see Intel Intrinsics Guide: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
+ *  @see Arm Intrinsics Reference: https://developer.arm.com/architectures/instruction-sets/intrinsics/
+ *  @see vp2intersect experiments: https://github.com/mozonaut/vp2intersect
+ *  @see Diez-Canas "Faster-Than-Native Alternatives for x86 VP2INTERSECT Instructions": https://arxiv.org/pdf/2112.06342.pdf
  *
  */
 #ifndef NK_SPARSE_H

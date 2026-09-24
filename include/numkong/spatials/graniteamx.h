@@ -1,8 +1,8 @@
 /**
- *  @brief Batched Spatial Distances for Granite Rapids (AMX-FP16) with AVX-512 Finalization.
  *  @file include/numkong/spatials/graniteamx.h
  *  @author Ash Vardanian
  *  @date April 9, 2026
+ *  @brief Batched spatial distances for Granite Rapids, AMX-FP16, with AVX-512 finalization.
  *
  *  @sa include/numkong/spatials.h
  */

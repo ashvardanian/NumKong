@@ -1,8 +1,8 @@
 /**
- *  @brief Spatial distance tests.
  *  @file test/spatial.cpp
  *  @author Ash Vardanian
  *  @date February 6, 2026
+ *  @brief Spatial distance tests.
  */
 
 #include "test.hpp"
@@ -10,10 +10,8 @@
 
 using namespace ashvardanian::numkong::test;
 
-/**
- *  @brief Unified squared Euclidean distance test for float types.
- *  Works with f32_t, f64_t, f16_t, bf16_t wrapper types.
- */
+/** Unified squared Euclidean distance test for float types. Works with f32_t, f64_t, f16_t, bf16_t
+ *  wrapper types. */
 template <typename scalar_type_>
 error_stats_t test_sqeuclidean(typename scalar_type_::sqeuclidean_kernel_t kernel) {
     using scalar_t = scalar_type_;
@@ -42,10 +40,8 @@ error_stats_t test_sqeuclidean(typename scalar_type_::sqeuclidean_kernel_t kerne
     return stats;
 }
 
-/**
- *  @brief Unified angular (cosine) distance test for float types.
- *  Works with f32_t, f64_t, f16_t, bf16_t wrapper types.
- */
+/** Unified angular, or cosine, distance test for float types. Works with f32_t, f64_t, f16_t,
+ *  bf16_t wrapper types. */
 template <typename scalar_type_>
 error_stats_t test_angular(typename scalar_type_::angular_kernel_t kernel) {
     using scalar_t = scalar_type_;
@@ -74,10 +70,8 @@ error_stats_t test_angular(typename scalar_type_::angular_kernel_t kernel) {
     return stats;
 }
 
-/**
- *  @brief Unified Euclidean distance test for float types.
- *  Works with f32_t, f64_t, f16_t, bf16_t, e2m3_t, e3m2_t wrapper types.
- */
+/** Unified Euclidean distance test for float types. Works with f32_t, f64_t, f16_t, bf16_t, e2m3_t,
+ *  e3m2_t wrapper types. */
 template <typename scalar_type_>
 error_stats_t test_euclidean(typename scalar_type_::euclidean_kernel_t kernel) {
     using scalar_t = scalar_type_;

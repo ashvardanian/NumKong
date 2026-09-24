@@ -1,8 +1,8 @@
 /**
- *  @brief C++ wrappers for SIMD-accelerated Elementwise Arithmetic.
  *  @file include/numkong/each.hpp
  *  @author Ash Vardanian
  *  @date February 5, 2026
+ *  @brief C++ wrappers for SIMD-accelerated elementwise arithmetic.
  */
 #ifndef NK_EACH_HPP
 #define NK_EACH_HPP
@@ -194,16 +194,19 @@ void fma(in_type_ const *a, in_type_ const *b, std::size_t d, in_type_ const *c,
 }
 
 /**
- *  @brief Fused SwiGLU: yᵢ = silu(input_scale · gateᵢ) · (input_scale · upᵢ)
+ *  @brief Fused SwiGLU: yᵢ = silu(s · gateᵢ) · (s · upᵢ), with s being @p input_scale.
  *
- *  With `up = nullptr` this reduces to plain SiLU.
+ *  With a null @p up this reduces to plain SiLU.
  *
- *  @param[in] gate Gate input, `rows × cols`
- *  @param[in] up Up input, same shape as `gate`; `nullptr` collapses to plain SiLU
- *  @param[out] y Output, same shape and dtype as `gate`; may alias `gate`
- *  @param[in] rows,cols Logical shape
- *  @param[in] gate_row_stride,up_row_stride,y_row_stride Row strides in bytes
- *  @param[in] input_scale Scalar folded onto every loaded element (E4M3 descale; 1.0 for BF16/F32)
+ *  @param[in] gate Gate input, shape @b [rows,columns]
+ *  @param[in] up Up input, same shape as @p gate; @c nullptr collapses to plain SiLU
+ *  @param[out] y Output, same shape and dtype as @p gate; may alias @p gate
+ *  @param[in] rows Logical row count
+ *  @param[in] cols Logical column count
+ *  @param[in] gate_row_stride Row stride of @p gate in bytes
+ *  @param[in] up_row_stride Row stride of @p up in bytes
+ *  @param[in] y_row_stride Row stride of @p y in bytes
+ *  @param[in] input_scale Scalar applied to each loaded element: E4M3 descale, or 1.0 for BF16/F32
  *
  *  @tparam in_type_ Element type
  *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`
@@ -250,7 +253,8 @@ namespace ashvardanian::numkong {
 
 #pragma region Tensor Elementwise
 
-/** @brief Fused SwiGLU over `[rows, cols]` matrices into a matching output span (`up` empty → SiLU). */
+/** Fused SwiGLU over @b [rows,columns] matrices into a matching output span — @p up empty means
+ *  SiLU. */
 template <numeric_dtype value_type_>
 bool swiglu(matrix_view<value_type_> gate, matrix_view<value_type_> up, matrix_span<value_type_> output,
             float input_scale = 1.0f) noexcept {
@@ -265,7 +269,7 @@ bool swiglu(matrix_view<value_type_> gate, matrix_view<value_type_> up, matrix_s
     return true;
 }
 
-/** @brief Allocating SwiGLU returning a fresh matrix (`up` empty → SiLU). */
+/** Allocating SwiGLU returning a fresh matrix — @p up empty means SiLU. */
 template <numeric_dtype value_type_, typename allocator_type_ = aligned_allocator<value_type_>>
 tensor<value_type_, allocator_type_, 2> try_swiglu(matrix_view<value_type_> gate, matrix_view<value_type_> up,
                                                    float input_scale = 1.0f) noexcept {
@@ -278,7 +282,7 @@ tensor<value_type_, allocator_type_, 2> try_swiglu(matrix_view<value_type_> gate
     return result;
 }
 
-/** @brief Scale: output[i] = α × input[i] + β. */
+/** Scale: output[i] = α × input[i] + β. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
 bool scale(tensor_view<value_type_, max_rank_> input, typename value_type_::scale_t alpha,
            typename value_type_::scale_t beta, tensor_span<value_type_, max_rank_> output) noexcept {
@@ -288,7 +292,7 @@ bool scale(tensor_view<value_type_, max_rank_> input, typename value_type_::scal
         });
 }
 
-/** @brief Allocating scale: result[i] = α × input[i] + β. */
+/** Allocating scale: result[i] = α × input[i] + β. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
 tensor<value_type_, allocator_type_, max_rank_> try_scale(tensor_view<value_type_, max_rank_> input,
@@ -303,7 +307,7 @@ tensor<value_type_, allocator_type_, max_rank_> try_scale(tensor_view<value_type
     return result;
 }
 
-/** @brief Blend: output[i] = α × lhs[i] + β × rhs[i]. */
+/** Blend: each output is α times the left operand plus β times the right operand. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
 bool blend(tensor_view<value_type_, max_rank_> lhs, tensor_view<value_type_, max_rank_> rhs,
            typename value_type_::scale_t alpha, typename value_type_::scale_t beta,
@@ -316,7 +320,7 @@ bool blend(tensor_view<value_type_, max_rank_> lhs, tensor_view<value_type_, max
         });
 }
 
-/** @brief Allocating blend: result[i] = α × lhs[i] + β × rhs[i]. */
+/** Allocating blend: each result is α times the left operand plus β times the right operand. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
 tensor<value_type_, allocator_type_, max_rank_> try_blend(tensor_view<value_type_, max_rank_> lhs,
@@ -332,7 +336,7 @@ tensor<value_type_, allocator_type_, max_rank_> try_blend(tensor_view<value_type
     return result;
 }
 
-/** @brief FMA: output[i] = α × lhs[i] × rhs[i] + β × addend[i]. */
+/** FMA: each output is α times the product of both operands plus β times the addend. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
 bool fma(tensor_view<value_type_, max_rank_> lhs, tensor_view<value_type_, max_rank_> rhs,
          tensor_view<value_type_, max_rank_> addend, typename value_type_::scale_t alpha,
@@ -345,7 +349,7 @@ bool fma(tensor_view<value_type_, max_rank_> lhs, tensor_view<value_type_, max_r
         });
 }
 
-/** @brief Allocating FMA: result[i] = α × lhs[i] × rhs[i] + β × addend[i]. */
+/** Allocating FMA: each result is α times the product of both operands plus β times the addend. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
 tensor<value_type_, allocator_type_, max_rank_> try_fma(tensor_view<value_type_, max_rank_> lhs,
@@ -362,7 +366,7 @@ tensor<value_type_, allocator_type_, max_rank_> try_fma(tensor_view<value_type_,
     return result;
 }
 
-/** @brief Elementwise addition: output[i] = lhs[i] + rhs[i]. */
+/** Elementwise addition: each output is the sum of the two operands. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
 bool add(tensor_view<value_type_, max_rank_> lhs, tensor_view<value_type_, max_rank_> rhs,
          tensor_span<value_type_, max_rank_> output) noexcept {
@@ -374,7 +378,7 @@ bool add(tensor_view<value_type_, max_rank_> lhs, tensor_view<value_type_, max_r
         });
 }
 
-/** @brief Allocating elementwise add: result = lhs + rhs. */
+/** Allocating elementwise add: the result is the sum of the two operands. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
 tensor<value_type_, allocator_type_, max_rank_> try_add(tensor_view<value_type_, max_rank_> lhs,
@@ -388,7 +392,7 @@ tensor<value_type_, allocator_type_, max_rank_> try_add(tensor_view<value_type_,
     return result;
 }
 
-/** @brief Elementwise add scalar: output[i] = input[i] + scalar. */
+/** Elementwise add scalar: output[i] = input[i] + scalar. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
 bool add(tensor_view<value_type_, max_rank_> input, typename value_type_::scale_t scalar,
          tensor_span<value_type_, max_rank_> output) noexcept {
@@ -396,7 +400,7 @@ bool add(tensor_view<value_type_, max_rank_> input, typename value_type_::scale_
     return scale<value_type_, max_rank_>(input, one, scalar, output);
 }
 
-/** @brief Allocating add scalar. */
+/** Allocating add scalar. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
 tensor<value_type_, allocator_type_, max_rank_> try_add(tensor_view<value_type_, max_rank_> input,
@@ -410,7 +414,7 @@ tensor<value_type_, allocator_type_, max_rank_> try_add(tensor_view<value_type_,
     return result;
 }
 
-/** @brief Elementwise subtraction: output[i] = lhs[i] − rhs[i]. */
+/** Elementwise subtraction: each output is the left operand minus the right operand. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
 bool sub(tensor_view<value_type_, max_rank_> lhs, tensor_view<value_type_, max_rank_> rhs,
          tensor_span<value_type_, max_rank_> output) noexcept {
@@ -418,7 +422,7 @@ bool sub(tensor_view<value_type_, max_rank_> lhs, tensor_view<value_type_, max_r
     return blend<value_type_, max_rank_>(lhs, rhs, alpha, beta, output);
 }
 
-/** @brief Allocating elementwise sub. */
+/** Allocating elementwise sub. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
 tensor<value_type_, allocator_type_, max_rank_> try_sub(tensor_view<value_type_, max_rank_> lhs,
@@ -432,7 +436,7 @@ tensor<value_type_, allocator_type_, max_rank_> try_sub(tensor_view<value_type_,
     return result;
 }
 
-/** @brief Elementwise sub scalar: output[i] = input[i] − scalar. */
+/** Elementwise sub scalar: output[i] = input[i] − scalar. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
 bool sub(tensor_view<value_type_, max_rank_> input, typename value_type_::scale_t scalar,
          tensor_span<value_type_, max_rank_> output) noexcept {
@@ -441,7 +445,7 @@ bool sub(tensor_view<value_type_, max_rank_> input, typename value_type_::scale_
     return scale<value_type_, max_rank_>(input, one, neg_scalar, output);
 }
 
-/** @brief Allocating sub scalar. */
+/** Allocating sub scalar. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
 tensor<value_type_, allocator_type_, max_rank_> try_sub(tensor_view<value_type_, max_rank_> input,
@@ -455,7 +459,7 @@ tensor<value_type_, allocator_type_, max_rank_> try_sub(tensor_view<value_type_,
     return result;
 }
 
-/** @brief Elementwise multiplication: output[i] = lhs[i] × rhs[i]. */
+/** Elementwise multiplication: each output is the product of the two operands. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
 bool mul(tensor_view<value_type_, max_rank_> lhs, tensor_view<value_type_, max_rank_> rhs,
          tensor_span<value_type_, max_rank_> output) noexcept {
@@ -468,7 +472,7 @@ bool mul(tensor_view<value_type_, max_rank_> lhs, tensor_view<value_type_, max_r
         });
 }
 
-/** @brief Allocating elementwise multiply. */
+/** Allocating elementwise multiply. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
 tensor<value_type_, allocator_type_, max_rank_> try_mul(tensor_view<value_type_, max_rank_> lhs,
@@ -482,7 +486,7 @@ tensor<value_type_, allocator_type_, max_rank_> try_mul(tensor_view<value_type_,
     return result;
 }
 
-/** @brief Elementwise multiply by scalar: output[i] = input[i] × scalar. */
+/** Elementwise multiply by scalar: output[i] = input[i] × scalar. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
 bool mul(tensor_view<value_type_, max_rank_> input, typename value_type_::scale_t scalar,
          tensor_span<value_type_, max_rank_> output) noexcept {
@@ -490,7 +494,7 @@ bool mul(tensor_view<value_type_, max_rank_> input, typename value_type_::scale_
     return scale<value_type_, max_rank_>(input, scalar, zero, output);
 }
 
-/** @brief Allocating multiply by scalar. */
+/** Allocating multiply by scalar. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
 tensor<value_type_, allocator_type_, max_rank_> try_mul(tensor_view<value_type_, max_rank_> input,

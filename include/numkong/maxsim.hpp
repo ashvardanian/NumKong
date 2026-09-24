@@ -1,8 +1,8 @@
 /**
- *  @brief C++ bindings for multi-target MaxSim (ColBERT late-interaction) kernels.
  *  @file include/numkong/maxsim.hpp
  *  @author Ash Vardanian
  *  @date February 28, 2026
+ *  @brief C++ bindings for multi-target MaxSim, ColBERT late-interaction kernels.
  */
 #ifndef NK_MAXSIM_HPP
 #define NK_MAXSIM_HPP
@@ -20,7 +20,9 @@ namespace ashvardanian::numkong {
 
 /**
  *  @brief Computes angular distance late-interaction on pre-packed vectors.
+ *
  *  Returns Σᵢ minⱼ angular(qᵢ, dⱼ).
+ *
  *  @param[in] query_packed Packed query vectors.
  *  @param[in] document_packed Packed document vectors.
  *  @param[in] query_count Number of query vectors.
@@ -28,7 +30,7 @@ namespace ashvardanian::numkong {
  *  @param[in] depth Number of dimensions per vector.
  *  @return Sum of per-query minimum angular distances.
  *
- *  @tparam in_type_ Input element type (bf16_t, f32_t, f16_t).
+ *  @tparam in_type_ Input element type: @c bf16_t, @c f32_t or @c f16_t.
  *  @tparam result_type_ Result type, defaults to `in_type_::maxsim_result_t`.
  *  @tparam allow_simd_ Enable SIMD kernel dispatch when `prefer_simd_k`.
  */
@@ -65,8 +67,10 @@ NK_API_COMPTIME void maxsim_packed(void const *query_packed, void const *documen
 
 /**
  *  @brief Exhaustive angular reference for testing: Σᵢ minⱼ angular(qᵢ, dⱼ).
+ *
  *  Computes all pairwise angular distances and picks the minimum per query.
  *  Uses f64 accumulator for precision.
+ *
  *  @param[in] queries Query vectors in row-major order.
  *  @param[in] query_count Number of query vectors.
  *  @param[in] query_stride Row stride in bytes for query vectors.
@@ -76,7 +80,7 @@ NK_API_COMPTIME void maxsim_packed(void const *query_packed, void const *documen
  *  @param[in] depth Number of dimensions per vector.
  *  @param[out] result Pointer to store the sum of per-query minimum angular distances.
  *
- *  @tparam in_type_ Input element type (bf16_t, f32_t, f16_t).
+ *  @tparam in_type_ Input element type: @c bf16_t, @c f32_t or @c f16_t.
  *  @tparam result_type_ Result type, defaults to `in_type_::angular_result_t`.
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::angular_result_t,
@@ -115,7 +119,7 @@ NK_API_COMPTIME void maxsim_reference(typename in_type_::raw_t const *queries, s
 
 namespace ashvardanian::numkong {
 
-/** @brief MaxSim: Σᵢ minⱼ angular(qᵢ, dⱼ) on pre-packed vectors. */
+/** MaxSim: Σᵢ minⱼ angular(qᵢ, dⱼ) on pre-packed vectors. */
 template <numeric_dtype value_type_>
 typename value_type_::maxsim_result_t maxsim(packed_maxsim<value_type_> const &queries,
                                              packed_maxsim<value_type_> const &documents) noexcept {

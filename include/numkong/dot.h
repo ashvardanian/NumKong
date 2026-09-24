@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Dot Products for Real and Complex Numbers.
  *  @file include/numkong/dot.h
  *  @author Ash Vardanian
  *  @date February 24, 2024
+ *  @brief SIMD-accelerated dot products for real and complex numbers.
  *
  *  Contains:
  *
@@ -40,13 +40,14 @@
  *  - RISC-V: RVV, RVV+BF16, RVV+HALF, RVV+BB
  *  - WASM: V128, V128Relaxed
  *
- *  @section numerical_stability Numerical Stability
+ *  @section dot_numerical_stability Numerical Stability
  *
  *  - f64: Dot2/Ogita-Rump-Oishi style compensated summation across serial and SIMD stateful paths.
- *  - f32: public outputs widen to f64/f64c. Arithmetic widens before the first lossy reduction step.
+ *  - f32: public outputs widen to f64/f64c. Arithmetic widens before the first lossy reduction
+ *    step.
  *  - f16/bf16: Promoted to f32 accumulator.
- *  - e4m3/e5m2: Promoted to f32. On Sapphire, e2m3/e3m2 use f16 intermediate with periodic
- *    flush to f32 every 128 elements to avoid f16 overflow (max lane sum ~225 / ~3136).
+ *  - e4m3/e5m2: Promoted to f32. On Sapphire, e2m3/e3m2 use f16 intermediate with periodic flush to
+ *    f32 every 128 elements to avoid f16 overflow, max lane sum ~225 / ~3136.
  *  - i8: i32 accumulator. Max product |(-128)²| = 16,384. Overflows at n > 2^31/16,384 ≈ 131K.
  *  - u8: u32 accumulator. Max product 255² = 65,025. Overflows at n > 2^32/65,025 ≈ 66K.
  *  - i4: i32 accumulator. Max product 8² = 64. Safe for n ≤ ~33M.
@@ -54,76 +55,81 @@
  *  - u1: Popcount of AND into u32. Safe for n_bits ≤ 2^32.
  *  - Complex: Components accumulated independently; same guarantees as real counterpart.
  *
- *  @section streaming_api Streaming API
+ *  @section dot_streaming_api Streaming API
  *
- *  For compile-time dispatch and vector-at-a-time accumulation, we provide streaming helpers
- *  that accept two `nk_b512_vec_t` blocks and update a running sum for non-complex dot
- *  products. The `<count>` suffix reflects how many scalars of that type fit in a 512-bit block.
- *  The helpers are exposed per scalar type as:
+ *  For compile-time dispatch and vector-at-a-time accumulation, we provide streaming helpers that
+ *  accept two @c nk_b512_vec_t blocks and update a running sum for non-complex dot products. The
+ *  `<count>` suffix reflects how many scalars of that type fit in a 512-bit block. The helpers are
+ *  exposed per scalar type as:
  *
  *  - nk_dot_<type>x<count>_state_<isa>_t
  *  - nk_dot_<type>x<count>_init_<isa>
  *  - nk_dot_<type>x<count>_update_<isa>
  *  - nk_dot_<type>x<count>_finalize_<isa>
  *
- *  @section x86_instructions Relevant x86 Instructions
+ *  @section dot_x86_instructions Relevant x86 Instructions
  *
- *  Floating-point dot products use FMA (VFMADD231PS/PD) for sum += a[i]*b[i] accumulation.
- *  Integer i8 dot products use VPMADDUBSW (u8 × i8 → i16) + VPMADDWD (i16 × 1 → i32) on Haswell,
- *  or the newer VNNI instructions VPDPBUSD/VPDPWSSD on Ice Lake+ for direct u8 × i8 → i32.
- *  BF16 dot products (VDPBF16PS) are Genoa-only, accumulating bf16 pairs directly to f32.
- *  Genoa shows 40% faster integer multiply-add (3c vs 5c) than Ice Lake.
+ *  Floating-point dot products use FMA, VFMADD231PS/PD, for sum += aᵢ × bᵢ accumulation. Integer i8
+ *  dot products use VPMADDUBSW, u8 × i8 → i16, plus VPMADDWD, i16 × 1 → i32, on Haswell, or the
+ *  newer VNNI instructions VPDPBUSD/VPDPWSSD on Ice Lake+ for direct u8 × i8 → i32. BF16 dot
+ *  products via VDPBF16PS are Genoa-only, accumulating bf16 pairs directly to f32. Genoa shows 40%
+ *  faster integer multiply-add than Ice Lake, 3c vs 5c.
  *
- *      Intrinsic             Instruction                  Haswell    Icelake    Genoa
- *      _mm256_fmadd_ps       VFMADD231PS (YMM, YMM, YMM)  5cy @ p01  4cy @ p01  4cy @ p01
- *      _mm256_fmadd_pd       VFMADD231PD (YMM, YMM, YMM)  5cy @ p01  4cy @ p01  4cy @ p01
- *      _mm256_maddubs_epi16  VPMADDUBSW (YMM, YMM, YMM)   5cy @ p0   5cy @ p01  3cy @ p01
- *      _mm256_madd_epi16     VPMADDWD (YMM, YMM, YMM)     5cy @ p0   5cy @ p01  3cy @ p01
- *      _mm256_dpbusd_epi32   VPDPBUSD (YMM, YMM, YMM)     n/a        5cy @ p01  4cy @ p01
- *      _mm512_dpwssd_epi32   VPDPWSSD (ZMM, ZMM, ZMM)     n/a        5cy @ p0   4cy @ p01
- *      _mm512_dpbf16_ps      VDPBF16PS (ZMM, ZMM, ZMM)    n/a        n/a        6cy @ p01
+ *  @verbatim
+ *  Intrinsic             Instruction                  Haswell    Icelake    Genoa
+ *  _mm256_fmadd_ps       VFMADD231PS (YMM, YMM, YMM)  5cy @ p01  4cy @ p01  4cy @ p01
+ *  _mm256_fmadd_pd       VFMADD231PD (YMM, YMM, YMM)  5cy @ p01  4cy @ p01  4cy @ p01
+ *  _mm256_maddubs_epi16  VPMADDUBSW (YMM, YMM, YMM)   5cy @ p0   5cy @ p01  3cy @ p01
+ *  _mm256_madd_epi16     VPMADDWD (YMM, YMM, YMM)     5cy @ p0   5cy @ p01  3cy @ p01
+ *  _mm256_dpbusd_epi32   VPDPBUSD (YMM, YMM, YMM)     n/a        5cy @ p01  4cy @ p01
+ *  _mm512_dpwssd_epi32   VPDPWSSD (ZMM, ZMM, ZMM)     n/a        5cy @ p0   4cy @ p01
+ *  _mm512_dpbf16_ps      VDPBF16PS (ZMM, ZMM, ZMM)    n/a        n/a        6cy @ p01
+ *  @endverbatim
  *
  *  @section arm_neon_instructions Relevant ARM NEON Instructions
  *
- *  NEON integer dot products use SDOT/UDOT (ARMv8.2 dotprod) for direct i8 × i8 → i32 or u8 × u8 → u32
- *  accumulation - 4x faster than the multiply-add sequence on older cores. BFDOT (ARMv8.6 bf16)
+ *  NEON integer dot products use SDOT/UDOT (ARMv8.2 dotprod) for direct i8 × i8 → i32 or u8 × u8 →
+ *  u32 accumulation - 4x faster than the multiply-add sequence on older cores. BFDOT (ARMv8.6 bf16)
  *  provides native bf16 dot products on Graviton 3+. Complex dot products use LD2 for deinterleaved
  *  loads of real/imag pairs, though its L01+V throughput can bottleneck on memory-bound workloads.
  *
- *      Intrinsic    Instruction   M1 Firestorm  Graviton 3   Graviton 4
- *      vfmaq_f32    FMLA.S (vec)  4cy @ V0123   4cy @ V0123  4cy @ V0123
- *      vfmaq_f64    FMLA.D (vec)  4cy @ V0123   4cy @ V0123  4cy @ V0123
- *      vdotq_s32    SDOT (vec)    3cy @ V0123   3cy @ V0123  3cy @ V0123
- *      vdotq_u32    UDOT (vec)    3cy @ V0123   3cy @ V0123  3cy @ V0123
- *      vbfdotq_f32  BFDOT (vec)   N/A           4cy @ V0123  5cy @ V0123
- *      vld2q_f32    LD2 (Q-form)  5cy @ L01+V   8cy @ L01+V  8cy @ L01+V
+ *  @verbatim
+ *  Intrinsic    Instruction   M1 Firestorm  Graviton 3   Graviton 4
+ *  vfmaq_f32    FMLA.S (vec)  4cy @ V0123   4cy @ V0123  4cy @ V0123
+ *  vfmaq_f64    FMLA.D (vec)  4cy @ V0123   4cy @ V0123  4cy @ V0123
+ *  vdotq_s32    SDOT (vec)    3cy @ V0123   3cy @ V0123  3cy @ V0123
+ *  vdotq_u32    UDOT (vec)    3cy @ V0123   3cy @ V0123  3cy @ V0123
+ *  vbfdotq_f32  BFDOT (vec)   N/A           4cy @ V0123  5cy @ V0123
+ *  vld2q_f32    LD2 (Q-form)  5cy @ L01+V   8cy @ L01+V  8cy @ L01+V
+ *  @endverbatim
  *
  *  @section arm_sve_instructions Relevant ARM SVE Instructions
  *
  *  SVE implementations use predicated FMA (svmla_f32_x) with WHILELT for tail masking, avoiding
- *  scalar cleanup loops. FADDV performs horizontal reduction; notably 45% faster on Graviton 4
- *  (6c) than Graviton 3 (11c). SVE complex dot products use svld2 for structure loads.
+ *  scalar cleanup loops. FADDV performs horizontal reduction; notably 45% faster on Graviton 4 (6c)
+ *  than Graviton 3 (11c). SVE complex dot products use svld2 for structure loads.
  *
- *      Intrinsic      Instruction  Graviton 3    Graviton 4
- *      svmla_f32_x    FMLA (pred)  4cy @ V0123   4cy @ V0123
- *      svmls_f32_x    FMLS (pred)  4cy @ V0123   4cy @ V0123
- *      svwhilelt_b32  WHILELT      3cy @ M0      3cy @ M0
- *      svld2_f32      LD2 (SVE)    8cy @ L01+V   8cy @ L01+V
- *      svaddv_f32     FADDV        11cy @ V0123  6cy @ V0123
+ *  @verbatim
+ *  Intrinsic      Instruction  Graviton 3    Graviton 4
+ *  svmla_f32_x    FMLA (pred)  4cy @ V0123   4cy @ V0123
+ *  svmls_f32_x    FMLS (pred)  4cy @ V0123   4cy @ V0123
+ *  svwhilelt_b32  WHILELT      3cy @ M0      3cy @ M0
+ *  svld2_f32      LD2 (SVE)    8cy @ L01+V   8cy @ L01+V
+ *  svaddv_f32     FADDV        11cy @ V0123  6cy @ V0123
+ *  @endverbatim
  *
  *  @section complex_instructions Complex Number Optimizations
  *
- *  Standard complex multiplication involves subtraction for the real part.
- *  Instead of using subtracting variants of FMA for every element, we accumulate real
- *  and imaginary products positively and apply a single bitwise XOR to flip the sign
- *  bits before the final horizontal reduction. This delayed application of the sign
- *  flip doubles the throughput on older x86 architectures like Haswell by maximizing
- *  FMA unit utilization and reducing execution dependency chains.
+ *  Standard complex multiplication subtracts for the real part. Instead of subtracting FMA variants
+ *  for every element, we accumulate real and imaginary products positively and flip the sign bits
+ *  with a single bitwise XOR before the final horizontal reduction. Delaying the sign flip this way
+ *  doubles the throughput on older x86 architectures like Haswell by maximizing FMA unit
+ *  utilization and shortening execution dependency chains.
  *
- *  @section references References
+ *  @section dot_references References
  *
- *  - x86 intrinsics: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
- *  - Arm intrinsics: https://developer.arm.com/architectures/instruction-sets/intrinsics/
+ *  @see x86 intrinsics: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
+ *  @see Arm intrinsics: https://developer.arm.com/architectures/instruction-sets/intrinsics/
  *
  */
 #ifndef NK_DOT_H

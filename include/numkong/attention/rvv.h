@@ -1,35 +1,33 @@
 /**
- *  @brief Ragged attention for RISC-V CPUs with the RVV 1.0 vector extension.
  *  @file include/numkong/attention/rvv.h
  *  @author Ash Vardanian
  *  @date July 6, 2026
+ *  @brief Ragged attention for RISC-V CPUs with the RVV 1.0 vector extension.
  *
  *  @sa include/numkong/attention.h
  *
- *  Vector-length-agnostic backend: every loop strip-mines with `__riscv_vsetvl`, so there
- *  are no masks, no scalar tails, and no channel padding anywhere in the file. That is a
- *  deliberate divergence from the x86 backends, which zero-pad packed planes to multiples
- *  of 16 channels — here the packed K/V planes are raw and unpadded, and VLA strip-mining
- *  absorbs arbitrary depths and position counts, including odd ones, at full speed.
+ *  Vector-length-agnostic backend: every loop strip-mines with @c __riscv_vsetvl, so there are no
+ *  masks, no scalar tails, and no channel padding anywhere in the file. That is a deliberate
+ *  divergence from the x86 backends, which zero-pad packed planes to multiples of 16 channels —
+ *  here the packed K/V planes are raw and unpadded, and VLA strip-mining absorbs arbitrary depths
+ *  and position counts, including odd ones, at full speed.
  *
- *  The panel structure matches the family design — per query row, KV is swept in panels
- *  with an exact online correction and a base-2 streaming softmax sharing the family's
- *  degree-4 polynomial (@see nk_f32_exp2_serial_). Score and accumulation loops keep
- *  operands at LMUL m1/m2 to leave register-group headroom; the softmax elementwise
- *  passes over the score row run wider at e32m4.
+ *  The panel structure matches the family design — per query row, KV is swept in panels with an
+ *  exact online correction and a base-2 streaming softmax sharing the family's degree-4 polynomial
+ *  from nk_f32_exp2_serial_. Score and accumulation loops keep operands at LMUL m1/m2 to leave
+ *  register-group headroom; the softmax elementwise passes over the score row run wider at e32m4.
  *
- *  Storage mirrors `dots/rvv.h` economics: BF16 stays BF16 at rest and widens to F32 with
- *  a zero-extend + shift (@see nk_bf16m1_to_f32m2_rvv_). E4M3 K/V converts once to BF16
- *  at pack time — the conversion is lossless (3 mantissa bits fit into 7), the packed
- *  plane stays 2 bytes per value, and the hot loops reuse the cheap BF16 shift loader
- *  instead of an in-loop gather. Only the unpacked query side keeps a 128-entry
- *  magnitude-LUT gather loader for E4M3.
+ *  Storage mirrors `dots/rvv.h` economics: BF16 stays BF16 at rest and widens to F32 with a
+ *  zero-extend + shift, through nk_bf16m1_to_f32m2_rvv_. E4M3 K/V converts once to BF16 at pack
+ *  time — the conversion is lossless, 3 mantissa bits fit into 7, the packed plane stays 2 bytes
+ *  per value, and the hot loops reuse the cheap BF16 shift loader instead of an in-loop gather.
+ *  Only the unpacked query side keeps a 128-entry magnitude-LUT gather loader for E4M3.
  *
- *  The I8 path is exact: scores are true I32 integer dot-products (widening multiply and
- *  accumulate), the row maximum is taken over live columns only, and softmax weights
- *  quantize to U8 as `round(255 · 2^(s₂ − m₂))` with the scalar exponent shared with the
- *  serial tier — so single-panel outputs are bit-identical to `nk_attention_packed_i8_serial`.
- *  Depths above 256 route to the width-agnostic serial tier from every entry point.
+ *  The I8 path is exact: scores are true I32 integer dot-products — widening multiply and
+ *  accumulate — the row maximum is taken over live columns only, and softmax weights quantize to U8
+ *  as round(255 · 2^(s₂ − m₂)) with the scalar exponent shared with the serial tier — so
+ *  single-panel outputs are bit-identical to @c nk_attention_packed_i8_serial. Depths above 256
+ *  route to the width-agnostic serial tier from every entry point.
  */
 #ifndef NK_ATTENTION_RVV_H
 #define NK_ATTENTION_RVV_H

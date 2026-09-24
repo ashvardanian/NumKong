@@ -1,8 +1,8 @@
 /**
- *  @brief Elementwise operations tests.
  *  @file test/each.cpp
  *  @author Ash Vardanian
  *  @date December 28, 2025
+ *  @brief Elementwise operations tests.
  */
 
 #include "test.hpp"
@@ -27,9 +27,7 @@ typename scalar_type_::scale_t random_coef(generator_type_ &gen) {
     }
 }
 
-/**
- *  @brief Unified test for elementwise sum: result[i] = a[i] + b[i]
- */
+/** Unified test for elementwise sum: result[i] = a[i] + b[i]. */
 template <typename scalar_type_>
 error_stats_t test_sum(typename scalar_type_::sum_kernel_t kernel) {
     using scalar_t = scalar_type_;
@@ -55,9 +53,7 @@ error_stats_t test_sum(typename scalar_type_::sum_kernel_t kernel) {
     return stats;
 }
 
-/**
- *  @brief Unified test for scale: result[i] = alpha * x[i] + beta
- */
+/** Unified test for scale: result[i] = alpha * x[i] + beta. */
 template <typename scalar_type_>
 error_stats_t test_scale(typename scalar_type_::scale_kernel_t kernel) {
     using scalar_t = scalar_type_;
@@ -85,9 +81,7 @@ error_stats_t test_scale(typename scalar_type_::scale_kernel_t kernel) {
     return stats;
 }
 
-/**
- *  @brief Unified test for blend: result[i] = alpha * a[i] + beta * b[i]
- */
+/** Unified test for blend: result[i] = alpha * a[i] + beta * b[i]. */
 template <typename scalar_type_>
 error_stats_t test_blend(typename scalar_type_::blend_kernel_t kernel) {
     using scalar_t = scalar_type_;
@@ -118,9 +112,7 @@ error_stats_t test_blend(typename scalar_type_::blend_kernel_t kernel) {
     return stats;
 }
 
-/**
- *  @brief Unified test for FMA: result[i] = alpha * a[i] * b[i] + beta * c[i]
- */
+/** Unified test for FMA: result[i] = alpha * a[i] * b[i] + beta * c[i]. */
 template <typename scalar_type_>
 error_stats_t test_fma(typename scalar_type_::fma_kernel_t kernel) {
     using scalar_t = scalar_type_;
@@ -153,11 +145,9 @@ error_stats_t test_fma(typename scalar_type_::fma_kernel_t kernel) {
     return stats;
 }
 
-/**
- *  @brief Smoke-test for the tensor-shaped trig wrappers (`nk::try_sin`/`cos`/`atan`).
- *  Runs allocating + into-span variants on a small zero tensor — just exercises the dispatch
- *  paths, not the numerical accuracy (the latter is covered by the kernel tests above).
- */
+/** Smoke-test for the tensor-shaped trig wrappers @c nk::try_sin, @c cos and @c atan, running
+ *  allocating and into-span variants on a small zero tensor, just exercising the dispatch paths,
+ *  not the numerical accuracy, which the kernel tests above cover. */
 void test_each() {
     error_stats_section_t check;
 

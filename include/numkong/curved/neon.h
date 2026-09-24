@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Curved Space Similarity for NEON.
  *  @file include/numkong/curved/neon.h
  *  @author Ash Vardanian
  *  @date January 14, 2026
+ *  @brief SIMD-accelerated curved-space similarity for NEON.
  *
  *  @sa include/numkong/curved.h
  *
@@ -11,15 +11,17 @@
  *
  *  @section neon_curved_instructions Key NEON Instructions
  *
- *      Intrinsic     Instruction                  A76       M5
- *      vfmaq_f64     FMLA (V.2D, V.2D, V.2D)      4cy @ 2p  3cy @ 4p
- *      vcvt_f64_f32  FCVTL (V.2D, V.2S)           3cy @ 2p  3cy @ 4p
- *      vaddvq_f64    FADDP (V.2D to scalar)       3cy @ 1p  3cy @ 2p
- *      vld1_f32      LD1 ({Vt.2S}, [Xn])          4cy @ 2p  4cy @ 3p
- *      vld2_f32      LD2 ({Vt.2S, Vt2.2S}, [Xn])  4cy @ 1p  4cy @ 1p
+ *  @verbatim
+ *  Intrinsic     Instruction                  A76       M5
+ *  vfmaq_f64     FMLA (V.2D, V.2D, V.2D)      4cy @ 2p  3cy @ 4p
+ *  vcvt_f64_f32  FCVTL (V.2D, V.2S)           3cy @ 2p  3cy @ 4p
+ *  vaddvq_f64    FADDP (V.2D to scalar)       3cy @ 1p  3cy @ 2p
+ *  vld1_f32      LD1 ({Vt.2S}, [Xn])          4cy @ 2p  4cy @ 3p
+ *  vld2_f32      LD2 ({Vt.2S, Vt2.2S}, [Xn])  4cy @ 1p  4cy @ 1p
+ *  @endverbatim
  *
- *  For f32 bilinear and Mahalanobis, we upcast to f64 for accumulation to preserve
- *  precision and avoid catastrophic cancellation in large-magnitude sums.
+ *  For f32 bilinear and Mahalanobis, we upcast to f64 for accumulation to preserve precision and
+ *  avoid catastrophic cancellation in large-magnitude sums.
  */
 #ifndef NK_CURVED_NEON_H
 #define NK_CURVED_NEON_H

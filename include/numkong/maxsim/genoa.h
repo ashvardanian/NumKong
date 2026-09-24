@@ -1,16 +1,19 @@
 /**
- *  @brief SIMD-accelerated MaxSim (ColBERT late-interaction) for Genoa — bf16 only.
  *  @file include/numkong/maxsim/genoa.h
  *  @author Ash Vardanian
  *  @date February 17, 2026
+ *  @brief SIMD-accelerated MaxSim, ColBERT late-interaction, for Genoa — bf16 only.
  *
  *  @sa include/numkong/maxsim.h
  *
- *  Uses AVX-512 VNNI (VPDPBUSD) for coarse i8 screening via icelake.h, and VDPBF16PS for bf16 refinement.
- *  f32/f16 MaxSim variants live in icelake.h — this file only provides bf16 pack and compute.
+ *  Uses AVX-512 VNNI, VPDPBUSD, for coarse i8 screening via icelake.h, and VDPBF16PS for bf16
+ *  refinement. f32/f16 MaxSim variants live in icelake.h — this file only handles bf16 packing and
+ *  its compute step.
  *
- *      Intrinsic         Instruction  Genoa
- *      _mm512_dpbf16_ps  VDPBF16PS    6cy @ p01
+ *  @verbatim
+ *  Intrinsic         Instruction  Genoa
+ *  _mm512_dpbf16_ps  VDPBF16PS    6cy @ p01
+ *  @endverbatim
  */
 #ifndef NK_MAXSIM_GENOA_H
 #define NK_MAXSIM_GENOA_H

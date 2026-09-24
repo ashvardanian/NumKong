@@ -1,31 +1,41 @@
-// Currently the builds are expected to run only on Node.js,
-// but Deno tests pass as well.
-//
-// Bun supports `node:assert`, but not `node:test`.
-// Using `require` we can make the tests compatible with Bun.
-//
-//    const isBun = typeof Bun !== "undefined";
-//    let assert, test;
-//    if (isBun) {
-//      assert = require('node:assert');
-//      test = require('bun:test');
-//    } else {
-//      assert = require('node:assert');
-//      test = require('node:test');
-//    }
-//
-// That, however, leads to other issues, like the following:
-//
-//    require is not defined in ES module scope, you can use import instead
-//
-// https://bun.sh/docs/runtime/nodejs-apis
-// https://bun.sh/guides/util/detect-bun
+/**
+ *  @file test/test.mjs
+ *  @author Ash Vardanian
+ *  @date October 17, 2023
+ *  @brief Tests for the NumKong JavaScript bindings.
+ *
+ *  The builds are expected to run only on Node.js, but Deno tests pass as well. Bun supports
+ *  `node:assert` but not `node:test`, and loading both through `require` would make the tests
+ *  compatible with Bun:
+ *
+ *  ```js
+ *  const isBun = typeof Bun !== "undefined";
+ *  let assert, test;
+ *  if (isBun) {
+ *    assert = require('node:assert');
+ *    test = require('bun:test');
+ *  } else {
+ *    assert = require('node:assert');
+ *    test = require('node:test');
+ *  }
+ *  ```
+ *
+ *  An ES module has no `require`, though, so that fails with:
+ *
+ *  ```text
+ *  require is not defined in ES module scope, you can use import instead
+ *  ```
+ *
+ *  @see {@link https://bun.sh/docs/runtime/nodejs-apis | Bun: Node.js compatibility}
+ *  @see {@link https://bun.sh/guides/util/detect-bun | Bun: Detect the Bun runtime}
+ */
 import test from "node:test";
 import assert from "node:assert";
 
 import * as numkong from "../javascript/dist/esm/numkong.js";
 import { relaxedProbe, simd128Probe } from "../javascript/dist/esm/wasm-probes.js";
 
+/** Asserts approximate equality within a tolerance. */
 function assertAlmostEqual(actual, expected, tolerance = 1e-6) {
   const lowerBound = expected - tolerance;
   const upperBound = expected + tolerance;
@@ -184,7 +194,7 @@ test("Vector resize within capacity, reserve, and clear", () => {
   assert.strictEqual(v.toTypedArray().length, 4);
   assert.strictEqual(v.tryResize(9), false); // beyond capacity, unchanged
   assert.strictEqual(v.length, 4);
-  assert.strictEqual(v.reserve(32), true); // grow (may reallocate)
+  assert.strictEqual(v.reserve(32), true); // grow, may reallocate
   assert(v.capacity >= 32);
   assert.strictEqual(v.tryResize(32), true);
   assert.strictEqual(v.length, 32);
@@ -221,7 +231,7 @@ test("Matrix resize within capacity, reserve, and clear", () => {
 });
 
 test("Packed GEMM (dotsPacked)", () => {
-  // A is 4x3, B is 5x3 — result should be 4x5 (A @ B.T)
+  // A is 4×3, B is 5×3, so the result A × Bᵀ should be 4×5
   const aData = new Float32Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
   const bData = new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1]);
 
@@ -239,7 +249,7 @@ test("Packed GEMM (dotsPacked)", () => {
 
   const resultArr = result.toTypedArray();
 
-  // Manual A @ B.T computation:
+  // Manual A × Bᵀ computation:
   // Row 0 of A = [1,2,3], dots with each row of B:
   //   [1,0,0]=1, [0,1,0]=2, [0,0,1]=3, [1,1,0]=3, [1,1,1]=6
   assertAlmostEqual(resultArr[0], 1.0, 0.01);
@@ -351,7 +361,7 @@ test("angularsSymmetric — diagonal zero, upper triangle valid", () => {
   const mat = numkong.Matrix.fromTypedArray(mData, 3, 3, numkong.DType.F32);
   const result = numkong.angularsSymmetric(mat);
   const arr = result.toTypedArray();
-  // Diagonal should be 0 (distance from self)
+  // Diagonal should be 0, the distance from self
   assertAlmostEqual(arr[0 * 3 + 0], 0.0, 0.01);
   assertAlmostEqual(arr[1 * 3 + 1], 0.0, 0.01);
   assertAlmostEqual(arr[2 * 3 + 2], 0.0, 0.01);
@@ -419,7 +429,7 @@ test("dotsPackedSize", () => {
 });
 
 test("WASM SIMD probes validate", () => {
-  // The loader and the in-module `nk_has_*` probes carry these bytes; Node 22 implements both tiers.
+  // The loader and the in-module `nk_has_*` probes carry these bytes; Node 22 has both tiers.
   assert(WebAssembly.validate(simd128Probe), "The SIMD128 probe should validate");
   assert(WebAssembly.validate(relaxedProbe), "The Relaxed SIMD probe should validate");
 });

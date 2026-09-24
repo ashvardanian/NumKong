@@ -1,23 +1,23 @@
 #!/usr/bin/env node
 /**
- * @brief Unified multi-runtime benchmark and reporting for NumKong
- * @file bench/bench.mjs
- * @author Claude & Ash Vardanian
- * @date February 4, 2026
+ *  @file bench/bench.mjs
+ *  @author Ash Vardanian
+ *  @date February 4, 2026
+ *  @brief Unified multi-runtime benchmark and reporting for NumKong.
  *
- * All-in-one benchmark suite supporting multiple runtimes and report generation.
+ *  All-in-one benchmark suite for every runtime, with report generation, read from these variables:
  *
- * Environment variables:
- * - NK_DIMENSIONS: Vector dimensionality (default: 1536)
- * - NK_ITERATIONS: Benchmark iterations (default: 1000)
- * - NK_FILTER: Regex to filter tests (default: .*)
- * - NK_RUNTIME: Runtime to use (default: native)
- * - NK_SEED: Random seed (default: 42)
+ *  - `NK_DIMENSIONS`: vector dimensionality, default 1536
+ *  - `NK_ITERATIONS`: benchmark iterations, default 1000
+ *  - `NK_FILTER`: regex to filter tests, default `.*`
+ *  - `NK_RUNTIME`: runtime to use, default `native`
+ *  - `NK_SEED`: random seed, default 42
  *
- * Commands:
- * - node bench.mjs              → Run benchmarks for configured runtime
- * - node bench.mjs --report     → Generate comparison report from results
- * - node bench.mjs --browser    → Run browser benchmarks via Playwright
+ *  ```sh
+ *  node bench.mjs              # run benchmarks for the configured runtime
+ *  node bench.mjs --report     # generate a comparison report from saved results
+ *  node bench.mjs --browser    # run browser benchmarks through Playwright
+ *  ```
  */
 
 import { performance } from 'node:perf_hooks';

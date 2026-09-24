@@ -1,8 +1,8 @@
 /**
- *  @brief Batched Spatial Distances for Skylake (AVX-512).
  *  @file include/numkong/spatials/skylake.h
  *  @author Ash Vardanian
  *  @date February 23, 2026
+ *  @brief Batched spatial distances for Skylake, AVX-512.
  *
  *  @sa include/numkong/spatials.h
  */

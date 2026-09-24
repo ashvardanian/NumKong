@@ -1,4 +1,9 @@
-/* NumKong ISA probe: LoongArch LASX (256-bit SIMD) */
+/**
+ *  @file probes/loongarch_lasx.c
+ *  @author Ash Vardanian
+ *  @date March 24, 2026
+ *  @brief NumKong ISA probe for LoongArch LASX, 256-bit SIMD.
+ */
 #if !defined(__loongarch_asx)
 #error "Feature not available"
 #endif

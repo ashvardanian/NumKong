@@ -9,10 +9,12 @@
 //! - Tensor-shaped extension traits, auto-implemented on every [`crate::tensor::TensorRef`]:
 //!   - [`MomentsOps`]: Per-axis and full-tensor moments / sums / norms
 //!   - [`MinMaxOps`]: Per-axis and full-tensor min / max / argmin / argmax
-//!   - [`BitwiseReductionsOps`]: `popcount` / `any_set` / `none_set` / `all_set` for `u1x8` tensors;
-//!     `Vector<u1x8>` / `VectorView<u1x8>` / `VectorSpan<u1x8>` expose the same method names as
-//!     concrete impls defined in [`crate::vector`] until a `VectorRef` trait exists
-//! - [`SumSqToF64`]: Helper bound used by `MomentsOps::try_norm_*` to convert sum-of-squares to f64
+//!   - [`BitwiseReductionsOps`]: `popcount` / `any_set` / `none_set` / `all_set` for `u1x8`
+//!     tensors; `Vector<u1x8>` / `VectorView<u1x8>` / `VectorSpan<u1x8>` expose the same method
+//!     names as concrete impls defined in [`crate::vector`] until a `VectorRef` trait exists
+//!
+//! File: rust/reduce.rs
+//! Author: Ash Vardanian
 
 use crate::tensor::{
     Global, MinMaxAxisResult, MinMaxResult, MomentsAxisResult, Tensor, TensorError, TensorMut, TensorRef,
@@ -265,8 +267,8 @@ pub trait ReduceMoments: StorageElement {
     /// Compute `(sum, sum_of_squares)` for `data` with the given stride in bytes.
     /// Use `stride_bytes = size_of::<Self>()` for contiguous data.
     ///
-    /// Reads `data.len()` logical elements starting at `data.as_ptr()`, advancing by
-    /// `stride_bytes` between each — pass `size_of::<Self>()` for contiguous storage.
+    /// Reads `data.len()` logical elements starting at `data.as_ptr()`, advancing by `stride_bytes`
+    /// between each — pass `size_of::<Self>()` for contiguous storage.
     fn reduce_moments(data: &[Self], stride_bytes: usize) -> (Self::SumOutput, Self::SumSqOutput);
 }
 
@@ -464,9 +466,9 @@ impl ReduceMoments for u1x8 {
 
 /// Find minimum and maximum values with their indices, with stride support.
 ///
-/// Returns `Some((min_value, min_index, max_value, max_index))` for all elements in a slice,
-/// or `None` if all elements are NaN, for NaN-masking formats.
-/// The output value type matches the logical reduced scalar type.
+/// Returns `Some((min_value, min_index, max_value, max_index))` for all elements in a slice, or
+/// `None` if all elements are NaN, for NaN-masking formats. The output value type matches the
+/// logical reduced scalar type.
 pub trait ReduceMinMax: StorageElement {
     /// Output type for the min/max values — matches the C layer's native type.
     type Output: StorageElement;
@@ -475,8 +477,8 @@ pub trait ReduceMinMax: StorageElement {
     /// Returns `Some((min_value, min_index, max_value, max_index))` for the given data with the
     /// specified stride, or `None` if all elements are NaN.
     ///
-    /// Reads `data.len()` logical elements starting at `data.as_ptr()`, advancing by
-    /// `stride_bytes` between each — pass `size_of::<Self>()` for contiguous storage.
+    /// Reads `data.len()` logical elements starting at `data.as_ptr()`, advancing by `stride_bytes`
+    /// between each — pass `size_of::<Self>()` for contiguous storage.
     fn reduce_minmax(data: &[Self], stride_bytes: usize) -> Option<(Self::Output, usize, Self::Output, usize)>;
 }
 
@@ -836,16 +838,15 @@ impl ReduceMinMax for u1x8 {
 pub trait Reductions: ReduceMoments + ReduceMinMax {}
 impl<Scalar: ReduceMoments + ReduceMinMax> Reductions for Scalar {}
 
-/// Walks a `u1x8` tensor view, accumulating set-bit counts via
-/// [`u1x8::reduce_moments`] on each rank-1 contiguous lane.
+/// Walks a `u1x8` tensor view, accumulating set-bit counts via [`u1x8::reduce_moments`] on each
+/// rank-1 contiguous lane.
 ///
-/// At rank ≤ 1 the view's logical bit count divides cleanly into a contiguous
-/// storage slice — sub-byte stride is always one byte per `u1x8`, so rank-1 is
-/// trivially contiguous. At higher ranks we recurse on the leading axis via
-/// the `TensorRef`-supplied structural accessors so that matrices and higher-rank
-/// tensors of bits work without flattening first. Non-contiguous outer strides
-/// fall out of the recursion naturally — only the leaf storage slice has to be
-/// dense, and sub-byte storage always is.
+/// At rank ≤ 1 the view's logical bit count divides cleanly into a contiguous storage slice —
+/// sub-byte stride is always one byte per `u1x8`, so rank-1 is trivially contiguous. At higher
+/// ranks we recurse on the leading axis via the `TensorRef`-supplied structural accessors so that
+/// matrices and higher-rank tensors of bits work without flattening first. Non-contiguous outer
+/// strides fall out of the recursion naturally — only the leaf storage slice has to be dense, and
+/// sub-byte storage always is.
 fn popcount_via_tensor_ref<View, const MAX_RANK: usize>(view: &View) -> u64
 where
     View: TensorRef<u1x8, MAX_RANK> + ?Sized,
@@ -876,14 +877,13 @@ where
 
 /// Population count, any/none/all reductions over packed-bit (`u1x8`) tensors.
 ///
-/// Blanket-impl'd on every [`TensorRef<u1x8, R>`], so `Tensor<u1x8>`,
-/// `TensorView<u1x8>`, and `TensorSpan<u1x8>` all expose `.popcount()` /
-/// `.any_set()` / `.none_set()` / `.all_set()` with identical spellings.
-/// Mirrors `numkong::popcount(tensor_view)` in `include/numkong/reduce.hpp`.
+/// Blanket-impl'd on every [`TensorRef<u1x8, R>`], so `Tensor<u1x8>`, `TensorView<u1x8>`, and
+/// `TensorSpan<u1x8>` all expose `.popcount()` / `.any_set()` / `.none_set()` / `.all_set()` with
+/// identical spellings. Mirrors `numkong::popcount(tensor_view)` in `include/numkong/reduce.hpp`.
 ///
-/// Method names use the `_set` suffix to leave room for a future generic
-/// `any` / `none` / `all` over arbitrary scalar predicates and to avoid
-/// colliding with the `all` slice marker exported from [`crate::vector`].
+/// Method names use the `_set` suffix to leave room for a future generic `any` / `none` / `all`
+/// over arbitrary scalar predicates and to avoid colliding with the `all` slice marker exported
+/// from [`crate::vector`].
 pub trait BitwiseReductionsOps<const MAX_RANK: usize>: TensorRef<u1x8, MAX_RANK> {
     /// Number of set bits across the entire tensor.
     fn popcount(&self) -> u64 { popcount_via_tensor_ref::<_, MAX_RANK>(self) }
@@ -1462,14 +1462,15 @@ mod tests {
 
 // region: Grouped RMSNorm
 
-/// Grouped RMSNorm over a row-major `[rows, groups * cols]` slice: `y = x * rsqrt(mean(x^2) + eps) * gamma`.
-/// Each row holds `groups` independent `cols`-vectors, normalized separately (`cols = x.len() / rows / groups`).
-/// `gamma` is an optional per-column gain of length `cols`; `None` means unit scale.
+/// Grouped RMSNorm over a row-major __[rows,groups×cols]__ slice, y = x / √(mean(x²) + ε) × γ,
+/// where each row holds `groups` independent `cols`-vectors, normalized separately, with `cols`
+/// equal to `x.len() / rows / groups`. `gamma` is an optional per-column gain of length `cols`,
+/// which defaults to unit scale when `None`.
 pub trait ReduceRmsNorm: Sized + StorageElement {
-    /// Grouped RMSNorm of a 2D `[rows, groups * cols]` tensor into `y` of the same shape.
+    /// Grouped RMSNorm of a 2D __[rows,groups×cols]__ tensor into `y` of the same shape.
     ///
-    /// Row strides are read from the tensors, so `x` and `y` may be non-contiguous sub-spans,
-    /// for example a strided section of a fused activation buffer. `gamma` is an optional per-column
+    /// Row strides are read from the tensors, so `x` and `y` may be non-contiguous sub-spans, for
+    /// example a strided section of a fused activation buffer. `gamma` is an optional per-column
     /// gain of length `cols` (`None` = unit scale). Returns `Err` on a shape mismatch.
     fn rmsnorm_into<XIn, YOut, const RX: usize, const RY: usize>(
         x: &XIn,
@@ -1496,7 +1497,7 @@ struct RmsNormPlan {
 /// Validate an RMS-norm's operands and resolve the kernel geometry.
 ///
 /// `None` means there is nothing to normalize. Note the ordering this preserves: the empty-input
-/// return comes *before* the gamma-length check, so a zero-row tensor never validates gamma — the
+/// return comes _before_ the gamma-length check, so a zero-row tensor never validates gamma — the
 /// three per-type impls each relied on that, and folding them together keeps it deliberate.
 fn validate_rmsnorm<Scalar, XIn, YOut, const RX: usize, const RY: usize>(
     x: &XIn,

@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Test mesh alignment: nk.kabsch, nk.umeyama, nk.rmsd.
 
-Dtypes: float64, float32, float16, bfloat16.
+DTypes: float64, float32, float16, bfloat16.
 Baselines: high-precision Decimal Jacobi SVD, SciPy procrustes, NumPy SVD.
 Matches C++ suite: test/mesh.cpp.
+
+File: test/mesh.py
+Author: Ash Vardanian
+Date: February 27, 2026
 """
 
 import atexit

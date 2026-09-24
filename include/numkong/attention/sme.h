@@ -1,28 +1,28 @@
 /**
- *  @brief Arm SME ragged attention backend.
  *  @file include/numkong/attention/sme.h
  *  @author Ash Vardanian
  *  @date July 8, 2026
+ *  @brief Arm SME ragged attention backend.
  *
  *  @sa include/numkong/attention.h
  *
- *  FlashAttention-style panel sweep on the SME outer-product engine, mirroring the
- *  `sapphireamx` skeleton with the shared packed header, segment directory, base-2
- *  streaming softmax, and `(task_start, task_count)` windows — but restructured around
- *  three Arm-specific properties measured on Apple M5:
+ *  FlashAttention-style panel sweep on the SME outer-product engine, mirroring the @c sapphireamx
+ *  skeleton with the shared packed header, segment directory, base-2 streaming softmax, and
+ *  `(task_start, task_count)` windows — but restructured around three Arm-specific properties
+ *  measured on Apple M5.
  *
- *  1. Streaming mode is entered once per public call and never left: matrix work runs
- *      as widening MOPA outer products into ZA32 tiles, and the softmax stays on the
- *      streaming SVE vector unit, so there are no SMSTART/SMSTOP round-trips and no
- *      NEON excursions inside the hot loop.
- *  2. ZA slices move in both directions: vertical reads give a free transpose, so the
- *      score panel is stored position-major with one query per lane — the running
- *      maximum, corrections, weight sums, output rescaling, and normalization are all
- *      plain lane-parallel vector ops with no horizontal reductions or per-row scalar
- *      broadcasts anywhere in the pipeline.
- *  3. Probabilities cross from F32 scores to MOPA-ready pair-interleaved BF16 operands
- *      in registers (round + `TRN2`), replacing the AMX tile-loader's mandatory memory
- *      round-trip with a single in-register shuffle per position pair.
+ *  Streaming mode is entered once per public call and never left: matrix work runs as widening MOPA
+ *  outer products into ZA32 tiles, and the softmax stays on the streaming SVE vector unit, so there
+ *  are no SMSTART/SMSTOP round-trips and no NEON excursions inside the hot loop.
+ *
+ *  ZA slices move in both directions: vertical reads give a free transpose, so the score panel is
+ *  stored position-major with one query per lane — the running maximum, corrections, weight sums,
+ *  output rescaling, and normalization are all plain lane-parallel vector ops with no horizontal
+ *  reductions or per-row scalar broadcasts anywhere in the pipeline.
+ *
+ *  Probabilities cross from F32 scores to MOPA-ready pair-interleaved BF16 operands in registers,
+ *  round + @c TRN2, replacing the AMX tile-loader's mandatory memory round-trip with a single
+ *  in-register shuffle per position pair.
  *
  *  ZA tile roles per stage (SVL = 512: four 16×16 F32 tiles):
  *
@@ -30,9 +30,9 @@
  *  - Q×Kᵀ scores: ZA0-ZA3 = (two query row-tiles) × (two K position-tiles)
  *  - P×V: ZA0-ZA3 = (two probability row-tiles) × (two V channel-tiles)
  *
- *  Widening MOPA keeps every reduction in F32 accumulators: the non-widening ZA16
- *  forms measure ~2× faster but lose ~12% relative accuracy on signed depth-256
- *  reductions, which fails the family's F32-accumulator contract.
+ *  Widening MOPA keeps every reduction in F32 accumulators: the non-widening ZA16 forms measure ~2×
+ *  faster but lose ~12% relative accuracy on signed depth-256 reductions, which fails the family's
+ *  F32-accumulator contract.
  */
 #ifndef NK_ATTENTION_SME_H
 #define NK_ATTENTION_SME_H

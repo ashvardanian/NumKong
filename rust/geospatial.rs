@@ -8,16 +8,19 @@
 //!
 //! # Units
 //!
-//! Both kernels use a fixed input / output unit convention. Callers holding degree
-//! values must convert with `.to_radians()` first:
+//! Both kernels use a fixed input / output unit convention. Callers holding degree values must
+//! convert with `.to_radians()` first:
 //!
-//! - **Input latitudes and longitudes**: radians, not degrees
-//! - **Output distance**: meters
-//! - **Earth radius** for Haversine: `6 335 439 m` — the WGS-84 mean meridional radius
-//! - **Ellipsoid** for Vincenty: WGS-84 (`a = 6 378 137 m`, `f = 1/298.257223563`)
+//! - __Input latitudes and longitudes__: radians, not degrees
+//! - __Output distance__: meters
+//! - __Earth radius__ for Haversine: `6 335 439 m` — the WGS-84 mean meridional radius
+//! - __Ellipsoid__ for Vincenty: WGS-84 (`a = 6 378 137 m`, `f = 1/298.257223563`)
 //!
-//! The four latitude/longitude slices must be equal length; the output slice
-//! must have the same length and is filled with per-pair distances in meters.
+//! The four latitude/longitude slices must be equal length; the output slice must have the same
+//! length and is filled with per-pair distances in meters.
+//!
+//! File: rust/geospatial.rs
+//! Author: Ash Vardanian
 
 #[link(name = "numkong")]
 extern "C" {
@@ -55,7 +58,7 @@ extern "C" {
     );
 }
 
-/// Computes **great-circle distances** between geographic coordinates on Earth.
+/// Computes __great-circle distances__ between geographic coordinates on Earth.
 ///
 /// Uses the Haversine formula for spherical Earth approximation:
 ///
@@ -63,14 +66,13 @@ extern "C" {
 /// - `c = 2 × atan2(√a, √(1−a))`
 /// - `d = R × c`
 ///
-/// Where φ = latitude, λ = longitude, R = Earth's radius of 6335 km.
-/// Inputs are in radians, outputs in meters.
+/// Where φ = latitude, λ = longitude, and R = Earth's radius of 6335 km, with inputs in radians and
+/// outputs in meters.
 pub trait Haversine: Sized {
     /// Compute the great-circle distance for paired coordinates.
     ///
-    /// All four coordinate slices must be the same length, matching the output
-    /// slice. Returns `None` on length mismatch. Inputs are in **radians** and
-    /// results are written in **meters**.
+    /// All four coordinate slices must be the same length, matching the output slice. Returns
+    /// `None` on length mismatch. Inputs are in __radians__ and results are written in __meters__.
     ///
     /// # Examples
     ///
@@ -89,7 +91,7 @@ pub trait Haversine: Sized {
     fn haversine(a_lat: &[Self], a_lon: &[Self], b_lat: &[Self], b_lon: &[Self], result: &mut [Self]) -> Option<()>;
 }
 
-/// Computes **Vincenty geodesic distances** on the WGS84 ellipsoid.
+/// Computes __Vincenty geodesic distances__ on the WGS84 ellipsoid.
 ///
 /// Uses Vincenty's iterative formula for oblate spheroid geodesics:
 ///
@@ -99,9 +101,8 @@ pub trait Haversine: Sized {
 /// 4. Series coefficients A, B from u²
 /// 5. Distance: `s = b × A × (σ − Δσ)`
 ///
-/// Where a = equatorial radius, b = polar radius, f = flattening.
-/// ~20× more accurate than Haversine for long distances.
-/// Inputs are in radians, outputs in meters.
+/// Where a = equatorial radius, b = polar radius, f = flattening. ~20× more accurate than Haversine
+/// for long distances. Inputs are in radians, outputs in meters.
 pub trait Vincenty: Sized {
     fn vincenty(a_lat: &[Self], a_lon: &[Self], b_lat: &[Self], b_lon: &[Self], result: &mut [Self]) -> Option<()>;
 }

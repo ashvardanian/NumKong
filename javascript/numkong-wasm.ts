@@ -1,30 +1,32 @@
 /**
- * @brief WASM wrapper for NumKong providing N-API compatible interface
- * @file javascript/numkong-wasm.ts
- * @date February 6, 2026
+ *  @file javascript/numkong-wasm.ts
+ *  @author Ash Vardanian
+ *  @date February 6, 2026
+ *  @brief WASM wrapper for NumKong, providing an N-API compatible interface.
  *
- * This module wraps the Emscripten-compiled WASM module to provide the same
- * TypeScript API as the native N-API bindings. It handles:
- * - Zero-copy TensorBase interop for cross-module WASM sharing
- * - TypedArray type detection and dispatch
- * - Result extraction from WASM heap
- * - Error handling
- * - Both wasm32 and wasm64 (memory64) modes
+ *  This module wraps the Emscripten-compiled WASM module to provide the same TypeScript API as the
+ *  native N-API bindings. It handles:
+ *  - Zero-copy TensorBase interop for cross-module WASM sharing.
+ *  - TypedArray type detection and dispatch.
+ *  - Result extraction from the WASM heap.
+ *  - Error handling.
+ *  - Both wasm32 and wasm64/memory64 modes.
+ *
+ *  @packageDocumentation
  */
 
 import { TensorBase, Matrix, PackedMatrix, DType, dtypeToString, dimensionsPerValue, outputDType, KernelFamily } from './types.js';
 
-/**
- * Emscripten module interface.
- * In wasm64 (memory64) mode, pointer/size params and returns become bigint.
- * We use `any` for pointer arguments to support both modes uniformly.
- */
+/** Emscripten module interface.
+ *
+ *  In wasm64, the memory64 mode, pointer/size params and returns become bigint. We use `any` for
+ *  pointer arguments to support both modes uniformly. */
 interface EmscriptenModule {
   _malloc(size: any): any;
   _free(ptr: any): void;
   wasmMemory: { buffer: ArrayBuffer };
 
-  // Distance functions - all use `any` for pointer/size args to support wasm32 (number) and wasm64 (bigint)
+  // Distance functions - all use `any` for pointer/size args, wasm32 as number, wasm64 as bigint.
   _nk_dot_f32(a: any, b: any, n: any, result: any): void;
   _nk_angular_f32(a: any, b: any, n: any, result: any): void;
   _nk_sqeuclidean_f32(a: any, b: any, n: any, result: any): void;
@@ -70,36 +72,34 @@ type WasmPtr = number | bigint;
 
 let Module: EmscriptenModule | null = null;
 
-/**
- * Whether the WASM module uses memory64.
- * In memory64 mode, Emscripten wraps _malloc/_free to accept/return number,
- * but raw C function exports expect BigInt (i64) for pointer parameters.
- * nk_size_t is always i32 (number) in WASM since NK_IS_64BIT_=0.
- */
+/** Whether the WASM module uses memory64.
+ *
+ *  In memory64 mode, Emscripten wraps `_malloc`/`_free` to accept and return a plain number, but
+ *  raw C function exports expect BigInt, an i64, for pointer parameters. `nk_size_t` is always an
+ *  i32 number in WASM, since NK_IS_64BIT_=0. */
 let isMemory64 = false;
 
-// Pre-allocated 8-byte result buffer (covers f64/f32/i32/u32), allocated once in initWasm()
-// Always a number (from Emscripten-wrapped _malloc), converted to WasmPtr for C calls
+/** Pre-allocated 8-byte result buffer for f64, f32, i32 and u32, allocated once in
+ *  {@link initWasm}. It is always a plain number from the Emscripten-wrapped `_malloc`, converted
+ *  to `WasmPtr` for C calls. */
 let resultPtr: number = 0;
 
-// Heap views (created from wasmMemory buffer)
+/** Heap views, created from the `wasmMemory` buffer. */
 let HEAP32: Int32Array;
 let HEAPU8: Uint8Array;
 let HEAPU32: Uint32Array;
 let HEAPF32: Float32Array;
 let HEAPF64: Float64Array;
 
-/**
- * Convert a number (e.g. from _malloc or byteOffset) to the pointer type
- * expected by raw C function exports. In wasm64, pointers are i64 (BigInt).
- */
+/** Convert a number, e.g. from `_malloc` or `byteOffset`, to the pointer type expected by raw C
+ *  function exports. In wasm64, pointers are BigInt, an i64. */
 function toWasmPtr(n: number): WasmPtr {
   return isMemory64 ? BigInt(n) : n;
 }
 
 /**
- * Initializes the WASM backend with an Emscripten module instance.
- * @param wasmModule - The Emscripten-compiled WASM module to use.
+ *  Initializes the WASM backend with an Emscripten module instance.
+ *  @param wasmModule - The Emscripten-compiled WASM module to use.
  */
 export function initWasm(wasmModule: EmscriptenModule): void {
   Module = wasmModule;
@@ -130,9 +130,7 @@ export function initWasm(wasmModule: EmscriptenModule): void {
   resultPtr = wasmModule._malloc(8);
 }
 
-/**
- * Type information for dispatching
- */
+/** Type information for dispatching */
 interface TypeInfo {
   dtype: DType;
   bytesPerElement: number;
@@ -140,9 +138,7 @@ interface TypeInfo {
   resultType: 'f32' | 'f64' | 'i32' | 'u32';
 }
 
-/**
- * Detect dtype from TypedArray constructor
- */
+/** Detect dtype from TypedArray constructor */
 function detectType(arr: any): TypeInfo {
   if (arr instanceof Float64Array) {
     return { dtype: DType.F64, bytesPerElement: 8, heapView: 'HEAPF64', resultType: 'f64' };
@@ -172,9 +168,7 @@ function detectType(arr: any): TypeInfo {
   throw new Error(`Unsupported array type: ${constructorName}`);
 }
 
-/**
- * Get TypeInfo from a DType enum value.
- */
+/** Get TypeInfo from a DType enum value. */
 function typeInfoFromDType(dtype: DType): TypeInfo {
   switch (dtype) {
     case DType.F64: return { dtype, bytesPerElement: 8, heapView: 'HEAPF64', resultType: 'f64' };
@@ -188,10 +182,8 @@ function typeInfoFromDType(dtype: DType): TypeInfo {
   }
 }
 
-/**
- * Flat struct carrying the fields needed for distance dispatch,
- * avoiding the VectorView constructor chain for raw TypedArrays.
- */
+/** Flat struct carrying the fields needed for distance dispatch, avoiding the VectorView
+ *  constructor chain for raw TypedArrays. */
 interface ResolvedInput {
   buffer: ArrayBuffer;
   byteOffset: number;
@@ -200,10 +192,8 @@ interface ResolvedInput {
   typeInfo: TypeInfo;
 }
 
-/**
- * Resolve an input that may be a TensorBase or a TypedArray into a uniform
- * ResolvedInput for distance dispatch.
- */
+/** Resolve an input that may be a TensorBase or a TypedArray into a uniform ResolvedInput for
+ *  distance dispatch. */
 function resolveInput(a: TensorBase | any): ResolvedInput {
   if (a instanceof TensorBase) {
     return {
@@ -220,10 +210,8 @@ function resolveInput(a: TensorBase | any): ResolvedInput {
   };
 }
 
-/**
- * Allocate WASM memory and copy data into it.
- * Returns a number byte-offset (from Emscripten-wrapped _malloc).
- */
+/** Allocate WASM memory and copy the data into it, returning a number byte-offset from
+ *  Emscripten-wrapped `_malloc`. */
 function allocAndCopyResolved(buffer: ArrayBuffer, byteOffset: number, byteLength: number): number {
   if (!Module) throw new Error('WASM module not initialized');
   const ptr = Module._malloc(byteLength);
@@ -232,9 +220,7 @@ function allocAndCopyResolved(buffer: ArrayBuffer, byteOffset: number, byteLengt
   return ptr;
 }
 
-/**
- * Read result from WASM heap. ptr is a number byte-offset.
- */
+/** Read result from WASM heap. ptr is a number byte-offset. */
 function readResult(ptr: number, resultType: 'f32' | 'f64' | 'i32' | 'u32'): number {
   if (!Module) throw new Error('WASM module not initialized');
 
@@ -250,10 +236,8 @@ function readResult(ptr: number, resultType: 'f32' | 'f64' | 'i32' | 'u32'): num
   }
 }
 
-/**
- * Generic distance function wrapper.
- * Uses zero-copy when arrays already live on the WASM heap.
- */
+/** Generic distance function wrapper.
+ *  Uses zero-copy when arrays already live on the WASM heap. */
 function distance(metric: string, a: TensorBase | any, b: TensorBase | any): number {
   if (!Module) {
     throw new Error('WASM module not initialized. Call initWasm() first.');
@@ -296,40 +280,40 @@ function distance(metric: string, a: TensorBase | any, b: TensorBase | any): num
 }
 
 /**
- * Computes the squared Euclidean distance between two vectors.
- * @param a - First vector (TypedArray or TensorBase).
- * @param b - Second vector (must match type and length of a).
- * @returns The squared Euclidean distance between a and b.
+ *  Computes the squared Euclidean distance between two vectors.
+ *  @param a - The first vector, as TypedArray or TensorBase.
+ *  @param b - The second vector, matching the type and length of `a`.
+ *  @returns The squared Euclidean distance between `a` and `b`.
  */
 export function sqeuclidean(a: TensorBase | any, b: TensorBase | any): number {
   return distance('sqeuclidean', a, b);
 }
 
 /**
- * Computes the Euclidean distance between two vectors.
- * @param a - First vector (TypedArray or TensorBase).
- * @param b - Second vector (must match type and length of a).
- * @returns The Euclidean distance between a and b.
+ *  Computes the Euclidean distance between two vectors.
+ *  @param a - The first vector, as TypedArray or TensorBase.
+ *  @param b - The second vector, matching the type and length of `a`.
+ *  @returns The Euclidean distance between `a` and `b`.
  */
 export function euclidean(a: TensorBase | any, b: TensorBase | any): number {
   return distance('euclidean', a, b);
 }
 
 /**
- * Computes the angular distance between two vectors.
- * @param a - First vector (TypedArray or TensorBase).
- * @param b - Second vector (must match type and length of a).
- * @returns The angular distance between a and b.
+ *  Computes the angular distance between two vectors.
+ *  @param a - The first vector, as TypedArray or TensorBase.
+ *  @param b - The second vector, matching the type and length of `a`.
+ *  @returns The angular distance between `a` and `b`.
  */
 export function angular(a: TensorBase | any, b: TensorBase | any): number {
   return distance('angular', a, b);
 }
 
 /**
- * Computes the dot product of two vectors.
- * @param a - First vector (TypedArray or TensorBase).
- * @param b - Second vector (must match type and length of a).
- * @returns The dot product of a and b.
+ *  Computes the dot product of two vectors.
+ *  @param a - The first vector, as TypedArray or TensorBase.
+ *  @param b - The second vector, matching the type and length of `a`.
+ *  @returns The dot product of `a` and `b`.
  */
 export function dot(a: TensorBase | any, b: TensorBase | any): number {
   return distance('dot', a, b);
@@ -339,14 +323,13 @@ export function dot(a: TensorBase | any, b: TensorBase | any): number {
 export const inner = dot;
 
 /**
- * Computes the bitwise Hamming distance between two vectors.
+ *  Computes the bitwise Hamming distance between two vectors.
  *
- * Following N-API behavior, always treats input as u1 (binary/bit-packed),
- * even if passed as Uint8Array. Each byte represents 8 bits.
+ *  Both vectors are treated as bit-packed, u1 dtype, where each byte holds 8 bits.
  *
- * @param a - First bit-packed vector (Uint8Array or TensorBase).
- * @param b - Second bit-packed vector (must match length of a).
- * @returns The Hamming distance (number of differing bits) between a and b.
+ *  @param a - The first bit-packed vector, as Uint8Array, BinaryArray, or TensorBase.
+ *  @param b - The second bit-packed vector, matching the length of `a`.
+ *  @returns The Hamming distance, the number of differing bits, between `a` and `b`.
  */
 export function hamming(a: TensorBase | Uint8Array | any, b: TensorBase | Uint8Array | any): number {
   if (!Module) {
@@ -385,14 +368,13 @@ export function hamming(a: TensorBase | Uint8Array | any, b: TensorBase | Uint8A
 }
 
 /**
- * Computes the bitwise Jaccard distance between two vectors.
+ *  Computes the bitwise Jaccard distance between two vectors.
  *
- * Following N-API behavior, always treats input as u1 (binary/bit-packed),
- * even if passed as Uint8Array. Each byte represents 8 bits.
+ *  Both vectors are treated as bit-packed, u1 dtype, where each byte holds 8 bits.
  *
- * @param a - First bit-packed vector (Uint8Array or TensorBase).
- * @param b - Second bit-packed vector (must match length of a).
- * @returns The Jaccard distance (1 - Jaccard similarity) between a and b.
+ *  @param a - The first bit-packed vector, as Uint8Array, BinaryArray, or TensorBase.
+ *  @param b - The second bit-packed vector, matching the length of `a`.
+ *  @returns The Jaccard distance, 1 minus the Jaccard similarity, between `a` and `b`.
  */
 export function jaccard(a: TensorBase | Uint8Array | any, b: TensorBase | Uint8Array | any): number {
   if (!Module) {
@@ -431,10 +413,13 @@ export function jaccard(a: TensorBase | Uint8Array | any, b: TensorBase | Uint8A
 }
 
 /**
- * Computes the Kullback-Leibler divergence between two probability distributions.
- * @param a - First probability distribution (Float32Array, Float64Array, or TensorBase).
- * @param b - Second probability distribution (must match type and length of a).
- * @returns The KL divergence KL(a || b).
+ *  Computes the Kullback-Leibler divergence between two probability distributions.
+ *
+ *  Both vectors must represent valid probability distributions, non-negative and summing to 1.
+ *
+ *  @param a - The first probability distribution, as Float32Array, Float64Array, or TensorBase.
+ *  @param b - The second probability distribution, matching the type and length of `a`.
+ *  @returns The Kullback-Leibler divergence KL(a || b) = Σ a[i] · log(a[i] / b[i]).
  */
 export function kullbackleibler(a: TensorBase | Float64Array | Float32Array, b: TensorBase | Float64Array | Float32Array): number {
   if (!Module) {
@@ -472,10 +457,15 @@ export function kullbackleibler(a: TensorBase | Float64Array | Float32Array, b: 
 }
 
 /**
- * Computes the Jensen-Shannon distance between two probability distributions.
- * @param a - First probability distribution (Float32Array, Float64Array, or TensorBase).
- * @param b - Second probability distribution (must match type and length of a).
- * @returns The Jensen-Shannon distance between a and b.
+ *  Computes the Jensen-Shannon distance between two probability distributions.
+ *
+ *  Both vectors must represent valid probability distributions, non-negative and summing to 1. JSD
+ *  is the square root of the symmetrized KL divergence:
+ *  d_JS(a, b) = √(0.5 × (KL(a‖m) + KL(b‖m))), where m = (a + b) / 2.
+ *
+ *  @param a - The first probability distribution, as Float32Array, Float64Array, or TensorBase.
+ *  @param b - The second probability distribution, matching the type and length of `a`.
+ *  @returns The Jensen-Shannon distance between `a` and `b`.
  */
 export function jensenshannon(a: TensorBase | Float64Array | Float32Array, b: TensorBase | Float64Array | Float32Array): number {
   if (!Module) {
@@ -525,58 +515,64 @@ function requireModule(): any {
 }
 
 /**
- * Returns the SIMD capabilities this WASM host supports, as a bitmask.
- * Describes the host only, and says nothing about what was compiled into this module.
- * @returns Bitmask of capability flags (use with Capability constants).
+ *  Returns the SIMD capabilities this WASM host supports, as a bitmask.
+ *
+ *  Describes the host only, and says nothing about what was compiled into this module.
+ *
+ *  @returns Bitmask of capability flags, from the Capability constants.
  */
 export function getCapabilitiesDetected(): bigint {
   return capabilitiesToBigInt(requireModule()._nk_capabilities_detected());
 }
 
 /**
- * Returns the SIMD capabilities whose kernels were compiled into this module, as a bitmask.
- * @returns Bitmask of capability flags (use with Capability constants).
+ *  Returns the SIMD capabilities whose kernels were compiled into this module, as a bitmask.
+ *  @returns Bitmask of capability flags, from the Capability constants.
  */
 export function getCapabilitiesCompiled(): bigint {
   return capabilitiesToBigInt(requireModule()._nk_capabilities_compiled());
 }
 
 /**
- * Returns the SIMD capabilities that can actually execute here, as a bitmask.
- * The intersection of {@link getCapabilitiesDetected} and {@link getCapabilitiesCompiled}.
- * @returns Bitmask of capability flags (use with Capability constants).
+ *  Returns the SIMD capabilities that can actually execute here, as a bitmask.
+ *
+ *  The intersection of {@link getCapabilitiesDetected} and {@link getCapabilitiesCompiled}.
+ *
+ *  @returns Bitmask of capability flags, from the Capability constants.
  */
 export function getCapabilitiesAvailable(): bigint {
   return capabilitiesToBigInt(requireModule()._nk_capabilities_available());
 }
 
 /**
- * Returns the SIMD capabilities dispatch is currently restricted to, as a bitmask.
- * A subset of {@link getCapabilitiesAvailable}.
- * @returns Bitmask of capability flags (use with Capability constants).
+ *  Returns the SIMD capabilities dispatch is currently restricted to, as a bitmask.
+ *
+ *  A subset of {@link getCapabilitiesAvailable}.
+ *
+ *  @returns Bitmask of capability flags, from the Capability constants.
  */
 export function getCapabilitiesEnabled(): bigint {
   return capabilitiesToBigInt(requireModule()._nk_capabilities_enabled());
 }
 
 /**
- * Checks whether a specific SIMD capability can actually execute here.
- * Tests against {@link getCapabilitiesAvailable}, so it is false both when the host lacks the feature
- * and when its kernels were not compiled into this module.
- * @param cap - Capability flag to check (from Capability constants).
- * @returns True if the capability is available.
+ *  Checks whether a specific SIMD capability can actually execute here.
+ *
+ *  Tests against {@link getCapabilitiesAvailable}, so it is false both when the host lacks the
+ *  feature and when its kernels were not compiled into this module.
+ *
+ *  @param cap - Capability flag to check, from the Capability constants.
+ *  @returns True if the capability is available.
  */
 export function hasCapability(cap: bigint): boolean {
   return (getCapabilitiesAvailable() & cap) !== 0n;
 }
 
-// FinalizationRegistry for WASM PackedMatrix cleanup (ES2021+, available in Node 14+)
+/** `FinalizationRegistry` for WASM `PackedMatrix` cleanup, an ES2021 feature from Node 14. */
 declare class FinalizationRegistry<T> { constructor(callback: (value: T) => void); register(target: object, value: T): void; }
 let packedRegistry: FinalizationRegistry<number> | null = null;
 
-/**
- * WASM-backed PackedMatrix that owns a WASM heap allocation.
- */
+/** WASM-backed PackedMatrix that owns a WASM heap allocation. */
 class WasmPackedMatrix extends PackedMatrix {
   private _heapPointer: number;
   private _wasmDisposed: boolean = false;
@@ -611,16 +607,19 @@ class WasmPackedMatrix extends PackedMatrix {
   }
 }
 
-/**
- * Allocate WASM heap, copy matrix data, return pointer. Caller must free.
- */
+/** Allocate WASM heap, copy matrix data, return pointer. Caller must free. */
 function allocAndCopyMatrix(matrix: Matrix): number {
   const byteLength = matrix.rows * matrix.rowStride;
   return allocAndCopyResolved(matrix.buffer, matrix.byteOffset, byteLength);
 }
 
 /**
- * Query the packed buffer byte count for a given matrix shape and dtype.
+ *  Queries the packed buffer's byte count for a matrix with the given __[width,depth]__ and dtype,
+ *  matching what `dotsPack` would allocate.
+ *  @param width - Number of vectors being packed, the matrix rows.
+ *  @param depth - Dimensionality per vector, the matrix columns.
+ *  @param dtype - Element dtype of the source matrix.
+ *  @returns The byte count of the packed buffer.
  */
 export function dotsPackedSize(width: number, depth: number, dtype: DType): number {
   if (!Module) throw new Error('WASM module not initialized');
@@ -634,7 +633,9 @@ export function dotsPackedSize(width: number, depth: number, dtype: DType): numb
 }
 
 /**
- * Read a packed matrix's shape (width, depth) back from its self-describing header.
+ *  Reads a packed matrix's __[width,depth]__ back from its self-describing header.
+ *  @param packed - The packed matrix to inspect.
+ *  @returns The packed matrix's width and depth.
  */
 export function dotsPackedShape(packed: PackedMatrix): { width: number; depth: number } {
   if (!Module) throw new Error('WASM module not initialized');
@@ -659,7 +660,9 @@ export function dotsPackedShape(packed: PackedMatrix): { width: number; depth: n
 }
 
 /**
- * Pack a Matrix for use with packed GEMM-like operations.
+ *  Packs a Matrix for use with packed GEMM-like operations, such as `dotsPacked`.
+ *  @param matrix - The matrix to pack, __[rows,columns]__ shaped.
+ *  @returns The packed matrix, sized via `dotsPackedSize`.
  */
 export function dotsPack(matrix: Matrix): PackedMatrix {
   if (!Module) throw new Error('WASM module not initialized');
@@ -786,26 +789,71 @@ function wasmSymmetricOperation(metricPrefix: string, family: KernelFamily, vect
   return out;
 }
 
+/**
+ *  Computes the dot products between every row of `a` and every packed vector in `packed`.
+ *  @param a - The query matrix, __[rows,columns]__ shaped, columns matching packed's depth.
+ *  @param packed - The packed matrix produced by `dotsPack`.
+ *  @param out - Optional output matrix to write into, __[a.rows,packed.width]__ shaped.
+ *  @returns The distance matrix: `out` when given, otherwise a newly allocated Matrix.
+ */
 export function dotsPacked(a: Matrix, packed: PackedMatrix, out?: Matrix): Matrix {
   return wasmPackedOperation('dots_packed', 'dots', a, packed, out);
 }
 
+/**
+ *  Computes the angular distances between every row of `a` and every packed vector in `packed`.
+ *  @param a - The query matrix, __[rows,columns]__ shaped, columns matching packed's depth.
+ *  @param packed - The packed matrix produced by `dotsPack`.
+ *  @param out - Optional output matrix to write into, __[a.rows,packed.width]__ shaped.
+ *  @returns The distance matrix: `out` when given, otherwise a newly allocated Matrix.
+ */
 export function angularsPacked(a: Matrix, packed: PackedMatrix, out?: Matrix): Matrix {
   return wasmPackedOperation('angulars_packed', 'angulars', a, packed, out);
 }
 
+/**
+ *  Computes the Euclidean distances between every row of `a` and every packed vector in `packed`.
+ *  @param a - The query matrix, __[rows,columns]__ shaped, columns matching packed's depth.
+ *  @param packed - The packed matrix produced by `dotsPack`.
+ *  @param out - Optional output matrix to write into, __[a.rows,packed.width]__ shaped.
+ *  @returns The distance matrix: `out` when given, otherwise a newly allocated Matrix.
+ */
 export function euclideansPacked(a: Matrix, packed: PackedMatrix, out?: Matrix): Matrix {
   return wasmPackedOperation('euclideans_packed', 'euclideans', a, packed, out);
 }
 
+/**
+ *  Computes the all-pairs dot products between every row of `vectors` and every other row.
+ *  @param vectors - The matrix of vectors, __[rows,columns]__ shaped.
+ *  @param out - Optional output matrix to write into, __[vectors.rows,vectors.rows]__ shaped.
+ *  @param options - Optional row range: `rowStart` and `rowCount` restrict which rows of the
+ *      symmetric matrix are computed, defaulting to all rows.
+ *  @returns The distance matrix: `out` when given, otherwise a newly allocated Matrix.
+ */
 export function dotsSymmetric(vectors: Matrix, out?: Matrix, options?: { rowStart?: number; rowCount?: number }): Matrix {
   return wasmSymmetricOperation('dots_symmetric', 'dots', vectors, out, options?.rowStart ?? 0, options?.rowCount);
 }
 
+/**
+ *  Computes the all-pairs angular distances between every row of `vectors` and every other row.
+ *  @param vectors - The matrix of vectors, __[rows,columns]__ shaped.
+ *  @param out - Optional output matrix to write into, __[vectors.rows,vectors.rows]__ shaped.
+ *  @param options - Optional row range: `rowStart` and `rowCount` restrict which rows of the
+ *      symmetric matrix are computed, defaulting to all rows.
+ *  @returns The distance matrix: `out` when given, otherwise a newly allocated Matrix.
+ */
 export function angularsSymmetric(vectors: Matrix, out?: Matrix, options?: { rowStart?: number; rowCount?: number }): Matrix {
   return wasmSymmetricOperation('angulars_symmetric', 'angulars', vectors, out, options?.rowStart ?? 0, options?.rowCount);
 }
 
+/**
+ *  Computes the all-pairs Euclidean distances between every row of `vectors` and every other row.
+ *  @param vectors - The matrix of vectors, __[rows,columns]__ shaped.
+ *  @param out - Optional output matrix to write into, __[vectors.rows,vectors.rows]__ shaped.
+ *  @param options - Optional row range: `rowStart` and `rowCount` restrict which rows of the
+ *      symmetric matrix are computed, defaulting to all rows.
+ *  @returns The distance matrix: `out` when given, otherwise a newly allocated Matrix.
+ */
 export function euclideansSymmetric(vectors: Matrix, out?: Matrix, options?: { rowStart?: number; rowCount?: number }): Matrix {
   return wasmSymmetricOperation('euclideans_symmetric', 'euclideans', vectors, out, options?.rowStart ?? 0, options?.rowCount);
 }

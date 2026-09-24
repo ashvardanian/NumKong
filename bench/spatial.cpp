@@ -1,8 +1,8 @@
 /**
- *  @brief Spatial distance benchmarks (angular, sqeuclidean, euclidean).
  *  @file bench/spatial.cpp
  *  @author Ash Vardanian
  *  @date March 14, 2023
+ *  @brief Spatial distance benchmarks, angular, sqeuclidean and euclidean.
  */
 
 #include "numkong/spatial.h"

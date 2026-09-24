@@ -1,29 +1,30 @@
 /**
- *  @brief Matrix multiplication and symmetric operations for NumKong Python bindings.
  *  @file python/matrix.h
  *  @author Ash Vardanian
  *  @date February 20, 2026
+ *  @brief Matrix multiplication and symmetric operations for NumKong Python bindings.
  *
- *  Declares the PackedMatrix type and API functions for packed/symmetric
- *  cross operations used by the Python module.
+ *  Declares the PackedMatrix type and API functions for packed/symmetric cross operations used by
+ *  the Python module.
  */
 #ifndef NK_PYTHON_MATRIX_H
 #define NK_PYTHON_MATRIX_H
 
 #include "numkong.h"
 
-/*  Below this many multiply-accumulates an auto-threaded op stays serial: waking the
- *  thread pool dominates small products. Explicit dots_packed(..., threads=N) /
- *  cdist(..., threads=N) paths are unaffected — they honor the caller's request as
- *  given; only auto-deciders (the `@` operator) consult it. */
+/** Below this many multiply-accumulates an auto-threaded op stays serial: waking the thread pool
+ *  dominates small products. Explicit dots_packed(..., threads=N) / cdist(..., threads=N) paths are
+ *  unaffected — they honor the caller's request as given; only auto-deciders and the `@` operator
+ *  look at it. */
 #define NK_PARALLEL_MIN_MACS ((nk_size_t)1 << 20)
 
 /**
  *  @brief Shared parallelism policy: is a @p work_units-sized op worth threading across @p threads?
  *
- *  The single home for the "big enough to wake the pool?" decision used by auto-deciders like the `@`
- *  operator. Returns true only when more than one thread is available and the work clears the pool
- *  wake-up floor. Explicit-`threads=N` call sites do not consult this — they honor the caller literally.
+ *  The single home for the "big enough to wake the pool?" decision used by auto-deciders like the
+ *  `@` operator. Returns true only when more than one thread is available and the work clears the
+ *  pool wake-up floor, while call sites passing an explicit `threads=N` honor it literally and
+ *  never consult this.
  *
  *  @param[in] work_units Problem size in multiply-accumulates (or an equivalent work proxy).
  *  @param[in] threads Resolved thread count the pool would use.
@@ -40,48 +41,63 @@ extern "C" {
 /**
  *  @brief Pre-packed matrix optimized for matrix multiplication or set distances.
  *
- *  Stores matrix data in a hardware-optimized layout (e.g., for AMX, AVX-512).
- *  Created via `nk.dots_pack()` or `nk.hammings_pack()` and used with
- *  packed batch APIs (`nk.*_packed()`) or the `@` operator for dot products.
+ *  Stores matrix data in a hardware-optimized layout, e.g. for AMX, AVX-512. Created via
+ *  `nk.dots_pack()` or `nk.hammings_pack()` and used with packed batch APIs, `nk.*_packed()`, or
+ *  the `@` operator for dot products.
  */
 typedef struct PackedMatrix {
     PyObject_HEAD
-    /** Packed dtype (bf16, i8, f32, etc.). */
+
+    /** Packed dtype, bf16, i8, f32, etc. */
     nk_dtype_t dtype;
-    /** Number of rows in original matrix (width). */
+
+    /** Number of rows in original matrix, the width. */
     nk_size_t width;
-    /** Number of columns in original matrix (depth). */
+
+    /** Number of columns in original matrix, the depth. */
     nk_size_t depth;
+
     /** Variable-length packed data. */
     char start[];
 } PackedMatrix;
 
-/** @brief PackedMatrix Python type object.  */
+/** PackedMatrix Python type object. */
 extern PyTypeObject PackedMatrixType;
 
-/** @brief Pack a matrix into hardware-optimized layout for dot-product matmul. */
+/** Pack a matrix into hardware-optimized layout for dot-product matmul. */
 PyObject *api_dots_pack(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
-/** @brief Matrix multiplication with a pre-packed B matrix. */
+
+/** Matrix multiplication with a pre-packed B matrix. */
 PyObject *api_dots_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
-/** @brief Pack a matrix into hardware-optimized layout for Hamming distance. */
+
+/** Pack a matrix into hardware-optimized layout for Hamming distance. */
 PyObject *api_hammings_pack(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
-/** @brief Hamming distance computation with a pre-packed B matrix. */
+
+/** Hamming distance computation with a pre-packed B matrix. */
 PyObject *api_hammings_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
-/** @brief Jaccard distance computation with a pre-packed B matrix. */
+
+/** Jaccard distance computation with a pre-packed B matrix. */
 PyObject *api_jaccards_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
-/** @brief Angular distance computation with a pre-packed B matrix. */
+
+/** Angular distance computation with a pre-packed B matrix. */
 PyObject *api_angulars_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
-/** @brief Euclidean distance computation with a pre-packed B matrix. */
+
+/** Euclidean distance computation with a pre-packed B matrix. */
 PyObject *api_euclideans_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
-/** @brief All-pairs dot products within a single matrix. */
+
+/** All-pairs dot products within a single matrix. */
 PyObject *api_dots_symmetric(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
-/** @brief All-pairs Hamming distances within a single matrix. */
+
+/** All-pairs Hamming distances within a single matrix. */
 PyObject *api_hammings_symmetric(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
-/** @brief All-pairs Jaccard distances within a single matrix. */
+
+/** All-pairs Jaccard distances within a single matrix. */
 PyObject *api_jaccards_symmetric(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
-/** @brief All-pairs angular distances within a single matrix. */
+
+/** All-pairs angular distances within a single matrix. */
 PyObject *api_angulars_symmetric(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
-/** @brief All-pairs Euclidean distances within a single matrix. */
+
+/** All-pairs Euclidean distances within a single matrix. */
 PyObject *api_euclideans_symmetric(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
 extern char const doc_dots_pack[];
@@ -97,10 +113,7 @@ extern char const doc_jaccards_symmetric[];
 extern char const doc_angulars_symmetric[];
 extern char const doc_euclideans_symmetric[];
 
-/**
- *  @brief Tensor @ PackedMatrix operator implementation.
- *  Used by Tensor's nb_matrix_multiply slot.
- */
+/** Tensor @ PackedMatrix operator implementation, used by Tensor's nb_matrix_multiply slot. */
 PyObject *Tensor_matmul(PyObject *self, PyObject *other);
 
 #ifdef __cplusplus

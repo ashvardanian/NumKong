@@ -1,17 +1,18 @@
 /**
- *  @brief SIMD-accelerated Batched Spatial Distances for NVIDIA Ampere and newer.
  *  @file include/numkong/spatials/ampere.cuh
  *  @author Ash Vardanian
  *  @date September 22, 2026
+ *  @brief SIMD-accelerated batched spatial distances for NVIDIA Ampere and newer.
  *
  *  @sa include/numkong/spatials.h
  *  @sa include/numkong/dots/ampere.cuh
  *
- *  The dots tile with a metric in its epilogue: squared norms of A, and for `symmetric` of the column vectors too,
- *  accumulate from the staged slabs while the products do, and `packed` reads the column norms its pack stored.
- *  Integer codes square exactly through `dp4a`, E2M3 and E2M1 included; the other narrow floats sum each slab apart
- *  in F32 before adding it to the running F32 sum, and F32 and F64 square in F64 on the CUDA cores. Output precision,
- *  zero-norm handling and the triangle `symmetric` writes follow the serial backends: F64 for F64 and F32 inputs, F32
+ *  The dots tile with a metric in its epilogue: squared norms of A, and for @c symmetric of the
+ *  column vectors too, accumulate from the staged slabs while the products do, and @c packed reads
+ *  the column norms its pack stored. Integer codes square exactly through @c dp4a, E2M3 and E2M1
+ *  included; the other narrow floats sum each slab apart in F32 before adding it to the running F32
+ *  sum, and F32 and F64 square in F64 on the CUDA cores. Output precision, zero-norm handling and
+ *  the triangle @c symmetric writes follow the serial backends: F64 for F64 and F32 inputs, F32
  *  otherwise, and I8 and I4 norms read as I32.
  */
 #ifndef NK_SPATIALS_AMPERE_CUH

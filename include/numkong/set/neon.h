@@ -1,8 +1,8 @@
 /**
- *  @brief SIMD-accelerated Set Similarity Measures for NEON.
  *  @file include/numkong/set/neon.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
+ *  @brief SIMD-accelerated set similarity measures for NEON.
  *
  *  @sa include/numkong/set.h
  *
@@ -10,17 +10,19 @@
  *
  *  Key NEON instructions for binary/bitwise operations (Cortex-A76 class):
  *
- *      Intrinsic   Instruction                A76       M5
- *      vcntq_u8    CNT (V.16B, V.16B)         2cy @ 2p  2cy @ 4p
- *      veorq_u8    EOR (V.16B, V.16B, V.16B)  1cy @ 2p  2cy @ 4p
- *      vandq_u8    AND (V.16B, V.16B, V.16B)  1cy @ 2p  2cy @ 4p
- *      vorrq_u8    ORR (V.16B, V.16B, V.16B)  1cy @ 2p  2cy @ 4p
- *      vpaddlq_u8  UADDLP (V.8H, V.16B)       2cy @ 2p  2cy @ 4p
- *      vaddvq_u32  ADDV (S, V.4S)             4cy @ 1p  5cy @ 1p
+ *  @verbatim
+ *  Intrinsic   Instruction                A76       M5
+ *  vcntq_u8    CNT (V.16B, V.16B)         2cy @ 2p  2cy @ 4p
+ *  veorq_u8    EOR (V.16B, V.16B, V.16B)  1cy @ 2p  2cy @ 4p
+ *  vandq_u8    AND (V.16B, V.16B, V.16B)  1cy @ 2p  2cy @ 4p
+ *  vorrq_u8    ORR (V.16B, V.16B, V.16B)  1cy @ 2p  2cy @ 4p
+ *  vpaddlq_u8  UADDLP (V.8H, V.16B)       2cy @ 2p  2cy @ 4p
+ *  vaddvq_u32  ADDV (S, V.4S)             4cy @ 1p  5cy @ 1p
+ *  @endverbatim
  *
- *  According to the available literature, the throughput for those basic integer ops is
- *  identical across most Apple, Qualcomm, and AWS Graviton chips. As long as we avoid widening
- *  operations and horizontal reductions, we won't face any reasonable bottlenecks.
+ *  According to the available literature, the throughput for those basic integer ops is identical
+ *  across most Apple, Qualcomm, and AWS Graviton chips. As long as we avoid widening operations and
+ *  horizontal reductions, we won't face any reasonable bottlenecks.
  *
  *  @section set_neon_stateful Stateful Streaming Logic
  *
@@ -29,7 +31,7 @@
  *  - nk_hamming_u1x128_state_neon_t for streaming Hamming distance
  *  - nk_jaccard_u1x128_state_neon_t for streaming Jaccard similarity
  *
- *  @code{c}
+ *  @code{.c}
  *  nk_jaccard_u1x128_state_neon_t state_first, state_second, state_third, state_fourth;
  *  nk_jaccard_u1x128_init_neon(&state_first);
  *  // ... stream through packed binary vectors ...

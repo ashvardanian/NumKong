@@ -1,11 +1,11 @@
 /**
- *  @brief Elementwise operation implementations for NumKong Python bindings.
  *  @file python/each.c
  *  @author Ash Vardanian
  *  @date February 19, 2026
+ *  @brief Elementwise operation implementations for NumKong Python bindings.
  *
- *  Implements fma, blend, scale, add, multiply, and trigonometric (sin, cos, atan)
- *  element-wise operations extracted from numkong.c.
+ *  Implements fma, blend, scale, add, multiply, and trigonometric, sin, cos, atan, element-wise
+ *  operations extracted from numkong.c.
  */
 #include "each.h"
 #include "tensor.h"
@@ -13,8 +13,8 @@
 /**
  *  @brief Reject a packed output whose layout the writeback cannot address.
  *
- *  Sub-byte dtypes hold several logical values per byte, so a per-value byte stride does not
- *  exist and only a fully packed destination can be filled. Call before releasing the GIL.
+ *  Sub-byte dtypes hold several logical values per byte, so a per-value byte stride does not exist
+ *  and only a fully packed destination can be filled. Call before releasing the GIL.
  */
 static int validate_cast_writeback_target(Py_buffer const *out_buffer, nk_dtype_t out_dtype) {
     if (nk_dimensions_per_value(out_dtype) <= 1) return 1;
@@ -23,13 +23,13 @@ static int validate_cast_writeback_target(Py_buffer const *out_buffer, nk_dtype_
     return 0;
 }
 
-/** @brief Acquire an `out` buffer with a packed last axis counted in logical dimensions, like the inputs. */
+/** Acquire an @c out buffer, packed last axis counted in logical dimensions, like the inputs. */
 static int get_out_buffer(PyObject *out_obj, Py_buffer *out_buffer, nk_buffer_backing_t *out_backing) {
     if (!nk_get_buffer(out_obj, out_buffer, PyBUF_STRIDES | PyBUF_FORMAT, out_backing)) return 0;
     return nk_buffer_logical_shape(out_buffer, resolve_nk_dtype_in_py_buffer(out_buffer), out_backing);
 }
 
-/** @brief Convert the compute-dtype staging buffer into the caller's possibly-strided output. */
+/** Convert the compute-dtype staging buffer into the caller's possibly-strided output. */
 static void flush_cast_staging(char const *staging, nk_dtype_t compute_dtype, Py_buffer const *out_buffer,
                                nk_dtype_t out_dtype) {
     cast_into_strided(staging, compute_dtype, out_buffer->buf, out_dtype, (size_t)out_buffer->ndim, out_buffer->shape,
@@ -39,17 +39,17 @@ static void flush_cast_staging(char const *staging, nk_dtype_t compute_dtype, Py
 /**
  *  @brief Resolve the destination of an N-D elementwise op and the longest shared contiguous tail.
  *
- *  All @p num_inputs operands (≤ 3) are assumed same-shape and same-dtype as @p inputs[0]. When
- *  @p out_obj is given it is acquired into @p out_buffer, must match that shape and @p dtype, may be
- *  strided, and is written in place (returning a fresh `None`); otherwise a new C-contiguous
- *  Tensor(@p dtype) is allocated and returned. Fills @p result_data, @p result_strides, and
- *  @p contiguous_tail (over the inputs alone for the fresh allocation, or over inputs + out for the
- *  in-place case). Returns 1 on success, 0 with a Python error set. The caller always releases
- *  @p out_buffer (safe on the untouched, zeroed buffer of the allocate path).
+ *  All @p num_inputs operands, at most 3, are assumed same-shape and same-dtype as @p inputs[0].
+ *  When @p out_obj is given it is acquired into @p out_buffer, must match that shape and @p dtype,
+ *  may be strided, and is written in place, returning a fresh @c None; otherwise a new C-contiguous
+ *  Tensor of dtype @p dtype is allocated and returned. Fills @p result_data, @p result_strides, and
+ *  @p contiguous_tail, over the inputs alone for the fresh allocation, or over inputs + out for the
+ *  in-place case. Returns 1 on success, 0 with a Python error set. The caller always releases @p
+ *  out_buffer, safe on the untouched, zeroed buffer of the allocate path.
  */
 char const doc_fma[] =                                                                                 //
-    "Fused-Multiply-Add over 3 tensors of any rank (shapes must match).\n\n"                           //
-    "Parameters:\n"                                                                                    //
+    "Fused-Multiply-Add over 3 tensors of any rank, which must share the same shape.\n\n"              //
+    "Args:\n"                                                                                          //
     "    a (Tensor): First vector.\n"                                                                  //
     "    b (Tensor): Second vector.\n"                                                                 //
     "    c (Tensor): Third vector.\n"                                                                  //
@@ -60,7 +60,7 @@ char const doc_fma[] =                                                          
     "Returns:\n"                                                                                       //
     "    Tensor: The distances if `out` is not provided.\n"                                            //
     "    None: If `out` is provided. Operation will be performed in-place.\n\n"                        //
-    "Equivalent to: `alpha * a * b + beta * c`.\n"                                                     //
+    "Equivalent to: `alpha * a * b + beta * c`.\n\n"                                                   //
     "Signature:\n"                                                                                     //
     "    >>> def fma(a, b, c, /, dtype, *, alpha, beta, out) -> Optional[Tensor]: ...";
 
@@ -201,8 +201,8 @@ cleanup:
 }
 
 char const doc_blend[] =                                                                               //
-    "Blend of 2 tensors of any rank (shapes must match).\n\n"                                          //
-    "Parameters:\n"                                                                                    //
+    "Blend of 2 tensors of any rank, which must share the same shape.\n\n"                             //
+    "Args:\n"                                                                                          //
     "    a (Tensor): First vector.\n"                                                                  //
     "    b (Tensor): Second vector.\n"                                                                 //
     "    dtype (Union[IntegralType, FloatType], optional): Override the presumed numeric type name.\n" //
@@ -212,7 +212,7 @@ char const doc_blend[] =                                                        
     "Returns:\n"                                                                                       //
     "    Tensor: The distances if `out` is not provided.\n"                                            //
     "    None: If `out` is provided. Operation will be performed in-place.\n\n"                        //
-    "Equivalent to: `alpha * a + beta * b`.\n"                                                         //
+    "Equivalent to: `alpha * a + beta * b`.\n\n"                                                       //
     "Signature:\n"                                                                                     //
     "    >>> def blend(a, b, /, dtype, *, alpha, beta, out) -> Optional[Tensor]: ...";
 
@@ -348,7 +348,7 @@ cleanup:
 
 char const doc_scale[] =                                                                               //
     "Element-wise affine transformation of a tensor of any rank.\n\n"                                  //
-    "Parameters:\n"                                                                                    //
+    "Args:\n"                                                                                          //
     "    a (Tensor): Input tensor of any rank.\n"                                                      //
     "    dtype (Union[IntegralType, FloatType], optional): Override the presumed numeric type name.\n" //
     "    alpha (float, optional): Multiplicative scale, 1.0 by default.\n"                             //
@@ -357,7 +357,7 @@ char const doc_scale[] =                                                        
     "Returns:\n"                                                                                       //
     "    Tensor: The result if `out` is not provided.\n"                                               //
     "    None: If `out` is provided. Operation will be performed in-place.\n\n"                        //
-    "Equivalent to: `alpha * a + beta`.\n"                                                             //
+    "Equivalent to: `alpha * a + beta`.\n\n"                                                           //
     "Signature:\n"                                                                                     //
     "    >>> def scale(a, /, dtype, *, alpha, beta, out) -> Optional[Tensor]: ...";
 
@@ -479,21 +479,21 @@ cleanup:
     return return_obj;
 }
 
-char const doc_rmsnorm[] =                                                                           //
-    "Grouped RMSNorm: y = x * rsqrt(mean(x^2) + eps) * gamma.\n\n"                                   //
-    "Each row (all axes but the last) holds `groups` independent `cols`-vectors, normalized\n"       //
-    "separately, where `cols = x.shape[-1] // groups`.\n\n"                                          //
-    "Parameters:\n"                                                                                  //
-    "    x (Tensor): Input of dtype float32, bfloat16, or e4m3; last axis contiguous.\n"             //
-    "    gamma (Tensor, optional): Per-column float32 gain of length `cols`; None for unit scale.\n" //
-    "    out (Tensor, optional): Output buffer (same shape/dtype as x); may alias x.\n"              //
-    "    groups (int, optional): Independent sub-vectors per row, 1 by default.\n"                   //
-    "    eps (float, optional): Variance epsilon, 1e-6 by default.\n"                                //
-    "    input_scale (float, optional): Scale folded onto each loaded element, 1.0 by default.\n\n"  //
-    "Returns:\n"                                                                                     //
-    "    Tensor: The result if `out` is not provided.\n"                                             //
-    "    None: If `out` is provided (in-place operation).\n\n"                                       //
-    "Signature:\n"                                                                                   //
+char const doc_rmsnorm[] =                                                                              //
+    "Grouped RMSNorm: y = x * rsqrt(mean(x^2) + eps) * gamma.\n\n"                                      //
+    "Each row, spanning all axes but the last, holds `groups` independent `cols`-vectors, normalized\n" //
+    "separately, where `cols = x.shape[-1] // groups`.\n\n"                                             //
+    "Args:\n"                                                                                           //
+    "    x (Tensor): Input of dtype float32, bfloat16, or e4m3; last axis contiguous.\n"                //
+    "    gamma (Tensor, optional): Per-column float32 gain of length `cols`; None for unit scale.\n"    //
+    "    out (Tensor, optional): Output buffer (same shape/dtype as x); may alias x.\n"                 //
+    "    groups (int, optional): Independent sub-vectors per row, 1 by default.\n"                      //
+    "    eps (float, optional): Variance epsilon, 1e-6 by default.\n"                                   //
+    "    input_scale (float, optional): Scale folded onto each loaded element, 1.0 by default.\n\n"     //
+    "Returns:\n"                                                                                        //
+    "    Tensor: The result if `out` is not provided.\n"                                                //
+    "    None: If `out` is provided, an in-place operation.\n\n"                                        //
+    "Signature:\n"                                                                                      //
     "    >>> def rmsnorm(x, gamma=None, /, *, out, groups, eps, input_scale) -> Optional[Tensor]: ...";
 
 PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count,
@@ -639,14 +639,14 @@ cleanup:
 char const doc_swiglu[] =                                                                           //
     "Fused SwiGLU: y = silu(input_scale * gate) * (input_scale * up).\n\n"                          //
     "With up=None this reduces to plain SiLU: y = silu(input_scale * gate).\n\n"                    //
-    "Parameters:\n"                                                                                 //
+    "Args:\n"                                                                                       //
     "    gate (Tensor): Gate input of dtype float32, bfloat16, or e4m3; last axis contiguous.\n"    //
     "    up (Tensor, optional): Up input, same shape/dtype as gate; None for plain SiLU.\n"         //
     "    out (Tensor, optional): Output buffer (same shape/dtype as gate); may alias gate.\n"       //
     "    input_scale (float, optional): Scale folded onto each loaded element, 1.0 by default.\n\n" //
     "Returns:\n"                                                                                    //
     "    Tensor: The result if `out` is not provided.\n"                                            //
-    "    None: If `out` is provided (in-place operation).\n\n"                                      //
+    "    None: If `out` is provided, an in-place operation.\n\n"                                    //
     "Signature:\n"                                                                                  //
     "    >>> def swiglu(gate, up=None, /, *, out, input_scale) -> Optional[Tensor]: ...";
 
@@ -772,21 +772,21 @@ cleanup:
 
 char const doc_add[] =                                                                         //
     "Element-wise addition of two vectors or a vector and a scalar.\n\n"                       //
-    "Parameters:\n"                                                                            //
-    "    a (Union[Tensor, float, int]): First operand (vector or scalar).\n"                   //
-    "    b (Union[Tensor, float, int]): Second operand (vector or scalar).\n"                  //
+    "Args:\n"                                                                                  //
+    "    a (Union[Tensor, float, int]): First operand, a vector or a scalar.\n"                //
+    "    b (Union[Tensor, float, int]): Second operand, a vector or a scalar.\n"               //
     "    out (Tensor, optional): Output buffer for the result.\n"                              //
     "    a_dtype (Union[IntegralType, FloatType], optional): Override dtype for `a`.\n"        //
     "    b_dtype (Union[IntegralType, FloatType], optional): Override dtype for `b`.\n"        //
     "    out_dtype (Union[IntegralType, FloatType], optional): Override dtype for output.\n\n" //
     "Returns:\n"                                                                               //
     "    Tensor: The sum if `out` is not provided.\n"                                          //
-    "    None: If `out` is provided (in-place operation).\n\n"                                 //
-    "Equivalent to: `a + b`.\n"                                                                //
+    "    None: If `out` is provided, an in-place operation.\n\n"                               //
+    "Equivalent to: `a + b`.\n\n"                                                              //
     "Signature:\n"                                                                             //
     "    >>> def add(a, b, /, *, out, a_dtype, b_dtype, out_dtype) -> Optional[Tensor]: ...";
 
-/** @brief Handle scalar + array addition: result = 1 * array + scalar. */
+/** Handle scalar + array addition: result = 1 * array + scalar. */
 static PyObject *add_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyObject *out_obj,
                                   PyObject *out_dtype_obj) {
     PyObject *return_obj = NULL;
@@ -889,7 +889,7 @@ cleanup:
     return return_obj;
 }
 
-/** @brief Handle array + array addition using sum kernel with dtype promotion. */
+/** Handle array + array addition using sum kernel with dtype promotion. */
 static PyObject *add_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out_obj, PyObject *out_dtype_obj) {
     PyObject *return_obj = NULL;
     char *a_promoted = NULL;
@@ -1079,21 +1079,21 @@ PyObject *api_add(PyObject *self, PyObject *const *args, Py_ssize_t const positi
 
 char const doc_multiply[] =                                                                    //
     "Element-wise multiplication of two vectors or a vector and a scalar.\n\n"                 //
-    "Parameters:\n"                                                                            //
-    "    a (Union[Tensor, float, int]): First operand (vector or scalar).\n"                   //
-    "    b (Union[Tensor, float, int]): Second operand (vector or scalar).\n"                  //
+    "Args:\n"                                                                                  //
+    "    a (Union[Tensor, float, int]): First operand, a vector or a scalar.\n"                //
+    "    b (Union[Tensor, float, int]): Second operand, a vector or a scalar.\n"               //
     "    out (Tensor, optional): Output buffer for the result.\n"                              //
     "    a_dtype (Union[IntegralType, FloatType], optional): Override dtype for `a`.\n"        //
     "    b_dtype (Union[IntegralType, FloatType], optional): Override dtype for `b`.\n"        //
     "    out_dtype (Union[IntegralType, FloatType], optional): Override dtype for output.\n\n" //
     "Returns:\n"                                                                               //
     "    Tensor: The product if `out` is not provided.\n"                                      //
-    "    None: If `out` is provided (in-place operation).\n\n"                                 //
-    "Equivalent to: `a * b`.\n"                                                                //
+    "    None: If `out` is provided, an in-place operation.\n\n"                               //
+    "Equivalent to: `a * b`.\n\n"                                                              //
     "Signature:\n"                                                                             //
     "    >>> def multiply(a, b, /, *, out, a_dtype, b_dtype, out_dtype) -> Optional[Tensor]: ...";
 
-/** @brief Handle scalar * array multiplication: result = scalar * array + 0. */
+/** Handle scalar * array multiplication: result = scalar * array + 0. */
 static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyObject *out_obj,
                                        PyObject *out_dtype_obj) {
     PyObject *return_obj = NULL;
@@ -1196,7 +1196,7 @@ cleanup:
     return return_obj;
 }
 
-/** @brief Handle array * array multiplication using fma kernel with dtype promotion. */
+/** Handle array * array multiplication using fma kernel with dtype promotion. */
 static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out_obj, PyObject *out_dtype_obj) {
     PyObject *return_obj = NULL;
     char *a_promoted = NULL;
