@@ -589,8 +589,9 @@ NK_API_COMPTIME void nk_reduce_moments_f32_haswell(                    //
 
     nk_size_t stride_elements = stride_bytes / sizeof(nk_f32_t);
     int aligned = (stride_bytes % sizeof(nk_f32_t) == 0);
+    // Longer strides would wrap the last lane's `i32` gather index, so they take the serial path
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned || stride_elements == 0)
+    else if (!aligned || stride_elements == 0 || stride_elements > NK_I32_MAX / 7)
         nk_reduce_moments_f32_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
     else if (count > (nk_size_t)(NK_U16_MAX + 1) * 8) {
         nk_size_t left_count = count / 2;
