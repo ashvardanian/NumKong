@@ -200,6 +200,7 @@ void test_reduce() {
     check("reduce_moments_e5m2_neon", test_reduce_moments<e5m2_t>, nk_reduce_moments_e5m2_neon);
     check("reduce_moments_e2m3_neon", test_reduce_moments<e2m3_t>, nk_reduce_moments_e2m3_neon);
     check("reduce_moments_e3m2_neon", test_reduce_moments<e3m2_t>, nk_reduce_moments_e3m2_neon);
+    check("reduce_moments_u1_neon", test_reduce_moments<u1x8_t>, nk_reduce_moments_u1_neon);
     check("reduce_minmax_f32_neon", test_reduce_minmax<f32_t>, nk_reduce_minmax_f32_neon);
     check("reduce_minmax_f64_neon", test_reduce_minmax<f64_t>, nk_reduce_minmax_f64_neon);
     check("reduce_minmax_i8_neon", test_reduce_minmax<i8_t>, nk_reduce_minmax_i8_neon);
