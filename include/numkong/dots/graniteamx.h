@@ -665,6 +665,7 @@ NUMKONG_API_COMPTIME void nk_dots_symmetric_f16_graniteamx(                     
     nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,             //
     nk_size_t stride_in_bytes, nk_f32_t *result, nk_size_t result_stride_in_bytes, //
     nk_size_t row_start, nk_size_t row_count) {
+    nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
 
     nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_f16_t);
     nk_size_t const result_stride_elements = result_stride_in_bytes / sizeof(nk_f32_t);
@@ -1113,6 +1114,7 @@ NUMKONG_API_COMPTIME void nk_dots_symmetric_e5m2_graniteamx(                    
     nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,            //
     nk_size_t stride_in_bytes, nk_f32_t *result, nk_size_t result_stride_in_bytes, //
     nk_size_t row_start, nk_size_t row_count) {
+    nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
 
     nk_size_t const stride_elements = stride_in_bytes; // E5M2: 1 byte per element
     nk_size_t const result_stride_elements = result_stride_in_bytes / sizeof(nk_f32_t);

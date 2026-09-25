@@ -581,6 +581,8 @@ __arm_new("za") static void nk_hammings_symmetric_u1_smebi32_streaming_( //
 NUMKONG_API_COMPTIME void nk_hammings_symmetric_u1_smebi32( //
     nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t depth_bits, nk_size_t stride_in_bytes,
     nk_u32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 &&
+               stride_in_bytes >= nk_size_divide_round_up_(depth_bits, 8) * sizeof(*vectors));
     nk_sme_start_streaming_();
     nk_hammings_symmetric_u1_smebi32_streaming_(vectors, vectors_count, depth_bits, stride_in_bytes, result,
                                                 result_stride_in_bytes, row_start, row_count);
@@ -1168,6 +1170,8 @@ __arm_new("za") static void nk_jaccards_symmetric_u1_smebi32_streaming_( //
 NUMKONG_API_COMPTIME void nk_jaccards_symmetric_u1_smebi32( //
     nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t depth_bits, nk_size_t stride_in_bytes,
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 &&
+               stride_in_bytes >= nk_size_divide_round_up_(depth_bits, 8) * sizeof(*vectors));
     nk_sme_start_streaming_();
     nk_jaccards_symmetric_u1_smebi32_streaming_(vectors, vectors_count, depth_bits, stride_in_bytes, result,
                                                 result_stride_in_bytes, row_start, row_count);

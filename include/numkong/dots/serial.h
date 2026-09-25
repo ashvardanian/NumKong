@@ -255,7 +255,7 @@ NUMKONG_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_
                                    norm_value_type, depth_simd_dimensions, dimensions_per_value)                      \
     NUMKONG_API_COMPTIME nk_size_t nk_##api_name##_pack_size_##input_type_name##_##isa_suffix(nk_size_t column_count, \
                                                                                               nk_size_t depth) {      \
-        /* @c depth counts dimensions, a multiple of the values per byte */                                           \
+        nk_assert_(depth % dimensions_per_value == 0);                                                                \
         /* depth_simd_dimensions is also in logical dimensions */                                                     \
                                                                                                                       \
         /* Pad depth in dimensions */                                                                                 \
@@ -315,6 +315,7 @@ NUMKONG_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_
     NUMKONG_API_COMPTIME void nk_##api_name##_pack_##input_type_name##_##isa_suffix(                                  \
         nk_##input_value_type##_t const *b, nk_size_t column_count, nk_size_t depth, nk_size_t b_stride_in_bytes,     \
         void *b_packed, nk_size_t columns_begin, nk_size_t columns_end) {                                             \
+        nk_assert_(depth % dimensions_per_value == 0);                                                                \
         nk_size_t depth_dimensions_padded = nk_size_round_up_to_multiple_(depth, depth_simd_dimensions);              \
         nk_size_t depth_values_padded = depth_dimensions_padded / dimensions_per_value;                               \
         nk_size_t const stride_bytes = depth_values_padded * sizeof(nk_##packed_value_type##_t);                      \
@@ -884,6 +885,8 @@ NUMKONG_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_
         nk_size_t c_stride_in_bytes) {                                                                                 \
         /* Read padded depth from header for correct stride calculation */                                             \
         nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;      \
+        nk_assert_(header->column_count == column_count && header->depth_dimensions == depth &&                        \
+                   depth % dimensions_per_value == 0);                                                                 \
         nk_size_t const depth_padded = header->depth_padded_values;                                                    \
                                                                                                                        \
         /* Cache blocking parameters (hardcoded for optimal L1/L2/L3 utilization) */                                   \
@@ -1934,6 +1937,9 @@ NUMKONG_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_
         nk_##input_value_type##_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, \
         nk_##result_value_type##_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start,                     \
         nk_size_t row_count) {                                                                                         \
+        nk_assert_(stride_in_bytes % sizeof(nk_##input_value_type##_t) == 0 &&                                         \
+                   stride_in_bytes >=                                                                                  \
+                       nk_size_divide_round_up_(depth, dimensions_per_value) * sizeof(nk_##input_value_type##_t));     \
         nk_size_t const macro_tile_size = 32;                                                                          \
         nk_size_t const row_block_size = 128;     /* L2 cache blocking */                                              \
         nk_size_t const column_block_size = 2048; /* L3 cache blocking */                                              \
@@ -2412,6 +2418,10 @@ NUMKONG_HELPER_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_
         nk_##input_value_type##_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, \
         nk_##result_value_type##_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start,                     \
         nk_size_t row_count) {                                                                                         \
+        nk_assert_(depth % dimensions_per_value == 0);                                                                 \
+        nk_assert_(stride_in_bytes % sizeof(nk_##input_value_type##_t) == 0 &&                                         \
+                   stride_in_bytes >=                                                                                  \
+                       nk_size_divide_round_up_(depth, dimensions_per_value) * sizeof(nk_##input_value_type##_t));     \
         nk_size_t const macro_tile_size = 32;                                                                          \
         nk_size_t const finalizer_batch_size = 4;                                                                      \
         nk_size_t const row_block_size = 128;     /* L2 cache blocking */                                              \

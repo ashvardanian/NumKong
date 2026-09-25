@@ -75,6 +75,21 @@
 
 #include <stdint.h> // Clang modules on glibc would otherwise credit `uint64_t` to ACLE
 
+/** Debug builds check the library's invariants with @c nk_assert_, defaulting from @c DEBUG or
+ *  @c _DEBUG. */
+#if !defined(NUMKONG_DEBUG)
+#if defined(DEBUG) || defined(_DEBUG)
+#define NUMKONG_DEBUG 1
+#else
+#define NUMKONG_DEBUG 0
+#endif
+#endif
+
+#if NUMKONG_DEBUG && __STDC_HOSTED__ && !defined(__CUDA_ARCH__) && !defined(__METAL_VERSION__)
+#include <stdio.h>  // `fprintf`, `stderr`
+#include <stdlib.h> // `abort`
+#endif
+
 /*  MSan, short for MemorySanitizer, cannot track data flow through SVE horizontal reductions like
  *  @c svaddv, which move data from vector registers to scalar registers via architecture-specific
  *  paths invisible to the compiler. @c nk_unpoison_ marks the resulting scalar as initialized so
@@ -1709,6 +1724,58 @@ typedef struct NUMKONG_MAY_ALIAS_ {
     nk_i8_t elements_[32];
     nk_ue8m0_t scale_;
 } nk_mxint8_t;
+
+/**
+ *  @brief Similar to @c assert, the @c nk_assert_ checks library invariants in @c NUMKONG_DEBUG
+ *      builds, aborting on failure; in release it type-checks the condition without evaluating it.
+ *  @note If you want to catch it, put a breakpoint at @c abort.
+ */
+#if defined(__METAL_VERSION__)
+#define nk_assert_(condition)
+#elif NUMKONG_DEBUG && defined(__CUDA_ARCH__) // ? CUDA code for GPUs
+static __device__ __noinline__ void nk_assert_cuda_failure_(char const *condition, char const *file, int line) {
+    printf("Assertion failed: %s, in file %s, line %d\n", condition, file, line);
+    __trap();
+}
+#define nk_assert_(condition)                                                          \
+    do {                                                                               \
+        if (!(condition)) { nk_assert_cuda_failure_(#condition, __FILE__, __LINE__); } \
+    } while (0)
+#elif NUMKONG_DEBUG && __STDC_HOSTED__ // ? CPU code with LibC
+NUMKONG_HELPER_AUTO void nk_assert_failure_(char const *condition, char const *file, int line) {
+    fprintf(stderr, "Assertion failed: %s, in file %s, line %d\n", condition, file, line);
+    abort();
+}
+#define nk_assert_(condition)                                                     \
+    do {                                                                          \
+        if (!(condition)) { nk_assert_failure_(#condition, __FILE__, __LINE__); } \
+    } while (0)
+#elif NUMKONG_DEBUG && defined(_MSC_VER) && !defined(__clang__) // ? No LibC, and MSVC has no `__builtin_trap`
+#define nk_assert_(condition)             \
+    do {                                  \
+        if (!(condition)) __debugbreak(); \
+    } while (0)
+#elif NUMKONG_DEBUG // ? No LibC: nothing to print with, so trap in place
+#define nk_assert_(condition)               \
+    do {                                    \
+        if (!(condition)) __builtin_trap(); \
+    } while (0)
+#else
+#define nk_assert_(condition) nk_unused_(sizeof(!(condition)))
+#endif
+
+/** Asserts that @p dimensions fill whole storage values of @p dtype, as the sub-byte kernels
+ *  require. */
+#define nk_assert_dims_(dimensions, dtype) nk_assert_((dimensions) % nk_dimensions_per_value(dtype) == 0)
+
+/** Whether @p packed_shape reads back from @p packed the @p width and @p depth a packed kernel is
+ *  about to trust. */
+NUMKONG_HELPER_AUTO int nk_packed_shape_matches_(void (*packed_shape)(void const *, nk_size_t *, nk_size_t *),
+                                                 void const *packed, nk_size_t width, nk_size_t depth) {
+    nk_size_t packed_width = 0, packed_depth = 0;
+    packed_shape(packed, &packed_width, &packed_depth);
+    return packed_width == width && packed_depth == depth;
+}
 
 /** Makes sure the sizes of the types are as expected, as C only has @c _Static_assert from C11. */
 #define NUMKONG_STATIC_ASSERT(cond, msg) typedef char static_assertion_##msg[(cond) ? 1 : -1]

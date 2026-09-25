@@ -171,6 +171,7 @@ nk_define_euclidean_(u8, u32, u32, f32, nk_assign_from_to_, nk_f32_sqrt_serial) 
 
 NUMKONG_API_COMPTIME void nk_sqeuclidean_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n,
                                                    nk_u32_t *result) {
+    nk_assert_dims_(n, nk_i4_k);
     // i4 values are packed as nibbles: two 4-bit signed values per byte.
     // Sign extension: (nibble ^ 8) - 8 maps [0,15] to [-8,7]
     nk_size_t const n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
@@ -194,6 +195,7 @@ NUMKONG_API_COMPTIME void nk_euclidean_i4_serial(nk_i4x2_t const *a, nk_i4x2_t c
 }
 
 NUMKONG_API_COMPTIME void nk_angular_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result) {
+    nk_assert_dims_(n, nk_i4_k);
     nk_size_t const n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
     nk_i32_t dot_sum = 0, a_norm_sq = 0, b_norm_sq = 0;
     for (nk_size_t i = 0; i < n_bytes; ++i) {
@@ -216,6 +218,7 @@ NUMKONG_API_COMPTIME void nk_angular_i4_serial(nk_i4x2_t const *a, nk_i4x2_t con
 
 NUMKONG_API_COMPTIME void nk_sqeuclidean_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n,
                                                    nk_u32_t *result) {
+    nk_assert_dims_(n, nk_u4_k);
     // u4 values are packed as nibbles: two 4-bit unsigned values per byte.
     // No sign extension needed - values are in [0,15].
     nk_size_t const n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
@@ -239,6 +242,7 @@ NUMKONG_API_COMPTIME void nk_euclidean_u4_serial(nk_u4x2_t const *a, nk_u4x2_t c
 }
 
 NUMKONG_API_COMPTIME void nk_angular_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result) {
+    nk_assert_dims_(n, nk_u4_k);
     nk_size_t const n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
     nk_u32_t dot_sum = 0, a_norm_sq = 0, b_norm_sq = 0;
     for (nk_size_t i = 0; i < n_bytes; ++i) {

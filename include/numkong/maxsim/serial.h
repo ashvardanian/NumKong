@@ -445,6 +445,8 @@ NUMKONG_API_COMPTIME void nk_maxsim_packed_bf16_serial( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {
 
+    nk_assert_(nk_packed_shape_matches_(nk_maxsim_packed_shape_, query_packed, query_count, depth) &&
+               nk_packed_shape_matches_(nk_maxsim_packed_shape_, document_packed, document_count, depth));
     nk_maxsim_packed_regions_t regions = nk_maxsim_extract_packed_regions_(query_packed, document_packed);
     nk_f64_t total_angular_distance = 0.0;
 
@@ -479,6 +481,8 @@ NUMKONG_API_COMPTIME void nk_maxsim_packed_f32_serial( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f64_t *result) {
 
+    nk_assert_(nk_packed_shape_matches_(nk_maxsim_packed_shape_, query_packed, query_count, depth) &&
+               nk_packed_shape_matches_(nk_maxsim_packed_shape_, document_packed, document_count, depth));
     nk_maxsim_packed_regions_t regions = nk_maxsim_extract_packed_regions_(query_packed, document_packed);
     nk_f64_t total_angular_distance = 0.0;
 
@@ -514,6 +518,8 @@ NUMKONG_API_COMPTIME void nk_maxsim_packed_f16_serial( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {
 
+    nk_assert_(nk_packed_shape_matches_(nk_maxsim_packed_shape_, query_packed, query_count, depth) &&
+               nk_packed_shape_matches_(nk_maxsim_packed_shape_, document_packed, document_count, depth));
     nk_maxsim_packed_regions_t regions = nk_maxsim_extract_packed_regions_(query_packed, document_packed);
     nk_f64_t total_angular_distance = 0.0;
 

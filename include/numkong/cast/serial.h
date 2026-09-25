@@ -2422,6 +2422,8 @@ NUMKONG_HELPER_INLINE int nk_scalar_buffer_from_f64(nk_f64_t const *value, nk_sc
 
 NUMKONG_API_COMPTIME void nk_cast_serial(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
                                          nk_dtype_t to_type) {
+    nk_assert_dims_(n, from_type);
+    nk_assert_dims_(n, to_type);
     if (from_type == to_type) {
         nk_size_t size_bits = nk_dtype_bits(from_type);
         nk_size_t size_bytes = n * size_bits / NUMKONG_BITS_PER_BYTE;

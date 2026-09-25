@@ -183,6 +183,7 @@ nk_define_dot_(e3m2, f32, f32, nk_e3m2_to_f32_serial) // nk_dot_e3m2_serial
 
 NUMKONG_API_COMPTIME void nk_dot_e2m1_serial(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n,
                                              nk_f32_t *result) {
+    nk_assert_dims_(n, nk_e2m1_k);
     nk_size_t const n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
     nk_i32_t sum = 0; // twice every E2M1 value is an integer, so products sum exactly
     for (nk_size_t i = 0; i < n_bytes; ++i) {
@@ -204,6 +205,7 @@ nk_define_dot_(u8, u32, u32, nk_assign_from_to_) // nk_dot_u8_serial
 #undef nk_define_vdot_complex_
 
 NUMKONG_API_COMPTIME void nk_dot_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_i32_t *result) {
+    nk_assert_dims_(n, nk_i4_k);
     // i4 values are packed as nibbles: two 4-bit signed values per byte.
     // Sign extension: (nibble ^ 8) - 8 maps [0,15] to [-8,7]
     nk_size_t const n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
@@ -219,6 +221,7 @@ NUMKONG_API_COMPTIME void nk_dot_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *
 }
 
 NUMKONG_API_COMPTIME void nk_dot_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result) {
+    nk_assert_dims_(n, nk_u4_k);
     // u4 values are packed as nibbles: two 4-bit unsigned values per byte.
     // No sign extension needed - values are ∈ [0,15].
     nk_size_t const n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
@@ -887,6 +890,7 @@ NUMKONG_HELPER_INLINE void nk_dot_i4x16_finalize_serial(nk_dot_i4x16_state_seria
 #endif
 
 NUMKONG_API_COMPTIME void nk_dot_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result) {
+    nk_assert_dims_(n_bits, nk_u1_k);
     nk_u32_t dot = 0;
     nk_size_t bytes = n_bits / NUMKONG_BITS_PER_BYTE;
     for (nk_size_t i = 0; i < bytes; ++i) dot += nk_u1x8_popcount_(((nk_u8_t const *)a)[i] & ((nk_u8_t const *)b)[i]);

@@ -277,6 +277,9 @@ else ()
     set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG")
 endif ()
 
+# Debug builds check the library's invariants through `nk_assert_`, which release builds compile out.
+add_compile_definitions($<$<CONFIG:Debug>:NUMKONG_DEBUG=1>)
+
 # Probe link-time optimization once and reuse it: the shared library, the tests, and the
 # benchmarks all get IPO for Release builds so the exact `-O3 + LTO` codegen that ships also
 # runs in the test suite. LTO-only miscompiles are otherwise invisible — e.g. cross-TU

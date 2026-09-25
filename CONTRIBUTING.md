@@ -253,7 +253,7 @@ Useful breakpoints for debugging:
 - `__asan::ReportGenericError` — illegal memory accesses.
 - `__GI_exit` — exit points at end of any executable.
 - `__builtin_unreachable` — unexpected code paths.
-- `_sz_assert_failure` — StringZilla logic assertions.
+- `abort` — failed `nk_assert_` invariant checks in `NUMKONG_DEBUG` builds.
 
 See [test/README.md](test/README.md) for test framework details and [bench/README.md](bench/README.md) for benchmark configuration.
 

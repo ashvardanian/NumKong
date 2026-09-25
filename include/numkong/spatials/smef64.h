@@ -211,6 +211,7 @@ static void nk_angulars_symmetric_f32_smef64_finalize_ssve_( //
 NUMKONG_API_COMPTIME void nk_angulars_symmetric_f32_smef64( //
     nk_f32_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f64_t *result,
     nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
 
     nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_f32_t);
@@ -267,6 +268,7 @@ static void nk_euclideans_symmetric_f32_smef64_finalize_ssve_( //
 NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f32_smef64( //
     nk_f32_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f64_t *result,
     nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
 
     nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_f32_t);
@@ -405,6 +407,7 @@ static void nk_angulars_symmetric_f64_smef64_finalize_ssve_( //
 NUMKONG_API_COMPTIME void nk_angulars_symmetric_f64_smef64( //
     nk_f64_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f64_t *result,
     nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
 
     nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_f64_t);
@@ -461,6 +464,7 @@ static void nk_euclideans_symmetric_f64_smef64_finalize_ssve_( //
 NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f64_smef64( //
     nk_f64_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f64_t *result,
     nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
 
     nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_f64_t);

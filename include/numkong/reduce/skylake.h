@@ -683,6 +683,7 @@ NUMKONG_HELPER_INLINE void nk_reduce_minmax_f32_skylake_contiguous_( //
     nk_f32_t const *data_ptr, nk_size_t count,                       //
     nk_f32_t *min_value_ptr, nk_size_t *min_index_ptr,               //
     nk_f32_t *max_value_ptr, nk_size_t *max_index_ptr) {
+    nk_assert_(count <= (nk_size_t)NUMKONG_U32_MAX * 16);
     __m512 min_f32x16 = _mm512_set1_ps(NUMKONG_F32_INF);
     __m512 max_f32x16 = _mm512_set1_ps(-NUMKONG_F32_INF);
     __m512i min_loop_cycle_u32x16 = _mm512_setzero_si512();
@@ -1061,6 +1062,7 @@ NUMKONG_HELPER_INLINE void nk_reduce_minmax_i8_skylake_contiguous_( //
     nk_i8_t const *data_ptr, nk_size_t count,                       //
     nk_i8_t *min_value_ptr, nk_size_t *min_index_ptr,               //
     nk_i8_t *max_value_ptr, nk_size_t *max_index_ptr) {
+    nk_assert_(count <= (nk_size_t)(NUMKONG_U8_MAX + 1) * 64);
     __m512i min_i8x64 = _mm512_set1_epi8((char)NUMKONG_I8_MAX);
     __m512i max_i8x64 = _mm512_set1_epi8(NUMKONG_I8_MIN);
     __m512i min_loop_cycle_u8x64 = _mm512_setzero_si512();
@@ -1245,6 +1247,7 @@ NUMKONG_HELPER_INLINE void nk_reduce_minmax_u8_skylake_contiguous_( //
     nk_u8_t const *data_ptr, nk_size_t count,                       //
     nk_u8_t *min_value_ptr, nk_size_t *min_index_ptr,               //
     nk_u8_t *max_value_ptr, nk_size_t *max_index_ptr) {
+    nk_assert_(count <= (nk_size_t)(NUMKONG_U8_MAX + 1) * 64);
     __m512i min_u8x64 = _mm512_set1_epi8((char)NUMKONG_U8_MAX);
     __m512i max_u8x64 = _mm512_setzero_si512();
     __m512i min_loop_cycle_u8x64 = _mm512_setzero_si512();
@@ -1425,6 +1428,7 @@ NUMKONG_HELPER_INLINE void nk_reduce_minmax_i16_skylake_contiguous_( //
     nk_i16_t const *data_ptr, nk_size_t count,                       //
     nk_i16_t *min_value_ptr, nk_size_t *min_index_ptr,               //
     nk_i16_t *max_value_ptr, nk_size_t *max_index_ptr) {
+    nk_assert_(count <= (nk_size_t)(NUMKONG_U16_MAX + 1) * 32);
     __m512i min_i16x32 = _mm512_set1_epi16((short)NUMKONG_I16_MAX);
     __m512i max_i16x32 = _mm512_set1_epi16(NUMKONG_I16_MIN);
     __m512i min_loop_cycle_u16x32 = _mm512_setzero_si512();
@@ -1615,6 +1619,7 @@ NUMKONG_HELPER_INLINE void nk_reduce_minmax_u16_skylake_contiguous_( //
     nk_u16_t const *data_ptr, nk_size_t count,                       //
     nk_u16_t *min_value_ptr, nk_size_t *min_index_ptr,               //
     nk_u16_t *max_value_ptr, nk_size_t *max_index_ptr) {
+    nk_assert_(count <= (nk_size_t)(NUMKONG_U16_MAX + 1) * 32);
     __m512i min_u16x32 = _mm512_set1_epi16((short)NUMKONG_U16_MAX);
     __m512i max_u16x32 = _mm512_setzero_si512();
     __m512i min_loop_cycle_u16x32 = _mm512_setzero_si512();
@@ -1868,6 +1873,7 @@ NUMKONG_HELPER_INLINE void nk_reduce_minmax_i32_skylake_contiguous_( //
     nk_i32_t const *data_ptr, nk_size_t count,                       //
     nk_i32_t *min_value_ptr, nk_size_t *min_index_ptr,               //
     nk_i32_t *max_value_ptr, nk_size_t *max_index_ptr) {
+    nk_assert_(count <= (nk_size_t)NUMKONG_U32_MAX * 16);
     __m512i min_i32x16 = _mm512_set1_epi32(NUMKONG_I32_MAX);
     __m512i max_i32x16 = _mm512_set1_epi32(NUMKONG_I32_MIN);
     __m512i min_loop_cycle_u32x16 = _mm512_setzero_si512();
@@ -2034,6 +2040,7 @@ NUMKONG_HELPER_INLINE void nk_reduce_minmax_u32_skylake_contiguous_( //
     nk_u32_t const *data_ptr, nk_size_t count,                       //
     nk_u32_t *min_value_ptr, nk_size_t *min_index_ptr,               //
     nk_u32_t *max_value_ptr, nk_size_t *max_index_ptr) {
+    nk_assert_(count <= (nk_size_t)NUMKONG_U32_MAX * 16);
     __m512i min_u32x16 = _mm512_set1_epi32((nk_i32_t)NUMKONG_U32_MAX);
     __m512i max_u32x16 = _mm512_setzero_si512();
     __m512i min_loop_cycle_u32x16 = _mm512_setzero_si512();
@@ -2598,6 +2605,7 @@ NUMKONG_HELPER_INLINE void nk_reduce_minmax_e4m3_skylake_contiguous_( //
     nk_e4m3_t const *data_ptr, nk_size_t count,                       //
     nk_e4m3_t *min_value_ptr, nk_size_t *min_index_ptr,               //
     nk_e4m3_t *max_value_ptr, nk_size_t *max_index_ptr) {
+    nk_assert_(count <= (nk_size_t)(NUMKONG_U8_MAX + 1) * 64);
     // E4M3 NaN: comparable 0x00 (neg NaN) and 0xFF (pos NaN). Replace with neutral values.
     nk_b512_vec_t min_vec, max_vec;
     min_vec.zmm = _mm512_set1_epi8((char)0xFF);
@@ -2947,6 +2955,7 @@ NUMKONG_HELPER_INLINE void nk_reduce_minmax_e5m2_skylake_contiguous_( //
     nk_e5m2_t const *data_ptr, nk_size_t count,                       //
     nk_e5m2_t *min_value_ptr, nk_size_t *min_index_ptr,               //
     nk_e5m2_t *max_value_ptr, nk_size_t *max_index_ptr) {
+    nk_assert_(count <= (nk_size_t)(NUMKONG_U8_MAX + 1) * 64);
     // E5M2 NaN in comparable form: 0x00-0x02 (neg NaN) and 0xFD-0xFF (pos NaN).
     nk_b512_vec_t min_vec, max_vec;
     min_vec.zmm = _mm512_set1_epi8((char)0xFF);
@@ -3083,6 +3092,7 @@ NUMKONG_HELPER_INLINE void nk_reduce_minmax_e2m3_skylake_contiguous_( //
     nk_e2m3_t const *data_ptr, nk_size_t count,                       //
     nk_e2m3_t *min_value_ptr, nk_size_t *min_index_ptr,               //
     nk_e2m3_t *max_value_ptr, nk_size_t *max_index_ptr) {
+    nk_assert_(count <= (nk_size_t)(NUMKONG_U8_MAX + 1) * 64);
     nk_b512_vec_t min_vec, max_vec;
     min_vec.zmm = _mm512_set1_epi8((char)0xFF);
     max_vec.zmm = _mm512_setzero_si512();
@@ -3186,6 +3196,7 @@ NUMKONG_HELPER_INLINE void nk_reduce_minmax_e3m2_skylake_contiguous_( //
     nk_e3m2_t const *data_ptr, nk_size_t count,                       //
     nk_e3m2_t *min_value_ptr, nk_size_t *min_index_ptr,               //
     nk_e3m2_t *max_value_ptr, nk_size_t *max_index_ptr) {
+    nk_assert_(count <= (nk_size_t)(NUMKONG_U8_MAX + 1) * 64);
     nk_b512_vec_t min_vec, max_vec;
     min_vec.zmm = _mm512_set1_epi8((char)0xFF);
     max_vec.zmm = _mm512_setzero_si512();
@@ -3504,6 +3515,7 @@ NUMKONG_HELPER_INLINE void nk_reduce_minmax_bf16_skylake_contiguous_( //
     nk_bf16_t const *data_ptr, nk_size_t count,                       //
     nk_bf16_t *min_value_ptr, nk_size_t *min_index_ptr,               //
     nk_bf16_t *max_value_ptr, nk_size_t *max_index_ptr) {
+    nk_assert_(count <= (nk_size_t)(NUMKONG_U16_MAX + 1) * 32);
     __m512i abs_mask_u16x32 = _mm512_set1_epi16(0x7FFF);
     __m512i nan_threshold_u16x32 = _mm512_set1_epi16((short)0x7F80);
     __m512i min_cmp_i16x32 = _mm512_set1_epi16((short)0x7FFF);
@@ -3693,6 +3705,7 @@ NUMKONG_HELPER_INLINE void nk_reduce_minmax_f16_skylake_contiguous_( //
     nk_f16_t const *data_ptr, nk_size_t count,                       //
     nk_f16_t *min_value_ptr, nk_size_t *min_index_ptr,               //
     nk_f16_t *max_value_ptr, nk_size_t *max_index_ptr) {
+    nk_assert_(count <= (nk_size_t)(NUMKONG_U16_MAX + 1) * 32);
     __m512i abs_mask_u16x32 = _mm512_set1_epi16(0x7FFF);
     __m512i nan_threshold_u16x32 = _mm512_set1_epi16((short)0x7C00);
     __m512i min_cmp_i16x32 = _mm512_set1_epi16((short)0x7FFF);

@@ -29,8 +29,6 @@
 #define NUMKONG_TENSOR_HPP
 
 #include <array>   // `std::array`
-#include <cstdio>  // `std::fprintf`, `stderr`
-#include <cstdlib> // `std::abort`
 #include <cstring> // `std::memcpy`, `std::memcmp`, `std::memset`
 #include <span>    // `std::span`
 #include <tuple>   // `std::tuple_element_t`
@@ -76,16 +74,6 @@ struct trailing_tensor_slice_args_<range, rest_types_...> : trailing_tensor_slic
 template <typename... arg_types_>
 inline constexpr bool trailing_tensor_slice_args_v =
     trailing_tensor_slice_args_<std::remove_cvref_t<arg_types_>...>::value;
-
-#if defined(NDEBUG)
-#define nk_assert_(expr) ((void)0)
-#else
-extern "C" [[noreturn]] inline void nk_assert_failure(char const *expr, char const *file, int line) noexcept {
-    std::fprintf(stderr, "NumKong assertion failed: %s (%s:%d)\n", expr, file, line);
-    std::abort();
-}
-#define nk_assert_(expr) ((expr) ? (void)0 : nk_assert_failure(#expr, __FILE__, __LINE__))
-#endif
 
 #pragma region Shape Storage
 

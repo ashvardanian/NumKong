@@ -52,9 +52,18 @@ extern "C" {
     }
 
 #define nk_define_sparse_intersect_(input_type)                                                                      \
+    /* Whether @p indices strictly ascend, so they are sorted and unique */                                          \
+    NUMKONG_HELPER_AUTO int nk_sparse_ascending_##input_type##_(nk_##input_type##_t const *indices,                  \
+                                                                nk_size_t length) {                                  \
+        for (nk_size_t index = 1; index < length; ++index)                                                           \
+            if (indices[index - 1] >= indices[index]) return 0;                                                      \
+        return 1;                                                                                                    \
+    }                                                                                                                \
     NUMKONG_API_COMPTIME void nk_sparse_intersect_##input_type##_serial(                                             \
         nk_##input_type##_t const *shorter, nk_##input_type##_t const *longer, nk_size_t shorter_length,             \
         nk_size_t longer_length, nk_##input_type##_t *result, nk_size_t *count) {                                    \
+        nk_assert_(nk_sparse_ascending_##input_type##_(shorter, shorter_length) &&                                   \
+                   nk_sparse_ascending_##input_type##_(longer, longer_length));                                      \
         /* Swap arrays if necessary, as we want "longer" to be larger than "shorter" */                              \
         if (longer_length < shorter_length) {                                                                        \
             nk_##input_type##_t const *temp = shorter;                                                               \
@@ -91,6 +100,8 @@ extern "C" {
         nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_##weight_type##_t const *a_weights, \
         nk_##weight_type##_t const *b_weights, nk_size_t a_length, nk_size_t b_length,                     \
         nk_##accumulator_type##_t *product) {                                                              \
+        nk_assert_(nk_sparse_ascending_##input_type##_(a, a_length) &&                                     \
+                   nk_sparse_ascending_##input_type##_(b, b_length));                                      \
         nk_##accumulator_type##_t weights_product = 0, awi, bwi;                                           \
         nk_size_t i = 0, j = 0;                                                                            \
         while (i != a_length && j != b_length) {                                                           \

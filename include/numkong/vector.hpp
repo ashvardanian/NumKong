@@ -122,12 +122,18 @@ struct range {
           step(static_cast<std::ptrdiff_t>(step)) {}
 };
 
-/** Resolve an integral index to an unsigned offset. Negative wraps from end. */
+/** Resolve an integral index to an unsigned offset. Negative wraps from end, and @p extent itself
+ *  resolves too, as ranges stop there; element access checks the tighter bound. */
 template <std::integral index_type_>
 constexpr std::size_t resolve_index_(index_type_ idx, std::size_t extent) noexcept {
-    if constexpr (std::signed_integral<index_type_>)
+    if constexpr (std::signed_integral<index_type_>) {
+        nk_assert_(idx >= -static_cast<std::ptrdiff_t>(extent) && idx <= static_cast<std::ptrdiff_t>(extent));
         return static_cast<std::size_t>(idx >= 0 ? idx : static_cast<std::ptrdiff_t>(extent) + idx);
-    else return static_cast<std::size_t>(idx);
+    }
+    else {
+        nk_assert_(static_cast<std::size_t>(idx) <= extent);
+        return static_cast<std::size_t>(idx);
+    }
 }
 
 /** Normalize any integral stride input to the signed internal representation. */
@@ -151,6 +157,7 @@ constexpr void resolve_range_(range const &r, std::size_t extent, //
 
 /** Number of elements in a resolved range with the given step. */
 constexpr std::size_t range_extent_(std::size_t start, std::size_t stop, std::ptrdiff_t step) noexcept {
+    nk_assert_(step != 0);
     if (step > 0)
         return start < stop ? (stop - start + static_cast<std::size_t>(step) - 1) / static_cast<std::size_t>(step) : 0;
     else {
@@ -364,6 +371,7 @@ struct vector_view {
     template <std::integral index_type_>
     constexpr decltype(auto) operator[](index_type_ idx) const noexcept {
         auto i = resolve_index_(idx, dimensions_);
+        nk_assert_(i < dimensions_);
         if constexpr (dimensions_per_value<value_type>() > 1) {
             constexpr auto dims_per_value = dimensions_per_value<value_type>();
             auto value_index = i / dims_per_value;
@@ -476,6 +484,7 @@ struct vector_span {
     template <std::integral index_type_>
     constexpr decltype(auto) operator[](index_type_ idx) const noexcept {
         auto i = resolve_index_(idx, dimensions_);
+        nk_assert_(i < dimensions_);
         if constexpr (dimensions_per_value<value_type>() > 1) {
             constexpr auto dims_per_value = dimensions_per_value<value_type>();
             auto value_index = i / dims_per_value;
@@ -751,6 +760,7 @@ struct vector {
      *  @param[in] alloc Allocator instance.
      */
     [[nodiscard]] static vector from_raw(pointer ptr, size_type dims, allocator_type_ alloc = {}) noexcept {
+        nk_assert_(dims % dimensions_per_value<value_type>() == 0);
         vector v(alloc);
         v.data_ = ptr;
         v.dimensions_ = dims;
@@ -840,6 +850,7 @@ struct vector {
     template <std::integral index_type_>
     constexpr decltype(auto) operator[](index_type_ idx) noexcept {
         auto i = resolve_index_(idx, dimensions_);
+        nk_assert_(i < dimensions_);
         if constexpr (dimensions_per_value<value_type>() > 1)
             return sub_byte_ref<value_type>(reinterpret_cast<raw_value_type *>(data_), i);
         else return data_[i];
@@ -848,6 +859,7 @@ struct vector {
     template <std::integral index_type_>
     constexpr decltype(auto) operator[](index_type_ idx) const noexcept {
         auto i = resolve_index_(idx, dimensions_);
+        nk_assert_(i < dimensions_);
         if constexpr (dimensions_per_value<value_type>() > 1)
             return sub_byte_ref<value_type>(
                        const_cast<raw_value_type *>(reinterpret_cast<raw_value_type const *>(data_)), i)
