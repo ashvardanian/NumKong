@@ -672,7 +672,7 @@ NUMKONG_API_COMPTIME void nk_each_scale_i16_skylake(nk_i16_t const *a, nk_size_t
     __m512 beta_f32x16 = _mm512_set1_ps(beta_f32);
     __m256i a_i16x16, result_i16x16;
     __m512 a_f32x16, result_f32x16;
-    __mmask16 mask_m16 = 0xFFFF;
+    __mmask16 mask_m16 = 0xFFFF, ordered_m16;
     __m512i result_i32x16;
     __m512 min_f32x16 = _mm512_set1_ps(-32768.0f);
     __m512 max_f32x16 = _mm512_set1_ps(32767.0f);
@@ -689,9 +689,10 @@ nk_each_scale_i16_skylake_cycle:
     }
     a_f32x16 = _mm512_cvtepi32_ps(_mm512_cvtepi16_epi32(a_i16x16));
     result_f32x16 = _mm512_fmadd_ps(a_f32x16, alpha_f32x16, beta_f32x16);
+    ordered_m16 = _mm512_cmp_ps_mask(result_f32x16, result_f32x16, _CMP_ORD_Q);
     result_f32x16 = _mm512_max_ps(result_f32x16, min_f32x16);
     result_f32x16 = _mm512_min_ps(result_f32x16, max_f32x16);
-    result_i32x16 = _mm512_cvtps_epi32(result_f32x16);
+    result_i32x16 = _mm512_maskz_cvtps_epi32(ordered_m16, result_f32x16);
     result_i16x16 = _mm512_cvtepi32_epi16(result_i32x16);
     _mm256_mask_storeu_epi16(result, mask_m16, result_i16x16);
     result += 16;
@@ -707,7 +708,7 @@ NUMKONG_API_COMPTIME void nk_each_fma_i16_skylake(                        //
     __m512 beta_f32x16 = _mm512_set1_ps(beta_f32);
     __m256i a_i16x16, b_i16x16, c_i16x16, result_i16x16;
     __m512 a_f32x16, b_f32x16, c_f32x16, ab_f32x16, ab_scaled_f32x16, result_f32x16;
-    __mmask16 mask_m16 = 0xFFFF;
+    __mmask16 mask_m16 = 0xFFFF, ordered_m16;
     __m512i result_i32x16;
     __m512 min_f32x16 = _mm512_set1_ps(-32768.0f);
     __m512 max_f32x16 = _mm512_set1_ps(32767.0f);
@@ -732,9 +733,10 @@ nk_each_fma_i16_skylake_cycle:
     ab_f32x16 = _mm512_mul_ps(a_f32x16, b_f32x16);
     ab_scaled_f32x16 = _mm512_mul_ps(ab_f32x16, alpha_f32x16);
     result_f32x16 = _mm512_fmadd_ps(c_f32x16, beta_f32x16, ab_scaled_f32x16);
+    ordered_m16 = _mm512_cmp_ps_mask(result_f32x16, result_f32x16, _CMP_ORD_Q);
     result_f32x16 = _mm512_max_ps(result_f32x16, min_f32x16);
     result_f32x16 = _mm512_min_ps(result_f32x16, max_f32x16);
-    result_i32x16 = _mm512_cvtps_epi32(result_f32x16);
+    result_i32x16 = _mm512_maskz_cvtps_epi32(ordered_m16, result_f32x16);
     result_i16x16 = _mm512_cvtepi32_epi16(result_i32x16);
     _mm256_mask_storeu_epi16(result, mask_m16, result_i16x16);
     result += 16;
@@ -826,7 +828,7 @@ NUMKONG_API_COMPTIME void nk_each_scale_i32_skylake(nk_i32_t const *a, nk_size_t
     __m512d beta_f64x8 = _mm512_set1_pd(beta_val);
     __m256i a_i32x8, result_i32x8;
     __m512d a_f64x8, result_f64x8;
-    __mmask8 mask_m8 = 0xFF;
+    __mmask8 mask_m8 = 0xFF, ordered_m8;
     __m512d min_f64x8 = _mm512_set1_pd(-2147483648.0);
     __m512d max_f64x8 = _mm512_set1_pd(2147483647.0);
 
@@ -842,9 +844,10 @@ nk_each_scale_i32_skylake_cycle:
     }
     a_f64x8 = _mm512_cvtepi32_pd(a_i32x8);
     result_f64x8 = _mm512_fmadd_pd(a_f64x8, alpha_f64x8, beta_f64x8);
+    ordered_m8 = _mm512_cmp_pd_mask(result_f64x8, result_f64x8, _CMP_ORD_Q);
     result_f64x8 = _mm512_max_pd(result_f64x8, min_f64x8);
     result_f64x8 = _mm512_min_pd(result_f64x8, max_f64x8);
-    result_i32x8 = _mm512_cvtpd_epi32(result_f64x8);
+    result_i32x8 = _mm512_maskz_cvtpd_epi32(ordered_m8, result_f64x8);
     _mm256_mask_storeu_epi32(result, mask_m8, result_i32x8);
     result += 8;
     if (n) goto nk_each_scale_i32_skylake_cycle;
@@ -859,7 +862,7 @@ NUMKONG_API_COMPTIME void nk_each_fma_i32_skylake(                        //
     __m512d beta_f64x8 = _mm512_set1_pd(beta_val);
     __m256i a_i32x8, b_i32x8, c_i32x8, result_i32x8;
     __m512d a_f64x8, b_f64x8, c_f64x8, ab_f64x8, ab_scaled_f64x8, result_f64x8;
-    __mmask8 mask_m8 = 0xFF;
+    __mmask8 mask_m8 = 0xFF, ordered_m8;
     __m512d min_f64x8 = _mm512_set1_pd(-2147483648.0);
     __m512d max_f64x8 = _mm512_set1_pd(2147483647.0);
 
@@ -883,9 +886,10 @@ nk_each_fma_i32_skylake_cycle:
     ab_f64x8 = _mm512_mul_pd(a_f64x8, b_f64x8);
     ab_scaled_f64x8 = _mm512_mul_pd(ab_f64x8, alpha_f64x8);
     result_f64x8 = _mm512_fmadd_pd(c_f64x8, beta_f64x8, ab_scaled_f64x8);
+    ordered_m8 = _mm512_cmp_pd_mask(result_f64x8, result_f64x8, _CMP_ORD_Q);
     result_f64x8 = _mm512_max_pd(result_f64x8, min_f64x8);
     result_f64x8 = _mm512_min_pd(result_f64x8, max_f64x8);
-    result_i32x8 = _mm512_cvtpd_epi32(result_f64x8);
+    result_i32x8 = _mm512_maskz_cvtpd_epi32(ordered_m8, result_f64x8);
     _mm256_mask_storeu_epi32(result, mask_m8, result_i32x8);
     result += 8;
     if (n) goto nk_each_fma_i32_skylake_cycle;
@@ -973,7 +977,7 @@ NUMKONG_API_COMPTIME void nk_each_scale_i64_skylake(nk_i64_t const *a, nk_size_t
     __m512i a_i64x8;
     __m512d a_f64x8, result_f64x8;
     __m512i result_i64x8;
-    __mmask8 mask_m8 = 0xFF;
+    __mmask8 mask_m8 = 0xFF, ordered_m8, overflow_m8;
 
 nk_each_scale_i64_skylake_cycle:
     if (n < 8) {
@@ -987,7 +991,11 @@ nk_each_scale_i64_skylake_cycle:
     }
     a_f64x8 = _mm512_cvtepi64_pd(a_i64x8);
     result_f64x8 = _mm512_fmadd_pd(a_f64x8, alpha_f64x8, beta_f64x8);
-    result_i64x8 = _mm512_cvtpd_epi64(result_f64x8);
+    // Out-of-range lanes convert to INT64_MIN, which is only right for the negative ones
+    ordered_m8 = _mm512_cmp_pd_mask(result_f64x8, result_f64x8, _CMP_ORD_Q);
+    overflow_m8 = _mm512_cmp_pd_mask(result_f64x8, _mm512_set1_pd(9223372036854775808.0), _CMP_GE_OQ);
+    result_i64x8 = _mm512_maskz_cvtpd_epi64(ordered_m8, result_f64x8);
+    result_i64x8 = _mm512_mask_mov_epi64(result_i64x8, overflow_m8, _mm512_set1_epi64(NUMKONG_I64_MAX));
     _mm512_mask_storeu_epi64(result, mask_m8, result_i64x8);
     result += 8;
     if (n) goto nk_each_scale_i64_skylake_cycle;
@@ -1002,7 +1010,7 @@ NUMKONG_API_COMPTIME void nk_each_fma_i64_skylake(                        //
     __m512d beta_f64x8 = _mm512_set1_pd(beta_val);
     __m512i a_i64x8, b_i64x8, c_i64x8, result_i64x8;
     __m512d a_f64x8, b_f64x8, c_f64x8, ab_f64x8, ab_scaled_f64x8, result_f64x8;
-    __mmask8 mask_m8 = 0xFF;
+    __mmask8 mask_m8 = 0xFF, ordered_m8, overflow_m8;
 nk_each_fma_i64_skylake_cycle:
     if (n < 8) {
         mask_m8 = (__mmask8)_bzhi_u32(0xFFFFFFFF, n);
@@ -1023,7 +1031,11 @@ nk_each_fma_i64_skylake_cycle:
     ab_f64x8 = _mm512_mul_pd(a_f64x8, b_f64x8);
     ab_scaled_f64x8 = _mm512_mul_pd(ab_f64x8, alpha_f64x8);
     result_f64x8 = _mm512_fmadd_pd(c_f64x8, beta_f64x8, ab_scaled_f64x8);
-    result_i64x8 = _mm512_cvtpd_epi64(result_f64x8);
+    // Out-of-range lanes convert to INT64_MIN, which is only right for the negative ones
+    ordered_m8 = _mm512_cmp_pd_mask(result_f64x8, result_f64x8, _CMP_ORD_Q);
+    overflow_m8 = _mm512_cmp_pd_mask(result_f64x8, _mm512_set1_pd(9223372036854775808.0), _CMP_GE_OQ);
+    result_i64x8 = _mm512_maskz_cvtpd_epi64(ordered_m8, result_f64x8);
+    result_i64x8 = _mm512_mask_mov_epi64(result_i64x8, overflow_m8, _mm512_set1_epi64(NUMKONG_I64_MAX));
     _mm512_mask_storeu_epi64(result, mask_m8, result_i64x8);
     result += 8;
     if (n) goto nk_each_fma_i64_skylake_cycle;
@@ -1052,7 +1064,8 @@ nk_each_scale_u64_skylake_cycle:
     }
     a_f64x8 = _mm512_cvtepu64_pd(a_u64x8);
     result_f64x8 = _mm512_fmadd_pd(a_f64x8, alpha_f64x8, beta_f64x8);
-    result_u64x8 = _mm512_cvtpd_epu64(result_f64x8);
+    // NaNs and negatives clamp to zero, while 2⁶⁴ and beyond already convert to UINT64_MAX
+    result_u64x8 = _mm512_cvtpd_epu64(_mm512_max_pd(result_f64x8, _mm512_setzero_pd()));
     _mm512_mask_storeu_epi64(result, mask_m8, result_u64x8);
     result += 8;
     if (n) goto nk_each_scale_u64_skylake_cycle;
@@ -1088,7 +1101,8 @@ nk_each_fma_u64_skylake_cycle:
     ab_f64x8 = _mm512_mul_pd(a_f64x8, b_f64x8);
     ab_scaled_f64x8 = _mm512_mul_pd(ab_f64x8, alpha_f64x8);
     result_f64x8 = _mm512_fmadd_pd(c_f64x8, beta_f64x8, ab_scaled_f64x8);
-    result_u64x8 = _mm512_cvtpd_epu64(result_f64x8);
+    // NaNs and negatives clamp to zero, while 2⁶⁴ and beyond already convert to UINT64_MAX
+    result_u64x8 = _mm512_cvtpd_epu64(_mm512_max_pd(result_f64x8, _mm512_setzero_pd()));
     _mm512_mask_storeu_epi64(result, mask_m8, result_u64x8);
     result += 8;
     if (n) goto nk_each_fma_u64_skylake_cycle;

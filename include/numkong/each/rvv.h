@@ -250,6 +250,9 @@ NUMKONG_API_COMPTIME void nk_each_scale_i8_rvv(nk_i8_t const *a, nk_size_t n, nk
         vint32m4_t a_i32m4 = __riscv_vwadd_vx_i32m4(a_i16m2, 0, vector_length);
         vfloat32m4_t a_f32m4 = __riscv_vfcvt_f_x_v_f32m4(a_i32m4, vector_length);
         a_f32m4 = __riscv_vfmadd_vf_f32m4(a_f32m4, alpha_val, beta_f32m4, vector_length);
+        // RVV converts NaN to the largest integer, where serial gives zero
+        a_f32m4 = __riscv_vfmerge_vfm_f32m4(a_f32m4, 0.0f, __riscv_vmfne_vv_f32m4_b8(a_f32m4, a_f32m4, vector_length),
+                                            vector_length);
         vint32m4_t result_i32m4 = __riscv_vfcvt_x_f_v_i32m4(a_f32m4, vector_length);
         result_i32m4 = __riscv_vmax_vx_i32m4(result_i32m4, -128, vector_length);
         result_i32m4 = __riscv_vmin_vx_i32m4(result_i32m4, 127, vector_length);
@@ -271,8 +274,9 @@ NUMKONG_API_COMPTIME void nk_each_scale_u8_rvv(nk_u8_t const *a, nk_size_t n, nk
         vuint32m4_t a_u32m4 = __riscv_vwaddu_vx_u32m4(a_u16m2, 0, vector_length);
         vfloat32m4_t a_f32m4 = __riscv_vfcvt_f_xu_v_f32m4(a_u32m4, vector_length);
         a_f32m4 = __riscv_vfmadd_vf_f32m4(a_f32m4, alpha_val, beta_f32m4, vector_length);
+        // vfmax returns the non-NaN operand, so NaNs clamp to zero along with negatives
+        a_f32m4 = __riscv_vfmax_vf_f32m4(a_f32m4, 0.0f, vector_length);
         vuint32m4_t result_u32m4 = __riscv_vfcvt_xu_f_v_u32m4(a_f32m4, vector_length);
-        result_u32m4 = __riscv_vmaxu_vx_u32m4(result_u32m4, 0, vector_length);
         result_u32m4 = __riscv_vminu_vx_u32m4(result_u32m4, 255, vector_length);
         vuint16m2_t result_u16m2 = __riscv_vncvt_x_x_w_u16m2(result_u32m4, vector_length);
         vuint8m1_t result_u8m1 = __riscv_vncvt_x_x_w_u8m1(result_u16m2, vector_length);
@@ -291,6 +295,9 @@ NUMKONG_API_COMPTIME void nk_each_scale_i16_rvv(nk_i16_t const *a, nk_size_t n, 
         vint32m2_t a_i32m2 = __riscv_vwadd_vx_i32m2(a_i16m1, 0, vector_length);
         vfloat32m2_t a_f32m2 = __riscv_vfcvt_f_x_v_f32m2(a_i32m2, vector_length);
         a_f32m2 = __riscv_vfmadd_vf_f32m2(a_f32m2, alpha_val, beta_f32m2, vector_length);
+        // RVV converts NaN to the largest integer, where serial gives zero
+        a_f32m2 = __riscv_vfmerge_vfm_f32m2(a_f32m2, 0.0f, __riscv_vmfne_vv_f32m2_b16(a_f32m2, a_f32m2, vector_length),
+                                            vector_length);
         vint32m2_t result_i32m2 = __riscv_vfcvt_x_f_v_i32m2(a_f32m2, vector_length);
         result_i32m2 = __riscv_vmax_vx_i32m2(result_i32m2, -32768, vector_length);
         result_i32m2 = __riscv_vmin_vx_i32m2(result_i32m2, 32767, vector_length);
@@ -310,8 +317,9 @@ NUMKONG_API_COMPTIME void nk_each_scale_u16_rvv(nk_u16_t const *a, nk_size_t n, 
         vuint32m2_t a_u32m2 = __riscv_vwaddu_vx_u32m2(a_u16m1, 0, vector_length);
         vfloat32m2_t a_f32m2 = __riscv_vfcvt_f_xu_v_f32m2(a_u32m2, vector_length);
         a_f32m2 = __riscv_vfmadd_vf_f32m2(a_f32m2, alpha_val, beta_f32m2, vector_length);
+        // vfmax returns the non-NaN operand, so NaNs clamp to zero along with negatives
+        a_f32m2 = __riscv_vfmax_vf_f32m2(a_f32m2, 0.0f, vector_length);
         vuint32m2_t result_u32m2 = __riscv_vfcvt_xu_f_v_u32m2(a_f32m2, vector_length);
-        result_u32m2 = __riscv_vmaxu_vx_u32m2(result_u32m2, 0, vector_length);
         result_u32m2 = __riscv_vminu_vx_u32m2(result_u32m2, 65535, vector_length);
         vuint16m1_t result_u16m1 = __riscv_vncvt_x_x_w_u16m1(result_u32m2, vector_length);
         __riscv_vse16_v_u16m1(result, result_u16m1, vector_length);
@@ -328,6 +336,9 @@ NUMKONG_API_COMPTIME void nk_each_scale_i32_rvv(nk_i32_t const *a, nk_size_t n, 
         vint32m1_t a_i32m1 = __riscv_vle32_v_i32m1(a, vector_length);
         vfloat64m2_t a_f64m2 = __riscv_vfwcvt_f_x_v_f64m2(a_i32m1, vector_length);
         a_f64m2 = __riscv_vfmadd_vf_f64m2(a_f64m2, alpha_val, beta_f64m2, vector_length);
+        // Zero NaNs first, as vfmax returns the non-NaN operand and would clamp them to INT32_MIN
+        a_f64m2 = __riscv_vfmerge_vfm_f64m2(a_f64m2, 0.0, __riscv_vmfne_vv_f64m2_b32(a_f64m2, a_f64m2, vector_length),
+                                            vector_length);
         a_f64m2 = __riscv_vfmax_vf_f64m2(a_f64m2, -2147483648.0, vector_length);
         a_f64m2 = __riscv_vfmin_vf_f64m2(a_f64m2, 2147483647.0, vector_length);
         vint32m1_t result_i32m1 = __riscv_vfncvt_x_f_w_i32m1(a_f64m2, vector_length);
@@ -362,6 +373,9 @@ NUMKONG_API_COMPTIME void nk_each_scale_i64_rvv(nk_i64_t const *a, nk_size_t n, 
         vint64m4_t a_i64m4 = __riscv_vle64_v_i64m4(a, vector_length);
         vfloat64m4_t a_f64m4 = __riscv_vfcvt_f_x_v_f64m4(a_i64m4, vector_length);
         a_f64m4 = __riscv_vfmadd_vf_f64m4(a_f64m4, alpha_val, beta_f64m4, vector_length);
+        // RVV converts NaN to the largest integer, where serial gives zero
+        a_f64m4 = __riscv_vfmerge_vfm_f64m4(a_f64m4, 0.0, __riscv_vmfne_vv_f64m4_b16(a_f64m4, a_f64m4, vector_length),
+                                            vector_length);
         vint64m4_t result_i64m4 = __riscv_vfcvt_x_f_v_i64m4(a_f64m4, vector_length);
         __riscv_vse64_v_i64m4(result, result_i64m4, vector_length);
     }
@@ -541,6 +555,9 @@ NUMKONG_API_COMPTIME void nk_each_blend_i8_rvv(nk_i8_t const *a, nk_i8_t const *
         vfloat32m4_t b_f32m4 = __riscv_vfcvt_f_x_v_f32m4(b_i32m4, vector_length);
         vfloat32m4_t result_f32m4 = __riscv_vfmul_vf_f32m4(a_f32m4, alpha_val, vector_length);
         result_f32m4 = __riscv_vfmacc_vf_f32m4(result_f32m4, beta_val, b_f32m4, vector_length);
+        // RVV converts NaN to the largest integer, where serial gives zero
+        result_f32m4 = __riscv_vfmerge_vfm_f32m4(
+            result_f32m4, 0.0f, __riscv_vmfne_vv_f32m4_b8(result_f32m4, result_f32m4, vector_length), vector_length);
         vint32m4_t result_i32m4 = __riscv_vfcvt_x_f_v_i32m4(result_f32m4, vector_length);
         result_i32m4 = __riscv_vmax_vx_i32m4(result_i32m4, -128, vector_length);
         result_i32m4 = __riscv_vmin_vx_i32m4(result_i32m4, 127, vector_length);
@@ -576,8 +593,9 @@ NUMKONG_API_COMPTIME void nk_each_blend_u8_rvv(nk_u8_t const *a, nk_u8_t const *
         vfloat32m4_t b_f32m4 = __riscv_vfcvt_f_xu_v_f32m4(b_u32m4, vector_length);
         vfloat32m4_t result_f32m4 = __riscv_vfmul_vf_f32m4(a_f32m4, alpha_val, vector_length);
         result_f32m4 = __riscv_vfmacc_vf_f32m4(result_f32m4, beta_val, b_f32m4, vector_length);
+        // vfmax returns the non-NaN operand, so NaNs clamp to zero along with negatives
+        result_f32m4 = __riscv_vfmax_vf_f32m4(result_f32m4, 0.0f, vector_length);
         vuint32m4_t result_u32m4 = __riscv_vfcvt_xu_f_v_u32m4(result_f32m4, vector_length);
-        result_u32m4 = __riscv_vmaxu_vx_u32m4(result_u32m4, 0, vector_length);
         result_u32m4 = __riscv_vminu_vx_u32m4(result_u32m4, 255, vector_length);
         vuint16m2_t result_u16m2 = __riscv_vncvt_x_x_w_u16m2(result_u32m4, vector_length);
         vuint8m1_t result_u8m1 = __riscv_vncvt_x_x_w_u8m1(result_u16m2, vector_length);
@@ -712,6 +730,9 @@ NUMKONG_API_COMPTIME void nk_each_fma_i8_rvv(nk_i8_t const *a, nk_i8_t const *b,
         vfloat32m4_t product_f32m4 = __riscv_vfmul_vv_f32m4(a_f32m4, b_f32m4, vector_length);
         vfloat32m4_t scaled_product_f32m4 = __riscv_vfmul_vf_f32m4(product_f32m4, alpha_val, vector_length);
         vfloat32m4_t result_f32m4 = __riscv_vfmacc_vf_f32m4(scaled_product_f32m4, beta_val, c_f32m4, vector_length);
+        // RVV converts NaN to the largest integer, where serial gives zero
+        result_f32m4 = __riscv_vfmerge_vfm_f32m4(
+            result_f32m4, 0.0f, __riscv_vmfne_vv_f32m4_b8(result_f32m4, result_f32m4, vector_length), vector_length);
         vint32m4_t result_i32m4 = __riscv_vfcvt_x_f_v_i32m4(result_f32m4, vector_length);
         result_i32m4 = __riscv_vmax_vx_i32m4(result_i32m4, -128, vector_length);
         result_i32m4 = __riscv_vmin_vx_i32m4(result_i32m4, 127, vector_length);
@@ -742,8 +763,9 @@ NUMKONG_API_COMPTIME void nk_each_fma_u8_rvv(nk_u8_t const *a, nk_u8_t const *b,
         vfloat32m4_t product_f32m4 = __riscv_vfmul_vv_f32m4(a_f32m4, b_f32m4, vector_length);
         vfloat32m4_t scaled_product_f32m4 = __riscv_vfmul_vf_f32m4(product_f32m4, alpha_val, vector_length);
         vfloat32m4_t result_f32m4 = __riscv_vfmacc_vf_f32m4(scaled_product_f32m4, beta_val, c_f32m4, vector_length);
+        // vfmax returns the non-NaN operand, so NaNs clamp to zero along with negatives
+        result_f32m4 = __riscv_vfmax_vf_f32m4(result_f32m4, 0.0f, vector_length);
         vuint32m4_t result_u32m4 = __riscv_vfcvt_xu_f_v_u32m4(result_f32m4, vector_length);
-        result_u32m4 = __riscv_vmaxu_vx_u32m4(result_u32m4, 0, vector_length);
         result_u32m4 = __riscv_vminu_vx_u32m4(result_u32m4, 255, vector_length);
         vuint16m2_t result_u16m2 = __riscv_vncvt_x_x_w_u16m2(result_u32m4, vector_length);
         vuint8m1_t result_u8m1 = __riscv_vncvt_x_x_w_u8m1(result_u16m2, vector_length);
@@ -769,6 +791,9 @@ NUMKONG_API_COMPTIME void nk_each_fma_i16_rvv(nk_i16_t const *a, nk_i16_t const 
         vfloat32m2_t product_f32m2 = __riscv_vfmul_vv_f32m2(a_f32m2, b_f32m2, vector_length);
         vfloat32m2_t scaled_product_f32m2 = __riscv_vfmul_vf_f32m2(product_f32m2, alpha_val, vector_length);
         vfloat32m2_t result_f32m2 = __riscv_vfmacc_vf_f32m2(scaled_product_f32m2, beta_val, c_f32m2, vector_length);
+        // RVV converts NaN to the largest integer, where serial gives zero
+        result_f32m2 = __riscv_vfmerge_vfm_f32m2(
+            result_f32m2, 0.0f, __riscv_vmfne_vv_f32m2_b16(result_f32m2, result_f32m2, vector_length), vector_length);
         vint32m2_t result_i32m2 = __riscv_vfcvt_x_f_v_i32m2(result_f32m2, vector_length);
         result_i32m2 = __riscv_vmax_vx_i32m2(result_i32m2, -32768, vector_length);
         result_i32m2 = __riscv_vmin_vx_i32m2(result_i32m2, 32767, vector_length);
@@ -795,8 +820,9 @@ NUMKONG_API_COMPTIME void nk_each_fma_u16_rvv(nk_u16_t const *a, nk_u16_t const 
         vfloat32m2_t product_f32m2 = __riscv_vfmul_vv_f32m2(a_f32m2, b_f32m2, vector_length);
         vfloat32m2_t scaled_product_f32m2 = __riscv_vfmul_vf_f32m2(product_f32m2, alpha_val, vector_length);
         vfloat32m2_t result_f32m2 = __riscv_vfmacc_vf_f32m2(scaled_product_f32m2, beta_val, c_f32m2, vector_length);
+        // vfmax returns the non-NaN operand, so NaNs clamp to zero along with negatives
+        result_f32m2 = __riscv_vfmax_vf_f32m2(result_f32m2, 0.0f, vector_length);
         vuint32m2_t result_u32m2 = __riscv_vfcvt_xu_f_v_u32m2(result_f32m2, vector_length);
-        result_u32m2 = __riscv_vmaxu_vx_u32m2(result_u32m2, 0, vector_length);
         result_u32m2 = __riscv_vminu_vx_u32m2(result_u32m2, 65535, vector_length);
         vuint16m1_t result_u16m1 = __riscv_vncvt_x_x_w_u16m1(result_u32m2, vector_length);
         __riscv_vse16_v_u16m1(result, result_u16m1, vector_length);
@@ -818,6 +844,9 @@ NUMKONG_API_COMPTIME void nk_each_fma_i32_rvv(nk_i32_t const *a, nk_i32_t const 
         vfloat64m2_t product_f64m2 = __riscv_vfmul_vv_f64m2(a_f64m2, b_f64m2, vector_length);
         vfloat64m2_t scaled_product_f64m2 = __riscv_vfmul_vf_f64m2(product_f64m2, alpha_val, vector_length);
         vfloat64m2_t result_f64m2 = __riscv_vfmacc_vf_f64m2(scaled_product_f64m2, beta_val, c_f64m2, vector_length);
+        // Zero NaNs first, as vfmax returns the non-NaN operand and would clamp them to INT32_MIN
+        result_f64m2 = __riscv_vfmerge_vfm_f64m2(
+            result_f64m2, 0.0, __riscv_vmfne_vv_f64m2_b32(result_f64m2, result_f64m2, vector_length), vector_length);
         result_f64m2 = __riscv_vfmax_vf_f64m2(result_f64m2, -2147483648.0, vector_length);
         result_f64m2 = __riscv_vfmin_vf_f64m2(result_f64m2, 2147483647.0, vector_length);
         vint32m1_t result_i32m1 = __riscv_vfncvt_x_f_w_i32m1(result_f64m2, vector_length);
@@ -862,6 +891,9 @@ NUMKONG_API_COMPTIME void nk_each_fma_i64_rvv(nk_i64_t const *a, nk_i64_t const 
         vfloat64m4_t product_f64m4 = __riscv_vfmul_vv_f64m4(a_f64m4, b_f64m4, vector_length);
         vfloat64m4_t scaled_product_f64m4 = __riscv_vfmul_vf_f64m4(product_f64m4, alpha_val, vector_length);
         vfloat64m4_t result_f64m4 = __riscv_vfmacc_vf_f64m4(scaled_product_f64m4, beta_val, c_f64m4, vector_length);
+        // RVV converts NaN to the largest integer, where serial gives zero
+        result_f64m4 = __riscv_vfmerge_vfm_f64m4(
+            result_f64m4, 0.0, __riscv_vmfne_vv_f64m4_b16(result_f64m4, result_f64m4, vector_length), vector_length);
         vint64m4_t result_i64m4 = __riscv_vfcvt_x_f_v_i64m4(result_f64m4, vector_length);
         __riscv_vse64_v_i64m4(result, result_i64m4, vector_length);
     }

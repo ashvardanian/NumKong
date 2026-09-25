@@ -904,9 +904,10 @@ NUMKONG_API_COMPTIME void nk_each_scale_i16_haswell(nk_i16_t const *a, nk_size_t
     for (; i + 8 <= n; i += 8) {
         __m256 a_f32x8 = _mm256_cvtepi32_ps(_mm256_cvtepi16_epi32(_mm_loadu_si128((__m128i *)(a + i))));
         __m256 result_f32x8 = _mm256_fmadd_ps(a_f32x8, alpha_f32x8, beta_f32x8);
+        __m256 ordered_f32x8 = _mm256_cmp_ps(result_f32x8, result_f32x8, _CMP_ORD_Q);
         result_f32x8 = _mm256_max_ps(result_f32x8, min_f32x8);
         result_f32x8 = _mm256_min_ps(result_f32x8, max_f32x8);
-        __m256i result_i32x8 = _mm256_cvtps_epi32(result_f32x8);
+        __m256i result_i32x8 = _mm256_cvtps_epi32(_mm256_and_ps(result_f32x8, ordered_f32x8));
         // Casting down to 16-bit integers is tricky!
         __m128i result_i16x8 = _mm_packs_epi32(_mm256_castsi256_si128(result_i32x8),
                                                _mm256_extracti128_si256(result_i32x8, 1));
@@ -940,9 +941,10 @@ NUMKONG_API_COMPTIME void nk_each_fma_i16_haswell(                        //
         __m256 ab_f32x8 = _mm256_mul_ps(a_f32x8, b_f32x8);
         __m256 abc_f32x8 = _mm256_mul_ps(ab_f32x8, alpha_f32x8);
         __m256 result_f32x8 = _mm256_fmadd_ps(c_f32x8, beta_f32x8, abc_f32x8);
+        __m256 ordered_f32x8 = _mm256_cmp_ps(result_f32x8, result_f32x8, _CMP_ORD_Q);
         result_f32x8 = _mm256_max_ps(result_f32x8, min_f32x8);
         result_f32x8 = _mm256_min_ps(result_f32x8, max_f32x8);
-        __m256i result_i32x8 = _mm256_cvtps_epi32(result_f32x8);
+        __m256i result_i32x8 = _mm256_cvtps_epi32(_mm256_and_ps(result_f32x8, ordered_f32x8));
         // Casting down to 16-bit integers is tricky!
         __m128i result_i16x8 = _mm_packs_epi32(_mm256_castsi256_si128(result_i32x8),
                                                _mm256_extracti128_si256(result_i32x8, 1));
@@ -1087,10 +1089,11 @@ NUMKONG_API_COMPTIME void nk_each_scale_i32_haswell(nk_i32_t const *a, nk_size_t
     for (; i + 4 <= n; i += 4) {
         __m256d a_f64x4 = _mm256_cvtepi32_pd(_mm_loadu_si128((__m128i *)(a + i)));
         __m256d result_f64x4 = _mm256_fmadd_pd(a_f64x4, alpha_f64x4, beta_f64x4);
-        // Clip to the largest values representable by 32-bit integers.
+        // Clip to the largest values representable by 32-bit integers, zeroing NaNs.
+        __m256d ordered_f64x4 = _mm256_cmp_pd(result_f64x4, result_f64x4, _CMP_ORD_Q);
         result_f64x4 = _mm256_max_pd(result_f64x4, min_f64x4);
         result_f64x4 = _mm256_min_pd(result_f64x4, max_f64x4);
-        __m128i result_i32x4 = _mm256_cvtpd_epi32(result_f64x4);
+        __m128i result_i32x4 = _mm256_cvtpd_epi32(_mm256_and_pd(result_f64x4, ordered_f64x4));
         _mm_storeu_si128((__m128i *)(result + i), result_i32x4);
     }
 
@@ -1121,10 +1124,11 @@ NUMKONG_API_COMPTIME void nk_each_fma_i32_haswell(                        //
         __m256d ab_f64x4 = _mm256_mul_pd(a_f64x4, b_f64x4);
         __m256d ab_scaled_f64x4 = _mm256_mul_pd(ab_f64x4, alpha_f64x4);
         __m256d result_f64x4 = _mm256_fmadd_pd(c_f64x4, beta_f64x4, ab_scaled_f64x4);
-        // Clip to the largest values representable by 32-bit integers.
+        // Clip to the largest values representable by 32-bit integers, zeroing NaNs.
+        __m256d ordered_f64x4 = _mm256_cmp_pd(result_f64x4, result_f64x4, _CMP_ORD_Q);
         result_f64x4 = _mm256_max_pd(result_f64x4, min_f64x4);
         result_f64x4 = _mm256_min_pd(result_f64x4, max_f64x4);
-        __m128i result_i32x4 = _mm256_cvtpd_epi32(result_f64x4);
+        __m128i result_i32x4 = _mm256_cvtpd_epi32(_mm256_and_pd(result_f64x4, ordered_f64x4));
         _mm_storeu_si128((__m128i *)(result + i), result_i32x4);
     }
 
@@ -1164,16 +1168,12 @@ NUMKONG_HELPER_INLINE __m256d _mm256_cvtepu32_pd_haswell(__m128i a) {
     return _mm256_loadu_pd(to);
 }
 
+/** Rounds @p a, already clamped to [0, 2³²), to the nearest u32, ties to even. */
 NUMKONG_HELPER_INLINE __m128i _mm256_cvtpd_epu32_haswell(__m256d a) {
-    //? For now let's avoid SIMD and just use serial conversion.
-    nk_f64_t from[4];
-    nk_u32_t to[4];
-    _mm256_storeu_pd(from, a);
-    to[0] = (nk_u32_t)from[0];
-    to[1] = (nk_u32_t)from[1];
-    to[2] = (nk_u32_t)from[2];
-    to[3] = (nk_u32_t)from[3];
-    return _mm_loadu_si128((__m128i *)to);
+    // Adding 2⁵² leaves the rounded integer in the low mantissa bits of each lane
+    __m256i shifted_i64x4 = _mm256_castpd_si256(_mm256_add_pd(a, _mm256_set1_pd(4503599627370496.0)));
+    __m256i low_halves_i32x8 = _mm256_permutevar8x32_epi32(shifted_i64x4, _mm256_setr_epi32(0, 2, 4, 6, 0, 2, 4, 6));
+    return _mm256_castsi256_si128(low_halves_i32x8);
 }
 
 NUMKONG_API_COMPTIME void nk_each_sum_u32_haswell(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_u32_t *result) {

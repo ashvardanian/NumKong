@@ -415,6 +415,10 @@ NUMKONG_HELPER_INLINE __m256i nk_bf16x32_to_e4m3x32_icelake_(__m512i bf16x32) {
 
     // Blend: use subnormal result when exp <= 0
     __m512i e4m3_i16x32 = _mm512_mask_blend_epi16(is_subnormal_m32, normal_e4m3_i16x32, subnorm_e4m3_i16x32);
+    // NaNs overflowed to 0x7E above, and setting every magnitude bit makes them the 0x7F NaN
+    __mmask32 is_nan_m32 = _mm512_cmpgt_epi16_mask(_mm512_and_si512(bf16x32, _mm512_set1_epi16(0x7FFF)),
+                                                   _mm512_set1_epi16(0x7F80));
+    e4m3_i16x32 = _mm512_or_si512(e4m3_i16x32, _mm512_maskz_set1_epi16(is_nan_m32, 0x7F));
 
     // Pack 32 i16s to 32 unsigned i8s via AVX-512BW
     return _mm512_cvtepi16_epi8(e4m3_i16x32);
@@ -440,9 +444,9 @@ NUMKONG_HELPER_INLINE __m256i nk_bf16x32_to_e5m2x32_icelake_(__m512i bf16x32) {
     __m512i e5m2_exponent_i16x32 = _mm512_sub_epi16(_mm512_add_epi16(bf16_exponent_i16x32, carry_i16x32),
                                                     _mm512_set1_epi16(112));
 
-    // Detect subnormal (exp <= 0) and overflow (exp > 31)
+    // Detect subnormal (exp <= 0) and overflow (exp ≥ 31, where only infinity and NaN live)
     __mmask32 is_subnormal_m32 = _mm512_cmpgt_epi16_mask(_mm512_set1_epi16(1), e5m2_exponent_i16x32);
-    __mmask32 overflow_m32 = _mm512_cmpgt_epi16_mask(e5m2_exponent_i16x32, _mm512_set1_epi16(31));
+    __mmask32 overflow_m32 = _mm512_cmpgt_epi16_mask(e5m2_exponent_i16x32, _mm512_set1_epi16(30));
 
     // Normal path: clamp exp to [1,31], on overflow return infinity (exp=31, mantissa=0 = 0x7C)
     __m512i clamped_exponent_i16x32 = _mm512_max_epi16(e5m2_exponent_i16x32, _mm512_set1_epi16(1));
@@ -478,6 +482,10 @@ NUMKONG_HELPER_INLINE __m256i nk_bf16x32_to_e5m2x32_icelake_(__m512i bf16x32) {
 
     // Blend: use subnormal result when exp <= 0
     __m512i e5m2_i16x32 = _mm512_mask_blend_epi16(is_subnormal_m32, normal_e5m2_i16x32, subnorm_e5m2_i16x32);
+    // NaNs overflowed to 0x7C above, and the low mantissa bit makes them the 0x7D NaN
+    __mmask32 is_nan_m32 = _mm512_cmpgt_epi16_mask(_mm512_and_si512(bf16x32, _mm512_set1_epi16(0x7FFF)),
+                                                   _mm512_set1_epi16(0x7F80));
+    e5m2_i16x32 = _mm512_or_si512(e5m2_i16x32, _mm512_maskz_set1_epi16(is_nan_m32, 0x7D));
 
     // Pack 32 i16s to 32 unsigned i8s via AVX-512BW
     return _mm512_cvtepi16_epi8(e5m2_i16x32);

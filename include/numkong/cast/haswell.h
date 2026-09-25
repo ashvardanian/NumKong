@@ -144,21 +144,30 @@ NUMKONG_HELPER_INLINE __m256 nk_u32x8_to_f32x8_haswell_(__m256i u32x8) {
                          _mm256_mul_ps(_mm256_cvtepi32_ps(high_i32x8), _mm256_set1_ps(65536.0f)));
 }
 
-/** Saturating @p f32x8 downcasts to integers (AVX2). */
-NUMKONG_HELPER_INLINE __m256i nk_f32x8_to_i32x8_haswell_(__m256 f32x8) { return _mm256_cvtps_epi32(f32x8); }
+/** Saturating @p f32x8 downcasts to integers, NaNs to zero (AVX2). */
+NUMKONG_HELPER_INLINE __m256i nk_f32x8_to_i32x8_haswell_(__m256 f32x8) {
+    __m256 ordered_f32x8 = _mm256_cmp_ps(f32x8, f32x8, _CMP_ORD_Q);
+    __m256 overflow_f32x8 = _mm256_cmp_ps(f32x8, _mm256_set1_ps(2147483648.0f), _CMP_GE_OQ);
+    __m256i rounded_i32x8 = _mm256_cvtps_epi32(_mm256_and_ps(f32x8, ordered_f32x8));
+    // Out-of-range lanes convert to INT32_MIN; flipping every bit makes the positive ones INT32_MAX
+    return _mm256_xor_si256(rounded_i32x8, _mm256_castps_si256(overflow_f32x8));
+}
 NUMKONG_HELPER_INLINE __m256i nk_f32x8_to_u32x8_haswell_(__m256 f32x8) {
-    __m256 clamped_f32x8 = _mm256_max_ps(_mm256_min_ps(f32x8, _mm256_set1_ps((float)NUMKONG_U32_MAX)),
-                                         _mm256_setzero_ps());
+    __m256 clamped_f32x8 = _mm256_max_ps(f32x8, _mm256_setzero_ps());
     __m256 threshold_f32x8 = _mm256_set1_ps(2147483648.0f);
     __m256i mask_i32x8 = _mm256_castps_si256(_mm256_cmp_ps(clamped_f32x8, threshold_f32x8, _CMP_GE_OQ));
+    __m256i overflow_i32x8 = _mm256_castps_si256(
+        _mm256_cmp_ps(clamped_f32x8, _mm256_set1_ps(4294967296.0f), _CMP_GE_OQ));
     __m256 adjusted_f32x8 = _mm256_sub_ps(clamped_f32x8,
                                           _mm256_and_ps(_mm256_castsi256_ps(mask_i32x8), threshold_f32x8));
-    return _mm256_add_epi32(_mm256_cvtps_epi32(adjusted_f32x8),
-                            _mm256_and_si256(mask_i32x8, _mm256_set1_epi32((int)0x80000000)));
+    __m256i rounded_u32x8 = _mm256_add_epi32(_mm256_cvtps_epi32(adjusted_f32x8),
+                                             _mm256_and_si256(mask_i32x8, _mm256_set1_epi32((int)0x80000000)));
+    return _mm256_or_si256(rounded_u32x8, overflow_i32x8);
 }
 NUMKONG_HELPER_INLINE __m128i nk_f32x8_to_i16x8_haswell_(__m256 f32x8) {
+    __m256 ordered_f32x8 = _mm256_cmp_ps(f32x8, f32x8, _CMP_ORD_Q);
     __m256 clamped_f32x8 = _mm256_min_ps(_mm256_max_ps(f32x8, _mm256_set1_ps(-32768.0f)), _mm256_set1_ps(32767.0f));
-    __m256i rounded_i32x8 = _mm256_cvtps_epi32(clamped_f32x8);
+    __m256i rounded_i32x8 = _mm256_cvtps_epi32(_mm256_and_ps(clamped_f32x8, ordered_f32x8));
     return _mm_packs_epi32(_mm256_castsi256_si128(rounded_i32x8), _mm256_extracti128_si256(rounded_i32x8, 1));
 }
 NUMKONG_HELPER_INLINE __m128i nk_f32x8_to_u16x8_haswell_(__m256 f32x8) {
@@ -167,8 +176,9 @@ NUMKONG_HELPER_INLINE __m128i nk_f32x8_to_u16x8_haswell_(__m256 f32x8) {
     return _mm_packus_epi32(_mm256_castsi256_si128(rounded_i32x8), _mm256_extracti128_si256(rounded_i32x8, 1));
 }
 NUMKONG_HELPER_INLINE __m128i nk_f32x8_to_i8x8_haswell_(__m256 f32x8) {
+    __m256 ordered_f32x8 = _mm256_cmp_ps(f32x8, f32x8, _CMP_ORD_Q);
     __m256 clamped_f32x8 = _mm256_min_ps(_mm256_max_ps(f32x8, _mm256_set1_ps(-128.0f)), _mm256_set1_ps(127.0f));
-    __m256i rounded_i32x8 = _mm256_cvtps_epi32(clamped_f32x8);
+    __m256i rounded_i32x8 = _mm256_cvtps_epi32(_mm256_and_ps(clamped_f32x8, ordered_f32x8));
     __m128i packed_i16x8 = _mm_packs_epi32(_mm256_castsi256_si128(rounded_i32x8),
                                            _mm256_extracti128_si256(rounded_i32x8, 1));
     return _mm_packs_epi16(packed_i16x8, _mm_setzero_si128());
@@ -202,10 +212,9 @@ NUMKONG_HELPER_INLINE __m256 nk_e4m3x8_to_f32x8_haswell_(__m128i e4m3_i8x8) {
     __m128i word_u16x8 = _mm_cvtepu8_epi16(e4m3_i8x8);
     __m128i magnitude_u16x8 = _mm_and_si128(word_u16x8, magnitude_mask_u16x8);
     __m128i is_nan_u16x8 = _mm_cmpeq_epi16(magnitude_u16x8, magnitude_mask_u16x8);
-    __m128i shifted_magnitude_u16x8 = _mm_slli_epi16(magnitude_u16x8, 7);
+    __m128i shifted_magnitude_u16x8 = _mm_blendv_epi8(_mm_slli_epi16(magnitude_u16x8, 7), f16_nan_u16x8, is_nan_u16x8);
     __m128i shifted_sign_u16x8 = _mm_slli_epi16(_mm_and_si128(word_u16x8, sign_mask_u16x8), 8);
     __m128i f16_u16x8 = _mm_or_si128(shifted_magnitude_u16x8, shifted_sign_u16x8);
-    f16_u16x8 = _mm_blendv_epi8(f16_u16x8, f16_nan_u16x8, is_nan_u16x8);
     __m256 fake_f32x8 = _mm256_cvtph_ps(f16_u16x8);
     return _mm256_mul_ps(fake_f32x8, _mm256_set1_ps(256.0f));
 }
@@ -273,6 +282,9 @@ NUMKONG_HELPER_INLINE __m128i nk_f32x8_to_e4m3x8_haswell_(__m256 f32x8) {
 
     // Blend: use subnormal result when exp <= 0, else normal
     __m256i e4m3_i32x8 = _mm256_blendv_epi8(normal_e4m3_i32x8, subnorm_e4m3_i32x8, is_subnormal_i32x8);
+    // NaNs overflowed to 0x7E above, and setting every magnitude bit makes them the 0x7F NaN
+    __m256i is_nan_i32x8 = _mm256_castps_si256(_mm256_cmp_ps(f32x8, f32x8, _CMP_UNORD_Q));
+    e4m3_i32x8 = _mm256_or_si256(e4m3_i32x8, _mm256_and_si256(is_nan_i32x8, _mm256_set1_epi32(0x7F)));
 
     // Pack 8 i32s to 8 unsigned i8s (use unsigned saturation to preserve values 128-255)
     __m128i low_i32x4 = _mm256_castsi256_si128(e4m3_i32x8);
@@ -303,9 +315,9 @@ NUMKONG_HELPER_INLINE __m128i nk_f32x8_to_e5m2x8_haswell_(__m256 f32x8) {
     __m256i e5m2_exponent_i32x8 = _mm256_sub_epi32(_mm256_add_epi32(f32_exponent_i32x8, carry_i32x8),
                                                    _mm256_set1_epi32(112));
 
-    // Detect subnormal (exp <= 0) and overflow (exp > 31)
+    // Detect subnormal (exp <= 0) and overflow (exp ≥ 31, where only infinity and NaN live)
     __m256i is_subnormal_i32x8 = _mm256_cmpgt_epi32(_mm256_set1_epi32(1), e5m2_exponent_i32x8);
-    __m256i overflow_i32x8 = _mm256_cmpgt_epi32(e5m2_exponent_i32x8, _mm256_set1_epi32(31));
+    __m256i overflow_i32x8 = _mm256_cmpgt_epi32(e5m2_exponent_i32x8, _mm256_set1_epi32(30));
 
     // Normal path: clamp exp to [1,31], on overflow return infinity (exp=31, mantissa=0 = 0x7C)
     __m256i clamped_exponent_i32x8 = _mm256_max_epi32(e5m2_exponent_i32x8, _mm256_set1_epi32(1));
@@ -330,6 +342,9 @@ NUMKONG_HELPER_INLINE __m128i nk_f32x8_to_e5m2x8_haswell_(__m256 f32x8) {
 
     // Blend: use subnormal result when exp <= 0
     __m256i e5m2_i32x8 = _mm256_blendv_epi8(normal_e5m2_i32x8, subnorm_e5m2_i32x8, is_subnormal_i32x8);
+    // NaNs overflowed to 0x7C above, and the low mantissa bit makes them the 0x7D NaN
+    __m256i is_nan_i32x8 = _mm256_castps_si256(_mm256_cmp_ps(f32x8, f32x8, _CMP_UNORD_Q));
+    e5m2_i32x8 = _mm256_or_si256(e5m2_i32x8, _mm256_and_si256(is_nan_i32x8, _mm256_set1_epi32(0x7D)));
 
     // Pack 8 i32s to 8 unsigned i8s (use unsigned saturation to preserve values 128-255)
     __m128i low_i32x4 = _mm256_castsi256_si128(e5m2_i32x8);

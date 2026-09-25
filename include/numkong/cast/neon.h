@@ -563,6 +563,10 @@ NUMKONG_HELPER_INLINE uint8x8_t nk_f16x8_to_e5m2x8_neon_(float16x8_t f16x8) {
 
     // For special values (inf/nan), use original bits without rounding
     uint16x8_t final_u16x8 = vbslq_u16(is_special_mask_u16x8, bits_u16x8, rounded_u16x8);
+    // NaN payloads would truncate to any of 0x7D-0x7F, so keep only the sign and the 0x7D NaN
+    uint16x8_t is_nan_u16x8 = vcgtq_u16(vandq_u16(bits_u16x8, vdupq_n_u16(0x7FFF)), vdupq_n_u16(0x7C00));
+    final_u16x8 = vbslq_u16(is_nan_u16x8, vorrq_u16(vandq_u16(bits_u16x8, vdupq_n_u16(0x8000)), vdupq_n_u16(0x7D00)),
+                            final_u16x8);
 
     // Shift right by 8 to get E5M2 format
     uint16x8_t e5m2_u16x8 = vshrq_n_u16(final_u16x8, 8);
@@ -767,6 +771,8 @@ NUMKONG_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e4m3x4_neon_(float32x4_t f32x4) {
 
     // Blend: use subnormal result when exp <= 0, else normal
     uint32x4_t e4m3_u32x4 = vbslq_u32(is_subnormal_u32x4, subnormal_e4m3_u32x4, normal_e4m3_u32x4);
+    // NaNs overflowed to 0x7E above, and setting every magnitude bit makes them the 0x7F NaN
+    e4m3_u32x4 = vorrq_u32(e4m3_u32x4, vbicq_u32(vdupq_n_u32(0x7F), vceqq_f32(f32x4, f32x4)));
 
     // Pack 4 u32s to 4 u8s
     uint16x4_t e4m3_u16x4 = vmovn_u32(e4m3_u32x4);
@@ -801,9 +807,9 @@ NUMKONG_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e5m2x4_neon_(float32x4_t f32x4) {
     int32x4_t e5m2_exponent_i32x4 = vsubq_s32(
         vaddq_s32(vreinterpretq_s32_u32(f32_exponent_u32x4), vreinterpretq_s32_u32(carry_u32x4)), vdupq_n_s32(112));
 
-    // Detect subnormal (exp <= 0) and overflow (exp > 31)
+    // Detect subnormal (exp <= 0) and overflow (exp ≥ 31, where only infinity and NaN live)
     uint32x4_t is_subnormal_u32x4 = vcltq_s32(e5m2_exponent_i32x4, vdupq_n_s32(1));
-    uint32x4_t overflow_u32x4 = vcgtq_s32(e5m2_exponent_i32x4, vdupq_n_s32(31));
+    uint32x4_t overflow_u32x4 = vcgtq_s32(e5m2_exponent_i32x4, vdupq_n_s32(30));
 
     // Normal path: clamp exp to [1,31], on overflow return infinity (exp=31, mantissa=0 = 0x7C)
     int32x4_t clamped_exponent_i32x4 = vmaxq_s32(e5m2_exponent_i32x4, vdupq_n_s32(1));
@@ -829,6 +835,8 @@ NUMKONG_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e5m2x4_neon_(float32x4_t f32x4) {
 
     // Blend: use subnormal result when exp <= 0
     uint32x4_t e5m2_u32x4 = vbslq_u32(is_subnormal_u32x4, subnormal_e5m2_u32x4, normal_e5m2_u32x4);
+    // NaNs overflowed to 0x7C above, and the low mantissa bit makes them the 0x7D NaN
+    e5m2_u32x4 = vorrq_u32(e5m2_u32x4, vbicq_u32(vdupq_n_u32(0x7D), vceqq_f32(f32x4, f32x4)));
 
     // Pack 4 u32s to 4 u8s
     uint16x4_t e5m2_u16x4 = vmovn_u32(e5m2_u32x4);

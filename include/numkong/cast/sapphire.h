@@ -162,6 +162,9 @@ NUMKONG_HELPER_INLINE __m128i nk_f16x16_to_e4m3x16_sapphire_(__m256h f16x16) {
 
     // Blend: use subnormal result when exp <= 0
     __m256i e4m3_i16x16 = _mm256_mask_blend_epi16(is_subnormal_m16, normal_e4m3_i16x16, subnorm_e4m3_i16x16);
+    // NaNs overflowed to 0x7E above, and setting every magnitude bit makes them the 0x7F NaN
+    __mmask16 is_nan_m16 = _mm256_cmp_ph_mask(f16x16, f16x16, _CMP_UNORD_Q);
+    e4m3_i16x16 = _mm256_or_si256(e4m3_i16x16, _mm256_maskz_set1_epi16(is_nan_m16, 0x7F));
 
     // Pack 16 i16s to 16 unsigned i8s via AVX-512BW
     return _mm256_cvtepi16_epi8(e4m3_i16x16);
@@ -187,9 +190,9 @@ NUMKONG_HELPER_INLINE __m128i nk_f16x16_to_e5m2x16_sapphire_(__m256h f16x16) {
     f16_mantissa_i16x16 = _mm256_andnot_si256(_mm256_slli_epi16(carry_i16x16, 15), f16_mantissa_i16x16);
     __m256i e5m2_exp_i16x16 = _mm256_add_epi16(f16_exp_i16x16, carry_i16x16);
 
-    // Detect subnormal (exp <= 0) and overflow (exp > 31)
+    // Detect subnormal (exp == 0) and overflow (exp ≥ 31, where only infinity and NaN live)
     __mmask16 is_subnormal_m16 = _mm256_cmpeq_epi16_mask(f16_exp_i16x16, _mm256_setzero_si256());
-    __mmask16 overflow_m16 = _mm256_cmpgt_epi16_mask(e5m2_exp_i16x16, _mm256_set1_epi16(31));
+    __mmask16 overflow_m16 = _mm256_cmpgt_epi16_mask(e5m2_exp_i16x16, _mm256_set1_epi16(30));
 
     // Normal path: clamp exp to [1,31], on overflow return infinity
     __m256i clamped_exp_i16x16 = _mm256_max_epi16(e5m2_exp_i16x16, _mm256_set1_epi16(1));
@@ -213,6 +216,9 @@ NUMKONG_HELPER_INLINE __m128i nk_f16x16_to_e5m2x16_sapphire_(__m256h f16x16) {
 
     // Blend: use subnormal result when exp == 0
     __m256i e5m2_i16x16 = _mm256_mask_blend_epi16(is_subnormal_m16, normal_e5m2_i16x16, subnorm_e5m2_i16x16);
+    // NaNs overflowed to 0x7C above, and the low mantissa bit makes them the 0x7D NaN
+    __mmask16 is_nan_m16 = _mm256_cmp_ph_mask(f16x16, f16x16, _CMP_UNORD_Q);
+    e5m2_i16x16 = _mm256_or_si256(e5m2_i16x16, _mm256_maskz_set1_epi16(is_nan_m16, 0x7D));
 
     // Pack 16 i16s to 16 unsigned i8s via AVX-512BW
     return _mm256_cvtepi16_epi8(e5m2_i16x16);

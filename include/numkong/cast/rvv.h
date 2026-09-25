@@ -715,9 +715,9 @@ NUMKONG_HELPER_INLINE vuint8m1_t nk_f32m4_to_e5m2m1_rvv_(vfloat32m4_t f32_f32m4,
         __riscv_vreinterpret_v_u32m4_i32m4(__riscv_vadd_vv_u32m4(f32_exponent_u32m4, carry_u32m4, vector_length)), 112,
         vector_length);
 
-    // Detect subnormal (exp <= 0) and overflow (exp > 31)
+    // Detect subnormal (exp <= 0) and overflow (exp ≥ 31, where only infinity and NaN live)
     vbool8_t is_subnormal_b8 = __riscv_vmsle_vx_i32m4_b8(e5m2_exponent_i32m4, 0, vector_length);
-    vbool8_t is_overflow_b8 = __riscv_vmsgt_vx_i32m4_b8(e5m2_exponent_i32m4, 31, vector_length);
+    vbool8_t is_overflow_b8 = __riscv_vmsgt_vx_i32m4_b8(e5m2_exponent_i32m4, 30, vector_length);
 
     // Normal path: clamp exp to [1,31], on overflow return infinity (exp=31, mant=0)
     vint32m4_t clamped_exponent_i32m4 = __riscv_vmax_vx_i32m4(e5m2_exponent_i32m4, 1, vector_length);

@@ -1782,17 +1782,14 @@ NUMKONG_HELPER_INLINE void nk_f64_to_u32_serial(nk_f64_t const *x, nk_u32_t *y) 
 
 NUMKONG_HELPER_INLINE void nk_f64_to_i64_serial(nk_f64_t const *x, nk_i64_t *y) {
     if (*x != *x) *y = 0; // For IEEE floating-point, NaN is the one value that is not equal to itself
-    else
-        *y = nk_rint_even_f64_to_i64_serial_(*x > 9223372036854775807.0
-                                                 ? 9223372036854775807.0
-                                                 : (*x < -9223372036854775808.0 ? -9223372036854775808.0 : *x));
+    else if (*x >= 9223372036854775808.0) *y = NUMKONG_I64_MAX; // 2⁶³ itself would overflow the cast
+    else *y = nk_rint_even_f64_to_i64_serial_(*x < -9223372036854775808.0 ? -9223372036854775808.0 : *x);
 }
 
 NUMKONG_HELPER_INLINE void nk_f64_to_u64_serial(nk_f64_t const *x, nk_u64_t *y) {
     if (*x != *x) *y = 0; // For IEEE floating-point, NaN is the one value that is not equal to itself
-    else
-        *y = nk_rint_even_f64_to_u64_serial_(*x > 18446744073709551615.0 ? 18446744073709551615.0
-                                                                         : (*x < 0 ? 0.0 : *x));
+    else if (*x >= 18446744073709551616.0) *y = NUMKONG_U64_MAX; // 2⁶⁴ itself would overflow the cast
+    else *y = nk_rint_even_f64_to_u64_serial_(*x < 0 ? 0.0 : *x);
 }
 
 NUMKONG_HELPER_INLINE void nk_i64_to_i8_serial(nk_i64_t const *x, nk_i8_t *y) {

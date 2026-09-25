@@ -432,7 +432,7 @@ NUMKONG_API_COMPTIME void nk_cast_powervsx(void const *from, nk_dtype_t from_typ
                         (nk_u8_t *)to_ptr, to_bytes);
             break;
         case nk_u16_k:
-            vec_xst_len((nk_vu8x16_t)vec_pack(vec_ctu(vec_round(hub_f32x4), 0), vec_ctu(vec_round(hub_f32x4), 0)),
+            vec_xst_len((nk_vu8x16_t)vec_packsu(vec_ctu(vec_round(hub_f32x4), 0), vec_ctu(vec_round(hub_f32x4), 0)),
                         (nk_u8_t *)to_ptr, to_bytes);
             break;
         case nk_i8_k:
@@ -443,8 +443,8 @@ NUMKONG_API_COMPTIME void nk_cast_powervsx(void const *from, nk_dtype_t from_typ
             break;
         case nk_u8_k:
             vec_xst_len(
-                (nk_vu8x16_t)vec_pack(vec_pack(vec_ctu(vec_round(hub_f32x4), 0), vec_ctu(vec_round(hub_f32x4), 0)),
-                                      vec_pack(vec_ctu(vec_round(hub_f32x4), 0), vec_ctu(vec_round(hub_f32x4), 0))),
+                (nk_vu8x16_t)vec_packsu(vec_packsu(vec_ctu(vec_round(hub_f32x4), 0), vec_ctu(vec_round(hub_f32x4), 0)),
+                                        vec_packsu(vec_ctu(vec_round(hub_f32x4), 0), vec_ctu(vec_round(hub_f32x4), 0))),
                 (nk_u8_t *)to_ptr, to_bytes);
             break;
         default: break;

@@ -172,6 +172,8 @@ NUMKONG_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e4m3x4_v128relaxed_(nk_b128_vec_t
     subnormal_u32x4 = wasm_i32x4_relaxed_laneselect(first_normal_u32x4, subnormal_u32x4, promotes_u32x4);
 
     v128_t e4m3_u32x4 = wasm_i32x4_relaxed_laneselect(subnormal_u32x4, normal_u32x4, is_subnormal_u32x4);
+    // NaNs overflowed to 0x7E above, and setting every magnitude bit makes them the 0x7F NaN
+    e4m3_u32x4 = wasm_v128_or(e4m3_u32x4, wasm_v128_and(wasm_f32x4_ne(bits_u32x4, bits_u32x4), wasm_i32x4_splat(0x7F)));
 
     // Pack 4x u32 → 4x u8
     v128_t packed_u16x8 = wasm_u16x8_narrow_i32x4(e4m3_u32x4, e4m3_u32x4);
@@ -199,7 +201,7 @@ NUMKONG_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e5m2x4_v128relaxed_(nk_b128_vec_t
     v128_t e5m2_exp_i32x4 = wasm_i32x4_sub(wasm_i32x4_add(f32_exp_u32x4, carry_u32x4), wasm_i32x4_splat(112));
 
     v128_t is_subnormal_u32x4 = wasm_i32x4_lt(e5m2_exp_i32x4, wasm_i32x4_splat(1));
-    v128_t overflow_u32x4 = wasm_i32x4_gt(e5m2_exp_i32x4, wasm_i32x4_splat(31));
+    v128_t overflow_u32x4 = wasm_i32x4_gt(e5m2_exp_i32x4, wasm_i32x4_splat(30)); // only ∞ and NaN have exp=31
 
     // Normal path: overflow → infinity (exp=31, mant=0)
     v128_t clamped_exp_i32x4 = wasm_i32x4_max(e5m2_exp_i32x4, wasm_i32x4_splat(1));
@@ -220,6 +222,8 @@ NUMKONG_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e5m2x4_v128relaxed_(nk_b128_vec_t
     subnormal_u32x4 = wasm_i32x4_relaxed_laneselect(first_normal_u32x4, subnormal_u32x4, promotes_u32x4);
 
     v128_t e5m2_u32x4 = wasm_i32x4_relaxed_laneselect(subnormal_u32x4, normal_u32x4, is_subnormal_u32x4);
+    // NaNs overflowed to 0x7C above, and the low mantissa bit makes them the 0x7D NaN
+    e5m2_u32x4 = wasm_v128_or(e5m2_u32x4, wasm_v128_and(wasm_f32x4_ne(bits_u32x4, bits_u32x4), wasm_i32x4_splat(0x7D)));
 
     v128_t packed_u16x8 = wasm_u16x8_narrow_i32x4(e5m2_u32x4, e5m2_u32x4);
     v128_t packed_u8x16 = wasm_u8x16_narrow_i16x8(packed_u16x8, packed_u16x8);

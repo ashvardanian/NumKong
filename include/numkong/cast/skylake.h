@@ -215,10 +215,10 @@ NUMKONG_HELPER_INLINE __m512 nk_e4m3x16_to_f32x16_skylake_(__m128i e4m3_i8x16) {
     __m256i word_u16x16 = _mm256_cvtepu8_epi16(e4m3_i8x16);
     __m256i magnitude_u16x16 = _mm256_and_si256(word_u16x16, magnitude_mask_u16x16);
     __mmask16 is_nan_m16 = _mm256_cmpeq_epi16_mask(magnitude_u16x16, magnitude_mask_u16x16);
-    __m256i shifted_magnitude_u16x16 = _mm256_slli_epi16(magnitude_u16x16, 7);
+    __m256i shifted_magnitude_u16x16 = _mm256_mask_mov_epi16(_mm256_slli_epi16(magnitude_u16x16, 7), is_nan_m16,
+                                                             f16_nan_u16x16);
     __m256i shifted_sign_u16x16 = _mm256_slli_epi16(_mm256_and_si256(word_u16x16, sign_mask_u16x16), 8);
     __m256i f16_u16x16 = _mm256_or_si256(shifted_magnitude_u16x16, shifted_sign_u16x16);
-    f16_u16x16 = _mm256_mask_mov_epi16(f16_u16x16, is_nan_m16, f16_nan_u16x16);
     __m512 fake_f32x16 = _mm512_cvtph_ps(f16_u16x16);
     return _mm512_mul_ps(fake_f32x16, _mm512_set1_ps(256.0f));
 }
@@ -478,6 +478,9 @@ NUMKONG_HELPER_INLINE __m128i nk_f32x16_to_e4m3x16_skylake_(__m512 f32x16) {
 
     // Blend: use subnormal result when exp <= 0, else normal
     __m512i e4m3_i32x16 = _mm512_mask_blend_epi32(is_subnormal_m16, normal_e4m3_i32x16, subnorm_e4m3_i32x16);
+    // NaNs overflowed to 0x7E above, and setting every magnitude bit makes them the 0x7F NaN
+    __mmask16 is_nan_m16 = _mm512_cmp_ps_mask(f32x16, f32x16, _CMP_UNORD_Q);
+    e4m3_i32x16 = _mm512_mask_or_epi32(e4m3_i32x16, is_nan_m16, e4m3_i32x16, _mm512_set1_epi32(0x7F));
 
     // Pack 16 i32s to 16 unsigned i8s via AVX-512 cvtepi32_epi8
     return _mm512_cvtepi32_epi8(e4m3_i32x16);
@@ -504,9 +507,9 @@ NUMKONG_HELPER_INLINE __m128i nk_f32x16_to_e5m2x16_skylake_(__m512 f32x16) {
     __m512i e5m2_exponent_i32x16 = _mm512_sub_epi32(_mm512_add_epi32(f32_exponent_i32x16, carry_i32x16),
                                                     _mm512_set1_epi32(112));
 
-    // Detect subnormal (exp <= 0) and overflow (exp > 31)
+    // Detect subnormal (exp <= 0) and overflow (exp ≥ 31, where only infinity and NaN live)
     __mmask16 is_subnormal_m16 = _mm512_cmpgt_epi32_mask(_mm512_set1_epi32(1), e5m2_exponent_i32x16);
-    __mmask16 overflow_m16 = _mm512_cmpgt_epi32_mask(e5m2_exponent_i32x16, _mm512_set1_epi32(31));
+    __mmask16 overflow_m16 = _mm512_cmpgt_epi32_mask(e5m2_exponent_i32x16, _mm512_set1_epi32(30));
 
     // Normal path: clamp exp to [1,31], on overflow return infinity (exp=31, mantissa=0 = 0x7C)
     __m512i clamped_exponent_i32x16 = _mm512_max_epi32(e5m2_exponent_i32x16, _mm512_set1_epi32(1));
@@ -532,6 +535,9 @@ NUMKONG_HELPER_INLINE __m128i nk_f32x16_to_e5m2x16_skylake_(__m512 f32x16) {
 
     // Blend: use subnormal result when exp <= 0
     __m512i e5m2_i32x16 = _mm512_mask_blend_epi32(is_subnormal_m16, normal_e5m2_i32x16, subnorm_e5m2_i32x16);
+    // NaNs overflowed to 0x7C above, and the low mantissa bit makes them the 0x7D NaN
+    __mmask16 is_nan_m16 = _mm512_cmp_ps_mask(f32x16, f32x16, _CMP_UNORD_Q);
+    e5m2_i32x16 = _mm512_mask_or_epi32(e5m2_i32x16, is_nan_m16, e5m2_i32x16, _mm512_set1_epi32(0x7D));
 
     // Pack 16 i32s to 16 unsigned i8s via AVX-512 cvtepi32_epi8
     return _mm512_cvtepi32_epi8(e5m2_i32x16);
@@ -551,16 +557,18 @@ NUMKONG_HELPER_INLINE __m512 nk_u16x16_to_f32x16_skylake_(__m256i u16x16) {
 }
 
 NUMKONG_HELPER_INLINE __m128i nk_f32x16_to_i8x16_skylake_(__m512 f32x16) {
+    __mmask16 ordered_m16 = _mm512_cmp_ps_mask(f32x16, f32x16, _CMP_ORD_Q);
     __m512 clamped_f32x16 = _mm512_min_ps(_mm512_max_ps(f32x16, _mm512_set1_ps(-128.0f)), _mm512_set1_ps(127.0f));
-    return _mm512_cvtsepi32_epi8(_mm512_cvtps_epi32(clamped_f32x16));
+    return _mm512_cvtsepi32_epi8(_mm512_maskz_cvtps_epi32(ordered_m16, clamped_f32x16));
 }
 NUMKONG_HELPER_INLINE __m128i nk_f32x16_to_u8x16_skylake_(__m512 f32x16) {
     __m512 clamped_f32x16 = _mm512_min_ps(_mm512_max_ps(f32x16, _mm512_setzero_ps()), _mm512_set1_ps(255.0f));
     return _mm512_cvtusepi32_epi8(_mm512_cvtps_epu32(clamped_f32x16));
 }
 NUMKONG_HELPER_INLINE __m256i nk_f32x16_to_i16x16_skylake_(__m512 f32x16) {
+    __mmask16 ordered_m16 = _mm512_cmp_ps_mask(f32x16, f32x16, _CMP_ORD_Q);
     __m512 clamped_f32x16 = _mm512_min_ps(_mm512_max_ps(f32x16, _mm512_set1_ps(-32768.0f)), _mm512_set1_ps(32767.0f));
-    return _mm512_cvtsepi32_epi16(_mm512_cvtps_epi32(clamped_f32x16));
+    return _mm512_cvtsepi32_epi16(_mm512_maskz_cvtps_epi32(ordered_m16, clamped_f32x16));
 }
 NUMKONG_HELPER_INLINE __m256i nk_f32x16_to_u16x16_skylake_(__m512 f32x16) {
     __m512 clamped_f32x16 = _mm512_min_ps(_mm512_max_ps(f32x16, _mm512_setzero_ps()), _mm512_set1_ps(65535.0f));
@@ -625,9 +633,10 @@ NUMKONG_HELPER_INLINE __m512d nk_u32x8_to_f64x8_skylake_(__m256i u32x8) { return
 
 NUMKONG_HELPER_INLINE __m256 nk_f64x8_to_f32x8_skylake_(__m512d f64x8) { return _mm512_cvtpd_ps(f64x8); }
 NUMKONG_HELPER_INLINE __m256i nk_f64x8_to_i32x8_skylake_(__m512d f64x8) {
+    __mmask8 ordered_m8 = _mm512_cmp_pd_mask(f64x8, f64x8, _CMP_ORD_Q);
     __m512d clamped_f64x8 = _mm512_min_pd(_mm512_max_pd(f64x8, _mm512_set1_pd((double)NUMKONG_I32_MIN)),
                                           _mm512_set1_pd((double)NUMKONG_I32_MAX));
-    return _mm512_cvtpd_epi32(clamped_f64x8);
+    return _mm512_maskz_cvtpd_epi32(ordered_m8, clamped_f64x8);
 }
 NUMKONG_HELPER_INLINE __m256i nk_f64x8_to_u32x8_skylake_(__m512d f64x8) {
     __m512d clamped_f64x8 = _mm512_min_pd(_mm512_max_pd(f64x8, _mm512_setzero_pd()),
@@ -910,8 +919,10 @@ NUMKONG_API_COMPTIME void nk_cast_skylake(void const *from, nk_dtype_t from_type
                 hub_i64x8 = nk_i32x8_to_i64x8_skylake_(_mm256_maskz_loadu_epi32(mask_m8, from_ptr));
             else if (from_type == nk_u32_k)
                 hub_i64x8 = nk_u32x8_to_i64x8_skylake_(_mm256_maskz_loadu_epi32(mask_m8, from_ptr));
-            else if (from_type == nk_i64_k || from_type == nk_u64_k)
-                hub_i64x8 = _mm512_maskz_loadu_epi64(mask_m8, from_ptr);
+            else if (from_type == nk_i64_k) hub_i64x8 = _mm512_maskz_loadu_epi64(mask_m8, from_ptr);
+            else if (from_type == nk_u64_k) // u64 past INT64_MAX would read as negative
+                hub_i64x8 = _mm512_min_epu64(_mm512_maskz_loadu_epi64(mask_m8, from_ptr),
+                                             _mm512_set1_epi64(NUMKONG_I64_MAX));
             else hub_i64x8 = _mm512_setzero_si512();
 
             // Downcast from i64x8
@@ -923,7 +934,9 @@ NUMKONG_API_COMPTIME void nk_cast_skylake(void const *from, nk_dtype_t from_type
                 _mm256_mask_storeu_epi32(to_ptr, mask_m8, nk_i64x8_to_i32x8_skylake_(hub_i64x8));
             else if (to_type == nk_u32_k)
                 _mm256_mask_storeu_epi32(to_ptr, mask_m8, nk_i64x8_to_u32x8_skylake_(hub_i64x8));
-            else if (to_type == nk_i64_k || to_type == nk_u64_k) _mm512_mask_storeu_epi64(to_ptr, mask_m8, hub_i64x8);
+            else if (to_type == nk_i64_k) _mm512_mask_storeu_epi64(to_ptr, mask_m8, hub_i64x8);
+            else if (to_type == nk_u64_k)
+                _mm512_mask_storeu_epi64(to_ptr, mask_m8, _mm512_max_epi64(hub_i64x8, _mm512_setzero_si512()));
 
             from_ptr += batch * from_bytes;
             to_ptr += batch * to_bytes;
