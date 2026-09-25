@@ -415,10 +415,13 @@ NK_HELPER_INLINE void nk_reduce_minmax_f64_neon_contiguous_( //
     max_indices_vec.u64x2 = max_iter_u64x2;
     nk_f64_t min_value, max_value;
     nk_size_t min_index, max_index;
-    if (min_values_vec.f64s[0] <= min_values_vec.f64s[1])
+    // Ties go to the earlier index, 2i in lane 0 or 2i + 1 in lane 1; bitwise logic avoids branches
+    if ((min_values_vec.f64s[0] < min_values_vec.f64s[1]) |
+        ((min_values_vec.f64s[0] == min_values_vec.f64s[1]) & (min_indices_vec.u64s[0] <= min_indices_vec.u64s[1])))
         min_value = min_values_vec.f64s[0], min_index = (nk_size_t)min_indices_vec.u64s[0] * 2;
     else min_value = min_values_vec.f64s[1], min_index = (nk_size_t)min_indices_vec.u64s[1] * 2 + 1;
-    if (max_values_vec.f64s[0] >= max_values_vec.f64s[1])
+    if ((max_values_vec.f64s[0] > max_values_vec.f64s[1]) |
+        ((max_values_vec.f64s[0] == max_values_vec.f64s[1]) & (max_indices_vec.u64s[0] <= max_indices_vec.u64s[1])))
         max_value = max_values_vec.f64s[0], max_index = (nk_size_t)max_indices_vec.u64s[0] * 2;
     else max_value = max_values_vec.f64s[1], max_index = (nk_size_t)max_indices_vec.u64s[1] * 2 + 1;
     for (; idx < count; ++idx) {
@@ -2309,10 +2312,13 @@ NK_HELPER_INLINE void nk_reduce_minmax_i64_neon_contiguous_( //
     max_indices_vec.u64x2 = max_iter_u64x2;
     nk_i64_t min_value, max_value;
     nk_size_t min_index, max_index;
-    if (min_values_vec.i64s[0] <= min_values_vec.i64s[1])
+    // Ties go to the earlier index, 2i in lane 0 or 2i + 1 in lane 1; bitwise logic avoids branches
+    if ((min_values_vec.i64s[0] < min_values_vec.i64s[1]) |
+        ((min_values_vec.i64s[0] == min_values_vec.i64s[1]) & (min_indices_vec.u64s[0] <= min_indices_vec.u64s[1])))
         min_value = min_values_vec.i64s[0], min_index = (nk_size_t)min_indices_vec.u64s[0] * 2;
     else min_value = min_values_vec.i64s[1], min_index = (nk_size_t)min_indices_vec.u64s[1] * 2 + 1;
-    if (max_values_vec.i64s[0] >= max_values_vec.i64s[1])
+    if ((max_values_vec.i64s[0] > max_values_vec.i64s[1]) |
+        ((max_values_vec.i64s[0] == max_values_vec.i64s[1]) & (max_indices_vec.u64s[0] <= max_indices_vec.u64s[1])))
         max_value = max_values_vec.i64s[0], max_index = (nk_size_t)max_indices_vec.u64s[0] * 2;
     else max_value = max_values_vec.i64s[1], max_index = (nk_size_t)max_indices_vec.u64s[1] * 2 + 1;
     for (; idx < count; ++idx) {
@@ -2403,10 +2409,13 @@ NK_HELPER_INLINE void nk_reduce_minmax_u64_neon_contiguous_( //
     max_indices_vec.u64x2 = max_iter_u64x2;
     nk_u64_t min_value, max_value;
     nk_size_t min_index, max_index;
-    if (min_values_vec.u64s[0] <= min_values_vec.u64s[1])
+    // Ties go to the earlier index, 2i in lane 0 or 2i + 1 in lane 1; bitwise logic avoids branches
+    if ((min_values_vec.u64s[0] < min_values_vec.u64s[1]) |
+        ((min_values_vec.u64s[0] == min_values_vec.u64s[1]) & (min_indices_vec.u64s[0] <= min_indices_vec.u64s[1])))
         min_value = min_values_vec.u64s[0], min_index = (nk_size_t)min_indices_vec.u64s[0] * 2;
     else min_value = min_values_vec.u64s[1], min_index = (nk_size_t)min_indices_vec.u64s[1] * 2 + 1;
-    if (max_values_vec.u64s[0] >= max_values_vec.u64s[1])
+    if ((max_values_vec.u64s[0] > max_values_vec.u64s[1]) |
+        ((max_values_vec.u64s[0] == max_values_vec.u64s[1]) & (max_indices_vec.u64s[0] <= max_indices_vec.u64s[1])))
         max_value = max_values_vec.u64s[0], max_index = (nk_size_t)max_indices_vec.u64s[0] * 2;
     else max_value = max_values_vec.u64s[1], max_index = (nk_size_t)max_indices_vec.u64s[1] * 2 + 1;
     for (; idx < count; ++idx) {
