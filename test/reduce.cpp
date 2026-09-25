@@ -48,9 +48,7 @@ error_stats_t test_reduce_minmax(typename input_type_::reduce_minmax_kernel_t ke
     std::size_t const dims_per_value = nk::dimensions_per_value<input_type_>();
     std::size_t const n = nk::divide_round_up(global_config.dense_dimensions, dims_per_value) * dims_per_value;
     auto buffer = make_vector<input_type_>(n * (max_stride_k + sizeof(input_type_)));
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        std::size_t stride_bytes = stride_bytes_distribution(generator);
-        fill_random(generator, buffer);
+    auto compare = [&](std::size_t stride_bytes) {
         typename output_type_::raw_t min_val, max_val;
         nk_size_t min_idx, max_idx;
         kernel(buffer.raw_values_data(), n, stride_bytes, &min_val, &min_idx, &max_val, &max_idx);
@@ -58,10 +56,23 @@ error_stats_t test_reduce_minmax(typename input_type_::reduce_minmax_kernel_t ke
         std::size_t ref_min_idx, ref_max_idx;
         nk::reduce_minmax<input_type_, output_type_, nk::no_simd_k>(buffer.values_data(), n, stride_bytes, &ref_min,
                                                                     &ref_min_idx, &ref_max, &ref_max_idx);
-        stats.accumulate(output_type_::from_raw(min_val), ref_min);
-        stats.accumulate(output_type_::from_raw(max_val), ref_max);
         stats.accumulate(static_cast<nk_size_t>(min_idx), static_cast<nk_size_t>(ref_min_idx));
         stats.accumulate(static_cast<nk_size_t>(max_idx), static_cast<nk_size_t>(ref_max_idx));
+        if (ref_min_idx == NUMKONG_SIZE_MAX) return; // No index, so the values are only sentinels
+        stats.accumulate(output_type_::from_raw(min_val), ref_min);
+        stats.accumulate(output_type_::from_raw(max_val), ref_max);
+    };
+    // Uniform inputs never win a strict comparison, yet only an all-NaN one lacks an index
+    std::fill_n(buffer.values_data(), buffer.size_values(), nk::finite_max<input_type_>());
+    compare(sizeof(input_type_));
+    if constexpr (nk::nan_capable_dtype<input_type_>) {
+        std::fill_n(buffer.values_data(), buffer.size_values(), input_type_::quiet_nan());
+        compare(sizeof(input_type_));
+    }
+    for (auto start = test_start_time(); within_time_budget(start);) {
+        std::size_t stride_bytes = stride_bytes_distribution(generator);
+        fill_random(generator, buffer);
+        compare(stride_bytes);
     }
     return stats;
 }

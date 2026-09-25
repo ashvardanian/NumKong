@@ -116,9 +116,9 @@ void reduce_moments(in_type_ const *data, std::size_t count, std::size_t stride_
  *  @param[in] count Counts dimensions, a multiple of the values per byte.
  *  @param[in] stride_bytes Stride between elements in bytes (use sizeof(in_type_) for contiguous)
  *  @param[out] min_value Output minimum value
- *  @param[out] min_index Output index of minimum value
+ *  @param[out] min_index Output index of minimum value, @c NUMKONG_SIZE_MAX if every value is NaN
  *  @param[out] max_value Output maximum value
- *  @param[out] max_index Output index of maximum value
+ *  @param[out] max_index Output index of maximum value, @c NUMKONG_SIZE_MAX if every value is NaN
  *
  *  @tparam in_type_ Input vector element type
  *  @tparam minmax_type_ Result type for min/max values, defaults to
@@ -132,7 +132,7 @@ void reduce_minmax(in_type_ const *data, std::size_t count, std::size_t stride_b
     constexpr bool simd = allow_simd_ == prefer_simd_k &&
                           std::is_same_v<minmax_type_, typename in_type_::reduce_minmax_value_t>;
     static_assert(sizeof(std::size_t) == sizeof(nk_size_t), "size_t and nk_size_t must have the same width");
-    nk_size_t min_offset = 0, max_offset = 0;
+    nk_size_t min_offset = NUMKONG_SIZE_MAX, max_offset = NUMKONG_SIZE_MAX;
 
     // For types where minmax_type_ matches the C function output type directly,
     // dispatch to the C kernel and pass raw pointers through.
@@ -193,15 +193,17 @@ void reduce_minmax(in_type_ const *data, std::size_t count, std::size_t stride_b
     else if constexpr (std::is_same_v<in_type_, u1x8_t> && simd)
         nk_reduce_minmax_u1(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset, &max_value->raw_,
                             &max_offset);
-    // Scalar fallback
+    // Scalar fallback, where the first value that isn't NaN takes both sides
     else {
-        minmax_type_ best_min = finite_max<minmax_type_>();
-        minmax_type_ best_max = finite_min<minmax_type_>();
+        minmax_type_ best_min = finite_max<minmax_type_>(), best_max = finite_min<minmax_type_>();
+        if constexpr (infinity_capable_dtype<minmax_type_>)
+            best_min = minmax_type_::positive_infinity(), best_max = minmax_type_::negative_infinity();
         vector_view<in_type_> values(reinterpret_cast<char const *>(data), count, stride_bytes);
         for (nk_size_t i = 0; i < count; ++i) {
             minmax_type_ v = minmax_type_(values[i]);
-            if (v < best_min) best_min = v, min_offset = i;
-            if (v > best_max) best_max = v, max_offset = i;
+            if (is_nan(v)) continue;
+            if (min_offset == NUMKONG_SIZE_MAX || v < best_min) best_min = v, min_offset = i;
+            if (max_offset == NUMKONG_SIZE_MAX || v > best_max) best_max = v, max_offset = i;
         }
         *min_value = best_min, *max_value = best_max;
     }
@@ -431,16 +433,8 @@ bool reduce_rank1_minmax_(tensor_view<value_type_, max_rank_> input,
         }
         return true;
     }
-    auto values = input.as_vector();
-    result.min_value = finite_max<minmax_t>();
-    result.max_value = finite_min<minmax_t>();
-    result.min_index = 0;
-    result.max_index = 0;
-    for (std::size_t i = 0; i < values.size(); ++i) {
-        minmax_t value = minmax_t(values[i]);
-        if (value < result.min_value) result.min_value = value, result.min_index = i;
-        if (value > result.max_value) result.max_value = value, result.max_index = i;
-    }
+    numkong::reduce_minmax<value_type_, minmax_t, no_simd_k>(input.as_vector(), &result.min_value, &result.min_index,
+                                                             &result.max_value, &result.max_index);
     return true;
 }
 
@@ -629,7 +623,7 @@ template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
 minmax_result<typename value_type_::reduce_minmax_value_t> minmax(tensor_view<value_type_, max_rank_> input) noexcept {
     using minmax_t = typename value_type_::reduce_minmax_value_t;
     minmax_result<minmax_t> result {};
-    if (input.empty() || input.numel() == 0) return result;
+    if (input.empty() || input.numel() == 0) return {{}, NUMKONG_SIZE_MAX, {}, NUMKONG_SIZE_MAX};
     // A 0-D view is a single contiguous scalar (index 0); the rank>=1 path would read
     // `stride_bytes(rank() - 1)` == `stride_bytes(SIZE_MAX)`.
     if (input.rank() == 0) {
@@ -655,21 +649,18 @@ minmax_result<typename value_type_::reduce_minmax_value_t> minmax(tensor_view<va
         reduce_rank1_minmax_(input, result);
         return result;
     }
-    result.min_value = finite_max<minmax_t>();
-    result.max_value = finite_min<minmax_t>();
+    // Slices merge like the halves of a split kernel: an all-NaN slice has no index and never wins
+    result = minmax<value_type_, max_rank_>(input.slice_leading(0));
     std::size_t base = 0;
-    for (std::size_t i = 0; i < input.extent(0); ++i) {
+    for (std::size_t i = 1; i < input.extent(0); ++i) {
         auto slice = input.slice_leading(static_cast<std::ptrdiff_t>(i));
-        auto slice_result = minmax<value_type_, max_rank_>(slice);
-        if (slice_result.min_value < result.min_value) {
-            result.min_value = slice_result.min_value;
-            result.min_index = base + slice_result.min_index;
-        }
-        if (slice_result.max_value > result.max_value) {
-            result.max_value = slice_result.max_value;
-            result.max_index = base + slice_result.max_index;
-        }
         base += slice.numel();
+        auto slice_result = minmax<value_type_, max_rank_>(slice);
+        if (slice_result.min_index == NUMKONG_SIZE_MAX) continue;
+        if (result.min_index == NUMKONG_SIZE_MAX || slice_result.min_value < result.min_value)
+            result.min_value = slice_result.min_value, result.min_index = base + slice_result.min_index;
+        if (result.max_index == NUMKONG_SIZE_MAX || slice_result.max_value > result.max_value)
+            result.max_value = slice_result.max_value, result.max_index = base + slice_result.max_index;
     }
     return result;
 }
@@ -721,7 +712,6 @@ template <numeric_dtype value_type_>
 minmax_result<typename value_type_::reduce_minmax_value_t> minmax(vector_view<value_type_> input) noexcept {
     using minmax_t = typename value_type_::reduce_minmax_value_t;
     minmax_result<minmax_t> result {};
-    if (input.size() == 0) return result;
     reduce_minmax<value_type_>(input, &result.min_value, &result.min_index, &result.max_value, &result.max_index);
     return result;
 }

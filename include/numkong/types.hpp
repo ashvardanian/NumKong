@@ -166,6 +166,14 @@ concept numeric_dtype = requires {
     { scalar_type_::dtype() } -> std::same_as<nk_dtype_t>;
 };
 
+/** A NumKong dtype that can hold NaN, like the IEEE floats and their complex forms. */
+template <typename scalar_type_>
+concept nan_capable_dtype = numeric_dtype<scalar_type_> && scalar_type_::has_nan();
+
+/** A NumKong dtype that can hold both infinities. */
+template <typename scalar_type_>
+concept infinity_capable_dtype = numeric_dtype<scalar_type_> && scalar_type_::has_infinity();
+
 /** Detect NumKong wrapper types with required static members. */
 template <typename scalar_type_>
 constexpr bool is_numeric_dtype() noexcept {
@@ -3014,6 +3022,8 @@ struct f118_t {
     static constexpr f118_t finite_max() noexcept { return f118_t(1.7976931348623157e+308, 9.9792015476736e+291); }
     static constexpr f118_t finite_min() noexcept { return f118_t(-1.7976931348623157e+308, -9.9792015476736e+291); }
     static constexpr f118_t positive_min() noexcept { return f118_t(2.2250738585072014e-308); } // Smallest positive
+    static constexpr f118_t positive_infinity() noexcept { return f118_t(f64_t::positive_infinity().raw_, 0.0); }
+    static constexpr f118_t negative_infinity() noexcept { return f118_t(f64_t::negative_infinity().raw_, 0.0); }
     static constexpr f118_t zero() noexcept { return f118_t(); }
     static constexpr f118_t one() noexcept { return f118_t(1.0); }
 
@@ -6164,6 +6174,13 @@ template <typename scalar_type_>
 constexpr scalar_type_ finite_min() noexcept {
     if constexpr (is_numeric_dtype<scalar_type_>()) return scalar_type_::finite_min();
     return std::numeric_limits<scalar_type_>::lowest();
+}
+
+/** Whether a value is NaN, never true for a type without one. */
+template <numeric_dtype scalar_type_>
+constexpr bool is_nan(scalar_type_ value) noexcept {
+    if constexpr (nan_capable_dtype<scalar_type_>) return value.is_nan();
+    else return false;
 }
 
 /** Bits per value. For complex types matches value size. */

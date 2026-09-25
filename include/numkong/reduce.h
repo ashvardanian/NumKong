@@ -81,7 +81,7 @@
  *  Single-pass algorithm tracking both value and index in SIMD registers:
  *
  *  @code{.c}
- *  __m512 min_f32x16 = _mm512_set1_ps(FLT_MAX);
+ *  __m512 min_f32x16 = _mm512_set1_ps(NUMKONG_F32_INF);
  *  __m512i min_idx_i32x16 = _mm512_setzero_si512();
  *  __m512i current_idx_i32x16 = _mm512_setr_epi32(0,1,2,3,...,15);
  *  __m512i step_i32x16 = _mm512_set1_epi32(16);
