@@ -26,12 +26,13 @@
  *  process a full @c float16x8_t of data into two @c float32x4_t accumulators with full FP32
  *  accumulator precision.
  *
- *  For 3D mesh alignment, as in RMSD, Kabsch and Umeyama, this fuses widening and multiply-add in
- *  the covariance and norm-squared accumulation. It replaces a two-step FP16 → FP32 widen through
+ *  For 3D mesh alignment, as in Kabsch and Umeyama, this fuses widening and multiply-add in the
+ *  covariance and norm-squared accumulation. It replaces a two-step FP16 → FP32 widen through
  *  `vcvt_f32_f16 + vcvt_high_f32_f16` followed by an FP32 FMA through @c vfmaq_f32. The low and
  *  high halves stay in separate @c float32x4_t accumulators, combined only at reduction time. Sums
  *  of raw coordinates for centroids still take a conventional widen-then-add path, since there is
- *  no widening-add intrinsic for FP16 inputs.
+ *  no widening-add intrinsic for FP16 inputs. RMSD widens before subtracting as well, since an FP16
+ *  difference would round where the serial FP32 one does not.
  */
 #ifndef NK_MESH_NEONFHM_H
 #define NK_MESH_NEONFHM_H
@@ -78,6 +79,15 @@ NK_HELPER_INLINE void nk_partial_deinterleave_f16_to_f16x8x3_neonfhm_(nk_f16_t c
     nk_deinterleave_f16x8_to_f16x8x3_neonfhm_((nk_f16_t const *)buf, x_out, y_out, z_out);
 }
 
+/*  Widens before subtracting, like serial, as an F16 difference rounds and overflows past 65504. */
+NK_HELPER_INLINE void nk_accumulate_squared_delta_f16x8_neonfhm_(float16x8_t a_f16x8, float16x8_t b_f16x8,
+                                                                 float32x4_t *low_f32x4, float32x4_t *high_f32x4) {
+    float32x4_t delta_low_f32x4 = vsubq_f32(vcvt_f32_f16(vget_low_f16(a_f16x8)), vcvt_f32_f16(vget_low_f16(b_f16x8)));
+    float32x4_t delta_high_f32x4 = vsubq_f32(vcvt_high_f32_f16(a_f16x8), vcvt_high_f32_f16(b_f16x8));
+    *low_f32x4 = vfmaq_f32(*low_f32x4, delta_low_f32x4, delta_low_f32x4);
+    *high_f32x4 = vfmaq_f32(*high_f32x4, delta_high_f32x4, delta_high_f32x4);
+}
+
 NK_API_COMPTIME void nk_rmsd_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                          nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
     if (rotation)
@@ -93,7 +103,7 @@ NK_API_COMPTIME void nk_rmsd_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, n
     if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
 
     float32x4_t const zeros_f32x4 = vdupq_n_f32(0);
-    // Squared-delta accumulators split into low (elements 0-3) and high (4-7) halves for FHM
+    // Squared-delta accumulators split into low (elements 0-3) and high (4-7) halves
     float32x4_t sum_squared_x_low_f32x4 = zeros_f32x4, sum_squared_x_high_f32x4 = zeros_f32x4;
     float32x4_t sum_squared_y_low_f32x4 = zeros_f32x4, sum_squared_y_high_f32x4 = zeros_f32x4;
     float32x4_t sum_squared_z_low_f32x4 = zeros_f32x4, sum_squared_z_high_f32x4 = zeros_f32x4;
@@ -106,32 +116,24 @@ NK_API_COMPTIME void nk_rmsd_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, n
         nk_deinterleave_f16x8_to_f16x8x3_neonfhm_(a + i * 3, &a_x_f16x8, &a_y_f16x8, &a_z_f16x8);
         nk_deinterleave_f16x8_to_f16x8x3_neonfhm_(b + i * 3, &b_x_f16x8, &b_y_f16x8, &b_z_f16x8);
 
-        float16x8_t delta_x_f16x8 = vsubq_f16(a_x_f16x8, b_x_f16x8);
-        float16x8_t delta_y_f16x8 = vsubq_f16(a_y_f16x8, b_y_f16x8);
-        float16x8_t delta_z_f16x8 = vsubq_f16(a_z_f16x8, b_z_f16x8);
-
-        sum_squared_x_low_f32x4 = vfmlalq_low_f16(sum_squared_x_low_f32x4, delta_x_f16x8, delta_x_f16x8);
-        sum_squared_x_high_f32x4 = vfmlalq_high_f16(sum_squared_x_high_f32x4, delta_x_f16x8, delta_x_f16x8);
-        sum_squared_y_low_f32x4 = vfmlalq_low_f16(sum_squared_y_low_f32x4, delta_y_f16x8, delta_y_f16x8);
-        sum_squared_y_high_f32x4 = vfmlalq_high_f16(sum_squared_y_high_f32x4, delta_y_f16x8, delta_y_f16x8);
-        sum_squared_z_low_f32x4 = vfmlalq_low_f16(sum_squared_z_low_f32x4, delta_z_f16x8, delta_z_f16x8);
-        sum_squared_z_high_f32x4 = vfmlalq_high_f16(sum_squared_z_high_f32x4, delta_z_f16x8, delta_z_f16x8);
+        nk_accumulate_squared_delta_f16x8_neonfhm_(a_x_f16x8, b_x_f16x8, &sum_squared_x_low_f32x4,
+                                                   &sum_squared_x_high_f32x4);
+        nk_accumulate_squared_delta_f16x8_neonfhm_(a_y_f16x8, b_y_f16x8, &sum_squared_y_low_f32x4,
+                                                   &sum_squared_y_high_f32x4);
+        nk_accumulate_squared_delta_f16x8_neonfhm_(a_z_f16x8, b_z_f16x8, &sum_squared_z_low_f32x4,
+                                                   &sum_squared_z_high_f32x4);
     }
 
     if (i < n) {
         nk_partial_deinterleave_f16_to_f16x8x3_neonfhm_(a + i * 3, n - i, &a_x_f16x8, &a_y_f16x8, &a_z_f16x8);
         nk_partial_deinterleave_f16_to_f16x8x3_neonfhm_(b + i * 3, n - i, &b_x_f16x8, &b_y_f16x8, &b_z_f16x8);
 
-        float16x8_t delta_x_f16x8 = vsubq_f16(a_x_f16x8, b_x_f16x8);
-        float16x8_t delta_y_f16x8 = vsubq_f16(a_y_f16x8, b_y_f16x8);
-        float16x8_t delta_z_f16x8 = vsubq_f16(a_z_f16x8, b_z_f16x8);
-
-        sum_squared_x_low_f32x4 = vfmlalq_low_f16(sum_squared_x_low_f32x4, delta_x_f16x8, delta_x_f16x8);
-        sum_squared_x_high_f32x4 = vfmlalq_high_f16(sum_squared_x_high_f32x4, delta_x_f16x8, delta_x_f16x8);
-        sum_squared_y_low_f32x4 = vfmlalq_low_f16(sum_squared_y_low_f32x4, delta_y_f16x8, delta_y_f16x8);
-        sum_squared_y_high_f32x4 = vfmlalq_high_f16(sum_squared_y_high_f32x4, delta_y_f16x8, delta_y_f16x8);
-        sum_squared_z_low_f32x4 = vfmlalq_low_f16(sum_squared_z_low_f32x4, delta_z_f16x8, delta_z_f16x8);
-        sum_squared_z_high_f32x4 = vfmlalq_high_f16(sum_squared_z_high_f32x4, delta_z_f16x8, delta_z_f16x8);
+        nk_accumulate_squared_delta_f16x8_neonfhm_(a_x_f16x8, b_x_f16x8, &sum_squared_x_low_f32x4,
+                                                   &sum_squared_x_high_f32x4);
+        nk_accumulate_squared_delta_f16x8_neonfhm_(a_y_f16x8, b_y_f16x8, &sum_squared_y_low_f32x4,
+                                                   &sum_squared_y_high_f32x4);
+        nk_accumulate_squared_delta_f16x8_neonfhm_(a_z_f16x8, b_z_f16x8, &sum_squared_z_low_f32x4,
+                                                   &sum_squared_z_high_f32x4);
     }
 
     nk_f32_t sum_squared = vaddvq_f32(vaddq_f32(sum_squared_x_low_f32x4, sum_squared_x_high_f32x4)) +

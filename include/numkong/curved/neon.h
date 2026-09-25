@@ -101,9 +101,8 @@ NK_API_COMPTIME void nk_mahalanobis_f32_neon(nk_f32_t const *a, nk_f32_t const *
             float32x2_t a_f32x2 = vld1_f32(a + j);
             float32x2_t b_f32x2 = vld1_f32(b + j);
 
-            // Compute difference in f32, then upcast to f64
-            float32x2_t diff_f32x2 = vsub_f32(a_f32x2, b_f32x2);
-            float64x2_t diff_f64x2 = vcvt_f64_f32(diff_f32x2);
+            // Upcast to f64, then compute difference
+            float64x2_t diff_f64x2 = vsubq_f64(vcvt_f64_f32(a_f32x2), vcvt_f64_f32(b_f32x2));
 
             // Load c[i*n+j : i*n+j+2] as f32, upcast to f64
             float32x2_t c_f32x2 = vld1_f32(c + i * n + j);

@@ -128,8 +128,7 @@ NK_API_COMPTIME void nk_sqeuclidean_f32_neon(nk_f32_t const *a, nk_f32_t const *
     for (; i + 2 <= n; i += 2) {
         float32x2_t a_f32x2 = vld1_f32(a + i);
         float32x2_t b_f32x2 = vld1_f32(b + i);
-        float32x2_t diff_f32x2 = vsub_f32(a_f32x2, b_f32x2);
-        float64x2_t diff_f64x2 = vcvt_f64_f32(diff_f32x2);
+        float64x2_t diff_f64x2 = vsubq_f64(vcvt_f64_f32(a_f32x2), vcvt_f64_f32(b_f32x2));
         sum_f64x2 = vfmaq_f64(sum_f64x2, diff_f64x2, diff_f64x2);
     }
     nk_f64_t sum_f64 = vaddvq_f64(sum_f64x2);
