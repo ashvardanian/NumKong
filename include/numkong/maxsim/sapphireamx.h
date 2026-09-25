@@ -299,7 +299,10 @@ NK_API_COMPTIME void nk_maxsim_packed_f32_sapphireamx( //
             // Column extraction from 4 tiles
             for (nk_size_t tile_offset = 0; tile_offset < 4; tile_offset++) {
                 nk_size_t document_column_start = (document_tile_index + tile_offset) * 16;
-                for (nk_size_t column_within_tile = 0; column_within_tile < 16; column_within_tile++) {
+                nk_size_t valid_documents = (document_column_start + 16 <= document_count)
+                                                ? 16
+                                                : (document_count - document_column_start);
+                for (nk_size_t column_within_tile = 0; column_within_tile < valid_documents; column_within_tile++) {
                     __m512i gather_index_i32x16 = _mm512_add_epi32(row_stride_indices_i32x16,
                                                                    _mm512_set1_epi32((int)column_within_tile));
                     __m512i column_dots_i32x16 = _mm512_i32gather_epi32(gather_index_i32x16,
@@ -562,7 +565,10 @@ NK_API_COMPTIME void nk_maxsim_packed_f16_sapphireamx( //
 
             for (nk_size_t tile_offset = 0; tile_offset < 4; tile_offset++) {
                 nk_size_t document_column_start = (document_tile_index + tile_offset) * 16;
-                for (nk_size_t column_within_tile = 0; column_within_tile < 16; column_within_tile++) {
+                nk_size_t valid_documents = (document_column_start + 16 <= document_count)
+                                                ? 16
+                                                : (document_count - document_column_start);
+                for (nk_size_t column_within_tile = 0; column_within_tile < valid_documents; column_within_tile++) {
                     __m512i gather_index_i32x16 = _mm512_add_epi32(row_stride_indices_i32x16,
                                                                    _mm512_set1_epi32((int)column_within_tile));
                     __m512i column_dots_i32x16 = _mm512_i32gather_epi32(gather_index_i32x16,
@@ -835,7 +841,10 @@ NK_API_COMPTIME void nk_maxsim_packed_bf16_sapphireamx( //
             // Column extraction from 4 tiles
             for (nk_size_t tile_offset = 0; tile_offset < 4; tile_offset++) {
                 nk_size_t document_column_start = (document_tile_index + tile_offset) * 16;
-                for (nk_size_t column_within_tile = 0; column_within_tile < 16; column_within_tile++) {
+                nk_size_t valid_documents = (document_column_start + 16 <= document_count)
+                                                ? 16
+                                                : (document_count - document_column_start);
+                for (nk_size_t column_within_tile = 0; column_within_tile < valid_documents; column_within_tile++) {
                     __m512i gather_index_i32x16 = _mm512_add_epi32(row_stride_indices_i32x16,
                                                                    _mm512_set1_epi32((int)column_within_tile));
                     __m512 column_dots_f32x16 = _mm512_i32gather_ps(gather_index_i32x16,

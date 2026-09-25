@@ -171,6 +171,10 @@ __arm_new("za") static void nk_maxsim_packed_f16_streaming_( //
             }
 
             // Vertical column extraction + argmax update (manually unrolled over 4 tiles)
+            nk_size_t const last_col_start = (column_tile_index + 3) * tile_dimension;
+            nk_size_t const last_cols_remaining = (last_col_start + tile_dimension <= document_count)
+                                                      ? tile_dimension
+                                                      : (document_count - last_col_start);
             for (nk_size_t column_within_tile = 0; column_within_tile < tile_dimension; column_within_tile++) {
                 // Tile 0
                 {
@@ -199,8 +203,8 @@ __arm_new("za") static void nk_maxsim_packed_f16_streaming_( //
                     running_maximum_f32x = svsel_f32(is_better_b32x, column_dots_f32x, running_maximum_f32x);
                     running_argmax_u32x = svsel_u32(is_better_b32x, svdup_u32(document_index), running_argmax_u32x);
                 }
-                // Tile 3
-                {
+                // Tile 3, whose zero-padded columns would outscore all-negative dots
+                if (column_within_tile < last_cols_remaining) {
                     nk_u32_t document_index = (nk_u32_t)((column_tile_index + 3) * tile_dimension + column_within_tile);
                     svfloat32_t column_dots_f32x = svread_ver_za32_f32_m(svdup_f32(NK_F32_MIN), predicate_all_b32x, 3,
                                                                          column_within_tile);
@@ -367,6 +371,10 @@ __arm_new("za") static void nk_maxsim_packed_bf16_streaming_( //
             }
 
             // Vertical column extraction + argmax update (manually unrolled over 4 tiles)
+            nk_size_t const last_col_start = (column_tile_index + 3) * tile_dimension;
+            nk_size_t const last_cols_remaining = (last_col_start + tile_dimension <= document_count)
+                                                      ? tile_dimension
+                                                      : (document_count - last_col_start);
             for (nk_size_t column_within_tile = 0; column_within_tile < tile_dimension; column_within_tile++) {
                 // Tile 0
                 {
@@ -395,8 +403,8 @@ __arm_new("za") static void nk_maxsim_packed_bf16_streaming_( //
                     running_maximum_f32x = svsel_f32(is_better_b32x, column_dots_f32x, running_maximum_f32x);
                     running_argmax_u32x = svsel_u32(is_better_b32x, svdup_u32(document_index), running_argmax_u32x);
                 }
-                // Tile 3
-                {
+                // Tile 3, whose zero-padded columns would outscore all-negative dots
+                if (column_within_tile < last_cols_remaining) {
                     nk_u32_t document_index = (nk_u32_t)((column_tile_index + 3) * tile_dimension + column_within_tile);
                     svfloat32_t column_dots_f32x = svread_ver_za32_f32_m(svdup_f32(NK_F32_MIN), predicate_all_b32x, 3,
                                                                          column_within_tile);
@@ -799,6 +807,10 @@ __arm_new("za") static void nk_maxsim_packed_f32_streaming_( //
             }
 
             // Vertical column extraction + argmax update (manually unrolled over 4 tiles)
+            nk_size_t const last_col_start = (column_tile_index + 3) * tile_dimension;
+            nk_size_t const last_cols_remaining = (last_col_start + tile_dimension <= document_count)
+                                                      ? tile_dimension
+                                                      : (document_count - last_col_start);
             for (nk_size_t column_within_tile = 0; column_within_tile < tile_dimension; column_within_tile++) {
                 // Tile 0
                 {
@@ -827,8 +839,8 @@ __arm_new("za") static void nk_maxsim_packed_f32_streaming_( //
                     running_max_i32x = svsel_s32(is_better_b32x, column_dots_i32x, running_max_i32x);
                     running_argmax_u32x = svsel_u32(is_better_b32x, svdup_u32(document_index), running_argmax_u32x);
                 }
-                // Tile 3
-                {
+                // Tile 3, whose zero-padded columns would outscore all-negative dots
+                if (column_within_tile < last_cols_remaining) {
                     nk_u32_t document_index = (nk_u32_t)((column_tile_index + 3) * tile_dimension + column_within_tile);
                     svint32_t column_dots_i32x = svread_ver_za32_s32_m(svdup_s32(NK_I32_MIN), predicate_all_b32x, 3,
                                                                        column_within_tile);
