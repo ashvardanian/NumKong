@@ -33,7 +33,7 @@ void bench_cross_arm() {
     constexpr nk_dtype_t u4_k = nk_u4_k;
     constexpr nk_dtype_t u1_k = nk_u1_k;
 
-#if NK_TARGET_NEON
+#if NUMKONG_TARGET_NEON
 
     run_dots_packed<f64_k>("dots_packed_f64_neon", nk_dots_pack_size_f64_neon, nk_dots_pack_f64_neon,
                            nk_dots_packed_f64_neon);
@@ -92,7 +92,7 @@ void bench_cross_arm() {
 
 #endif
 
-#if NK_TARGET_NEONFHM
+#if NUMKONG_TARGET_NEONFHM
 
     run_dots_packed<f16_k>("dots_packed_f16_neonfhm", nk_dots_pack_size_f16_neonfhm, nk_dots_pack_f16_neonfhm,
                            nk_dots_packed_f16_neonfhm);
@@ -133,7 +133,7 @@ void bench_cross_arm() {
                                  nk_attention_pack_e4m3_neonfhm, nk_attention_causal_packed_e4m3_neonfhm);
 #endif
 
-#if NK_TARGET_NEONBFDOT
+#if NUMKONG_TARGET_NEONBFDOT
     run_dots_packed<bf16_k>("dots_packed_bf16_neonbfdot", nk_dots_pack_size_bf16_neonbfdot, nk_dots_pack_bf16_neonbfdot,
                             nk_dots_packed_bf16_neonbfdot);
     run_dots_symmetric<bf16_k>("dots_symmetric_bf16_neonbfdot", nk_dots_symmetric_bf16_neonbfdot);
@@ -152,7 +152,7 @@ void bench_cross_arm() {
                                  nk_attention_pack_bf16_neonbfdot, nk_attention_causal_packed_bf16_neonbfdot);
 #endif
 
-#if NK_TARGET_NEONSDOT
+#if NUMKONG_TARGET_NEONSDOT
 
     run_dots_packed<i8_k>("dots_packed_i8_neonsdot", nk_dots_pack_size_i8_neonsdot, nk_dots_pack_i8_neonsdot,
                           nk_dots_packed_i8_neonsdot);
@@ -229,7 +229,7 @@ void bench_cross_arm() {
                                nk_attention_pack_i8_neonsdot, nk_attention_causal_packed_i8_neonsdot);
 #endif
 
-#if NK_TARGET_NEONFP8
+#if NUMKONG_TARGET_NEONFP8
     run_dots_packed<e5m2_k>("dots_packed_e5m2_neonfp8", nk_dots_pack_size_e5m2_neonfp8, nk_dots_pack_e5m2_neonfp8,
                             nk_dots_packed_e5m2_neonfp8);
     run_dots_packed<e4m3_k>("dots_packed_e4m3_neonfp8", nk_dots_pack_size_e4m3_neonfp8, nk_dots_pack_e4m3_neonfp8,

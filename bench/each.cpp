@@ -10,11 +10,11 @@
 #include "numkong/capabilities.h" // nk_kernel_kind_t
 #include "numkong/each.h"         // nk_each_swiglu_*
 
-#include "bench.hpp"
+#include "harness.hpp"
 
 using namespace ashvardanian::numkong::bench;
 
-#if NK_COMPARE_TO_BLAS || NK_COMPARE_TO_MKL || NK_COMPARE_TO_ACCELERATE
+#if NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
 
 void sum_f32_with_blas(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result) {
     int const ni = static_cast<int>(n);
@@ -44,7 +44,7 @@ void blend_f64_with_blas(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f
     if (*beta != 0) cblas_daxpy(ni, *beta, b, 1, result, 1);
 }
 
-#endif // NK_COMPARE_TO_BLAS || NK_COMPARE_TO_MKL || NK_COMPARE_TO_ACCELERATE
+#endif // NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
 
 /**
  *  @brief Measures elementwise operations, sum, blend, fma and scale, using Google Benchmark.
@@ -187,14 +187,14 @@ void bench_each() {
     constexpr nk_kernel_kind_t sum_k = nk_kernel_each_sum_k;
     constexpr nk_kernel_kind_t scale_k = nk_kernel_each_scale_k;
 
-#if NK_COMPARE_TO_BLAS || NK_COMPARE_TO_MKL || NK_COMPARE_TO_ACCELERATE
+#if NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
     run_each<f32_k, sum_k, f32_k>("sum_f32_with_blas", sum_f32_with_blas);
     run_each<f32_k, blend_k, f32_k>("each_blend_f32_with_blas", blend_f32_with_blas);
     run_each<f64_k, sum_k, f64_k>("sum_f64_with_blas", sum_f64_with_blas);
     run_each<f64_k, blend_k, f64_k>("each_blend_f64_with_blas", blend_f64_with_blas);
 #endif
 
-#if NK_TARGET_NEON
+#if NUMKONG_TARGET_NEON
     // f64
     run_each<f64_k, sum_k, f64_k>("each_sum_f64_neon", nk_each_sum_f64_neon);
     run_each<f64_k, scale_k, f64_k>("each_scale_f64_neon", nk_each_scale_f64_neon);
@@ -256,18 +256,18 @@ void bench_each() {
     run_each<f64c_k, fma_k, f64c_k>("each_fma_f64c_neon", nk_each_fma_f64c_neon);
 #endif
 
-#if NK_TARGET_NEONHALF
+#if NUMKONG_TARGET_NEONHALF
     run_each<f16_k, sum_k, f32_k>("each_sum_f16_neonhalf", nk_each_sum_f16_neonhalf);
 #endif
 
-#if NK_TARGET_NEONBFDOT
+#if NUMKONG_TARGET_NEONBFDOT
     run_each<bf16_k, sum_k, f32_k>("each_sum_bf16_neonbfdot", nk_each_sum_bf16_neonbfdot);
     run_each<bf16_k, scale_k, f32_k>("each_scale_bf16_neonbfdot", nk_each_scale_bf16_neonbfdot);
     run_each<bf16_k, blend_k, f32_k>("each_blend_bf16_neonbfdot", nk_each_blend_bf16_neonbfdot);
     run_each<bf16_k, fma_k, f32_k>("each_fma_bf16_neonbfdot", nk_each_fma_bf16_neonbfdot);
 #endif
 
-#if NK_TARGET_HASWELL
+#if NUMKONG_TARGET_HASWELL
     // f64
     run_each<f64_k, sum_k, f64_k>("each_sum_f64_haswell", nk_each_sum_f64_haswell);
     run_each<f64_k, scale_k, f64_k>("each_scale_f64_haswell", nk_each_scale_f64_haswell);
@@ -333,7 +333,7 @@ void bench_each() {
     run_each<f64c_k, fma_k, f64c_k>("each_fma_f64c_haswell", nk_each_fma_f64c_haswell);
 #endif
 
-#if NK_TARGET_SKYLAKE
+#if NUMKONG_TARGET_SKYLAKE
     // f64
     run_each<f64_k, sum_k, f64_k>("each_sum_f64_skylake", nk_each_sum_f64_skylake);
     run_each<f64_k, scale_k, f64_k>("each_scale_f64_skylake", nk_each_scale_f64_skylake);
@@ -397,7 +397,7 @@ void bench_each() {
     run_each<f64c_k, fma_k, f64c_k>("each_fma_f64c_skylake", nk_each_fma_f64c_skylake);
 #endif
 
-#if NK_TARGET_ICELAKE
+#if NUMKONG_TARGET_ICELAKE
     run_each<i8_k, sum_k, f32_k>("each_sum_i8_icelake", nk_each_sum_i8_icelake);
     run_each<u8_k, sum_k, f32_k>("each_sum_u8_icelake", nk_each_sum_u8_icelake);
     run_each<i16_k, sum_k, f32_k>("each_sum_i16_icelake", nk_each_sum_i16_icelake);
@@ -408,13 +408,13 @@ void bench_each() {
     run_each<u64_k, sum_k, f64_k>("each_sum_u64_icelake", nk_each_sum_u64_icelake);
 #endif
 
-#if NK_TARGET_SAPPHIRE
+#if NUMKONG_TARGET_SAPPHIRE
     // f16, e4m3
     run_each<f16_k, sum_k, f32_k>("each_sum_f16_sapphire", nk_each_sum_f16_sapphire);
     run_each<e4m3_k, sum_k, f32_k>("each_sum_e4m3_sapphire", nk_each_sum_e4m3_sapphire);
 #endif
 
-#if NK_TARGET_RVV
+#if NUMKONG_TARGET_RVV
     run_each<f64_k, scale_k, f64_k>("each_scale_f64_rvv", nk_each_scale_f64_rvv);
     run_each<f64_k, fma_k, f64_k>("each_fma_f64_rvv", nk_each_fma_f64_rvv);
     run_each<f64_k, blend_k, f64_k>("each_blend_f64_rvv", nk_each_blend_f64_rvv);
@@ -435,7 +435,7 @@ void bench_each() {
     run_each<u8_k, blend_k, f32_k>("each_blend_u8_rvv", nk_each_blend_u8_rvv);
 #endif
 
-#if NK_TARGET_V128RELAXED
+#if NUMKONG_TARGET_V128RELAXED
     run_each<f32_k, scale_k, f32_k>("each_scale_f32_v128relaxed", nk_each_scale_f32_v128relaxed);
     run_each<f32_k, blend_k, f32_k>("each_blend_f32_v128relaxed", nk_each_blend_f32_v128relaxed);
     run_each<f32_k, fma_k, f32_k>("each_fma_f32_v128relaxed", nk_each_fma_f32_v128relaxed);
@@ -454,7 +454,7 @@ void bench_each() {
     run_each<u8_k, fma_k, f32_k>("each_fma_u8_v128relaxed", nk_each_fma_u8_v128relaxed);
 #endif
 
-#if NK_TARGET_V128
+#if NUMKONG_TARGET_V128
     run_each<f32_k, sum_k, f32_k>("each_sum_f32_v128", nk_each_sum_f32_v128);
     run_each<bf16_k, sum_k, f32_k>("each_sum_bf16_v128", nk_each_sum_bf16_v128);
     run_each<i8_k, sum_k, f32_k>("each_sum_i8_v128", nk_each_sum_i8_v128);

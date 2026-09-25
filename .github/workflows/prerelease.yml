@@ -48,11 +48,11 @@ jobs:
             package.json:@numkong/win32-arm64": "(\d+\.\d+\.\d+)"
             package.json:@numkong/win32-x64": "(\d+\.\d+\.\d+)"
           update-major-version-in: |
-            include/numkong/capabilities.h:^#define NK_VERSION_MAJOR (\d+)
+            include/numkong/capabilities.h:^#define NUMKONG_VERSION_MAJOR (\d+)
           update-minor-version-in: |
-            include/numkong/capabilities.h:^#define NK_VERSION_MINOR (\d+)
+            include/numkong/capabilities.h:^#define NUMKONG_VERSION_MINOR (\d+)
           update-patch-version-in: |
-            include/numkong/capabilities.h:^#define NK_VERSION_PATCH (\d+)
+            include/numkong/capabilities.h:^#define NUMKONG_VERSION_PATCH (\d+)
           dry-run: "true"
 
   wheels:

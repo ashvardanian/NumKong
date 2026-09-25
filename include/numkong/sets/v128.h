@@ -6,10 +6,10 @@
  *
  *  @sa include/numkong/sets.h
  */
-#ifndef NK_SETS_V128_H
-#define NK_SETS_V128_H
+#ifndef NUMKONG_SETS_V128_H
+#define NUMKONG_SETS_V128_H
 
-#if NK_TARGET_V128
+#if NUMKONG_TARGET_V128
 
 #include "numkong/set/v128.h" // `nk_hamming_u32x4_from_dot_v128_`, `nk_jaccard_f32x4_from_dot_v128_`
 #include "numkong/dots/v128.h"
@@ -54,5 +54,5 @@ nk_define_cross_normalized_symmetric_(jaccard, u1, v128, u1x8, u32, /*norm_value
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_V128
-#endif // NK_SETS_V128_H
+#endif // NUMKONG_TARGET_V128
+#endif // NUMKONG_SETS_V128_H

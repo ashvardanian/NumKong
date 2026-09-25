@@ -34,11 +34,11 @@
  *  The FADDV horizontal reduction has 6cy of latency, higher than vertical operations, making it
  *  beneficial to accumulate in vector registers and reduce only at the end.
  */
-#ifndef NK_DOT_SVE_H
-#define NK_DOT_SVE_H
+#ifndef NUMKONG_DOT_SVE_H
+#define NUMKONG_DOT_SVE_H
 
-#if NK_TARGET_ARM64_
-#if NK_TARGET_SVE
+#if NUMKONG_ARCH_ARM64_
+#if NUMKONG_TARGET_SVE
 
 #include "numkong/types.h"      // `nk_f32_t`
 #include "numkong/reduce/sve.h" // `nk_svaddv_f64_`
@@ -62,8 +62,8 @@ extern "C" {
  *  return 0 (SVE spec), which is harmless since only the lower half is meaningful
  *  after each halving stage.
  */
-NK_HELPER_INLINE nk_f64_t nk_dot_stable_sum_f64_sve_(svbool_t predicate_b64x, svfloat64_t sum_f64x,
-                                                     svfloat64_t compensation) {
+NUMKONG_HELPER_INLINE nk_f64_t nk_dot_stable_sum_f64_sve_(svbool_t predicate_b64x, svfloat64_t sum_f64x,
+                                                          svfloat64_t compensation) {
     // Stage 0: TwoSum merge of sum + compensation (parallel across all active lanes)
     svfloat64_t tentative_sum_f64x = svadd_f64_x(predicate_b64x, sum_f64x, compensation);
     svfloat64_t virtual_addend_f64x = svsub_f64_x(predicate_b64x, tentative_sum_f64x, sum_f64x);
@@ -101,8 +101,8 @@ NK_HELPER_INLINE nk_f64_t nk_dot_stable_sum_f64_sve_(svbool_t predicate_b64x, sv
            svlastb_f64(predicate_first_b64x, accumulated_error_f64x);
 }
 
-NK_API_COMPTIME void nk_dot_f32_sve(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars, nk_size_t count_scalars,
-                                    nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_dot_f32_sve(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars, nk_size_t count_scalars,
+                                         nk_f64_t *result) {
     nk_size_t idx_scalars = 0;
     svfloat64_t ab_f64x = svdup_f64(0.);
     for (; idx_scalars < count_scalars; idx_scalars += svcntw()) {
@@ -123,8 +123,8 @@ NK_API_COMPTIME void nk_dot_f32_sve(nk_f32_t const *a_scalars, nk_f32_t const *b
     *result = nk_svaddv_f64_(svptrue_b64(), ab_f64x);
 }
 
-NK_API_COMPTIME void nk_dot_f32c_sve(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_size_t count_pairs,
-                                     nk_f64c_t *results) {
+NUMKONG_API_COMPTIME void nk_dot_f32c_sve(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_size_t count_pairs,
+                                          nk_f64c_t *results) {
     nk_size_t idx_pairs = 0;
     svfloat64_t ab_real_f64x = svdup_f64(0.);
     svfloat64_t ab_imag_f64x = svdup_f64(0.);
@@ -163,8 +163,8 @@ NK_API_COMPTIME void nk_dot_f32c_sve(nk_f32c_t const *a_pairs, nk_f32c_t const *
     results->imag = nk_svaddv_f64_(svptrue_b64(), ab_imag_f64x);
 }
 
-NK_API_COMPTIME void nk_vdot_f32c_sve(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_size_t count_pairs,
-                                      nk_f64c_t *results) {
+NUMKONG_API_COMPTIME void nk_vdot_f32c_sve(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_size_t count_pairs,
+                                           nk_f64c_t *results) {
     nk_size_t idx_pairs = 0;
     svfloat64_t ab_real_f64x = svdup_f64(0.);
     svfloat64_t ab_imag_f64x = svdup_f64(0.);
@@ -203,8 +203,8 @@ NK_API_COMPTIME void nk_vdot_f32c_sve(nk_f32c_t const *a_pairs, nk_f32c_t const 
     results->imag = nk_svaddv_f64_(svptrue_b64(), ab_imag_f64x);
 }
 
-NK_API_COMPTIME void nk_dot_f64_sve(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars, nk_size_t count_scalars,
-                                    nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_dot_f64_sve(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars, nk_size_t count_scalars,
+                                         nk_f64_t *result) {
     // Dot2 (Ogita-Rump-Oishi) compensated accumulation via TwoProd + TwoSum
     nk_size_t idx_scalars = 0;
     svfloat64_t sum_f64x = svdup_f64(0.);
@@ -232,8 +232,8 @@ NK_API_COMPTIME void nk_dot_f64_sve(nk_f64_t const *a_scalars, nk_f64_t const *b
     *result = nk_dot_stable_sum_f64_sve_(svptrue_b64(), sum_f64x, compensation_f64x);
 }
 
-NK_API_COMPTIME void nk_dot_f64c_sve(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
-                                     nk_f64c_t *results) {
+NUMKONG_API_COMPTIME void nk_dot_f64c_sve(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
+                                          nk_f64c_t *results) {
     // Dot2 compensated accumulation for complex dot product: (a_real + i*a_imag)(b_real + i*b_imag)
     // real = a_real*b_real - a_imag*b_imag, imag = a_real*b_imag + a_imag*b_real
     nk_size_t idx_pairs = 0;
@@ -323,8 +323,8 @@ NK_API_COMPTIME void nk_dot_f64c_sve(nk_f64c_t const *a_pairs, nk_f64c_t const *
     results->imag = nk_dot_stable_sum_f64_sve_(predicate_all_b64x, sum_imag_f64x, comp_imag_f64x);
 }
 
-NK_API_COMPTIME void nk_vdot_f64c_sve(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
-                                      nk_f64c_t *results) {
+NUMKONG_API_COMPTIME void nk_vdot_f64c_sve(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
+                                           nk_f64c_t *results) {
     // Dot2 compensated conjugate dot product: conj(a) · b = (a_real - i*a_imag)(b_real + i*b_imag)
     // real = a_real*b_real + a_imag*b_imag, imag = a_real*b_imag - a_imag*b_real
     nk_size_t idx_pairs = 0;
@@ -424,6 +424,6 @@ NK_API_COMPTIME void nk_vdot_f64c_sve(nk_f64c_t const *a_pairs, nk_f64c_t const 
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_SVE
-#endif // NK_TARGET_ARM64_
-#endif // NK_DOT_SVE_H
+#endif // NUMKONG_TARGET_SVE
+#endif // NUMKONG_ARCH_ARM64_
+#endif // NUMKONG_DOT_SVE_H

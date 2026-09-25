@@ -6,8 +6,8 @@
  *
  *  @sa include/numkong/geospatial.h
  */
-#ifndef NK_GEOSPATIAL_SERIAL_H
-#define NK_GEOSPATIAL_SERIAL_H
+#ifndef NUMKONG_GEOSPATIAL_SERIAL_H
+#define NUMKONG_GEOSPATIAL_SERIAL_H
 
 #include "numkong/types.h"
 #include "numkong/spatial/serial.h"      // `nk_f64_sqrt_serial`, `nk_f32_sqrt_serial`
@@ -26,12 +26,12 @@ extern "C" {
 #pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
 #endif
 
-NK_API_COMPTIME void nk_haversine_f64_serial(       //
+NUMKONG_API_COMPTIME void nk_haversine_f64_serial(  //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results) {
 
-    nk_f64_t const earth_radius = NK_EARTH_MEDIATORIAL_RADIUS;
+    nk_f64_t const earth_radius = NUMKONG_EARTH_MEDIATORIAL_RADIUS;
 
     for (nk_size_t i = 0; i != n; ++i) {
         nk_f64_t first_latitude = a_lats[i];
@@ -65,12 +65,12 @@ NK_API_COMPTIME void nk_haversine_f64_serial(       //
     }
 }
 
-NK_API_COMPTIME void nk_haversine_f32_serial(       //
+NUMKONG_API_COMPTIME void nk_haversine_f32_serial(  //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results) {
 
-    nk_f32_t const earth_radius = (nk_f32_t)NK_EARTH_MEDIATORIAL_RADIUS;
+    nk_f32_t const earth_radius = (nk_f32_t)NUMKONG_EARTH_MEDIATORIAL_RADIUS;
 
     for (nk_size_t i = 0; i != n; ++i) {
         nk_f32_t first_latitude = a_lats[i];
@@ -106,14 +106,14 @@ NK_API_COMPTIME void nk_haversine_f32_serial(       //
     }
 }
 
-NK_API_COMPTIME void nk_vincenty_f64_serial(        //
+NUMKONG_API_COMPTIME void nk_vincenty_f64_serial(   //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results) {
 
-    nk_f64_t const equatorial_radius = NK_EARTH_ELLIPSOID_EQUATORIAL_RADIUS;
-    nk_f64_t const polar_radius = NK_EARTH_ELLIPSOID_POLAR_RADIUS;
-    nk_f64_t const flattening = 1.0 / NK_EARTH_ELLIPSOID_INVERSE_FLATTENING;
+    nk_f64_t const equatorial_radius = NUMKONG_EARTH_ELLIPSOID_EQUATORIAL_RADIUS;
+    nk_f64_t const polar_radius = NUMKONG_EARTH_ELLIPSOID_POLAR_RADIUS;
+    nk_f64_t const flattening = 1.0 / NUMKONG_EARTH_ELLIPSOID_INVERSE_FLATTENING;
 
     for (nk_size_t i = 0; i != n; ++i) {
         nk_f64_t first_latitude = a_lats[i];
@@ -176,8 +176,8 @@ NK_API_COMPTIME void nk_vincenty_f64_serial(        //
                                                                                          cos_double_angular_midpoint)));
 
             iteration++;
-        } while (nk_f64_abs_(lambda - lambda_previous) > NK_VINCENTY_CONVERGENCE_THRESHOLD_F64 &&
-                 iteration < NK_VINCENTY_MAX_ITERATIONS);
+        } while (nk_f64_abs_(lambda - lambda_previous) > NUMKONG_VINCENTY_CONVERGENCE_THRESHOLD_F64 &&
+                 iteration < NUMKONG_VINCENTY_MAX_ITERATIONS);
 
         if (coincident) {
             results[i] = 0.0;
@@ -205,14 +205,14 @@ NK_API_COMPTIME void nk_vincenty_f64_serial(        //
     }
 }
 
-NK_API_COMPTIME void nk_vincenty_f32_serial(        //
+NUMKONG_API_COMPTIME void nk_vincenty_f32_serial(   //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results) {
 
-    nk_f32_t const equatorial_radius = (nk_f32_t)NK_EARTH_ELLIPSOID_EQUATORIAL_RADIUS;
-    nk_f32_t const polar_radius = (nk_f32_t)NK_EARTH_ELLIPSOID_POLAR_RADIUS;
-    nk_f32_t const flattening = 1.0f / (nk_f32_t)NK_EARTH_ELLIPSOID_INVERSE_FLATTENING;
+    nk_f32_t const equatorial_radius = (nk_f32_t)NUMKONG_EARTH_ELLIPSOID_EQUATORIAL_RADIUS;
+    nk_f32_t const polar_radius = (nk_f32_t)NUMKONG_EARTH_ELLIPSOID_POLAR_RADIUS;
+    nk_f32_t const flattening = 1.0f / (nk_f32_t)NUMKONG_EARTH_ELLIPSOID_INVERSE_FLATTENING;
     nk_f32_t const convergence_threshold = 1e-7f;
 
     for (nk_size_t i = 0; i != n; ++i) {
@@ -278,7 +278,7 @@ NK_API_COMPTIME void nk_vincenty_f32_serial(        //
 
             iteration++;
         } while (nk_f32_abs_(lambda - lambda_previous) > convergence_threshold &&
-                 iteration < NK_VINCENTY_MAX_ITERATIONS);
+                 iteration < NUMKONG_VINCENTY_MAX_ITERATIONS);
 
         if (coincident) {
             results[i] = 0.0;
@@ -317,4 +317,4 @@ NK_API_COMPTIME void nk_vincenty_f32_serial(        //
 } // extern "C"
 #endif
 
-#endif // NK_GEOSPATIAL_SERIAL_H
+#endif // NUMKONG_GEOSPATIAL_SERIAL_H

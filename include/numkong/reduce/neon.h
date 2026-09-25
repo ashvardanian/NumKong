@@ -6,11 +6,11 @@
  *
  *  @sa include/numkong/reduce.h
  */
-#ifndef NK_REDUCE_NEON_H
-#define NK_REDUCE_NEON_H
+#ifndef NUMKONG_REDUCE_NEON_H
+#define NUMKONG_REDUCE_NEON_H
 
-#if NK_TARGET_ARM64_
-#if NK_TARGET_NEON
+#if NUMKONG_ARCH_ARM64_
+#if NUMKONG_TARGET_NEON
 
 #include "numkong/types.h"       // `nk_size_t`
 #include "numkong/cast/neon.h"   // `nk_e4m3x16_to_f16x8x2_neon_`
@@ -27,32 +27,32 @@ extern "C" {
 #pragma GCC target("arch=armv8-a+simd")
 #endif
 
-NK_HELPER_INLINE nk_u64_t nk_reduce_sadd_u64x2_neon_(uint64x2_t v_u64x2) {
+NUMKONG_HELPER_INLINE nk_u64_t nk_reduce_sadd_u64x2_neon_(uint64x2_t v_u64x2) {
     uint64x2_t swapped_u64x2 = vextq_u64(v_u64x2, v_u64x2, 1);
     return vgetq_lane_u64(vqaddq_u64(v_u64x2, swapped_u64x2), 0);
 }
 
 /** Saturating square of each i64 lane → u64. If |a| >= 2^32, a² overflows u64 → saturate. */
-NK_HELPER_INLINE uint64x2_t nk_i64_smul_sq_i64x2_neon_(int64x2_t value_i64x2) {
+NUMKONG_HELPER_INLINE uint64x2_t nk_i64_smul_sq_i64x2_neon_(int64x2_t value_i64x2) {
     uint64x2_t abs_u64x2 = vreinterpretq_u64_s64(vabsq_s64(value_i64x2));
     uint32x2_t low_halves_u32x2 = vmovn_u64(abs_u64x2);
     uint64x2_t high_u64x2 = vshrq_n_u64(abs_u64x2, 32);
     uint64x2_t low_sq_u64x2 = vmull_u32(low_halves_u32x2, low_halves_u32x2);
     uint64x2_t is_small_u64x2 = vceqq_u64(high_u64x2, vdupq_n_u64(0));
-    return vbslq_u64(is_small_u64x2, low_sq_u64x2, vdupq_n_u64(NK_U64_MAX));
+    return vbslq_u64(is_small_u64x2, low_sq_u64x2, vdupq_n_u64(NUMKONG_U64_MAX));
 }
 
 /** Saturating square of each u64 lane → u64. If a >= 2^32, a² overflows u64 → saturate. */
-NK_HELPER_INLINE uint64x2_t nk_u64_smul_sq_u64x2_neon_(uint64x2_t value_u64x2) {
+NUMKONG_HELPER_INLINE uint64x2_t nk_u64_smul_sq_u64x2_neon_(uint64x2_t value_u64x2) {
     uint32x2_t low_halves_u32x2 = vmovn_u64(value_u64x2);
     uint64x2_t high_u64x2 = vshrq_n_u64(value_u64x2, 32);
     uint64x2_t low_sq_u64x2 = vmull_u32(low_halves_u32x2, low_halves_u32x2);
     uint64x2_t is_small_u64x2 = vceqq_u64(high_u64x2, vdupq_n_u64(0));
-    return vbslq_u64(is_small_u64x2, low_sq_u64x2, vdupq_n_u64(NK_U64_MAX));
+    return vbslq_u64(is_small_u64x2, low_sq_u64x2, vdupq_n_u64(NUMKONG_U64_MAX));
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_f32_neon_contiguous_( //
-    nk_f32_t const *data_ptr, nk_size_t count,                //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_f32_neon_contiguous_( //
+    nk_f32_t const *data_ptr, nk_size_t count,                     //
     nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr) {
     float64x2_t sum_f64x2 = vdupq_n_f64(0), sumsq_f64x2 = vdupq_n_f64(0);
     nk_size_t idx = 0;
@@ -73,7 +73,7 @@ NK_HELPER_INLINE void nk_reduce_moments_f32_neon_contiguous_( //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_f32_neon_strided_(                //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_f32_neon_strided_(           //
     nk_f32_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr) {
     float64x2_t sum_f64x2 = vdupq_n_f64(0), sumsq_f64x2 = vdupq_n_f64(0);
@@ -120,14 +120,14 @@ NK_HELPER_INLINE void nk_reduce_moments_f32_neon_strided_(                //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_API_COMPTIME void nk_reduce_moments_f32_neon(                       //
+NUMKONG_API_COMPTIME void nk_reduce_moments_f32_neon(                  //
     nk_f32_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_f32_t);
     int aligned = (stride_bytes % sizeof(nk_f32_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (!aligned) nk_reduce_moments_f32_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
-    else if (count > (nk_size_t)(NK_U16_MAX + 1) * 4) {
+    else if (count > (nk_size_t)(NUMKONG_U16_MAX + 1) * 4) {
         nk_size_t left_count = count / 2;
         nk_f64_t left_sum, left_sumsq, right_sum, right_sumsq;
         nk_reduce_moments_f32_neon(data_ptr, left_count, stride_bytes, &left_sum, &left_sumsq);
@@ -141,11 +141,11 @@ NK_API_COMPTIME void nk_reduce_moments_f32_neon(                       //
     else nk_reduce_moments_f32_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_HELPER_INLINE void nk_reduce_minmax_f32_neon_contiguous_( //
-    nk_f32_t const *data_ptr, nk_size_t count,               //
-    nk_f32_t *min_value_ptr, nk_size_t *min_index_ptr,       //
+NUMKONG_HELPER_INLINE void nk_reduce_minmax_f32_neon_contiguous_( //
+    nk_f32_t const *data_ptr, nk_size_t count,                    //
+    nk_f32_t *min_value_ptr, nk_size_t *min_index_ptr,            //
     nk_f32_t *max_value_ptr, nk_size_t *max_index_ptr) {
-    float32x4_t min_f32x4 = vdupq_n_f32(NK_F32_INF), max_f32x4 = vdupq_n_f32(-NK_F32_INF);
+    float32x4_t min_f32x4 = vdupq_n_f32(NUMKONG_F32_INF), max_f32x4 = vdupq_n_f32(-NUMKONG_F32_INF);
     uint32x4_t min_iter_u32x4 = vdupq_n_u32(0), max_iter_u32x4 = vdupq_n_u32(0);
     uint32x4_t iter_u32x4 = vdupq_n_u32(0), one_u32x4 = vdupq_n_u32(1);
     nk_size_t idx = 0;
@@ -177,40 +177,43 @@ NK_HELPER_INLINE void nk_reduce_minmax_f32_neon_contiguous_( //
     }
     nk_f32_t min_value = vminvq_f32(min_f32x4), max_value = vmaxvq_f32(max_f32x4);
     uint32x4_t min_value_match_u32x4 = vceqq_f32(min_f32x4, vdupq_n_f32(min_value));
-    uint32x4_t masked_min_iter_u32x4 = vbslq_u32(min_value_match_u32x4, min_iter_u32x4, vdupq_n_u32(NK_U32_MAX));
+    uint32x4_t masked_min_iter_u32x4 = vbslq_u32(min_value_match_u32x4, min_iter_u32x4, vdupq_n_u32(NUMKONG_U32_MAX));
     nk_u32_t earliest_min_cycle = vminvq_u32(masked_min_iter_u32x4);
     uint32x4_t max_value_match_u32x4 = vceqq_f32(max_f32x4, vdupq_n_f32(max_value));
-    uint32x4_t masked_max_iter_u32x4 = vbslq_u32(max_value_match_u32x4, max_iter_u32x4, vdupq_n_u32(NK_U32_MAX));
+    uint32x4_t masked_max_iter_u32x4 = vbslq_u32(max_value_match_u32x4, max_iter_u32x4, vdupq_n_u32(NUMKONG_U32_MAX));
     nk_u32_t earliest_max_cycle = vminvq_u32(masked_max_iter_u32x4);
     uint32x4_t lane_indices_u32x4 = vcombine_u32(vreinterpret_u32_u64(vcreate_u64(0x0000000100000000ULL)),
                                                  vreinterpret_u32_u64(vcreate_u64(0x0000000300000002ULL)));
     uint32x4_t min_cycle_match_u32x4 = vceqq_u32(min_iter_u32x4, vdupq_n_u32(earliest_min_cycle));
     uint32x4_t min_both_match_u32x4 = vandq_u32(min_value_match_u32x4, min_cycle_match_u32x4);
-    uint32x4_t min_masked_lanes_u32x4 = vbslq_u32(min_both_match_u32x4, lane_indices_u32x4, vdupq_n_u32(NK_U32_MAX));
+    uint32x4_t min_masked_lanes_u32x4 = vbslq_u32(min_both_match_u32x4, lane_indices_u32x4,
+                                                  vdupq_n_u32(NUMKONG_U32_MAX));
     nk_u32_t min_lane_offset = vminvq_u32(min_masked_lanes_u32x4);
     nk_size_t min_idx = (nk_size_t)earliest_min_cycle * 4 + (nk_size_t)min_lane_offset;
     uint32x4_t max_cycle_match_u32x4 = vceqq_u32(max_iter_u32x4, vdupq_n_u32(earliest_max_cycle));
     uint32x4_t max_both_match_u32x4 = vandq_u32(max_value_match_u32x4, max_cycle_match_u32x4);
-    uint32x4_t max_masked_lanes_u32x4 = vbslq_u32(max_both_match_u32x4, lane_indices_u32x4, vdupq_n_u32(NK_U32_MAX));
+    uint32x4_t max_masked_lanes_u32x4 = vbslq_u32(max_both_match_u32x4, lane_indices_u32x4,
+                                                  vdupq_n_u32(NUMKONG_U32_MAX));
     nk_u32_t max_lane_offset = vminvq_u32(max_masked_lanes_u32x4);
     nk_size_t max_idx = (nk_size_t)earliest_max_cycle * 4 + (nk_size_t)max_lane_offset;
     // The winning lane keeps the zero sign `vminvq` may flip; an unmoved sentinel is looked up
     nk_b128_vec_t min_values_vec, max_values_vec;
     min_values_vec.f32x4 = min_f32x4, max_values_vec.f32x4 = max_f32x4;
     *min_value_ptr = min_values_vec.f32s[min_lane_offset];
-    *min_index_ptr = min_value < NK_F32_INF ? min_idx
-                                            : nk_reduce_find_f32_serial_(data_ptr, count, sizeof(nk_f32_t), NK_F32_INF);
+    *min_index_ptr = min_value < NUMKONG_F32_INF
+                         ? min_idx
+                         : nk_reduce_find_f32_serial_(data_ptr, count, sizeof(nk_f32_t), NUMKONG_F32_INF);
     *max_value_ptr = max_values_vec.f32s[max_lane_offset];
-    *max_index_ptr = max_value > -NK_F32_INF
+    *max_index_ptr = max_value > -NUMKONG_F32_INF
                          ? max_idx
-                         : nk_reduce_find_f32_serial_(data_ptr, count, sizeof(nk_f32_t), -NK_F32_INF);
+                         : nk_reduce_find_f32_serial_(data_ptr, count, sizeof(nk_f32_t), -NUMKONG_F32_INF);
 }
 
-NK_HELPER_INLINE void nk_reduce_minmax_f32_neon_strided_(                 //
+NUMKONG_HELPER_INLINE void nk_reduce_minmax_f32_neon_strided_(            //
     nk_f32_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_f32_t *min_value_ptr, nk_size_t *min_index_ptr,                    //
     nk_f32_t *max_value_ptr, nk_size_t *max_index_ptr) {
-    float32x4_t min_f32x4 = vdupq_n_f32(NK_F32_INF), max_f32x4 = vdupq_n_f32(-NK_F32_INF);
+    float32x4_t min_f32x4 = vdupq_n_f32(NUMKONG_F32_INF), max_f32x4 = vdupq_n_f32(-NUMKONG_F32_INF);
     uint32x4_t min_iter_u32x4 = vdupq_n_u32(0), max_iter_u32x4 = vdupq_n_u32(0);
     uint32x4_t iter_u32x4 = vdupq_n_u32(0), one_u32x4 = vdupq_n_u32(1);
     uint32x4_t lane_indices_u32x4 = vcombine_u32(vreinterpret_u32_u64(vcreate_u64(0x0000000100000000ULL)),
@@ -248,35 +251,38 @@ nk_reduce_minmax_f32_neon_cycle:
     else {
         nk_f32_t min_value = vminvq_f32(min_f32x4), max_value = vmaxvq_f32(max_f32x4);
         uint32x4_t min_value_match_u32x4 = vceqq_f32(min_f32x4, vdupq_n_f32(min_value));
-        uint32x4_t masked_min_iter_u32x4 = vbslq_u32(min_value_match_u32x4, min_iter_u32x4, vdupq_n_u32(NK_U32_MAX));
+        uint32x4_t masked_min_iter_u32x4 = vbslq_u32(min_value_match_u32x4, min_iter_u32x4,
+                                                     vdupq_n_u32(NUMKONG_U32_MAX));
         nk_u32_t earliest_min_cycle = vminvq_u32(masked_min_iter_u32x4);
         uint32x4_t max_value_match_u32x4 = vceqq_f32(max_f32x4, vdupq_n_f32(max_value));
-        uint32x4_t masked_max_iter_u32x4 = vbslq_u32(max_value_match_u32x4, max_iter_u32x4, vdupq_n_u32(NK_U32_MAX));
+        uint32x4_t masked_max_iter_u32x4 = vbslq_u32(max_value_match_u32x4, max_iter_u32x4,
+                                                     vdupq_n_u32(NUMKONG_U32_MAX));
         nk_u32_t earliest_max_cycle = vminvq_u32(masked_max_iter_u32x4);
         uint32x4_t min_cycle_match_u32x4 = vceqq_u32(min_iter_u32x4, vdupq_n_u32(earliest_min_cycle));
         uint32x4_t min_both_match_u32x4 = vandq_u32(min_value_match_u32x4, min_cycle_match_u32x4);
         uint32x4_t min_masked_lanes_u32x4 = vbslq_u32(min_both_match_u32x4, lane_indices_u32x4,
-                                                      vdupq_n_u32(NK_U32_MAX));
+                                                      vdupq_n_u32(NUMKONG_U32_MAX));
         nk_u32_t min_lane_offset = vminvq_u32(min_masked_lanes_u32x4);
         nk_size_t min_idx = (nk_size_t)earliest_min_cycle * 4 + (nk_size_t)min_lane_offset;
         uint32x4_t max_cycle_match_u32x4 = vceqq_u32(max_iter_u32x4, vdupq_n_u32(earliest_max_cycle));
         uint32x4_t max_both_match_u32x4 = vandq_u32(max_value_match_u32x4, max_cycle_match_u32x4);
         uint32x4_t max_masked_lanes_u32x4 = vbslq_u32(max_both_match_u32x4, lane_indices_u32x4,
-                                                      vdupq_n_u32(NK_U32_MAX));
+                                                      vdupq_n_u32(NUMKONG_U32_MAX));
         nk_u32_t max_lane_offset = vminvq_u32(max_masked_lanes_u32x4);
         nk_size_t max_idx = (nk_size_t)earliest_max_cycle * 4 + (nk_size_t)max_lane_offset;
         // The winning lane keeps the zero sign `vminvq` may flip; an unmoved sentinel is looked up
         nk_b128_vec_t min_values_vec, max_values_vec;
         min_values_vec.f32x4 = min_f32x4, max_values_vec.f32x4 = max_f32x4;
         *min_value_ptr = min_values_vec.f32s[min_lane_offset];
-        *min_index_ptr = min_value < NK_F32_INF ? min_idx
-                                                : nk_reduce_find_f32_serial_(
-                                                      data_ptr, count, stride_elements * sizeof(nk_f32_t), NK_F32_INF);
+        *min_index_ptr = min_value < NUMKONG_F32_INF
+                             ? min_idx
+                             : nk_reduce_find_f32_serial_(data_ptr, count, stride_elements * sizeof(nk_f32_t),
+                                                          NUMKONG_F32_INF);
         *max_value_ptr = max_values_vec.f32s[max_lane_offset];
-        *max_index_ptr = max_value > -NK_F32_INF
+        *max_index_ptr = max_value > -NUMKONG_F32_INF
                              ? max_idx
                              : nk_reduce_find_f32_serial_(data_ptr, count, stride_elements * sizeof(nk_f32_t),
-                                                          -NK_F32_INF);
+                                                          -NUMKONG_F32_INF);
         return;
     }
 
@@ -291,19 +297,19 @@ nk_reduce_minmax_f32_neon_cycle:
     goto nk_reduce_minmax_f32_neon_cycle;
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_f32_neon(                        //
+NUMKONG_API_COMPTIME void nk_reduce_minmax_f32_neon(                   //
     nk_f32_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_f32_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_f32_t *max_value_ptr, nk_size_t *max_index_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_f32_t);
     int aligned = (stride_bytes % sizeof(nk_f32_t) == 0);
     if (count == 0)
-        *min_value_ptr = NK_F32_INF, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = -NK_F32_INF,
-        *max_index_ptr = NK_SIZE_MAX;
+        *min_value_ptr = NUMKONG_F32_INF, *min_index_ptr = NUMKONG_SIZE_MAX, *max_value_ptr = -NUMKONG_F32_INF,
+        *max_index_ptr = NUMKONG_SIZE_MAX;
     else if (!aligned)
         nk_reduce_minmax_f32_serial(data_ptr, count, stride_bytes, min_value_ptr, min_index_ptr, max_value_ptr,
                                     max_index_ptr);
-    else if (count > (nk_size_t)NK_U32_MAX * 4) {
+    else if (count > (nk_size_t)NUMKONG_U32_MAX * 4) {
         nk_size_t left_count = count / 2;
         nk_f32_t left_min_value, right_min_value, left_max_value, right_max_value;
         nk_size_t left_min_index, right_min_index, left_max_index, right_max_index;
@@ -312,10 +318,12 @@ NK_API_COMPTIME void nk_reduce_minmax_f32_neon(                        //
         nk_reduce_minmax_f32_neon(data_ptr + left_count * stride_elements, count - left_count, stride_bytes,
                                   &right_min_value, &right_min_index, &right_max_value, &right_max_index);
         // An all-NaN left half has no index, so an equal infinity on the right still wins
-        if (right_min_value < left_min_value || (left_min_index == NK_SIZE_MAX && right_min_index != NK_SIZE_MAX))
+        if (right_min_value < left_min_value ||
+            (left_min_index == NUMKONG_SIZE_MAX && right_min_index != NUMKONG_SIZE_MAX))
             *min_value_ptr = right_min_value, *min_index_ptr = left_count + right_min_index;
         else *min_value_ptr = left_min_value, *min_index_ptr = left_min_index;
-        if (right_max_value > left_max_value || (left_max_index == NK_SIZE_MAX && right_max_index != NK_SIZE_MAX))
+        if (right_max_value > left_max_value ||
+            (left_max_index == NUMKONG_SIZE_MAX && right_max_index != NUMKONG_SIZE_MAX))
             *max_value_ptr = right_max_value, *max_index_ptr = left_count + right_max_index;
         else *max_value_ptr = left_max_value, *max_index_ptr = left_max_index;
     }
@@ -330,8 +338,8 @@ NK_API_COMPTIME void nk_reduce_minmax_f32_neon(                        //
                                     max_index_ptr);
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_f64_neon_contiguous_( //
-    nk_f64_t const *data_ptr, nk_size_t count,                //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_f64_neon_contiguous_( //
+    nk_f64_t const *data_ptr, nk_size_t count,                     //
     nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr) {
     float64x2_t sum_f64x2 = vdupq_n_f64(0), sum_compensation_f64x2 = vdupq_n_f64(0);
     float64x2_t sumsq_f64x2 = vdupq_n_f64(0), sumsq_compensation_f64x2 = vdupq_n_f64(0);
@@ -377,14 +385,14 @@ NK_HELPER_INLINE void nk_reduce_moments_f64_neon_contiguous_( //
     *sumsq_ptr = vaddvq_f64(vaddq_f64(sumsq_f64x2, sumsq_compensation_f64x2));
 }
 
-NK_API_COMPTIME void nk_reduce_moments_f64_neon(                       //
+NUMKONG_API_COMPTIME void nk_reduce_moments_f64_neon(                  //
     nk_f64_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_f64_t);
     int aligned = (stride_bytes % sizeof(nk_f64_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (!aligned) nk_reduce_moments_f64_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
-    else if (count > (nk_size_t)(NK_U16_MAX + 1) * 2) {
+    else if (count > (nk_size_t)(NUMKONG_U16_MAX + 1) * 2) {
         nk_size_t left_count = count / 2;
         nk_f64_t left_sum, left_sumsq, right_sum, right_sumsq;
         nk_reduce_moments_f64_neon(data_ptr, left_count, stride_bytes, &left_sum, &left_sumsq);
@@ -396,11 +404,11 @@ NK_API_COMPTIME void nk_reduce_moments_f64_neon(                       //
     else nk_reduce_moments_f64_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_HELPER_INLINE void nk_reduce_minmax_f64_neon_contiguous_( //
-    nk_f64_t const *data_ptr, nk_size_t count,               //
-    nk_f64_t *min_value_ptr, nk_size_t *min_index_ptr,       //
+NUMKONG_HELPER_INLINE void nk_reduce_minmax_f64_neon_contiguous_( //
+    nk_f64_t const *data_ptr, nk_size_t count,                    //
+    nk_f64_t *min_value_ptr, nk_size_t *min_index_ptr,            //
     nk_f64_t *max_value_ptr, nk_size_t *max_index_ptr) {
-    float64x2_t min_f64x2 = vdupq_n_f64(NK_F64_INF), max_f64x2 = vdupq_n_f64(-NK_F64_INF);
+    float64x2_t min_f64x2 = vdupq_n_f64(NUMKONG_F64_INF), max_f64x2 = vdupq_n_f64(-NUMKONG_F64_INF);
     uint64x2_t min_iter_u64x2 = vdupq_n_u64(0), max_iter_u64x2 = vdupq_n_u64(0);
     uint64x2_t iter_u64x2 = vdupq_n_u64(0), one_u64x2 = vdupq_n_u64(1);
     nk_size_t idx = 0;
@@ -436,22 +444,23 @@ NK_HELPER_INLINE void nk_reduce_minmax_f64_neon_contiguous_( //
         if (val > max_value) max_value = val, max_index = idx;
     }
     // A side still at its sentinel is looked up, not taken from the lane that never moved
-    if (min_value == NK_F64_INF) min_index = nk_reduce_find_f64_serial_(data_ptr, count, sizeof(nk_f64_t), NK_F64_INF);
-    if (max_value == -NK_F64_INF)
-        max_index = nk_reduce_find_f64_serial_(data_ptr, count, sizeof(nk_f64_t), -NK_F64_INF);
+    if (min_value == NUMKONG_F64_INF)
+        min_index = nk_reduce_find_f64_serial_(data_ptr, count, sizeof(nk_f64_t), NUMKONG_F64_INF);
+    if (max_value == -NUMKONG_F64_INF)
+        max_index = nk_reduce_find_f64_serial_(data_ptr, count, sizeof(nk_f64_t), -NUMKONG_F64_INF);
     *min_value_ptr = min_value, *min_index_ptr = min_index;
     *max_value_ptr = max_value, *max_index_ptr = max_index;
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_f64_neon(                        //
+NUMKONG_API_COMPTIME void nk_reduce_minmax_f64_neon(                   //
     nk_f64_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_f64_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_f64_t *max_value_ptr, nk_size_t *max_index_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_f64_t);
     int aligned = (stride_bytes % sizeof(nk_f64_t) == 0);
     if (count == 0)
-        *min_value_ptr = NK_F64_INF, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = -NK_F64_INF,
-        *max_index_ptr = NK_SIZE_MAX;
+        *min_value_ptr = NUMKONG_F64_INF, *min_index_ptr = NUMKONG_SIZE_MAX, *max_value_ptr = -NUMKONG_F64_INF,
+        *max_index_ptr = NUMKONG_SIZE_MAX;
     else if (!aligned)
         nk_reduce_minmax_f64_serial(data_ptr, count, stride_bytes, min_value_ptr, min_index_ptr, max_value_ptr,
                                     max_index_ptr);
@@ -463,8 +472,8 @@ NK_API_COMPTIME void nk_reduce_minmax_f64_neon(                        //
                                     max_index_ptr);
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_i8_neon_contiguous_( //
-    nk_i8_t const *data_ptr, nk_size_t count,                //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_i8_neon_contiguous_( //
+    nk_i8_t const *data_ptr, nk_size_t count,                     //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     int32x4_t sum_i32x4 = vdupq_n_s32(0);
     uint64x2_t sumsq_u64x2 = vdupq_n_u64(0);
@@ -487,7 +496,7 @@ NK_HELPER_INLINE void nk_reduce_moments_i8_neon_contiguous_( //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_i8_neon_strided_(                //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_i8_neon_strided_(           //
     nk_i8_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     int32x4_t sum_i32x4 = vdupq_n_s32(0);
@@ -538,14 +547,14 @@ NK_HELPER_INLINE void nk_reduce_moments_i8_neon_strided_(                //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_API_COMPTIME void nk_reduce_moments_i8_neon(                       //
+NUMKONG_API_COMPTIME void nk_reduce_moments_i8_neon(                  //
     nk_i8_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_i8_t);
     int aligned = (stride_bytes % sizeof(nk_i8_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (!aligned) nk_reduce_moments_i8_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
-    else if (count > (nk_size_t)(NK_U16_MAX + 1) * 16) {
+    else if (count > (nk_size_t)(NUMKONG_U16_MAX + 1) * 16) {
         nk_size_t left_count = count / 2;
         nk_i64_t left_sum, right_sum;
         nk_u64_t left_sumsq, right_sumsq;
@@ -561,11 +570,11 @@ NK_API_COMPTIME void nk_reduce_moments_i8_neon(                       //
     else nk_reduce_moments_i8_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_HELPER_INLINE void nk_reduce_minmax_i8_neon_contiguous_( //
-    nk_i8_t const *data_ptr, nk_size_t count,               //
-    nk_i8_t *min_value_ptr, nk_size_t *min_index_ptr,       //
+NUMKONG_HELPER_INLINE void nk_reduce_minmax_i8_neon_contiguous_( //
+    nk_i8_t const *data_ptr, nk_size_t count,                    //
+    nk_i8_t *min_value_ptr, nk_size_t *min_index_ptr,            //
     nk_i8_t *max_value_ptr, nk_size_t *max_index_ptr) {
-    int8x16_t min_i8x16 = vdupq_n_s8(NK_I8_MAX), max_i8x16 = vdupq_n_s8(NK_I8_MIN);
+    int8x16_t min_i8x16 = vdupq_n_s8(NUMKONG_I8_MAX), max_i8x16 = vdupq_n_s8(NUMKONG_I8_MIN);
     uint8x16_t min_iter_u8x16 = vdupq_n_u8(0), max_iter_u8x16 = vdupq_n_u8(0);
     uint8x16_t iter_u8x16 = vdupq_n_u8(0), one_u8x16 = vdupq_n_u8(1);
     nk_size_t idx = 0;
@@ -586,8 +595,8 @@ NK_HELPER_INLINE void nk_reduce_minmax_i8_neon_contiguous_( //
         uint8x16_t lane_indices_u8x16 = vcombine_u8(vreinterpret_u8_u64(vcreate_u64(0x0706050403020100ULL)),
                                                     vreinterpret_u8_u64(vcreate_u64(0x0F0E0D0C0B0A0908ULL)));
         uint8x16_t valid_u8x16 = vcltq_u8(lane_indices_u8x16, vdupq_n_u8((nk_u8_t)remaining));
-        int8x16_t data_for_min_i8x16 = vbslq_s8(valid_u8x16, tail_vec.i8x16, vdupq_n_s8(NK_I8_MAX));
-        int8x16_t data_for_max_i8x16 = vbslq_s8(valid_u8x16, tail_vec.i8x16, vdupq_n_s8(NK_I8_MIN));
+        int8x16_t data_for_min_i8x16 = vbslq_s8(valid_u8x16, tail_vec.i8x16, vdupq_n_s8(NUMKONG_I8_MAX));
+        int8x16_t data_for_max_i8x16 = vbslq_s8(valid_u8x16, tail_vec.i8x16, vdupq_n_s8(NUMKONG_I8_MIN));
         uint8x16_t less_u8x16 = vcltq_s8(data_for_min_i8x16, min_i8x16);
         uint8x16_t greater_u8x16 = vcgtq_s8(data_for_max_i8x16, max_i8x16);
         min_i8x16 = vbslq_s8(less_u8x16, data_for_min_i8x16, min_i8x16);
@@ -618,11 +627,11 @@ NK_HELPER_INLINE void nk_reduce_minmax_i8_neon_contiguous_( //
     *max_value_ptr = max_value, *max_index_ptr = max_idx;
 }
 
-NK_HELPER_INLINE void nk_reduce_minmax_i8_neon_strided_(                 //
+NUMKONG_HELPER_INLINE void nk_reduce_minmax_i8_neon_strided_(            //
     nk_i8_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_i8_t *min_value_ptr, nk_size_t *min_index_ptr,                    //
     nk_i8_t *max_value_ptr, nk_size_t *max_index_ptr) {
-    int8x16_t min_i8x16 = vdupq_n_s8(NK_I8_MAX), max_i8x16 = vdupq_n_s8(NK_I8_MIN);
+    int8x16_t min_i8x16 = vdupq_n_s8(NUMKONG_I8_MAX), max_i8x16 = vdupq_n_s8(NUMKONG_I8_MIN);
     uint8x16_t min_iter_u8x16 = vdupq_n_u8(0), max_iter_u8x16 = vdupq_n_u8(0);
     uint8x16_t iter_u8x16 = vdupq_n_u8(0), one_u8x16 = vdupq_n_u8(1);
     uint8x16_t lane_indices_u8x16 = vcombine_u8(vreinterpret_u8_u64(vcreate_u64(0x0706050403020100ULL)),
@@ -691,19 +700,19 @@ nk_reduce_minmax_i8_neon_cycle:
     goto nk_reduce_minmax_i8_neon_cycle;
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_i8_neon(                        //
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i8_neon(                   //
     nk_i8_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_i8_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_i8_t *max_value_ptr, nk_size_t *max_index_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_i8_t);
     int aligned = (stride_bytes % sizeof(nk_i8_t) == 0);
     if (count == 0)
-        *min_value_ptr = NK_I8_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = NK_I8_MIN,
-        *max_index_ptr = NK_SIZE_MAX;
+        *min_value_ptr = NUMKONG_I8_MAX, *min_index_ptr = NUMKONG_SIZE_MAX, *max_value_ptr = NUMKONG_I8_MIN,
+        *max_index_ptr = NUMKONG_SIZE_MAX;
     else if (!aligned)
         nk_reduce_minmax_i8_serial(data_ptr, count, stride_bytes, min_value_ptr, min_index_ptr, max_value_ptr,
                                    max_index_ptr);
-    else if (count > (nk_size_t)(NK_U8_MAX + 1) * 16) {
+    else if (count > (nk_size_t)(NUMKONG_U8_MAX + 1) * 16) {
         nk_size_t left_count = count / 2;
         nk_i8_t left_min_value, right_min_value, left_max_value, right_max_value;
         nk_size_t left_min_index, right_min_index, left_max_index, right_max_index;
@@ -729,8 +738,8 @@ NK_API_COMPTIME void nk_reduce_minmax_i8_neon(                        //
                                    max_index_ptr);
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_u8_neon_contiguous_( //
-    nk_u8_t const *data_ptr, nk_size_t count,                //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_u8_neon_contiguous_( //
+    nk_u8_t const *data_ptr, nk_size_t count,                     //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     uint32x4_t sum_u32x4 = vdupq_n_u32(0);
     uint64x2_t sumsq_u64x2 = vdupq_n_u64(0);
@@ -755,7 +764,7 @@ NK_HELPER_INLINE void nk_reduce_moments_u8_neon_contiguous_( //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_u8_neon_strided_(                //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_u8_neon_strided_(           //
     nk_u8_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     uint32x4_t sum_u32x4 = vdupq_n_u32(0);
@@ -806,14 +815,14 @@ NK_HELPER_INLINE void nk_reduce_moments_u8_neon_strided_(                //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_API_COMPTIME void nk_reduce_moments_u8_neon(                       //
+NUMKONG_API_COMPTIME void nk_reduce_moments_u8_neon(                  //
     nk_u8_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_u8_t);
     int aligned = (stride_bytes % sizeof(nk_u8_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (!aligned) nk_reduce_moments_u8_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
-    else if (count > (nk_size_t)(NK_U16_MAX + 1) * 16) {
+    else if (count > (nk_size_t)(NUMKONG_U16_MAX + 1) * 16) {
         nk_size_t left_count = count / 2;
         nk_u64_t left_sum, left_sumsq, right_sum, right_sumsq;
         nk_reduce_moments_u8_neon(data_ptr, left_count, stride_bytes, &left_sum, &left_sumsq);
@@ -828,11 +837,11 @@ NK_API_COMPTIME void nk_reduce_moments_u8_neon(                       //
     else nk_reduce_moments_u8_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_HELPER_INLINE void nk_reduce_minmax_u8_neon_contiguous_( //
-    nk_u8_t const *data_ptr, nk_size_t count,               //
-    nk_u8_t *min_value_ptr, nk_size_t *min_index_ptr,       //
+NUMKONG_HELPER_INLINE void nk_reduce_minmax_u8_neon_contiguous_( //
+    nk_u8_t const *data_ptr, nk_size_t count,                    //
+    nk_u8_t *min_value_ptr, nk_size_t *min_index_ptr,            //
     nk_u8_t *max_value_ptr, nk_size_t *max_index_ptr) {
-    uint8x16_t min_u8x16 = vdupq_n_u8(NK_U8_MAX), max_u8x16 = vdupq_n_u8(0);
+    uint8x16_t min_u8x16 = vdupq_n_u8(NUMKONG_U8_MAX), max_u8x16 = vdupq_n_u8(0);
     uint8x16_t min_iter_u8x16 = vdupq_n_u8(0), max_iter_u8x16 = vdupq_n_u8(0);
     uint8x16_t iter_u8x16 = vdupq_n_u8(0), one_u8x16 = vdupq_n_u8(1);
     nk_size_t idx = 0;
@@ -853,7 +862,7 @@ NK_HELPER_INLINE void nk_reduce_minmax_u8_neon_contiguous_( //
         uint8x16_t lane_indices_u8x16 = vcombine_u8(vreinterpret_u8_u64(vcreate_u64(0x0706050403020100ULL)),
                                                     vreinterpret_u8_u64(vcreate_u64(0x0F0E0D0C0B0A0908ULL)));
         uint8x16_t valid_u8x16 = vcltq_u8(lane_indices_u8x16, vdupq_n_u8((nk_u8_t)remaining));
-        uint8x16_t data_for_min_u8x16 = vbslq_u8(valid_u8x16, tail_vec.u8x16, vdupq_n_u8(NK_U8_MAX));
+        uint8x16_t data_for_min_u8x16 = vbslq_u8(valid_u8x16, tail_vec.u8x16, vdupq_n_u8(NUMKONG_U8_MAX));
         uint8x16_t data_for_max_u8x16 = vbslq_u8(valid_u8x16, tail_vec.u8x16, vdupq_n_u8(0));
         uint8x16_t less_u8x16 = vcltq_u8(data_for_min_u8x16, min_u8x16);
         uint8x16_t greater_u8x16 = vcgtq_u8(data_for_max_u8x16, max_u8x16);
@@ -885,11 +894,11 @@ NK_HELPER_INLINE void nk_reduce_minmax_u8_neon_contiguous_( //
     *max_value_ptr = max_value, *max_index_ptr = max_idx;
 }
 
-NK_HELPER_INLINE void nk_reduce_minmax_u8_neon_strided_(                 //
+NUMKONG_HELPER_INLINE void nk_reduce_minmax_u8_neon_strided_(            //
     nk_u8_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_u8_t *min_value_ptr, nk_size_t *min_index_ptr,                    //
     nk_u8_t *max_value_ptr, nk_size_t *max_index_ptr) {
-    uint8x16_t min_u8x16 = vdupq_n_u8(NK_U8_MAX), max_u8x16 = vdupq_n_u8(0);
+    uint8x16_t min_u8x16 = vdupq_n_u8(NUMKONG_U8_MAX), max_u8x16 = vdupq_n_u8(0);
     uint8x16_t min_iter_u8x16 = vdupq_n_u8(0), max_iter_u8x16 = vdupq_n_u8(0);
     uint8x16_t iter_u8x16 = vdupq_n_u8(0), one_u8x16 = vdupq_n_u8(1);
     uint8x16_t lane_indices_u8x16 = vcombine_u8(vreinterpret_u8_u64(vcreate_u64(0x0706050403020100ULL)),
@@ -958,18 +967,19 @@ nk_reduce_minmax_u8_neon_cycle:
     goto nk_reduce_minmax_u8_neon_cycle;
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_u8_neon(                        //
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u8_neon(                   //
     nk_u8_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_u8_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_u8_t *max_value_ptr, nk_size_t *max_index_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_u8_t);
     int aligned = (stride_bytes % sizeof(nk_u8_t) == 0);
     if (count == 0)
-        *min_value_ptr = NK_U8_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = 0, *max_index_ptr = NK_SIZE_MAX;
+        *min_value_ptr = NUMKONG_U8_MAX, *min_index_ptr = NUMKONG_SIZE_MAX, *max_value_ptr = 0,
+        *max_index_ptr = NUMKONG_SIZE_MAX;
     else if (!aligned)
         nk_reduce_minmax_u8_serial(data_ptr, count, stride_bytes, min_value_ptr, min_index_ptr, max_value_ptr,
                                    max_index_ptr);
-    else if (count > (nk_size_t)(NK_U8_MAX + 1) * 16) {
+    else if (count > (nk_size_t)(NUMKONG_U8_MAX + 1) * 16) {
         nk_size_t left_count = count / 2;
         nk_u8_t left_min_value, right_min_value, left_max_value, right_max_value;
         nk_size_t left_min_index, right_min_index, left_max_index, right_max_index;
@@ -995,8 +1005,8 @@ NK_API_COMPTIME void nk_reduce_minmax_u8_neon(                        //
                                    max_index_ptr);
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_i16_neon_contiguous_( //
-    nk_i16_t const *data_ptr, nk_size_t count,                //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_i16_neon_contiguous_( //
+    nk_i16_t const *data_ptr, nk_size_t count,                     //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     int64x2_t sum_i64x2 = vdupq_n_s64(0);
     uint64x2_t sumsq_u64x2 = vdupq_n_u64(0);
@@ -1022,7 +1032,7 @@ NK_HELPER_INLINE void nk_reduce_moments_i16_neon_contiguous_( //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_i16_neon_strided_(                //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_i16_neon_strided_(           //
     nk_i16_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     int64x2_t sum_i64x2 = vdupq_n_s64(0);
@@ -1073,14 +1083,14 @@ NK_HELPER_INLINE void nk_reduce_moments_i16_neon_strided_(                //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_API_COMPTIME void nk_reduce_moments_i16_neon(                       //
+NUMKONG_API_COMPTIME void nk_reduce_moments_i16_neon(                  //
     nk_i16_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_i16_t);
     int aligned = (stride_bytes % sizeof(nk_i16_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (!aligned) nk_reduce_moments_i16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
-    else if (count > (nk_size_t)(NK_U16_MAX + 1) * 8) {
+    else if (count > (nk_size_t)(NUMKONG_U16_MAX + 1) * 8) {
         nk_size_t left_count = count / 2;
         nk_i64_t left_sum, right_sum;
         nk_u64_t left_sumsq, right_sumsq;
@@ -1096,11 +1106,11 @@ NK_API_COMPTIME void nk_reduce_moments_i16_neon(                       //
     else nk_reduce_moments_i16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_HELPER_INLINE void nk_reduce_minmax_i16_neon_contiguous_( //
-    nk_i16_t const *data_ptr, nk_size_t count,               //
-    nk_i16_t *min_value_ptr, nk_size_t *min_index_ptr,       //
+NUMKONG_HELPER_INLINE void nk_reduce_minmax_i16_neon_contiguous_( //
+    nk_i16_t const *data_ptr, nk_size_t count,                    //
+    nk_i16_t *min_value_ptr, nk_size_t *min_index_ptr,            //
     nk_i16_t *max_value_ptr, nk_size_t *max_index_ptr) {
-    int16x8_t min_i16x8 = vdupq_n_s16(NK_I16_MAX), max_i16x8 = vdupq_n_s16(NK_I16_MIN);
+    int16x8_t min_i16x8 = vdupq_n_s16(NUMKONG_I16_MAX), max_i16x8 = vdupq_n_s16(NUMKONG_I16_MIN);
     uint16x8_t min_iter_u16x8 = vdupq_n_u16(0), max_iter_u16x8 = vdupq_n_u16(0);
     uint16x8_t iter_u16x8 = vdupq_n_u16(0), one_u16x8 = vdupq_n_u16(1);
     nk_size_t idx = 0;
@@ -1121,8 +1131,8 @@ NK_HELPER_INLINE void nk_reduce_minmax_i16_neon_contiguous_( //
         uint16x8_t lane_indices_u16x8 = vcombine_u16(vreinterpret_u16_u64(vcreate_u64(0x0003000200010000ULL)),
                                                      vreinterpret_u16_u64(vcreate_u64(0x0007000600050004ULL)));
         uint16x8_t valid_u16x8 = vcltq_u16(lane_indices_u16x8, vdupq_n_u16((nk_u16_t)remaining));
-        int16x8_t data_for_min_i16x8 = vbslq_s16(valid_u16x8, tail_vec.i16x8, vdupq_n_s16(NK_I16_MAX));
-        int16x8_t data_for_max_i16x8 = vbslq_s16(valid_u16x8, tail_vec.i16x8, vdupq_n_s16(NK_I16_MIN));
+        int16x8_t data_for_min_i16x8 = vbslq_s16(valid_u16x8, tail_vec.i16x8, vdupq_n_s16(NUMKONG_I16_MAX));
+        int16x8_t data_for_max_i16x8 = vbslq_s16(valid_u16x8, tail_vec.i16x8, vdupq_n_s16(NUMKONG_I16_MIN));
         uint16x8_t less_u16x8 = vcltq_s16(data_for_min_i16x8, min_i16x8);
         uint16x8_t greater_u16x8 = vcgtq_s16(data_for_max_i16x8, max_i16x8);
         min_i16x8 = vbslq_s16(less_u16x8, data_for_min_i16x8, min_i16x8);
@@ -1153,11 +1163,11 @@ NK_HELPER_INLINE void nk_reduce_minmax_i16_neon_contiguous_( //
     *max_value_ptr = max_value, *max_index_ptr = max_idx;
 }
 
-NK_HELPER_INLINE void nk_reduce_minmax_i16_neon_strided_(                 //
+NUMKONG_HELPER_INLINE void nk_reduce_minmax_i16_neon_strided_(            //
     nk_i16_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_i16_t *min_value_ptr, nk_size_t *min_index_ptr,                    //
     nk_i16_t *max_value_ptr, nk_size_t *max_index_ptr) {
-    int16x8_t min_i16x8 = vdupq_n_s16(NK_I16_MAX), max_i16x8 = vdupq_n_s16(NK_I16_MIN);
+    int16x8_t min_i16x8 = vdupq_n_s16(NUMKONG_I16_MAX), max_i16x8 = vdupq_n_s16(NUMKONG_I16_MIN);
     uint16x8_t min_iter_u16x8 = vdupq_n_u16(0), max_iter_u16x8 = vdupq_n_u16(0);
     uint16x8_t iter_u16x8 = vdupq_n_u16(0), one_u16x8 = vdupq_n_u16(1);
     uint16x8_t lane_indices_u16x8 = vcombine_u16(vreinterpret_u16_u64(vcreate_u64(0x0003000200010000ULL)),
@@ -1226,19 +1236,19 @@ nk_reduce_minmax_i16_neon_cycle:
     goto nk_reduce_minmax_i16_neon_cycle;
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_i16_neon(                        //
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i16_neon(                   //
     nk_i16_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_i16_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_i16_t *max_value_ptr, nk_size_t *max_index_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_i16_t);
     int aligned = (stride_bytes % sizeof(nk_i16_t) == 0);
     if (count == 0)
-        *min_value_ptr = NK_I16_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = NK_I16_MIN,
-        *max_index_ptr = NK_SIZE_MAX;
+        *min_value_ptr = NUMKONG_I16_MAX, *min_index_ptr = NUMKONG_SIZE_MAX, *max_value_ptr = NUMKONG_I16_MIN,
+        *max_index_ptr = NUMKONG_SIZE_MAX;
     else if (!aligned)
         nk_reduce_minmax_i16_serial(data_ptr, count, stride_bytes, min_value_ptr, min_index_ptr, max_value_ptr,
                                     max_index_ptr);
-    else if (count > (nk_size_t)(NK_U16_MAX + 1) * 8) {
+    else if (count > (nk_size_t)(NUMKONG_U16_MAX + 1) * 8) {
         nk_size_t left_count = count / 2;
         nk_i16_t left_min_value, right_min_value, left_max_value, right_max_value;
         nk_size_t left_min_index, right_min_index, left_max_index, right_max_index;
@@ -1264,8 +1274,8 @@ NK_API_COMPTIME void nk_reduce_minmax_i16_neon(                        //
                                     max_index_ptr);
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_u16_neon_contiguous_( //
-    nk_u16_t const *data_ptr, nk_size_t count,                //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_u16_neon_contiguous_( //
+    nk_u16_t const *data_ptr, nk_size_t count,                     //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     uint64x2_t sum_u64x2 = vdupq_n_u64(0);
     uint64x2_t sumsq_u64x2 = vdupq_n_u64(0);
@@ -1288,7 +1298,7 @@ NK_HELPER_INLINE void nk_reduce_moments_u16_neon_contiguous_( //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_u16_neon_strided_(                //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_u16_neon_strided_(           //
     nk_u16_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     uint64x2_t sum_u64x2 = vdupq_n_u64(0);
@@ -1341,14 +1351,14 @@ NK_HELPER_INLINE void nk_reduce_moments_u16_neon_strided_(                //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_API_COMPTIME void nk_reduce_moments_u16_neon(                       //
+NUMKONG_API_COMPTIME void nk_reduce_moments_u16_neon(                  //
     nk_u16_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_u16_t);
     int aligned = (stride_bytes % sizeof(nk_u16_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (!aligned) nk_reduce_moments_u16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
-    else if (count > (nk_size_t)(NK_U16_MAX + 1) * 8) {
+    else if (count > (nk_size_t)(NUMKONG_U16_MAX + 1) * 8) {
         nk_size_t left_count = count / 2;
         nk_u64_t left_sum, left_sumsq, right_sum, right_sumsq;
         nk_reduce_moments_u16_neon(data_ptr, left_count, stride_bytes, &left_sum, &left_sumsq);
@@ -1363,11 +1373,11 @@ NK_API_COMPTIME void nk_reduce_moments_u16_neon(                       //
     else nk_reduce_moments_u16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_HELPER_INLINE void nk_reduce_minmax_u16_neon_contiguous_( //
-    nk_u16_t const *data_ptr, nk_size_t count,               //
-    nk_u16_t *min_value_ptr, nk_size_t *min_index_ptr,       //
+NUMKONG_HELPER_INLINE void nk_reduce_minmax_u16_neon_contiguous_( //
+    nk_u16_t const *data_ptr, nk_size_t count,                    //
+    nk_u16_t *min_value_ptr, nk_size_t *min_index_ptr,            //
     nk_u16_t *max_value_ptr, nk_size_t *max_index_ptr) {
-    uint16x8_t min_u16x8 = vdupq_n_u16(NK_U16_MAX), max_u16x8 = vdupq_n_u16(0);
+    uint16x8_t min_u16x8 = vdupq_n_u16(NUMKONG_U16_MAX), max_u16x8 = vdupq_n_u16(0);
     uint16x8_t min_iter_u16x8 = vdupq_n_u16(0), max_iter_u16x8 = vdupq_n_u16(0);
     uint16x8_t iter_u16x8 = vdupq_n_u16(0), one_u16x8 = vdupq_n_u16(1);
     nk_size_t idx = 0;
@@ -1388,7 +1398,7 @@ NK_HELPER_INLINE void nk_reduce_minmax_u16_neon_contiguous_( //
         uint16x8_t lane_indices_u16x8 = vcombine_u16(vreinterpret_u16_u64(vcreate_u64(0x0003000200010000ULL)),
                                                      vreinterpret_u16_u64(vcreate_u64(0x0007000600050004ULL)));
         uint16x8_t valid_u16x8 = vcltq_u16(lane_indices_u16x8, vdupq_n_u16((nk_u16_t)remaining));
-        uint16x8_t data_for_min_u16x8 = vbslq_u16(valid_u16x8, tail_vec.u16x8, vdupq_n_u16(NK_U16_MAX));
+        uint16x8_t data_for_min_u16x8 = vbslq_u16(valid_u16x8, tail_vec.u16x8, vdupq_n_u16(NUMKONG_U16_MAX));
         uint16x8_t data_for_max_u16x8 = vbslq_u16(valid_u16x8, tail_vec.u16x8, vdupq_n_u16(0));
         uint16x8_t less_u16x8 = vcltq_u16(data_for_min_u16x8, min_u16x8);
         uint16x8_t greater_u16x8 = vcgtq_u16(data_for_max_u16x8, max_u16x8);
@@ -1420,11 +1430,11 @@ NK_HELPER_INLINE void nk_reduce_minmax_u16_neon_contiguous_( //
     *max_value_ptr = max_value, *max_index_ptr = max_idx;
 }
 
-NK_HELPER_INLINE void nk_reduce_minmax_u16_neon_strided_(                 //
+NUMKONG_HELPER_INLINE void nk_reduce_minmax_u16_neon_strided_(            //
     nk_u16_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_u16_t *min_value_ptr, nk_size_t *min_index_ptr,                    //
     nk_u16_t *max_value_ptr, nk_size_t *max_index_ptr) {
-    uint16x8_t min_u16x8 = vdupq_n_u16(NK_U16_MAX), max_u16x8 = vdupq_n_u16(0);
+    uint16x8_t min_u16x8 = vdupq_n_u16(NUMKONG_U16_MAX), max_u16x8 = vdupq_n_u16(0);
     uint16x8_t min_iter_u16x8 = vdupq_n_u16(0), max_iter_u16x8 = vdupq_n_u16(0);
     uint16x8_t iter_u16x8 = vdupq_n_u16(0), one_u16x8 = vdupq_n_u16(1);
     uint16x8_t lane_indices_u16x8 = vcombine_u16(vreinterpret_u16_u64(vcreate_u64(0x0003000200010000ULL)),
@@ -1493,18 +1503,19 @@ nk_reduce_minmax_u16_neon_cycle:
     goto nk_reduce_minmax_u16_neon_cycle;
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_u16_neon(                        //
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u16_neon(                   //
     nk_u16_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_u16_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_u16_t *max_value_ptr, nk_size_t *max_index_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_u16_t);
     int aligned = (stride_bytes % sizeof(nk_u16_t) == 0);
     if (count == 0)
-        *min_value_ptr = NK_U16_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = 0, *max_index_ptr = NK_SIZE_MAX;
+        *min_value_ptr = NUMKONG_U16_MAX, *min_index_ptr = NUMKONG_SIZE_MAX, *max_value_ptr = 0,
+        *max_index_ptr = NUMKONG_SIZE_MAX;
     else if (!aligned)
         nk_reduce_minmax_u16_serial(data_ptr, count, stride_bytes, min_value_ptr, min_index_ptr, max_value_ptr,
                                     max_index_ptr);
-    else if (count > (nk_size_t)(NK_U16_MAX + 1) * 8) {
+    else if (count > (nk_size_t)(NUMKONG_U16_MAX + 1) * 8) {
         nk_size_t left_count = count / 2;
         nk_u16_t left_min_value, right_min_value, left_max_value, right_max_value;
         nk_size_t left_min_index, right_min_index, left_max_index, right_max_index;
@@ -1530,8 +1541,8 @@ NK_API_COMPTIME void nk_reduce_minmax_u16_neon(                        //
                                     max_index_ptr);
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_i32_neon_contiguous_( //
-    nk_i32_t const *data_ptr, nk_size_t count,                //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_i32_neon_contiguous_( //
+    nk_i32_t const *data_ptr, nk_size_t count,                     //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     // 128-bit accumulation: lower (u64) + upper (i64) per lane
     uint64x2_t sum_low_u64x2 = vdupq_n_u64(0);
@@ -1582,7 +1593,7 @@ NK_HELPER_INLINE void nk_reduce_moments_i32_neon_contiguous_( //
     }
     // Sumsq horizontal saturating reduction
     nk_u64_t sumsq;
-    if (sumsq_overflow) sumsq = NK_U64_MAX;
+    if (sumsq_overflow) sumsq = NUMKONG_U64_MAX;
     else sumsq = nk_reduce_sadd_u64x2_neon_(sumsq_u64x2);
     // Sum: horizontal 128-bit reduction (2 lanes -> scalar)
     nk_b128_vec_t lower_vec, upper_vec;
@@ -1608,12 +1619,12 @@ NK_HELPER_INLINE void nk_reduce_moments_i32_neon_contiguous_( //
     // Clamp 128-bit sum to i64 range
     nk_i64_t sum_low_signed = (nk_i64_t)sum_low;
     if (sum_high == (sum_low_signed >> 63)) *sum_ptr = sum_low_signed;
-    else if (sum_high >= 0) *sum_ptr = NK_I64_MAX;
-    else *sum_ptr = NK_I64_MIN;
+    else if (sum_high >= 0) *sum_ptr = NUMKONG_I64_MAX;
+    else *sum_ptr = NUMKONG_I64_MIN;
     *sumsq_ptr = sumsq;
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_i32_neon_strided_(                //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_i32_neon_strided_(           //
     nk_i32_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     uint64x2_t sum_low_u64x2 = vdupq_n_u64(0);
@@ -1737,7 +1748,7 @@ NK_HELPER_INLINE void nk_reduce_moments_i32_neon_strided_(                //
         }
     }
     nk_u64_t sumsq;
-    if (sumsq_overflow) sumsq = NK_U64_MAX;
+    if (sumsq_overflow) sumsq = NUMKONG_U64_MAX;
     else sumsq = nk_reduce_sadd_u64x2_neon_(sumsq_u64x2);
     nk_b128_vec_t lower_vec, upper_vec;
     lower_vec.u64x2 = sum_low_u64x2;
@@ -1760,12 +1771,12 @@ NK_HELPER_INLINE void nk_reduce_moments_i32_neon_strided_(                //
     }
     nk_i64_t sum_low_signed = (nk_i64_t)sum_low;
     if (sum_high == (sum_low_signed >> 63)) *sum_ptr = sum_low_signed;
-    else if (sum_high >= 0) *sum_ptr = NK_I64_MAX;
-    else *sum_ptr = NK_I64_MIN;
+    else if (sum_high >= 0) *sum_ptr = NUMKONG_I64_MAX;
+    else *sum_ptr = NUMKONG_I64_MIN;
     *sumsq_ptr = sumsq;
 }
 
-NK_API_COMPTIME void nk_reduce_moments_i32_neon(                       //
+NUMKONG_API_COMPTIME void nk_reduce_moments_i32_neon(                  //
     nk_i32_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_i32_t);
@@ -1778,11 +1789,11 @@ NK_API_COMPTIME void nk_reduce_moments_i32_neon(                       //
     else nk_reduce_moments_i32_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_HELPER_INLINE void nk_reduce_minmax_i32_neon_contiguous_( //
-    nk_i32_t const *data_ptr, nk_size_t count,               //
-    nk_i32_t *min_value_ptr, nk_size_t *min_index_ptr,       //
+NUMKONG_HELPER_INLINE void nk_reduce_minmax_i32_neon_contiguous_( //
+    nk_i32_t const *data_ptr, nk_size_t count,                    //
+    nk_i32_t *min_value_ptr, nk_size_t *min_index_ptr,            //
     nk_i32_t *max_value_ptr, nk_size_t *max_index_ptr) {
-    int32x4_t min_i32x4 = vdupq_n_s32(NK_I32_MAX), max_i32x4 = vdupq_n_s32(NK_I32_MIN);
+    int32x4_t min_i32x4 = vdupq_n_s32(NUMKONG_I32_MAX), max_i32x4 = vdupq_n_s32(NUMKONG_I32_MIN);
     uint32x4_t min_iter_u32x4 = vdupq_n_u32(0), max_iter_u32x4 = vdupq_n_u32(0);
     uint32x4_t iter_u32x4 = vdupq_n_u32(0), one_u32x4 = vdupq_n_u32(1);
     nk_size_t idx = 0;
@@ -1803,8 +1814,8 @@ NK_HELPER_INLINE void nk_reduce_minmax_i32_neon_contiguous_( //
         uint32x4_t lane_indices_u32x4 = vcombine_u32(vreinterpret_u32_u64(vcreate_u64(0x0000000100000000ULL)),
                                                      vreinterpret_u32_u64(vcreate_u64(0x0000000300000002ULL)));
         uint32x4_t valid_u32x4 = vcltq_u32(lane_indices_u32x4, vdupq_n_u32((nk_u32_t)remaining));
-        int32x4_t data_min_i32x4 = vbslq_s32(valid_u32x4, tail_vec.i32x4, vdupq_n_s32(NK_I32_MAX));
-        int32x4_t data_max_i32x4 = vbslq_s32(valid_u32x4, tail_vec.i32x4, vdupq_n_s32(NK_I32_MIN));
+        int32x4_t data_min_i32x4 = vbslq_s32(valid_u32x4, tail_vec.i32x4, vdupq_n_s32(NUMKONG_I32_MAX));
+        int32x4_t data_max_i32x4 = vbslq_s32(valid_u32x4, tail_vec.i32x4, vdupq_n_s32(NUMKONG_I32_MIN));
         uint32x4_t less_u32x4 = vcltq_s32(data_min_i32x4, min_i32x4);
         uint32x4_t greater_u32x4 = vcgtq_s32(data_max_i32x4, max_i32x4);
         min_i32x4 = vbslq_s32(less_u32x4, data_min_i32x4, min_i32x4);
@@ -1814,32 +1825,34 @@ NK_HELPER_INLINE void nk_reduce_minmax_i32_neon_contiguous_( //
     }
     nk_i32_t min_value = vminvq_s32(min_i32x4), max_value = vmaxvq_s32(max_i32x4);
     uint32x4_t min_value_match_u32x4 = vceqq_s32(min_i32x4, vdupq_n_s32(min_value));
-    uint32x4_t masked_min_iter_u32x4 = vbslq_u32(min_value_match_u32x4, min_iter_u32x4, vdupq_n_u32(NK_U32_MAX));
+    uint32x4_t masked_min_iter_u32x4 = vbslq_u32(min_value_match_u32x4, min_iter_u32x4, vdupq_n_u32(NUMKONG_U32_MAX));
     nk_u32_t earliest_min_cycle = vminvq_u32(masked_min_iter_u32x4);
     uint32x4_t max_value_match_u32x4 = vceqq_s32(max_i32x4, vdupq_n_s32(max_value));
-    uint32x4_t masked_max_iter_u32x4 = vbslq_u32(max_value_match_u32x4, max_iter_u32x4, vdupq_n_u32(NK_U32_MAX));
+    uint32x4_t masked_max_iter_u32x4 = vbslq_u32(max_value_match_u32x4, max_iter_u32x4, vdupq_n_u32(NUMKONG_U32_MAX));
     nk_u32_t earliest_max_cycle = vminvq_u32(masked_max_iter_u32x4);
     uint32x4_t lane_indices_u32x4 = vcombine_u32(vreinterpret_u32_u64(vcreate_u64(0x0000000100000000ULL)),
                                                  vreinterpret_u32_u64(vcreate_u64(0x0000000300000002ULL)));
     uint32x4_t min_cycle_match_u32x4 = vceqq_u32(min_iter_u32x4, vdupq_n_u32(earliest_min_cycle));
     uint32x4_t min_both_match_u32x4 = vandq_u32(min_value_match_u32x4, min_cycle_match_u32x4);
-    uint32x4_t min_masked_lanes_u32x4 = vbslq_u32(min_both_match_u32x4, lane_indices_u32x4, vdupq_n_u32(NK_U32_MAX));
+    uint32x4_t min_masked_lanes_u32x4 = vbslq_u32(min_both_match_u32x4, lane_indices_u32x4,
+                                                  vdupq_n_u32(NUMKONG_U32_MAX));
     nk_u32_t min_lane_offset = vminvq_u32(min_masked_lanes_u32x4);
     nk_size_t min_idx = (nk_size_t)earliest_min_cycle * 4 + (nk_size_t)min_lane_offset;
     uint32x4_t max_cycle_match_u32x4 = vceqq_u32(max_iter_u32x4, vdupq_n_u32(earliest_max_cycle));
     uint32x4_t max_both_match_u32x4 = vandq_u32(max_value_match_u32x4, max_cycle_match_u32x4);
-    uint32x4_t max_masked_lanes_u32x4 = vbslq_u32(max_both_match_u32x4, lane_indices_u32x4, vdupq_n_u32(NK_U32_MAX));
+    uint32x4_t max_masked_lanes_u32x4 = vbslq_u32(max_both_match_u32x4, lane_indices_u32x4,
+                                                  vdupq_n_u32(NUMKONG_U32_MAX));
     nk_u32_t max_lane_offset = vminvq_u32(max_masked_lanes_u32x4);
     nk_size_t max_idx = (nk_size_t)earliest_max_cycle * 4 + (nk_size_t)max_lane_offset;
     *min_value_ptr = min_value, *min_index_ptr = min_idx;
     *max_value_ptr = max_value, *max_index_ptr = max_idx;
 }
 
-NK_HELPER_INLINE void nk_reduce_minmax_i32_neon_strided_(                 //
+NUMKONG_HELPER_INLINE void nk_reduce_minmax_i32_neon_strided_(            //
     nk_i32_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_i32_t *min_value_ptr, nk_size_t *min_index_ptr,                    //
     nk_i32_t *max_value_ptr, nk_size_t *max_index_ptr) {
-    int32x4_t min_i32x4 = vdupq_n_s32(NK_I32_MAX), max_i32x4 = vdupq_n_s32(NK_I32_MIN);
+    int32x4_t min_i32x4 = vdupq_n_s32(NUMKONG_I32_MAX), max_i32x4 = vdupq_n_s32(NUMKONG_I32_MIN);
     uint32x4_t min_iter_u32x4 = vdupq_n_u32(0), max_iter_u32x4 = vdupq_n_u32(0);
     uint32x4_t iter_u32x4 = vdupq_n_u32(0), one_u32x4 = vdupq_n_u32(1);
     uint32x4_t lane_indices_u32x4 = vcombine_u32(vreinterpret_u32_u64(vcreate_u64(0x0000000100000000ULL)),
@@ -1877,21 +1890,23 @@ nk_reduce_minmax_i32_neon_cycle:
     else {
         nk_i32_t min_value = vminvq_s32(min_i32x4), max_value = vmaxvq_s32(max_i32x4);
         uint32x4_t min_value_match_u32x4 = vceqq_s32(min_i32x4, vdupq_n_s32(min_value));
-        uint32x4_t masked_min_iter_u32x4 = vbslq_u32(min_value_match_u32x4, min_iter_u32x4, vdupq_n_u32(NK_U32_MAX));
+        uint32x4_t masked_min_iter_u32x4 = vbslq_u32(min_value_match_u32x4, min_iter_u32x4,
+                                                     vdupq_n_u32(NUMKONG_U32_MAX));
         nk_u32_t earliest_min_cycle = vminvq_u32(masked_min_iter_u32x4);
         uint32x4_t max_value_match_u32x4 = vceqq_s32(max_i32x4, vdupq_n_s32(max_value));
-        uint32x4_t masked_max_iter_u32x4 = vbslq_u32(max_value_match_u32x4, max_iter_u32x4, vdupq_n_u32(NK_U32_MAX));
+        uint32x4_t masked_max_iter_u32x4 = vbslq_u32(max_value_match_u32x4, max_iter_u32x4,
+                                                     vdupq_n_u32(NUMKONG_U32_MAX));
         nk_u32_t earliest_max_cycle = vminvq_u32(masked_max_iter_u32x4);
         uint32x4_t min_cycle_match_u32x4 = vceqq_u32(min_iter_u32x4, vdupq_n_u32(earliest_min_cycle));
         uint32x4_t min_both_match_u32x4 = vandq_u32(min_value_match_u32x4, min_cycle_match_u32x4);
         uint32x4_t min_masked_lanes_u32x4 = vbslq_u32(min_both_match_u32x4, lane_indices_u32x4,
-                                                      vdupq_n_u32(NK_U32_MAX));
+                                                      vdupq_n_u32(NUMKONG_U32_MAX));
         nk_u32_t min_lane_offset = vminvq_u32(min_masked_lanes_u32x4);
         nk_size_t min_idx = (nk_size_t)earliest_min_cycle * 4 + (nk_size_t)min_lane_offset;
         uint32x4_t max_cycle_match_u32x4 = vceqq_u32(max_iter_u32x4, vdupq_n_u32(earliest_max_cycle));
         uint32x4_t max_both_match_u32x4 = vandq_u32(max_value_match_u32x4, max_cycle_match_u32x4);
         uint32x4_t max_masked_lanes_u32x4 = vbslq_u32(max_both_match_u32x4, lane_indices_u32x4,
-                                                      vdupq_n_u32(NK_U32_MAX));
+                                                      vdupq_n_u32(NUMKONG_U32_MAX));
         nk_u32_t max_lane_offset = vminvq_u32(max_masked_lanes_u32x4);
         nk_size_t max_idx = (nk_size_t)earliest_max_cycle * 4 + (nk_size_t)max_lane_offset;
         *min_value_ptr = min_value, *min_index_ptr = min_idx;
@@ -1910,19 +1925,19 @@ nk_reduce_minmax_i32_neon_cycle:
     goto nk_reduce_minmax_i32_neon_cycle;
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_i32_neon(                        //
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i32_neon(                   //
     nk_i32_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_i32_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_i32_t *max_value_ptr, nk_size_t *max_index_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_i32_t);
     int aligned = (stride_bytes % sizeof(nk_i32_t) == 0);
     if (count == 0)
-        *min_value_ptr = NK_I32_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = NK_I32_MIN,
-        *max_index_ptr = NK_SIZE_MAX;
+        *min_value_ptr = NUMKONG_I32_MAX, *min_index_ptr = NUMKONG_SIZE_MAX, *max_value_ptr = NUMKONG_I32_MIN,
+        *max_index_ptr = NUMKONG_SIZE_MAX;
     else if (!aligned)
         nk_reduce_minmax_i32_serial(data_ptr, count, stride_bytes, min_value_ptr, min_index_ptr, max_value_ptr,
                                     max_index_ptr);
-    else if (count > (nk_size_t)NK_U32_MAX * 4) {
+    else if (count > (nk_size_t)NUMKONG_U32_MAX * 4) {
         nk_size_t left_count = count / 2;
         nk_i32_t left_min_value, right_min_value, left_max_value, right_max_value;
         nk_size_t left_min_index, right_min_index, left_max_index, right_max_index;
@@ -1948,8 +1963,8 @@ NK_API_COMPTIME void nk_reduce_minmax_i32_neon(                        //
                                     max_index_ptr);
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_u32_neon_contiguous_( //
-    nk_u32_t const *data_ptr, nk_size_t count,                //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_u32_neon_contiguous_( //
+    nk_u32_t const *data_ptr, nk_size_t count,                     //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     uint64x2_t sum_u64x2 = vdupq_n_u64(0);
     uint64x2_t sumsq_u64x2 = vdupq_n_u64(0);
@@ -1976,7 +1991,7 @@ NK_HELPER_INLINE void nk_reduce_moments_u32_neon_contiguous_( //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_u32_neon_strided_(                //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_u32_neon_strided_(           //
     nk_u32_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     uint64x2_t sum_u64x2 = vdupq_n_u64(0);
@@ -2029,14 +2044,14 @@ NK_HELPER_INLINE void nk_reduce_moments_u32_neon_strided_(                //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_API_COMPTIME void nk_reduce_moments_u32_neon(                       //
+NUMKONG_API_COMPTIME void nk_reduce_moments_u32_neon(                  //
     nk_u32_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_u32_t);
     int aligned = (stride_bytes % sizeof(nk_u32_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (!aligned) nk_reduce_moments_u32_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
-    else if (count > (nk_size_t)(NK_U16_MAX + 1) * 4) {
+    else if (count > (nk_size_t)(NUMKONG_U16_MAX + 1) * 4) {
         nk_size_t left_count = count / 2;
         nk_u64_t left_sum, left_sumsq, right_sum, right_sumsq;
         nk_reduce_moments_u32_neon(data_ptr, left_count, stride_bytes, &left_sum, &left_sumsq);
@@ -2051,11 +2066,11 @@ NK_API_COMPTIME void nk_reduce_moments_u32_neon(                       //
     else nk_reduce_moments_u32_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_HELPER_INLINE void nk_reduce_minmax_u32_neon_contiguous_( //
-    nk_u32_t const *data_ptr, nk_size_t count,               //
-    nk_u32_t *min_value_ptr, nk_size_t *min_index_ptr,       //
+NUMKONG_HELPER_INLINE void nk_reduce_minmax_u32_neon_contiguous_( //
+    nk_u32_t const *data_ptr, nk_size_t count,                    //
+    nk_u32_t *min_value_ptr, nk_size_t *min_index_ptr,            //
     nk_u32_t *max_value_ptr, nk_size_t *max_index_ptr) {
-    uint32x4_t min_u32x4 = vdupq_n_u32(NK_U32_MAX), max_u32x4 = vdupq_n_u32(0);
+    uint32x4_t min_u32x4 = vdupq_n_u32(NUMKONG_U32_MAX), max_u32x4 = vdupq_n_u32(0);
     uint32x4_t min_iter_u32x4 = vdupq_n_u32(0), max_iter_u32x4 = vdupq_n_u32(0);
     uint32x4_t iter_u32x4 = vdupq_n_u32(0), one_u32x4 = vdupq_n_u32(1);
     nk_size_t idx = 0;
@@ -2076,7 +2091,7 @@ NK_HELPER_INLINE void nk_reduce_minmax_u32_neon_contiguous_( //
         uint32x4_t lane_indices_u32x4 = vcombine_u32(vreinterpret_u32_u64(vcreate_u64(0x0000000100000000ULL)),
                                                      vreinterpret_u32_u64(vcreate_u64(0x0000000300000002ULL)));
         uint32x4_t valid_u32x4 = vcltq_u32(lane_indices_u32x4, vdupq_n_u32((nk_u32_t)remaining));
-        uint32x4_t data_min_u32x4 = vbslq_u32(valid_u32x4, tail_vec.u32x4, vdupq_n_u32(NK_U32_MAX));
+        uint32x4_t data_min_u32x4 = vbslq_u32(valid_u32x4, tail_vec.u32x4, vdupq_n_u32(NUMKONG_U32_MAX));
         uint32x4_t data_max_u32x4 = vbslq_u32(valid_u32x4, tail_vec.u32x4, vdupq_n_u32(0));
         uint32x4_t less_u32x4 = vcltq_u32(data_min_u32x4, min_u32x4);
         uint32x4_t greater_u32x4 = vcgtq_u32(data_max_u32x4, max_u32x4);
@@ -2087,32 +2102,34 @@ NK_HELPER_INLINE void nk_reduce_minmax_u32_neon_contiguous_( //
     }
     nk_u32_t min_value = vminvq_u32(min_u32x4), max_value = vmaxvq_u32(max_u32x4);
     uint32x4_t min_value_match_u32x4 = vceqq_u32(min_u32x4, vdupq_n_u32(min_value));
-    uint32x4_t masked_min_iter_u32x4 = vbslq_u32(min_value_match_u32x4, min_iter_u32x4, vdupq_n_u32(NK_U32_MAX));
+    uint32x4_t masked_min_iter_u32x4 = vbslq_u32(min_value_match_u32x4, min_iter_u32x4, vdupq_n_u32(NUMKONG_U32_MAX));
     nk_u32_t earliest_min_cycle = vminvq_u32(masked_min_iter_u32x4);
     uint32x4_t max_value_match_u32x4 = vceqq_u32(max_u32x4, vdupq_n_u32(max_value));
-    uint32x4_t masked_max_iter_u32x4 = vbslq_u32(max_value_match_u32x4, max_iter_u32x4, vdupq_n_u32(NK_U32_MAX));
+    uint32x4_t masked_max_iter_u32x4 = vbslq_u32(max_value_match_u32x4, max_iter_u32x4, vdupq_n_u32(NUMKONG_U32_MAX));
     nk_u32_t earliest_max_cycle = vminvq_u32(masked_max_iter_u32x4);
     uint32x4_t lane_indices_u32x4 = vcombine_u32(vreinterpret_u32_u64(vcreate_u64(0x0000000100000000ULL)),
                                                  vreinterpret_u32_u64(vcreate_u64(0x0000000300000002ULL)));
     uint32x4_t min_cycle_match_u32x4 = vceqq_u32(min_iter_u32x4, vdupq_n_u32(earliest_min_cycle));
     uint32x4_t min_both_match_u32x4 = vandq_u32(min_value_match_u32x4, min_cycle_match_u32x4);
-    uint32x4_t min_masked_lanes_u32x4 = vbslq_u32(min_both_match_u32x4, lane_indices_u32x4, vdupq_n_u32(NK_U32_MAX));
+    uint32x4_t min_masked_lanes_u32x4 = vbslq_u32(min_both_match_u32x4, lane_indices_u32x4,
+                                                  vdupq_n_u32(NUMKONG_U32_MAX));
     nk_u32_t min_lane_offset = vminvq_u32(min_masked_lanes_u32x4);
     nk_size_t min_idx = (nk_size_t)earliest_min_cycle * 4 + (nk_size_t)min_lane_offset;
     uint32x4_t max_cycle_match_u32x4 = vceqq_u32(max_iter_u32x4, vdupq_n_u32(earliest_max_cycle));
     uint32x4_t max_both_match_u32x4 = vandq_u32(max_value_match_u32x4, max_cycle_match_u32x4);
-    uint32x4_t max_masked_lanes_u32x4 = vbslq_u32(max_both_match_u32x4, lane_indices_u32x4, vdupq_n_u32(NK_U32_MAX));
+    uint32x4_t max_masked_lanes_u32x4 = vbslq_u32(max_both_match_u32x4, lane_indices_u32x4,
+                                                  vdupq_n_u32(NUMKONG_U32_MAX));
     nk_u32_t max_lane_offset = vminvq_u32(max_masked_lanes_u32x4);
     nk_size_t max_idx = (nk_size_t)earliest_max_cycle * 4 + (nk_size_t)max_lane_offset;
     *min_value_ptr = min_value, *min_index_ptr = min_idx;
     *max_value_ptr = max_value, *max_index_ptr = max_idx;
 }
 
-NK_HELPER_INLINE void nk_reduce_minmax_u32_neon_strided_(                 //
+NUMKONG_HELPER_INLINE void nk_reduce_minmax_u32_neon_strided_(            //
     nk_u32_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_u32_t *min_value_ptr, nk_size_t *min_index_ptr,                    //
     nk_u32_t *max_value_ptr, nk_size_t *max_index_ptr) {
-    uint32x4_t min_u32x4 = vdupq_n_u32(NK_U32_MAX), max_u32x4 = vdupq_n_u32(0);
+    uint32x4_t min_u32x4 = vdupq_n_u32(NUMKONG_U32_MAX), max_u32x4 = vdupq_n_u32(0);
     uint32x4_t min_iter_u32x4 = vdupq_n_u32(0), max_iter_u32x4 = vdupq_n_u32(0);
     uint32x4_t iter_u32x4 = vdupq_n_u32(0), one_u32x4 = vdupq_n_u32(1);
     uint32x4_t lane_indices_u32x4 = vcombine_u32(vreinterpret_u32_u64(vcreate_u64(0x0000000100000000ULL)),
@@ -2150,21 +2167,23 @@ nk_reduce_minmax_u32_neon_cycle:
     else {
         nk_u32_t min_value = vminvq_u32(min_u32x4), max_value = vmaxvq_u32(max_u32x4);
         uint32x4_t min_value_match_u32x4 = vceqq_u32(min_u32x4, vdupq_n_u32(min_value));
-        uint32x4_t masked_min_iter_u32x4 = vbslq_u32(min_value_match_u32x4, min_iter_u32x4, vdupq_n_u32(NK_U32_MAX));
+        uint32x4_t masked_min_iter_u32x4 = vbslq_u32(min_value_match_u32x4, min_iter_u32x4,
+                                                     vdupq_n_u32(NUMKONG_U32_MAX));
         nk_u32_t earliest_min_cycle = vminvq_u32(masked_min_iter_u32x4);
         uint32x4_t max_value_match_u32x4 = vceqq_u32(max_u32x4, vdupq_n_u32(max_value));
-        uint32x4_t masked_max_iter_u32x4 = vbslq_u32(max_value_match_u32x4, max_iter_u32x4, vdupq_n_u32(NK_U32_MAX));
+        uint32x4_t masked_max_iter_u32x4 = vbslq_u32(max_value_match_u32x4, max_iter_u32x4,
+                                                     vdupq_n_u32(NUMKONG_U32_MAX));
         nk_u32_t earliest_max_cycle = vminvq_u32(masked_max_iter_u32x4);
         uint32x4_t min_cycle_match_u32x4 = vceqq_u32(min_iter_u32x4, vdupq_n_u32(earliest_min_cycle));
         uint32x4_t min_both_match_u32x4 = vandq_u32(min_value_match_u32x4, min_cycle_match_u32x4);
         uint32x4_t min_masked_lanes_u32x4 = vbslq_u32(min_both_match_u32x4, lane_indices_u32x4,
-                                                      vdupq_n_u32(NK_U32_MAX));
+                                                      vdupq_n_u32(NUMKONG_U32_MAX));
         nk_u32_t min_lane_offset = vminvq_u32(min_masked_lanes_u32x4);
         nk_size_t min_idx = (nk_size_t)earliest_min_cycle * 4 + (nk_size_t)min_lane_offset;
         uint32x4_t max_cycle_match_u32x4 = vceqq_u32(max_iter_u32x4, vdupq_n_u32(earliest_max_cycle));
         uint32x4_t max_both_match_u32x4 = vandq_u32(max_value_match_u32x4, max_cycle_match_u32x4);
         uint32x4_t max_masked_lanes_u32x4 = vbslq_u32(max_both_match_u32x4, lane_indices_u32x4,
-                                                      vdupq_n_u32(NK_U32_MAX));
+                                                      vdupq_n_u32(NUMKONG_U32_MAX));
         nk_u32_t max_lane_offset = vminvq_u32(max_masked_lanes_u32x4);
         nk_size_t max_idx = (nk_size_t)earliest_max_cycle * 4 + (nk_size_t)max_lane_offset;
         *min_value_ptr = min_value, *min_index_ptr = min_idx;
@@ -2183,18 +2202,19 @@ nk_reduce_minmax_u32_neon_cycle:
     goto nk_reduce_minmax_u32_neon_cycle;
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_u32_neon(                        //
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u32_neon(                   //
     nk_u32_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_u32_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_u32_t *max_value_ptr, nk_size_t *max_index_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_u32_t);
     int aligned = (stride_bytes % sizeof(nk_u32_t) == 0);
     if (count == 0)
-        *min_value_ptr = NK_U32_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = 0, *max_index_ptr = NK_SIZE_MAX;
+        *min_value_ptr = NUMKONG_U32_MAX, *min_index_ptr = NUMKONG_SIZE_MAX, *max_value_ptr = 0,
+        *max_index_ptr = NUMKONG_SIZE_MAX;
     else if (!aligned)
         nk_reduce_minmax_u32_serial(data_ptr, count, stride_bytes, min_value_ptr, min_index_ptr, max_value_ptr,
                                     max_index_ptr);
-    else if (count > (nk_size_t)NK_U32_MAX * 4) {
+    else if (count > (nk_size_t)NUMKONG_U32_MAX * 4) {
         nk_size_t left_count = count / 2;
         nk_u32_t left_min_value, right_min_value, left_max_value, right_max_value;
         nk_size_t left_min_index, right_min_index, left_max_index, right_max_index;
@@ -2220,8 +2240,8 @@ NK_API_COMPTIME void nk_reduce_minmax_u32_neon(                        //
                                     max_index_ptr);
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_i64_neon_contiguous_( //
-    nk_i64_t const *data_ptr, nk_size_t count,                //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_i64_neon_contiguous_( //
+    nk_i64_t const *data_ptr, nk_size_t count,                     //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     uint64x2_t sum_low_u64x2 = vdupq_n_u64(0);
     int64x2_t sum_high_i64x2 = vdupq_n_s64(0);
@@ -2261,7 +2281,7 @@ NK_HELPER_INLINE void nk_reduce_moments_i64_neon_contiguous_( //
         sum_high += vgetq_lane_s64(sum_high_i64x2, 1);
     }
     nk_u64_t sumsq;
-    if (sumsq_overflow) sumsq = NK_U64_MAX;
+    if (sumsq_overflow) sumsq = NUMKONG_U64_MAX;
     else sumsq = nk_reduce_sadd_u64x2_neon_(sumsq_u64x2);
     for (; idx < count; ++idx) {
         nk_i64_t val = data_ptr[idx];
@@ -2275,12 +2295,12 @@ NK_HELPER_INLINE void nk_reduce_moments_i64_neon_contiguous_( //
     }
     nk_i64_t sum_low_signed = (nk_i64_t)sum_low;
     if (sum_high == (sum_low_signed >> 63)) *sum_ptr = sum_low_signed;
-    else if (sum_high >= 0) *sum_ptr = NK_I64_MAX;
-    else *sum_ptr = NK_I64_MIN;
+    else if (sum_high >= 0) *sum_ptr = NUMKONG_I64_MAX;
+    else *sum_ptr = NUMKONG_I64_MIN;
     *sumsq_ptr = sumsq;
 }
 
-NK_API_COMPTIME void nk_reduce_moments_i64_neon(                       //
+NUMKONG_API_COMPTIME void nk_reduce_moments_i64_neon(                  //
     nk_i64_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_i64_t);
@@ -2291,11 +2311,11 @@ NK_API_COMPTIME void nk_reduce_moments_i64_neon(                       //
     else nk_reduce_moments_i64_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_HELPER_INLINE void nk_reduce_minmax_i64_neon_contiguous_( //
-    nk_i64_t const *data_ptr, nk_size_t count,               //
-    nk_i64_t *min_value_ptr, nk_size_t *min_index_ptr,       //
+NUMKONG_HELPER_INLINE void nk_reduce_minmax_i64_neon_contiguous_( //
+    nk_i64_t const *data_ptr, nk_size_t count,                    //
+    nk_i64_t *min_value_ptr, nk_size_t *min_index_ptr,            //
     nk_i64_t *max_value_ptr, nk_size_t *max_index_ptr) {
-    int64x2_t min_i64x2 = vdupq_n_s64(NK_I64_MAX), max_i64x2 = vdupq_n_s64(NK_I64_MIN);
+    int64x2_t min_i64x2 = vdupq_n_s64(NUMKONG_I64_MAX), max_i64x2 = vdupq_n_s64(NUMKONG_I64_MIN);
     uint64x2_t min_iter_u64x2 = vdupq_n_u64(0), max_iter_u64x2 = vdupq_n_u64(0);
     uint64x2_t iter_u64x2 = vdupq_n_u64(0), one_u64x2 = vdupq_n_u64(1);
     nk_size_t idx = 0;
@@ -2334,15 +2354,15 @@ NK_HELPER_INLINE void nk_reduce_minmax_i64_neon_contiguous_( //
     *max_value_ptr = max_value, *max_index_ptr = max_index;
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_i64_neon(                        //
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i64_neon(                   //
     nk_i64_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_i64_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_i64_t *max_value_ptr, nk_size_t *max_index_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_i64_t);
     int aligned = (stride_bytes % sizeof(nk_i64_t) == 0);
     if (count == 0)
-        *min_value_ptr = NK_I64_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = NK_I64_MIN,
-        *max_index_ptr = NK_SIZE_MAX;
+        *min_value_ptr = NUMKONG_I64_MAX, *min_index_ptr = NUMKONG_SIZE_MAX, *max_value_ptr = NUMKONG_I64_MIN,
+        *max_index_ptr = NUMKONG_SIZE_MAX;
     else if (!aligned)
         nk_reduce_minmax_i64_serial(data_ptr, count, stride_bytes, min_value_ptr, min_index_ptr, max_value_ptr,
                                     max_index_ptr);
@@ -2354,8 +2374,8 @@ NK_API_COMPTIME void nk_reduce_minmax_i64_neon(                        //
                                     max_index_ptr);
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_u64_neon_contiguous_( //
-    nk_u64_t const *data_ptr, nk_size_t count,                //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_u64_neon_contiguous_( //
+    nk_u64_t const *data_ptr, nk_size_t count,                     //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     uint64x2_t sum_u64x2 = vdupq_n_u64(0);
     uint64x2_t sumsq_u64x2 = vdupq_n_u64(0);
@@ -2377,7 +2397,7 @@ NK_HELPER_INLINE void nk_reduce_moments_u64_neon_contiguous_( //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_API_COMPTIME void nk_reduce_moments_u64_neon(                       //
+NUMKONG_API_COMPTIME void nk_reduce_moments_u64_neon(                  //
     nk_u64_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_u64_t);
@@ -2388,11 +2408,11 @@ NK_API_COMPTIME void nk_reduce_moments_u64_neon(                       //
     else nk_reduce_moments_u64_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_HELPER_INLINE void nk_reduce_minmax_u64_neon_contiguous_( //
-    nk_u64_t const *data_ptr, nk_size_t count,               //
-    nk_u64_t *min_value_ptr, nk_size_t *min_index_ptr,       //
+NUMKONG_HELPER_INLINE void nk_reduce_minmax_u64_neon_contiguous_( //
+    nk_u64_t const *data_ptr, nk_size_t count,                    //
+    nk_u64_t *min_value_ptr, nk_size_t *min_index_ptr,            //
     nk_u64_t *max_value_ptr, nk_size_t *max_index_ptr) {
-    uint64x2_t min_u64x2 = vdupq_n_u64(NK_U64_MAX), max_u64x2 = vdupq_n_u64(0);
+    uint64x2_t min_u64x2 = vdupq_n_u64(NUMKONG_U64_MAX), max_u64x2 = vdupq_n_u64(0);
     uint64x2_t min_iter_u64x2 = vdupq_n_u64(0), max_iter_u64x2 = vdupq_n_u64(0);
     uint64x2_t iter_u64x2 = vdupq_n_u64(0), one_u64x2 = vdupq_n_u64(1);
     nk_size_t idx = 0;
@@ -2431,14 +2451,15 @@ NK_HELPER_INLINE void nk_reduce_minmax_u64_neon_contiguous_( //
     *max_value_ptr = max_value, *max_index_ptr = max_index;
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_u64_neon(                        //
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u64_neon(                   //
     nk_u64_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_u64_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_u64_t *max_value_ptr, nk_size_t *max_index_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_u64_t);
     int aligned = (stride_bytes % sizeof(nk_u64_t) == 0);
     if (count == 0)
-        *min_value_ptr = NK_U64_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = 0, *max_index_ptr = NK_SIZE_MAX;
+        *min_value_ptr = NUMKONG_U64_MAX, *min_index_ptr = NUMKONG_SIZE_MAX, *max_value_ptr = 0,
+        *max_index_ptr = NUMKONG_SIZE_MAX;
     else if (!aligned)
         nk_reduce_minmax_u64_serial(data_ptr, count, stride_bytes, min_value_ptr, min_index_ptr, max_value_ptr,
                                     max_index_ptr);
@@ -2452,7 +2473,7 @@ NK_API_COMPTIME void nk_reduce_minmax_u64_neon(                        //
 
 /** Convert 16 raw FP6 (e2m3/e3m2) sign-magnitude bytes to unsigned-comparable bytes. FP6: sign bit
  *  5, 5-bit magnitude. Positive maps to [0x20..0x3F], negative to [0x00..0x1F]. */
-NK_HELPER_INLINE uint8x16_t nk_fp6x16_to_comparable_neon_(uint8x16_t raw_u8x16) {
+NUMKONG_HELPER_INLINE uint8x16_t nk_fp6x16_to_comparable_neon_(uint8x16_t raw_u8x16) {
     uint8x16_t magnitude_u8x16 = vandq_u8(raw_u8x16, vdupq_n_u8(0x1F));
     uint8x16_t sign_mask_u8x16 = vdupq_n_u8(0x20);
     uint8x16_t is_negative_u8x16 = vtstq_u8(raw_u8x16, sign_mask_u8x16);
@@ -2462,13 +2483,13 @@ NK_HELPER_INLINE uint8x16_t nk_fp6x16_to_comparable_neon_(uint8x16_t raw_u8x16) 
 }
 
 /** Convert a single comparable byte back to raw FP6 sign-magnitude byte. */
-NK_HELPER_INLINE nk_u8_t nk_comparable_to_fp6_(nk_u8_t comparable) {
+NUMKONG_HELPER_INLINE nk_u8_t nk_comparable_to_fp6_(nk_u8_t comparable) {
     if (comparable >= 0x20) return comparable ^ 0x20; // was positive
     else return (0x1F - comparable) | 0x20;           // was negative
 }
 
 /** Convert 16 raw FP8 (e4m3/e5m2) sign-magnitude bytes to unsigned-comparable bytes. */
-NK_HELPER_INLINE uint8x16_t nk_fp8x16_to_comparable_neon_(uint8x16_t raw_u8x16) {
+NUMKONG_HELPER_INLINE uint8x16_t nk_fp8x16_to_comparable_neon_(uint8x16_t raw_u8x16) {
     uint8x16_t sign_mask_u8x16 = vdupq_n_u8(0x80);
     uint8x16_t is_negative_u8x16 = vtstq_u8(raw_u8x16, sign_mask_u8x16);
     uint8x16_t flip_positive_u8x16 = veorq_u8(raw_u8x16, sign_mask_u8x16);
@@ -2477,13 +2498,13 @@ NK_HELPER_INLINE uint8x16_t nk_fp8x16_to_comparable_neon_(uint8x16_t raw_u8x16) 
 }
 
 /** Convert a single comparable byte back to raw FP8 sign-magnitude byte. */
-NK_HELPER_INLINE nk_u8_t nk_comparable_to_fp8_(nk_u8_t comparable) {
+NUMKONG_HELPER_INLINE nk_u8_t nk_comparable_to_fp8_(nk_u8_t comparable) {
     if (comparable >= 0x80) return comparable ^ 0x80; // was positive
     else return ~comparable;                          // was negative
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_e2m3_neon_contiguous_( //
-    nk_e2m3_t const *data_ptr, nk_size_t count,                //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_e2m3_neon_contiguous_( //
+    nk_e2m3_t const *data_ptr, nk_size_t count,                     //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     // VTBL LUT: maps 6-bit magnitude (0..31) to value × 16 (unsigned), fits in u8
     uint8x16x2_t lut_e2m3_x16_u8x16x2;
@@ -2525,7 +2546,7 @@ NK_HELPER_INLINE void nk_reduce_moments_e2m3_neon_contiguous_( //
     *sum_ptr = (nk_f32_t)sum / 16.0f, *sumsq_ptr = (nk_f32_t)sumsq / 256.0f;
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_e2m3_neon_strided_(                //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_e2m3_neon_strided_(           //
     nk_e2m3_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     uint8x16x2_t lut_e2m3_x16_u8x16x2;
@@ -2606,14 +2627,14 @@ NK_HELPER_INLINE void nk_reduce_moments_e2m3_neon_strided_(                //
     *sum_ptr = (nk_f32_t)sum / 16.0f, *sumsq_ptr = (nk_f32_t)sumsq / 256.0f;
 }
 
-NK_API_COMPTIME void nk_reduce_moments_e2m3_neon(                       //
+NUMKONG_API_COMPTIME void nk_reduce_moments_e2m3_neon(                  //
     nk_e2m3_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_e2m3_t);
     int aligned = (stride_bytes % sizeof(nk_e2m3_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (!aligned) nk_reduce_moments_e2m3_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
-    else if (count > (nk_size_t)(NK_U16_MAX + 1) * 16) {
+    else if (count > (nk_size_t)(NUMKONG_U16_MAX + 1) * 16) {
         nk_size_t left_count = count / 2;
         nk_f32_t left_sum, left_sumsq, right_sum, right_sumsq;
         nk_reduce_moments_e2m3_neon(data_ptr, left_count, stride_bytes, &left_sum, &left_sumsq);
@@ -2627,9 +2648,9 @@ NK_API_COMPTIME void nk_reduce_moments_e2m3_neon(                       //
     else nk_reduce_moments_e2m3_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_HELPER_INLINE void nk_reduce_minmax_e2m3_neon_contiguous_( //
-    nk_e2m3_t const *data_ptr, nk_size_t count,               //
-    nk_e2m3_t *min_value_ptr, nk_size_t *min_index_ptr,       //
+NUMKONG_HELPER_INLINE void nk_reduce_minmax_e2m3_neon_contiguous_( //
+    nk_e2m3_t const *data_ptr, nk_size_t count,                    //
+    nk_e2m3_t *min_value_ptr, nk_size_t *min_index_ptr,            //
     nk_e2m3_t *max_value_ptr, nk_size_t *max_index_ptr) {
     // Handle initial chunk — partial or full
     uint8x16_t first_comparable_u8x16;
@@ -2709,7 +2730,7 @@ NK_HELPER_INLINE void nk_reduce_minmax_e2m3_neon_contiguous_( //
     *max_value_ptr = nk_comparable_to_fp6_(max_comparable), *max_index_ptr = max_idx;
 }
 
-NK_HELPER_INLINE void nk_reduce_minmax_e2m3_neon_strided_(                 //
+NUMKONG_HELPER_INLINE void nk_reduce_minmax_e2m3_neon_strided_(            //
     nk_e2m3_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_e2m3_t *min_value_ptr, nk_size_t *min_index_ptr,                    //
     nk_e2m3_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -2786,15 +2807,15 @@ nk_reduce_minmax_e2m3_neon_cycle:
     goto nk_reduce_minmax_e2m3_neon_cycle;
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_e2m3_neon(                        //
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e2m3_neon(                   //
     nk_e2m3_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_e2m3_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_e2m3_t *max_value_ptr, nk_size_t *max_index_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_e2m3_t);
     int aligned = (stride_bytes % sizeof(nk_e2m3_t) == 0);
     if (count == 0)
-        *min_value_ptr = NK_E2M3_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = NK_E2M3_MIN,
-        *max_index_ptr = NK_SIZE_MAX;
+        *min_value_ptr = NUMKONG_E2M3_MAX, *min_index_ptr = NUMKONG_SIZE_MAX, *max_value_ptr = NUMKONG_E2M3_MIN,
+        *max_index_ptr = NUMKONG_SIZE_MAX;
     else if (!aligned)
         nk_reduce_minmax_e2m3_serial(data_ptr, count, stride_bytes, min_value_ptr, min_index_ptr, max_value_ptr,
                                      max_index_ptr);
@@ -2824,8 +2845,8 @@ NK_API_COMPTIME void nk_reduce_minmax_e2m3_neon(                        //
                                      max_index_ptr);
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_e3m2_neon_contiguous_( //
-    nk_e3m2_t const *data_ptr, nk_size_t count,                //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_e3m2_neon_contiguous_( //
+    nk_e3m2_t const *data_ptr, nk_size_t count,                     //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     // VTBL LUT: maps 6-bit magnitude (0..31) to the low byte of value × 16, whose max 448 needs i16
     uint8x16x2_t lut_e3m2_low_u8x16x2;
@@ -2886,7 +2907,7 @@ NK_HELPER_INLINE void nk_reduce_moments_e3m2_neon_contiguous_( //
     *sum_ptr = (nk_f32_t)sum / 16.0f, *sumsq_ptr = (nk_f32_t)sumsq / 256.0f;
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_e3m2_neon_strided_(                //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_e3m2_neon_strided_(           //
     nk_e3m2_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     uint8x16x2_t lut_e3m2_low_u8x16x2;
@@ -3012,14 +3033,14 @@ NK_HELPER_INLINE void nk_reduce_moments_e3m2_neon_strided_(                //
     *sum_ptr = (nk_f32_t)sum / 16.0f, *sumsq_ptr = (nk_f32_t)sumsq / 256.0f;
 }
 
-NK_API_COMPTIME void nk_reduce_moments_e3m2_neon(                       //
+NUMKONG_API_COMPTIME void nk_reduce_moments_e3m2_neon(                  //
     nk_e3m2_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_e3m2_t);
     int aligned = (stride_bytes % sizeof(nk_e3m2_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (!aligned) nk_reduce_moments_e3m2_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
-    else if (count > (nk_size_t)(NK_U16_MAX + 1) * 16) {
+    else if (count > (nk_size_t)(NUMKONG_U16_MAX + 1) * 16) {
         nk_size_t left_count = count / 2;
         nk_f32_t left_sum, left_sumsq, right_sum, right_sumsq;
         nk_reduce_moments_e3m2_neon(data_ptr, left_count, stride_bytes, &left_sum, &left_sumsq);
@@ -3033,9 +3054,9 @@ NK_API_COMPTIME void nk_reduce_moments_e3m2_neon(                       //
     else nk_reduce_moments_e3m2_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_HELPER_INLINE void nk_reduce_minmax_e3m2_neon_contiguous_( //
-    nk_e3m2_t const *data_ptr, nk_size_t count,               //
-    nk_e3m2_t *min_value_ptr, nk_size_t *min_index_ptr,       //
+NUMKONG_HELPER_INLINE void nk_reduce_minmax_e3m2_neon_contiguous_( //
+    nk_e3m2_t const *data_ptr, nk_size_t count,                    //
+    nk_e3m2_t *min_value_ptr, nk_size_t *min_index_ptr,            //
     nk_e3m2_t *max_value_ptr, nk_size_t *max_index_ptr) {
     // Handle initial chunk — partial or full
     uint8x16_t first_comparable_u8x16;
@@ -3112,7 +3133,7 @@ NK_HELPER_INLINE void nk_reduce_minmax_e3m2_neon_contiguous_( //
     *max_value_ptr = nk_comparable_to_fp6_(max_comparable), *max_index_ptr = max_idx;
 }
 
-NK_HELPER_INLINE void nk_reduce_minmax_e3m2_neon_strided_(                 //
+NUMKONG_HELPER_INLINE void nk_reduce_minmax_e3m2_neon_strided_(            //
     nk_e3m2_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_e3m2_t *min_value_ptr, nk_size_t *min_index_ptr,                    //
     nk_e3m2_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -3189,15 +3210,15 @@ nk_reduce_minmax_e3m2_neon_cycle:
     goto nk_reduce_minmax_e3m2_neon_cycle;
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_e3m2_neon(                        //
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e3m2_neon(                   //
     nk_e3m2_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_e3m2_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_e3m2_t *max_value_ptr, nk_size_t *max_index_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_e3m2_t);
     int aligned = (stride_bytes % sizeof(nk_e3m2_t) == 0);
     if (count == 0)
-        *min_value_ptr = NK_E3M2_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = NK_E3M2_MIN,
-        *max_index_ptr = NK_SIZE_MAX;
+        *min_value_ptr = NUMKONG_E3M2_MAX, *min_index_ptr = NUMKONG_SIZE_MAX, *max_value_ptr = NUMKONG_E3M2_MIN,
+        *max_index_ptr = NUMKONG_SIZE_MAX;
     else if (!aligned)
         nk_reduce_minmax_e3m2_serial(data_ptr, count, stride_bytes, min_value_ptr, min_index_ptr, max_value_ptr,
                                      max_index_ptr);
@@ -3227,8 +3248,8 @@ NK_API_COMPTIME void nk_reduce_minmax_e3m2_neon(                        //
                                      max_index_ptr);
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_e4m3_neon_contiguous_( //
-    nk_e4m3_t const *data_ptr, nk_size_t count,                //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_e4m3_neon_contiguous_( //
+    nk_e4m3_t const *data_ptr, nk_size_t count,                     //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     float32x4_t sum_f32x4 = vdupq_n_f32(0), sumsq_f32x4 = vdupq_n_f32(0);
     nk_size_t idx = 0;
@@ -3256,7 +3277,7 @@ NK_HELPER_INLINE void nk_reduce_moments_e4m3_neon_contiguous_( //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_e4m3_neon_strided_(                //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_e4m3_neon_strided_(           //
     nk_e4m3_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     float32x4_t sum_f32x4 = vdupq_n_f32(0), sumsq_f32x4 = vdupq_n_f32(0);
@@ -3321,14 +3342,14 @@ NK_HELPER_INLINE void nk_reduce_moments_e4m3_neon_strided_(                //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_API_COMPTIME void nk_reduce_moments_e4m3_neon(                       //
+NUMKONG_API_COMPTIME void nk_reduce_moments_e4m3_neon(                  //
     nk_e4m3_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_e4m3_t);
     int aligned = (stride_bytes % sizeof(nk_e4m3_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (!aligned) nk_reduce_moments_e4m3_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
-    else if (count > (nk_size_t)(NK_U16_MAX + 1) * 16) {
+    else if (count > (nk_size_t)(NUMKONG_U16_MAX + 1) * 16) {
         nk_size_t left_count = count / 2;
         nk_f32_t left_sum, left_sumsq, right_sum, right_sumsq;
         nk_reduce_moments_e4m3_neon(data_ptr, left_count, stride_bytes, &left_sum, &left_sumsq);
@@ -3342,9 +3363,9 @@ NK_API_COMPTIME void nk_reduce_moments_e4m3_neon(                       //
     else nk_reduce_moments_e4m3_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_HELPER_INLINE void nk_reduce_minmax_e4m3_neon_contiguous_( //
-    nk_e4m3_t const *data_ptr, nk_size_t count,               //
-    nk_e4m3_t *min_value_ptr, nk_size_t *min_index_ptr,       //
+NUMKONG_HELPER_INLINE void nk_reduce_minmax_e4m3_neon_contiguous_( //
+    nk_e4m3_t const *data_ptr, nk_size_t count,                    //
+    nk_e4m3_t *min_value_ptr, nk_size_t *min_index_ptr,            //
     nk_e4m3_t *max_value_ptr, nk_size_t *max_index_ptr) {
     uint8x16_t min_u8x16 = vdupq_n_u8(0xFF), max_u8x16 = vdupq_n_u8(0);
     uint8x16_t min_iter_u8x16 = vdupq_n_u8(0), max_iter_u8x16 = vdupq_n_u8(0);
@@ -3389,8 +3410,8 @@ NK_HELPER_INLINE void nk_reduce_minmax_e4m3_neon_contiguous_( //
     nk_u8_t min_comparable = vminvq_u8(min_u8x16), max_comparable = vmaxvq_u8(max_u8x16);
     // If min stayed at 0xFF, all values were NaN
     if (min_comparable == 0xFF) {
-        *min_value_ptr = (nk_e4m3_t)NK_E4M3_MAX, *min_index_ptr = NK_SIZE_MAX;
-        *max_value_ptr = (nk_e4m3_t)NK_E4M3_MIN, *max_index_ptr = NK_SIZE_MAX;
+        *min_value_ptr = (nk_e4m3_t)NUMKONG_E4M3_MAX, *min_index_ptr = NUMKONG_SIZE_MAX;
+        *max_value_ptr = (nk_e4m3_t)NUMKONG_E4M3_MIN, *max_index_ptr = NUMKONG_SIZE_MAX;
         return;
     }
     uint8x16_t min_value_match_u8x16 = vceqq_u8(min_u8x16, vdupq_n_u8(min_comparable));
@@ -3415,7 +3436,7 @@ NK_HELPER_INLINE void nk_reduce_minmax_e4m3_neon_contiguous_( //
     *max_value_ptr = nk_comparable_to_fp8_(max_comparable), *max_index_ptr = max_idx;
 }
 
-NK_HELPER_INLINE void nk_reduce_minmax_e4m3_neon_strided_(                 //
+NUMKONG_HELPER_INLINE void nk_reduce_minmax_e4m3_neon_strided_(            //
     nk_e4m3_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_e4m3_t *min_value_ptr, nk_size_t *min_index_ptr,                    //
     nk_e4m3_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -3470,8 +3491,8 @@ nk_reduce_minmax_e4m3_neon_cycle:
     else {
         nk_u8_t min_comparable = vminvq_u8(min_u8x16), max_comparable = vmaxvq_u8(max_u8x16);
         if (min_comparable == 0xFF) {
-            *min_value_ptr = (nk_e4m3_t)NK_E4M3_MAX, *min_index_ptr = NK_SIZE_MAX;
-            *max_value_ptr = (nk_e4m3_t)NK_E4M3_MIN, *max_index_ptr = NK_SIZE_MAX;
+            *min_value_ptr = (nk_e4m3_t)NUMKONG_E4M3_MAX, *min_index_ptr = NUMKONG_SIZE_MAX;
+            *max_value_ptr = (nk_e4m3_t)NUMKONG_E4M3_MIN, *max_index_ptr = NUMKONG_SIZE_MAX;
             return;
         }
         uint8x16_t min_value_match_u8x16 = vceqq_u8(min_u8x16, vdupq_n_u8(min_comparable));
@@ -3506,15 +3527,15 @@ nk_reduce_minmax_e4m3_neon_cycle:
     goto nk_reduce_minmax_e4m3_neon_cycle;
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_e4m3_neon(                        //
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e4m3_neon(                   //
     nk_e4m3_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_e4m3_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_e4m3_t *max_value_ptr, nk_size_t *max_index_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_e4m3_t);
     int aligned = (stride_bytes % sizeof(nk_e4m3_t) == 0);
     if (count == 0)
-        *min_value_ptr = NK_E4M3_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = NK_E4M3_MIN,
-        *max_index_ptr = NK_SIZE_MAX;
+        *min_value_ptr = NUMKONG_E4M3_MAX, *min_index_ptr = NUMKONG_SIZE_MAX, *max_value_ptr = NUMKONG_E4M3_MIN,
+        *max_index_ptr = NUMKONG_SIZE_MAX;
     else if (!aligned)
         nk_reduce_minmax_e4m3_serial(data_ptr, count, stride_bytes, min_value_ptr, min_index_ptr, max_value_ptr,
                                      max_index_ptr);
@@ -3526,16 +3547,16 @@ NK_API_COMPTIME void nk_reduce_minmax_e4m3_neon(                        //
                                    &left_max_value, &left_max_index);
         nk_reduce_minmax_e4m3_neon(data_ptr + left_count * stride_elements, count - left_count, stride_bytes,
                                    &right_min_value, &right_min_index, &right_max_value, &right_max_index);
-        if (left_min_index == NK_SIZE_MAX)
+        if (left_min_index == NUMKONG_SIZE_MAX)
             *min_value_ptr = right_min_value,
-            *min_index_ptr = right_min_index == NK_SIZE_MAX ? NK_SIZE_MAX : left_count + right_min_index;
-        else if (right_min_index == NK_SIZE_MAX || nk_e4m3_order_serial(left_min_value, right_min_value) <= 0)
+            *min_index_ptr = right_min_index == NUMKONG_SIZE_MAX ? NUMKONG_SIZE_MAX : left_count + right_min_index;
+        else if (right_min_index == NUMKONG_SIZE_MAX || nk_e4m3_order_serial(left_min_value, right_min_value) <= 0)
             *min_value_ptr = left_min_value, *min_index_ptr = left_min_index;
         else *min_value_ptr = right_min_value, *min_index_ptr = left_count + right_min_index;
-        if (left_max_index == NK_SIZE_MAX)
+        if (left_max_index == NUMKONG_SIZE_MAX)
             *max_value_ptr = right_max_value,
-            *max_index_ptr = right_max_index == NK_SIZE_MAX ? NK_SIZE_MAX : left_count + right_max_index;
-        else if (right_max_index == NK_SIZE_MAX || nk_e4m3_order_serial(right_max_value, left_max_value) <= 0)
+            *max_index_ptr = right_max_index == NUMKONG_SIZE_MAX ? NUMKONG_SIZE_MAX : left_count + right_max_index;
+        else if (right_max_index == NUMKONG_SIZE_MAX || nk_e4m3_order_serial(right_max_value, left_max_value) <= 0)
             *max_value_ptr = left_max_value, *max_index_ptr = left_max_index;
         else *max_value_ptr = right_max_value, *max_index_ptr = left_count + right_max_index;
     }
@@ -3550,8 +3571,8 @@ NK_API_COMPTIME void nk_reduce_minmax_e4m3_neon(                        //
                                      max_index_ptr);
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_e5m2_neon_contiguous_( //
-    nk_e5m2_t const *data_ptr, nk_size_t count,                //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_e5m2_neon_contiguous_( //
+    nk_e5m2_t const *data_ptr, nk_size_t count,                     //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     float32x4_t sum_f32x4 = vdupq_n_f32(0), sumsq_f32x4 = vdupq_n_f32(0);
     nk_size_t idx = 0;
@@ -3572,7 +3593,7 @@ NK_HELPER_INLINE void nk_reduce_moments_e5m2_neon_contiguous_( //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_e5m2_neon_strided_(                //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_e5m2_neon_strided_(           //
     nk_e5m2_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     float32x4_t sum_f32x4 = vdupq_n_f32(0), sumsq_f32x4 = vdupq_n_f32(0);
@@ -3616,14 +3637,14 @@ NK_HELPER_INLINE void nk_reduce_moments_e5m2_neon_strided_(                //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_API_COMPTIME void nk_reduce_moments_e5m2_neon(                       //
+NUMKONG_API_COMPTIME void nk_reduce_moments_e5m2_neon(                  //
     nk_e5m2_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_e5m2_t);
     int aligned = (stride_bytes % sizeof(nk_e5m2_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (!aligned) nk_reduce_moments_e5m2_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
-    else if (count > (nk_size_t)(NK_U16_MAX + 1) * 8) {
+    else if (count > (nk_size_t)(NUMKONG_U16_MAX + 1) * 8) {
         nk_size_t left_count = count / 2;
         nk_f32_t left_sum, left_sumsq, right_sum, right_sumsq;
         nk_reduce_moments_e5m2_neon(data_ptr, left_count, stride_bytes, &left_sum, &left_sumsq);
@@ -3637,9 +3658,9 @@ NK_API_COMPTIME void nk_reduce_moments_e5m2_neon(                       //
     else nk_reduce_moments_e5m2_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_HELPER_INLINE void nk_reduce_minmax_e5m2_neon_contiguous_( //
-    nk_e5m2_t const *data_ptr, nk_size_t count,               //
-    nk_e5m2_t *min_value_ptr, nk_size_t *min_index_ptr,       //
+NUMKONG_HELPER_INLINE void nk_reduce_minmax_e5m2_neon_contiguous_( //
+    nk_e5m2_t const *data_ptr, nk_size_t count,                    //
+    nk_e5m2_t *min_value_ptr, nk_size_t *min_index_ptr,            //
     nk_e5m2_t *max_value_ptr, nk_size_t *max_index_ptr) {
     uint8x16_t min_u8x16 = vdupq_n_u8(0xFF), max_u8x16 = vdupq_n_u8(0);
     uint8x16_t min_iter_u8x16 = vdupq_n_u8(0), max_iter_u8x16 = vdupq_n_u8(0);
@@ -3686,8 +3707,8 @@ NK_HELPER_INLINE void nk_reduce_minmax_e5m2_neon_contiguous_( //
     nk_u8_t min_comparable = vminvq_u8(min_u8x16), max_comparable = vmaxvq_u8(max_u8x16);
     // If min stayed at 0xFF, all values were NaN
     if (min_comparable == 0xFF) {
-        *min_value_ptr = (nk_e5m2_t)NK_E5M2_MAX, *min_index_ptr = NK_SIZE_MAX;
-        *max_value_ptr = (nk_e5m2_t)NK_E5M2_MIN, *max_index_ptr = NK_SIZE_MAX;
+        *min_value_ptr = (nk_e5m2_t)NUMKONG_E5M2_MAX, *min_index_ptr = NUMKONG_SIZE_MAX;
+        *max_value_ptr = (nk_e5m2_t)NUMKONG_E5M2_MIN, *max_index_ptr = NUMKONG_SIZE_MAX;
         return;
     }
     uint8x16_t min_value_match_u8x16 = vceqq_u8(min_u8x16, vdupq_n_u8(min_comparable));
@@ -3712,7 +3733,7 @@ NK_HELPER_INLINE void nk_reduce_minmax_e5m2_neon_contiguous_( //
     *max_value_ptr = nk_comparable_to_fp8_(max_comparable), *max_index_ptr = max_idx;
 }
 
-NK_HELPER_INLINE void nk_reduce_minmax_e5m2_neon_strided_(                 //
+NUMKONG_HELPER_INLINE void nk_reduce_minmax_e5m2_neon_strided_(            //
     nk_e5m2_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_e5m2_t *min_value_ptr, nk_size_t *min_index_ptr,                    //
     nk_e5m2_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -3767,8 +3788,8 @@ nk_reduce_minmax_e5m2_neon_cycle:
     else {
         nk_u8_t min_comparable = vminvq_u8(min_u8x16), max_comparable = vmaxvq_u8(max_u8x16);
         if (min_comparable == 0xFF) {
-            *min_value_ptr = (nk_e5m2_t)NK_E5M2_MAX, *min_index_ptr = NK_SIZE_MAX;
-            *max_value_ptr = (nk_e5m2_t)NK_E5M2_MIN, *max_index_ptr = NK_SIZE_MAX;
+            *min_value_ptr = (nk_e5m2_t)NUMKONG_E5M2_MAX, *min_index_ptr = NUMKONG_SIZE_MAX;
+            *max_value_ptr = (nk_e5m2_t)NUMKONG_E5M2_MIN, *max_index_ptr = NUMKONG_SIZE_MAX;
             return;
         }
         uint8x16_t min_value_match_u8x16 = vceqq_u8(min_u8x16, vdupq_n_u8(min_comparable));
@@ -3803,15 +3824,15 @@ nk_reduce_minmax_e5m2_neon_cycle:
     goto nk_reduce_minmax_e5m2_neon_cycle;
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_e5m2_neon(                        //
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e5m2_neon(                   //
     nk_e5m2_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_e5m2_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
     nk_e5m2_t *max_value_ptr, nk_size_t *max_index_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_e5m2_t);
     int aligned = (stride_bytes % sizeof(nk_e5m2_t) == 0);
     if (count == 0)
-        *min_value_ptr = NK_E5M2_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = NK_E5M2_MIN,
-        *max_index_ptr = NK_SIZE_MAX;
+        *min_value_ptr = NUMKONG_E5M2_MAX, *min_index_ptr = NUMKONG_SIZE_MAX, *max_value_ptr = NUMKONG_E5M2_MIN,
+        *max_index_ptr = NUMKONG_SIZE_MAX;
     else if (!aligned)
         nk_reduce_minmax_e5m2_serial(data_ptr, count, stride_bytes, min_value_ptr, min_index_ptr, max_value_ptr,
                                      max_index_ptr);
@@ -3823,16 +3844,16 @@ NK_API_COMPTIME void nk_reduce_minmax_e5m2_neon(                        //
                                    &left_max_value, &left_max_index);
         nk_reduce_minmax_e5m2_neon(data_ptr + left_count * stride_elements, count - left_count, stride_bytes,
                                    &right_min_value, &right_min_index, &right_max_value, &right_max_index);
-        if (left_min_index == NK_SIZE_MAX)
+        if (left_min_index == NUMKONG_SIZE_MAX)
             *min_value_ptr = right_min_value,
-            *min_index_ptr = right_min_index == NK_SIZE_MAX ? NK_SIZE_MAX : left_count + right_min_index;
-        else if (right_min_index == NK_SIZE_MAX || nk_e5m2_order_serial(left_min_value, right_min_value) <= 0)
+            *min_index_ptr = right_min_index == NUMKONG_SIZE_MAX ? NUMKONG_SIZE_MAX : left_count + right_min_index;
+        else if (right_min_index == NUMKONG_SIZE_MAX || nk_e5m2_order_serial(left_min_value, right_min_value) <= 0)
             *min_value_ptr = left_min_value, *min_index_ptr = left_min_index;
         else *min_value_ptr = right_min_value, *min_index_ptr = left_count + right_min_index;
-        if (left_max_index == NK_SIZE_MAX)
+        if (left_max_index == NUMKONG_SIZE_MAX)
             *max_value_ptr = right_max_value,
-            *max_index_ptr = right_max_index == NK_SIZE_MAX ? NK_SIZE_MAX : left_count + right_max_index;
-        else if (right_max_index == NK_SIZE_MAX || nk_e5m2_order_serial(right_max_value, left_max_value) <= 0)
+            *max_index_ptr = right_max_index == NUMKONG_SIZE_MAX ? NUMKONG_SIZE_MAX : left_count + right_max_index;
+        else if (right_max_index == NUMKONG_SIZE_MAX || nk_e5m2_order_serial(right_max_value, left_max_value) <= 0)
             *max_value_ptr = left_max_value, *max_index_ptr = left_max_index;
         else *max_value_ptr = right_max_value, *max_index_ptr = left_count + right_max_index;
     }
@@ -3847,8 +3868,8 @@ NK_API_COMPTIME void nk_reduce_minmax_e5m2_neon(                        //
                                      max_index_ptr);
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_f16_neon_contiguous_( //
-    nk_f16_t const *data_ptr, nk_size_t count,                //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_f16_neon_contiguous_( //
+    nk_f16_t const *data_ptr, nk_size_t count,                     //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
     float32x4_t sumsq_f32x4 = vdupq_n_f32(0);
@@ -3874,7 +3895,7 @@ NK_HELPER_INLINE void nk_reduce_moments_f16_neon_contiguous_( //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_f16_neon_strided_(                //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_f16_neon_strided_(           //
     nk_f16_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
@@ -3928,14 +3949,14 @@ NK_HELPER_INLINE void nk_reduce_moments_f16_neon_strided_(                //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_API_COMPTIME void nk_reduce_moments_f16_neon(                       //
+NUMKONG_API_COMPTIME void nk_reduce_moments_f16_neon(                  //
     nk_f16_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_f16_t);
     int aligned = (stride_bytes % sizeof(nk_f16_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (!aligned) nk_reduce_moments_f16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
-    else if (count > (nk_size_t)(NK_U16_MAX + 1) * 8) {
+    else if (count > (nk_size_t)(NUMKONG_U16_MAX + 1) * 8) {
         nk_size_t left_count = count / 2;
         nk_f32_t left_sum_value, left_sumsq_value, right_sum_value, right_sumsq_value;
         nk_reduce_moments_f16_neon(data_ptr, left_count, stride_bytes, &left_sum_value, &left_sumsq_value);
@@ -3949,10 +3970,10 @@ NK_API_COMPTIME void nk_reduce_moments_f16_neon(                       //
     else nk_reduce_moments_f16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_u1_neon_contiguous_( //
-    nk_u1x8_t const *data_ptr, nk_size_t count,              //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_u1_neon_contiguous_( //
+    nk_u1x8_t const *data_ptr, nk_size_t count,                   //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
-    nk_size_t byte_count = count / NK_BITS_PER_BYTE;
+    nk_size_t byte_count = count / NUMKONG_BITS_PER_BYTE;
     nk_u64_t sum = 0;
     nk_size_t idx = 0;
     // Each vcntq_u8 produces values 0-8 per lane; accumulate at u8 level
@@ -3969,7 +3990,7 @@ NK_HELPER_INLINE void nk_reduce_moments_u1_neon_contiguous_( //
     *sum_ptr = sum, *sumsq_ptr = sum;
 }
 
-NK_API_COMPTIME void nk_reduce_moments_u1_neon(                         //
+NUMKONG_API_COMPTIME void nk_reduce_moments_u1_neon(                    //
     nk_u1x8_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
@@ -3987,6 +4008,6 @@ NK_API_COMPTIME void nk_reduce_moments_u1_neon(                         //
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_NEON
-#endif // NK_TARGET_ARM64_
-#endif // NK_REDUCE_NEON_H
+#endif // NUMKONG_TARGET_NEON
+#endif // NUMKONG_ARCH_ARM64_
+#endif // NUMKONG_REDUCE_NEON_H

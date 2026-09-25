@@ -6,11 +6,11 @@
  *
  *  @sa include/numkong/spatials.h
  */
-#ifndef NK_SPATIALS_SAPPHIREAMX_H
-#define NK_SPATIALS_SAPPHIREAMX_H
+#ifndef NUMKONG_SPATIALS_SAPPHIREAMX_H
+#define NUMKONG_SPATIALS_SAPPHIREAMX_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_SAPPHIREAMX
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_SAPPHIREAMX
 
 #include "numkong/spatial/skylake.h"
 #include "numkong/spatial/serial.h"
@@ -33,8 +33,8 @@ extern "C" {
 
 #pragma region Row Finalize Helpers
 
-NK_HELPER_INLINE void nk_angulars_row_f32dots_sapphireamx_(nk_f32_t *results, nk_f32_t const *norms,
-                                                           nk_f32_t query_norm_sq, nk_size_t count) {
+NUMKONG_HELPER_INLINE void nk_angulars_row_f32dots_sapphireamx_(nk_f32_t *results, nk_f32_t const *norms,
+                                                                nk_f32_t query_norm_sq, nk_size_t count) {
     __m512 query_norm_sq_f32x16 = _mm512_set1_ps(query_norm_sq);
     // Separate reciprocal square roots avoid overflowing the product of two finite-but-large norms.
     __m512 query_rsqrt_f32x16 = nk_rsqrt_f32x16_skylake_(query_norm_sq_f32x16);
@@ -60,8 +60,8 @@ NK_HELPER_INLINE void nk_angulars_row_f32dots_sapphireamx_(nk_f32_t *results, nk
     }
 }
 
-NK_HELPER_INLINE void nk_euclideans_row_f32dots_sapphireamx_(nk_f32_t *results, nk_f32_t const *norms,
-                                                             nk_f32_t query_norm_sq, nk_size_t count) {
+NUMKONG_HELPER_INLINE void nk_euclideans_row_f32dots_sapphireamx_(nk_f32_t *results, nk_f32_t const *norms,
+                                                                  nk_f32_t query_norm_sq, nk_size_t count) {
     __m512 query_norm_sq_f32x16 = _mm512_set1_ps(query_norm_sq);
     __m512 two_f32x16 = _mm512_set1_ps(2.0f);
     nk_size_t i = 0;
@@ -84,8 +84,8 @@ NK_HELPER_INLINE void nk_euclideans_row_f32dots_sapphireamx_(nk_f32_t *results, 
     }
 }
 
-NK_HELPER_INLINE void nk_angulars_row_i32dots_sapphireamx_(nk_f32_t *results, nk_u32_t const *norms,
-                                                           nk_f32_t query_norm_sq, nk_size_t count) {
+NUMKONG_HELPER_INLINE void nk_angulars_row_i32dots_sapphireamx_(nk_f32_t *results, nk_u32_t const *norms,
+                                                                nk_f32_t query_norm_sq, nk_size_t count) {
     nk_i32_t *results_i32 = (nk_i32_t *)results;
     __m512 query_norm_sq_f32x16 = _mm512_set1_ps(query_norm_sq);
     // Separate reciprocal square roots avoid overflowing the product of two finite-but-large norms.
@@ -112,8 +112,8 @@ NK_HELPER_INLINE void nk_angulars_row_i32dots_sapphireamx_(nk_f32_t *results, nk
     }
 }
 
-NK_HELPER_INLINE void nk_euclideans_row_i32dots_sapphireamx_(nk_f32_t *results, nk_u32_t const *norms,
-                                                             nk_f32_t query_norm_sq, nk_size_t count) {
+NUMKONG_HELPER_INLINE void nk_euclideans_row_i32dots_sapphireamx_(nk_f32_t *results, nk_u32_t const *norms,
+                                                                  nk_f32_t query_norm_sq, nk_size_t count) {
     nk_i32_t *results_i32 = (nk_i32_t *)results;
     __m512 query_norm_sq_f32x16 = _mm512_set1_ps(query_norm_sq);
     __m512 two_f32x16 = _mm512_set1_ps(2.0f);
@@ -137,8 +137,8 @@ NK_HELPER_INLINE void nk_euclideans_row_i32dots_sapphireamx_(nk_f32_t *results, 
     }
 }
 
-NK_HELPER_INLINE void nk_angulars_row_u32dots_sapphireamx_(nk_f32_t *results, nk_u32_t const *norms,
-                                                           nk_f32_t query_norm_sq, nk_size_t count) {
+NUMKONG_HELPER_INLINE void nk_angulars_row_u32dots_sapphireamx_(nk_f32_t *results, nk_u32_t const *norms,
+                                                                nk_f32_t query_norm_sq, nk_size_t count) {
     nk_u32_t *results_u32 = (nk_u32_t *)results;
     __m512 query_norm_sq_f32x16 = _mm512_set1_ps(query_norm_sq);
     // Separate reciprocal square roots avoid overflowing the product of two finite-but-large norms.
@@ -165,8 +165,8 @@ NK_HELPER_INLINE void nk_angulars_row_u32dots_sapphireamx_(nk_f32_t *results, nk
     }
 }
 
-NK_HELPER_INLINE void nk_euclideans_row_u32dots_sapphireamx_(nk_f32_t *results, nk_u32_t const *norms,
-                                                             nk_f32_t query_norm_sq, nk_size_t count) {
+NUMKONG_HELPER_INLINE void nk_euclideans_row_u32dots_sapphireamx_(nk_f32_t *results, nk_u32_t const *norms,
+                                                                  nk_f32_t query_norm_sq, nk_size_t count) {
     nk_u32_t *results_u32 = (nk_u32_t *)results;
     __m512 query_norm_sq_f32x16 = _mm512_set1_ps(query_norm_sq);
     __m512 two_f32x16 = _mm512_set1_ps(2.0f);
@@ -194,10 +194,10 @@ NK_HELPER_INLINE void nk_euclideans_row_u32dots_sapphireamx_(nk_f32_t *results, 
 
 #pragma region BF16 Packed
 
-NK_HELPER_INLINE void nk_angulars_packed_bf16_sapphireamx_finalize_(nk_bf16_t const *a, void const *b_packed,
-                                                                    nk_f32_t *c, nk_size_t rows, nk_size_t columns,
-                                                                    nk_size_t depth, nk_size_t a_stride_elements,
-                                                                    nk_size_t c_stride_elements) {
+NUMKONG_HELPER_INLINE void nk_angulars_packed_bf16_sapphireamx_finalize_(nk_bf16_t const *a, void const *b_packed,
+                                                                         nk_f32_t *c, nk_size_t rows, nk_size_t columns,
+                                                                         nk_size_t depth, nk_size_t a_stride_elements,
+                                                                         nk_size_t c_stride_elements) {
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     nk_f32_t const *b_norms = (nk_f32_t const *)((char const *)b_packed + header->norms_byte_offset);
     for (nk_size_t row = 0; row < rows; row++) {
@@ -206,9 +206,9 @@ NK_HELPER_INLINE void nk_angulars_packed_bf16_sapphireamx_finalize_(nk_bf16_t co
     }
 }
 
-NK_API_COMPTIME void nk_angulars_packed_bf16_sapphireamx(  //
-    nk_bf16_t const *a, void const *b_packed, nk_f32_t *c, //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,    //
+NUMKONG_API_COMPTIME void nk_angulars_packed_bf16_sapphireamx( //
+    nk_bf16_t const *a, void const *b_packed, nk_f32_t *c,     //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,        //
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_bf16_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -217,10 +217,11 @@ NK_API_COMPTIME void nk_angulars_packed_bf16_sapphireamx(  //
                                                   c_stride_elements);
 }
 
-NK_HELPER_INLINE void nk_euclideans_packed_bf16_sapphireamx_finalize_(nk_bf16_t const *a, void const *b_packed,
-                                                                      nk_f32_t *c, nk_size_t rows, nk_size_t columns,
-                                                                      nk_size_t depth, nk_size_t a_stride_elements,
-                                                                      nk_size_t c_stride_elements) {
+NUMKONG_HELPER_INLINE void nk_euclideans_packed_bf16_sapphireamx_finalize_(nk_bf16_t const *a, void const *b_packed,
+                                                                           nk_f32_t *c, nk_size_t rows,
+                                                                           nk_size_t columns, nk_size_t depth,
+                                                                           nk_size_t a_stride_elements,
+                                                                           nk_size_t c_stride_elements) {
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     nk_f32_t const *b_norms = (nk_f32_t const *)((char const *)b_packed + header->norms_byte_offset);
     for (nk_size_t row = 0; row < rows; row++) {
@@ -229,9 +230,9 @@ NK_HELPER_INLINE void nk_euclideans_packed_bf16_sapphireamx_finalize_(nk_bf16_t 
     }
 }
 
-NK_API_COMPTIME void nk_euclideans_packed_bf16_sapphireamx( //
-    nk_bf16_t const *a, void const *b_packed, nk_f32_t *c,  //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,     //
+NUMKONG_API_COMPTIME void nk_euclideans_packed_bf16_sapphireamx( //
+    nk_bf16_t const *a, void const *b_packed, nk_f32_t *c,       //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,          //
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_bf16_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -244,11 +245,11 @@ NK_API_COMPTIME void nk_euclideans_packed_bf16_sapphireamx( //
 
 #pragma region BF16 Symmetric
 
-NK_HELPER_INLINE void nk_angulars_symmetric_bf16_sapphireamx_finalize_(nk_bf16_t const *vectors,
-                                                                       nk_size_t vectors_count, nk_size_t depth,
-                                                                       nk_size_t stride_elements, nk_f32_t *result,
-                                                                       nk_size_t result_stride_elements,
-                                                                       nk_size_t row_start, nk_size_t row_count) {
+NUMKONG_HELPER_INLINE void nk_angulars_symmetric_bf16_sapphireamx_finalize_(nk_bf16_t const *vectors,
+                                                                            nk_size_t vectors_count, nk_size_t depth,
+                                                                            nk_size_t stride_elements, nk_f32_t *result,
+                                                                            nk_size_t result_stride_elements,
+                                                                            nk_size_t row_start, nk_size_t row_count) {
 
     // Cache row norms on diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
@@ -274,7 +275,7 @@ NK_HELPER_INLINE void nk_angulars_symmetric_bf16_sapphireamx_finalize_(nk_bf16_t
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 
-NK_API_COMPTIME void nk_angulars_symmetric_bf16_sapphireamx(                                       //
+NUMKONG_API_COMPTIME void nk_angulars_symmetric_bf16_sapphireamx(                                  //
     nk_bf16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
@@ -286,11 +287,9 @@ NK_API_COMPTIME void nk_angulars_symmetric_bf16_sapphireamx(                    
                                                      result_stride_elements, row_start, row_count);
 }
 
-NK_HELPER_INLINE void nk_euclideans_symmetric_bf16_sapphireamx_finalize_(nk_bf16_t const *vectors,
-                                                                         nk_size_t vectors_count, nk_size_t depth,
-                                                                         nk_size_t stride_elements, nk_f32_t *result,
-                                                                         nk_size_t result_stride_elements,
-                                                                         nk_size_t row_start, nk_size_t row_count) {
+NUMKONG_HELPER_INLINE void nk_euclideans_symmetric_bf16_sapphireamx_finalize_(
+    nk_bf16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
+    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) {
 
     // Cache row norms on diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
@@ -316,7 +315,7 @@ NK_HELPER_INLINE void nk_euclideans_symmetric_bf16_sapphireamx_finalize_(nk_bf16
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 
-NK_API_COMPTIME void nk_euclideans_symmetric_bf16_sapphireamx(                                     //
+NUMKONG_API_COMPTIME void nk_euclideans_symmetric_bf16_sapphireamx(                                //
     nk_bf16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
@@ -332,10 +331,10 @@ NK_API_COMPTIME void nk_euclideans_symmetric_bf16_sapphireamx(                  
 
 #pragma region I8 Packed
 
-NK_HELPER_INLINE void nk_angulars_packed_i8_sapphireamx_finalize_(nk_i8_t const *a, void const *b_packed, nk_f32_t *c,
-                                                                  nk_size_t rows, nk_size_t columns, nk_size_t depth,
-                                                                  nk_size_t a_stride_elements,
-                                                                  nk_size_t c_stride_elements) {
+NUMKONG_HELPER_INLINE void nk_angulars_packed_i8_sapphireamx_finalize_(nk_i8_t const *a, void const *b_packed,
+                                                                       nk_f32_t *c, nk_size_t rows, nk_size_t columns,
+                                                                       nk_size_t depth, nk_size_t a_stride_elements,
+                                                                       nk_size_t c_stride_elements) {
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     nk_u32_t const *b_norms = (nk_u32_t const *)((char const *)b_packed + header->norms_byte_offset);
     for (nk_size_t row = 0; row < rows; row++) {
@@ -344,9 +343,9 @@ NK_HELPER_INLINE void nk_angulars_packed_i8_sapphireamx_finalize_(nk_i8_t const 
     }
 }
 
-NK_API_COMPTIME void nk_angulars_packed_i8_sapphireamx(  //
-    nk_i8_t const *a, void const *b_packed, nk_f32_t *c, //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,  //
+NUMKONG_API_COMPTIME void nk_angulars_packed_i8_sapphireamx( //
+    nk_i8_t const *a, void const *b_packed, nk_f32_t *c,     //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,      //
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_i8_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -356,10 +355,10 @@ NK_API_COMPTIME void nk_angulars_packed_i8_sapphireamx(  //
                                                 c_stride_elements);
 }
 
-NK_HELPER_INLINE void nk_euclideans_packed_i8_sapphireamx_finalize_(nk_i8_t const *a, void const *b_packed, nk_f32_t *c,
-                                                                    nk_size_t rows, nk_size_t columns, nk_size_t depth,
-                                                                    nk_size_t a_stride_elements,
-                                                                    nk_size_t c_stride_elements) {
+NUMKONG_HELPER_INLINE void nk_euclideans_packed_i8_sapphireamx_finalize_(nk_i8_t const *a, void const *b_packed,
+                                                                         nk_f32_t *c, nk_size_t rows, nk_size_t columns,
+                                                                         nk_size_t depth, nk_size_t a_stride_elements,
+                                                                         nk_size_t c_stride_elements) {
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     nk_u32_t const *b_norms = (nk_u32_t const *)((char const *)b_packed + header->norms_byte_offset);
     for (nk_size_t row = 0; row < rows; row++) {
@@ -368,9 +367,9 @@ NK_HELPER_INLINE void nk_euclideans_packed_i8_sapphireamx_finalize_(nk_i8_t cons
     }
 }
 
-NK_API_COMPTIME void nk_euclideans_packed_i8_sapphireamx( //
-    nk_i8_t const *a, void const *b_packed, nk_f32_t *c,  //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,   //
+NUMKONG_API_COMPTIME void nk_euclideans_packed_i8_sapphireamx( //
+    nk_i8_t const *a, void const *b_packed, nk_f32_t *c,       //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,        //
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_i8_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -384,10 +383,11 @@ NK_API_COMPTIME void nk_euclideans_packed_i8_sapphireamx( //
 
 #pragma region I8 Symmetric
 
-NK_HELPER_INLINE void nk_angulars_symmetric_i8_sapphireamx_finalize_(nk_i8_t const *vectors, nk_size_t vectors_count,
-                                                                     nk_size_t depth, nk_size_t stride_elements,
-                                                                     nk_f32_t *result, nk_size_t result_stride_elements,
-                                                                     nk_size_t row_start, nk_size_t row_count) {
+NUMKONG_HELPER_INLINE void nk_angulars_symmetric_i8_sapphireamx_finalize_(nk_i8_t const *vectors,
+                                                                          nk_size_t vectors_count, nk_size_t depth,
+                                                                          nk_size_t stride_elements, nk_f32_t *result,
+                                                                          nk_size_t result_stride_elements,
+                                                                          nk_size_t row_start, nk_size_t row_count) {
 
     // Cache row norms on diagonal (stored as u32 reinterpreted in f32 slot)
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
@@ -415,7 +415,7 @@ NK_HELPER_INLINE void nk_angulars_symmetric_i8_sapphireamx_finalize_(nk_i8_t con
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 
-NK_API_COMPTIME void nk_angulars_symmetric_i8_sapphireamx(                                       //
+NUMKONG_API_COMPTIME void nk_angulars_symmetric_i8_sapphireamx(                                  //
     nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
@@ -427,11 +427,11 @@ NK_API_COMPTIME void nk_angulars_symmetric_i8_sapphireamx(                      
                                                    result_stride_elements, row_start, row_count);
 }
 
-NK_HELPER_INLINE void nk_euclideans_symmetric_i8_sapphireamx_finalize_(nk_i8_t const *vectors, nk_size_t vectors_count,
-                                                                       nk_size_t depth, nk_size_t stride_elements,
-                                                                       nk_f32_t *result,
-                                                                       nk_size_t result_stride_elements,
-                                                                       nk_size_t row_start, nk_size_t row_count) {
+NUMKONG_HELPER_INLINE void nk_euclideans_symmetric_i8_sapphireamx_finalize_(nk_i8_t const *vectors,
+                                                                            nk_size_t vectors_count, nk_size_t depth,
+                                                                            nk_size_t stride_elements, nk_f32_t *result,
+                                                                            nk_size_t result_stride_elements,
+                                                                            nk_size_t row_start, nk_size_t row_count) {
 
     // Cache row norms on diagonal (stored as u32 reinterpreted in f32 slot)
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
@@ -459,7 +459,7 @@ NK_HELPER_INLINE void nk_euclideans_symmetric_i8_sapphireamx_finalize_(nk_i8_t c
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 
-NK_API_COMPTIME void nk_euclideans_symmetric_i8_sapphireamx(                                     //
+NUMKONG_API_COMPTIME void nk_euclideans_symmetric_i8_sapphireamx(                                //
     nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
@@ -475,10 +475,10 @@ NK_API_COMPTIME void nk_euclideans_symmetric_i8_sapphireamx(                    
 
 #pragma region U8 Packed
 
-NK_HELPER_INLINE void nk_angulars_packed_u8_sapphireamx_finalize_(nk_u8_t const *a, void const *b_packed, nk_f32_t *c,
-                                                                  nk_size_t rows, nk_size_t columns, nk_size_t depth,
-                                                                  nk_size_t a_stride_elements,
-                                                                  nk_size_t c_stride_elements) {
+NUMKONG_HELPER_INLINE void nk_angulars_packed_u8_sapphireamx_finalize_(nk_u8_t const *a, void const *b_packed,
+                                                                       nk_f32_t *c, nk_size_t rows, nk_size_t columns,
+                                                                       nk_size_t depth, nk_size_t a_stride_elements,
+                                                                       nk_size_t c_stride_elements) {
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     nk_u32_t const *b_norms = (nk_u32_t const *)((char const *)b_packed + header->norms_byte_offset);
     for (nk_size_t row = 0; row < rows; row++) {
@@ -487,9 +487,9 @@ NK_HELPER_INLINE void nk_angulars_packed_u8_sapphireamx_finalize_(nk_u8_t const 
     }
 }
 
-NK_API_COMPTIME void nk_angulars_packed_u8_sapphireamx(  //
-    nk_u8_t const *a, void const *b_packed, nk_f32_t *c, //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,  //
+NUMKONG_API_COMPTIME void nk_angulars_packed_u8_sapphireamx( //
+    nk_u8_t const *a, void const *b_packed, nk_f32_t *c,     //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,      //
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_u8_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -499,10 +499,10 @@ NK_API_COMPTIME void nk_angulars_packed_u8_sapphireamx(  //
                                                 c_stride_elements);
 }
 
-NK_HELPER_INLINE void nk_euclideans_packed_u8_sapphireamx_finalize_(nk_u8_t const *a, void const *b_packed, nk_f32_t *c,
-                                                                    nk_size_t rows, nk_size_t columns, nk_size_t depth,
-                                                                    nk_size_t a_stride_elements,
-                                                                    nk_size_t c_stride_elements) {
+NUMKONG_HELPER_INLINE void nk_euclideans_packed_u8_sapphireamx_finalize_(nk_u8_t const *a, void const *b_packed,
+                                                                         nk_f32_t *c, nk_size_t rows, nk_size_t columns,
+                                                                         nk_size_t depth, nk_size_t a_stride_elements,
+                                                                         nk_size_t c_stride_elements) {
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     nk_u32_t const *b_norms = (nk_u32_t const *)((char const *)b_packed + header->norms_byte_offset);
     for (nk_size_t row = 0; row < rows; row++) {
@@ -511,9 +511,9 @@ NK_HELPER_INLINE void nk_euclideans_packed_u8_sapphireamx_finalize_(nk_u8_t cons
     }
 }
 
-NK_API_COMPTIME void nk_euclideans_packed_u8_sapphireamx( //
-    nk_u8_t const *a, void const *b_packed, nk_f32_t *c,  //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,   //
+NUMKONG_API_COMPTIME void nk_euclideans_packed_u8_sapphireamx( //
+    nk_u8_t const *a, void const *b_packed, nk_f32_t *c,       //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,        //
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_u8_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -527,10 +527,11 @@ NK_API_COMPTIME void nk_euclideans_packed_u8_sapphireamx( //
 
 #pragma region U8 Symmetric
 
-NK_HELPER_INLINE void nk_angulars_symmetric_u8_sapphireamx_finalize_(nk_u8_t const *vectors, nk_size_t vectors_count,
-                                                                     nk_size_t depth, nk_size_t stride_elements,
-                                                                     nk_f32_t *result, nk_size_t result_stride_elements,
-                                                                     nk_size_t row_start, nk_size_t row_count) {
+NUMKONG_HELPER_INLINE void nk_angulars_symmetric_u8_sapphireamx_finalize_(nk_u8_t const *vectors,
+                                                                          nk_size_t vectors_count, nk_size_t depth,
+                                                                          nk_size_t stride_elements, nk_f32_t *result,
+                                                                          nk_size_t result_stride_elements,
+                                                                          nk_size_t row_start, nk_size_t row_count) {
 
     // Cache row norms on diagonal (stored as u32 reinterpreted in f32 slot)
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
@@ -558,7 +559,7 @@ NK_HELPER_INLINE void nk_angulars_symmetric_u8_sapphireamx_finalize_(nk_u8_t con
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 
-NK_API_COMPTIME void nk_angulars_symmetric_u8_sapphireamx(                                       //
+NUMKONG_API_COMPTIME void nk_angulars_symmetric_u8_sapphireamx(                                  //
     nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
@@ -570,11 +571,11 @@ NK_API_COMPTIME void nk_angulars_symmetric_u8_sapphireamx(                      
                                                    result_stride_elements, row_start, row_count);
 }
 
-NK_HELPER_INLINE void nk_euclideans_symmetric_u8_sapphireamx_finalize_(nk_u8_t const *vectors, nk_size_t vectors_count,
-                                                                       nk_size_t depth, nk_size_t stride_elements,
-                                                                       nk_f32_t *result,
-                                                                       nk_size_t result_stride_elements,
-                                                                       nk_size_t row_start, nk_size_t row_count) {
+NUMKONG_HELPER_INLINE void nk_euclideans_symmetric_u8_sapphireamx_finalize_(nk_u8_t const *vectors,
+                                                                            nk_size_t vectors_count, nk_size_t depth,
+                                                                            nk_size_t stride_elements, nk_f32_t *result,
+                                                                            nk_size_t result_stride_elements,
+                                                                            nk_size_t row_start, nk_size_t row_count) {
 
     // Cache row norms on diagonal (stored as u32 reinterpreted in f32 slot)
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
@@ -602,7 +603,7 @@ NK_HELPER_INLINE void nk_euclideans_symmetric_u8_sapphireamx_finalize_(nk_u8_t c
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 
-NK_API_COMPTIME void nk_euclideans_symmetric_u8_sapphireamx(                                     //
+NUMKONG_API_COMPTIME void nk_euclideans_symmetric_u8_sapphireamx(                                //
     nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
@@ -618,10 +619,10 @@ NK_API_COMPTIME void nk_euclideans_symmetric_u8_sapphireamx(                    
 
 #pragma region E4M3 Packed
 
-NK_HELPER_INLINE void nk_angulars_packed_e4m3_sapphireamx_finalize_(nk_e4m3_t const *a, void const *b_packed,
-                                                                    nk_f32_t *c, nk_size_t rows, nk_size_t columns,
-                                                                    nk_size_t depth, nk_size_t a_stride_elements,
-                                                                    nk_size_t c_stride_elements) {
+NUMKONG_HELPER_INLINE void nk_angulars_packed_e4m3_sapphireamx_finalize_(nk_e4m3_t const *a, void const *b_packed,
+                                                                         nk_f32_t *c, nk_size_t rows, nk_size_t columns,
+                                                                         nk_size_t depth, nk_size_t a_stride_elements,
+                                                                         nk_size_t c_stride_elements) {
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     nk_f32_t const *b_norms = (nk_f32_t const *)((char const *)b_packed + header->norms_byte_offset);
     for (nk_size_t row = 0; row < rows; row++) {
@@ -630,9 +631,9 @@ NK_HELPER_INLINE void nk_angulars_packed_e4m3_sapphireamx_finalize_(nk_e4m3_t co
     }
 }
 
-NK_API_COMPTIME void nk_angulars_packed_e4m3_sapphireamx(  //
-    nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c, //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,    //
+NUMKONG_API_COMPTIME void nk_angulars_packed_e4m3_sapphireamx( //
+    nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,     //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,        //
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e4m3_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -641,10 +642,11 @@ NK_API_COMPTIME void nk_angulars_packed_e4m3_sapphireamx(  //
                                                   c_stride_elements);
 }
 
-NK_HELPER_INLINE void nk_euclideans_packed_e4m3_sapphireamx_finalize_(nk_e4m3_t const *a, void const *b_packed,
-                                                                      nk_f32_t *c, nk_size_t rows, nk_size_t columns,
-                                                                      nk_size_t depth, nk_size_t a_stride_elements,
-                                                                      nk_size_t c_stride_elements) {
+NUMKONG_HELPER_INLINE void nk_euclideans_packed_e4m3_sapphireamx_finalize_(nk_e4m3_t const *a, void const *b_packed,
+                                                                           nk_f32_t *c, nk_size_t rows,
+                                                                           nk_size_t columns, nk_size_t depth,
+                                                                           nk_size_t a_stride_elements,
+                                                                           nk_size_t c_stride_elements) {
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     nk_f32_t const *b_norms = (nk_f32_t const *)((char const *)b_packed + header->norms_byte_offset);
     for (nk_size_t row = 0; row < rows; row++) {
@@ -653,9 +655,9 @@ NK_HELPER_INLINE void nk_euclideans_packed_e4m3_sapphireamx_finalize_(nk_e4m3_t 
     }
 }
 
-NK_API_COMPTIME void nk_euclideans_packed_e4m3_sapphireamx( //
-    nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,  //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,     //
+NUMKONG_API_COMPTIME void nk_euclideans_packed_e4m3_sapphireamx( //
+    nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,       //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,          //
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e4m3_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -668,10 +670,10 @@ NK_API_COMPTIME void nk_euclideans_packed_e4m3_sapphireamx( //
 
 #pragma region E5M2 Packed
 
-NK_HELPER_INLINE void nk_angulars_packed_e5m2_sapphireamx_finalize_(nk_e5m2_t const *a, void const *b_packed,
-                                                                    nk_f32_t *c, nk_size_t rows, nk_size_t columns,
-                                                                    nk_size_t depth, nk_size_t a_stride_elements,
-                                                                    nk_size_t c_stride_elements) {
+NUMKONG_HELPER_INLINE void nk_angulars_packed_e5m2_sapphireamx_finalize_(nk_e5m2_t const *a, void const *b_packed,
+                                                                         nk_f32_t *c, nk_size_t rows, nk_size_t columns,
+                                                                         nk_size_t depth, nk_size_t a_stride_elements,
+                                                                         nk_size_t c_stride_elements) {
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     nk_f32_t const *b_norms = (nk_f32_t const *)((char const *)b_packed + header->norms_byte_offset);
     for (nk_size_t row = 0; row < rows; row++) {
@@ -680,9 +682,9 @@ NK_HELPER_INLINE void nk_angulars_packed_e5m2_sapphireamx_finalize_(nk_e5m2_t co
     }
 }
 
-NK_API_COMPTIME void nk_angulars_packed_e5m2_sapphireamx(  //
-    nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,    //
+NUMKONG_API_COMPTIME void nk_angulars_packed_e5m2_sapphireamx( //
+    nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,     //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,        //
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e5m2_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -691,10 +693,11 @@ NK_API_COMPTIME void nk_angulars_packed_e5m2_sapphireamx(  //
                                                   c_stride_elements);
 }
 
-NK_HELPER_INLINE void nk_euclideans_packed_e5m2_sapphireamx_finalize_(nk_e5m2_t const *a, void const *b_packed,
-                                                                      nk_f32_t *c, nk_size_t rows, nk_size_t columns,
-                                                                      nk_size_t depth, nk_size_t a_stride_elements,
-                                                                      nk_size_t c_stride_elements) {
+NUMKONG_HELPER_INLINE void nk_euclideans_packed_e5m2_sapphireamx_finalize_(nk_e5m2_t const *a, void const *b_packed,
+                                                                           nk_f32_t *c, nk_size_t rows,
+                                                                           nk_size_t columns, nk_size_t depth,
+                                                                           nk_size_t a_stride_elements,
+                                                                           nk_size_t c_stride_elements) {
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     nk_f32_t const *b_norms = (nk_f32_t const *)((char const *)b_packed + header->norms_byte_offset);
     for (nk_size_t row = 0; row < rows; row++) {
@@ -703,9 +706,9 @@ NK_HELPER_INLINE void nk_euclideans_packed_e5m2_sapphireamx_finalize_(nk_e5m2_t 
     }
 }
 
-NK_API_COMPTIME void nk_euclideans_packed_e5m2_sapphireamx( //
-    nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,  //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,     //
+NUMKONG_API_COMPTIME void nk_euclideans_packed_e5m2_sapphireamx( //
+    nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,       //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,          //
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e5m2_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -718,11 +721,11 @@ NK_API_COMPTIME void nk_euclideans_packed_e5m2_sapphireamx( //
 
 #pragma region E5M2 Symmetric
 
-NK_HELPER_INLINE void nk_angulars_symmetric_e5m2_sapphireamx_finalize_(nk_e5m2_t const *vectors,
-                                                                       nk_size_t vectors_count, nk_size_t depth,
-                                                                       nk_size_t stride_elements, nk_f32_t *result,
-                                                                       nk_size_t result_stride_elements,
-                                                                       nk_size_t row_start, nk_size_t row_count) {
+NUMKONG_HELPER_INLINE void nk_angulars_symmetric_e5m2_sapphireamx_finalize_(nk_e5m2_t const *vectors,
+                                                                            nk_size_t vectors_count, nk_size_t depth,
+                                                                            nk_size_t stride_elements, nk_f32_t *result,
+                                                                            nk_size_t result_stride_elements,
+                                                                            nk_size_t row_start, nk_size_t row_count) {
 
     // Cache row norms on diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
@@ -748,7 +751,7 @@ NK_HELPER_INLINE void nk_angulars_symmetric_e5m2_sapphireamx_finalize_(nk_e5m2_t
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 
-NK_API_COMPTIME void nk_angulars_symmetric_e5m2_sapphireamx(                                       //
+NUMKONG_API_COMPTIME void nk_angulars_symmetric_e5m2_sapphireamx(                                  //
     nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
@@ -760,11 +763,9 @@ NK_API_COMPTIME void nk_angulars_symmetric_e5m2_sapphireamx(                    
                                                      result_stride_elements, row_start, row_count);
 }
 
-NK_HELPER_INLINE void nk_euclideans_symmetric_e5m2_sapphireamx_finalize_(nk_e5m2_t const *vectors,
-                                                                         nk_size_t vectors_count, nk_size_t depth,
-                                                                         nk_size_t stride_elements, nk_f32_t *result,
-                                                                         nk_size_t result_stride_elements,
-                                                                         nk_size_t row_start, nk_size_t row_count) {
+NUMKONG_HELPER_INLINE void nk_euclideans_symmetric_e5m2_sapphireamx_finalize_(
+    nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
+    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) {
 
     // Cache row norms on diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
@@ -790,7 +791,7 @@ NK_HELPER_INLINE void nk_euclideans_symmetric_e5m2_sapphireamx_finalize_(nk_e5m2
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 
-NK_API_COMPTIME void nk_euclideans_symmetric_e5m2_sapphireamx(                                     //
+NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e5m2_sapphireamx(                                //
     nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
@@ -806,11 +807,11 @@ NK_API_COMPTIME void nk_euclideans_symmetric_e5m2_sapphireamx(                  
 
 #pragma region E4M3 Symmetric
 
-NK_HELPER_INLINE void nk_angulars_symmetric_e4m3_sapphireamx_finalize_(nk_e4m3_t const *vectors,
-                                                                       nk_size_t vectors_count, nk_size_t depth,
-                                                                       nk_size_t stride_elements, nk_f32_t *result,
-                                                                       nk_size_t result_stride_elements,
-                                                                       nk_size_t row_start, nk_size_t row_count) {
+NUMKONG_HELPER_INLINE void nk_angulars_symmetric_e4m3_sapphireamx_finalize_(nk_e4m3_t const *vectors,
+                                                                            nk_size_t vectors_count, nk_size_t depth,
+                                                                            nk_size_t stride_elements, nk_f32_t *result,
+                                                                            nk_size_t result_stride_elements,
+                                                                            nk_size_t row_start, nk_size_t row_count) {
 
     // Cache row norms on diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
@@ -836,7 +837,7 @@ NK_HELPER_INLINE void nk_angulars_symmetric_e4m3_sapphireamx_finalize_(nk_e4m3_t
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 
-NK_API_COMPTIME void nk_angulars_symmetric_e4m3_sapphireamx(                                       //
+NUMKONG_API_COMPTIME void nk_angulars_symmetric_e4m3_sapphireamx(                                  //
     nk_e4m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
@@ -848,11 +849,9 @@ NK_API_COMPTIME void nk_angulars_symmetric_e4m3_sapphireamx(                    
                                                      result_stride_elements, row_start, row_count);
 }
 
-NK_HELPER_INLINE void nk_euclideans_symmetric_e4m3_sapphireamx_finalize_(nk_e4m3_t const *vectors,
-                                                                         nk_size_t vectors_count, nk_size_t depth,
-                                                                         nk_size_t stride_elements, nk_f32_t *result,
-                                                                         nk_size_t result_stride_elements,
-                                                                         nk_size_t row_start, nk_size_t row_count) {
+NUMKONG_HELPER_INLINE void nk_euclideans_symmetric_e4m3_sapphireamx_finalize_(
+    nk_e4m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
+    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) {
 
     // Cache row norms on diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
@@ -878,7 +877,7 @@ NK_HELPER_INLINE void nk_euclideans_symmetric_e4m3_sapphireamx_finalize_(nk_e4m3
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 
-NK_API_COMPTIME void nk_euclideans_symmetric_e4m3_sapphireamx(                                     //
+NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e4m3_sapphireamx(                                //
     nk_e4m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
@@ -894,10 +893,10 @@ NK_API_COMPTIME void nk_euclideans_symmetric_e4m3_sapphireamx(                  
 
 #pragma region E2M3 Packed
 
-NK_HELPER_INLINE void nk_angulars_packed_e2m3_sapphireamx_finalize_(nk_e2m3_t const *a, void const *b_packed,
-                                                                    nk_f32_t *c, nk_size_t rows, nk_size_t columns,
-                                                                    nk_size_t depth, nk_size_t a_stride_elements,
-                                                                    nk_size_t c_stride_elements) {
+NUMKONG_HELPER_INLINE void nk_angulars_packed_e2m3_sapphireamx_finalize_(nk_e2m3_t const *a, void const *b_packed,
+                                                                         nk_f32_t *c, nk_size_t rows, nk_size_t columns,
+                                                                         nk_size_t depth, nk_size_t a_stride_elements,
+                                                                         nk_size_t c_stride_elements) {
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     nk_f32_t const *b_norms = (nk_f32_t const *)((char const *)b_packed + header->norms_byte_offset);
     for (nk_size_t row = 0; row < rows; row++) {
@@ -906,9 +905,9 @@ NK_HELPER_INLINE void nk_angulars_packed_e2m3_sapphireamx_finalize_(nk_e2m3_t co
     }
 }
 
-NK_API_COMPTIME void nk_angulars_packed_e2m3_sapphireamx(  //
-    nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c, //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,    //
+NUMKONG_API_COMPTIME void nk_angulars_packed_e2m3_sapphireamx( //
+    nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,     //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,        //
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e2m3_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -917,10 +916,11 @@ NK_API_COMPTIME void nk_angulars_packed_e2m3_sapphireamx(  //
                                                   c_stride_elements);
 }
 
-NK_HELPER_INLINE void nk_euclideans_packed_e2m3_sapphireamx_finalize_(nk_e2m3_t const *a, void const *b_packed,
-                                                                      nk_f32_t *c, nk_size_t rows, nk_size_t columns,
-                                                                      nk_size_t depth, nk_size_t a_stride_elements,
-                                                                      nk_size_t c_stride_elements) {
+NUMKONG_HELPER_INLINE void nk_euclideans_packed_e2m3_sapphireamx_finalize_(nk_e2m3_t const *a, void const *b_packed,
+                                                                           nk_f32_t *c, nk_size_t rows,
+                                                                           nk_size_t columns, nk_size_t depth,
+                                                                           nk_size_t a_stride_elements,
+                                                                           nk_size_t c_stride_elements) {
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     nk_f32_t const *b_norms = (nk_f32_t const *)((char const *)b_packed + header->norms_byte_offset);
     for (nk_size_t row = 0; row < rows; row++) {
@@ -929,9 +929,9 @@ NK_HELPER_INLINE void nk_euclideans_packed_e2m3_sapphireamx_finalize_(nk_e2m3_t 
     }
 }
 
-NK_API_COMPTIME void nk_euclideans_packed_e2m3_sapphireamx( //
-    nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,  //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,     //
+NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m3_sapphireamx( //
+    nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,       //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,          //
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e2m3_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -944,11 +944,11 @@ NK_API_COMPTIME void nk_euclideans_packed_e2m3_sapphireamx( //
 
 #pragma region E2M3 Symmetric
 
-NK_HELPER_INLINE void nk_angulars_symmetric_e2m3_sapphireamx_finalize_(nk_e2m3_t const *vectors,
-                                                                       nk_size_t vectors_count, nk_size_t depth,
-                                                                       nk_size_t stride_elements, nk_f32_t *result,
-                                                                       nk_size_t result_stride_elements,
-                                                                       nk_size_t row_start, nk_size_t row_count) {
+NUMKONG_HELPER_INLINE void nk_angulars_symmetric_e2m3_sapphireamx_finalize_(nk_e2m3_t const *vectors,
+                                                                            nk_size_t vectors_count, nk_size_t depth,
+                                                                            nk_size_t stride_elements, nk_f32_t *result,
+                                                                            nk_size_t result_stride_elements,
+                                                                            nk_size_t row_start, nk_size_t row_count) {
 
     // Cache row norms on diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
@@ -974,7 +974,7 @@ NK_HELPER_INLINE void nk_angulars_symmetric_e2m3_sapphireamx_finalize_(nk_e2m3_t
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 
-NK_API_COMPTIME void nk_angulars_symmetric_e2m3_sapphireamx(                                       //
+NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m3_sapphireamx(                                  //
     nk_e2m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
@@ -986,11 +986,9 @@ NK_API_COMPTIME void nk_angulars_symmetric_e2m3_sapphireamx(                    
                                                      result_stride_elements, row_start, row_count);
 }
 
-NK_HELPER_INLINE void nk_euclideans_symmetric_e2m3_sapphireamx_finalize_(nk_e2m3_t const *vectors,
-                                                                         nk_size_t vectors_count, nk_size_t depth,
-                                                                         nk_size_t stride_elements, nk_f32_t *result,
-                                                                         nk_size_t result_stride_elements,
-                                                                         nk_size_t row_start, nk_size_t row_count) {
+NUMKONG_HELPER_INLINE void nk_euclideans_symmetric_e2m3_sapphireamx_finalize_(
+    nk_e2m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
+    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) {
 
     // Cache row norms on diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
@@ -1016,7 +1014,7 @@ NK_HELPER_INLINE void nk_euclideans_symmetric_e2m3_sapphireamx_finalize_(nk_e2m3
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 
-NK_API_COMPTIME void nk_euclideans_symmetric_e2m3_sapphireamx(                                     //
+NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m3_sapphireamx(                                //
     nk_e2m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
@@ -1032,10 +1030,10 @@ NK_API_COMPTIME void nk_euclideans_symmetric_e2m3_sapphireamx(                  
 
 #pragma region E2M1 Packed
 
-NK_HELPER_INLINE void nk_angulars_packed_e2m1_sapphireamx_finalize_(nk_e2m1x2_t const *a, void const *b_packed,
-                                                                    nk_f32_t *c, nk_size_t rows, nk_size_t columns,
-                                                                    nk_size_t depth, nk_size_t a_stride_elements,
-                                                                    nk_size_t c_stride_elements) {
+NUMKONG_HELPER_INLINE void nk_angulars_packed_e2m1_sapphireamx_finalize_(nk_e2m1x2_t const *a, void const *b_packed,
+                                                                         nk_f32_t *c, nk_size_t rows, nk_size_t columns,
+                                                                         nk_size_t depth, nk_size_t a_stride_elements,
+                                                                         nk_size_t c_stride_elements) {
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     nk_f32_t const *b_norms = (nk_f32_t const *)((char const *)b_packed + header->norms_byte_offset);
     for (nk_size_t row = 0; row < rows; row++) {
@@ -1044,9 +1042,9 @@ NK_HELPER_INLINE void nk_angulars_packed_e2m1_sapphireamx_finalize_(nk_e2m1x2_t 
     }
 }
 
-NK_API_COMPTIME void nk_angulars_packed_e2m1_sapphireamx(    //
-    nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c, //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,      //
+NUMKONG_API_COMPTIME void nk_angulars_packed_e2m1_sapphireamx( //
+    nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c,   //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,        //
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e2m1x2_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -1055,10 +1053,11 @@ NK_API_COMPTIME void nk_angulars_packed_e2m1_sapphireamx(    //
                                                   c_stride_elements);
 }
 
-NK_HELPER_INLINE void nk_euclideans_packed_e2m1_sapphireamx_finalize_(nk_e2m1x2_t const *a, void const *b_packed,
-                                                                      nk_f32_t *c, nk_size_t rows, nk_size_t columns,
-                                                                      nk_size_t depth, nk_size_t a_stride_elements,
-                                                                      nk_size_t c_stride_elements) {
+NUMKONG_HELPER_INLINE void nk_euclideans_packed_e2m1_sapphireamx_finalize_(nk_e2m1x2_t const *a, void const *b_packed,
+                                                                           nk_f32_t *c, nk_size_t rows,
+                                                                           nk_size_t columns, nk_size_t depth,
+                                                                           nk_size_t a_stride_elements,
+                                                                           nk_size_t c_stride_elements) {
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     nk_f32_t const *b_norms = (nk_f32_t const *)((char const *)b_packed + header->norms_byte_offset);
     for (nk_size_t row = 0; row < rows; row++) {
@@ -1067,9 +1066,9 @@ NK_HELPER_INLINE void nk_euclideans_packed_e2m1_sapphireamx_finalize_(nk_e2m1x2_
     }
 }
 
-NK_API_COMPTIME void nk_euclideans_packed_e2m1_sapphireamx(  //
-    nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c, //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,      //
+NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m1_sapphireamx( //
+    nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c,     //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,          //
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e2m1x2_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -1082,11 +1081,11 @@ NK_API_COMPTIME void nk_euclideans_packed_e2m1_sapphireamx(  //
 
 #pragma region E2M1 Symmetric
 
-NK_HELPER_INLINE void nk_angulars_symmetric_e2m1_sapphireamx_finalize_(nk_e2m1x2_t const *vectors,
-                                                                       nk_size_t vectors_count, nk_size_t depth,
-                                                                       nk_size_t stride_elements, nk_f32_t *result,
-                                                                       nk_size_t result_stride_elements,
-                                                                       nk_size_t row_start, nk_size_t row_count) {
+NUMKONG_HELPER_INLINE void nk_angulars_symmetric_e2m1_sapphireamx_finalize_(nk_e2m1x2_t const *vectors,
+                                                                            nk_size_t vectors_count, nk_size_t depth,
+                                                                            nk_size_t stride_elements, nk_f32_t *result,
+                                                                            nk_size_t result_stride_elements,
+                                                                            nk_size_t row_start, nk_size_t row_count) {
 
     // Cache row norms on diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
@@ -1112,7 +1111,7 @@ NK_HELPER_INLINE void nk_angulars_symmetric_e2m1_sapphireamx_finalize_(nk_e2m1x2
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 
-NK_API_COMPTIME void nk_angulars_symmetric_e2m1_sapphireamx(                                         //
+NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m1_sapphireamx(                                    //
     nk_e2m1x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
@@ -1124,11 +1123,9 @@ NK_API_COMPTIME void nk_angulars_symmetric_e2m1_sapphireamx(                    
                                                      result_stride_elements, row_start, row_count);
 }
 
-NK_HELPER_INLINE void nk_euclideans_symmetric_e2m1_sapphireamx_finalize_(nk_e2m1x2_t const *vectors,
-                                                                         nk_size_t vectors_count, nk_size_t depth,
-                                                                         nk_size_t stride_elements, nk_f32_t *result,
-                                                                         nk_size_t result_stride_elements,
-                                                                         nk_size_t row_start, nk_size_t row_count) {
+NUMKONG_HELPER_INLINE void nk_euclideans_symmetric_e2m1_sapphireamx_finalize_(
+    nk_e2m1x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
+    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) {
 
     // Cache row norms on diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
@@ -1154,7 +1151,7 @@ NK_HELPER_INLINE void nk_euclideans_symmetric_e2m1_sapphireamx_finalize_(nk_e2m1
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 
-NK_API_COMPTIME void nk_euclideans_symmetric_e2m1_sapphireamx(                                       //
+NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m1_sapphireamx(                                  //
     nk_e2m1x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
@@ -1170,10 +1167,10 @@ NK_API_COMPTIME void nk_euclideans_symmetric_e2m1_sapphireamx(                  
 
 #pragma region E3M2 Packed
 
-NK_HELPER_INLINE void nk_angulars_packed_e3m2_sapphireamx_finalize_(nk_e3m2_t const *a, void const *b_packed,
-                                                                    nk_f32_t *c, nk_size_t rows, nk_size_t columns,
-                                                                    nk_size_t depth, nk_size_t a_stride_elements,
-                                                                    nk_size_t c_stride_elements) {
+NUMKONG_HELPER_INLINE void nk_angulars_packed_e3m2_sapphireamx_finalize_(nk_e3m2_t const *a, void const *b_packed,
+                                                                         nk_f32_t *c, nk_size_t rows, nk_size_t columns,
+                                                                         nk_size_t depth, nk_size_t a_stride_elements,
+                                                                         nk_size_t c_stride_elements) {
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     nk_f32_t const *b_norms = (nk_f32_t const *)((char const *)b_packed + header->norms_byte_offset);
     for (nk_size_t row = 0; row < rows; row++) {
@@ -1182,9 +1179,9 @@ NK_HELPER_INLINE void nk_angulars_packed_e3m2_sapphireamx_finalize_(nk_e3m2_t co
     }
 }
 
-NK_API_COMPTIME void nk_angulars_packed_e3m2_sapphireamx(  //
-    nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c, //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,    //
+NUMKONG_API_COMPTIME void nk_angulars_packed_e3m2_sapphireamx( //
+    nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,     //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,        //
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e3m2_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -1193,10 +1190,11 @@ NK_API_COMPTIME void nk_angulars_packed_e3m2_sapphireamx(  //
                                                   c_stride_elements);
 }
 
-NK_HELPER_INLINE void nk_euclideans_packed_e3m2_sapphireamx_finalize_(nk_e3m2_t const *a, void const *b_packed,
-                                                                      nk_f32_t *c, nk_size_t rows, nk_size_t columns,
-                                                                      nk_size_t depth, nk_size_t a_stride_elements,
-                                                                      nk_size_t c_stride_elements) {
+NUMKONG_HELPER_INLINE void nk_euclideans_packed_e3m2_sapphireamx_finalize_(nk_e3m2_t const *a, void const *b_packed,
+                                                                           nk_f32_t *c, nk_size_t rows,
+                                                                           nk_size_t columns, nk_size_t depth,
+                                                                           nk_size_t a_stride_elements,
+                                                                           nk_size_t c_stride_elements) {
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     nk_f32_t const *b_norms = (nk_f32_t const *)((char const *)b_packed + header->norms_byte_offset);
     for (nk_size_t row = 0; row < rows; row++) {
@@ -1205,9 +1203,9 @@ NK_HELPER_INLINE void nk_euclideans_packed_e3m2_sapphireamx_finalize_(nk_e3m2_t 
     }
 }
 
-NK_API_COMPTIME void nk_euclideans_packed_e3m2_sapphireamx( //
-    nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,  //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,     //
+NUMKONG_API_COMPTIME void nk_euclideans_packed_e3m2_sapphireamx( //
+    nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,       //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,          //
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e3m2_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -1220,11 +1218,11 @@ NK_API_COMPTIME void nk_euclideans_packed_e3m2_sapphireamx( //
 
 #pragma region E3M2 Symmetric
 
-NK_HELPER_INLINE void nk_angulars_symmetric_e3m2_sapphireamx_finalize_(nk_e3m2_t const *vectors,
-                                                                       nk_size_t vectors_count, nk_size_t depth,
-                                                                       nk_size_t stride_elements, nk_f32_t *result,
-                                                                       nk_size_t result_stride_elements,
-                                                                       nk_size_t row_start, nk_size_t row_count) {
+NUMKONG_HELPER_INLINE void nk_angulars_symmetric_e3m2_sapphireamx_finalize_(nk_e3m2_t const *vectors,
+                                                                            nk_size_t vectors_count, nk_size_t depth,
+                                                                            nk_size_t stride_elements, nk_f32_t *result,
+                                                                            nk_size_t result_stride_elements,
+                                                                            nk_size_t row_start, nk_size_t row_count) {
 
     // Cache row norms on diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
@@ -1250,7 +1248,7 @@ NK_HELPER_INLINE void nk_angulars_symmetric_e3m2_sapphireamx_finalize_(nk_e3m2_t
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 
-NK_API_COMPTIME void nk_angulars_symmetric_e3m2_sapphireamx(                                       //
+NUMKONG_API_COMPTIME void nk_angulars_symmetric_e3m2_sapphireamx(                                  //
     nk_e3m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
@@ -1262,11 +1260,9 @@ NK_API_COMPTIME void nk_angulars_symmetric_e3m2_sapphireamx(                    
                                                      result_stride_elements, row_start, row_count);
 }
 
-NK_HELPER_INLINE void nk_euclideans_symmetric_e3m2_sapphireamx_finalize_(nk_e3m2_t const *vectors,
-                                                                         nk_size_t vectors_count, nk_size_t depth,
-                                                                         nk_size_t stride_elements, nk_f32_t *result,
-                                                                         nk_size_t result_stride_elements,
-                                                                         nk_size_t row_start, nk_size_t row_count) {
+NUMKONG_HELPER_INLINE void nk_euclideans_symmetric_e3m2_sapphireamx_finalize_(
+    nk_e3m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
+    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) {
 
     // Cache row norms on diagonal
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
@@ -1292,7 +1288,7 @@ NK_HELPER_INLINE void nk_euclideans_symmetric_e3m2_sapphireamx_finalize_(nk_e3m2
     for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
 }
 
-NK_API_COMPTIME void nk_euclideans_symmetric_e3m2_sapphireamx(                                     //
+NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e3m2_sapphireamx(                                //
     nk_e3m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
@@ -1316,6 +1312,6 @@ NK_API_COMPTIME void nk_euclideans_symmetric_e3m2_sapphireamx(                  
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_SAPPHIREAMX
-#endif // NK_TARGET_X8664_
-#endif // NK_SPATIALS_SAPPHIREAMX_H
+#endif // NUMKONG_TARGET_SAPPHIREAMX
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_SPATIALS_SAPPHIREAMX_H

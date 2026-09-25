@@ -28,8 +28,8 @@ except Exception:
     numpy_available = False
 
 from base import (
-    NK_ATOL,
-    NK_RTOL,
+    NUMKONG_ATOL,
+    NUMKONG_RTOL,
     assert_allclose,
     collect_errors,
     create_stats,
@@ -133,7 +133,7 @@ def test_jensenshannon_random_accuracy(ndim: int, dtype: str, capability: str):
     result_dt, result = profile(simd_kernel, a_distribution, b_distribution)
     result = np.asarray(result)
 
-    assert_allclose(result, expected, atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
     collect_errors("jensenshannon", ndim, dtype, accurate, accurate_dt, expected, expected_dt, result, result_dt, stats)
 
 
@@ -145,7 +145,7 @@ def test_kullbackleibler_self_zero(ndim: int, dtype: str, capability: str):
     keep_one_capability(capability)
     uniform_distribution = nk.full((ndim,), 1.0 / ndim, dtype=dtype)
     result = nk.kullbackleibler(uniform_distribution, uniform_distribution)
-    assert abs(result) < NK_ATOL, f"KL(p,p) = {result}, expected ~0"
+    assert abs(result) < NUMKONG_ATOL, f"KL(p,p) = {result}, expected ~0"
 
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
@@ -156,7 +156,7 @@ def test_jensenshannon_self_zero(ndim: int, dtype: str, capability: str):
     keep_one_capability(capability)
     uniform_distribution = nk.full((ndim,), 1.0 / ndim, dtype=dtype)
     result = nk.jensenshannon(uniform_distribution, uniform_distribution)
-    assert abs(result) < NK_ATOL, f"JS(p,p) = {result}, expected ~0"
+    assert abs(result) < NUMKONG_ATOL, f"JS(p,p) = {result}, expected ~0"
 
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
@@ -169,5 +169,5 @@ def test_jensenshannon_symmetry_nonneg(ndim: int, dtype: str, capability: str):
     q = make_positive_buffer(ndim, dtype)
     js_pq = nk.jensenshannon(p, q)
     js_qp = nk.jensenshannon(q, p)
-    assert abs(js_pq - js_qp) < NK_ATOL, f"JS not symmetric: js(p,q)={js_pq}, js(q,p)={js_qp}"
-    assert js_pq >= -NK_ATOL, f"JS negative: {js_pq}"
+    assert abs(js_pq - js_qp) < NUMKONG_ATOL, f"JS not symmetric: js(p,q)={js_pq}, js(q,p)={js_qp}"
+    assert js_pq >= -NUMKONG_ATOL, f"JS negative: {js_pq}"

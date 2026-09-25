@@ -13,7 +13,7 @@ For broader comparisons — Rust, Python, etc. — see [NumWars](https://github.
 ### Building
 
 ```sh
-cmake -B build_release -D CMAKE_BUILD_TYPE=Release -D NK_BUILD_BENCH=1
+cmake -B build_release -D CMAKE_BUILD_TYPE=Release -D NUMKONG_BUILD_BENCH=1
 cmake --build build_release --config Release --parallel
 ```
 
@@ -21,12 +21,12 @@ With BLAS or MKL cross-validation:
 
 ```sh
 cmake -B build_release -D CMAKE_BUILD_TYPE=Release \
-      -D NK_BUILD_BENCH=1 \
-      -D NK_COMPARE_TO_BLAS=1 \
-      -D NK_COMPARE_TO_MKL=1
+      -D NUMKONG_BUILD_BENCH=1 \
+      -D NUMKONG_COMPARE_TO_BLAS=1 \
+      -D NUMKONG_COMPARE_TO_MKL=1
 ```
 
-On macOS with Homebrew Clang and OpenBLAS — see [CONTRIBUTING.md](../CONTRIBUTING.md#macos) for the full recipe, adding `-DNK_BUILD_BENCH=1` to the cmake flags.
+On macOS with Homebrew Clang and OpenBLAS — see [CONTRIBUTING.md](../CONTRIBUTING.md#macos) for the full recipe, adding `-DNUMKONG_BUILD_BENCH=1` to the cmake flags.
 
 Compiler requirements vary by ISA target — see [CONTRIBUTING.md](../CONTRIBUTING.md#compiler-requirements) for the full table.
 
@@ -41,22 +41,24 @@ build_release/numkong_bench --filter=dot                       # shorthand for -
 
 ### Environment Variables
 
-| Variable                  | Default | Description                                            |
-| :------------------------ | ------: | :----------------------------------------------------- |
-| `NK_FILTER`               |    `.*` | Regex to filter benchmarks by name                     |
-| `NK_SEED`                 |    `42` | RNG seed for reproducible inputs                       |
-| `NK_BUDGET_SECS`          |    `10` | Minimum time per benchmark in seconds                  |
-| `NK_BUDGET_MB`            |  `1024` | Memory budget for pre-allocated inputs                 |
-| `NK_DENSE_DIMENSIONS`     |  `1536` | Vector dimension for dot/spatial benchmarks            |
-| `NK_CURVED_DIMENSIONS`    |    `64` | Vector dimension for curved / bilinear form benchmarks |
-| `NK_MESH_POINTS`          |  `1000` | Point count for mesh / RMSD / Kabsch benchmarks        |
-| `NK_MATRIX_HEIGHT`        |  `1024` | GEMM M dimension, dataset size in kNN                  |
-| `NK_MATRIX_WIDTH`         |   `128` | GEMM N dimension, query count in kNN                   |
-| `NK_MATRIX_DEPTH`         |  `1536` | GEMM K dimension, vector dimension in kNN              |
-| `NK_SPARSE_FIRST_LENGTH`  |  `1024` | First set size for sparse benchmarks                   |
-| `NK_SPARSE_SECOND_LENGTH` |  `8192` | Second set size for sparse benchmarks                  |
-| `NK_SPARSE_INTERSECTION`  |   `0.5` | Intersection share [0.0, 1.0] for sparse benchmarks    |
-| `NK_MAX_COORD_ANGLE`      |   `180` | Maximum angle in degrees for geospatial benchmarks     |
+| Variable                       | Default | Description                                               |
+| :----------------------------- | ------: | :-------------------------------------------------------- |
+| `NUMWARS_FILTER`               |    `.*` | Regex to filter benchmarks by name                        |
+| `NUMKONG_SEED`                 |    `42` | RNG seed for reproducible inputs, or `random` to draw one |
+| `NUMWARS_PROFILE_SECONDS`      |    `10` | Minimum time per benchmark in seconds                     |
+| `NUMKONG_BUDGET_MB`            |  `1024` | Memory budget for pre-allocated inputs                    |
+| `NUMWARS_DIMS`                 |  `1536` | Vector dimension for dot/spatial benchmarks               |
+| `NUMKONG_CURVED_DIMENSIONS`    |    `64` | Vector dimension for curved / bilinear form benchmarks    |
+| `NUMWARS_MESH_POINTS`          |  `1000` | Point count for mesh / RMSD / Kabsch benchmarks           |
+| `NUMWARS_DIMS_HEIGHT`          |  `1024` | GEMM M dimension, dataset size in kNN                     |
+| `NUMWARS_DIMS_WIDTH`           |   `128` | GEMM N dimension, query count in kNN                      |
+| `NUMWARS_DIMS_DEPTH`           |  `1536` | GEMM K dimension, vector dimension in kNN                 |
+| `NUMKONG_SPARSE_FIRST_LENGTH`  |  `1024` | First set size for sparse benchmarks                      |
+| `NUMKONG_SPARSE_SECOND_LENGTH` |  `8192` | Second set size for sparse benchmarks                     |
+| `NUMKONG_SPARSE_INTERSECTION`  |   `0.5` | Intersection share [0.0, 1.0] for sparse benchmarks       |
+| `NUMKONG_MAX_COORD_ANGLE`      |   `180` | Maximum angle in degrees for geospatial benchmarks        |
+
+The seed in use opens the output as `- Seed: <n>`, so a `random` draw replays.
 
 Disable multi-threading in BLAS libraries to avoid interference:
 
@@ -95,16 +97,16 @@ npm run bench:all                               # all runtimes
 ```
 
 ```sh
-NK_DIMENSIONS=768 NK_FILTER="dot" npm run bench:native    # custom config
+NUMWARS_DIMS=768 NUMWARS_FILTER="dot" npm run bench:native    # custom config
 ```
 
-| Variable        |  Default | Description                             |
-| :-------------- | -------: | :-------------------------------------- |
-| `NK_DIMENSIONS` |   `1536` | Vector dimensionality                   |
-| `NK_ITERATIONS` |   `1000` | Number of benchmark iterations          |
-| `NK_FILTER`     |     `.*` | Regex to filter benchmarks              |
-| `NK_RUNTIME`    | `native` | Runtime: `native`, `emscripten`, `wasi` |
-| `NK_SEED`       |     `42` | Random seed for reproducible data       |
+| Variable             |  Default | Description                                                |
+| :------------------- | -------: | :--------------------------------------------------------- |
+| `NUMWARS_DIMS`       |   `1536` | Vector dimensionality                                      |
+| `NUMKONG_ITERATIONS` |   `1000` | Number of benchmark iterations                             |
+| `NUMWARS_FILTER`     |     `.*` | Regex to filter benchmarks                                 |
+| `NUMKONG_RUNTIME`    | `native` | Runtime: `native`, `emscripten`, `wasi`                    |
+| `NUMKONG_SEED`       |     `42` | Random seed for reproducible data, or `random` to draw one |
 
 ### Output
 
@@ -122,24 +124,24 @@ __Emscripten — wasm32 and wasm64__
 
 ```sh
 source ~/emsdk/emsdk_env.sh
-cmake -B build-wasm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake -DNK_BUILD_BENCH=1
+cmake -B build-wasm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake -DNUMKONG_BUILD_BENCH=1
 cmake --build build-wasm --parallel
 ```
 
 For wasm64:
 
 ```sh
-cmake -B build-wasm64 -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm64-emscripten.cmake -DNK_BUILD_BENCH=1
+cmake -B build-wasm64 -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm64-emscripten.cmake -DNUMKONG_BUILD_BENCH=1
 cmake --build build-wasm64 --parallel
 ```
 
-Each toolchain file picks one SIMD tier through `NK_WASM_SIMD`, `v128` for wasm32 and `v128relaxed` for wasm64 by default; pass `-DNK_WASM_SIMD=v128relaxed` to time the relaxed kernels on wasm32.
+Each toolchain file picks one SIMD tier through `NUMKONG_WASM_SIMD`, `v128` for wasm32 and `v128relaxed` for wasm64 by default; pass `-DNUMKONG_WASM_SIMD=v128relaxed` to time the relaxed kernels on wasm32.
 
 __WASI__
 
 ```sh
 export WASI_SDK_PATH=~/wasi-sdk-24.0-x86_64-linux
-cmake -B build-wasi -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-wasi.cmake -DNK_BUILD_BENCH=1
+cmake -B build-wasi -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-wasi.cmake -DNUMKONG_BUILD_BENCH=1
 cmake --build build-wasi --parallel
 ```
 

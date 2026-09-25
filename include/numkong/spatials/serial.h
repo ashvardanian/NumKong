@@ -6,8 +6,8 @@
  *
  *  @sa include/numkong/spatials.h
  */
-#ifndef NK_SPATIALS_SERIAL_H
-#define NK_SPATIALS_SERIAL_H
+#ifndef NUMKONG_SPATIALS_SERIAL_H
+#define NUMKONG_SPATIALS_SERIAL_H
 
 #include "numkong/dots/serial.h"
 
@@ -279,4 +279,4 @@ nk_define_cross_normalized_symmetric_(euclidean, u4, serial, u4x2, u32, /*norm_v
 } // extern "C"
 #endif
 
-#endif // NK_SPATIALS_SERIAL_H
+#endif // NUMKONG_SPATIALS_SERIAL_H

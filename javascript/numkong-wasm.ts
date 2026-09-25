@@ -63,6 +63,7 @@ interface EmscriptenModule {
   _nk_capabilities_compiled(): any;
   _nk_capabilities_available(): any;
   _nk_capabilities_enabled(): any;
+  _nk_name_capabilities(capabilities: any, buffer: any, capacity: any): any;
 
   [key: string]: any;
 }
@@ -76,7 +77,7 @@ let Module: EmscriptenModule | null = null;
  *
  *  In memory64 mode, Emscripten wraps `_malloc`/`_free` to accept and return a plain number, but
  *  raw C function exports expect BigInt, an i64, for pointer parameters. `nk_size_t` is always an
- *  i32 number in WASM, since NK_IS_64BIT_=0. */
+ *  i32 number in WASM, since NUMKONG_ARCH_64BIT_=0. */
 let isMemory64 = false;
 
 /** Pre-allocated 8-byte result buffer for f64, f32, i32 and u32, allocated once in

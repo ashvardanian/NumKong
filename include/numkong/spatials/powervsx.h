@@ -6,11 +6,11 @@
  *
  *  @sa include/numkong/spatials.h
  */
-#ifndef NK_SPATIALS_POWERVSX_H
-#define NK_SPATIALS_POWERVSX_H
+#ifndef NUMKONG_SPATIALS_POWERVSX_H
+#define NUMKONG_SPATIALS_POWERVSX_H
 
-#if NK_TARGET_POWER64_
-#if NK_TARGET_POWERVSX
+#if NUMKONG_ARCH_PPC64_
+#if NUMKONG_TARGET_POWERVSX
 
 #include "numkong/spatial/powervsx.h"
 #include "numkong/dots/powervsx.h"
@@ -148,6 +148,6 @@ nk_define_cross_normalized_symmetric_(euclidean, f64, powervsx, f64, f64, /*norm
 #pragma GCC pop_options
 #endif
 
-#endif // NK_TARGET_POWERVSX
-#endif // NK_TARGET_POWER64_
-#endif // NK_SPATIALS_POWERVSX_H
+#endif // NUMKONG_TARGET_POWERVSX
+#endif // NUMKONG_ARCH_PPC64_
+#endif // NUMKONG_SPATIALS_POWERVSX_H

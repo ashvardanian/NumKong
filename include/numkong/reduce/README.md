@@ -126,13 +126,13 @@ NEON uses same-width counters (u8x16 for i8x16 minmax), limiting block size to $
 `nk_reduce_minmax_f32_haswell`, `nk_reduce_minmax_f64_skylake` use IEEE ordered-quiet comparisons (`_CMP_LT_OQ`, `_CMP_GT_OQ`) — returning false when either operand is NaN, so NaN inputs never replace the running extremum.
 Tail elements beyond the vector-aligned portion are blended into a quiet-NaN register — `nk_reduce_minmax_f64_haswell` partial-loads the tail and `_mm256_blendv_pd`-s it over a NaN vector, so the padding lanes cannot win any comparison; Skylake instead predicates the tail comparison with the same `__mmask` used for the load, and `nk_reduce_minmax_f32_haswell` finishes its tail in scalar code.
 The sentinels are ±infinity, so any finite extremum replaces them.
-A side still at its sentinel saw only that infinity and NaNs, so a serial scan returns the first such infinity, and only an all-NaN input reports `NK_SIZE_MAX`.
+A side still at its sentinel saw only that infinity and NaNs, so a serial scan returns the first such infinity, and only an all-NaN input reports `NUMKONG_SIZE_MAX`.
 The final horizontal reduction across lanes uses pairwise `VSHUFPS` + `VMINPS` chains — 3 shuffles for a 256-bit register, $O(\log_2 w)$ for width $w$.
 
 ## Performance
 
 The following performance tables are produced by manually re-running `numkong_test` and `numkong_bench` included internal tools to measure both accuracy and throughput at different input shapes.
-The input size is controlled by the `NK_DENSE_DIMENSIONS` environment variable and set to 256, 1024, and 4096 elements.
+The input size is controlled by the `NUMWARS_DIMS` environment variable and set to 256, 1024, and 4096 elements.
 The throughput is measured in GB/s as the number of input bytes per second.
 Accuracy is reported as mean ULP (units in last place) unless noted otherwise — the average number of representable floating-point values between the result and the exact answer.
 Each kernel runs for at least 20 seconds per configuration.

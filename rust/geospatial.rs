@@ -267,8 +267,8 @@ mod tests {
 
     #[test]
     fn geospatial() {
-        // New York → Los Angeles
-        // Haversine uses NK_EARTH_MEDIATORIAL_RADIUS of 6,335,439m → ~3,913,778m
+        // New York → Los Angeles:
+        // Haversine uses NUMKONG_EARTH_MEDIATORIAL_RADIUS of 6,335,439m → ~3,913,778m
         // Vincenty uses the WGS-84 ellipsoid → ~3,944,422m
         let hav_expected = 3_914_000.0;
         let vin_expected = 3_944_000.0;

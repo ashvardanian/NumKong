@@ -8,11 +8,11 @@
  *
  *  Implements bf16 bilinear forms using AVX-512 with BF16 extensions.
  */
-#ifndef NK_CURVED_GENOA_H
-#define NK_CURVED_GENOA_H
+#ifndef NUMKONG_CURVED_GENOA_H
+#define NUMKONG_CURVED_GENOA_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_GENOA
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_GENOA
 
 #include "numkong/types.h"
 #include "numkong/spatial/haswell.h" // `nk_f32_sqrt_haswell`
@@ -31,8 +31,8 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "avx512bf16", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NK_API_COMPTIME void nk_bilinear_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                            nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_bilinear_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
+                                                 nk_size_t n, nk_f32_t *result) {
     nk_size_t const tail_length = n % 32;
     nk_size_t const tail_start = n - tail_length;
     __mmask32 const tail_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, tail_length);
@@ -64,8 +64,8 @@ NK_API_COMPTIME void nk_bilinear_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const 
     *result = _mm512_reduce_add_ps(sum_f32x16);
 }
 
-NK_API_COMPTIME void nk_mahalanobis_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                               nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_mahalanobis_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
+                                                    nk_size_t n, nk_f32_t *result) {
     nk_size_t const tail_length = n % 32;
     nk_size_t const tail_start = n - tail_length;
     __mmask32 const tail_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, tail_length);
@@ -110,8 +110,8 @@ NK_API_COMPTIME void nk_mahalanobis_bf16_genoa(nk_bf16_t const *a, nk_bf16_t con
     *result = nk_f32_sqrt_haswell(quadratic > 0 ? quadratic : 0);
 }
 
-NK_API_COMPTIME void nk_bilinear_bf16c_genoa(nk_bf16c_t const *a, nk_bf16c_t const *b, nk_bf16c_t const *c, nk_size_t n,
-                                             nk_f32c_t *results) {
+NUMKONG_API_COMPTIME void nk_bilinear_bf16c_genoa(nk_bf16c_t const *a, nk_bf16c_t const *b, nk_bf16c_t const *c,
+                                                  nk_size_t n, nk_f32c_t *results) {
 
     // We take into account, that FMS is the same as FMA with a negative multiplier.
     // To multiply a floating-point value by -1, we can use the `XOR` instruction to flip the sign bit.
@@ -183,6 +183,6 @@ NK_API_COMPTIME void nk_bilinear_bf16c_genoa(nk_bf16c_t const *a, nk_bf16c_t con
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_GENOA
-#endif // NK_TARGET_X8664_
-#endif // NK_CURVED_GENOA_H
+#endif // NUMKONG_TARGET_GENOA
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_CURVED_GENOA_H

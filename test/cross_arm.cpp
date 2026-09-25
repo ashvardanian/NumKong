@@ -6,14 +6,14 @@
  *
  *  Covers NEON, NEONHALF, NEONFHM, NEONBFDOT, NEONSDOT.
  */
-#include "test.hpp"
+#include "harness.hpp"
 #include "cross.cuh"
 
 using namespace ashvardanian::numkong::test;
 
 void test_cross_arm() {
     [[maybe_unused]] error_stats_section_t check;
-#if NK_TARGET_NEON
+#if NUMKONG_TARGET_NEON
     check.section("Cross NEON", nk_cap_neon_k);
     check("dots_packed_f64_neon", test_dots_packed<f64_t>, nk_dots_pack_size_f64_neon, nk_dots_pack_f64_neon,
           nk_dots_packed_f64_neon);
@@ -78,9 +78,9 @@ void test_cross_arm() {
     check("jaccards_packed_u1_neon", test_jaccards_packed<u1x8_t>, nk_dots_pack_size_u1_serial, nk_dots_pack_u1_serial,
           nk_jaccards_packed_u1_neon);
     check("jaccards_symmetric_u1_neon", test_jaccards_symmetric<u1x8_t>, nk_jaccards_symmetric_u1_neon);
-#endif // NK_TARGET_NEON
+#endif // NUMKONG_TARGET_NEON
 
-#if NK_TARGET_NEONBFDOT
+#if NUMKONG_TARGET_NEONBFDOT
     check.section("Cross NEON BF16", nk_cap_neonbfdot_k);
     check("dots_packed_bf16_neonbfdot", test_dots_packed<bf16_t>, nk_dots_pack_size_bf16_neonbfdot,
           nk_dots_pack_bf16_neonbfdot, nk_dots_packed_bf16_neonbfdot);
@@ -104,9 +104,9 @@ void test_cross_arm() {
     check("attention_causal_packed_bf16_neonbfdot", test_attention_causal_packed<bf16_t>,
           nk_attention_pack_size_bf16_neonbfdot, nk_attention_pack_bf16_neonbfdot,
           nk_attention_causal_packed_bf16_neonbfdot);
-#endif // NK_TARGET_NEONBFDOT
+#endif // NUMKONG_TARGET_NEONBFDOT
 
-#if NK_TARGET_NEONFHM
+#if NUMKONG_TARGET_NEONFHM
     check.section("Cross NEON FHM", nk_cap_neonfhm_k);
     check("dots_packed_f16_neonfhm", test_dots_packed<f16_t>, nk_dots_pack_size_f16_neonfhm, nk_dots_pack_f16_neonfhm,
           nk_dots_packed_f16_neonfhm);
@@ -141,9 +141,9 @@ void test_cross_arm() {
           nk_attention_bidirectional_packed_e4m3_neonfhm);
     check("attention_causal_packed_e4m3_neonfhm", test_attention_causal_packed<e4m3_t>,
           nk_attention_pack_size_e4m3_neonfhm, nk_attention_pack_e4m3_neonfhm, nk_attention_causal_packed_e4m3_neonfhm);
-#endif // NK_TARGET_NEONFHM
+#endif // NUMKONG_TARGET_NEONFHM
 
-#if NK_TARGET_NEONSDOT
+#if NUMKONG_TARGET_NEONSDOT
     check.section("Cross NEON I8", nk_cap_neonsdot_k);
     check("dots_packed_i8_neonsdot", test_dots_packed<i8_t>, nk_dots_pack_size_i8_neonsdot, nk_dots_pack_i8_neonsdot,
           nk_dots_packed_i8_neonsdot);
@@ -242,9 +242,9 @@ void test_cross_arm() {
           nk_attention_bidirectional_packed_i8_neonsdot);
     check("attention_causal_packed_i8_neonsdot", test_attention_causal_packed<i8_t>, nk_attention_pack_size_i8_neonsdot,
           nk_attention_pack_i8_neonsdot, nk_attention_causal_packed_i8_neonsdot);
-#endif // NK_TARGET_NEONSDOT
+#endif // NUMKONG_TARGET_NEONSDOT
 
-#if NK_TARGET_NEONFP8
+#if NUMKONG_TARGET_NEONFP8
     check.section("Cross NEON FP8", nk_cap_neonfp8_k);
     check("dots_packed_e5m2_neonfp8", test_dots_packed<e5m2_t>, nk_dots_pack_size_e5m2_neonfp8,
           nk_dots_pack_e5m2_neonfp8, nk_dots_packed_e5m2_neonfp8);
@@ -312,5 +312,5 @@ void test_cross_arm() {
     check("euclideans_symmetric_e2m3_neonfp8", test_euclideans_symmetric<e2m3_t>, nk_euclideans_symmetric_e2m3_neonfp8);
     check("euclideans_symmetric_e2m1_neonfp8", test_euclideans_symmetric<e2m1x2_t>,
           nk_euclideans_symmetric_e2m1_neonfp8);
-#endif // NK_TARGET_NEONFP8
+#endif // NUMKONG_TARGET_NEONFP8
 }

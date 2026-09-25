@@ -236,8 +236,8 @@ typedef struct nk_dlpack_export_ctx_t {
     } managed;
     int is_versioned;
     PyObject *owner; // source Tensor, Py_INCREF'd
-    int64_t shape[NK_TENSOR_MAX_RANK];
-    int64_t strides[NK_TENSOR_MAX_RANK];
+    int64_t shape[NUMKONG_TENSOR_MAX_RANK];
+    int64_t strides[NUMKONG_TENSOR_MAX_RANK];
 } nk_dlpack_export_ctx_t;
 
 /**
@@ -612,9 +612,9 @@ PyObject *api_from_dlpack(PyObject *self, PyObject *obj) {
         goto fail;
     }
 
-    if (dl_tensor->ndim < 0 || (size_t)dl_tensor->ndim > NK_TENSOR_MAX_RANK) {
+    if (dl_tensor->ndim < 0 || (size_t)dl_tensor->ndim > NUMKONG_TENSOR_MAX_RANK) {
         PyErr_Format(PyExc_ValueError, "DLPack tensor rank %d out of range (max %d)", //
-                     (int)dl_tensor->ndim, NK_TENSOR_MAX_RANK);
+                     (int)dl_tensor->ndim, NUMKONG_TENSOR_MAX_RANK);
         goto fail;
     }
 
@@ -692,7 +692,7 @@ PyObject *api_from_dlpack(PyObject *self, PyObject *obj) {
     view->dtype = dtype;
     view->rank = (size_t)dl_tensor->ndim;
     view->exports = 0;
-    for (size_t i = 0; i < NK_TENSOR_MAX_RANK; i++) {
+    for (size_t i = 0; i < NUMKONG_TENSOR_MAX_RANK; i++) {
         view->shape[i] = 0;
         view->strides[i] = 0;
     }

@@ -21,11 +21,11 @@
  *  stride-3 xyz deinterleaving. Multiple FMA accumulators hide the 5-cycle FMA latency. VHADDPS
  *  interleaves results across lanes, requiring additional shuffles for final scalar reduction.
  */
-#ifndef NK_MESH_HASWELL_H
-#define NK_MESH_HASWELL_H
+#ifndef NUMKONG_MESH_HASWELL_H
+#define NUMKONG_MESH_HASWELL_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_HASWELL
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_HASWELL
 
 #include "numkong/types.h"
 #include "numkong/dot/haswell.h"
@@ -49,7 +49,8 @@ extern "C" {
  *
  *  Input: 24 contiguous floats [x0,y0,z0, x1,y1,z1, ..., x7,y7,z7]
  *  Output: x[8], y[8], z[8] vectors */
-NK_HELPER_INLINE void nk_deinterleave_f32x8_haswell_(nk_f32_t const *ptr, __m256 *x_out, __m256 *y_out, __m256 *z_out) {
+NUMKONG_HELPER_INLINE void nk_deinterleave_f32x8_haswell_(nk_f32_t const *ptr, __m256 *x_out, __m256 *y_out,
+                                                          __m256 *z_out) {
     // Gather indices: 0, 3, 6, 9, 12, 15, 18, 21 (stride 3)
     __m256i index_i32x8 = _mm256_setr_epi32(0, 3, 6, 9, 12, 15, 18, 21);
     *x_out = _mm256_i32gather_ps(ptr + 0, index_i32x8, 4);
@@ -62,8 +63,8 @@ NK_HELPER_INLINE void nk_deinterleave_f32x8_haswell_(nk_f32_t const *ptr, __m256
  *
  *  Input: 12 contiguous f64 [x0,y0,z0, x1,y1,z1, x2,y2,z2, x3,y3,z3]
  *  Output: x[4], y[4], z[4] vectors */
-NK_HELPER_INLINE void nk_deinterleave_f64x4_haswell_(nk_f64_t const *ptr, __m256d *x_out, __m256d *y_out,
-                                                     __m256d *z_out) {
+NUMKONG_HELPER_INLINE void nk_deinterleave_f64x4_haswell_(nk_f64_t const *ptr, __m256d *x_out, __m256d *y_out,
+                                                          __m256d *z_out) {
     nk_f64_t x0 = ptr[0], x1 = ptr[3], x2 = ptr[6], x3 = ptr[9];
     nk_f64_t y0 = ptr[1], y1 = ptr[4], y2 = ptr[7], y3 = ptr[10];
     nk_f64_t z0 = ptr[2], z1 = ptr[5], z2 = ptr[8], z3 = ptr[11];
@@ -77,7 +78,7 @@ NK_HELPER_INLINE void nk_deinterleave_f64x4_haswell_(nk_f64_t const *ptr, __m256
  * - nk_reduce_add_f32x8_haswell_
  * - nk_reduce_add_f64x4_haswell_ */
 
-NK_HELPER_INLINE nk_f64_t nk_reduce_stable_f64x4_haswell_(__m256d values_f64x4) {
+NUMKONG_HELPER_INLINE nk_f64_t nk_reduce_stable_f64x4_haswell_(__m256d values_f64x4) {
     nk_b256_vec_t values;
     values.ymm_pd = values_f64x4;
     nk_f64_t sum = 0.0, compensation = 0.0;
@@ -88,8 +89,8 @@ NK_HELPER_INLINE nk_f64_t nk_reduce_stable_f64x4_haswell_(__m256d values_f64x4) 
     return sum + compensation;
 }
 
-NK_HELPER_INLINE void nk_accumulate_square_f64x4_haswell_(__m256d *sum_f64x4, __m256d *compensation_f64x4,
-                                                          __m256d values_f64x4) {
+NUMKONG_HELPER_INLINE void nk_accumulate_square_f64x4_haswell_(__m256d *sum_f64x4, __m256d *compensation_f64x4,
+                                                               __m256d values_f64x4) {
     __m256d product_f64x4 = _mm256_mul_pd(values_f64x4, values_f64x4);
     __m256d product_error_f64x4 = _mm256_fmsub_pd(values_f64x4, values_f64x4, product_f64x4);
     __m256d tentative_sum_f64x4 = _mm256_add_pd(*sum_f64x4, product_f64x4);
@@ -101,8 +102,9 @@ NK_HELPER_INLINE void nk_accumulate_square_f64x4_haswell_(__m256d *sum_f64x4, __
     *compensation_f64x4 = _mm256_add_pd(*compensation_f64x4, _mm256_add_pd(sum_error_f64x4, product_error_f64x4));
 }
 
-NK_API_COMPTIME void nk_rmsd_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                         nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_rmsd_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                              nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                              nk_f64_t *result) {
     if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
     if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
     if (rotation)
@@ -157,8 +159,9 @@ NK_API_COMPTIME void nk_rmsd_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, n
     *result = nk_f64_sqrt_haswell(sum_sq / (nk_f64_t)n);
 }
 
-NK_API_COMPTIME void nk_rmsd_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
-                                         nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_rmsd_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+                                              nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
+                                              nk_f64_t *result) {
     if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
     if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
     if (rotation)
@@ -234,9 +237,9 @@ NK_API_COMPTIME void nk_rmsd_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, n
     *result = nk_f64_sqrt_haswell((total_sq_x + total_sq_y + total_sq_z) / (nk_f64_t)n);
 }
 
-NK_API_COMPTIME void nk_kabsch_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                           nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                           nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_kabsch_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                                nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                                nk_f64_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -438,9 +441,9 @@ NK_API_COMPTIME void nk_kabsch_f32_haswell(nk_f32_t const *a, nk_f32_t const *b,
     *result = nk_f64_sqrt_haswell(sum_sq / (nk_f64_t)n);
 }
 
-NK_API_COMPTIME void nk_kabsch_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
-                                           nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
-                                           nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_kabsch_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+                                                nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
+                                                nk_f64_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -633,9 +636,9 @@ NK_API_COMPTIME void nk_kabsch_f64_haswell(nk_f64_t const *a, nk_f64_t const *b,
     *result = nk_f64_sqrt_haswell(sum_sq * inv_n);
 }
 
-NK_API_COMPTIME void nk_umeyama_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                            nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                            nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_umeyama_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
+                                                 nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
+                                                 nk_f32_t *scale, nk_f64_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -848,9 +851,9 @@ NK_API_COMPTIME void nk_umeyama_f32_haswell(nk_f32_t const *a, nk_f32_t const *b
     *result = nk_f64_sqrt_haswell(sum_sq / (nk_f64_t)n);
 }
 
-NK_API_COMPTIME void nk_umeyama_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
-                                            nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
-                                            nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_umeyama_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
+                                                 nk_f64_t *a_centroid, nk_f64_t *b_centroid, nk_f64_t *rotation,
+                                                 nk_f64_t *scale, nk_f64_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -1047,8 +1050,8 @@ NK_API_COMPTIME void nk_umeyama_f64_haswell(nk_f64_t const *a, nk_f64_t const *b
  *
  *  Input: 24 contiguous f16 [x0,y0,z0, x1,y1,z1, ..., x7,y7,z7]
  *  Output: x[8], y[8], z[8] vectors in f32 */
-NK_HELPER_INLINE void nk_deinterleave_f16x8_to_f32x8_haswell_(nk_f16_t const *ptr, __m256 *x_out, __m256 *y_out,
-                                                              __m256 *z_out) {
+NUMKONG_HELPER_INLINE void nk_deinterleave_f16x8_to_f32x8_haswell_(nk_f16_t const *ptr, __m256 *x_out, __m256 *y_out,
+                                                                   __m256 *z_out) {
     // Extract x, y, z components with stride-3 access
     nk_b256_vec_t x_vec, y_vec, z_vec;
     x_vec.f16s[0] = ptr[0], x_vec.f16s[1] = ptr[3], x_vec.f16s[2] = ptr[6], x_vec.f16s[3] = ptr[9];
@@ -1068,8 +1071,8 @@ NK_HELPER_INLINE void nk_deinterleave_f16x8_to_f32x8_haswell_(nk_f16_t const *pt
  *
  *  Input: 24 contiguous bf16 [x0,y0,z0, x1,y1,z1, ..., x7,y7,z7]
  *  Output: x[8], y[8], z[8] vectors in f32 */
-NK_HELPER_INLINE void nk_deinterleave_bf16x8_to_f32x8_haswell_(nk_bf16_t const *ptr, __m256 *x_out, __m256 *y_out,
-                                                               __m256 *z_out) {
+NUMKONG_HELPER_INLINE void nk_deinterleave_bf16x8_to_f32x8_haswell_(nk_bf16_t const *ptr, __m256 *x_out, __m256 *y_out,
+                                                                    __m256 *z_out) {
     // Extract x, y, z components with stride-3 access
     nk_b256_vec_t x_vec, y_vec, z_vec;
     x_vec.bf16s[0] = ptr[0], x_vec.bf16s[1] = ptr[3], x_vec.bf16s[2] = ptr[6], x_vec.bf16s[3] = ptr[9];
@@ -1084,8 +1087,9 @@ NK_HELPER_INLINE void nk_deinterleave_bf16x8_to_f32x8_haswell_(nk_bf16_t const *
     *z_out = nk_bf16x8_to_f32x8_haswell_(z_vec.xmms[0]);
 }
 
-NK_API_COMPTIME void nk_rmsd_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                         nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_rmsd_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                              nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                              nk_f32_t *result) {
     if (rotation)
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
         rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
@@ -1131,8 +1135,9 @@ NK_API_COMPTIME void nk_rmsd_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, n
     *result = nk_f32_sqrt_haswell(sum_sq / (nk_f32_t)n);
 }
 
-NK_API_COMPTIME void nk_rmsd_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                          nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_rmsd_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                               nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
+                                               nk_f32_t *scale, nk_f32_t *result) {
     if (rotation)
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
         rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
@@ -1178,9 +1183,9 @@ NK_API_COMPTIME void nk_rmsd_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b
     *result = nk_f32_sqrt_haswell(sum_sq / (nk_f32_t)n);
 }
 
-NK_API_COMPTIME void nk_kabsch_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                           nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                           nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_kabsch_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                                nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                                nk_f32_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -1376,9 +1381,9 @@ NK_API_COMPTIME void nk_kabsch_f16_haswell(nk_f16_t const *a, nk_f16_t const *b,
     *result = nk_f32_sqrt_haswell(sum_sq * inv_n);
 }
 
-NK_API_COMPTIME void nk_kabsch_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                            nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                            nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_kabsch_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                 nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
+                                                 nk_f32_t *scale, nk_f32_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -1574,9 +1579,9 @@ NK_API_COMPTIME void nk_kabsch_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const 
     *result = nk_f32_sqrt_haswell(sum_sq * inv_n);
 }
 
-NK_API_COMPTIME void nk_umeyama_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                            nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                            nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_umeyama_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                 nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
+                                                 nk_f32_t *scale, nk_f32_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -1772,9 +1777,9 @@ NK_API_COMPTIME void nk_umeyama_f16_haswell(nk_f16_t const *a, nk_f16_t const *b
     *result = nk_f32_sqrt_haswell(sum_sq * inv_n);
 }
 
-NK_API_COMPTIME void nk_umeyama_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                             nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                             nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_umeyama_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                  nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
+                                                  nk_f32_t *scale, nk_f32_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -1980,6 +1985,6 @@ NK_API_COMPTIME void nk_umeyama_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_HASWELL
-#endif // NK_TARGET_X8664_
-#endif // NK_MESH_HASWELL_H
+#endif // NUMKONG_TARGET_HASWELL
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_MESH_HASWELL_H

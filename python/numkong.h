@@ -7,8 +7,8 @@
  *  This header provides common data types, buffer protocol helpers, and dtype conversion utilities
  *  used across the NumKong Python extension modules.
  */
-#ifndef NK_PYTHON_NUMKONG_H
-#define NK_PYTHON_NUMKONG_H
+#ifndef NUMKONG_PYTHON_NUMKONG_H
+#define NUMKONG_PYTHON_NUMKONG_H
 
 #include <math.h>
 #include <string.h>
@@ -94,8 +94,8 @@ typedef struct {
 
 /** Backing storage for shape/strides when synthesizing a Py_buffer from __array_interface__. */
 typedef struct {
-    Py_ssize_t shape[NK_TENSOR_MAX_RANK];
-    Py_ssize_t strides[NK_TENSOR_MAX_RANK];
+    Py_ssize_t shape[NUMKONG_TENSOR_MAX_RANK];
+    Py_ssize_t strides[NUMKONG_TENSOR_MAX_RANK];
 } nk_buffer_backing_t;
 
 /** Global dtype metadata table. */
@@ -307,4 +307,4 @@ extern char const doc_get_capabilities_enabled[];
 }
 #endif
 
-#endif // NK_PYTHON_NUMKONG_H
+#endif // NUMKONG_PYTHON_NUMKONG_H

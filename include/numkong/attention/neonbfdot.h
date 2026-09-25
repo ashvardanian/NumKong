@@ -13,11 +13,11 @@
  *  eight channels. K/V planes keep the raw BF16 encoding, with channels zero-padded to eight for
  *  the dot lanes.
  */
-#ifndef NK_ATTENTION_NEONBFDOT_H
-#define NK_ATTENTION_NEONBFDOT_H
+#ifndef NUMKONG_ATTENTION_NEONBFDOT_H
+#define NUMKONG_ATTENTION_NEONBFDOT_H
 
-#if NK_TARGET_ARM64_
-#if NK_TARGET_NEONBFDOT
+#if NUMKONG_ARCH_ARM64_
+#if NUMKONG_TARGET_NEONBFDOT
 
 #include <arm_neon.h>
 
@@ -45,9 +45,9 @@ enum {
     nk_attention_max_depth_neonbfdot_k_ = 256,
 };
 
-NK_API_COMPTIME nk_size_t nk_attention_pack_size_bf16_neonbfdot(nk_size_t key_value_head_count, nk_size_t depth,
-                                                                nk_u32_t const *segment_lengths,
-                                                                nk_size_t segment_count) {
+NUMKONG_API_COMPTIME nk_size_t nk_attention_pack_size_bf16_neonbfdot(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                     nk_u32_t const *segment_lengths,
+                                                                     nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_neonbfdot_k_)
         return nk_attention_pack_size_bf16_serial(key_value_head_count, depth, segment_lengths, segment_count);
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
@@ -58,12 +58,12 @@ NK_API_COMPTIME nk_size_t nk_attention_pack_size_bf16_neonbfdot(nk_size_t key_va
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
 }
 
-NK_API_COMPTIME void nk_attention_packed_shape_bf16_neonbfdot(void const *key_value_packed, nk_size_t *heads,
-                                                              nk_size_t *depth, nk_size_t *segments) {
+NUMKONG_API_COMPTIME void nk_attention_packed_shape_bf16_neonbfdot(void const *key_value_packed, nk_size_t *heads,
+                                                                   nk_size_t *depth, nk_size_t *segments) {
     nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
 }
 
-NK_API_COMPTIME void nk_attention_pack_bf16_neonbfdot(                                 //
+NUMKONG_API_COMPTIME void nk_attention_pack_bf16_neonbfdot(                            //
     nk_bf16_t const *keys, nk_bf16_t const *values,                                    //
     nk_size_t key_value_head_count, nk_size_t depth,                                   //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                  //
@@ -119,7 +119,7 @@ NK_API_COMPTIME void nk_attention_pack_bf16_neonbfdot(                          
     }
 }
 
-NK_HELPER_INLINE void nk_attention_packed_bf16_neonbfdot_(                       //
+NUMKONG_HELPER_INLINE void nk_attention_packed_bf16_neonbfdot_(                  //
     nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output,    //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //
@@ -143,14 +143,14 @@ NK_HELPER_INLINE void nk_attention_packed_bf16_neonbfdot_(                      
     nk_size_t const head_group_size = head_count / key_value_head_count;
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
     nk_size_t const plane_row_bytes = depth_padded * sizeof(nk_bf16_t);
-    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x · log₂e)
+    nk_f32_t const scale2 = scale * NUMKONG_F32_LOG2E_; // softmax(x) = softmax₂(x · log₂e)
     nk_size_t const panel_width = nk_attention_panel_neonbfdot_k_;
 
     nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);
 
-    NK_ALIGN64 nk_u16_t query_row[nk_attention_max_depth_neonbfdot_k_];
-    NK_ALIGN64 nk_f32_t output_row[nk_attention_max_depth_neonbfdot_k_];
-    NK_ALIGN64 nk_f32_t scores[nk_attention_panel_neonbfdot_k_];
+    NUMKONG_ALIGN64_ nk_u16_t query_row[nk_attention_max_depth_neonbfdot_k_];
+    NUMKONG_ALIGN64_ nk_f32_t output_row[nk_attention_max_depth_neonbfdot_k_];
+    NUMKONG_ALIGN64_ nk_f32_t scores[nk_attention_panel_neonbfdot_k_];
 
     for (nk_size_t task_idx = task_start; task_idx < task_end; task_idx++) {
         nk_size_t const segment_idx = task_idx / head_count, head_idx = task_idx % head_count;
@@ -174,7 +174,7 @@ NK_HELPER_INLINE void nk_attention_packed_bf16_neonbfdot_(                      
             for (; channel_idx < depth_padded; channel_idx++) query_row[channel_idx] = 0;
             for (channel_idx = 0; channel_idx < depth_padded; channel_idx += 4)
                 vst1q_f32(output_row + channel_idx, vdupq_n_f32(0.0f));
-            nk_f32_t running_max2 = NK_F32_MIN, running_sum = 0;
+            nk_f32_t running_max2 = NUMKONG_F32_MIN, running_sum = 0;
 
             for (nk_size_t panel_start = key_begin; panel_start < key_end; panel_start += panel_width) {
                 nk_size_t const panel_length = (panel_start + panel_width <= key_end) ? panel_width
@@ -182,7 +182,7 @@ NK_HELPER_INLINE void nk_attention_packed_bf16_neonbfdot_(                      
 
                 nk_size_t position_idx = 0;
                 float32x4_t const scale2_f32x4 = vdupq_n_f32(scale2); // folded into the score store
-                float32x4_t max_f32x4 = vdupq_n_f32(NK_F32_MIN);
+                float32x4_t max_f32x4 = vdupq_n_f32(NUMKONG_F32_MIN);
                 // Score sweep: four KV rows in flight so each query-vector load feeds four BFDOTs.
                 for (; position_idx + 4 <= panel_length; position_idx += 4) {
                     char const *keys_row0 = keys_plane + (panel_start + position_idx + 0) * plane_row_bytes;
@@ -279,17 +279,17 @@ NK_HELPER_INLINE void nk_attention_packed_bf16_neonbfdot_(                      
     }
 }
 
-NK_API_COMPTIME void nk_attention_bidirectional_packed_bf16_neonbfdot(                                          //
+NUMKONG_API_COMPTIME void nk_attention_bidirectional_packed_bf16_neonbfdot(                                     //
     nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output,                                   //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
     nk_size_t task_start, nk_size_t task_count) {
     nk_attention_packed_bf16_neonbfdot_(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                        query_offsets, query_stride_bytes, output_stride_bytes, scale, NK_I64_MAX / 2,
-                                        NK_SIZE_MAX, task_start, task_count);
+                                        query_offsets, query_stride_bytes, output_stride_bytes, scale,
+                                        NUMKONG_I64_MAX / 2, NUMKONG_SIZE_MAX, task_start, task_count);
 }
 
-NK_API_COMPTIME void nk_attention_causal_packed_bf16_neonbfdot(                                                 //
+NUMKONG_API_COMPTIME void nk_attention_causal_packed_bf16_neonbfdot(                                            //
     nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output,                                   //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
@@ -309,7 +309,7 @@ NK_API_COMPTIME void nk_attention_causal_packed_bf16_neonbfdot(                 
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_NEONBFDOT
-#endif // NK_TARGET_ARM64_
+#endif // NUMKONG_TARGET_NEONBFDOT
+#endif // NUMKONG_ARCH_ARM64_
 
-#endif // NK_ATTENTION_NEONBFDOT_H
+#endif // NUMKONG_ATTENTION_NEONBFDOT_H

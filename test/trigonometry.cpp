@@ -5,7 +5,7 @@
  *  @brief Trigonometry tests: sin, cos, atan.
  */
 
-#include "test.hpp"
+#include "harness.hpp"
 #include "numkong/trigonometry.hpp"
 
 using namespace ashvardanian::numkong::test;
@@ -101,7 +101,7 @@ void test_trigonometry() {
     check("trig_cos_f16_serial", test_cos<f16_t>, nk_trig_cos_f16_serial);
     check("trig_atan_f16_serial", test_atan<f16_t>, nk_trig_atan_f16_serial);
 
-#if NK_RUNTIME_DISPATCH
+#if NUMKONG_RUNTIME_DISPATCH
     check.section("Trigonometry Runtime Dispatch", nk_cap_serial_k);
     check("trig_sin_f32", test_sin<f32_t>, nk_trig_sin_f32);
     check("trig_cos_f32", test_cos<f32_t>, nk_trig_cos_f32);
@@ -111,7 +111,7 @@ void test_trigonometry() {
     check("trig_atan_f64", test_atan<f64_t>, nk_trig_atan_f64);
 #endif
 
-#if NK_TARGET_NEON
+#if NUMKONG_TARGET_NEON
     check.section("Trigonometry NEON", nk_cap_neon_k);
     check("trig_sin_f32_neon", test_sin<f32_t>, nk_trig_sin_f32_neon);
     check("trig_cos_f32_neon", test_cos<f32_t>, nk_trig_cos_f32_neon);
@@ -119,9 +119,9 @@ void test_trigonometry() {
     check("trig_sin_f64_neon", test_sin<f64_t>, nk_trig_sin_f64_neon);
     check("trig_cos_f64_neon", test_cos<f64_t>, nk_trig_cos_f64_neon);
     check("trig_atan_f64_neon", test_atan<f64_t>, nk_trig_atan_f64_neon);
-#endif // NK_TARGET_NEON
+#endif // NUMKONG_TARGET_NEON
 
-#if NK_TARGET_HASWELL
+#if NUMKONG_TARGET_HASWELL
     check.section("Trigonometry Haswell", nk_cap_haswell_k);
     check("trig_sin_f32_haswell", test_sin<f32_t>, nk_trig_sin_f32_haswell);
     check("trig_cos_f32_haswell", test_cos<f32_t>, nk_trig_cos_f32_haswell);
@@ -129,9 +129,9 @@ void test_trigonometry() {
     check("trig_sin_f64_haswell", test_sin<f64_t>, nk_trig_sin_f64_haswell);
     check("trig_cos_f64_haswell", test_cos<f64_t>, nk_trig_cos_f64_haswell);
     check("trig_atan_f64_haswell", test_atan<f64_t>, nk_trig_atan_f64_haswell);
-#endif // NK_TARGET_HASWELL
+#endif // NUMKONG_TARGET_HASWELL
 
-#if NK_TARGET_SKYLAKE
+#if NUMKONG_TARGET_SKYLAKE
     check.section("Trigonometry Skylake", nk_cap_skylake_k);
     check("trig_sin_f32_skylake", test_sin<f32_t>, nk_trig_sin_f32_skylake);
     check("trig_cos_f32_skylake", test_cos<f32_t>, nk_trig_cos_f32_skylake);
@@ -142,9 +142,9 @@ void test_trigonometry() {
     check("trig_sin_f16_skylake", test_sin<f16_t>, nk_trig_sin_f16_skylake);
     check("trig_cos_f16_skylake", test_cos<f16_t>, nk_trig_cos_f16_skylake);
     check("trig_atan_f16_skylake", test_atan<f16_t>, nk_trig_atan_f16_skylake);
-#endif // NK_TARGET_SKYLAKE
+#endif // NUMKONG_TARGET_SKYLAKE
 
-#if NK_TARGET_V128RELAXED
+#if NUMKONG_TARGET_V128RELAXED
     check.section("Trigonometry V128 Relaxed", nk_cap_v128relaxed_k);
     check("trig_sin_f32_v128relaxed", test_sin<f32_t>, nk_trig_sin_f32_v128relaxed);
     check("trig_cos_f32_v128relaxed", test_cos<f32_t>, nk_trig_cos_f32_v128relaxed);
@@ -152,5 +152,5 @@ void test_trigonometry() {
     check("trig_sin_f64_v128relaxed", test_sin<f64_t>, nk_trig_sin_f64_v128relaxed);
     check("trig_cos_f64_v128relaxed", test_cos<f64_t>, nk_trig_cos_f64_v128relaxed);
     check("trig_atan_f64_v128relaxed", test_atan<f64_t>, nk_trig_atan_f64_v128relaxed);
-#endif // NK_TARGET_V128RELAXED
+#endif // NUMKONG_TARGET_V128RELAXED
 }

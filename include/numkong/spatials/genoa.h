@@ -6,11 +6,11 @@
  *
  *  @sa include/numkong/spatials.h
  */
-#ifndef NK_SPATIALS_GENOA_H
-#define NK_SPATIALS_GENOA_H
+#ifndef NUMKONG_SPATIALS_GENOA_H
+#define NUMKONG_SPATIALS_GENOA_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_GENOA
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_GENOA
 
 #include "numkong/spatial/haswell.h"
 #include "numkong/dots/genoa.h"
@@ -92,6 +92,6 @@ nk_define_cross_normalized_symmetric_(euclidean, e5m2, genoa, e5m2, f32, /*norm_
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_GENOA
-#endif // NK_TARGET_X8664_
-#endif // NK_SPATIALS_GENOA_H
+#endif // NUMKONG_TARGET_GENOA
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_SPATIALS_GENOA_H

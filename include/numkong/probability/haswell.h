@@ -6,11 +6,11 @@
  *
  *  @sa include/numkong/probability.h
  */
-#ifndef NK_PROBABILITY_HASWELL_H
-#define NK_PROBABILITY_HASWELL_H
+#ifndef NUMKONG_PROBABILITY_HASWELL_H
+#define NUMKONG_PROBABILITY_HASWELL_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_HASWELL
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_HASWELL
 
 #include "numkong/types.h"
 #include "numkong/reduce/haswell.h"  // `nk_reduce_add_f32x8_haswell_`, `nk_reduce_add_f64x4_haswell_`
@@ -28,7 +28,7 @@ extern "C" {
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NK_HELPER_INLINE __m256 nk_log2_f32x8_haswell_(__m256 x) {
+NUMKONG_HELPER_INLINE __m256 nk_log2_f32x8_haswell_(__m256 x) {
     // Extracting the exponent
     __m256i bits_i32x8 = _mm256_castps_si256(x);
     __m256i exponent_i32x8 = _mm256_srli_epi32(_mm256_and_si256(bits_i32x8, _mm256_set1_epi32(0x7F800000)), 23);
@@ -53,7 +53,7 @@ NK_HELPER_INLINE __m256 nk_log2_f32x8_haswell_(__m256 x) {
     return _mm256_add_ps(log2m_f32x8, exponent_f32x8);
 }
 
-NK_HELPER_INLINE __m256d nk_log2_f64x4_haswell_(__m256d x) {
+NUMKONG_HELPER_INLINE __m256d nk_log2_f64x4_haswell_(__m256d x) {
     // Extract exponent via integer shift: (bits >> 52) - 1023
     __m256i bits_i64x4 = _mm256_castpd_si256(x);
     __m256i exponent_i64x4 = _mm256_srli_epi64(bits_i64x4, 52);
@@ -93,15 +93,15 @@ NK_HELPER_INLINE __m256d nk_log2_f64x4_haswell_(__m256d x) {
 
     __m256d two_f64x4 = _mm256_set1_pd(2.0);
     __m256d ln_m_f64x4 = _mm256_mul_pd(_mm256_mul_pd(two_f64x4, s_f64x4), poly_f64x4);
-    __m256d log2e_f64x4 = _mm256_set1_pd(NK_F64_LOG2E_);
+    __m256d log2e_f64x4 = _mm256_set1_pd(NUMKONG_F64_LOG2E_);
     __m256d log2_m_f64x4 = _mm256_mul_pd(ln_m_f64x4, log2e_f64x4);
 
     return _mm256_add_pd(exponent_f64x4, log2_m_f64x4);
 }
 
-NK_API_COMPTIME void nk_kld_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_kld_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
     __m256 sum_f32x8 = _mm256_setzero_ps();
-    nk_f32_t epsilon = NK_F32_DIVISION_EPSILON;
+    nk_f32_t epsilon = NUMKONG_F32_DIVISION_EPSILON;
     __m256 epsilon_f32x8 = _mm256_set1_ps(epsilon);
     __m256 a_f32x8, b_f32x8;
 
@@ -125,14 +125,14 @@ nk_kld_f16_haswell_cycle:
     sum_f32x8 = _mm256_add_ps(sum_f32x8, contribution_f32x8);
     if (n) goto nk_kld_f16_haswell_cycle;
 
-    nk_f32_t log2_normalizer = NK_F32_LN2_;
+    nk_f32_t log2_normalizer = NUMKONG_F32_LN2_;
     nk_f32_t sum = nk_reduce_add_f32x8_haswell_(sum_f32x8);
     sum *= log2_normalizer;
     *result = sum;
 }
 
-NK_API_COMPTIME void nk_jsd_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
-    nk_f32_t epsilon = NK_F32_DIVISION_EPSILON;
+NUMKONG_API_COMPTIME void nk_jsd_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+    nk_f32_t epsilon = NUMKONG_F32_DIVISION_EPSILON;
     __m256 epsilon_f32x8 = _mm256_set1_ps(epsilon);
     __m256 sum_f32x8 = _mm256_setzero_ps();
     __m256 a_f32x8, b_f32x8;
@@ -164,14 +164,14 @@ nk_jsd_f16_haswell_cycle:
     sum_f32x8 = _mm256_add_ps(sum_f32x8, contribution_b_f32x8);
     if (n) goto nk_jsd_f16_haswell_cycle;
 
-    nk_f32_t log2_normalizer = NK_F32_LN2_;
+    nk_f32_t log2_normalizer = NUMKONG_F32_LN2_;
     nk_f32_t sum = nk_reduce_add_f32x8_haswell_(sum_f32x8);
     sum *= log2_normalizer / 2;
     *result = sum > 0 ? nk_f32_sqrt_haswell(sum) : 0;
 }
 
-NK_API_COMPTIME void nk_kld_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
-    nk_f64_t epsilon = NK_F64_DIVISION_EPSILON;
+NUMKONG_API_COMPTIME void nk_kld_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+    nk_f64_t epsilon = NUMKONG_F64_DIVISION_EPSILON;
     __m256d epsilon_f64x4 = _mm256_set1_pd(epsilon);
     __m256d sum_f64x4 = _mm256_setzero_pd();
     __m256d compensation_f64x4 = _mm256_setzero_pd();
@@ -201,12 +201,12 @@ nk_kld_f64_haswell_cycle:
     sum_f64x4 = tentative_f64x4;
     if (n) goto nk_kld_f64_haswell_cycle;
 
-    nk_f64_t log2_normalizer = NK_F64_LN2_;
+    nk_f64_t log2_normalizer = NUMKONG_F64_LN2_;
     *result = nk_reduce_add_f64x4_haswell_(sum_f64x4) * log2_normalizer;
 }
 
-NK_API_COMPTIME void nk_jsd_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
-    nk_f64_t epsilon = NK_F64_DIVISION_EPSILON;
+NUMKONG_API_COMPTIME void nk_jsd_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+    nk_f64_t epsilon = NUMKONG_F64_DIVISION_EPSILON;
     __m256d epsilon_f64x4 = _mm256_set1_pd(epsilon);
     __m256d sum_f64x4 = _mm256_setzero_pd();
     __m256d compensation_f64x4 = _mm256_setzero_pd();
@@ -247,7 +247,7 @@ nk_jsd_f64_haswell_cycle:
     sum_f64x4 = tentative_b_f64x4;
     if (n) goto nk_jsd_f64_haswell_cycle;
 
-    nk_f64_t log2_normalizer = NK_F64_LN2_;
+    nk_f64_t log2_normalizer = NUMKONG_F64_LN2_;
     nk_f64_t sum = nk_reduce_add_f64x4_haswell_(sum_f64x4);
     sum *= log2_normalizer / 2;
     *result = sum > 0 ? nk_f64_sqrt_haswell(sum) : 0;
@@ -263,6 +263,6 @@ nk_jsd_f64_haswell_cycle:
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_HASWELL
-#endif // NK_TARGET_X8664_
-#endif // NK_PROBABILITY_HASWELL_H
+#endif // NUMKONG_TARGET_HASWELL
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_PROBABILITY_HASWELL_H

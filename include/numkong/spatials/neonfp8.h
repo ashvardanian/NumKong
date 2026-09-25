@@ -9,11 +9,11 @@
  *  Uses FDOT (FEAT_FP8DOT4) for native FP8 dot products, then derives angular and Euclidean
  *  distances via the batched dots/ infrastructure.
  */
-#ifndef NK_SPATIALS_NEONFP8_H
-#define NK_SPATIALS_NEONFP8_H
+#ifndef NUMKONG_SPATIALS_NEONFP8_H
+#define NUMKONG_SPATIALS_NEONFP8_H
 
-#if NK_TARGET_ARM64_
-#if NK_TARGET_NEONFP8
+#if NUMKONG_ARCH_ARM64_
+#if NUMKONG_TARGET_NEONFP8
 
 #include "numkong/dots/neonfp8.h"
 
@@ -123,6 +123,6 @@ nk_define_cross_normalized_symmetric_(euclidean, e3m2, neonfp8, e3m2, f32, f32, 
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_NEONFP8
-#endif // NK_TARGET_ARM64_
-#endif // NK_SPATIALS_NEONFP8_H
+#endif // NUMKONG_TARGET_NEONFP8
+#endif // NUMKONG_ARCH_ARM64_
+#endif // NUMKONG_SPATIALS_NEONFP8_H

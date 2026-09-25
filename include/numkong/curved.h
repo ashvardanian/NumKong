@@ -46,8 +46,8 @@
  *  @see x86 intrinsics: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
  *  @see Arm intrinsics: https://developer.arm.com/architectures/instruction-sets/intrinsics/
  */
-#ifndef NK_CURVED_H
-#define NK_CURVED_H
+#ifndef NUMKONG_CURVED_H
+#define NUMKONG_CURVED_H
 
 #include "numkong/types.h"
 
@@ -68,17 +68,17 @@ extern "C" {
  *
  *  @note The output value can be negative.
  */
-NK_API_RUNTIME void nk_bilinear_f64(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                    nk_f64_t *result);
+NUMKONG_API_RUNTIME void nk_bilinear_f64(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
+                                         nk_f64_t *result);
 /** @copydoc nk_bilinear_f64 */
-NK_API_RUNTIME void nk_bilinear_f32(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                    nk_f64_t *result);
+NUMKONG_API_RUNTIME void nk_bilinear_f32(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
+                                         nk_f64_t *result);
 /** @copydoc nk_bilinear_f64 */
-NK_API_RUNTIME void nk_bilinear_f16(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                    nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_bilinear_f16(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
+                                         nk_f32_t *result);
 /** @copydoc nk_bilinear_f64 */
-NK_API_RUNTIME void nk_bilinear_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                     nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_bilinear_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
+                                          nk_f32_t *result);
 
 /**
  *  @brief Mahalanobis distance between vectors a and b under metric tensor C.
@@ -96,17 +96,17 @@ NK_API_RUNTIME void nk_bilinear_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_
  *  @note The matrix C must be positive semi-definite. If C is not PSD, the quadratic form (a-b)ᵀ C
  *      (a-b) may be negative, and the square root will produce NaN.
  */
-NK_API_RUNTIME void nk_mahalanobis_f64(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                       nk_f64_t *result);
+NUMKONG_API_RUNTIME void nk_mahalanobis_f64(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
+                                            nk_f64_t *result);
 /** @copydoc nk_mahalanobis_f64 */
-NK_API_RUNTIME void nk_mahalanobis_f32(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                       nk_f64_t *result);
+NUMKONG_API_RUNTIME void nk_mahalanobis_f32(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
+                                            nk_f64_t *result);
 /** @copydoc nk_mahalanobis_f64 */
-NK_API_RUNTIME void nk_mahalanobis_f16(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                       nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_mahalanobis_f16(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
+                                            nk_f32_t *result);
 /** @copydoc nk_mahalanobis_f64 */
-NK_API_RUNTIME void nk_mahalanobis_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                        nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_mahalanobis_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
+                                             nk_f32_t *result);
 
 /**
  *  @brief Complex bilinear form between vectors a and b under metric tensor C.
@@ -117,192 +117,192 @@ NK_API_RUNTIME void nk_mahalanobis_bf16(nk_bf16_t const *a, nk_bf16_t const *b, 
  *  @param[in] n The number of dimensions in the vectors.
  *  @param[out] results The output complex value with real and imaginary parts.
  */
-NK_API_RUNTIME void nk_bilinear_f64c(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c, nk_size_t n,
-                                     nk_f64c_t *results);
+NUMKONG_API_RUNTIME void nk_bilinear_f64c(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c, nk_size_t n,
+                                          nk_f64c_t *results);
 /** @copydoc nk_bilinear_f64c */
-NK_API_RUNTIME void nk_bilinear_f32c(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c, nk_size_t n,
-                                     nk_f64c_t *results);
+NUMKONG_API_RUNTIME void nk_bilinear_f32c(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c, nk_size_t n,
+                                          nk_f64c_t *results);
 /** @copydoc nk_bilinear_f64c */
-NK_API_RUNTIME void nk_bilinear_f16c(nk_f16c_t const *a, nk_f16c_t const *b, nk_f16c_t const *c, nk_size_t n,
-                                     nk_f32c_t *results);
+NUMKONG_API_RUNTIME void nk_bilinear_f16c(nk_f16c_t const *a, nk_f16c_t const *b, nk_f16c_t const *c, nk_size_t n,
+                                          nk_f32c_t *results);
 /** @copydoc nk_bilinear_f64c */
-NK_API_RUNTIME void nk_bilinear_bf16c(nk_bf16c_t const *a, nk_bf16c_t const *b, nk_bf16c_t const *c, nk_size_t n,
-                                      nk_f32c_t *results);
-
-/** @copydoc nk_bilinear_f64 */
-NK_API_COMPTIME void nk_bilinear_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                            nk_f64_t *result);
-/** @copydoc nk_bilinear_f64c */
-NK_API_COMPTIME void nk_bilinear_f64c_serial(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c, nk_size_t n,
-                                             nk_f64c_t *results);
-/** @copydoc nk_mahalanobis_f64 */
-NK_API_COMPTIME void nk_mahalanobis_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                               nk_f64_t *result);
-/** @copydoc nk_bilinear_f32 */
-NK_API_COMPTIME void nk_bilinear_f32_serial(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                            nk_f64_t *result);
-/** @copydoc nk_bilinear_f32c */
-NK_API_COMPTIME void nk_bilinear_f32c_serial(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c, nk_size_t n,
-                                             nk_f64c_t *results);
-/** @copydoc nk_mahalanobis_f32 */
-NK_API_COMPTIME void nk_mahalanobis_f32_serial(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                               nk_f64_t *result);
-/** @copydoc nk_bilinear_f16 */
-NK_API_COMPTIME void nk_bilinear_f16_serial(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                            nk_f32_t *result);
-/** @copydoc nk_bilinear_f16c */
-NK_API_COMPTIME void nk_bilinear_f16c_serial(nk_f16c_t const *a, nk_f16c_t const *b, nk_f16c_t const *c, nk_size_t n,
-                                             nk_f32c_t *results);
-/** @copydoc nk_mahalanobis_f16 */
-NK_API_COMPTIME void nk_mahalanobis_f16_serial(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                               nk_f32_t *result);
-/** @copydoc nk_bilinear_bf16 */
-NK_API_COMPTIME void nk_bilinear_bf16_serial(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                             nk_f32_t *result);
-/** @copydoc nk_bilinear_bf16c */
-NK_API_COMPTIME void nk_bilinear_bf16c_serial(nk_bf16c_t const *a, nk_bf16c_t const *b, nk_bf16c_t const *c,
-                                              nk_size_t n, nk_f32c_t *results);
-/** @copydoc nk_mahalanobis_bf16 */
-NK_API_COMPTIME void nk_mahalanobis_bf16_serial(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                                nk_f32_t *result);
-
-#if NK_TARGET_NEON
-/** @copydoc nk_bilinear_f32 */
-NK_API_COMPTIME void nk_bilinear_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                          nk_f64_t *result);
-/** @copydoc nk_bilinear_f32c */
-NK_API_COMPTIME void nk_bilinear_f32c_neon(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c, nk_size_t n,
-                                           nk_f64c_t *results);
-/** @copydoc nk_mahalanobis_f32 */
-NK_API_COMPTIME void nk_mahalanobis_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                             nk_f64_t *result);
-/** @copydoc nk_bilinear_f16 */
-NK_API_COMPTIME void nk_bilinear_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                          nk_f32_t *result);
-/** @copydoc nk_bilinear_f16c */
-NK_API_COMPTIME void nk_bilinear_f16c_neon(nk_f16c_t const *a, nk_f16c_t const *b, nk_f16c_t const *c, nk_size_t n,
+NUMKONG_API_RUNTIME void nk_bilinear_bf16c(nk_bf16c_t const *a, nk_bf16c_t const *b, nk_bf16c_t const *c, nk_size_t n,
                                            nk_f32c_t *results);
-/** @copydoc nk_mahalanobis_f16 */
-NK_API_COMPTIME void nk_mahalanobis_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                             nk_f32_t *result);
-#endif // NK_TARGET_NEON
 
-#if NK_TARGET_NEONBFDOT
-/** @copydoc nk_bilinear_bf16 */
-NK_API_COMPTIME void nk_bilinear_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                                nk_f32_t *result);
-/** @copydoc nk_bilinear_bf16c */
-NK_API_COMPTIME void nk_bilinear_bf16c_neonbfdot(nk_bf16c_t const *a, nk_bf16c_t const *b, nk_bf16c_t const *c,
-                                                 nk_size_t n, nk_f32c_t *results);
-/** @copydoc nk_mahalanobis_bf16 */
-NK_API_COMPTIME void nk_mahalanobis_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
-                                                   nk_size_t n, nk_f32_t *result);
-#endif // NK_TARGET_NEONBFDOT
-
-#if NK_TARGET_SMEF64
-/** @copydoc nk_bilinear_f32 */
-NK_API_COMPTIME void nk_bilinear_f32_smef64(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                            nk_f64_t *result);
-/** @copydoc nk_bilinear_f32c */
-NK_API_COMPTIME void nk_bilinear_f32c_smef64(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c, nk_size_t n,
-                                             nk_f64c_t *result);
-/** @copydoc nk_mahalanobis_f32 */
-NK_API_COMPTIME void nk_mahalanobis_f32_smef64(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                               nk_f64_t *result);
 /** @copydoc nk_bilinear_f64 */
-NK_API_COMPTIME void nk_bilinear_f64_smef64(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                            nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_bilinear_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
+                                                 nk_f64_t *result);
 /** @copydoc nk_bilinear_f64c */
-NK_API_COMPTIME void nk_bilinear_f64c_smef64(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c, nk_size_t n,
-                                             nk_f64c_t *result);
+NUMKONG_API_COMPTIME void nk_bilinear_f64c_serial(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c,
+                                                  nk_size_t n, nk_f64c_t *results);
 /** @copydoc nk_mahalanobis_f64 */
-NK_API_COMPTIME void nk_mahalanobis_f64_smef64(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                               nk_f64_t *result);
-#endif // NK_TARGET_SMEF64
-
-#if NK_TARGET_HASWELL
+NUMKONG_API_COMPTIME void nk_mahalanobis_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c,
+                                                    nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_bilinear_f32 */
-NK_API_COMPTIME void nk_bilinear_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                             nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_bilinear_f32_serial(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
+                                                 nk_f64_t *result);
+/** @copydoc nk_bilinear_f32c */
+NUMKONG_API_COMPTIME void nk_bilinear_f32c_serial(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c,
+                                                  nk_size_t n, nk_f64c_t *results);
 /** @copydoc nk_mahalanobis_f32 */
-NK_API_COMPTIME void nk_mahalanobis_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                                nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_mahalanobis_f32_serial(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c,
+                                                    nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_bilinear_f16 */
-NK_API_COMPTIME void nk_bilinear_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                             nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_bilinear_f16_serial(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
+                                                 nk_f32_t *result);
+/** @copydoc nk_bilinear_f16c */
+NUMKONG_API_COMPTIME void nk_bilinear_f16c_serial(nk_f16c_t const *a, nk_f16c_t const *b, nk_f16c_t const *c,
+                                                  nk_size_t n, nk_f32c_t *results);
 /** @copydoc nk_mahalanobis_f16 */
-NK_API_COMPTIME void nk_mahalanobis_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                                nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_mahalanobis_f16_serial(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c,
+                                                    nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_bilinear_bf16 */
-NK_API_COMPTIME void nk_bilinear_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                              nk_f32_t *result);
-/** @copydoc nk_mahalanobis_bf16 */
-NK_API_COMPTIME void nk_mahalanobis_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
-                                                 nk_size_t n, nk_f32_t *result);
-#endif // NK_TARGET_HASWELL
-
-#if NK_TARGET_SKYLAKE
-/** @copydoc nk_bilinear_f64 */
-NK_API_COMPTIME void nk_bilinear_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                             nk_f64_t *result);
-/** @copydoc nk_bilinear_f64c */
-NK_API_COMPTIME void nk_bilinear_f64c_skylake(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c, nk_size_t n,
-                                              nk_f64c_t *results);
-/** @copydoc nk_mahalanobis_f64 */
-NK_API_COMPTIME void nk_mahalanobis_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                                nk_f64_t *result);
-/** @copydoc nk_bilinear_f32 */
-NK_API_COMPTIME void nk_bilinear_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                             nk_f64_t *result);
-/** @copydoc nk_bilinear_f32c */
-NK_API_COMPTIME void nk_bilinear_f32c_skylake(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c, nk_size_t n,
-                                              nk_f64c_t *results);
-/** @copydoc nk_mahalanobis_f32 */
-NK_API_COMPTIME void nk_mahalanobis_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                                nk_f64_t *result);
-#endif // NK_TARGET_SKYLAKE
-
-#if NK_TARGET_GENOA
-/** @copydoc nk_bilinear_bf16 */
-NK_API_COMPTIME void nk_bilinear_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                            nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_bilinear_bf16_serial(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
+                                                  nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_bilinear_bf16c */
-NK_API_COMPTIME void nk_bilinear_bf16c_genoa(nk_bf16c_t const *a, nk_bf16c_t const *b, nk_bf16c_t const *c, nk_size_t n,
-                                             nk_f32c_t *results);
+NUMKONG_API_COMPTIME void nk_bilinear_bf16c_serial(nk_bf16c_t const *a, nk_bf16c_t const *b, nk_bf16c_t const *c,
+                                                   nk_size_t n, nk_f32c_t *results);
 /** @copydoc nk_mahalanobis_bf16 */
-NK_API_COMPTIME void nk_mahalanobis_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
+NUMKONG_API_COMPTIME void nk_mahalanobis_bf16_serial(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
+                                                     nk_size_t n, nk_f32_t *result);
+
+#if NUMKONG_TARGET_NEON
+/** @copydoc nk_bilinear_f32 */
+NUMKONG_API_COMPTIME void nk_bilinear_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
+                                               nk_f64_t *result);
+/** @copydoc nk_bilinear_f32c */
+NUMKONG_API_COMPTIME void nk_bilinear_f32c_neon(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c, nk_size_t n,
+                                                nk_f64c_t *results);
+/** @copydoc nk_mahalanobis_f32 */
+NUMKONG_API_COMPTIME void nk_mahalanobis_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
+                                                  nk_f64_t *result);
+/** @copydoc nk_bilinear_f16 */
+NUMKONG_API_COMPTIME void nk_bilinear_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
                                                nk_f32_t *result);
-#endif // NK_TARGET_GENOA
-
-#if NK_TARGET_RVV
-/** @copydoc nk_bilinear_f64 */
-NK_API_COMPTIME void nk_bilinear_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                         nk_f64_t *result);
-/** @copydoc nk_mahalanobis_f64 */
-NK_API_COMPTIME void nk_mahalanobis_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                            nk_f64_t *result);
-/** @copydoc nk_bilinear_f32 */
-NK_API_COMPTIME void nk_bilinear_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                         nk_f64_t *result);
-/** @copydoc nk_mahalanobis_f32 */
-NK_API_COMPTIME void nk_mahalanobis_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                            nk_f64_t *result);
-/** @copydoc nk_bilinear_f16 */
-NK_API_COMPTIME void nk_bilinear_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                         nk_f32_t *result);
+/** @copydoc nk_bilinear_f16c */
+NUMKONG_API_COMPTIME void nk_bilinear_f16c_neon(nk_f16c_t const *a, nk_f16c_t const *b, nk_f16c_t const *c, nk_size_t n,
+                                                nk_f32c_t *results);
 /** @copydoc nk_mahalanobis_f16 */
-NK_API_COMPTIME void nk_mahalanobis_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                            nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_mahalanobis_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
+                                                  nk_f32_t *result);
+#endif // NUMKONG_TARGET_NEON
+
+#if NUMKONG_TARGET_NEONBFDOT
 /** @copydoc nk_bilinear_bf16 */
-NK_API_COMPTIME void nk_bilinear_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                          nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_bilinear_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
+                                                     nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_bilinear_bf16c */
+NUMKONG_API_COMPTIME void nk_bilinear_bf16c_neonbfdot(nk_bf16c_t const *a, nk_bf16c_t const *b, nk_bf16c_t const *c,
+                                                      nk_size_t n, nk_f32c_t *results);
 /** @copydoc nk_mahalanobis_bf16 */
-NK_API_COMPTIME void nk_mahalanobis_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                             nk_f32_t *result);
-#endif // NK_TARGET_RVV
+NUMKONG_API_COMPTIME void nk_mahalanobis_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
+                                                        nk_size_t n, nk_f32_t *result);
+#endif // NUMKONG_TARGET_NEONBFDOT
+
+#if NUMKONG_TARGET_SMEF64
+/** @copydoc nk_bilinear_f32 */
+NUMKONG_API_COMPTIME void nk_bilinear_f32_smef64(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
+                                                 nk_f64_t *result);
+/** @copydoc nk_bilinear_f32c */
+NUMKONG_API_COMPTIME void nk_bilinear_f32c_smef64(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c,
+                                                  nk_size_t n, nk_f64c_t *result);
+/** @copydoc nk_mahalanobis_f32 */
+NUMKONG_API_COMPTIME void nk_mahalanobis_f32_smef64(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c,
+                                                    nk_size_t n, nk_f64_t *result);
+/** @copydoc nk_bilinear_f64 */
+NUMKONG_API_COMPTIME void nk_bilinear_f64_smef64(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
+                                                 nk_f64_t *result);
+/** @copydoc nk_bilinear_f64c */
+NUMKONG_API_COMPTIME void nk_bilinear_f64c_smef64(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c,
+                                                  nk_size_t n, nk_f64c_t *result);
+/** @copydoc nk_mahalanobis_f64 */
+NUMKONG_API_COMPTIME void nk_mahalanobis_f64_smef64(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c,
+                                                    nk_size_t n, nk_f64_t *result);
+#endif // NUMKONG_TARGET_SMEF64
+
+#if NUMKONG_TARGET_HASWELL
+/** @copydoc nk_bilinear_f32 */
+NUMKONG_API_COMPTIME void nk_bilinear_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
+                                                  nk_f64_t *result);
+/** @copydoc nk_mahalanobis_f32 */
+NUMKONG_API_COMPTIME void nk_mahalanobis_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c,
+                                                     nk_size_t n, nk_f64_t *result);
+/** @copydoc nk_bilinear_f16 */
+NUMKONG_API_COMPTIME void nk_bilinear_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
+                                                  nk_f32_t *result);
+/** @copydoc nk_mahalanobis_f16 */
+NUMKONG_API_COMPTIME void nk_mahalanobis_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c,
+                                                     nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_bilinear_bf16 */
+NUMKONG_API_COMPTIME void nk_bilinear_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
+                                                   nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_mahalanobis_bf16 */
+NUMKONG_API_COMPTIME void nk_mahalanobis_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
+                                                      nk_size_t n, nk_f32_t *result);
+#endif // NUMKONG_TARGET_HASWELL
+
+#if NUMKONG_TARGET_SKYLAKE
+/** @copydoc nk_bilinear_f64 */
+NUMKONG_API_COMPTIME void nk_bilinear_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
+                                                  nk_f64_t *result);
+/** @copydoc nk_bilinear_f64c */
+NUMKONG_API_COMPTIME void nk_bilinear_f64c_skylake(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c,
+                                                   nk_size_t n, nk_f64c_t *results);
+/** @copydoc nk_mahalanobis_f64 */
+NUMKONG_API_COMPTIME void nk_mahalanobis_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c,
+                                                     nk_size_t n, nk_f64_t *result);
+/** @copydoc nk_bilinear_f32 */
+NUMKONG_API_COMPTIME void nk_bilinear_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
+                                                  nk_f64_t *result);
+/** @copydoc nk_bilinear_f32c */
+NUMKONG_API_COMPTIME void nk_bilinear_f32c_skylake(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c,
+                                                   nk_size_t n, nk_f64c_t *results);
+/** @copydoc nk_mahalanobis_f32 */
+NUMKONG_API_COMPTIME void nk_mahalanobis_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c,
+                                                     nk_size_t n, nk_f64_t *result);
+#endif // NUMKONG_TARGET_SKYLAKE
+
+#if NUMKONG_TARGET_GENOA
+/** @copydoc nk_bilinear_bf16 */
+NUMKONG_API_COMPTIME void nk_bilinear_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
+                                                 nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_bilinear_bf16c */
+NUMKONG_API_COMPTIME void nk_bilinear_bf16c_genoa(nk_bf16c_t const *a, nk_bf16c_t const *b, nk_bf16c_t const *c,
+                                                  nk_size_t n, nk_f32c_t *results);
+/** @copydoc nk_mahalanobis_bf16 */
+NUMKONG_API_COMPTIME void nk_mahalanobis_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
+                                                    nk_size_t n, nk_f32_t *result);
+#endif // NUMKONG_TARGET_GENOA
+
+#if NUMKONG_TARGET_RVV
+/** @copydoc nk_bilinear_f64 */
+NUMKONG_API_COMPTIME void nk_bilinear_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
+                                              nk_f64_t *result);
+/** @copydoc nk_mahalanobis_f64 */
+NUMKONG_API_COMPTIME void nk_mahalanobis_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
+                                                 nk_f64_t *result);
+/** @copydoc nk_bilinear_f32 */
+NUMKONG_API_COMPTIME void nk_bilinear_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
+                                              nk_f64_t *result);
+/** @copydoc nk_mahalanobis_f32 */
+NUMKONG_API_COMPTIME void nk_mahalanobis_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
+                                                 nk_f64_t *result);
+/** @copydoc nk_bilinear_f16 */
+NUMKONG_API_COMPTIME void nk_bilinear_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
+                                              nk_f32_t *result);
+/** @copydoc nk_mahalanobis_f16 */
+NUMKONG_API_COMPTIME void nk_mahalanobis_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
+                                                 nk_f32_t *result);
+/** @copydoc nk_bilinear_bf16 */
+NUMKONG_API_COMPTIME void nk_bilinear_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
+                                               nk_f32_t *result);
+/** @copydoc nk_mahalanobis_bf16 */
+NUMKONG_API_COMPTIME void nk_mahalanobis_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
+                                                  nk_size_t n, nk_f32_t *result);
+#endif // NUMKONG_TARGET_RVV
 
 /** Returns the output dtype for bilinear forms. */
-NK_HELPER_INLINE nk_dtype_t nk_bilinear_output_dtype(nk_dtype_t dtype) {
+NUMKONG_HELPER_INLINE nk_dtype_t nk_bilinear_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k: return nk_f64_k;
     case nk_f32_k: return nk_f64_k;
@@ -317,7 +317,7 @@ NK_HELPER_INLINE nk_dtype_t nk_bilinear_output_dtype(nk_dtype_t dtype) {
 }
 
 /** Returns the output dtype for Mahalanobis metrics. */
-NK_HELPER_INLINE nk_dtype_t nk_mahalanobis_output_dtype(nk_dtype_t dtype) {
+NUMKONG_HELPER_INLINE nk_dtype_t nk_mahalanobis_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k: return nk_f64_k;
     case nk_f32_k: return nk_f64_k;
@@ -344,172 +344,172 @@ NK_HELPER_INLINE nk_dtype_t nk_mahalanobis_output_dtype(nk_dtype_t dtype) {
 extern "C" {
 #endif
 
-#if !NK_RUNTIME_DISPATCH
+#if !NUMKONG_RUNTIME_DISPATCH
 
-NK_API_COMPTIME void nk_bilinear_f64(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                     nk_f64_t *result) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_bilinear_f64(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
+                                          nk_f64_t *result) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_bilinear_f64_skylake(a, b, c, n, result);
-#elif NK_TARGET_SMEF64
+#elif NUMKONG_TARGET_SMEF64
     nk_bilinear_f64_smef64(a, b, c, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_bilinear_f64_rvv(a, b, c, n, result);
 #else
     nk_bilinear_f64_serial(a, b, c, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_bilinear_f32(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                     nk_f64_t *result) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_bilinear_f32(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
+                                          nk_f64_t *result) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_bilinear_f32_skylake(a, b, c, n, result);
-#elif NK_TARGET_SMEF64
+#elif NUMKONG_TARGET_SMEF64
     nk_bilinear_f32_smef64(a, b, c, n, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_bilinear_f32_haswell(a, b, c, n, result);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_bilinear_f32_neon(a, b, c, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_bilinear_f32_rvv(a, b, c, n, result);
 #else
     nk_bilinear_f32_serial(a, b, c, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_bilinear_f16(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                     nk_f32_t *result) {
-#if NK_TARGET_HASWELL
+NUMKONG_API_COMPTIME void nk_bilinear_f16(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
+                                          nk_f32_t *result) {
+#if NUMKONG_TARGET_HASWELL
     nk_bilinear_f16_haswell(a, b, c, n, result);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_bilinear_f16_neon(a, b, c, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_bilinear_f16_rvv(a, b, c, n, result);
 #else
     nk_bilinear_f16_serial(a, b, c, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_bilinear_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                      nk_f32_t *result) {
-#if NK_TARGET_GENOA
+NUMKONG_API_COMPTIME void nk_bilinear_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
+                                           nk_f32_t *result) {
+#if NUMKONG_TARGET_GENOA
     nk_bilinear_bf16_genoa(a, b, c, n, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_bilinear_bf16_haswell(a, b, c, n, result);
-#elif NK_TARGET_NEONBFDOT
+#elif NUMKONG_TARGET_NEONBFDOT
     nk_bilinear_bf16_neonbfdot(a, b, c, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_bilinear_bf16_rvv(a, b, c, n, result);
 #else
     nk_bilinear_bf16_serial(a, b, c, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_bilinear_f64c(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c, nk_size_t n,
-                                      nk_f64c_t *results) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_bilinear_f64c(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c, nk_size_t n,
+                                           nk_f64c_t *results) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_bilinear_f64c_skylake(a, b, c, n, results);
-#elif NK_TARGET_SMEF64
+#elif NUMKONG_TARGET_SMEF64
     nk_bilinear_f64c_smef64(a, b, c, n, results);
 #else
     nk_bilinear_f64c_serial(a, b, c, n, results);
 #endif
 }
 
-NK_API_COMPTIME void nk_bilinear_f32c(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c, nk_size_t n,
-                                      nk_f64c_t *results) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_bilinear_f32c(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c, nk_size_t n,
+                                           nk_f64c_t *results) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_bilinear_f32c_skylake(a, b, c, n, results);
-#elif NK_TARGET_SMEF64
+#elif NUMKONG_TARGET_SMEF64
     nk_bilinear_f32c_smef64(a, b, c, n, results);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_bilinear_f32c_neon(a, b, c, n, results);
 #else
     nk_bilinear_f32c_serial(a, b, c, n, results);
 #endif
 }
 
-NK_API_COMPTIME void nk_bilinear_f16c(nk_f16c_t const *a, nk_f16c_t const *b, nk_f16c_t const *c, nk_size_t n,
-                                      nk_f32c_t *results) {
-#if NK_TARGET_NEON
+NUMKONG_API_COMPTIME void nk_bilinear_f16c(nk_f16c_t const *a, nk_f16c_t const *b, nk_f16c_t const *c, nk_size_t n,
+                                           nk_f32c_t *results) {
+#if NUMKONG_TARGET_NEON
     nk_bilinear_f16c_neon(a, b, c, n, results);
 #else
     nk_bilinear_f16c_serial(a, b, c, n, results);
 #endif
 }
 
-NK_API_COMPTIME void nk_bilinear_bf16c(nk_bf16c_t const *a, nk_bf16c_t const *b, nk_bf16c_t const *c, nk_size_t n,
-                                       nk_f32c_t *results) {
-#if NK_TARGET_GENOA
+NUMKONG_API_COMPTIME void nk_bilinear_bf16c(nk_bf16c_t const *a, nk_bf16c_t const *b, nk_bf16c_t const *c, nk_size_t n,
+                                            nk_f32c_t *results) {
+#if NUMKONG_TARGET_GENOA
     nk_bilinear_bf16c_genoa(a, b, c, n, results);
-#elif NK_TARGET_NEONBFDOT
+#elif NUMKONG_TARGET_NEONBFDOT
     nk_bilinear_bf16c_neonbfdot(a, b, c, n, results);
 #else
     nk_bilinear_bf16c_serial(a, b, c, n, results);
 #endif
 }
 
-NK_API_COMPTIME void nk_mahalanobis_f64(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                        nk_f64_t *result) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_mahalanobis_f64(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
+                                             nk_f64_t *result) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_mahalanobis_f64_skylake(a, b, c, n, result);
-#elif NK_TARGET_SMEF64
+#elif NUMKONG_TARGET_SMEF64
     nk_mahalanobis_f64_smef64(a, b, c, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_mahalanobis_f64_rvv(a, b, c, n, result);
 #else
     nk_mahalanobis_f64_serial(a, b, c, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_mahalanobis_f32(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                        nk_f64_t *result) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_mahalanobis_f32(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
+                                             nk_f64_t *result) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_mahalanobis_f32_skylake(a, b, c, n, result);
-#elif NK_TARGET_SMEF64
+#elif NUMKONG_TARGET_SMEF64
     nk_mahalanobis_f32_smef64(a, b, c, n, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_mahalanobis_f32_haswell(a, b, c, n, result);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_mahalanobis_f32_neon(a, b, c, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_mahalanobis_f32_rvv(a, b, c, n, result);
 #else
     nk_mahalanobis_f32_serial(a, b, c, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_mahalanobis_f16(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                        nk_f32_t *result) {
-#if NK_TARGET_HASWELL
+NUMKONG_API_COMPTIME void nk_mahalanobis_f16(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
+                                             nk_f32_t *result) {
+#if NUMKONG_TARGET_HASWELL
     nk_mahalanobis_f16_haswell(a, b, c, n, result);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_mahalanobis_f16_neon(a, b, c, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_mahalanobis_f16_rvv(a, b, c, n, result);
 #else
     nk_mahalanobis_f16_serial(a, b, c, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_mahalanobis_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                         nk_f32_t *result) {
-#if NK_TARGET_GENOA
+NUMKONG_API_COMPTIME void nk_mahalanobis_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
+                                              nk_f32_t *result) {
+#if NUMKONG_TARGET_GENOA
     nk_mahalanobis_bf16_genoa(a, b, c, n, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_mahalanobis_bf16_haswell(a, b, c, n, result);
-#elif NK_TARGET_NEONBFDOT
+#elif NUMKONG_TARGET_NEONBFDOT
     nk_mahalanobis_bf16_neonbfdot(a, b, c, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_mahalanobis_bf16_rvv(a, b, c, n, result);
 #else
     nk_mahalanobis_bf16_serial(a, b, c, n, result);
 #endif
 }
 
-#endif // !NK_RUNTIME_DISPATCH
+#endif // !NUMKONG_RUNTIME_DISPATCH
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NK_CURVED_H
+#endif // NUMKONG_CURVED_H

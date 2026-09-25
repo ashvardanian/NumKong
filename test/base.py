@@ -2,7 +2,7 @@
 """Shared test infrastructure for the NumKong test suite.
 
 Provides random data generators, capability detection, high-precision baselines
-via ``precise_decimal()``, and assertion helpers. Mirrors ``test.hpp`` from the
+via ``precise_decimal()``, and assertion helpers. Mirrors ``harness.hpp`` from the
 C++ test suite.
 
 File: test/base.py
@@ -36,8 +36,14 @@ if TYPE_CHECKING:
 
 faulthandler.enable()
 
-_nk_seed_base: int | None = int(s) if (s := os.environ.get("NK_SEED")) is not None else None
-_nk_in_qemu: bool = "NK_IN_QEMU" in os.environ
+_nk_seed_request: str = os.environ.get("NUMKONG_SEED", "42")
+try:
+    _nk_seed_base: int = (
+        int.from_bytes(os.urandom(4), "little") if _nk_seed_request == "random" else int(_nk_seed_request)
+    )
+except ValueError:
+    raise SystemExit(f'NUMKONG_SEED="{_nk_seed_request}" does not parse') from None
+_nk_in_qemu: bool = os.environ.get("NUMKONG_IN_QEMU", "") not in ("", "0", "false")
 
 _nk_possible_dimensions = (
     [1, 4, 16, 33, 64]
@@ -72,32 +78,32 @@ _nk_possible_dimensions = (
 
 
 randomized_repetitions_count: int = (
-    int(s) if (s := os.environ.get("NK_REPETITIONS")) is not None else (3 if _nk_in_qemu else 10)
+    int(s) if (s := os.environ.get("NUMKONG_REPETITIONS")) is not None else (3 if _nk_in_qemu else 10)
 )
 
 dense_dimensions: list[int] = (
     [int(d) for d in s.split(",")]
-    if (s := os.environ.get("NK_DENSE_DIMENSIONS")) is not None
+    if (s := os.environ.get("NUMKONG_DENSE_DIMENSIONS")) is not None
     else _nk_possible_dimensions
 )
 
 _dim_sample_k = min(6, len(dense_dimensions))
 """Deterministic random subsamples for multi-dimensional parametrization shaped [height,width,depth],
-matching the C API naming in dots.h. Override via NK_MATRIX_HEIGHT/WIDTH/DEPTH env vars.
+matching the C API naming in dots.h. Override via NUMKONG_MATRIX_HEIGHT/WIDTH/DEPTH env vars.
 """
 test_height_dimensions: list[int] = (
     [int(d) for d in s.split(",")]
-    if (s := os.environ.get("NK_MATRIX_HEIGHT")) is not None
+    if (s := os.environ.get("NUMKONG_MATRIX_HEIGHT")) is not None
     else sorted(random.Random(42).sample(dense_dimensions, _dim_sample_k))
 )
 test_width_dimensions: list[int] = (
     [int(d) for d in s.split(",")]
-    if (s := os.environ.get("NK_MATRIX_WIDTH")) is not None
+    if (s := os.environ.get("NUMKONG_MATRIX_WIDTH")) is not None
     else sorted(random.Random(43).sample(dense_dimensions, _dim_sample_k))
 )
 test_depth_dimensions: list[int] = (
     [int(d) for d in s.split(",")]
-    if (s := os.environ.get("NK_MATRIX_DEPTH")) is not None
+    if (s := os.environ.get("NUMKONG_MATRIX_DEPTH")) is not None
     else sorted(random.Random(44).sample(dense_dimensions, _dim_sample_k))
 )
 
@@ -105,17 +111,17 @@ reduced_repetitions_count: int = max(1, randomized_repetitions_count // 5)
 
 test_curved_dimensions: list[int] = (
     [int(d) for d in s.split(",")]
-    if (s := os.environ.get("NK_CURVED_DIMENSIONS")) is not None
+    if (s := os.environ.get("NUMKONG_CURVED_DIMENSIONS")) is not None
     else sorted(random.Random(45).sample(dense_dimensions, min(5, len(dense_dimensions))))
 )
 
 sparse_dimensions: list[int] = (
-    [int(d) for d in s.split(",")] if (s := os.environ.get("NK_SPARSE_DIMENSIONS")) is not None else [256]
+    [int(d) for d in s.split(",")] if (s := os.environ.get("NUMKONG_SPARSE_DIMENSIONS")) is not None else [256]
 )
 
-mesh_points: int = int(s) if (s := os.environ.get("NK_MESH_POINTS")) is not None else 100
+mesh_points: int = int(s) if (s := os.environ.get("NUMKONG_MESH_POINTS")) is not None else 100
 
-max_coord_angle: float = float(s) if (s := os.environ.get("NK_MAX_COORD_ANGLE")) is not None else 180.0
+max_coord_angle: float = float(s) if (s := os.environ.get("NUMKONG_MAX_COORD_ANGLE")) is not None else 180.0
 
 try:
     import numpy as np
@@ -139,8 +145,8 @@ except ImportError:
     ml_dtypes_available = False
 
 
-NK_RTOL = 0.1
-NK_ATOL = 0.1
+NUMKONG_RTOL = 0.1
+NUMKONG_ATOL = 0.1
 
 NATIVE_COMPUTE_DTYPE: dict[str, type] = (
     {
@@ -243,14 +249,14 @@ def to_array(x: Any, dtype: str | None = None) -> np.ndarray:
 _DTYPE_TOLERANCES: dict[str, tuple[float, float]] = {
     "float64": (1e-6, 1e-6),
     "float32": (1e-4, 1e-4),
-    "bfloat16": (NK_ATOL, NK_RTOL),
-    "bf16": (NK_ATOL, NK_RTOL),
-    "float16": (NK_ATOL, NK_RTOL),
-    "e5m2": (NK_ATOL, NK_RTOL),
-    "e4m3": (NK_ATOL, NK_RTOL),
-    "e3m2": (NK_ATOL, NK_RTOL),
-    "e2m3": (NK_ATOL, NK_RTOL),
-    "e2m1": (NK_ATOL, NK_RTOL),
+    "bfloat16": (NUMKONG_ATOL, NUMKONG_RTOL),
+    "bf16": (NUMKONG_ATOL, NUMKONG_RTOL),
+    "float16": (NUMKONG_ATOL, NUMKONG_RTOL),
+    "e5m2": (NUMKONG_ATOL, NUMKONG_RTOL),
+    "e4m3": (NUMKONG_ATOL, NUMKONG_RTOL),
+    "e3m2": (NUMKONG_ATOL, NUMKONG_RTOL),
+    "e2m3": (NUMKONG_ATOL, NUMKONG_RTOL),
+    "e2m1": (NUMKONG_ATOL, NUMKONG_RTOL),
     "int64": (1, 0),
     "int32": (1, 0),
     "int16": (1, 0),
@@ -268,7 +274,7 @@ _DTYPE_TOLERANCES: dict[str, tuple[float, float]] = {
 
 def tolerances_for_dtype(dtype: str) -> tuple[float, float]:
     """Returns ``(atol, rtol)`` appropriate for assertions on the given dtype."""
-    return _DTYPE_TOLERANCES.get(dtype, (NK_ATOL, NK_RTOL))
+    return _DTYPE_TOLERANCES.get(dtype, (NUMKONG_ATOL, NUMKONG_RTOL))
 
 
 def random_of_dtype(dtype: str, shape: tuple[int, ...]) -> tuple[Any, Any]:
@@ -460,12 +466,13 @@ def _make_random_numpy(shape, dtype):
         finite_mask = np.isfinite(lut)
         valid_bytes = np.where(finite_mask)[0].astype(np.uint8)
         # For types whose max representable value can cause FP32 accumulation
-        # errors exceeding NK_ATOL (catastrophic cancellation), restrict to
-        # values whose magnitude keeps products within FP32's reliable range.
-        # Threshold: T² * eps_f32 < NK_ATOL/4  =>  T = floor(sqrt(NK_ATOL / (4 * eps_f32))) ~ 458
+        # errors exceeding NUMKONG_ATOL through catastrophic cancellation, restrict
+        # to values whose magnitude keeps products within FP32's reliable range.
+        # Threshold: T² * eps_f32 < NUMKONG_ATOL/4
+        #   =>  T = floor(sqrt(NUMKONG_ATOL / (4 * eps_f32))) ~ 458
         # Only e5m2 (max 57344) is affected; e4m3/e3m2/e2m3 are within bounds.
         eps32 = np.finfo(np.float32).eps
-        mag_threshold = np.floor(np.sqrt(NK_ATOL / (4 * eps32)))
+        mag_threshold = np.floor(np.sqrt(NUMKONG_ATOL / (4 * eps32)))
         decoded = lut[valid_bytes.astype(int)]
         magnitude_ok = np.abs(decoded) <= mag_threshold
         if not np.all(magnitude_ok):
@@ -999,14 +1006,15 @@ def print_stats_report(stats: dict[str, list]) -> None:
 def seed_rng(__pytest_repeat_step_number: int) -> int:
     """Auto-seed NumPy RNG before every test and return the computed seed.
 
-    When NK_SEED is set, each @pytest.mark.repeat() step gets a unique
-    derived seed. Tests that use ``nk.hash`` can accept this fixture as a
-    parameter and pass the return value as the ``seed=`` argument so that
-    repeated runs exercise different data.
+    Each @pytest.mark.repeat() step gets a unique seed derived from NUMKONG_SEED,
+    42 unless set, or drawn once per run with ``NUMKONG_SEED=random``. Tests
+    that use ``nk.hash`` can accept this fixture as a parameter and pass the
+    return value as the ``seed=`` argument so that repeated runs exercise
+    different data.
     """
     step = __pytest_repeat_step_number or 0
-    seed = (_nk_seed_base or 0) + step
-    if numpy_available and _nk_seed_base is not None:
+    seed = _nk_seed_base + step
+    if numpy_available:
         np.random.seed(seed)
     return seed
 

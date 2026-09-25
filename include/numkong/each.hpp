@@ -4,8 +4,8 @@
  *  @date February 5, 2026
  *  @brief C++ wrappers for SIMD-accelerated elementwise arithmetic.
  */
-#ifndef NK_EACH_HPP
-#define NK_EACH_HPP
+#ifndef NUMKONG_EACH_HPP
+#define NUMKONG_EACH_HPP
 
 #include <cstdint>
 #include <type_traits>
@@ -512,4 +512,4 @@ tensor<value_type_, allocator_type_, max_rank_> try_mul(tensor_view<value_type_,
 
 } // namespace ashvardanian::numkong
 
-#endif // NK_EACH_HPP
+#endif // NUMKONG_EACH_HPP

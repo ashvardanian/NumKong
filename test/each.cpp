@@ -5,7 +5,7 @@
  *  @brief Elementwise operations tests.
  */
 
-#include "test.hpp"
+#include "harness.hpp"
 #include "numkong/each.hpp"         // `nk::sum`, `nk::scale`, `nk::blend`, `nk::fma`
 #include "numkong/trigonometry.hpp" // `nk::try_sin`, `nk::try_cos`, `nk::try_atan` wrappers
 
@@ -189,7 +189,7 @@ void test_each() {
     check("each_sum_f16_serial", test_sum<f16_t>, nk_each_sum_f16_serial);
     check("each_scale_f16_serial", test_scale<f16_t>, nk_each_scale_f16_serial);
 
-#if NK_RUNTIME_DISPATCH
+#if NUMKONG_RUNTIME_DISPATCH
     check.section("Elementwise Operations Runtime Dispatch", nk_cap_serial_k);
     check("each_scale_f32", test_scale<f32_t>, nk_each_scale_f32);
     check("each_sum_f32", test_sum<f32_t>, nk_each_sum_f32);
@@ -213,7 +213,7 @@ void test_each() {
     check("each_fma_f64c", test_fma<f64c_t>, nk_each_fma_f64c);
 #endif
 
-#if NK_TARGET_NEON
+#if NUMKONG_TARGET_NEON
     check.section("Elementwise Operations NEON", nk_cap_neon_k);
     // f64
     check("each_sum_f64_neon", test_sum<f64_t>, nk_each_sum_f64_neon);
@@ -273,22 +273,22 @@ void test_each() {
     check("each_scale_f64c_neon", test_scale<f64c_t>, nk_each_scale_f64c_neon);
     check("each_blend_f64c_neon", test_blend<f64c_t>, nk_each_blend_f64c_neon);
     check("each_fma_f64c_neon", test_fma<f64c_t>, nk_each_fma_f64c_neon);
-#endif // NK_TARGET_NEON
+#endif // NUMKONG_TARGET_NEON
 
-#if NK_TARGET_NEONHALF
+#if NUMKONG_TARGET_NEONHALF
     check.section("Elementwise Operations NEON HALF", nk_cap_neonhalf_k);
     check("each_sum_f16_neonhalf", test_sum<f16_t>, nk_each_sum_f16_neonhalf);
-#endif // NK_TARGET_NEONHALF
+#endif // NUMKONG_TARGET_NEONHALF
 
-#if NK_TARGET_NEONBFDOT
+#if NUMKONG_TARGET_NEONBFDOT
     check.section("Elementwise Operations NEON BF16", nk_cap_neonbfdot_k);
     check("each_scale_bf16_neonbfdot", test_scale<bf16_t>, nk_each_scale_bf16_neonbfdot);
     check("each_sum_bf16_neonbfdot", test_sum<bf16_t>, nk_each_sum_bf16_neonbfdot);
     check("each_blend_bf16_neonbfdot", test_blend<bf16_t>, nk_each_blend_bf16_neonbfdot);
     check("each_fma_bf16_neonbfdot", test_fma<bf16_t>, nk_each_fma_bf16_neonbfdot);
-#endif // NK_TARGET_NEONBFDOT
+#endif // NUMKONG_TARGET_NEONBFDOT
 
-#if NK_TARGET_HASWELL
+#if NUMKONG_TARGET_HASWELL
     check.section("Elementwise Operations Haswell", nk_cap_haswell_k);
     check("each_scale_f32_haswell", test_scale<f32_t>, nk_each_scale_f32_haswell);
     check("each_sum_f32_haswell", test_sum<f32_t>, nk_each_sum_f32_haswell);
@@ -329,9 +329,9 @@ void test_each() {
     check("each_scale_i8_haswell", test_scale<i8_t>, nk_each_scale_i8_haswell);
     check("each_scale_u16_haswell", test_scale<u16_t>, nk_each_scale_u16_haswell);
     check("each_scale_u8_haswell", test_scale<u8_t>, nk_each_scale_u8_haswell);
-#endif // NK_TARGET_HASWELL
+#endif // NUMKONG_TARGET_HASWELL
 
-#if NK_TARGET_SKYLAKE
+#if NUMKONG_TARGET_SKYLAKE
     check.section("Elementwise Operations Skylake", nk_cap_skylake_k);
     check("each_scale_f32_skylake", test_scale<f32_t>, nk_each_scale_f32_skylake);
     check("each_sum_f32_skylake", test_sum<f32_t>, nk_each_sum_f32_skylake);
@@ -364,9 +364,9 @@ void test_each() {
     check("each_scale_u8_skylake", test_scale<u8_t>, nk_each_scale_u8_skylake);
     check("each_blend_u8_skylake", test_blend<u8_t>, nk_each_blend_u8_skylake);
     check("each_fma_u8_skylake", test_fma<u8_t>, nk_each_fma_u8_skylake);
-#endif // NK_TARGET_SKYLAKE
+#endif // NUMKONG_TARGET_SKYLAKE
 
-#if NK_TARGET_ICELAKE
+#if NUMKONG_TARGET_ICELAKE
     check.section("Elementwise Operations Ice Lake", nk_cap_icelake_k);
     check("each_sum_i8_icelake", test_sum<i8_t>, nk_each_sum_i8_icelake);
     check("each_sum_u8_icelake", test_sum<u8_t>, nk_each_sum_u8_icelake);
@@ -376,15 +376,15 @@ void test_each() {
     check("each_sum_u32_icelake", test_sum<u32_t>, nk_each_sum_u32_icelake);
     check("each_sum_i64_icelake", test_sum<i64_t>, nk_each_sum_i64_icelake);
     check("each_sum_u64_icelake", test_sum<u64_t>, nk_each_sum_u64_icelake);
-#endif // NK_TARGET_ICELAKE
+#endif // NUMKONG_TARGET_ICELAKE
 
-#if NK_TARGET_SAPPHIRE
+#if NUMKONG_TARGET_SAPPHIRE
     check.section("Elementwise Operations Sapphire", nk_cap_sapphire_k);
     check("each_sum_f16_sapphire", test_sum<f16_t>, nk_each_sum_f16_sapphire);
     check("each_sum_e4m3_sapphire", test_sum<e4m3_t>, nk_each_sum_e4m3_sapphire);
-#endif // NK_TARGET_SAPPHIRE
+#endif // NUMKONG_TARGET_SAPPHIRE
 
-#if NK_TARGET_RVV
+#if NUMKONG_TARGET_RVV
     check.section("Elementwise Operations RVV", nk_cap_rvv_k);
     check("each_sum_f64_rvv", test_sum<f64_t>, nk_each_sum_f64_rvv);
     check("each_scale_f64_rvv", test_scale<f64_t>, nk_each_scale_f64_rvv);
@@ -418,9 +418,9 @@ void test_each() {
     check("each_scale_u8_rvv", test_scale<u8_t>, nk_each_scale_u8_rvv);
     check("each_blend_u8_rvv", test_blend<u8_t>, nk_each_blend_u8_rvv);
     check("each_fma_u8_rvv", test_fma<u8_t>, nk_each_fma_u8_rvv);
-#endif // NK_TARGET_RVV
+#endif // NUMKONG_TARGET_RVV
 
-#if NK_TARGET_V128RELAXED
+#if NUMKONG_TARGET_V128RELAXED
     check.section("Elementwise Operations V128 Relaxed", nk_cap_v128relaxed_k);
     check("each_scale_f32_v128relaxed", test_scale<f32_t>, nk_each_scale_f32_v128relaxed);
     check("each_blend_f32_v128relaxed", test_blend<f32_t>, nk_each_blend_f32_v128relaxed);
@@ -438,13 +438,13 @@ void test_each() {
     check("each_scale_u8_v128relaxed", test_scale<u8_t>, nk_each_scale_u8_v128relaxed);
     check("each_blend_u8_v128relaxed", test_blend<u8_t>, nk_each_blend_u8_v128relaxed);
     check("each_fma_u8_v128relaxed", test_fma<u8_t>, nk_each_fma_u8_v128relaxed);
-#endif // NK_TARGET_V128RELAXED
+#endif // NUMKONG_TARGET_V128RELAXED
 
-#if NK_TARGET_V128
+#if NUMKONG_TARGET_V128
     check.section("Elementwise Operations V128", nk_cap_v128_k);
     check("each_sum_f32_v128", test_sum<f32_t>, nk_each_sum_f32_v128);
     check("each_sum_bf16_v128", test_sum<bf16_t>, nk_each_sum_bf16_v128);
     check("each_sum_i8_v128", test_sum<i8_t>, nk_each_sum_i8_v128);
     check("each_sum_u8_v128", test_sum<u8_t>, nk_each_sum_u8_v128);
-#endif // NK_TARGET_V128
+#endif // NUMKONG_TARGET_V128
 }

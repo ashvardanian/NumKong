@@ -4,17 +4,17 @@
  *  @date March 13, 2024
  *  @brief Common definitions for dispatch files.
  */
-#ifndef NK_DISPATCH_H
-#define NK_DISPATCH_H
+#ifndef NUMKONG_DISPATCH_H
+#define NUMKONG_DISPATCH_H
 
-#define NK_RUNTIME_DISPATCH 1
+#define NUMKONG_RUNTIME_DISPATCH 1
 
-/*  @c NK_NATIVE_F16 and @c NK_NATIVE_BF16 are deliberately not pinned here. These are the only
- *  translation units that define @c nk_f16_sqrt and friends, so pinning them would make the library
- *  disagree with the bindings that call it — `python/*.c` do not include this header and honour the
- *  build system instead. `types.h` defaults both to 0 for everyone.
+/*  @c NUMKONG_NATIVE_F16 and @c NUMKONG_NATIVE_BF16 are deliberately not pinned here. These are the
+ *  only translation units that define @c nk_f16_sqrt and friends, so pinning them would make the
+ *  library disagree with the bindings that call it — `python/*.c` do not include this header and
+ *  honour the build system instead. `types.h` defaults both to 0 for everyone.
  *
- *  NK_TARGET_* defines are set by the build system:
+ *  NUMKONG_TARGET_* defines are set by the build system:
  *  - Python: setup.py
  *  - Rust: build.rs
  *  - Node.js: binding.gyp
@@ -586,4 +586,4 @@ extern void nk_dispatch_cast_find_(nk_capability_t, nk_kernel_kind_t, nk_kernel_
 }
 #endif
 
-#endif // NK_DISPATCH_H
+#endif // NUMKONG_DISPATCH_H

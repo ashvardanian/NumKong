@@ -4,7 +4,7 @@
  *  @date January 14, 2025
  *  @brief Batch operation tests - Serial fallback.
  */
-#include "test.hpp"
+#include "harness.hpp"
 #include "cross.cuh"
 
 using namespace ashvardanian::numkong::test;
@@ -200,7 +200,7 @@ void test_cross_serial() {
     check("attention_causal_packed_i8_serial", test_attention_causal_packed<i8_t>, nk_attention_pack_size_i8_serial,
           nk_attention_pack_i8_serial, nk_attention_causal_packed_i8_serial);
 
-#if NK_RUNTIME_DISPATCH
+#if NUMKONG_RUNTIME_DISPATCH
     check.section("Cross Runtime Dispatch", nk_cap_serial_k);
     check("dots_packed_f64", test_dots_packed<f64_t>, nk_dots_pack_size_f64, nk_dots_pack_f64, nk_dots_packed_f64);
     check("dots_pack_f64", test_dots_pack_layout<f64_t, host_backend_t, nk_dots_pack_size_f64, nk_dots_packed_shape_f64,

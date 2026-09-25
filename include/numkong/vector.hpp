@@ -31,8 +31,8 @@
  *  See `types.hpp` for the full terminology reference.
  */
 
-#ifndef NK_VECTOR_HPP
-#define NK_VECTOR_HPP
+#ifndef NUMKONG_VECTOR_HPP
+#define NUMKONG_VECTOR_HPP
 
 #include <concepts>    // `std::integral`
 #include <cstdlib>     // `std::aligned_alloc`, `std::free`
@@ -919,4 +919,4 @@ constexpr void swap(vector<value_type_, allocator_type_> &a, vector<value_type_,
 
 } // namespace ashvardanian::numkong
 
-#endif // NK_VECTOR_HPP
+#endif // NUMKONG_VECTOR_HPP

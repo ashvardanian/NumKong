@@ -52,67 +52,67 @@ struct IsaProbe {
 // E.g., -mavx512vnni implies -mavx512f; -mavxvnni implies -mavx2.
 const X86_PROBES: &[IsaProbe] = &[
     IsaProbe {
-        name: "NK_TARGET_HASWELL",
+        name: "NUMKONG_TARGET_HASWELL",
         probe_file: "probes/x86_haswell.c",
         gcc_flags: &["-mavx2", "-mfma", "-mf16c"], // all 3 are independent
         msvc_flags: &["/arch:AVX2"],
     },
     IsaProbe {
-        name: "NK_TARGET_SKYLAKE",
+        name: "NUMKONG_TARGET_SKYLAKE",
         probe_file: "probes/x86_skylake.c",
         gcc_flags: &["-mavx512f", "-mavx512bw", "-mavx512dq", "-mavx512vl"], // 4 independent sub-features
         msvc_flags: &["/arch:AVX512"],
     },
     IsaProbe {
-        name: "NK_TARGET_ICELAKE",
+        name: "NUMKONG_TARGET_ICELAKE",
         probe_file: "probes/x86_icelake.c",
         gcc_flags: &["-mavx512vnni", "-mavx512vl"], // vnni implies F
         msvc_flags: &["/arch:AVX512"],
     },
     IsaProbe {
-        name: "NK_TARGET_GENOA",
+        name: "NUMKONG_TARGET_GENOA",
         probe_file: "probes/x86_genoa.c",
         gcc_flags: &["-mavx512bf16", "-mavx512vl"], // bf16 implies F+BW
         msvc_flags: &["/arch:AVX512"],
     },
     IsaProbe {
-        name: "NK_TARGET_SAPPHIRE",
+        name: "NUMKONG_TARGET_SAPPHIRE",
         probe_file: "probes/x86_sapphire.c",
         gcc_flags: &["-mavx512fp16", "-mavx512vl"], // fp16 implies F+BW
         msvc_flags: &["/arch:AVX512"],
     },
     IsaProbe {
-        name: "NK_TARGET_SAPPHIREAMX",
+        name: "NUMKONG_TARGET_SAPPHIREAMX",
         probe_file: "probes/x86_sapphireamx.c",
         gcc_flags: &["-mamx-tile", "-mamx-int8"],
         msvc_flags: &["/arch:AVX512"],
     },
     IsaProbe {
-        name: "NK_TARGET_GRANITEAMX",
+        name: "NUMKONG_TARGET_GRANITEAMX",
         probe_file: "probes/x86_graniteamx.c",
         gcc_flags: &["-mamx-tile", "-mamx-fp16"],
         msvc_flags: &["/arch:AVX512"],
     },
     IsaProbe {
-        name: "NK_TARGET_DIAMOND",
+        name: "NUMKONG_TARGET_DIAMOND",
         probe_file: "probes/x86_diamond.c",
         gcc_flags: &["-mavx10.2-512"], // implies all AVX-512 + FP16 + AVX10.1
         msvc_flags: &["/arch:AVX10.2"],
     },
     IsaProbe {
-        name: "NK_TARGET_TURIN",
+        name: "NUMKONG_TARGET_TURIN",
         probe_file: "probes/x86_turin.c",
         gcc_flags: &["-mavx512vp2intersect"], // implies F+DQ
         msvc_flags: &["/arch:AVX512"],
     },
     IsaProbe {
-        name: "NK_TARGET_ALDER",
+        name: "NUMKONG_TARGET_ALDER",
         probe_file: "probes/x86_alder.c",
         gcc_flags: &["-mavxvnni"], // implies AVX2
         msvc_flags: &["/arch:AVX2"],
     },
     IsaProbe {
-        name: "NK_TARGET_SIERRA",
+        name: "NUMKONG_TARGET_SIERRA",
         probe_file: "probes/x86_sierra.c",
         gcc_flags: &["-mavxvnniint8"], // implies AVX2
         msvc_flags: &["/arch:AVX2"],
@@ -125,131 +125,131 @@ const X86_PROBES: &[IsaProbe] = &[
 const ARM_PROBES: &[IsaProbe] = &[
     // FEAT_AdvSIMD, baseline ARM64
     IsaProbe {
-        name: "NK_TARGET_NEON",
+        name: "NUMKONG_TARGET_NEON",
         probe_file: "probes/arm_neon.c",
         gcc_flags: &["-march=armv8-a+simd"],
         msvc_flags: &[],
     },
     // FEAT_FP16: optional from ARMv8.2, mandatory at ARMv9.0 with AdvSIMD
     IsaProbe {
-        name: "NK_TARGET_NEONHALF",
+        name: "NUMKONG_TARGET_NEONHALF",
         probe_file: "probes/arm_neon_half.c",
         gcc_flags: &["-march=armv8.2-a+simd+fp16"],
         msvc_flags: &["/arch:armv8.2"],
     },
     // FEAT_DotProd: optional from ARMv8.1, mandatory at ARMv8.4 with AdvSIMD
     IsaProbe {
-        name: "NK_TARGET_NEONSDOT",
+        name: "NUMKONG_TARGET_NEONSDOT",
         probe_file: "probes/arm_neon_sdot.c",
         gcc_flags: &["-march=armv8.2-a+dotprod"],
         msvc_flags: &["/arch:armv8.4"],
     },
     // FEAT_BF16: optional from ARMv8.2, mandatory at ARMv8.6 with FP
     IsaProbe {
-        name: "NK_TARGET_NEONBFDOT",
+        name: "NUMKONG_TARGET_NEONBFDOT",
         probe_file: "probes/arm_neon_bfdot.c",
         gcc_flags: &["-march=armv8.6-a+simd+bf16"],
         msvc_flags: &["/arch:armv8.6"],
     },
     // FEAT_FHM: optional from ARMv8.1, mandatory at ARMv8.4 with FP16
     IsaProbe {
-        name: "NK_TARGET_NEONFHM",
+        name: "NUMKONG_TARGET_NEONFHM",
         probe_file: "probes/arm_neon_fhm.c",
         gcc_flags: &["-march=armv8.2-a+simd+fp16+fp16fml"],
         msvc_flags: &["/arch:armv8.4"],
     },
     IsaProbe {
-        name: "NK_TARGET_SVE",
+        name: "NUMKONG_TARGET_SVE",
         probe_file: "probes/arm_sve.c",
         gcc_flags: &["-march=armv8.2-a+sve"],
         msvc_flags: &[],
     },
     IsaProbe {
-        name: "NK_TARGET_SVEHALF",
+        name: "NUMKONG_TARGET_SVEHALF",
         probe_file: "probes/arm_sve_half.c",
         gcc_flags: &["-march=armv8.2-a+sve+fp16"],
         msvc_flags: &[],
     },
     IsaProbe {
-        name: "NK_TARGET_SVEBFDOT",
+        name: "NUMKONG_TARGET_SVEBFDOT",
         probe_file: "probes/arm_sve_bfdot.c",
         gcc_flags: &["-march=armv8.2-a+sve+bf16"],
         msvc_flags: &[],
     },
     IsaProbe {
-        name: "NK_TARGET_SVESDOT",
+        name: "NUMKONG_TARGET_SVESDOT",
         probe_file: "probes/arm_sve_sdot.c",
         gcc_flags: &["-march=armv8.2-a+sve+dotprod"],
         msvc_flags: &[],
     },
     IsaProbe {
-        name: "NK_TARGET_SVE2",
+        name: "NUMKONG_TARGET_SVE2",
         probe_file: "probes/arm_sve2.c",
         gcc_flags: &["-march=armv8.2-a+sve2"],
         msvc_flags: &[],
     },
     IsaProbe {
-        name: "NK_TARGET_SVE2P1",
+        name: "NUMKONG_TARGET_SVE2P1",
         probe_file: "probes/arm_sve2p1.c",
         gcc_flags: &["-march=armv8.2-a+sve2p1"],
         msvc_flags: &[],
     },
     IsaProbe {
-        name: "NK_TARGET_NEONFP8",
+        name: "NUMKONG_TARGET_NEONFP8",
         probe_file: "probes/arm_neonfp8.c",
         gcc_flags: &["-march=armv8-a+simd+fp8dot4"],
         msvc_flags: &[],
     },
     IsaProbe {
-        name: "NK_TARGET_SME",
+        name: "NUMKONG_TARGET_SME",
         probe_file: "probes/arm_sme.c",
         gcc_flags: &["-march=armv8-a+sme"],
         msvc_flags: &[],
     },
     IsaProbe {
-        name: "NK_TARGET_SME2",
+        name: "NUMKONG_TARGET_SME2",
         probe_file: "probes/arm_sme2.c",
         gcc_flags: &["-march=armv8-a+sme2"],
         msvc_flags: &[],
     },
     IsaProbe {
-        name: "NK_TARGET_SME2P1",
+        name: "NUMKONG_TARGET_SME2P1",
         probe_file: "probes/arm_sme2p1.c",
         gcc_flags: &["-march=armv8-a+sme2p1"],
         msvc_flags: &[],
     },
     IsaProbe {
-        name: "NK_TARGET_SMEF64",
+        name: "NUMKONG_TARGET_SMEF64",
         probe_file: "probes/arm_sme_f64.c",
         gcc_flags: &["-march=armv8-a+sme+sme-f64f64"],
         msvc_flags: &[],
     },
     IsaProbe {
-        name: "NK_TARGET_SMEHALF",
+        name: "NUMKONG_TARGET_SMEHALF",
         probe_file: "probes/arm_sme_half.c",
         gcc_flags: &["-march=armv8-a+sme+sme-f16f16"],
         msvc_flags: &[],
     },
     IsaProbe {
-        name: "NK_TARGET_SMEBF16",
+        name: "NUMKONG_TARGET_SMEBF16",
         probe_file: "probes/arm_sme_bf16.c",
         gcc_flags: &["-march=armv8-a+sme2+sme-b16b16"],
         msvc_flags: &[],
     },
     IsaProbe {
-        name: "NK_TARGET_SMEBI32",
+        name: "NUMKONG_TARGET_SMEBI32",
         probe_file: "probes/arm_sme_bi32.c",
         gcc_flags: &["-march=armv8-a+sme2"],
         msvc_flags: &[],
     },
     IsaProbe {
-        name: "NK_TARGET_SMELUT2",
+        name: "NUMKONG_TARGET_SMELUT2",
         probe_file: "probes/arm_sme_lut2.c",
         gcc_flags: &["-march=armv8-a+sme2+sme-lutv2"],
         msvc_flags: &[],
     },
     IsaProbe {
-        name: "NK_TARGET_SMEFA64",
+        name: "NUMKONG_TARGET_SMEFA64",
         probe_file: "probes/arm_sme_fa64.c",
         gcc_flags: &["-march=armv8-a+sme+sme-fa64"],
         msvc_flags: &[],
@@ -258,25 +258,25 @@ const ARM_PROBES: &[IsaProbe] = &[
 
 const RISCV_PROBES: &[IsaProbe] = &[
     IsaProbe {
-        name: "NK_TARGET_RVV",
+        name: "NUMKONG_TARGET_RVV",
         probe_file: "probes/riscv_rvv.c",
         gcc_flags: &["-march=rv64gcv"],
         msvc_flags: &[],
     },
     IsaProbe {
-        name: "NK_TARGET_RVVHALF",
+        name: "NUMKONG_TARGET_RVVHALF",
         probe_file: "probes/riscv_rvv_half.c",
         gcc_flags: &["-march=rv64gcv_zvfh"],
         msvc_flags: &[],
     },
     IsaProbe {
-        name: "NK_TARGET_RVVBF16",
+        name: "NUMKONG_TARGET_RVVBF16",
         probe_file: "probes/riscv_rvv_bf16.c",
         gcc_flags: &["-march=rv64gcv_zvfbfwma"],
         msvc_flags: &[],
     },
     IsaProbe {
-        name: "NK_TARGET_RVVBB",
+        name: "NUMKONG_TARGET_RVVBB",
         probe_file: "probes/riscv_rvv_bb.c",
         gcc_flags: &["-march=rv64gcv_zvbb"],
         msvc_flags: &[],
@@ -284,14 +284,14 @@ const RISCV_PROBES: &[IsaProbe] = &[
 ];
 
 const LOONGARCH_PROBES: &[IsaProbe] = &[IsaProbe {
-    name: "NK_TARGET_LOONGSONASX",
+    name: "NUMKONG_TARGET_LOONGSONASX",
     probe_file: "probes/loongarch_lasx.c",
     gcc_flags: &["-mlasx"],
     msvc_flags: &[],
 }];
 
 const POWER_PROBES: &[IsaProbe] = &[IsaProbe {
-    name: "NK_TARGET_POWERVSX",
+    name: "NUMKONG_TARGET_POWERVSX",
     probe_file: "probes/power_vsx.c",
     gcc_flags: &["-mcpu=power9", "-mvsx"],
     msvc_flags: &[],
@@ -299,13 +299,13 @@ const POWER_PROBES: &[IsaProbe] = &[IsaProbe {
 
 const WASM_PROBES: &[IsaProbe] = &[
     IsaProbe {
-        name: "NK_TARGET_V128",
+        name: "NUMKONG_TARGET_V128",
         probe_file: "probes/wasm_v128.c",
         gcc_flags: &["-msimd128"],
         msvc_flags: &[],
     },
     IsaProbe {
-        name: "NK_TARGET_V128RELAXED",
+        name: "NUMKONG_TARGET_V128RELAXED",
         probe_file: "probes/wasm_v128relaxed.c",
         gcc_flags: &["-msimd128", "-mrelaxed-simd"],
         msvc_flags: &[],
@@ -353,9 +353,9 @@ fn build_numkong() -> Result<HashMap<String, bool>, String> {
         // Special dispatch files
         .file("c/dispatch_other.c")
         .include("include")
-        .define("NK_NATIVE_F16", "0")
-        .define("NK_NATIVE_BF16", "0")
-        .define("NK_RUNTIME_DISPATCH", "1")
+        .define("NUMKONG_NATIVE_F16", "0")
+        .define("NUMKONG_NATIVE_BF16", "0")
+        .define("NUMKONG_RUNTIME_DISPATCH", "1")
         .opt_level(3)
         .flag_if_supported("-pedantic") // Strict compliance when supported
         .flag_if_supported("-Wno-psabi") // Suppress GCC ABI note for 32-byte aligned params
@@ -363,22 +363,10 @@ fn build_numkong() -> Result<HashMap<String, bool>, String> {
 
     // Architecture detection
     let target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
-    let target_bits = env::var("CARGO_CFG_TARGET_POINTER_WIDTH").unwrap_or_default();
     let is_msvc = env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default() == "msvc";
     let target_features = env::var("CARGO_CFG_TARGET_FEATURE").unwrap_or_default();
 
-    let is_x86_64 = target_arch == "x86_64" && target_bits == "64";
-    let is_aarch64 = target_arch == "aarch64" && target_bits == "64";
-    let is_riscv64 = target_arch == "riscv64" && target_bits == "64";
-    let is_loongarch64 = target_arch == "loongarch64" && target_bits == "64";
-    let is_power64 = target_arch == "powerpc64" && target_bits == "64";
     let is_wasm = target_arch == "wasm32" || target_arch == "wasm64";
-
-    build.define("NK_IS_64BIT_X86", if is_x86_64 { "1" } else { "0" });
-    build.define("NK_IS_64BIT_ARM", if is_aarch64 { "1" } else { "0" });
-    build.define("NK_IS_64BIT_RISCV", if is_riscv64 { "1" } else { "0" });
-    build.define("NK_IS_64BIT_LOONGARCH", if is_loongarch64 { "1" } else { "0" });
-    build.define("NK_IS_64BIT_POWER", if is_power64 { "1" } else { "0" });
 
     // On 32-bit x86, ensure proper stack alignment for floating-point operations
     // See: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=38534
@@ -388,18 +376,18 @@ fn build_numkong() -> Result<HashMap<String, bool>, String> {
     }
 
     // Pin TU baseline to each arch's ABI floor; SIMD kernels carry per-function pragmas.
-    // `NK_MARCH_NATIVE=1` opts into a host-tuned, non-portable build (ignored on MSVC).
+    // `NUMKONG_MARCH_NATIVE=1` opts into a host-tuned, non-portable build, ignored on MSVC.
     // Keep per-arch table in sync with CMakeLists.txt, setup.py, binding.gyp.
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
     let is_apple = target_os == "macos" || target_os == "ios";
     let is_cross = env::var("HOST").unwrap_or_default() != env::var("TARGET").unwrap_or_default();
-    let march_native = env::var("NK_MARCH_NATIVE").is_ok_and(|v| v == "1" || v == "true" || v == "TRUE");
+    let march_native = env::var("NUMKONG_MARCH_NATIVE").is_ok_and(|v| v == "1" || v == "true" || v == "TRUE");
     // Portable baseline: pin TU ISA floor + forbid auto-vectorization so serial
     // fallbacks don't get silently promoted to NEON/SSE2/VSX. SIMD kernels use
     // explicit intrinsics; unaffected. MSVC has no command-line vectorizer
-    // toggle; `NK_MARCH_NATIVE=1` opts out for host-tuned builds.
+    // toggle; `NUMKONG_MARCH_NATIVE=1` opts out for host-tuned builds.
     if march_native && !is_msvc && !is_cross {
-        println!("cargo:warning=NK_MARCH_NATIVE=1: building host-tuned, result will not run on older CPUs");
+        println!("cargo:warning=NUMKONG_MARCH_NATIVE=1: building host-tuned, result will not run on older CPUs");
         // Apple Clang's `-march=native` advertises only a subset of host features
         // (no SME/SME2/FP16_FML); `-mcpu=native` is the complete knob on macOS.
         build.flag_if_supported(if is_apple { "-mcpu=native" } else { "-march=native" });
@@ -459,7 +447,7 @@ fn build_numkong() -> Result<HashMap<String, bool>, String> {
     // Probe each ISA, and on WASM only the tiers the Rust target declares
     for table in probe_tables {
         for probe in table.iter() {
-            // Allow env-var override: NK_TARGET_FOO=0 forces off, NK_TARGET_FOO=1 forces on
+            // Environment override: NUMKONG_TARGET_FOO=0 forces off, NUMKONG_TARGET_FOO=1 forces on
             if let Ok(val) = env::var(probe.name) {
                 let forced = match val.as_str() {
                     "1" | "true" | "TRUE" => Some(true),
@@ -497,9 +485,9 @@ fn build_numkong() -> Result<HashMap<String, bool>, String> {
     // attributes, so the enabled tier goes onto the compiler invocation; `types.h` reads the
     // `__wasm_simd128__` / `__wasm_relaxed_simd__` keys the flags define.
     if is_wasm {
-        if *flags.get("NK_TARGET_V128RELAXED").unwrap_or(&false) {
+        if *flags.get("NUMKONG_TARGET_V128RELAXED").unwrap_or(&false) {
             build.flag("-msimd128").flag("-mrelaxed-simd");
-        } else if *flags.get("NK_TARGET_V128").unwrap_or(&false) {
+        } else if *flags.get("NUMKONG_TARGET_V128").unwrap_or(&false) {
             build.flag("-msimd128");
         }
     }
@@ -517,7 +505,7 @@ fn build_numkong() -> Result<HashMap<String, bool>, String> {
     watch_dir("probes");
 
     // Rerun on env var changes
-    println!("cargo:rerun-if-env-changed=NK_MARCH_NATIVE");
+    println!("cargo:rerun-if-env-changed=NUMKONG_MARCH_NATIVE");
     println!("cargo:rerun-if-env-changed=CARGO_CFG_TARGET_FEATURE");
     for table in [
         X86_PROBES,

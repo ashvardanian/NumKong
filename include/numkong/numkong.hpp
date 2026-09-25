@@ -33,8 +33,8 @@
  *  upcasting to much larger number types like @c f118_t.
  */
 
-#ifndef NK_NUMKONG_HPP
-#define NK_NUMKONG_HPP
+#ifndef NUMKONG_NUMKONG_HPP
+#define NUMKONG_NUMKONG_HPP
 
 #include "numkong/random.hpp"
 #include "numkong/cast.hpp"
@@ -55,4 +55,4 @@
 #include "numkong/maxsim.hpp"
 #include "numkong/tensor.hpp"
 
-#endif // NK_NUMKONG_HPP
+#endif // NUMKONG_NUMKONG_HPP

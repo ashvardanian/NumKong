@@ -111,7 +111,7 @@ static PyObject *implement_dense_metric( //
     // When a dtype override reinterprets elements at a different width, rescale dimensions.
     size_t a_cols = a_parsed.cols, b_cols = b_parsed.cols;
     {
-        nk_size_t from_bits = (nk_size_t)a_buffer.itemsize * NK_BITS_PER_BYTE;
+        nk_size_t from_bits = (nk_size_t)a_buffer.itemsize * NUMKONG_BITS_PER_BYTE;
         nk_size_t to_bits = nk_dtype_bits(dtype);
         if (from_bits && to_bits && from_bits != to_bits) {
             a_cols = a_cols * from_bits / to_bits;
@@ -627,9 +627,9 @@ typedef struct cdist_symmetric_task_t {
 
 static void cdist_symmetric_tile_(nk_size_t tile_index, void *context) {
     cdist_symmetric_task_t const *task = (cdist_symmetric_task_t const *)context;
-    nk_size_t const tile_start = tile_index * NK_PARALLEL_SYMMETRIC_TILE;
-    nk_size_t const tile_rows = (tile_start + NK_PARALLEL_SYMMETRIC_TILE <= task->vectors_count)
-                                    ? NK_PARALLEL_SYMMETRIC_TILE
+    nk_size_t const tile_start = tile_index * NUMKONG_PARALLEL_SYMMETRIC_TILE;
+    nk_size_t const tile_rows = (tile_start + NUMKONG_PARALLEL_SYMMETRIC_TILE <= task->vectors_count)
+                                    ? NUMKONG_PARALLEL_SYMMETRIC_TILE
                                     : (task->vectors_count - tile_start);
     task->kernel(task->vectors, task->vectors_count, task->depth, task->stride_bytes, task->result,
                  task->result_stride_bytes, tile_start, tile_rows);
@@ -658,7 +658,7 @@ static int cdist_batch_symmetric(                                   //
     task.depth = dimensions;
     task.stride_bytes = stride;
     task.result_stride_bytes = out_row_stride;
-    nk_parallel_for_tiles(nk_size_divide_round_up_(n_vectors, NK_PARALLEL_SYMMETRIC_TILE), threads,
+    nk_parallel_for_tiles(nk_size_divide_round_up_(n_vectors, NUMKONG_PARALLEL_SYMMETRIC_TILE), threads,
                           cdist_symmetric_tile_, &task);
     return 0;
 }
@@ -678,9 +678,9 @@ typedef struct cdist_packed_task_t {
 
 static void cdist_packed_tile_(nk_size_t tile_index, void *context) {
     cdist_packed_task_t const *task = (cdist_packed_task_t const *)context;
-    nk_size_t const row = tile_index * NK_PARALLEL_PACKED_TILE;
-    nk_size_t const chunk = (row + NK_PARALLEL_PACKED_TILE <= task->rows) ? NK_PARALLEL_PACKED_TILE
-                                                                          : (task->rows - row);
+    nk_size_t const row = tile_index * NUMKONG_PARALLEL_PACKED_TILE;
+    nk_size_t const chunk = (row + NUMKONG_PARALLEL_PACKED_TILE <= task->rows) ? NUMKONG_PARALLEL_PACKED_TILE
+                                                                               : (task->rows - row);
     task->kernel(task->a + row * task->a_stride_bytes, task->b_packed, task->c + row * task->c_stride_bytes, chunk,
                  task->columns, task->depth, task->a_stride_bytes, task->c_stride_bytes);
 }
@@ -729,7 +729,7 @@ static int cdist_batch_packed(                                                  
     task.depth = dimensions;
     task.a_stride_bytes = a_stride;
     task.c_stride_bytes = out_row_stride;
-    nk_parallel_for_tiles(nk_size_divide_round_up_(a_count, NK_PARALLEL_PACKED_TILE), threads, cdist_packed_tile_,
+    nk_parallel_for_tiles(nk_size_divide_round_up_(a_count, NUMKONG_PARALLEL_PACKED_TILE), threads, cdist_packed_tile_,
                           &task);
 
     free(b_packed);
@@ -783,7 +783,7 @@ static PyObject *implement_cdist(                        //
     // When a dtype override reinterprets elements at a different width, rescale dimensions.
     size_t a_cols = a_parsed.cols, b_cols = b_parsed.cols;
     {
-        nk_size_t from_bits = (nk_size_t)a_buffer.itemsize * NK_BITS_PER_BYTE;
+        nk_size_t from_bits = (nk_size_t)a_buffer.itemsize * NUMKONG_BITS_PER_BYTE;
         nk_size_t to_bits = nk_dtype_bits(dtype);
         if (from_bits && to_bits && from_bits != to_bits) {
             a_cols = a_cols * from_bits / to_bits;

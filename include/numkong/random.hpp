@@ -7,8 +7,8 @@
  *  Lightweight header with random fill functions for testing and benchmarking.
  *  Only depends on types.hpp to minimize compilation overhead.
  */
-#ifndef NK_RANDOM_HPP
-#define NK_RANDOM_HPP
+#ifndef NUMKONG_RANDOM_HPP
+#define NUMKONG_RANDOM_HPP
 
 #include <algorithm> // `std::sort`
 #include <random>    // `std::uniform_int_distribution`
@@ -274,4 +274,4 @@ void fill_sorted_unique(generator_type_ &generator, value_type_ *values_ptr, std
 
 } // namespace ashvardanian::numkong
 
-#endif // NK_RANDOM_HPP
+#endif // NUMKONG_RANDOM_HPP

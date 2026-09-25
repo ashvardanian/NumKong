@@ -7,8 +7,8 @@
  *  Forward declarations for mesh alignment, Kabsch/Umeyama/RMSD, API functions. The
  *  MeshAlignmentResultObject struct is private to mesh.c.
  */
-#ifndef NK_PYTHON_MESH_H
-#define NK_PYTHON_MESH_H
+#ifndef NUMKONG_PYTHON_MESH_H
+#define NUMKONG_PYTHON_MESH_H
 
 #include "numkong.h"
 
@@ -31,4 +31,4 @@ extern char const doc_rmsd[];
 }
 #endif
 
-#endif // NK_PYTHON_MESH_H
+#endif // NUMKONG_PYTHON_MESH_H

@@ -11,10 +11,10 @@
  *
  *  For dtypes: f32, bf16, i8, u8
  */
-#ifndef NK_EACH_V128_H
-#define NK_EACH_V128_H
+#ifndef NUMKONG_EACH_V128_H
+#define NUMKONG_EACH_V128_H
 
-#if NK_TARGET_V128
+#if NUMKONG_TARGET_V128
 
 #include "numkong/types.h"
 #include "numkong/cast/serial.h"
@@ -30,7 +30,7 @@ extern "C" {
 
 #pragma region F32 Floats
 
-NK_API_COMPTIME void nk_each_sum_f32_v128(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_each_sum_f32_v128(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         v128_t a_f32x4 = wasm_v128_load(a + i);
@@ -43,7 +43,8 @@ NK_API_COMPTIME void nk_each_sum_f32_v128(nk_f32_t const *a, nk_f32_t const *b, 
 #pragma endregion F32 Floats
 #pragma region BF16 Floats
 
-NK_API_COMPTIME void nk_each_sum_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_bf16_t *result) {
+NUMKONG_API_COMPTIME void nk_each_sum_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                nk_bf16_t *result) {
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         nk_b64_vec_t a_bf16_vec, b_bf16_vec;
@@ -71,7 +72,7 @@ NK_API_COMPTIME void nk_each_sum_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *
 /** I-BERT-style integer 2ᵗ: takes a Q15 exponent in [−10 × 2¹⁵, 0] and returns round(2ᵗ × 255) as a
  *  U8 weight in each I32 lane; SIMD128 has no per-lane variable shift, so a 4-stage @c bitselect
  *  barrel network keyed on −whole ∈ [0, 10] applies the bias and the shift. */
-NK_HELPER_INLINE v128_t nk_exp2_u8_i32x4_v128_(v128_t t_q15_i32x4) {
+NUMKONG_HELPER_INLINE v128_t nk_exp2_u8_i32x4_v128_(v128_t t_q15_i32x4) {
     v128_t const zero_i32x4 = wasm_i32x4_splat(0);
     v128_t const whole_i32x4 = wasm_i32x4_shr(t_q15_i32x4, 15); // arithmetic floor, in [-10,0]
     v128_t const fraction_i32x4 = wasm_v128_and(t_q15_i32x4, wasm_i32x4_splat(0x7FFF));
@@ -105,7 +106,7 @@ NK_HELPER_INLINE v128_t nk_exp2_u8_i32x4_v128_(v128_t t_q15_i32x4) {
 #pragma endregion I32 Integers
 #pragma region I8 Integers
 
-NK_API_COMPTIME void nk_each_sum_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i8_t *result) {
+NUMKONG_API_COMPTIME void nk_each_sum_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i8_t *result) {
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
         v128_t a_i8x16 = wasm_v128_load(a + i);
@@ -121,7 +122,7 @@ NK_API_COMPTIME void nk_each_sum_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_
 #pragma endregion I8 Integers
 #pragma region U8 Integers
 
-NK_API_COMPTIME void nk_each_sum_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u8_t *result) {
+NUMKONG_API_COMPTIME void nk_each_sum_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u8_t *result) {
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
         v128_t a_u8x16 = wasm_v128_load(a + i);
@@ -144,5 +145,5 @@ NK_API_COMPTIME void nk_each_sum_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_V128
-#endif // NK_EACH_V128_H
+#endif // NUMKONG_TARGET_V128
+#endif // NUMKONG_EACH_V128_H

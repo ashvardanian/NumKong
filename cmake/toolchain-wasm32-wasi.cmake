@@ -1,9 +1,9 @@
 # WASI toolchain for NumKong: single-threaded, self-contained memory, so the same `.wasm` runs under Wasmtime, Wasmer
 # and Node alike (standalone runtimes without a host).
-# Usage: cmake -B build-wasi -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-wasi.cmake -DNK_BUILD_TEST=ON
+# Usage: cmake -B build-wasi -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-wasi.cmake -DNUMKONG_BUILD_TEST=ON
 #
 # The SIMD tier is a whole-module choice, so it is fixed here rather than probed: `v128` by default, or
-# `-DNK_WASM_SIMD=v128relaxed`. Threads live in `toolchain-wasm32-wasi-threads.cmake`.
+# `-DNUMKONG_WASM_SIMD=v128relaxed`. Threads live in `toolchain-wasm32-wasi-threads.cmake`.
 
 set(CMAKE_SYSTEM_NAME WASI)
 set(CMAKE_SYSTEM_VERSION 1)
@@ -46,16 +46,16 @@ set(CMAKE_SYSROOT "${WASI_SDK_PATH}/share/wasi-sysroot")
 set(CMAKE_FIND_ROOT_PATH "${WASI_SDK_PATH}")
 
 # A `-shared` module needs a main module to resolve `__global_base` and kin, which no standalone runtime supplies.
-set(NK_BUILD_SHARED OFF CACHE BOOL "Compile a dynamic library")
+set(NUMKONG_BUILD_SHARED OFF CACHE BOOL "Compile a dynamic library")
 
 # SIMD tier: the flags define `__wasm_simd128__` / `__wasm_relaxed_simd__`, which `types.h` reads.
-set(NK_WASM_SIMD "v128" CACHE STRING "WebAssembly SIMD tier of this module: v128 or v128relaxed")
-if (NK_WASM_SIMD STREQUAL "v128relaxed")
+set(NUMKONG_WASM_SIMD "v128" CACHE STRING "WebAssembly SIMD tier of this module: v128 or v128relaxed")
+if (NUMKONG_WASM_SIMD STREQUAL "v128relaxed")
     set(WASM_SIMD_FLAGS "-msimd128 -mrelaxed-simd")
-elseif (NK_WASM_SIMD STREQUAL "v128")
+elseif (NUMKONG_WASM_SIMD STREQUAL "v128")
     set(WASM_SIMD_FLAGS "-msimd128")
 else ()
-    message(FATAL_ERROR "NK_WASM_SIMD must be v128 or v128relaxed, not `${NK_WASM_SIMD}`")
+    message(FATAL_ERROR "NUMKONG_WASM_SIMD must be v128 or v128relaxed, not `${NUMKONG_WASM_SIMD}`")
 endif ()
 
 set(CMAKE_C_FLAGS_INIT "${WASM_SIMD_FLAGS} --target=wasm32-wasip1")
@@ -82,21 +82,21 @@ else ()
     message(STATUS "NumKong WASI: WASI-SDK version unknown")
 endif ()
 
-message(STATUS "NumKong WASI: SIMD tier ${NK_WASM_SIMD}, single-threaded")
+message(STATUS "NumKong WASI: SIMD tier ${NUMKONG_WASM_SIMD}, single-threaded")
 message(STATUS "NumKong WASI: Toolchain at ${WASI_SDK_PATH}")
 
 # Runtime that CTest invokes on each cross binary, so `ctest` runs the WASI tests cross-engine without a
 # wrapper script. wasmtime and wasmer execute a `.wasm` command directly; node uses the small WASI runner
 # in test/wasi.mjs. Relaxed-SIMD lowers differently per engine, so testing more than one matters.
-set(NK_WASM_RUNTIME "wasmtime" CACHE STRING "WASM runtime CTest uses for WASI tests (wasmtime, wasmer, or node)")
-if (NK_WASM_RUNTIME STREQUAL "wasmer")
-    find_program(NK_WASMER_EXE_ wasmer PATHS "$ENV{HOME}/.cargo/bin" "$ENV{HOME}/.wasmer/bin")
-    set(CMAKE_CROSSCOMPILING_EMULATOR "${NK_WASMER_EXE_};run;--enable-simd;--enable-relaxed-simd")
-elseif (NK_WASM_RUNTIME STREQUAL "node")
-    find_program(NK_NODE_EXE_ node)
-    set(CMAKE_CROSSCOMPILING_EMULATOR "${NK_NODE_EXE_};${CMAKE_CURRENT_LIST_DIR}/../test/wasi.mjs")
+set(NUMKONG_WASM_RUNTIME "wasmtime" CACHE STRING "WASM runtime CTest uses for WASI tests (wasmtime, wasmer, or node)")
+if (NUMKONG_WASM_RUNTIME STREQUAL "wasmer")
+    find_program(NUMKONG_WASMER_EXE_ wasmer PATHS "$ENV{HOME}/.cargo/bin" "$ENV{HOME}/.wasmer/bin")
+    set(CMAKE_CROSSCOMPILING_EMULATOR "${NUMKONG_WASMER_EXE_};run;--enable-simd;--enable-relaxed-simd")
+elseif (NUMKONG_WASM_RUNTIME STREQUAL "node")
+    find_program(NUMKONG_NODE_EXE_ node)
+    set(CMAKE_CROSSCOMPILING_EMULATOR "${NUMKONG_NODE_EXE_};${CMAKE_CURRENT_LIST_DIR}/../test/wasi.mjs")
 else ()
-    find_program(NK_WASMTIME_EXE_ wasmtime PATHS "$ENV{HOME}/.wasmtime/bin")
-    set(CMAKE_CROSSCOMPILING_EMULATOR "${NK_WASMTIME_EXE_};run;-W;relaxed-simd=y")
+    find_program(NUMKONG_WASMTIME_EXE_ wasmtime PATHS "$ENV{HOME}/.wasmtime/bin")
+    set(CMAKE_CROSSCOMPILING_EMULATOR "${NUMKONG_WASMTIME_EXE_};run;-W;relaxed-simd=y")
 endif ()
-message(STATUS "NumKong WASI: CTest runtime = ${NK_WASM_RUNTIME}")
+message(STATUS "NumKong WASI: CTest runtime = ${NUMKONG_WASM_RUNTIME}")

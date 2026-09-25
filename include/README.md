@@ -81,7 +81,7 @@ target_link_libraries(my_target PRIVATE numkong)
 ```
 
 Header-only C++ usage also works for direct template wrappers.
-Most applications should still build the library once and keep `NK_RUNTIME_DISPATCH=1`.
+Most applications should still build the library once and keep `NUMKONG_RUNTIME_DISPATCH=1`.
 
 ## The C ABI
 
@@ -555,6 +555,8 @@ nk_configure_thread(caps);
 if (caps & nk_cap_sapphireamx_k) { /* AMX both detected and compiled in */ }
 ```
 
+`nk_name_capabilities` spells any such mask as the names bindings accept, like "serial,neon,neonhalf", into a buffer of `NUMKONG_CAPABILITIES_NAME_CAPACITY` bytes.
+
 Narrow what dispatch may select with `nk_capabilities_enable`, `nk_capabilities_disable`, or `nk_capabilities_restrict`.
 All three clamp to `available` and always retain `nk_cap_serial_k`, so dispatch can never be pointed at a kernel that is absent or unsupported.
 
@@ -610,17 +612,17 @@ When executors ship in your toolchain, replacing the `parallel_for` lambda above
 
 The main user-facing CMake options are:
 
-- `NK_BUILD_SHARED` builds a shared library, ON by default for standalone builds and OFF when included as a subdirectory.
-- `NK_BUILD_TEST` and `NK_BUILD_BENCH` enable precision tests and benchmarks respectively, both OFF by default.
-- `NK_RUNTIME_DISPATCH=1` compiles all backends into one binary and selects at runtime via `nk_capabilities_available()`, recommended for shipping one binary across CPU generations.
+- `NUMKONG_BUILD_SHARED` builds a shared library, ON by default for standalone builds and OFF when included as a subdirectory.
+- `NUMKONG_BUILD_TEST` and `NUMKONG_BUILD_BENCH` enable precision tests and benchmarks respectively, both OFF by default.
+- `NUMKONG_RUNTIME_DISPATCH=1` compiles all backends into one binary and selects at runtime via `nk_capabilities_available()`, recommended for shipping one binary across CPU generations.
   It is a preprocessor definition rather than a CMake option, so pass it through the compiler flags.
-- `NK_COMPARE_TO_BLAS` and `NK_COMPARE_TO_MKL` link benchmarks against a system BLAS or Intel MKL, each accepting `AUTO`, `ON`, or `OFF` with `AUTO` as the default.
+- `NUMKONG_COMPARE_TO_BLAS` and `NUMKONG_COMPARE_TO_MKL` link benchmarks against a system BLAS or Intel MKL, each accepting `AUTO`, `ON`, or `OFF` with `AUTO` as the default.
 
 The build enforces C99 for the C layer and C++20 for the C++ layer.
 
 ```sh
-cmake -B build -D CMAKE_BUILD_TYPE=Release -D NK_BUILD_TEST=ON
-cmake -B build -D CMAKE_C_FLAGS="-DNK_RUNTIME_DISPATCH=1" -D NK_BUILD_BENCH=ON -D NK_COMPARE_TO_MKL=ON
+cmake -B build -D CMAKE_BUILD_TYPE=Release -D NUMKONG_BUILD_TEST=ON
+cmake -B build -D CMAKE_C_FLAGS="-DNUMKONG_RUNTIME_DISPATCH=1" -D NUMKONG_BUILD_BENCH=ON -D NUMKONG_COMPARE_TO_MKL=ON
 ```
 
 ## Cross-Compilation

@@ -40,11 +40,11 @@
  *  _tile_zero                  TILEZERO            Zero a tile register
  *  @endverbatim
  */
-#ifndef NK_MAXSIM_SAPPHIREAMX_H
-#define NK_MAXSIM_SAPPHIREAMX_H
+#ifndef NUMKONG_MAXSIM_SAPPHIREAMX_H
+#define NUMKONG_MAXSIM_SAPPHIREAMX_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_SAPPHIREAMX
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_SAPPHIREAMX
 
 #include "numkong/types.h"
 #include "numkong/dots/sapphireamx.h" // AMX tile types, configure, load, transpose
@@ -106,13 +106,14 @@ typedef struct {
     nk_u32_t reserved[7];
 } nk_maxsim_sapphireamx_i8_header_t;
 
-NK_STATIC_ASSERT(sizeof(nk_maxsim_sapphireamx_i8_header_t) == 64, nk_maxsim_sapphireamx_i8_header_must_be_64_bytes);
+NUMKONG_STATIC_ASSERT(sizeof(nk_maxsim_sapphireamx_i8_header_t) == 64,
+                      nk_maxsim_sapphireamx_i8_header_must_be_64_bytes);
 
 #pragma endregion I8 Header
 
 #pragma region F32 Floats
 
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_sapphireamx(nk_size_t vector_count, nk_size_t depth) {
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_sapphireamx(nk_size_t vector_count, nk_size_t depth) {
     nk_size_t column_tile_count = nk_size_divide_round_up_(vector_count, 16);
     nk_size_t depth_tile_count = nk_size_divide_round_up_(depth, 64);
     nk_size_t a_side_bytes = column_tile_count * depth_tile_count * 1024;
@@ -123,13 +124,14 @@ NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_sapphireamx(nk_size_t vector_c
     return 64 + 63 + a_side_bytes + b_side_bytes + originals_bytes + norms_bytes;
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_shape_f32_sapphireamx(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f32_sapphireamx(void const *packed, nk_size_t *vectors,
+                                                                 nk_size_t *depth) {
     nk_maxsim_sapphireamx_i8_header_t const *header = (nk_maxsim_sapphireamx_i8_header_t const *)packed;
     *vectors = header->columns;
     *depth = header->depth;
 }
 
-NK_API_COMPTIME void nk_maxsim_pack_f32_sapphireamx( //
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f32_sapphireamx( //
     nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
     nk_size_t const blob_bytes = nk_maxsim_pack_size_f32_sapphireamx(vector_count, depth);
     for (nk_size_t byte_index = 0; byte_index < blob_bytes; byte_index++) ((char *)packed)[byte_index] = 0;
@@ -219,7 +221,7 @@ NK_API_COMPTIME void nk_maxsim_pack_f32_sapphireamx( //
     }
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_f32_sapphireamx( //
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f32_sapphireamx( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f64_t *result) {
 
@@ -258,10 +260,10 @@ NK_API_COMPTIME void nk_maxsim_packed_f32_sapphireamx( //
         nk_size_t query_row_start = query_tile_index * 16;
         nk_size_t valid_queries = (query_row_start + 16 <= query_count) ? 16 : (query_count - query_row_start);
 
-        __m512i running_maximum_i32x16 = _mm512_set1_epi32(NK_I32_MIN);
+        __m512i running_maximum_i32x16 = _mm512_set1_epi32(NUMKONG_I32_MIN);
         __m512i running_argmax_i32x16 = _mm512_setzero_si512();
 
-        NK_ALIGN64 nk_i32_t tile_results_i32[4][16][16];
+        NUMKONG_ALIGN64_ nk_i32_t tile_results_i32[4][16][16];
         nk_size_t document_tile_index = 0;
 
         // Fast path: 4 document tiles at a time
@@ -351,7 +353,7 @@ NK_API_COMPTIME void nk_maxsim_packed_f32_sapphireamx( //
         }
 
         // Refinement: for each valid query, compute full-precision dot with best document
-        NK_ALIGN64 nk_i32_t best_document_indices_i32[16];
+        NUMKONG_ALIGN64_ nk_i32_t best_document_indices_i32[16];
         _mm512_store_si512(best_document_indices_i32, running_argmax_i32x16);
 
         for (nk_size_t query_in_tile = 0; query_in_tile < valid_queries; query_in_tile++) {
@@ -378,7 +380,7 @@ NK_API_COMPTIME void nk_maxsim_packed_f32_sapphireamx( //
 
 #pragma region F16 Floats
 
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_sapphireamx(nk_size_t vector_count, nk_size_t depth) {
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_sapphireamx(nk_size_t vector_count, nk_size_t depth) {
     nk_size_t column_tile_count = nk_size_divide_round_up_(vector_count, 16);
     nk_size_t depth_tile_count = nk_size_divide_round_up_(depth, 64);
     nk_size_t a_side_bytes = column_tile_count * depth_tile_count * 1024;
@@ -389,13 +391,14 @@ NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_sapphireamx(nk_size_t vector_c
     return 64 + 63 + a_side_bytes + b_side_bytes + originals_bytes + norms_bytes;
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_shape_f16_sapphireamx(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f16_sapphireamx(void const *packed, nk_size_t *vectors,
+                                                                 nk_size_t *depth) {
     nk_maxsim_sapphireamx_i8_header_t const *header = (nk_maxsim_sapphireamx_i8_header_t const *)packed;
     *vectors = header->columns;
     *depth = header->depth;
 }
 
-NK_API_COMPTIME void nk_maxsim_pack_f16_sapphireamx( //
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_sapphireamx( //
     nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
     nk_size_t const blob_bytes = nk_maxsim_pack_size_f16_sapphireamx(vector_count, depth);
     for (nk_size_t byte_index = 0; byte_index < blob_bytes; byte_index++) ((char *)packed)[byte_index] = 0;
@@ -488,7 +491,7 @@ NK_API_COMPTIME void nk_maxsim_pack_f16_sapphireamx( //
     }
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_f16_sapphireamx( //
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f16_sapphireamx( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {
 
@@ -525,10 +528,10 @@ NK_API_COMPTIME void nk_maxsim_packed_f16_sapphireamx( //
         nk_size_t query_row_start = query_tile_index * 16;
         nk_size_t valid_queries = (query_row_start + 16 <= query_count) ? 16 : (query_count - query_row_start);
 
-        __m512i running_maximum_i32x16 = _mm512_set1_epi32(NK_I32_MIN);
+        __m512i running_maximum_i32x16 = _mm512_set1_epi32(NUMKONG_I32_MIN);
         __m512i running_argmax_i32x16 = _mm512_setzero_si512();
 
-        NK_ALIGN64 nk_i32_t tile_results_i32[4][16][16];
+        NUMKONG_ALIGN64_ nk_i32_t tile_results_i32[4][16][16];
         nk_size_t document_tile_index = 0;
 
         // Fast path: 4 document tiles at a time
@@ -617,7 +620,7 @@ NK_API_COMPTIME void nk_maxsim_packed_f16_sapphireamx( //
         }
 
         // Refinement: for each valid query, compute full-precision dot with best document
-        NK_ALIGN64 nk_i32_t best_document_indices_i32[16];
+        NUMKONG_ALIGN64_ nk_i32_t best_document_indices_i32[16];
         _mm512_store_si512(best_document_indices_i32, running_argmax_i32x16);
 
         for (nk_size_t query_in_tile = 0; query_in_tile < valid_queries; query_in_tile++) {
@@ -674,9 +677,10 @@ typedef struct {
     nk_u32_t reserved[9];
 } nk_maxsim_sapphireamx_bf16_header_t;
 
-NK_STATIC_ASSERT(sizeof(nk_maxsim_sapphireamx_bf16_header_t) == 64, nk_maxsim_sapphireamx_bf16_header_must_be_64_bytes);
+NUMKONG_STATIC_ASSERT(sizeof(nk_maxsim_sapphireamx_bf16_header_t) == 64,
+                      nk_maxsim_sapphireamx_bf16_header_must_be_64_bytes);
 
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_sapphireamx(nk_size_t vector_count, nk_size_t depth) {
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_sapphireamx(nk_size_t vector_count, nk_size_t depth) {
     nk_size_t const tile_bytes = 1024; // 16 × 32 × 2B = 1KB per tile
     nk_size_t column_tile_count = nk_size_divide_round_up_(vector_count, 16);
     nk_size_t depth_tile_count = nk_size_divide_round_up_(depth, 32);
@@ -686,13 +690,14 @@ NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_sapphireamx(nk_size_t vector_
     return sizeof(nk_maxsim_sapphireamx_bf16_header_t) + 63 + a_side_bytes + b_side_bytes + norms_bytes;
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_shape_bf16_sapphireamx(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_bf16_sapphireamx(void const *packed, nk_size_t *vectors,
+                                                                  nk_size_t *depth) {
     nk_maxsim_sapphireamx_bf16_header_t const *header = (nk_maxsim_sapphireamx_bf16_header_t const *)packed;
     *vectors = header->columns;
     *depth = header->depth;
 }
 
-NK_API_COMPTIME void nk_maxsim_pack_bf16_sapphireamx( //
+NUMKONG_API_COMPTIME void nk_maxsim_pack_bf16_sapphireamx( //
     nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
     nk_size_t const blob_bytes = nk_maxsim_pack_size_bf16_sapphireamx(vector_count, depth);
     for (nk_size_t byte_index = 0; byte_index < blob_bytes; byte_index++) ((char *)packed)[byte_index] = 0;
@@ -764,7 +769,7 @@ NK_API_COMPTIME void nk_maxsim_pack_bf16_sapphireamx( //
     }
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_bf16_sapphireamx( //
+NUMKONG_API_COMPTIME void nk_maxsim_packed_bf16_sapphireamx( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {
 
@@ -800,10 +805,10 @@ NK_API_COMPTIME void nk_maxsim_packed_bf16_sapphireamx( //
         nk_size_t valid_queries = (query_row_start + 16 <= query_count) ? 16 : (query_count - query_row_start);
         __mmask16 valid_query_m16 = (valid_queries >= 16) ? (__mmask16)0xFFFF : (__mmask16)((1u << valid_queries) - 1);
 
-        __m512 running_maximum_f32x16 = _mm512_set1_ps(NK_F32_MIN);
+        __m512 running_maximum_f32x16 = _mm512_set1_ps(NUMKONG_F32_MIN);
         __m512i running_argmax_i32x16 = _mm512_setzero_si512();
 
-        NK_ALIGN64 nk_f32_t tile_results_f32[4][16][16];
+        NUMKONG_ALIGN64_ nk_f32_t tile_results_f32[4][16][16];
         nk_size_t document_tile_index = 0;
 
         // Fast path: 4 document tiles at a time using TMM4-7
@@ -925,6 +930,6 @@ NK_API_COMPTIME void nk_maxsim_packed_bf16_sapphireamx( //
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_SAPPHIREAMX
-#endif // NK_TARGET_X8664_
-#endif // NK_MAXSIM_SAPPHIREAMX_H
+#endif // NUMKONG_TARGET_SAPPHIREAMX
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_MAXSIM_SAPPHIREAMX_H

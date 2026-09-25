@@ -23,11 +23,11 @@
  *  into 4 f32 results per instruction. For Mahalanobis distance, bf16 inputs are converted to f32
  *  for subtraction, then accumulated using FMA for numerical stability.
  */
-#ifndef NK_CURVED_NEONBFDOT_H
-#define NK_CURVED_NEONBFDOT_H
+#ifndef NUMKONG_CURVED_NEONBFDOT_H
+#define NUMKONG_CURVED_NEONBFDOT_H
 
-#if NK_TARGET_ARM64_
-#if NK_TARGET_NEONBFDOT
+#if NUMKONG_ARCH_ARM64_
+#if NUMKONG_TARGET_NEONBFDOT
 
 #include "numkong/types.h"        // `nk_bf16_t`
 #include "numkong/spatial/neon.h" // `nk_f32_sqrt_neon`
@@ -45,8 +45,8 @@ extern "C" {
 #pragma GCC target("arch=armv8.6-a+simd+bf16")
 #endif
 
-NK_API_COMPTIME void nk_bilinear_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                                nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_bilinear_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
+                                                     nk_size_t n, nk_f32_t *result) {
     float32x4_t outer_sum_f32x4 = vdupq_n_f32(0);
 
     for (nk_size_t i = 0; i != n; ++i) {
@@ -83,8 +83,8 @@ NK_API_COMPTIME void nk_bilinear_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t co
     *result = vaddvq_f32(outer_sum_f32x4);
 }
 
-NK_API_COMPTIME void nk_mahalanobis_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
-                                                   nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_mahalanobis_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
+                                                        nk_size_t n, nk_f32_t *result) {
     nk_f32_t outer_sum = 0;
 
     for (nk_size_t i = 0; i != n; ++i) {
@@ -133,8 +133,8 @@ NK_API_COMPTIME void nk_mahalanobis_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t
     *result = nk_f32_sqrt_neon(quadratic > 0 ? quadratic : 0);
 }
 
-NK_API_COMPTIME void nk_bilinear_bf16c_neonbfdot(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs,
-                                                 nk_bf16c_t const *c_pairs, nk_size_t n, nk_f32c_t *result) {
+NUMKONG_API_COMPTIME void nk_bilinear_bf16c_neonbfdot(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs,
+                                                      nk_bf16c_t const *c_pairs, nk_size_t n, nk_f32c_t *result) {
     // ARMv8.3-A FCMLA was benchmarked for this complex multiply pattern.
     // The deinterleave+4FMA approach is 2.3x faster on Apple M4 — see `dot/neon.h` comment.
     nk_f32_t outer_sum_real = 0;
@@ -209,6 +209,6 @@ NK_API_COMPTIME void nk_bilinear_bf16c_neonbfdot(nk_bf16c_t const *a_pairs, nk_b
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_NEONBFDOT
-#endif // NK_TARGET_ARM64_
-#endif // NK_CURVED_NEONBFDOT_H
+#endif // NUMKONG_TARGET_NEONBFDOT
+#endif // NUMKONG_ARCH_ARM64_
+#endif // NUMKONG_CURVED_NEONBFDOT_H

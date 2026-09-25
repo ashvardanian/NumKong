@@ -35,11 +35,11 @@
  *      query_popcount, &target_popcounts_vec, total_dimensions, &result_vec);
  *  @endcode
  */
-#ifndef NK_SET_ICELAKE_H
-#define NK_SET_ICELAKE_H
+#ifndef NUMKONG_SET_ICELAKE_H
+#define NUMKONG_SET_ICELAKE_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_ICELAKE
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_ICELAKE
 
 #include "numkong/types.h"
 
@@ -57,8 +57,8 @@ extern "C" {
 
 #pragma region Binary Sets
 
-NK_API_COMPTIME void nk_hamming_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
-    nk_size_t n_bytes = n / NK_BITS_PER_BYTE;
+NUMKONG_API_COMPTIME void nk_hamming_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
+    nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
 
     nk_u32_t xor_count;
     // It's harder to squeeze out performance from tiny representations, so we unroll the loops for binary metrics.
@@ -136,8 +136,8 @@ NK_API_COMPTIME void nk_hamming_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *
     *result = xor_count;
 }
 
-NK_API_COMPTIME void nk_jaccard_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
-    nk_size_t n_bytes = n / NK_BITS_PER_BYTE;
+NUMKONG_API_COMPTIME void nk_jaccard_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
+    nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
 
     nk_u32_t intersection_count = 0, union_count = 0;
     //  It's harder to squeeze out performance from tiny representations, so we unroll the loops for binary metrics.
@@ -244,7 +244,7 @@ NK_API_COMPTIME void nk_jaccard_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *
 
 #pragma region Integer Sets
 
-NK_API_COMPTIME void nk_jaccard_u32_icelake(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_jaccard_u32_icelake(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_u32_t intersection_count = 0;
     nk_size_t n_remaining = n;
     for (; n_remaining >= 16; n_remaining -= 16, a += 16, b += 16) {
@@ -263,7 +263,7 @@ NK_API_COMPTIME void nk_jaccard_u32_icelake(nk_u32_t const *a, nk_u32_t const *b
     *result = (n != 0) ? 1.0f - (nk_f32_t)intersection_count / (nk_f32_t)n : 0.0f;
 }
 
-NK_API_COMPTIME void nk_hamming_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME void nk_hamming_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
     nk_u32_t differences = 0;
     nk_size_t n_remaining = n;
     for (; n_remaining >= 64; n_remaining -= 64, a += 64, b += 64) {
@@ -282,7 +282,7 @@ NK_API_COMPTIME void nk_hamming_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, n
     *result = differences;
 }
 
-NK_API_COMPTIME void nk_jaccard_u16_icelake(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_jaccard_u16_icelake(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_u32_t matches = 0;
     nk_size_t n_remaining = n;
     for (; n_remaining >= 32; n_remaining -= 32, a += 32, b += 32) {
@@ -309,20 +309,20 @@ typedef struct nk_hamming_u1x512_state_icelake_t {
     __m512i intersection_count_i64x8;
 } nk_hamming_u1x512_state_icelake_t;
 
-NK_HELPER_INLINE void nk_hamming_u1x512_init_icelake(nk_hamming_u1x512_state_icelake_t *state) {
+NUMKONG_HELPER_INLINE void nk_hamming_u1x512_init_icelake(nk_hamming_u1x512_state_icelake_t *state) {
     state->intersection_count_i64x8 = _mm512_setzero_si512();
 }
 
-NK_HELPER_INLINE void nk_hamming_u1x512_update_icelake(nk_hamming_u1x512_state_icelake_t *state, nk_b512_vec_t a,
-                                                       nk_b512_vec_t b, nk_size_t depth_offset,
-                                                       nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_hamming_u1x512_update_icelake(nk_hamming_u1x512_state_icelake_t *state, nk_b512_vec_t a,
+                                                            nk_b512_vec_t b, nk_size_t depth_offset,
+                                                            nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     state->intersection_count_i64x8 = _mm512_add_epi64(state->intersection_count_i64x8,
                                                        _mm512_popcnt_epi64(_mm512_xor_si512(a.zmm, b.zmm)));
 }
 
-NK_HELPER_INLINE void nk_hamming_u1x512_finalize_icelake( //
+NUMKONG_HELPER_INLINE void nk_hamming_u1x512_finalize_icelake( //
     nk_hamming_u1x512_state_icelake_t const *state_a, nk_hamming_u1x512_state_icelake_t const *state_b,
     nk_hamming_u1x512_state_icelake_t const *state_c, nk_hamming_u1x512_state_icelake_t const *state_d,
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -355,20 +355,20 @@ typedef struct nk_jaccard_u1x512_state_icelake_t {
     __m512i intersection_count_i64x8;
 } nk_jaccard_u1x512_state_icelake_t;
 
-NK_HELPER_INLINE void nk_jaccard_u1x512_init_icelake(nk_jaccard_u1x512_state_icelake_t *state) {
+NUMKONG_HELPER_INLINE void nk_jaccard_u1x512_init_icelake(nk_jaccard_u1x512_state_icelake_t *state) {
     state->intersection_count_i64x8 = _mm512_setzero_si512();
 }
 
-NK_HELPER_INLINE void nk_jaccard_u1x512_update_icelake(nk_jaccard_u1x512_state_icelake_t *state, nk_b512_vec_t a,
-                                                       nk_b512_vec_t b, nk_size_t depth_offset,
-                                                       nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_jaccard_u1x512_update_icelake(nk_jaccard_u1x512_state_icelake_t *state, nk_b512_vec_t a,
+                                                            nk_b512_vec_t b, nk_size_t depth_offset,
+                                                            nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     state->intersection_count_i64x8 = _mm512_add_epi64(state->intersection_count_i64x8,
                                                        _mm512_popcnt_epi64(_mm512_and_si512(a.zmm, b.zmm)));
 }
 
-NK_HELPER_INLINE void nk_jaccard_u1x512_finalize_icelake( //
+NUMKONG_HELPER_INLINE void nk_jaccard_u1x512_finalize_icelake( //
     nk_jaccard_u1x512_state_icelake_t const *state_a, nk_jaccard_u1x512_state_icelake_t const *state_b,
     nk_jaccard_u1x512_state_icelake_t const *state_c, nk_jaccard_u1x512_state_icelake_t const *state_d,
     nk_f32_t query_popcount, nk_b128_vec_t const *target_popcounts_vec, nk_size_t total_dimensions,
@@ -440,9 +440,9 @@ NK_HELPER_INLINE void nk_jaccard_u1x512_finalize_icelake( //
 }
 
 /** Hamming from_dot: computes pop_a + pop_b - 2*dot for 4 pairs (Icelake). */
-NK_HELPER_INLINE void nk_hamming_u32x4_from_dot_icelake_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
-                                                         nk_b128_vec_t const *target_pops_vec,
-                                                         nk_b128_vec_t *result_vec) {
+NUMKONG_HELPER_INLINE void nk_hamming_u32x4_from_dot_icelake_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                              nk_b128_vec_t const *target_pops_vec,
+                                                              nk_b128_vec_t *result_vec) {
     __m128i dots_i32x4 = dots_vec->xmm;
     __m128i query_i32x4 = _mm_set1_epi32((int)query_pop);
     __m128i target_i32x4 = target_pops_vec->xmm;
@@ -450,9 +450,9 @@ NK_HELPER_INLINE void nk_hamming_u32x4_from_dot_icelake_(nk_b128_vec_t const *do
 }
 
 /** Jaccard from_dot: computes 1 - dot / (pop_a + pop_b - dot) for 4 pairs (Icelake). */
-NK_HELPER_INLINE void nk_jaccard_f32x4_from_dot_icelake_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
-                                                         nk_b128_vec_t const *target_pops_vec,
-                                                         nk_b128_vec_t *result_vec) {
+NUMKONG_HELPER_INLINE void nk_jaccard_f32x4_from_dot_icelake_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                              nk_b128_vec_t const *target_pops_vec,
+                                                              nk_b128_vec_t *result_vec) {
     __m128 dot_f32x4 = _mm_cvtepi32_ps(dots_vec->xmm);
     __m128 query_f32x4 = _mm_set1_ps((nk_f32_t)query_pop);
     __m128 target_f32x4 = _mm_cvtepi32_ps(target_pops_vec->xmm);
@@ -480,6 +480,6 @@ NK_HELPER_INLINE void nk_jaccard_f32x4_from_dot_icelake_(nk_b128_vec_t const *do
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_ICELAKE
-#endif // NK_TARGET_X8664_
-#endif // NK_SET_ICELAKE_H
+#endif // NUMKONG_TARGET_ICELAKE
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_SET_ICELAKE_H

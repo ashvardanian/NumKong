@@ -32,8 +32,8 @@ except ImportError:
     scipy_entropy = None  # type: ignore[assignment]
 
 from base import (
-    NK_ATOL,
-    NK_RTOL,
+    NUMKONG_ATOL,
+    NUMKONG_RTOL,
     PACKING_GRANULARITY,
     assert_allclose,
     create_stats,
@@ -92,7 +92,7 @@ def test_cdist_batch_metrics(ndim, input_dtype, metric, capability, nk_seed):
     is selected instead of the scalar pairwise fallback. Uses asymmetric matrix
     sizes (7 x 11) to exercise the general rectangular case.
 
-    Dimensions are inherited from ``NK_DENSE_DIMENSIONS``; capabilities from
+    Dimensions are inherited from ``NUMKONG_DENSE_DIMENSIONS``; capabilities from
     platform auto-detection via ``possible_capabilities``. Baseline for ``dot``
     is ``np.dot`` (SciPy has no ``cdist`` metric for inner product); other
     metrics use ``scipy.spatial.distance.cdist``.
@@ -115,7 +115,7 @@ def test_cdist_batch_metrics(ndim, input_dtype, metric, capability, nk_seed):
         expected = spd.cdist(a_matrix, b_matrix, scipy_metric).astype(out_dtype)
 
     result = nk.cdist(a_matrix, b_matrix, metric=metric, out_dtype=out_dtype)
-    assert_allclose(result, expected, atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -138,7 +138,7 @@ def test_cdist_self_distance(ndim, input_dtype, metric, nk_seed):
 
     No ``capability`` parameter: runs on whatever the default backend is (all
     ISA-specific paths are already covered by ``test_cdist_batch_metrics``).
-    Dimensions from ``NK_DENSE_DIMENSIONS``.
+    Dimensions from ``NUMKONG_DENSE_DIMENSIONS``.
     """
     a_matrix, _ = make_random((10, ndim), input_dtype, seed=nk_seed)
 
@@ -152,10 +152,10 @@ def test_cdist_self_distance(ndim, input_dtype, metric, nk_seed):
 
     # Default out_dtype (f64) — may use pairwise fallback
     result_default = np.asarray(nk.cdist(a_matrix, a_matrix, metric=metric))
-    assert_allclose(result_default, expected, atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result_default, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
     # Check lower triangle explicitly
     mask_lower = np.tril(np.ones((10, 10), dtype=bool), k=-1)
-    assert_allclose(result_default[mask_lower], expected[mask_lower], atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result_default[mask_lower], expected[mask_lower], atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
     # Native out_dtype — should force batch symmetric path for f32
     native_out_dtype = input_dtype
@@ -166,8 +166,8 @@ def test_cdist_self_distance(ndim, input_dtype, metric, nk_seed):
     else:
         expected_native = spd.cdist(a_matrix, a_matrix, scipy_metric).astype(native_out_dtype)
     result_native = np.asarray(nk.cdist(a_matrix, a_matrix, metric=metric, out_dtype=native_out_dtype))
-    assert_allclose(result_native, expected_native, atol=NK_ATOL, rtol=NK_RTOL)
-    assert_allclose(result_native[mask_lower], expected_native[mask_lower], atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result_native, expected_native, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
+    assert_allclose(result_native[mask_lower], expected_native[mask_lower], atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -192,9 +192,9 @@ def test_cdist_float_accuracy(ndim, input_dtype, out_dtype, metric, capability, 
     Skips:
         * ``angular`` at ndim=1 — degenerate (norm is a single element, 0/0).
 
-    Dimensions from ``NK_DENSE_DIMENSIONS``; capabilities from platform
+    Dimensions from ``NUMKONG_DENSE_DIMENSIONS``; capabilities from platform
     auto-detection. Integer output uses ``atol=1`` (discrete rounding);
-    floats use ``NK_ATOL / NK_RTOL``.
+    floats use ``NUMKONG_ATOL / NUMKONG_RTOL``.
     """
     if metric == "angular" and ndim == 1:
         pytest.skip("angular at ndim=1 is degenerate (0/0 from single-element norms)")
@@ -226,15 +226,15 @@ def test_cdist_float_accuracy(ndim, input_dtype, out_dtype, metric, capability, 
         expected = round_and_clip_even(baseline, out_dtype) if is_integer_output else baseline.astype(out_dtype)
         result = nk.cdist(a_matrix, b_matrix, metric, out_dtype=out_dtype)
 
-    atol = 1 if is_integer_output else NK_ATOL
-    assert_allclose(result, expected, atol=atol, rtol=NK_RTOL)
+    atol = 1 if is_integer_output else NUMKONG_ATOL
+    assert_allclose(result, expected, atol=atol, rtol=NUMKONG_RTOL)
 
     # Test out= buffer with strides
     out_np_dtype = out_dtype if out_dtype else "float64"
     output_buffer_extended = np.zeros((num_rows_a, num_rows_b + 7), dtype=out_np_dtype)
     output_buffer = output_buffer_extended[:, :num_rows_b]
     assert nk.cdist(a_matrix, b_matrix, metric, out=output_buffer) is None
-    assert_allclose(output_buffer, expected, atol=atol, rtol=NK_RTOL)
+    assert_allclose(output_buffer, expected, atol=atol, rtol=NUMKONG_RTOL)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -255,7 +255,7 @@ def test_cdist_complex(ndim, input_dtype, out_dtype, metric, capability):
     * ``out=`` buffer path with strided column slice.
 
     Inputs are strided (sliced from wider allocations). Dimensions from
-    ``NK_DENSE_DIMENSIONS``; capabilities from platform auto-detection.
+    ``NUMKONG_DENSE_DIMENSIONS``; capabilities from platform auto-detection.
     """
     keep_one_capability(capability)
 
@@ -283,9 +283,9 @@ def test_cdist_complex(ndim, input_dtype, out_dtype, metric, capability):
         result2d = nk.cdist(a_matrix, b_matrix, metric=metric, out_dtype=out_dtype)
         assert nk.cdist(a_matrix, b_matrix, metric=metric, out_dtype=out_dtype, out=c_matrix) is None
 
-    assert_allclose(result1d, expected[0, 0], atol=NK_ATOL, rtol=NK_RTOL)
-    assert_allclose(result2d, expected, atol=NK_ATOL, rtol=NK_RTOL)
-    assert_allclose(c_matrix, expected, atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result1d, expected[0, 0], atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
+    assert_allclose(result2d, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
+    assert_allclose(c_matrix, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -303,12 +303,12 @@ def test_cdist_hamming(ndim, out_dtype, capability):
     normalises by dimension, so we undo that.
 
     Output dtype coverage: default (float64), float32, float16, int8. Integer
-    output uses standard ``NK_ATOL / NK_RTOL`` (Hamming counts are exact for
+    output uses standard ``NUMKONG_ATOL / NUMKONG_RTOL`` (Hamming counts are exact for
     integer types but may round for float16).
 
     Randomised via ``@pytest.mark.repeat(randomized_repetitions_count)`` (env
-    ``NK_RANDOMIZED_REPETITIONS``, default 1). Dimensions from
-    ``NK_DENSE_DIMENSIONS``; capabilities from platform auto-detection.
+    ``NUMKONG_REPETITIONS``, default 10). Dimensions from
+    ``NUMKONG_DENSE_DIMENSIONS``; capabilities from platform auto-detection.
     """
     keep_one_capability(capability)
 
@@ -328,7 +328,7 @@ def test_cdist_hamming(ndim, out_dtype, capability):
             expected = raw.astype(out_dtype)
         result = nk.cdist(a_packed_bits, b_packed_bits, metric="hamming", dtype="uint1", out_dtype=out_dtype)
 
-    assert_allclose(result, expected, atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -348,7 +348,7 @@ def test_cdist_jaccard(ndim, out_dtype, capability):
     Output dtype coverage: default (float64) and explicit float32.
 
     Randomised via ``@pytest.mark.repeat``; dimensions from
-    ``NK_DENSE_DIMENSIONS``; capabilities from platform auto-detection.
+    ``NUMKONG_DENSE_DIMENSIONS``; capabilities from platform auto-detection.
     """
     keep_one_capability(capability)
 
@@ -364,7 +364,7 @@ def test_cdist_jaccard(ndim, out_dtype, capability):
         expected = spd.cdist(a_bits, b_bits, "jaccard").astype(out_dtype)
         result = nk.cdist(a_packed_bits, b_packed_bits, metric="jaccard", dtype="uint1", out_dtype=out_dtype)
 
-    assert_allclose(result, expected, atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -389,7 +389,7 @@ def test_cdist_probability(ndim, input_dtype, metric, capability):
 
     Only float64 and float32 input dtypes are supported. No ``out_dtype``
     variants — probability divergences always produce float64 output.
-    Dimensions from ``NK_DENSE_DIMENSIONS``; capabilities from platform
+    Dimensions from ``NUMKONG_DENSE_DIMENSIONS``; capabilities from platform
     auto-detection.
     """
     keep_one_capability(capability)
@@ -413,7 +413,7 @@ def test_cdist_probability(ndim, input_dtype, metric, capability):
         expected = spd.cdist(a_matrix.astype(np.float64), b_matrix.astype(np.float64), "jensenshannon")
 
     result = nk.cdist(a_matrix, b_matrix, metric=metric)
-    assert_allclose(result, expected, atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -441,7 +441,7 @@ def test_cdist_exotic_dtypes(ndim, input_dtype, metric):
     kernel sees a whole number of packed bytes per row.
 
     No ``capability`` parameter — only the default backend is tested.
-    Dimensions from ``NK_DENSE_DIMENSIONS``.
+    Dimensions from ``NUMKONG_DENSE_DIMENSIONS``.
     """
     ndim = round_up_to(ndim, PACKING_GRANULARITY.get(input_dtype, 1))
 
@@ -463,7 +463,7 @@ def test_cdist_exotic_dtypes(ndim, input_dtype, metric):
 
     # Test with default out_dtype (f64, pairwise fallback)
     result_f64 = nk.cdist(a_raw, b_raw, **cdist_kwargs)
-    assert_allclose(result_f64, expected, atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result_f64, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -497,13 +497,13 @@ def test_cdist_shapes(m, n, k, nk_seed):
     expected_euc = spd.cdist(a_matrix, b_matrix, "euclidean")
     result_euc = nk.cdist(a_matrix, b_matrix, "euclidean")
     assert result_euc.shape == (m, n), f"Expected shape ({m}, {n}), got {result_euc.shape}"
-    assert_allclose(result_euc, expected_euc, atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result_euc, expected_euc, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
     # sqeuclidean (pairwise)
     expected_sqeuc = spd.cdist(a_matrix, b_matrix, "sqeuclidean")
     result_sqeuc = nk.cdist(a_matrix, b_matrix, "sqeuclidean")
     assert result_sqeuc.shape == (m, n), f"Expected shape ({m}, {n}), got {result_sqeuc.shape}"
-    assert_allclose(result_sqeuc, expected_sqeuc, atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result_sqeuc, expected_sqeuc, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -522,12 +522,12 @@ def test_cdist_threads(m, nk_seed):
     # Symmetric batch path
     serial_symmetric = nk.cdist(a_matrix, a_matrix, "sqeuclidean", threads=1)
     parallel_symmetric = nk.cdist(a_matrix, a_matrix, "sqeuclidean", threads=4)
-    assert_allclose(parallel_symmetric, serial_symmetric, atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(parallel_symmetric, serial_symmetric, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
     # Packed batch path
     serial_packed = nk.cdist(a_matrix, b_matrix, "euclidean", threads=1)
     parallel_packed = nk.cdist(a_matrix, b_matrix, "euclidean", threads=4)
-    assert_allclose(parallel_packed, serial_packed, atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(parallel_packed, serial_packed, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
 
 def test_cdist_edge_cases(nk_seed):
@@ -559,7 +559,7 @@ def test_cdist_edge_cases(nk_seed):
     b_matrix = nk.ones((4, ndim), dtype="float32")
     result_serial = nk.cdist(a_matrix, b_matrix, "euclidean", threads=1)
     result_parallel = nk.cdist(a_matrix, b_matrix, "euclidean", threads=2)
-    assert_allclose(result_serial, result_parallel, atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result_serial, result_parallel, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
     # Unknown kwargs are rejected
     with pytest.raises(TypeError, match="unexpected keyword"):

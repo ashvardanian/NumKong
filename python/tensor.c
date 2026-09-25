@@ -322,7 +322,7 @@ static int tensor_is_f_contig(Tensor *tensor) {
 
 /** Read dimension @p lane of the packed value at @p byte_offset as a Python number. */
 static PyObject *tensor_read_packed_scalar(Tensor *tensor, size_t byte_offset, size_t lane) {
-    nk_f64_t lanes[NK_BITS_PER_BYTE];
+    nk_f64_t lanes[NUMKONG_BITS_PER_BYTE];
     nk_cast(tensor->data + byte_offset, tensor->dtype, nk_dimensions_per_value(tensor->dtype), lanes, nk_f64_k);
     if (nk_dtype_family(tensor->dtype) == nk_dtype_family_float_k) return PyFloat_FromDouble(lanes[lane]);
     return PyLong_FromLongLong((long long)lanes[lane]);
@@ -339,44 +339,44 @@ static PyObject *tensor_read_packed_scalar(Tensor *tensor, size_t byte_offset, s
  *  fixed-basicsize type. Owning tensors are never pooled: their `parent == NULL` sentinel would
  *  collide with the link, and their @c data buffer must be freed.
  */
-#define NK_VIEW_FREELIST_CAP 64
+#define NUMKONG_VIEW_FREELIST_CAP 64
 
 static Tensor *g_view_freelist_head = NULL;
 static size_t g_view_freelist_count = 0;
 
 #ifdef Py_GIL_DISABLED
 static PyMutex g_view_freelist_mutex = {0};
-#define NK_VIEW_FREELIST_LOCK()   PyMutex_Lock(&g_view_freelist_mutex)
-#define NK_VIEW_FREELIST_UNLOCK() PyMutex_Unlock(&g_view_freelist_mutex)
+#define NUMKONG_VIEW_FREELIST_LOCK()   PyMutex_Lock(&g_view_freelist_mutex)
+#define NUMKONG_VIEW_FREELIST_UNLOCK() PyMutex_Unlock(&g_view_freelist_mutex)
 #else
-#define NK_VIEW_FREELIST_LOCK()   ((void)0)
-#define NK_VIEW_FREELIST_UNLOCK() ((void)0)
+#define NUMKONG_VIEW_FREELIST_LOCK()   ((void)0)
+#define NUMKONG_VIEW_FREELIST_UNLOCK() ((void)0)
 #endif
 
 /** Park a dead view header for reuse. Returns 1 if pooled, 0 if the caller must free it. */
 static int tensor_view_freelist_push(Tensor *view) {
     int pooled = 0;
-    NK_VIEW_FREELIST_LOCK();
-    if (g_view_freelist_count < NK_VIEW_FREELIST_CAP) {
+    NUMKONG_VIEW_FREELIST_LOCK();
+    if (g_view_freelist_count < NUMKONG_VIEW_FREELIST_CAP) {
         view->parent = (PyObject *)g_view_freelist_head; // reuse `parent` as the intrusive next-link
         g_view_freelist_head = view;
         g_view_freelist_count++;
         pooled = 1;
     }
-    NK_VIEW_FREELIST_UNLOCK();
+    NUMKONG_VIEW_FREELIST_UNLOCK();
     return pooled;
 }
 
 /** Pop and revive a pooled view header, or NULL when the pool is empty. */
 static Tensor *tensor_view_freelist_pop(void) {
     Tensor *view = NULL;
-    NK_VIEW_FREELIST_LOCK();
+    NUMKONG_VIEW_FREELIST_LOCK();
     if (g_view_freelist_head) {
         view = g_view_freelist_head;
         g_view_freelist_head = (Tensor *)view->parent; // unlink
         g_view_freelist_count--;
     }
-    NK_VIEW_FREELIST_UNLOCK();
+    NUMKONG_VIEW_FREELIST_UNLOCK();
     if (view) _Py_NewReference((PyObject *)view); // dead header → live, refcount 1
     return view;
 }
@@ -390,7 +390,7 @@ static Tensor *tensor_view_header_new(void) {
 
 /** Drain the view free-list at interpreter teardown, wired as the module's m_free. */
 void nk_tensor_view_freelist_clear(void) {
-    NK_VIEW_FREELIST_LOCK();
+    NUMKONG_VIEW_FREELIST_LOCK();
     Tensor *node = g_view_freelist_head;
     while (node) {
         Tensor *next = (Tensor *)node->parent;
@@ -399,7 +399,7 @@ void nk_tensor_view_freelist_clear(void) {
     }
     g_view_freelist_head = NULL;
     g_view_freelist_count = 0;
-    NK_VIEW_FREELIST_UNLOCK();
+    NUMKONG_VIEW_FREELIST_UNLOCK();
 }
 
 static void Tensor_dealloc(PyObject *self) {
@@ -416,8 +416,8 @@ static void Tensor_dealloc(PyObject *self) {
 }
 
 Tensor *Tensor_new(nk_dtype_t dtype, size_t rank, Py_ssize_t const *shape) {
-    if (rank > NK_TENSOR_MAX_RANK) {
-        PyErr_Format(PyExc_ValueError, "Tensor rank %zu exceeds maximum %d", rank, NK_TENSOR_MAX_RANK);
+    if (rank > NUMKONG_TENSOR_MAX_RANK) {
+        PyErr_Format(PyExc_ValueError, "Tensor rank %zu exceeds maximum %d", rank, NUMKONG_TENSOR_MAX_RANK);
         return NULL;
     }
 
@@ -452,7 +452,7 @@ Tensor *Tensor_new(nk_dtype_t dtype, size_t rank, Py_ssize_t const *shape) {
     tensor->capacity = 0;
     tensor->exports = 0;
 
-    for (size_t i = 0; i < NK_TENSOR_MAX_RANK; i++) {
+    for (size_t i = 0; i < NUMKONG_TENSOR_MAX_RANK; i++) {
         tensor->shape[i] = (i < rank) ? shape[i] : 0;
         tensor->strides[i] = 0;
     }
@@ -461,7 +461,7 @@ Tensor *Tensor_new(nk_dtype_t dtype, size_t rank, Py_ssize_t const *shape) {
     // Storage lives in a separate heap buffer so `reserve()` can grow it in place. A zero-element
     // tensor keeps `data == NULL`; `Tensor_dealloc` frees the buffer only when this owns it.
     if (total_bytes > 0) {
-        tensor->data = (char *)PyMem_Malloc(total_bytes + NK_TENSOR_PADDING_);
+        tensor->data = (char *)PyMem_Malloc(total_bytes + NUMKONG_TENSOR_PADDING_);
         if (!tensor->data) {
             Py_DECREF(tensor);
             PyErr_NoMemory();
@@ -475,8 +475,8 @@ Tensor *Tensor_new(nk_dtype_t dtype, size_t rank, Py_ssize_t const *shape) {
 
 Tensor *Tensor_view(Tensor *parent, char *data_ptr, nk_dtype_t dtype, size_t rank, Py_ssize_t const *shape,
                     Py_ssize_t const *strides) {
-    if (rank > NK_TENSOR_MAX_RANK) {
-        PyErr_Format(PyExc_ValueError, "View rank %zu exceeds maximum %d", rank, NK_TENSOR_MAX_RANK);
+    if (rank > NUMKONG_TENSOR_MAX_RANK) {
+        PyErr_Format(PyExc_ValueError, "View rank %zu exceeds maximum %d", rank, NUMKONG_TENSOR_MAX_RANK);
         return NULL;
     }
 
@@ -491,7 +491,7 @@ Tensor *Tensor_view(Tensor *parent, char *data_ptr, nk_dtype_t dtype, size_t ran
     view->exports = 0;
 
     size_t numel = 1;
-    for (size_t i = 0; i < NK_TENSOR_MAX_RANK; i++) {
+    for (size_t i = 0; i < NUMKONG_TENSOR_MAX_RANK; i++) {
         view->shape[i] = (i < rank) ? shape[i] : 0;
         view->strides[i] = (i < rank) ? strides[i] : 0;
         if (i < rank) numel *= (size_t)shape[i];
@@ -520,12 +520,12 @@ static Tensor *Tensor_scalar(nk_dtype_t dtype, void const *value) {
     tensor->data = NULL;
     tensor->capacity = 1;
     tensor->exports = 0;
-    for (size_t i = 0; i < NK_TENSOR_MAX_RANK; i++) {
+    for (size_t i = 0; i < NUMKONG_TENSOR_MAX_RANK; i++) {
         tensor->shape[i] = 0;
         tensor->strides[i] = 0;
     }
 
-    tensor->data = (char *)PyMem_Malloc(item_size + NK_TENSOR_PADDING_);
+    tensor->data = (char *)PyMem_Malloc(item_size + NUMKONG_TENSOR_PADDING_);
     if (!tensor->data) {
         Py_DECREF(tensor);
         PyErr_NoMemory();
@@ -628,7 +628,7 @@ static size_t jointly_contiguous_tail_dimensions(size_t rank, Py_ssize_t const *
 void linearize_cast_into(char const *src_data, nk_dtype_t src_dtype, char *dest_data, nk_dtype_t dest_dtype,
                          size_t rank, Py_ssize_t const *shape, Py_ssize_t const *strides, size_t total_elements) {
     nk_unused_(total_elements);
-    Py_ssize_t dense_dest_strides[NK_TENSOR_MAX_RANK];
+    Py_ssize_t dense_dest_strides[NUMKONG_TENSOR_MAX_RANK];
     compute_contiguous_strides(rank, shape, dest_dtype, dense_dest_strides);
     size_t const contiguous_tail_dims = jointly_contiguous_tail_dimensions(rank, shape, src_dtype, strides, dest_dtype,
                                                                            dense_dest_strides);
@@ -639,7 +639,7 @@ void linearize_cast_into(char const *src_data, nk_dtype_t src_dtype, char *dest_
 
 void cast_into_strided(char const *src_data, nk_dtype_t src_dtype, char *dest_data, nk_dtype_t dest_dtype, size_t rank,
                        Py_ssize_t const *shape, Py_ssize_t const *dest_strides) {
-    Py_ssize_t dense_src_strides[NK_TENSOR_MAX_RANK];
+    Py_ssize_t dense_src_strides[NUMKONG_TENSOR_MAX_RANK];
     compute_contiguous_strides(rank, shape, src_dtype, dense_src_strides);
     size_t const contiguous_tail_dims = jointly_contiguous_tail_dimensions(rank, shape, src_dtype, dense_src_strides,
                                                                            dest_dtype, dest_strides);
@@ -660,7 +660,7 @@ char *ensure_contiguous_buffer(char const *src_data, nk_dtype_t src_dtype, nk_dt
     // Single allocation, delegate
     size_t const output_bytes = dimensions_to_values(target_dtype, total_elements) *
                                 nk_dtype_bytes_per_value(target_dtype);
-    char *output = PyMem_Malloc(output_bytes + NK_TENSOR_PADDING_);
+    char *output = PyMem_Malloc(output_bytes + NUMKONG_TENSOR_PADDING_);
     if (!output) {
         PyErr_NoMemory();
         return NULL;
@@ -686,7 +686,7 @@ static PyObject *tensor_elementwise_scalar(Tensor *a, double alpha_value, double
     if (!r) return NULL;
 
     size_t item_size = nk_dtype_bytes_per_value(a->dtype);
-    Py_ssize_t r_strides[NK_TENSOR_MAX_RANK];
+    Py_ssize_t r_strides[NUMKONG_TENSOR_MAX_RANK];
     compute_contiguous_strides(a->rank, a->shape, a->dtype, r_strides);
 
     Py_buffer a_buf = {.ndim = (int)a->rank,
@@ -740,7 +740,7 @@ static PyObject *Tensor_add(PyObject *self, PyObject *other) {
         if (!r) return NULL;
 
         size_t item_size = nk_dtype_bytes_per_value(a->dtype);
-        Py_ssize_t r_strides[NK_TENSOR_MAX_RANK];
+        Py_ssize_t r_strides[NUMKONG_TENSOR_MAX_RANK];
         compute_contiguous_strides(a->rank, a->shape, a->dtype, r_strides);
 
         Py_buffer a_buf = {.ndim = (int)a->rank,
@@ -801,7 +801,7 @@ static PyObject *Tensor_subtract(PyObject *self, PyObject *other) {
         if (!r) return NULL;
 
         size_t item_size = nk_dtype_bytes_per_value(a->dtype);
-        Py_ssize_t r_strides[NK_TENSOR_MAX_RANK];
+        Py_ssize_t r_strides[NUMKONG_TENSOR_MAX_RANK];
         compute_contiguous_strides(a->rank, a->shape, a->dtype, r_strides);
 
         Py_buffer a_buf = {.ndim = (int)a->rank,
@@ -870,7 +870,7 @@ static PyObject *Tensor_multiply(PyObject *self, PyObject *other) {
         for (size_t i = 0; i < a->rank; i++) total_items *= (size_t)a->shape[i];
         memset(r->data, 0, total_items * item_size); // prevent 0*NaN=NaN from uninitialized memory
 
-        Py_ssize_t r_strides[NK_TENSOR_MAX_RANK];
+        Py_ssize_t r_strides[NUMKONG_TENSOR_MAX_RANK];
         compute_contiguous_strides(a->rank, a->shape, a->dtype, r_strides);
 
         Py_buffer a_buf = {.ndim = (int)a->rank,
@@ -989,8 +989,8 @@ static PyObject *Tensor_get_T(PyObject *self, void *closure) {
     }
 
     // Reverse shape and strides
-    Py_ssize_t new_shape[NK_TENSOR_MAX_RANK];
-    Py_ssize_t new_strides[NK_TENSOR_MAX_RANK];
+    Py_ssize_t new_shape[NUMKONG_TENSOR_MAX_RANK];
+    Py_ssize_t new_strides[NUMKONG_TENSOR_MAX_RANK];
     for (size_t i = 0; i < tensor->rank; i++) {
         new_shape[i] = tensor->shape[tensor->rank - 1 - i];
         new_strides[i] = tensor->strides[tensor->rank - 1 - i];
@@ -1086,7 +1086,7 @@ static size_t shape_numel_(size_t rank, Py_ssize_t const *shape) {
 /** Overwrite a tensor's rank/shape/contiguous-strides in place. Caller guarantees capacity. */
 static void tensor_set_contiguous_shape_(Tensor *tensor, size_t rank, Py_ssize_t const *shape) {
     tensor->rank = rank;
-    for (size_t i = 0; i < NK_TENSOR_MAX_RANK; i++) {
+    for (size_t i = 0; i < NUMKONG_TENSOR_MAX_RANK; i++) {
         tensor->shape[i] = (i < rank) ? shape[i] : 0;
         tensor->strides[i] = 0;
     }
@@ -1097,8 +1097,8 @@ static void tensor_set_contiguous_shape_(Tensor *tensor, size_t rank, Py_ssize_t
 static int parse_shape_args_(PyObject *const *args, Py_ssize_t nargs, Py_ssize_t *out_shape, size_t *out_rank) {
     int const from_tuple = (nargs == 1 && PyTuple_Check(args[0]));
     size_t const rank = from_tuple ? (size_t)PyTuple_GET_SIZE(args[0]) : (size_t)nargs;
-    if (rank > NK_TENSOR_MAX_RANK) {
-        PyErr_Format(PyExc_ValueError, "too many dimensions (%zu > %d)", rank, NK_TENSOR_MAX_RANK);
+    if (rank > NUMKONG_TENSOR_MAX_RANK) {
+        PyErr_Format(PyExc_ValueError, "too many dimensions (%zu > %d)", rank, NUMKONG_TENSOR_MAX_RANK);
         return -1;
     }
     for (size_t i = 0; i < rank; i++) {
@@ -1140,7 +1140,7 @@ static PyObject *Tensor_resize(PyObject *self, PyObject *const *args, Py_ssize_t
         PyErr_SetString(PyExc_BufferError, "cannot resize a tensor with exported buffers");
         return NULL;
     }
-    Py_ssize_t new_shape[NK_TENSOR_MAX_RANK];
+    Py_ssize_t new_shape[NUMKONG_TENSOR_MAX_RANK];
     size_t new_rank = 0;
     if (parse_shape_args_(args, nargs, new_shape, &new_rank) != 0) return NULL;
 
@@ -1192,7 +1192,7 @@ static PyObject *Tensor_reserve(PyObject *self, PyObject *const *args, Py_ssize_
     if (!validate_packed_dimensions(tensor->dtype, 1, requested_shape)) return NULL;
     size_t const requested_bytes = dimensions_to_values(tensor->dtype, (size_t)requested) *
                                    nk_dtype_bytes_per_value(tensor->dtype);
-    char *grown = (char *)PyMem_Realloc(tensor->data, requested_bytes + NK_TENSOR_PADDING_);
+    char *grown = (char *)PyMem_Realloc(tensor->data, requested_bytes + NUMKONG_TENSOR_PADDING_);
     if (!grown) {
         PyErr_NoMemory();
         return NULL;
@@ -1225,7 +1225,7 @@ static PyObject *Tensor_clear(PyObject *self, PyObject *ignored) {
     tensor->rank = 1;
     tensor->shape[0] = 0;
     tensor->strides[0] = (Py_ssize_t)nk_dtype_bytes_per_value(tensor->dtype);
-    for (size_t i = 1; i < NK_TENSOR_MAX_RANK; i++) {
+    for (size_t i = 1; i < NUMKONG_TENSOR_MAX_RANK; i++) {
         tensor->shape[i] = 0;
         tensor->strides[i] = 0;
     }
@@ -1234,8 +1234,8 @@ static PyObject *Tensor_clear(PyObject *self, PyObject *ignored) {
 
 static Tensor *Tensor_view_object(PyObject *owner, char *data_ptr, nk_dtype_t dtype, size_t rank,
                                   Py_ssize_t const *shape, Py_ssize_t const *strides) {
-    if (rank > NK_TENSOR_MAX_RANK) {
-        PyErr_Format(PyExc_ValueError, "View rank %zu exceeds maximum %d", rank, NK_TENSOR_MAX_RANK);
+    if (rank > NUMKONG_TENSOR_MAX_RANK) {
+        PyErr_Format(PyExc_ValueError, "View rank %zu exceeds maximum %d", rank, NUMKONG_TENSOR_MAX_RANK);
         return NULL;
     }
 
@@ -1250,7 +1250,7 @@ static Tensor *Tensor_view_object(PyObject *owner, char *data_ptr, nk_dtype_t dt
     view->exports = 0;
 
     size_t numel = 1;
-    for (size_t i = 0; i < NK_TENSOR_MAX_RANK; i++) {
+    for (size_t i = 0; i < NUMKONG_TENSOR_MAX_RANK; i++) {
         view->shape[i] = (i < rank) ? shape[i] : 0;
         view->strides[i] = (i < rank) ? strides[i] : 0;
         if (i < rank) numel *= (size_t)shape[i];
@@ -1375,14 +1375,15 @@ char const doc_method_reshape[] =                                               
 PyObject *Tensor_reshape(PyObject *self, PyObject *const *args, Py_ssize_t nargs) {
     Tensor *tensor = (Tensor *)self;
 
-    Py_ssize_t new_shape[NK_TENSOR_MAX_RANK];
+    Py_ssize_t new_shape[NUMKONG_TENSOR_MAX_RANK];
     size_t new_rank = 0;
 
     if (nargs == 1 && PyTuple_Check(args[0])) {
         PyObject *shape_tuple = args[0];
         new_rank = PyTuple_GET_SIZE(shape_tuple);
-        if (new_rank > NK_TENSOR_MAX_RANK) {
-            PyErr_Format(PyExc_ValueError, "reshape: too many dimensions (%zu > %d)", new_rank, NK_TENSOR_MAX_RANK);
+        if (new_rank > NUMKONG_TENSOR_MAX_RANK) {
+            PyErr_Format(PyExc_ValueError, "reshape: too many dimensions (%zu > %d)", new_rank,
+                         NUMKONG_TENSOR_MAX_RANK);
             return NULL;
         }
         for (size_t i = 0; i < new_rank; i++) {
@@ -1400,8 +1401,9 @@ PyObject *Tensor_reshape(PyObject *self, PyObject *const *args, Py_ssize_t nargs
     }
     else {
         new_rank = (size_t)nargs;
-        if (new_rank > NK_TENSOR_MAX_RANK) {
-            PyErr_Format(PyExc_ValueError, "reshape: too many dimensions (%zu > %d)", new_rank, NK_TENSOR_MAX_RANK);
+        if (new_rank > NUMKONG_TENSOR_MAX_RANK) {
+            PyErr_Format(PyExc_ValueError, "reshape: too many dimensions (%zu > %d)", new_rank,
+                         NUMKONG_TENSOR_MAX_RANK);
             return NULL;
         }
         for (size_t i = 0; i < new_rank; i++) {
@@ -1433,7 +1435,7 @@ PyObject *Tensor_reshape(PyObject *self, PyObject *const *args, Py_ssize_t nargs
     if (!validate_packed_dimensions(tensor->dtype, new_rank, new_shape)) return NULL;
 
     if (tensor_is_c_contig(tensor)) {
-        Py_ssize_t new_strides[NK_TENSOR_MAX_RANK];
+        Py_ssize_t new_strides[NUMKONG_TENSOR_MAX_RANK];
         compute_contiguous_strides(new_rank, new_shape, tensor->dtype, new_strides);
         Tensor *root_parent = tensor->parent ? (Tensor *)tensor->parent : tensor;
         return (PyObject *)Tensor_view(root_parent, tensor->data, tensor->dtype, new_rank, new_shape, new_strides);
@@ -1526,8 +1528,8 @@ PyObject *Tensor_squeeze(PyObject *self, PyObject *const *args, Py_ssize_t nargs
         return NULL;
     }
 
-    Py_ssize_t new_shape[NK_TENSOR_MAX_RANK];
-    Py_ssize_t new_strides[NK_TENSOR_MAX_RANK];
+    Py_ssize_t new_shape[NUMKONG_TENSOR_MAX_RANK];
+    Py_ssize_t new_strides[NUMKONG_TENSOR_MAX_RANK];
     size_t new_rank = 0;
 
     if (nargs == 1) {
@@ -1671,7 +1673,7 @@ static void reduce_moments_recursive(                    //
             return;
         }
         if (tail >= 2) {
-            Py_ssize_t collapsed_shape[NK_TENSOR_MAX_RANK], collapsed_strides[NK_TENSOR_MAX_RANK];
+            Py_ssize_t collapsed_shape[NUMKONG_TENSOR_MAX_RANK], collapsed_strides[NUMKONG_TENSOR_MAX_RANK];
             size_t collapsed_rank = build_collapsed_shape(shape, strides, dim, tail, collapsed_count, collapsed_stride,
                                                           collapsed_shape, collapsed_strides, remaining);
             reduce_moments_recursive(kernel, dtype, sum_dtype, sumsq_dtype, data, collapsed_shape, collapsed_strides,
@@ -1803,7 +1805,7 @@ static void reduce_minmax_recursive(                         //
             return;
         }
         if (tail >= 2) {
-            Py_ssize_t collapsed_shape[NK_TENSOR_MAX_RANK], collapsed_strides[NK_TENSOR_MAX_RANK];
+            Py_ssize_t collapsed_shape[NUMKONG_TENSOR_MAX_RANK], collapsed_strides[NUMKONG_TENSOR_MAX_RANK];
             size_t collapsed_rank = build_collapsed_shape(shape, strides, dim, tail, collapsed_count, collapsed_stride,
                                                           collapsed_shape, collapsed_strides, remaining);
             reduce_minmax_recursive(kernel, dtype, value_dtype, data, collapsed_shape, collapsed_strides,
@@ -1932,7 +1934,7 @@ static PyObject *impl_minmax_from_view(TensorView const *view) {
     if (impl_reduce_minmax(view, &min_buf, &min_dtype, &min_index, &max_buf, &max_dtype, &max_index) < 0)
         return PyErr_Format(PyExc_NotImplementedError, "minmax not supported for dtype '%s'",
                             nk_dtype_to_pybuffer_typestr(view->dtype));
-    if (min_index == NK_SIZE_MAX) { Py_RETURN_NONE; }
+    if (min_index == NUMKONG_SIZE_MAX) { Py_RETURN_NONE; }
     PyObject *min_obj = nk_scalar_buffer_to_py_number(&min_buf, min_dtype);
     if (!min_obj) return NULL;
     PyObject *min_idx_obj = PyLong_FromSsize_t((Py_ssize_t)min_index);
@@ -1969,7 +1971,7 @@ PyObject *Tensor_minmax(PyObject *self, PyObject *args) {
 }
 
 typedef struct {
-    Py_ssize_t axes[NK_TENSOR_MAX_RANK]; // sorted, normalized axes to reduce
+    Py_ssize_t axes[NUMKONG_TENSOR_MAX_RANK]; // sorted, normalized axes to reduce
     size_t n_axes;                       // 0 = reduce-all (axis=None), else 1..rank
     int keepdims;                        // 0 or 1
     Tensor *out;                         // NULL or user-provided
@@ -1992,7 +1994,7 @@ static int parse_axis_value(PyObject *value, reduce_args_t *parsed) {
     if (PyTuple_Check(value)) {
         Py_ssize_t const len = PyTuple_GET_SIZE(value);
         if (len == 0) return (PyErr_SetString(PyExc_ValueError, "empty axis tuple"), -1);
-        if ((size_t)len > NK_TENSOR_MAX_RANK) return (PyErr_SetString(PyExc_ValueError, "too many axes"), -1);
+        if ((size_t)len > NUMKONG_TENSOR_MAX_RANK) return (PyErr_SetString(PyExc_ValueError, "too many axes"), -1);
         for (Py_ssize_t i = 0; i < len; i++) {
             PyObject *item = PyTuple_GET_ITEM(value, i);
             if (!PyLong_Check(item))
@@ -2133,8 +2135,8 @@ static void reduce_along_axes(char const *data, Py_ssize_t const *shape, Py_ssiz
                               char *out_data, size_t out_elem_size, reduce_slice_fn_t on_slice, size_t *out_index) {
     if (dim >= rank) {
         // Build sub-view over the reduced axes only
-        Py_ssize_t sub_shape[NK_TENSOR_MAX_RANK];
-        Py_ssize_t sub_strides[NK_TENSOR_MAX_RANK];
+        Py_ssize_t sub_shape[NUMKONG_TENSOR_MAX_RANK];
+        Py_ssize_t sub_strides[NUMKONG_TENSOR_MAX_RANK];
         for (size_t i = 0; i < n_axes; i++) {
             sub_shape[i] = shape[axes[i]];
             sub_strides[i] = strides[axes[i]];
@@ -2170,7 +2172,7 @@ static PyObject *reduce_axis_dispatch(TensorView const *view, reduce_args_t cons
                      nk_dtype_python_name(view->dtype));
         return NULL;
     }
-    Py_ssize_t out_shape[NK_TENSOR_MAX_RANK];
+    Py_ssize_t out_shape[NUMKONG_TENSOR_MAX_RANK];
     size_t out_rank = reduce_output_shape(view->shape, view->rank, parsed->axes, parsed->n_axes, parsed->keepdims,
                                           out_shape);
     Tensor *result;
@@ -2186,7 +2188,7 @@ static PyObject *reduce_axis_dispatch(TensorView const *view, reduce_args_t cons
     // Fast path: single-axis reduction with contiguous non-axis dims → pointer-increment loop.
     if (parsed->n_axes == 1 && view->rank >= 2) {
         size_t axis = (size_t)parsed->axes[0];
-        Py_ssize_t other_shapes[NK_TENSOR_MAX_RANK], other_strides[NK_TENSOR_MAX_RANK];
+        Py_ssize_t other_shapes[NUMKONG_TENSOR_MAX_RANK], other_strides[NUMKONG_TENSOR_MAX_RANK];
         size_t other_count = 0;
         for (size_t i = 0; i < view->rank; i++) {
             if (i != axis) {
@@ -2351,7 +2353,7 @@ static PyObject *Tensor_min(PyObject *self, PyObject *const *args, Py_ssize_t na
         if (impl_reduce_minmax(&view, &min_buf, &min_dtype, &min_idx, &max_buf, &max_dtype, &max_idx) < 0)
             return PyErr_Format(PyExc_NotImplementedError, "min not supported for dtype '%s'",
                                 nk_dtype_to_pybuffer_typestr(view.dtype));
-        if (min_idx == NK_SIZE_MAX) Py_RETURN_NONE;
+        if (min_idx == NUMKONG_SIZE_MAX) Py_RETURN_NONE;
         return nk_scalar_buffer_to_py_number(&min_buf, min_dtype);
     }
     return reduce_axis_dispatch(&view, &parsed, nk_reduce_minmax_value_dtype(view.dtype), min_slice);
@@ -2382,7 +2384,7 @@ static PyObject *Tensor_max(PyObject *self, PyObject *const *args, Py_ssize_t na
         if (impl_reduce_minmax(&view, &min_buf, &min_dtype, &min_idx, &max_buf, &max_dtype, &max_idx) < 0)
             return PyErr_Format(PyExc_NotImplementedError, "max not supported for dtype '%s'",
                                 nk_dtype_to_pybuffer_typestr(view.dtype));
-        if (max_idx == NK_SIZE_MAX) Py_RETURN_NONE;
+        if (max_idx == NUMKONG_SIZE_MAX) Py_RETURN_NONE;
         return nk_scalar_buffer_to_py_number(&max_buf, max_dtype);
     }
     return reduce_axis_dispatch(&view, &parsed, nk_reduce_minmax_value_dtype(view.dtype), max_slice);
@@ -2413,7 +2415,7 @@ static PyObject *Tensor_argmin(PyObject *self, PyObject *const *args, Py_ssize_t
         if (impl_reduce_minmax(&view, &min_buf, &min_dtype, &min_idx, &max_buf, &max_dtype, &max_idx) < 0)
             return PyErr_Format(PyExc_NotImplementedError, "argmin not supported for dtype '%s'",
                                 nk_dtype_to_pybuffer_typestr(view.dtype));
-        if (min_idx == NK_SIZE_MAX) Py_RETURN_NONE;
+        if (min_idx == NUMKONG_SIZE_MAX) Py_RETURN_NONE;
         return PyLong_FromSsize_t((Py_ssize_t)min_idx);
     }
     return reduce_axis_dispatch(&view, &parsed, nk_i64_k, argmin_slice);
@@ -2444,7 +2446,7 @@ static PyObject *Tensor_argmax(PyObject *self, PyObject *const *args, Py_ssize_t
         if (impl_reduce_minmax(&view, &min_buf, &min_dtype, &min_idx, &max_buf, &max_dtype, &max_idx) < 0)
             return PyErr_Format(PyExc_NotImplementedError, "argmax not supported for dtype '%s'",
                                 nk_dtype_to_pybuffer_typestr(view.dtype));
-        if (max_idx == NK_SIZE_MAX) Py_RETURN_NONE;
+        if (max_idx == NUMKONG_SIZE_MAX) Py_RETURN_NONE;
         return PyLong_FromSsize_t((Py_ssize_t)max_idx);
     }
     return reduce_axis_dispatch(&view, &parsed, nk_i64_k, argmax_slice);
@@ -2489,7 +2491,7 @@ static PyObject *Tensor_encode_block_scaled(Tensor *tensor, nk_dtype_t target_dt
     if (!staging) return NULL;
 
     // Child tensor shapes: elements keep the dense shape, scales count blocks along the last axis.
-    Py_ssize_t scales_shape[NK_TENSOR_MAX_RANK];
+    Py_ssize_t scales_shape[NUMKONG_TENSOR_MAX_RANK];
     for (size_t i = 0; i + 1 < tensor->rank; i++) scales_shape[i] = tensor->shape[i];
     scales_shape[tensor->rank - 1] = (Py_ssize_t)nk_block_scaled_scales_size((nk_size_t)last_dim, to_format);
 
@@ -2643,9 +2645,9 @@ PyObject *api_astype(PyObject *self, PyObject *const *args, Py_ssize_t const nar
     memset(&out_buffer, 0, sizeof(out_buffer));
 
     if (!nk_get_buffer(args[0], &input_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &input_backing)) return NULL;
-    if (input_buffer.ndim > NK_TENSOR_MAX_RANK) {
+    if (input_buffer.ndim > NUMKONG_TENSOR_MAX_RANK) {
         PyErr_Format(PyExc_ValueError, "Tensor rank %d exceeds maximum supported rank %d", input_buffer.ndim,
-                     NK_TENSOR_MAX_RANK);
+                     NUMKONG_TENSOR_MAX_RANK);
         goto cleanup;
     }
 
@@ -2954,8 +2956,8 @@ static PyObject *Tensor_subscript(PyObject *self, PyObject *key) {
         Py_ssize_t start, stop, step, slice_len;
         if (parse_slice(key, tensor->shape[0], &start, &stop, &step, &slice_len) < 0) return NULL;
 
-        Py_ssize_t new_shape[NK_TENSOR_MAX_RANK];
-        Py_ssize_t new_strides[NK_TENSOR_MAX_RANK];
+        Py_ssize_t new_shape[NUMKONG_TENSOR_MAX_RANK];
+        Py_ssize_t new_strides[NUMKONG_TENSOR_MAX_RANK];
         Py_ssize_t byte_offset;
 
         new_shape[0] = slice_len;
@@ -3002,8 +3004,8 @@ static PyObject *Tensor_subscript(PyObject *self, PyObject *key) {
         }
 
         // Build the result view by processing each index element against its corresponding dimension
-        Py_ssize_t new_shape[NK_TENSOR_MAX_RANK];
-        Py_ssize_t new_strides[NK_TENSOR_MAX_RANK];
+        Py_ssize_t new_shape[NUMKONG_TENSOR_MAX_RANK];
+        Py_ssize_t new_strides[NUMKONG_TENSOR_MAX_RANK];
         char *view_data = tensor->data;
         size_t new_rank = 0;
         Py_ssize_t last_index = -1;
@@ -3368,7 +3370,7 @@ static PyObject *ScaledTensor_resize(PyObject *self, PyObject *const *args, Py_s
         PyErr_SetString(PyExc_BufferError, "cannot resize a scaled tensor with exported buffers");
         return NULL;
     }
-    Py_ssize_t logical[NK_TENSOR_MAX_RANK];
+    Py_ssize_t logical[NUMKONG_TENSOR_MAX_RANK];
     size_t rank = 0;
     if (parse_shape_args_(args, nargs, logical, &rank) != 0) return NULL;
     if (rank == 0) {
@@ -3383,7 +3385,7 @@ static PyObject *ScaledTensor_resize(PyObject *self, PyObject *const *args, Py_s
     }
 
     nk_block_scaled_format_t const format = nk_block_scaled_format_of_dtype(scaled->dtype);
-    Py_ssize_t scales_shape[NK_TENSOR_MAX_RANK];
+    Py_ssize_t scales_shape[NUMKONG_TENSOR_MAX_RANK];
     for (size_t i = 0; i + 1 < rank; i++) scales_shape[i] = logical[i];
     scales_shape[rank - 1] = (Py_ssize_t)nk_block_scaled_scales_size((nk_size_t)last_dim, format);
 
@@ -3427,7 +3429,7 @@ static PyObject *ScaledTensor_transcode(ScaledTensor *scaled, nk_dtype_t target_
     size_t rank = src_scales->rank;
 
     // Logical shape: leading dims from the scales tensor, last dim = blocks * source block_size.
-    Py_ssize_t out_shape[NK_TENSOR_MAX_RANK];
+    Py_ssize_t out_shape[NUMKONG_TENSOR_MAX_RANK];
     size_t total = 1;
     for (size_t i = 0; i < rank; i++) {
         Py_ssize_t dim = src_scales->shape[i];
@@ -3462,7 +3464,7 @@ static PyObject *ScaledTensor_transcode(ScaledTensor *scaled, nk_dtype_t target_
     }
 
     // Destination child shapes: elements keep the dense shape, scales count blocks along the last axis.
-    Py_ssize_t dst_scales_shape[NK_TENSOR_MAX_RANK];
+    Py_ssize_t dst_scales_shape[NUMKONG_TENSOR_MAX_RANK];
     for (size_t i = 0; i + 1 < rank; i++) dst_scales_shape[i] = out_shape[i];
     dst_scales_shape[rank - 1] = (Py_ssize_t)nk_block_scaled_scales_size((nk_size_t)last_dim, to_format);
 
@@ -3517,7 +3519,7 @@ static PyObject *ScaledTensor_astype(PyObject *self, PyObject *dtype_arg) {
     size_t rank = block_scales->rank;
 
     // Logical shape: leading dims from the scales tensor, last dim = blocks * block_size.
-    Py_ssize_t out_shape[NK_TENSOR_MAX_RANK];
+    Py_ssize_t out_shape[NUMKONG_TENSOR_MAX_RANK];
     size_t total = 1;
     for (size_t i = 0; i < rank; i++) {
         Py_ssize_t dim = block_scales->shape[i];
@@ -3634,8 +3636,8 @@ static PyObject *ScaledTensor_subscript(PyObject *self, PyObject *key) {
 
     // Walk each addressed dimension, accumulating element-byte and scale-byte offsets and the
     // sliced shapes for the two child tensors. Dimensions beyond `nkeys` are kept whole.
-    Py_ssize_t elem_shape[NK_TENSOR_MAX_RANK], elem_strides[NK_TENSOR_MAX_RANK];
-    Py_ssize_t scale_shape[NK_TENSOR_MAX_RANK], scale_strides[NK_TENSOR_MAX_RANK];
+    Py_ssize_t elem_shape[NUMKONG_TENSOR_MAX_RANK], elem_strides[NUMKONG_TENSOR_MAX_RANK];
+    Py_ssize_t scale_shape[NUMKONG_TENSOR_MAX_RANK], scale_strides[NUMKONG_TENSOR_MAX_RANK];
     char *elem_data = elements->data;
     char *scale_data = block_scales->data;
     size_t out_rank = 0;
@@ -3788,7 +3790,7 @@ PyTypeObject ScaledTensorType = {
 static int tensor_fill_affine(Tensor *tensor, nk_f64_t first, nk_f64_t step) {
     size_t const total = shape_numel_(tensor->rank, tensor->shape);
     if (nk_dimensions_per_value(tensor->dtype) > 1) {
-        nk_f64_t *staging = PyMem_Malloc(total * sizeof(nk_f64_t) + NK_TENSOR_PADDING_);
+        nk_f64_t *staging = PyMem_Malloc(total * sizeof(nk_f64_t) + NUMKONG_TENSOR_PADDING_);
         if (!staging) {
             Py_DECREF(tensor);
             PyErr_NoMemory();
@@ -3829,8 +3831,8 @@ static int parse_shape(PyObject *shape_obj, Py_ssize_t *shape, size_t *rank) {
         return 0;
     }
     Py_ssize_t ndim = PyTuple_Size(shape_obj);
-    if (ndim > NK_TENSOR_MAX_RANK) {
-        PyErr_Format(PyExc_ValueError, "Shape has %zd dimensions, max is %d", ndim, NK_TENSOR_MAX_RANK);
+    if (ndim > NUMKONG_TENSOR_MAX_RANK) {
+        PyErr_Format(PyExc_ValueError, "Shape has %zd dimensions, max is %d", ndim, NUMKONG_TENSOR_MAX_RANK);
         return 0;
     }
     for (Py_ssize_t i = 0; i < ndim; i++) {
@@ -3899,7 +3901,7 @@ PyObject *api_from_pointer(PyObject *self, PyObject *const *args, Py_ssize_t con
     }
 
     // Parse shape
-    Py_ssize_t shape[NK_TENSOR_MAX_RANK];
+    Py_ssize_t shape[NUMKONG_TENSOR_MAX_RANK];
     size_t rank;
     if (!parse_shape(shape_obj, shape, &rank)) return NULL;
 
@@ -3909,7 +3911,7 @@ PyObject *api_from_pointer(PyObject *self, PyObject *const *args, Py_ssize_t con
     if (!validate_packed_dimensions(dtype, rank, shape)) return NULL;
 
     // Compute or parse strides
-    Py_ssize_t strides[NK_TENSOR_MAX_RANK];
+    Py_ssize_t strides[NUMKONG_TENSOR_MAX_RANK];
     if (strides_obj && strides_obj != Py_None) {
         if (!PyTuple_Check(strides_obj)) {
             PyErr_SetString(PyExc_TypeError, "strides must be a tuple of ints");
@@ -3968,7 +3970,7 @@ PyObject *api_empty(PyObject *self, PyObject *const *args, Py_ssize_t const narg
         }
     }
 
-    Py_ssize_t shape[NK_TENSOR_MAX_RANK];
+    Py_ssize_t shape[NUMKONG_TENSOR_MAX_RANK];
     size_t rank;
     if (!parse_shape(shape_obj, shape, &rank)) return NULL;
 
@@ -4011,7 +4013,7 @@ PyObject *api_zeros(PyObject *self, PyObject *const *args, Py_ssize_t const narg
         }
     }
 
-    Py_ssize_t shape[NK_TENSOR_MAX_RANK];
+    Py_ssize_t shape[NUMKONG_TENSOR_MAX_RANK];
     size_t rank;
     if (!parse_shape(shape_obj, shape, &rank)) return NULL;
 
@@ -4060,7 +4062,7 @@ PyObject *api_ones(PyObject *self, PyObject *const *args, Py_ssize_t const nargs
         }
     }
 
-    Py_ssize_t shape[NK_TENSOR_MAX_RANK];
+    Py_ssize_t shape[NUMKONG_TENSOR_MAX_RANK];
     size_t rank;
     if (!parse_shape(shape_obj, shape, &rank)) return NULL;
 
@@ -4115,7 +4117,7 @@ PyObject *api_full(PyObject *self, PyObject *const *args, Py_ssize_t const nargs
         return NULL;
     }
 
-    Py_ssize_t shape[NK_TENSOR_MAX_RANK];
+    Py_ssize_t shape[NUMKONG_TENSOR_MAX_RANK];
     size_t rank;
     if (!parse_shape(shape_obj, shape, &rank)) return NULL;
 
@@ -4167,7 +4169,7 @@ PyObject *api_iota(PyObject *self, PyObject *const *args, Py_ssize_t const nargs
     }
     if (PyErr_Occurred()) return NULL;
 
-    Py_ssize_t shape[NK_TENSOR_MAX_RANK];
+    Py_ssize_t shape[NUMKONG_TENSOR_MAX_RANK];
     size_t rank;
     if (!parse_shape(shape_obj, shape, &rank)) return NULL;
 
@@ -4307,7 +4309,7 @@ PyObject *api_hash(PyObject *self, PyObject *const *args, Py_ssize_t const nargs
     }
     if (PyErr_Occurred()) return NULL;
 
-    Py_ssize_t shape[NK_TENSOR_MAX_RANK];
+    Py_ssize_t shape[NUMKONG_TENSOR_MAX_RANK];
     size_t rank;
     if (!parse_shape(shape_obj, shape, &rank)) return NULL;
 
@@ -4595,7 +4597,7 @@ PyObject *api_min(PyObject *self, PyObject *const *args, Py_ssize_t const nargs,
         if (impl_reduce_minmax(&view, &min_buf, &min_dtype, &min_idx, &max_buf, &max_dtype, &max_idx) < 0)
             result = PyErr_Format(PyExc_NotImplementedError, "min not supported for dtype '%s'",
                                   nk_dtype_to_pybuffer_typestr(view.dtype));
-        else if (min_idx == NK_SIZE_MAX) {
+        else if (min_idx == NUMKONG_SIZE_MAX) {
             Py_INCREF(Py_None);
             result = Py_None;
         }
@@ -4630,7 +4632,7 @@ PyObject *api_max(PyObject *self, PyObject *const *args, Py_ssize_t const nargs,
         if (impl_reduce_minmax(&view, &min_buf, &min_dtype, &min_idx, &max_buf, &max_dtype, &max_idx) < 0)
             result = PyErr_Format(PyExc_NotImplementedError, "max not supported for dtype '%s'",
                                   nk_dtype_to_pybuffer_typestr(view.dtype));
-        else if (max_idx == NK_SIZE_MAX) {
+        else if (max_idx == NUMKONG_SIZE_MAX) {
             Py_INCREF(Py_None);
             result = Py_None;
         }
@@ -4669,7 +4671,7 @@ PyObject *api_argmin(PyObject *self, PyObject *const *args, Py_ssize_t const nar
         if (impl_reduce_minmax(&view, &min_buf, &min_dtype, &min_idx, &max_buf, &max_dtype, &max_idx) < 0)
             result = PyErr_Format(PyExc_NotImplementedError, "argmin not supported for dtype '%s'",
                                   nk_dtype_to_pybuffer_typestr(view.dtype));
-        else if (min_idx == NK_SIZE_MAX) {
+        else if (min_idx == NUMKONG_SIZE_MAX) {
             Py_INCREF(Py_None);
             result = Py_None;
         }
@@ -4708,7 +4710,7 @@ PyObject *api_argmax(PyObject *self, PyObject *const *args, Py_ssize_t const nar
         if (impl_reduce_minmax(&view, &min_buf, &min_dtype, &min_idx, &max_buf, &max_dtype, &max_idx) < 0)
             result = PyErr_Format(PyExc_NotImplementedError, "argmax not supported for dtype '%s'",
                                   nk_dtype_to_pybuffer_typestr(view.dtype));
-        else if (max_idx == NK_SIZE_MAX) {
+        else if (max_idx == NUMKONG_SIZE_MAX) {
             Py_INCREF(Py_None);
             result = Py_None;
         }

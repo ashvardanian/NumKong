@@ -6,11 +6,11 @@
  *
  *  @sa include/numkong/spatials.h
  */
-#ifndef NK_SPATIALS_LOONGSONASX_H
-#define NK_SPATIALS_LOONGSONASX_H
+#ifndef NUMKONG_SPATIALS_LOONGSONASX_H
+#define NUMKONG_SPATIALS_LOONGSONASX_H
 
-#if NK_TARGET_LOONGARCH64_
-#if NK_TARGET_LOONGSONASX
+#if NUMKONG_ARCH_LOONGARCH64_
+#if NUMKONG_TARGET_LOONGSONASX
 
 #include "numkong/spatial/loongsonasx.h"
 #include "numkong/spatial/serial.h"
@@ -148,6 +148,6 @@ nk_define_cross_normalized_symmetric_(euclidean, f16, loongsonasx, f16, f32, /*n
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_LOONGSONASX
-#endif // NK_TARGET_LOONGARCH64_
-#endif // NK_SPATIALS_LOONGSONASX_H
+#endif // NUMKONG_TARGET_LOONGSONASX
+#endif // NUMKONG_ARCH_LOONGARCH64_
+#endif // NUMKONG_SPATIALS_LOONGSONASX_H

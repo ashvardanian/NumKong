@@ -10,10 +10,10 @@
  *  b_low + (-128) · b_high. U8 uses 2 × relaxed_dot with signed reinterpretation and b_sums
  *  compensation. E2M3 uses standard single-register state, no correction.
  */
-#ifndef NK_DOTS_V128RELAXED_H
-#define NK_DOTS_V128RELAXED_H
+#ifndef NUMKONG_DOTS_V128RELAXED_H
+#define NUMKONG_DOTS_V128RELAXED_H
 
-#if NK_TARGET_V128RELAXED
+#if NUMKONG_TARGET_V128RELAXED
 
 #include "numkong/dot/v128relaxed.h"
 #include "numkong/dots/serial.h"
@@ -318,5 +318,5 @@ nk_define_cross_compensated_packed_(dots, i4, v128relaxed, i4x2, i4x2, i32,
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_V128RELAXED
-#endif // NK_DOTS_V128RELAXED_H
+#endif // NUMKONG_TARGET_V128RELAXED
+#endif // NUMKONG_DOTS_V128RELAXED_H

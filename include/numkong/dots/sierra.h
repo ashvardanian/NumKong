@@ -10,11 +10,11 @@
  *  - _mm256_dpbssds_epi32: i8 × i8 → i32 with saturation
  *  - _mm256_dpbuud_epi32: u8 × u8 → u32 without saturation
  */
-#ifndef NK_DOTS_SIERRA_H
-#define NK_DOTS_SIERRA_H
+#ifndef NUMKONG_DOTS_SIERRA_H
+#define NUMKONG_DOTS_SIERRA_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_SIERRA
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_SIERRA
 
 #include "numkong/dot/sierra.h"     // Sierra-specific dot product helpers
 #include "numkong/dot/haswell.h"    // Haswell partial load functions
@@ -119,6 +119,6 @@ nk_define_cross_packed_(dots, e2m1, sierra, e2m1x2, e2m1x2, f32, nk_b256_vec_t, 
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_SIERRA
-#endif // NK_TARGET_X8664_
-#endif // NK_DOTS_SIERRA_H
+#endif // NUMKONG_TARGET_SIERRA
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_DOTS_SIERRA_H

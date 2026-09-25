@@ -6,11 +6,11 @@
  *
  *  @sa include/numkong/sparse.h
  */
-#ifndef NK_SPARSE_TURIN_H
-#define NK_SPARSE_TURIN_H
+#ifndef NUMKONG_SPARSE_TURIN_H
+#define NUMKONG_SPARSE_TURIN_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_TURIN
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_TURIN
 
 #include "numkong/types.h"
 #include "numkong/sparse/serial.h" // `nk_sparse_intersect_u16_serial`, `nk_sparse_intersect_u32_serial`
@@ -30,9 +30,9 @@ extern "C" {
                    "avx512bf16", "avx512vnni", "avx512vp2intersect", "avx512dq")
 #endif
 
-NK_API_COMPTIME void nk_sparse_intersect_u16_turin( //
-    nk_u16_t const *a, nk_u16_t const *b,           //
-    nk_size_t a_length, nk_size_t b_length,         //
+NUMKONG_API_COMPTIME void nk_sparse_intersect_u16_turin( //
+    nk_u16_t const *a, nk_u16_t const *b,                //
+    nk_size_t a_length, nk_size_t b_length,              //
     nk_u16_t *result, nk_size_t *count) {
 
     //! There is no such thing as `_mm512_2intersect_epi16`, only the 32-bit variant!
@@ -72,9 +72,9 @@ NK_API_COMPTIME void nk_sparse_intersect_u16_turin( //
     *count = c + tail_count;
 }
 
-NK_API_COMPTIME void nk_sparse_intersect_u32_turin( //
-    nk_u32_t const *a, nk_u32_t const *b,           //
-    nk_size_t a_length, nk_size_t b_length,         //
+NUMKONG_API_COMPTIME void nk_sparse_intersect_u32_turin( //
+    nk_u32_t const *a, nk_u32_t const *b,                //
+    nk_size_t a_length, nk_size_t b_length,              //
     nk_u32_t *result, nk_size_t *count) {
 
     nk_u32_t const *const a_end = a + a_length;
@@ -110,9 +110,9 @@ NK_API_COMPTIME void nk_sparse_intersect_u32_turin( //
     *count = c + tail_count;
 }
 
-NK_API_COMPTIME void nk_sparse_intersect_u64_turin( //
-    nk_u64_t const *a, nk_u64_t const *b,           //
-    nk_size_t a_length, nk_size_t b_length,         //
+NUMKONG_API_COMPTIME void nk_sparse_intersect_u64_turin( //
+    nk_u64_t const *a, nk_u64_t const *b,                //
+    nk_size_t a_length, nk_size_t b_length,              //
     nk_u64_t *result, nk_size_t *count) {
 
     nk_u64_t const *const a_end = a + a_length;
@@ -148,13 +148,13 @@ NK_API_COMPTIME void nk_sparse_intersect_u64_turin( //
     *count = c + tail_count;
 }
 
-NK_API_COMPTIME void nk_sparse_dot_u16bf16_turin(           //
+NUMKONG_API_COMPTIME void nk_sparse_dot_u16bf16_turin(      //
     nk_u16_t const *a, nk_u16_t const *b,                   //
     nk_bf16_t const *a_weights, nk_bf16_t const *b_weights, //
     nk_size_t a_length, nk_size_t b_length,                 //
     nk_f32_t *product) {
 
-#if NK_ALLOW_ISA_REDIRECT
+#if NUMKONG_ALLOW_ISA_REDIRECT
     // The baseline implementation for very small arrays (2 registers or less) can be quite simple:
     if (a_length < 64 && b_length < 64) {
         nk_sparse_dot_u16bf16_serial(a, b, a_weights, b_weights, a_length, b_length, product);
@@ -227,13 +227,13 @@ NK_API_COMPTIME void nk_sparse_dot_u16bf16_turin(           //
     *product = tail_product + _mm512_reduce_add_ps(_mm512_insertf32x8(_mm512_setzero_ps(), product_f32x8, 0));
 }
 
-NK_API_COMPTIME void nk_sparse_dot_u32f32_turin(          //
+NUMKONG_API_COMPTIME void nk_sparse_dot_u32f32_turin(     //
     nk_u32_t const *a, nk_u32_t const *b,                 //
     nk_f32_t const *a_weights, nk_f32_t const *b_weights, //
     nk_size_t a_length, nk_size_t b_length,               //
     nk_f64_t *product) {
 
-#if NK_ALLOW_ISA_REDIRECT
+#if NUMKONG_ALLOW_ISA_REDIRECT
     // The baseline implementation for very small arrays (2 registers or less) can be quite simple:
     if (a_length < 32 && b_length < 32) {
         nk_sparse_dot_u32f32_serial(a, b, a_weights, b_weights, a_length, b_length, product);
@@ -318,6 +318,6 @@ NK_API_COMPTIME void nk_sparse_dot_u32f32_turin(          //
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_TURIN
-#endif // NK_TARGET_X8664_
-#endif // NK_SPARSE_TURIN_H
+#endif // NUMKONG_TARGET_TURIN
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_SPARSE_TURIN_H

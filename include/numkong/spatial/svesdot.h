@@ -29,11 +29,11 @@
  *  For L2 distance, SABD/UABD computes |a-b| per byte, then UDOT squares and accumulates.
  *  Angular distance uses SDOT/UDOT directly for dot product and norm computations.
  */
-#ifndef NK_SPATIAL_SVESDOT_H
-#define NK_SPATIAL_SVESDOT_H
+#ifndef NUMKONG_SPATIAL_SVESDOT_H
+#define NUMKONG_SPATIAL_SVESDOT_H
 
-#if NK_TARGET_ARM64_
-#if NK_TARGET_SVESDOT
+#if NUMKONG_ARCH_ARM64_
+#if NUMKONG_TARGET_SVESDOT
 
 #include "numkong/types.h"
 #include "numkong/reduce/sve.h"   // `nk_svaddv_f64_`
@@ -50,7 +50,7 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+sve+dotprod")
 #endif
 
-NK_API_COMPTIME void nk_sqeuclidean_i8_svesdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME void nk_sqeuclidean_i8_svesdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result) {
     nk_size_t i = 0;
     svuint32_t distance_sq_u32x = svdup_u32(0);
     do {
@@ -63,13 +63,13 @@ NK_API_COMPTIME void nk_sqeuclidean_i8_svesdot(nk_i8_t const *a, nk_i8_t const *
     } while (i < n);
     *result = (nk_u32_t)nk_svaddv_u32_(svptrue_b32(), distance_sq_u32x);
 }
-NK_API_COMPTIME void nk_euclidean_i8_svesdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_euclidean_i8_svesdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_u32_t distance_sq_u32;
     nk_sqeuclidean_i8_svesdot(a, b, n, &distance_sq_u32);
     *result = nk_f32_sqrt_neon((nk_f32_t)distance_sq_u32);
 }
 
-NK_API_COMPTIME void nk_angular_i8_svesdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_angular_i8_svesdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_size_t i = 0;
     svint32_t ab_i32x = svdup_s32(0);
     svint32_t a2_i32x = svdup_s32(0);
@@ -90,7 +90,7 @@ NK_API_COMPTIME void nk_angular_i8_svesdot(nk_i8_t const *a, nk_i8_t const *b, n
     *result = nk_angular_normalize_f32_neon_((nk_f32_t)ab, (nk_f32_t)a2, (nk_f32_t)b2);
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_u8_svesdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME void nk_sqeuclidean_u8_svesdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
     nk_size_t i = 0;
     svuint32_t distance_sq_u32x = svdup_u32(0);
     do {
@@ -103,13 +103,13 @@ NK_API_COMPTIME void nk_sqeuclidean_u8_svesdot(nk_u8_t const *a, nk_u8_t const *
     } while (i < n);
     *result = (nk_u32_t)nk_svaddv_u32_(svptrue_b32(), distance_sq_u32x);
 }
-NK_API_COMPTIME void nk_euclidean_u8_svesdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_euclidean_u8_svesdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_u32_t distance_sq_u32;
     nk_sqeuclidean_u8_svesdot(a, b, n, &distance_sq_u32);
     *result = nk_f32_sqrt_neon((nk_f32_t)distance_sq_u32);
 }
 
-NK_API_COMPTIME void nk_angular_u8_svesdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_angular_u8_svesdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_size_t i = 0;
     svuint32_t ab_u32x = svdup_u32(0);
     svuint32_t a2_u32x = svdup_u32(0);
@@ -140,6 +140,6 @@ NK_API_COMPTIME void nk_angular_u8_svesdot(nk_u8_t const *a, nk_u8_t const *b, n
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_SVESDOT
-#endif // NK_TARGET_ARM64_
-#endif // NK_SPATIAL_SVESDOT_H
+#endif // NUMKONG_TARGET_SVESDOT
+#endif // NUMKONG_ARCH_ARM64_
+#endif // NUMKONG_SPATIAL_SVESDOT_H

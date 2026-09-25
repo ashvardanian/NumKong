@@ -89,7 +89,7 @@ PyObject *api_rope(PyObject *self, PyObject *const *args, Py_ssize_t const posit
     int const x_flags = out_obj ? (PyBUF_STRIDES | PyBUF_FORMAT) : (PyBUF_WRITABLE | PyBUF_STRIDES | PyBUF_FORMAT);
     if (!nk_get_buffer(x_obj, &x_buffer, x_flags, &x_backing)) return NULL;
     got_x = 1;
-    if (x_buffer.ndim < 1 || x_buffer.ndim > NK_TENSOR_MAX_RANK) {
+    if (x_buffer.ndim < 1 || x_buffer.ndim > NUMKONG_TENSOR_MAX_RANK) {
         PyErr_Format(PyExc_ValueError, "Tensor rank %d unsupported", x_buffer.ndim);
         goto cleanup;
     }
@@ -275,9 +275,9 @@ static PyObject *implement_trigonometry(nk_kernel_kind_t kernel_kind, PyObject *
 
     // Acquire the (N-D, possibly strided) input buffer.
     if (!nk_get_buffer(a_obj, &a_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &a_backing)) return NULL;
-    if (a_buffer.ndim > NK_TENSOR_MAX_RANK) {
+    if (a_buffer.ndim > NUMKONG_TENSOR_MAX_RANK) {
         PyErr_Format(PyExc_ValueError, "Tensor rank %d exceeds maximum supported rank %d", a_buffer.ndim,
-                     NK_TENSOR_MAX_RANK);
+                     NUMKONG_TENSOR_MAX_RANK);
         goto cleanup;
     }
 
@@ -297,7 +297,7 @@ static PyObject *implement_trigonometry(nk_kernel_kind_t kernel_kind, PyObject *
     }
 
     char *result_data = NULL;
-    Py_ssize_t result_strides[NK_TENSOR_MAX_RANK];
+    Py_ssize_t result_strides[NUMKONG_TENSOR_MAX_RANK];
     int contiguous_tail = 0;
     Py_buffer const *inputs[] = {&a_buffer};
     if (!elementwise_prepare_out(out_obj, &out_buffer, &out_backing, inputs, 1, dtype, //

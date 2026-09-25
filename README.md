@@ -346,7 +346,7 @@ NumKong provides two dispatch mechanisms.
 __Compile-time dispatch__ selects the fastest kernel supported by the target platform at build time — thinner binaries, no indirection overhead, but requires knowing your deployment hardware.
 __Run-time dispatch__ compiles every supported kernel into the binary and picks the best one on the target machine via `nk_capabilities_available()` — one pointer indirection per call, but a single binary runs everywhere.
 The run-time path is common in DBMS products (ClickHouse), web browsers (Chromium), and other upstream projects that ship to heterogeneous fleets.
-Distributed artifacts (Rust crate, Python wheels, JS native modules, shared libs from the default CMake build) pin the translation-unit baseline to each architecture's ABI floor so the library runs on any CPU matching the ABI, not just the build host — see [CONTRIBUTING.md](CONTRIBUTING.md#target-baseline-policy) for the per-arch table and the `NK_MARCH_NATIVE` override used for host-tuned local builds.
+Distributed artifacts (Rust crate, Python wheels, JS native modules, shared libs from the default CMake build) pin the translation-unit baseline to each architecture's ABI floor so the library runs on any CPU matching the ABI, not just the build host — see [CONTRIBUTING.md](CONTRIBUTING.md#target-baseline-policy) for the per-arch table and the `NUMKONG_MARCH_NATIVE` override used for host-tuned local builds.
 
 All kernel names follow the pattern `nk_{operation}_{type}_{backend}`.
 If you need to resolve the best kernel manually, use `nk_find_kernel_punned` with a `nk_kernel_kind_t` and a `nk_dtype_t`:

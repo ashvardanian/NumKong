@@ -33,11 +33,11 @@
  *  stats pass. RMSD keeps the widen+subtract+fmaq pipeline because it needs the a − b difference
  *  before squaring, which BFDOT cannot express directly.
  */
-#ifndef NK_MESH_NEONBFDOT_H
-#define NK_MESH_NEONBFDOT_H
+#ifndef NUMKONG_MESH_NEONBFDOT_H
+#define NUMKONG_MESH_NEONBFDOT_H
 
-#if NK_TARGET_ARM64_
-#if NK_TARGET_NEONBFDOT
+#if NUMKONG_ARCH_ARM64_
+#if NUMKONG_TARGET_NEONBFDOT
 
 #include "numkong/types.h"
 #include "numkong/cast/neon.h"    // `nk_u16x8_splat_`
@@ -60,8 +60,8 @@ extern "C" {
  *
  *  Input: 12 contiguous bf16 [x0,y0,z0, x1,y1,z1, x2,y2,z2, x3,y3,z3]
  *  Output: x[4], y[4], z[4] vectors in f32 */
-NK_HELPER_INLINE void nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(nk_bf16_t const *ptr, float32x4_t *x_out,
-                                                                 float32x4_t *y_out, float32x4_t *z_out) {
+NUMKONG_HELPER_INLINE void nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(nk_bf16_t const *ptr, float32x4_t *x_out,
+                                                                      float32x4_t *y_out, float32x4_t *z_out) {
     // Load 12 bf16 values and de-interleave into x, y, z components
     uint16x4x3_t xyz_u16x4x3 = vld3_u16((nk_u16_t const *)ptr);
     // Convert bf16 to f32 by zero-extending to lower 16 bits, then shifting left by 16
@@ -73,18 +73,18 @@ NK_HELPER_INLINE void nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(nk_bf16_t const
     *z_out = vreinterpretq_f32_u32(z_u32x4);
 }
 
-NK_HELPER_INLINE void nk_partial_deinterleave_bf16_to_f32x4_neonbfdot_(nk_bf16_t const *ptr, nk_size_t n_points,
-                                                                       float32x4_t *x_out, float32x4_t *y_out,
-                                                                       float32x4_t *z_out) {
+NUMKONG_HELPER_INLINE void nk_partial_deinterleave_bf16_to_f32x4_neonbfdot_(nk_bf16_t const *ptr, nk_size_t n_points,
+                                                                            float32x4_t *x_out, float32x4_t *y_out,
+                                                                            float32x4_t *z_out) {
     nk_u16_t buf[12] = {0};
     nk_u16_t const *src = (nk_u16_t const *)ptr;
     for (nk_size_t k = 0; k < n_points * 3; ++k) buf[k] = src[k];
     nk_deinterleave_bf16x4_to_f32x4_neonbfdot_((nk_bf16_t const *)buf, x_out, y_out, z_out);
 }
 
-NK_API_COMPTIME void nk_rmsd_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                            nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                            nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_rmsd_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                 nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
+                                                 nk_f32_t *scale, nk_f32_t *result) {
     // RMSD uses identity rotation and scale=1.0
     if (rotation)
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
@@ -143,9 +143,9 @@ NK_API_COMPTIME void nk_rmsd_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const 
     *result = nk_f32_sqrt_neon((total_squared_x + total_squared_y + total_squared_z) / (nk_f32_t)n);
 }
 
-NK_API_COMPTIME void nk_kabsch_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                              nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                              nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_kabsch_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                   nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
+                                                   nk_f32_t *scale, nk_f32_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -391,9 +391,9 @@ NK_API_COMPTIME void nk_kabsch_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t cons
     *result = nk_f32_sqrt_neon(sum_squared * inv_n);
 }
 
-NK_API_COMPTIME void nk_umeyama_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                               nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                               nk_f32_t *scale, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_umeyama_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                    nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
+                                                    nk_f32_t *scale, nk_f32_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -658,6 +658,6 @@ NK_API_COMPTIME void nk_umeyama_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t con
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_NEONBFDOT
-#endif // NK_TARGET_ARM64_
-#endif // NK_MESH_NEONBFDOT_H
+#endif // NUMKONG_TARGET_NEONBFDOT
+#endif // NUMKONG_ARCH_ARM64_
+#endif // NUMKONG_MESH_NEONBFDOT_H

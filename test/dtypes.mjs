@@ -24,11 +24,20 @@ const numkong = build(builddir);
 /** DTypes that need an explicit dtype argument, as the TypedArray type does not reveal them. */
 const CUSTOM_DTYPES = new Set(["bf16", "f16", "e5m2", "e4m3", "e3m2", "e2m3"]);
 
+/** `NUMKONG_SEED` as a number: 42 when unset, a fresh draw for `random`; anything else throws. */
+function readSeed() {
+  const text = process.env.NUMKONG_SEED || "42";
+  if (text === "random") return Math.floor(Math.random() * 0x100000000);
+  const seed = Number(text);
+  if (!Number.isSafeInteger(seed) || seed < 0) throw new Error(`NUMKONG_SEED="${text}" does not parse`);
+  return seed;
+}
+
 /** Configuration from environment variables. */
 const CONFIG = {
-  seed: parseInt(process.env.NK_SEED || "42"),
-  dimensions: process.env.NK_DENSE_DIMENSIONS
-    ? process.env.NK_DENSE_DIMENSIONS.split(",").map(Number)
+  seed: readSeed(),
+  dimensions: process.env.NUMKONG_DENSE_DIMENSIONS
+    ? process.env.NUMKONG_DENSE_DIMENSIONS.split(",").map(Number)
     : [3, 16, 128, 1536],
 };
 

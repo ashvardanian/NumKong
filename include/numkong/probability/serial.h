@@ -6,8 +6,8 @@
  *
  *  @sa include/numkong/probability.h
  */
-#ifndef NK_PROBABILITY_SERIAL_H
-#define NK_PROBABILITY_SERIAL_H
+#ifndef NUMKONG_PROBABILITY_SERIAL_H
+#define NUMKONG_PROBABILITY_SERIAL_H
 
 #include "numkong/types.h"
 #include "numkong/cast/serial.h"    // `nk_f16_to_f32_serial`, `nk_bf16_to_f32_serial`, `nk_assign_from_to_`
@@ -17,35 +17,35 @@
 extern "C" {
 #endif
 
-#define nk_define_kld_(input_type, unpacked_type, accumulator_type, output_type, load_and_convert, epsilon,       \
-                       compute_log)                                                                               \
-    NK_API_COMPTIME void nk_kld_##input_type##_serial(nk_##input_type##_t const *a, nk_##input_type##_t const *b, \
-                                                      nk_size_t n, output_type *result) {                         \
-        nk_##accumulator_type##_t sum = 0;                                                                        \
-        nk_##unpacked_type##_t a_value, b_value;                                                                  \
-        for (nk_size_t i = 0; i != n; ++i) {                                                                      \
-            load_and_convert(a + i, &a_value);                                                                    \
-            load_and_convert(b + i, &b_value);                                                                    \
-            sum += a_value * compute_log((a_value + epsilon) / (b_value + epsilon));                              \
-        }                                                                                                         \
-        *result = (output_type)sum;                                                                               \
+#define nk_define_kld_(input_type, unpacked_type, accumulator_type, output_type, load_and_convert, epsilon,            \
+                       compute_log)                                                                                    \
+    NUMKONG_API_COMPTIME void nk_kld_##input_type##_serial(nk_##input_type##_t const *a, nk_##input_type##_t const *b, \
+                                                           nk_size_t n, output_type *result) {                         \
+        nk_##accumulator_type##_t sum = 0;                                                                             \
+        nk_##unpacked_type##_t a_value, b_value;                                                                       \
+        for (nk_size_t i = 0; i != n; ++i) {                                                                           \
+            load_and_convert(a + i, &a_value);                                                                         \
+            load_and_convert(b + i, &b_value);                                                                         \
+            sum += a_value * compute_log((a_value + epsilon) / (b_value + epsilon));                                   \
+        }                                                                                                              \
+        *result = (output_type)sum;                                                                                    \
     }
 
-#define nk_define_jsd_(input_type, unpacked_type, accumulator_type, output_type, load_and_convert, epsilon,       \
-                       compute_log, compute_sqrt)                                                                 \
-    NK_API_COMPTIME void nk_jsd_##input_type##_serial(nk_##input_type##_t const *a, nk_##input_type##_t const *b, \
-                                                      nk_size_t n, output_type *result) {                         \
-        nk_##accumulator_type##_t sum = 0;                                                                        \
-        nk_##unpacked_type##_t a_value, b_value;                                                                  \
-        for (nk_size_t i = 0; i != n; ++i) {                                                                      \
-            load_and_convert(a + i, &a_value);                                                                    \
-            load_and_convert(b + i, &b_value);                                                                    \
-            nk_##unpacked_type##_t midpoint_value = (a_value + b_value) / 2;                                      \
-            sum += a_value * compute_log((a_value + epsilon) / (midpoint_value + epsilon));                       \
-            sum += b_value * compute_log((b_value + epsilon) / (midpoint_value + epsilon));                       \
-        }                                                                                                         \
-        output_type sum_half = ((output_type)sum / 2);                                                            \
-        *result = sum_half > 0 ? compute_sqrt(sum_half) : 0;                                                      \
+#define nk_define_jsd_(input_type, unpacked_type, accumulator_type, output_type, load_and_convert, epsilon,            \
+                       compute_log, compute_sqrt)                                                                      \
+    NUMKONG_API_COMPTIME void nk_jsd_##input_type##_serial(nk_##input_type##_t const *a, nk_##input_type##_t const *b, \
+                                                           nk_size_t n, output_type *result) {                         \
+        nk_##accumulator_type##_t sum = 0;                                                                             \
+        nk_##unpacked_type##_t a_value, b_value;                                                                       \
+        for (nk_size_t i = 0; i != n; ++i) {                                                                           \
+            load_and_convert(a + i, &a_value);                                                                         \
+            load_and_convert(b + i, &b_value);                                                                         \
+            nk_##unpacked_type##_t midpoint_value = (a_value + b_value) / 2;                                           \
+            sum += a_value * compute_log((a_value + epsilon) / (midpoint_value + epsilon));                            \
+            sum += b_value * compute_log((b_value + epsilon) / (midpoint_value + epsilon));                            \
+        }                                                                                                              \
+        output_type sum_half = ((output_type)sum / 2);                                                                 \
+        *result = sum_half > 0 ? compute_sqrt(sum_half) : 0;                                                           \
     }
 
 /**
@@ -62,7 +62,7 @@ extern "C" {
  *
  *  @see Logarithm power series: https://en.wikipedia.org/wiki/Logarithm#Power_series
  */
-NK_HELPER_INLINE nk_f32_t nk_f32_log_serial_(nk_f32_t x) {
+NUMKONG_HELPER_INLINE nk_f32_t nk_f32_log_serial_(nk_f32_t x) {
     nk_fui32_t conv;
     conv.f = x;
     int exp = ((conv.u >> 23) & 0xFF) - 127;
@@ -75,7 +75,7 @@ NK_HELPER_INLINE nk_f32_t nk_f32_log_serial_(nk_f32_t x) {
     nk_f32_t u2 = u * u;
     // log(m) = 2 × (u + u³/3 + u⁵/5 + u⁷/7)
     nk_f32_t log_m = 2.0f * u * (1.0f + u2 * (0.3333333333f + u2 * (0.2f + u2 * 0.142857143f)));
-    return (nk_f32_t)exp * NK_F32_LN2_ + log_m;
+    return (nk_f32_t)exp * NUMKONG_F32_LN2_ + log_m;
 }
 
 /**
@@ -92,7 +92,7 @@ NK_HELPER_INLINE nk_f32_t nk_f32_log_serial_(nk_f32_t x) {
  *
  *  @see Logarithm power series: https://en.wikipedia.org/wiki/Logarithm#Power_series
  */
-NK_HELPER_INLINE nk_f64_t nk_f64_log_serial_(nk_f64_t x) {
+NUMKONG_HELPER_INLINE nk_f64_t nk_f64_log_serial_(nk_f64_t x) {
     nk_fui64_t conv;
     conv.f = x;
     int exp = ((conv.u >> 52) & 0x7FF) - 1023;
@@ -118,28 +118,28 @@ NK_HELPER_INLINE nk_f64_t nk_f64_log_serial_(nk_f64_t x) {
     poly = u2 * poly + 1.0 / 5.0;
     poly = u2 * poly + 1.0 / 3.0;
     poly = u2 * poly + 1.0;
-    return (nk_f64_t)exp * NK_F64_LN2_ + 2.0 * u * poly;
+    return (nk_f64_t)exp * NUMKONG_F64_LN2_ + 2.0 * u * poly;
 }
 
-nk_define_kld_(f32, f32, f64, nk_f64_t, nk_assign_from_to_, NK_F32_DIVISION_EPSILON, nk_f32_log_serial_)
-nk_define_jsd_(f32, f32, f64, nk_f64_t, nk_assign_from_to_, NK_F32_DIVISION_EPSILON, nk_f32_log_serial_,
+nk_define_kld_(f32, f32, f64, nk_f64_t, nk_assign_from_to_, NUMKONG_F32_DIVISION_EPSILON, nk_f32_log_serial_)
+nk_define_jsd_(f32, f32, f64, nk_f64_t, nk_assign_from_to_, NUMKONG_F32_DIVISION_EPSILON, nk_f32_log_serial_,
                nk_f64_sqrt_serial)
 
-nk_define_kld_(f16, f32, f32, nk_f32_t, nk_f16_to_f32_serial, NK_F32_DIVISION_EPSILON, nk_f32_log_serial_)
-nk_define_jsd_(f16, f32, f32, nk_f32_t, nk_f16_to_f32_serial, NK_F32_DIVISION_EPSILON, nk_f32_log_serial_,
+nk_define_kld_(f16, f32, f32, nk_f32_t, nk_f16_to_f32_serial, NUMKONG_F32_DIVISION_EPSILON, nk_f32_log_serial_)
+nk_define_jsd_(f16, f32, f32, nk_f32_t, nk_f16_to_f32_serial, NUMKONG_F32_DIVISION_EPSILON, nk_f32_log_serial_,
                nk_f32_sqrt_serial)
 
-nk_define_kld_(bf16, f32, f32, nk_f32_t, nk_bf16_to_f32_serial, NK_F32_DIVISION_EPSILON, nk_f32_log_serial_)
-nk_define_jsd_(bf16, f32, f32, nk_f32_t, nk_bf16_to_f32_serial, NK_F32_DIVISION_EPSILON, nk_f32_log_serial_,
+nk_define_kld_(bf16, f32, f32, nk_f32_t, nk_bf16_to_f32_serial, NUMKONG_F32_DIVISION_EPSILON, nk_f32_log_serial_)
+nk_define_jsd_(bf16, f32, f32, nk_f32_t, nk_bf16_to_f32_serial, NUMKONG_F32_DIVISION_EPSILON, nk_f32_log_serial_,
                nk_f32_sqrt_serial)
 
-NK_API_COMPTIME void nk_kld_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_kld_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     // Use Kahan summation for higher numerical stability in long distributions
     nk_f64_t sum = 0, compensation = 0;
     for (nk_size_t i = 0; i != n; ++i) {
         nk_f64_t a_value = a[i], b_value = b[i];
-        nk_f64_t term = a_value *
-                        nk_f64_log_serial_((a_value + NK_F64_DIVISION_EPSILON) / (b_value + NK_F64_DIVISION_EPSILON));
+        nk_f64_t term = a_value * nk_f64_log_serial_((a_value + NUMKONG_F64_DIVISION_EPSILON) /
+                                                     (b_value + NUMKONG_F64_DIVISION_EPSILON));
         nk_f64_t provisional_sum = sum + term;
         compensation += (nk_f64_abs_(sum) >= nk_f64_abs_(term)) ? ((sum - provisional_sum) + term)
                                                                 : ((term - provisional_sum) + sum);
@@ -148,20 +148,20 @@ NK_API_COMPTIME void nk_kld_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_
     *result = sum + compensation;
 }
 
-NK_API_COMPTIME void nk_jsd_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_jsd_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     // Use Kahan summation for higher numerical stability in long distributions
     nk_f64_t sum = 0, compensation = 0;
     for (nk_size_t i = 0; i != n; ++i) {
         nk_f64_t a_value = a[i], b_value = b[i];
         nk_f64_t mi = (a_value + b_value) / 2;
-        nk_f64_t term_a = a_value *
-                          nk_f64_log_serial_((a_value + NK_F64_DIVISION_EPSILON) / (mi + NK_F64_DIVISION_EPSILON));
+        nk_f64_t term_a = a_value * nk_f64_log_serial_((a_value + NUMKONG_F64_DIVISION_EPSILON) /
+                                                       (mi + NUMKONG_F64_DIVISION_EPSILON));
         nk_f64_t provisional_sum = sum + term_a;
         compensation += (nk_f64_abs_(sum) >= nk_f64_abs_(term_a)) ? ((sum - provisional_sum) + term_a)
                                                                   : ((term_a - provisional_sum) + sum);
         sum = provisional_sum;
-        nk_f64_t term_b = b_value *
-                          nk_f64_log_serial_((b_value + NK_F64_DIVISION_EPSILON) / (mi + NK_F64_DIVISION_EPSILON));
+        nk_f64_t term_b = b_value * nk_f64_log_serial_((b_value + NUMKONG_F64_DIVISION_EPSILON) /
+                                                       (mi + NUMKONG_F64_DIVISION_EPSILON));
         provisional_sum = sum + term_b;
         compensation += (nk_f64_abs_(sum) >= nk_f64_abs_(term_b)) ? ((sum - provisional_sum) + term_b)
                                                                   : ((term_b - provisional_sum) + sum);
@@ -175,4 +175,4 @@ NK_API_COMPTIME void nk_jsd_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_
 } // extern "C"
 #endif
 
-#endif // NK_PROBABILITY_SERIAL_H
+#endif // NUMKONG_PROBABILITY_SERIAL_H

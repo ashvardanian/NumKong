@@ -6,8 +6,8 @@
  *
  *  Forward declarations for all api_* elementwise functions and their documentation strings.
  */
-#ifndef NK_PYTHON_EACH_H
-#define NK_PYTHON_EACH_H
+#ifndef NUMKONG_PYTHON_EACH_H
+#define NUMKONG_PYTHON_EACH_H
 
 #include "numkong.h"
 
@@ -48,4 +48,4 @@ extern char const doc_swiglu[];
 }
 #endif
 
-#endif // NK_PYTHON_EACH_H
+#endif // NUMKONG_PYTHON_EACH_H

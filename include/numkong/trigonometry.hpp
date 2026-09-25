@@ -4,8 +4,8 @@
  *  @date February 5, 2026
  *  @brief C++ bindings for trigonometric kernels.
  */
-#ifndef NK_TRIGONOMETRY_HPP
-#define NK_TRIGONOMETRY_HPP
+#ifndef NUMKONG_TRIGONOMETRY_HPP
+#define NUMKONG_TRIGONOMETRY_HPP
 
 #include <cstdint>
 #include <type_traits>
@@ -230,4 +230,4 @@ tensor<value_type_, allocator_type_, max_rank_> try_atan(tensor_view<value_type_
 
 } // namespace ashvardanian::numkong
 
-#endif // NK_TRIGONOMETRY_HPP
+#endif // NUMKONG_TRIGONOMETRY_HPP

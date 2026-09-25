@@ -20,11 +20,11 @@
  *  fused multiply-add operations. VRSQRT14PS provides ~14-bit precision reciprocal square root;
  *  with Newton-Raphson refinement, this exceeds f32's 23-bit mantissa requirements.
  */
-#ifndef NK_SPATIAL_SKYLAKE_H
-#define NK_SPATIAL_SKYLAKE_H
+#ifndef NUMKONG_SPATIAL_SKYLAKE_H
+#define NUMKONG_SPATIAL_SKYLAKE_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_SKYLAKE
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_SKYLAKE
 
 #include "numkong/types.h"
 #include "numkong/reduce/skylake.h"  // `nk_reduce_add_f32x16_skylake_`
@@ -45,7 +45,7 @@ extern "C" {
 #endif
 
 /** Reciprocal square root of 16 floats with Newton-Raphson refinement (~28-bit precision). */
-NK_HELPER_INLINE __m512 nk_rsqrt_f32x16_skylake_(__m512 x) {
+NUMKONG_HELPER_INLINE __m512 nk_rsqrt_f32x16_skylake_(__m512 x) {
     __m512 rsqrt_f32x16 = _mm512_rsqrt14_ps(x);
     __m512 nr_f32x16 = _mm512_mul_ps(_mm512_mul_ps(x, rsqrt_f32x16), rsqrt_f32x16);
     nr_f32x16 = _mm512_sub_ps(_mm512_set1_ps(3.0f), nr_f32x16);
@@ -53,7 +53,7 @@ NK_HELPER_INLINE __m512 nk_rsqrt_f32x16_skylake_(__m512 x) {
 }
 
 /** Reciprocal square root of 8 doubles with Newton-Raphson refinement (~28-bit precision). */
-NK_HELPER_INLINE __m512d nk_rsqrt_f64x8_skylake_(__m512d x) {
+NUMKONG_HELPER_INLINE __m512d nk_rsqrt_f64x8_skylake_(__m512d x) {
     __m512d rsqrt_f64x8 = _mm512_rsqrt14_pd(x);
     __m512d nr_f64x8 = _mm512_mul_pd(_mm512_mul_pd(x, rsqrt_f64x8), rsqrt_f64x8);
     nr_f64x8 = _mm512_sub_pd(_mm512_set1_pd(3.0), nr_f64x8);
@@ -62,7 +62,8 @@ NK_HELPER_INLINE __m512d nk_rsqrt_f64x8_skylake_(__m512d x) {
 
 #pragma region F32 and F64 Floats
 
-NK_API_COMPTIME void nk_sqeuclidean_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
+                                                     nk_f64_t *result) {
     // Upcast to f64 for higher precision accumulation
     __m512d sum_f64x8 = _mm512_setzero_pd();
     __m256 a_f32x8, b_f32x8;
@@ -88,12 +89,13 @@ nk_sqeuclidean_f32_skylake_cycle:
     *result = _mm512_reduce_add_pd(sum_f64x8);
 }
 
-NK_API_COMPTIME void nk_euclidean_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_euclidean_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
+                                                   nk_f64_t *result) {
     nk_sqeuclidean_f32_skylake(a, b, n, result);
     *result = nk_f64_sqrt_haswell(*result);
 }
 
-NK_HELPER_INLINE nk_f64_t nk_angular_normalize_f64_skylake_(nk_f64_t ab, nk_f64_t a2, nk_f64_t b2) {
+NUMKONG_HELPER_INLINE nk_f64_t nk_angular_normalize_f64_skylake_(nk_f64_t ab, nk_f64_t a2, nk_f64_t b2) {
 
     // If both vectors have magnitude 0, the distance is 0.
     if (a2 == 0 && b2 == 0) return 0;
@@ -120,7 +122,7 @@ NK_HELPER_INLINE nk_f64_t nk_angular_normalize_f64_skylake_(nk_f64_t ab, nk_f64_
     return result > 0 ? result : 0;
 }
 
-NK_API_COMPTIME void nk_angular_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_angular_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
     // Upcast to f64 for higher precision accumulation
     __m512d dot_f64x8 = _mm512_setzero_pd();
     __m512d a_norm_sq_f64x8 = _mm512_setzero_pd();
@@ -152,7 +154,8 @@ nk_angular_f32_skylake_cycle:
     *result = nk_angular_normalize_f64_skylake_(dot_f64, a_norm_sq_f64, b_norm_sq_f64);
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
+                                                     nk_f64_t *result) {
     __m512d sum_f64x8 = _mm512_setzero_pd();
     __m512d a_f64x8, b_f64x8;
 
@@ -175,12 +178,13 @@ nk_sqeuclidean_f64_skylake_cycle:
     *result = _mm512_reduce_add_pd(sum_f64x8);
 }
 
-NK_API_COMPTIME void nk_euclidean_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_euclidean_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
+                                                   nk_f64_t *result) {
     nk_sqeuclidean_f64_skylake(a, b, n, result);
     *result = nk_f64_sqrt_haswell(*result);
 }
 
-NK_API_COMPTIME void nk_angular_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_angular_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     // Dot2 (Ogita-Rump-Oishi 2005) for cross-product a × b only - it may have cancellation.
     // Self-products ‖a‖² and ‖b‖² use simple FMA - all terms are non-negative, no cancellation.
     __m512d dot_sum_f64x8 = _mm512_setzero_pd();
@@ -230,9 +234,9 @@ nk_angular_f64_skylake_cycle:
 /** Angular from_dot for native f64: 1 − dot / (√q × √t) for 4 pairs, where q is @p query_sumsq and
  *  t each target's sum of squares. Separate square roots avoid overflowing the product of two
  *  finite-but-large norms. */
-NK_HELPER_INLINE void nk_angular_f64x4_from_dot_skylake_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
-                                                         nk_b256_vec_t const *target_sumsqs_vec,
-                                                         nk_b256_vec_t *result_vec) {
+NUMKONG_HELPER_INLINE void nk_angular_f64x4_from_dot_skylake_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
+                                                              nk_b256_vec_t const *target_sumsqs_vec,
+                                                              nk_b256_vec_t *result_vec) {
     __m256d dots_f64x4 = dots_vec->ymm_pd;
     __m256d query_sqrt_f64x4 = _mm256_sqrt_pd(_mm256_set1_pd(query_sumsq));
     __m256d target_sqrt_f64x4 = _mm256_sqrt_pd(target_sumsqs_vec->ymm_pd);
@@ -245,9 +249,9 @@ NK_HELPER_INLINE void nk_angular_f64x4_from_dot_skylake_(nk_b256_vec_t const *do
 
 /** Euclidean from_dot for native f64: √(q + t − 2 × dot) for 4 pairs, where q is @p query_sumsq and
  *  t each target's sum of squares. */
-NK_HELPER_INLINE void nk_euclidean_f64x4_from_dot_skylake_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
-                                                           nk_b256_vec_t const *target_sumsqs_vec,
-                                                           nk_b256_vec_t *result_vec) {
+NUMKONG_HELPER_INLINE void nk_euclidean_f64x4_from_dot_skylake_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
+                                                                nk_b256_vec_t const *target_sumsqs_vec,
+                                                                nk_b256_vec_t *result_vec) {
     __m256d dots_f64x4 = dots_vec->ymm_pd;
     __m256d query_sumsq_f64x4 = _mm256_set1_pd(query_sumsq);
     __m256d two_f64x4 = _mm256_set1_pd(2.0);
@@ -260,9 +264,9 @@ NK_HELPER_INLINE void nk_euclidean_f64x4_from_dot_skylake_(nk_b256_vec_t const *
 
 /** Angular from_dot: f32 dots upcast to f64 for precision. Output via nk_b128_vec_t (f32). Separate
  *  square roots avoid overflowing the product of two finite-but-large norms. */
-NK_HELPER_INLINE void nk_angular_through_f64_from_dot_skylake_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
-                                                               nk_b128_vec_t const *target_sumsqs_vec,
-                                                               nk_b128_vec_t *result_vec) {
+NUMKONG_HELPER_INLINE void nk_angular_through_f64_from_dot_skylake_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
+                                                                    nk_b128_vec_t const *target_sumsqs_vec,
+                                                                    nk_b128_vec_t *result_vec) {
     __m128 dots_f32x4 = dots_vec->xmm_ps;
     __m256d dots_f64x4 = _mm256_cvtps_pd(dots_f32x4);
     __m256d query_sqrt_f64x4 = _mm256_sqrt_pd(_mm256_set1_pd((nk_f64_t)query_sumsq));
@@ -276,9 +280,10 @@ NK_HELPER_INLINE void nk_angular_through_f64_from_dot_skylake_(nk_b128_vec_t con
 }
 
 /** Euclidean from_dot: f32 dots upcast to f64 for precision. Output via nk_b128_vec_t (f32). */
-NK_HELPER_INLINE void nk_euclidean_through_f64_from_dot_skylake_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
-                                                                 nk_b128_vec_t const *target_sumsqs_vec,
-                                                                 nk_b128_vec_t *result_vec) {
+NUMKONG_HELPER_INLINE void nk_euclidean_through_f64_from_dot_skylake_(nk_b128_vec_t const *dots_vec,
+                                                                      nk_f32_t query_sumsq,
+                                                                      nk_b128_vec_t const *target_sumsqs_vec,
+                                                                      nk_b128_vec_t *result_vec) {
     __m128 dots_f32x4 = dots_vec->xmm_ps;
     __m256d dots_f64x4 = _mm256_cvtps_pd(dots_f32x4);
     __m256d query_sumsq_f64x4 = _mm256_set1_pd((nk_f64_t)query_sumsq);
@@ -295,7 +300,8 @@ NK_HELPER_INLINE void nk_euclidean_through_f64_from_dot_skylake_(nk_b128_vec_t c
 #pragma endregion F32 and F64 Floats
 #pragma region F16 and BF16 Floats
 
-NK_API_COMPTIME void nk_sqeuclidean_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                     nk_f32_t *result) {
     __m512 sum_f32x16 = _mm512_setzero_ps();
     __m256i a_f16x16, b_f16x16;
 
@@ -320,12 +326,13 @@ nk_sqeuclidean_f16_skylake_cycle:
     *result = nk_reduce_add_f32x16_skylake_(sum_f32x16);
 }
 
-NK_API_COMPTIME void nk_euclidean_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_euclidean_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                   nk_f32_t *result) {
     nk_sqeuclidean_f16_skylake(a, b, n, result);
     *result = nk_f32_sqrt_haswell(*result);
 }
 
-NK_API_COMPTIME void nk_angular_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_angular_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
     __m512 dot_f32x16 = _mm512_setzero_ps();
     __m512 a_norm_sq_f32x16 = _mm512_setzero_ps();
     __m512 b_norm_sq_f32x16 = _mm512_setzero_ps();
@@ -356,8 +363,8 @@ nk_angular_f16_skylake_cycle:
     *result = nk_angular_normalize_f32_haswell_(dot_f32, a_norm_sq_f32, b_norm_sq_f32);
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_e4m3_skylake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
-                                                 nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e4m3_skylake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                      nk_f32_t *result) {
     // E4M3 has no free widen shift (its 4-bit exponent doesn't line up with F16's 5-bit
     // at bit 10), so we call the Giesen-based 16-lane cast helper twice per iter and
     // run with two F32 accumulators to break the FMA dependency chain.
@@ -390,12 +397,14 @@ nk_sqeuclidean_e4m3_skylake_cycle:
     *result = nk_reduce_add_f32x16_skylake_(_mm512_add_ps(first_acc_f32x16, second_acc_f32x16));
 }
 
-NK_API_COMPTIME void nk_euclidean_e4m3_skylake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_euclidean_e4m3_skylake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                    nk_f32_t *result) {
     nk_sqeuclidean_e4m3_skylake(a, b, n, result);
     *result = nk_f32_sqrt_haswell(*result);
 }
 
-NK_API_COMPTIME void nk_angular_e4m3_skylake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_angular_e4m3_skylake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                  nk_f32_t *result) {
     __m512 dot_f32x16 = _mm512_setzero_ps();
     __m512 a_norm_sq_f32x16 = _mm512_setzero_ps();
     __m512 b_norm_sq_f32x16 = _mm512_setzero_ps();
@@ -431,8 +440,8 @@ nk_angular_e4m3_skylake_cycle:
     *result = nk_angular_normalize_f32_haswell_(dot_f32, a_norm_sq_f32, b_norm_sq_f32);
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_e5m2_skylake(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
-                                                 nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e5m2_skylake(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                      nk_f32_t *result) {
     // E5M2 shares F16's exponent bias (15): `byte << 8` equals the matching F16 bit-pattern
     // for normals, subnormals, zero, Inf, and NaN. We expose that shift for free by unpacking
     // against zero — the zero byte lands in the low half of each 16-bit lane, the E5M2 byte
@@ -482,12 +491,14 @@ nk_sqeuclidean_e5m2_skylake_cycle:
     *result = nk_reduce_add_f32x16_skylake_(_mm512_add_ps(first_acc_f32x16, second_acc_f32x16));
 }
 
-NK_API_COMPTIME void nk_euclidean_e5m2_skylake(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_euclidean_e5m2_skylake(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                    nk_f32_t *result) {
     nk_sqeuclidean_e5m2_skylake(a, b, n, result);
     *result = nk_f32_sqrt_haswell(*result);
 }
 
-NK_API_COMPTIME void nk_angular_e5m2_skylake(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_angular_e5m2_skylake(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                  nk_f32_t *result) {
     __m512 dot_f32x16 = _mm512_setzero_ps();
     __m512 a_norm_sq_f32x16 = _mm512_setzero_ps();
     __m512 b_norm_sq_f32x16 = _mm512_setzero_ps();
@@ -540,8 +551,8 @@ nk_angular_e5m2_skylake_cycle:
     *result = nk_angular_normalize_f32_haswell_(dot_f32, a_norm_sq_f32, b_norm_sq_f32);
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_e2m3_skylake(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
-                                                 nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e2m3_skylake(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                      nk_f32_t *result) {
     __m512 sum_f32x16 = _mm512_setzero_ps();
     __m128i a_e2m3_u8x16, b_e2m3_u8x16;
 
@@ -566,12 +577,14 @@ nk_sqeuclidean_e2m3_skylake_cycle:
     *result = nk_reduce_add_f32x16_skylake_(sum_f32x16);
 }
 
-NK_API_COMPTIME void nk_euclidean_e2m3_skylake(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_euclidean_e2m3_skylake(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                    nk_f32_t *result) {
     nk_sqeuclidean_e2m3_skylake(a, b, n, result);
     *result = nk_f32_sqrt_haswell(*result);
 }
 
-NK_API_COMPTIME void nk_angular_e2m3_skylake(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_angular_e2m3_skylake(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                  nk_f32_t *result) {
     __m512 dot_f32x16 = _mm512_setzero_ps();
     __m512 a_norm_sq_f32x16 = _mm512_setzero_ps();
     __m512 b_norm_sq_f32x16 = _mm512_setzero_ps();
@@ -602,8 +615,8 @@ nk_angular_e2m3_skylake_cycle:
     *result = nk_angular_normalize_f32_haswell_(dot_f32, a_norm_sq_f32, b_norm_sq_f32);
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_e3m2_skylake(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
-                                                 nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e3m2_skylake(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                      nk_f32_t *result) {
     __m512 sum_f32x16 = _mm512_setzero_ps();
     __m128i a_e3m2_u8x16, b_e3m2_u8x16;
 
@@ -628,12 +641,14 @@ nk_sqeuclidean_e3m2_skylake_cycle:
     *result = nk_reduce_add_f32x16_skylake_(sum_f32x16);
 }
 
-NK_API_COMPTIME void nk_euclidean_e3m2_skylake(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_euclidean_e3m2_skylake(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                    nk_f32_t *result) {
     nk_sqeuclidean_e3m2_skylake(a, b, n, result);
     *result = nk_f32_sqrt_haswell(*result);
 }
 
-NK_API_COMPTIME void nk_angular_e3m2_skylake(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_angular_e3m2_skylake(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                  nk_f32_t *result) {
     __m512 dot_f32x16 = _mm512_setzero_ps();
     __m512 a_norm_sq_f32x16 = _mm512_setzero_ps();
     __m512 b_norm_sq_f32x16 = _mm512_setzero_ps();
@@ -675,6 +690,6 @@ nk_angular_e3m2_skylake_cycle:
 #endif
 
 #pragma endregion F16 and BF16 Floats
-#endif // NK_TARGET_SKYLAKE
-#endif // NK_TARGET_X8664_
-#endif // NK_SPATIAL_SKYLAKE_H
+#endif // NUMKONG_TARGET_SKYLAKE
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_SPATIAL_SKYLAKE_H

@@ -12,10 +12,10 @@
  *  and E3M2 widen exactly into F16; E2M3, E2M1, I4 and U4 widen into I8 for exact integer MMA, with
  *  one output multiply undoing each widening's power of two.
  */
-#ifndef NK_DOTS_AMPERE_CUH
-#define NK_DOTS_AMPERE_CUH
+#ifndef NUMKONG_DOTS_AMPERE_CUH
+#define NUMKONG_DOTS_AMPERE_CUH
 
-#if NK_TARGET_AMPERE
+#if NUMKONG_TARGET_AMPERE
 
 #include "numkong/dots/serial.h"
 
@@ -118,20 +118,21 @@ typedef struct {
 
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
 
-NK_HELPER_DEVICE_INLINE nk_u32_t nk_shared_address_ampere_(void const *pointer) {
+NUMKONG_HELPER_DEVICE_INLINE nk_u32_t nk_shared_address_ampere_(void const *pointer) {
     return (nk_u32_t)__cvta_generic_to_shared(pointer);
 }
 
 /* Copies 16 bytes, zero-filling past @p valid_bytes, so tails need no second path. */
-NK_HELPER_DEVICE_INLINE void nk_copy_b128_async_ampere_(nk_u32_t shared, void const *global, nk_u32_t valid_bytes) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_copy_b128_async_ampere_(nk_u32_t shared, void const *global,
+                                                             nk_u32_t valid_bytes) {
     asm volatile("cp.async.cg.shared.global [%0], [%1], 16, %2;\n" ::"r"(shared), "l"(global), "r"(valid_bytes));
 }
 
-NK_HELPER_DEVICE_INLINE void nk_commit_async_ampere_(void) { asm volatile("cp.async.commit_group;\n" ::); }
+NUMKONG_HELPER_DEVICE_INLINE void nk_commit_async_ampere_(void) { asm volatile("cp.async.commit_group;\n" ::); }
 
 /*  Waits until at most @p pending committed groups are in flight, capped at 2, since PTX
  *  takes an immediate. */
-NK_HELPER_DEVICE_INLINE void nk_wait_async_ampere_(unsigned pending) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_wait_async_ampere_(unsigned pending) {
     switch (pending) {
     case 0: asm volatile("cp.async.wait_group 0;\n" ::); break;
     case 1: asm volatile("cp.async.wait_group 1;\n" ::); break;
@@ -139,68 +140,68 @@ NK_HELPER_DEVICE_INLINE void nk_wait_async_ampere_(unsigned pending) {
     }
 }
 
-NK_HELPER_DEVICE_INLINE void nk_load_matrices_x4_ampere_(nk_u32_t shared, nk_u32_t fragments[4]) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_load_matrices_x4_ampere_(nk_u32_t shared, nk_u32_t fragments[4]) {
     asm volatile("ldmatrix.sync.aligned.m8n8.x4.shared.b16 {%0, %1, %2, %3}, [%4];\n"
                  : "=r"(fragments[0]), "=r"(fragments[1]), "=r"(fragments[2]), "=r"(fragments[3])
                  : "r"(shared));
 }
 
-NK_HELPER_DEVICE_INLINE void nk_load_matrices_x4_transposed_ampere_(nk_u32_t shared, nk_u32_t fragments[4]) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_load_matrices_x4_transposed_ampere_(nk_u32_t shared, nk_u32_t fragments[4]) {
     asm volatile("ldmatrix.sync.aligned.m8n8.x4.trans.shared.b16 {%0, %1, %2, %3}, [%4];\n"
                  : "=r"(fragments[0]), "=r"(fragments[1]), "=r"(fragments[2]), "=r"(fragments[3])
                  : "r"(shared));
 }
 
-NK_HELPER_DEVICE_INLINE void nk_mma_bf16_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                                 nk_u32_t b_second) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_mma_bf16_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
+                                                      nk_u32_t b_second) {
     asm volatile("mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 " //
                  "{%0, %1, %2, %3}, {%4, %5, %6, %7}, {%8, %9}, {%0, %1, %2, %3};\n"
                  : "+f"(accumulator[0].f), "+f"(accumulator[1].f), "+f"(accumulator[2].f), "+f"(accumulator[3].f)
                  : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b_first), "r"(b_second));
 }
 
-NK_HELPER_DEVICE_INLINE void nk_mma_f16_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                                nk_u32_t b_second) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_mma_f16_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
+                                                     nk_u32_t b_second) {
     asm volatile("mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 " //
                  "{%0, %1, %2, %3}, {%4, %5, %6, %7}, {%8, %9}, {%0, %1, %2, %3};\n"
                  : "+f"(accumulator[0].f), "+f"(accumulator[1].f), "+f"(accumulator[2].f), "+f"(accumulator[3].f)
                  : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b_first), "r"(b_second));
 }
 
-NK_HELPER_DEVICE_INLINE void nk_mma_i8_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                               nk_u32_t b_second) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_mma_i8_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
+                                                    nk_u32_t b_second) {
     asm volatile("mma.sync.aligned.m16n8k32.row.col.s32.s8.s8.s32 " //
                  "{%0, %1, %2, %3}, {%4, %5, %6, %7}, {%8, %9}, {%0, %1, %2, %3};\n"
                  : "+r"(accumulator[0].u), "+r"(accumulator[1].u), "+r"(accumulator[2].u), "+r"(accumulator[3].u)
                  : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b_first), "r"(b_second));
 }
 
-NK_HELPER_DEVICE_INLINE void nk_mma_u8_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                               nk_u32_t b_second) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_mma_u8_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
+                                                    nk_u32_t b_second) {
     asm volatile("mma.sync.aligned.m16n8k32.row.col.s32.u8.u8.s32 " //
                  "{%0, %1, %2, %3}, {%4, %5, %6, %7}, {%8, %9}, {%0, %1, %2, %3};\n"
                  : "+r"(accumulator[0].u), "+r"(accumulator[1].u), "+r"(accumulator[2].u), "+r"(accumulator[3].u)
                  : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b_first), "r"(b_second));
 }
 
-NK_HELPER_DEVICE_INLINE void nk_mma_u8i8_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                                 nk_u32_t b_second) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_mma_u8i8_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
+                                                      nk_u32_t b_second) {
     asm volatile("mma.sync.aligned.m16n8k32.row.col.s32.u8.s8.s32 " //
                  "{%0, %1, %2, %3}, {%4, %5, %6, %7}, {%8, %9}, {%0, %1, %2, %3};\n"
                  : "+r"(accumulator[0].u), "+r"(accumulator[1].u), "+r"(accumulator[2].u), "+r"(accumulator[3].u)
                  : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b_first), "r"(b_second));
 }
 
-NK_HELPER_DEVICE_INLINE void nk_mma_i4_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                               nk_u32_t b_second) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_mma_i4_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
+                                                    nk_u32_t b_second) {
     asm volatile("mma.sync.aligned.m16n8k64.row.col.s32.s4.s4.s32 " //
                  "{%0, %1, %2, %3}, {%4, %5, %6, %7}, {%8, %9}, {%0, %1, %2, %3};\n"
                  : "+r"(accumulator[0].u), "+r"(accumulator[1].u), "+r"(accumulator[2].u), "+r"(accumulator[3].u)
                  : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b_first), "r"(b_second));
 }
 
-NK_HELPER_DEVICE_INLINE void nk_mma_u4_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                               nk_u32_t b_second) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_mma_u4_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
+                                                    nk_u32_t b_second) {
     asm volatile("mma.sync.aligned.m16n8k64.row.col.s32.u4.u4.s32 " //
                  "{%0, %1, %2, %3}, {%4, %5, %6, %7}, {%8, %9}, {%0, %1, %2, %3};\n"
                  : "+r"(accumulator[0].u), "+r"(accumulator[1].u), "+r"(accumulator[2].u), "+r"(accumulator[3].u)
@@ -211,45 +212,46 @@ NK_HELPER_DEVICE_INLINE void nk_mma_u4_ampere_(nk_fui32_t accumulator[4], nk_u32
 
 /*  Device passes older than 8.0 and the host pass get trapping bodies, so a cubin picked for the
  *  wrong device fails loudly rather than returning zeros. */
-NK_HELPER_DEVICE_INLINE nk_u32_t nk_shared_address_ampere_(void const *pointer) {
+NUMKONG_HELPER_DEVICE_INLINE nk_u32_t nk_shared_address_ampere_(void const *pointer) {
     __trap();
     return 0;
 }
-NK_HELPER_DEVICE_INLINE void nk_copy_b128_async_ampere_(nk_u32_t shared, void const *global, nk_u32_t valid_bytes) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_copy_b128_async_ampere_(nk_u32_t shared, void const *global,
+                                                             nk_u32_t valid_bytes) {
     __trap();
 }
-NK_HELPER_DEVICE_INLINE void nk_commit_async_ampere_(void) { __trap(); }
-NK_HELPER_DEVICE_INLINE void nk_wait_async_ampere_(unsigned pending) { __trap(); }
-NK_HELPER_DEVICE_INLINE void nk_load_matrices_x4_ampere_(nk_u32_t shared, nk_u32_t fragments[4]) { __trap(); }
-NK_HELPER_DEVICE_INLINE void nk_load_matrices_x4_transposed_ampere_(nk_u32_t shared, nk_u32_t fragments[4]) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_commit_async_ampere_(void) { __trap(); }
+NUMKONG_HELPER_DEVICE_INLINE void nk_wait_async_ampere_(unsigned pending) { __trap(); }
+NUMKONG_HELPER_DEVICE_INLINE void nk_load_matrices_x4_ampere_(nk_u32_t shared, nk_u32_t fragments[4]) { __trap(); }
+NUMKONG_HELPER_DEVICE_INLINE void nk_load_matrices_x4_transposed_ampere_(nk_u32_t shared, nk_u32_t fragments[4]) {
     __trap();
 }
-NK_HELPER_DEVICE_INLINE void nk_mma_bf16_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                                 nk_u32_t b_second) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_mma_bf16_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
+                                                      nk_u32_t b_second) {
     __trap();
 }
-NK_HELPER_DEVICE_INLINE void nk_mma_f16_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                                nk_u32_t b_second) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_mma_f16_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
+                                                     nk_u32_t b_second) {
     __trap();
 }
-NK_HELPER_DEVICE_INLINE void nk_mma_i8_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                               nk_u32_t b_second) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_mma_i8_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
+                                                    nk_u32_t b_second) {
     __trap();
 }
-NK_HELPER_DEVICE_INLINE void nk_mma_u8_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                               nk_u32_t b_second) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_mma_u8_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
+                                                    nk_u32_t b_second) {
     __trap();
 }
-NK_HELPER_DEVICE_INLINE void nk_mma_u8i8_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                                 nk_u32_t b_second) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_mma_u8i8_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
+                                                      nk_u32_t b_second) {
     __trap();
 }
-NK_HELPER_DEVICE_INLINE void nk_mma_i4_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                               nk_u32_t b_second) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_mma_i4_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
+                                                    nk_u32_t b_second) {
     __trap();
 }
-NK_HELPER_DEVICE_INLINE void nk_mma_u4_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                               nk_u32_t b_second) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_mma_u4_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
+                                                    nk_u32_t b_second) {
     __trap();
 }
 
@@ -261,17 +263,17 @@ NK_HELPER_DEVICE_INLINE void nk_mma_u4_ampere_(nk_fui32_t accumulator[4], nk_u32
  *  high byte of a half, `code << 8`, and then keeps only its fields. */
 #pragma region Conversions
 
-NK_HELPER_DEVICE_INLINE void nk_e5m2x4_to_f16x4_ampere_(nk_u32_t codes, nk_u32_t *low, nk_u32_t *high) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_e5m2x4_to_f16x4_ampere_(nk_u32_t codes, nk_u32_t *low, nk_u32_t *high) {
     *low = __byte_perm(codes, 0, 0x1404), *high = __byte_perm(codes, 0, 0x3424);
 }
 
-NK_HELPER_DEVICE_INLINE void nk_e4m3x4_to_f16x4_ampere_(nk_u32_t codes, nk_u32_t *low, nk_u32_t *high) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_e4m3x4_to_f16x4_ampere_(nk_u32_t codes, nk_u32_t *low, nk_u32_t *high) {
     nk_u32_t const low_halves = __byte_perm(codes, 0, 0x1404), high_halves = __byte_perm(codes, 0, 0x3424);
     *low = ((low_halves >> 1) & 0x3F803F80u) | (low_halves & 0x80008000u);
     *high = ((high_halves >> 1) & 0x3F803F80u) | (high_halves & 0x80008000u);
 }
 
-NK_HELPER_DEVICE_INLINE void nk_e3m2x4_to_f16x4_ampere_(nk_u32_t codes, nk_u32_t *low, nk_u32_t *high) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_e3m2x4_to_f16x4_ampere_(nk_u32_t codes, nk_u32_t *low, nk_u32_t *high) {
     nk_u32_t const low_halves = __byte_perm(codes, 0, 0x1404), high_halves = __byte_perm(codes, 0, 0x3424);
     *low = (low_halves & 0x1F001F00u) | ((low_halves << 2) & 0x80008000u);
     *high = (high_halves & 0x1F001F00u) | ((high_halves << 2) & 0x80008000u);
@@ -279,14 +281,14 @@ NK_HELPER_DEVICE_INLINE void nk_e3m2x4_to_f16x4_ampere_(nk_u32_t codes, nk_u32_t
 
 /** Negates the bytes of @p magnitudes under @p sign_mask, each magnitude below 128 so no borrow
  *  crosses a byte. */
-NK_HELPER_DEVICE_INLINE nk_u32_t nk_i8x4_apply_signs_ampere_(nk_u32_t magnitudes, nk_u32_t sign_mask) {
+NUMKONG_HELPER_DEVICE_INLINE nk_u32_t nk_i8x4_apply_signs_ampere_(nk_u32_t magnitudes, nk_u32_t sign_mask) {
     nk_u32_t const negated = (0x80808080u - magnitudes) ^ 0x80808080u;
     return (magnitudes & ~sign_mask) | (negated & sign_mask);
 }
 
 /** Four E2M3 magnitudes times 8 as u8: `e = 0` gives @c m, otherwise `(8 + m) << (e - 1)`,
  *  at most 60. */
-NK_HELPER_DEVICE_INLINE nk_u32_t nk_e2m3x4_to_u8x4_magnitudes_ampere_(nk_u32_t codes) {
+NUMKONG_HELPER_DEVICE_INLINE nk_u32_t nk_e2m3x4_to_u8x4_magnitudes_ampere_(nk_u32_t codes) {
     nk_u32_t const exponent_low = (codes >> 3) & 0x01010101u, exponent_high = (codes >> 4) & 0x01010101u;
     nk_u32_t const significand = (codes & 0x07070707u) | ((exponent_low | exponent_high) << 3);
     nk_u32_t const doubled_mask = exponent_high * 0xFFu, quadrupled_mask = (exponent_high & exponent_low) * 0xFFu;
@@ -294,14 +296,14 @@ NK_HELPER_DEVICE_INLINE nk_u32_t nk_e2m3x4_to_u8x4_magnitudes_ampere_(nk_u32_t c
 }
 
 /** Four E2M3 codes times 8 as i8. */
-NK_HELPER_DEVICE_INLINE nk_u32_t nk_e2m3x4_to_i8x4_ampere_(nk_u32_t codes) {
+NUMKONG_HELPER_DEVICE_INLINE nk_u32_t nk_e2m3x4_to_i8x4_ampere_(nk_u32_t codes) {
     return nk_i8x4_apply_signs_ampere_(nk_e2m3x4_to_u8x4_magnitudes_ampere_(codes),
                                        ((codes >> 5) & 0x01010101u) * 0xFFu);
 }
 
 /** Four E2M1 nibbles of @p codes times 2 as i8 through one table lookup; bit 3 of each nibble
  *  is its sign. */
-NK_HELPER_DEVICE_INLINE nk_u32_t nk_e2m1x4_to_i8x4_ampere_(nk_u32_t codes) {
+NUMKONG_HELPER_DEVICE_INLINE nk_u32_t nk_e2m1x4_to_i8x4_ampere_(nk_u32_t codes) {
     nk_u32_t const magnitudes = __byte_perm(0x03020100u, 0x0C080604u, codes & 0x7777u);
     nk_u32_t replicated;
     // With every table byte negative, a nibble whose bit 3 is set replicates that sign as 0xFF, others read 0x80.
@@ -311,28 +313,28 @@ NK_HELPER_DEVICE_INLINE nk_u32_t nk_e2m1x4_to_i8x4_ampere_(nk_u32_t codes) {
 }
 
 /** Eight E2M1 nibbles become two registers of four scaled i8 each. */
-NK_HELPER_DEVICE_INLINE void nk_e2m1x8_to_i8x8_ampere_(nk_u32_t codes, nk_u32_t *low, nk_u32_t *high) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_e2m1x8_to_i8x8_ampere_(nk_u32_t codes, nk_u32_t *low, nk_u32_t *high) {
     *low = nk_e2m1x4_to_i8x4_ampere_(codes), *high = nk_e2m1x4_to_i8x4_ampere_(codes >> 16);
 }
 
 /** Eight i4 nibbles become two registers of four sign-extended i8, each `(v ^ 8) - 8`
  *  without cross-byte borrows. */
-NK_HELPER_DEVICE_INLINE void nk_i4x8_to_i8x8_ampere_(nk_u32_t codes, nk_u32_t *low, nk_u32_t *high) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_i4x8_to_i8x8_ampere_(nk_u32_t codes, nk_u32_t *low, nk_u32_t *high) {
     nk_u32_t const low_nibbles = codes & 0x0F0F0F0Fu, high_nibbles = (codes >> 4) & 0x0F0F0F0Fu;
     *low = (((low_nibbles ^ 0x08080808u) | 0x80808080u) - 0x08080808u) ^ 0x80808080u;
     *high = (((high_nibbles ^ 0x08080808u) | 0x80808080u) - 0x08080808u) ^ 0x80808080u;
 }
 
 /** Eight u4 nibbles become two registers of four u8. */
-NK_HELPER_DEVICE_INLINE void nk_u4x8_to_u8x8_ampere_(nk_u32_t codes, nk_u32_t *low, nk_u32_t *high) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_u4x8_to_u8x8_ampere_(nk_u32_t codes, nk_u32_t *low, nk_u32_t *high) {
     *low = codes & 0x0F0F0F0Fu, *high = (codes >> 4) & 0x0F0F0F0Fu;
 }
 
 /** Keeps a packed byte as it is. */
-NK_HELPER_DEVICE_INLINE unsigned char nk_load_b8_ampere_(unsigned char value) { return value; }
+NUMKONG_HELPER_DEVICE_INLINE unsigned char nk_load_b8_ampere_(unsigned char value) { return value; }
 
 /** Packs one E2M3 code as its value times 8 in i8, the form its multiply consumes. */
-NK_HELPER_DEVICE_INLINE unsigned char nk_load_e2m3_to_i8_ampere_(unsigned char code) {
+NUMKONG_HELPER_DEVICE_INLINE unsigned char nk_load_e2m3_to_i8_ampere_(unsigned char code) {
     return (unsigned char)nk_e2m3x4_to_i8x4_ampere_(code);
 }
 
@@ -340,16 +342,16 @@ NK_HELPER_DEVICE_INLINE unsigned char nk_load_e2m3_to_i8_ampere_(unsigned char c
 
 #pragma region Norms
 
-NK_HELPER_DEVICE_INLINE nk_f64_t nk_load_f64_ampere_(unsigned char const *row, nk_size_t index) {
+NUMKONG_HELPER_DEVICE_INLINE nk_f64_t nk_load_f64_ampere_(unsigned char const *row, nk_size_t index) {
     return ((nk_f64_t const *)row)[index];
 }
 
-NK_HELPER_DEVICE_INLINE nk_f64_t nk_load_f32_to_f64_ampere_(unsigned char const *row, nk_size_t index) {
+NUMKONG_HELPER_DEVICE_INLINE nk_f64_t nk_load_f32_to_f64_ampere_(unsigned char const *row, nk_size_t index) {
     return (nk_f64_t)((nk_f32_t const *)row)[index];
 }
 
-NK_HELPER_DEVICE_INLINE nk_f64_t nk_dots_reduce_sumsq_f64_ampere_(unsigned char const *row, nk_size_t depth,
-                                                                  unsigned lane) {
+NUMKONG_HELPER_DEVICE_INLINE nk_f64_t nk_dots_reduce_sumsq_f64_ampere_(unsigned char const *row, nk_size_t depth,
+                                                                       unsigned lane) {
     nk_f64_t sum = 0;
     for (nk_size_t index = lane; index < depth; index += 32) {
         unsigned long long bits = 0;
@@ -360,8 +362,8 @@ NK_HELPER_DEVICE_INLINE nk_f64_t nk_dots_reduce_sumsq_f64_ampere_(unsigned char 
     return sum;
 }
 
-NK_HELPER_DEVICE_INLINE nk_f64_t nk_dots_reduce_sumsq_f32_ampere_(unsigned char const *row, nk_size_t depth,
-                                                                  unsigned lane) {
+NUMKONG_HELPER_DEVICE_INLINE nk_f64_t nk_dots_reduce_sumsq_f32_ampere_(unsigned char const *row, nk_size_t depth,
+                                                                       unsigned lane) {
     nk_f64_t sum = 0;
     for (nk_size_t index = lane; index < depth; index += 32) {
         nk_u32_t bits = 0;
@@ -376,8 +378,8 @@ NK_HELPER_DEVICE_INLINE nk_f64_t nk_dots_reduce_sumsq_f32_ampere_(unsigned char 
  *  … below @c depth; the pack adds the 32 shares. Rows are read bytewise, since @c b_stride need
  *  not be element-aligned. */
 
-NK_HELPER_DEVICE_INLINE nk_f32_t nk_dots_reduce_sumsq_bf16_ampere_(unsigned char const *row, nk_size_t depth,
-                                                                   unsigned lane) {
+NUMKONG_HELPER_DEVICE_INLINE nk_f32_t nk_dots_reduce_sumsq_bf16_ampere_(unsigned char const *row, nk_size_t depth,
+                                                                        unsigned lane) {
     nk_f32_t sum = 0;
     for (nk_size_t index = lane; index < depth; index += 32) {
         nk_f32_t const value = __uint_as_float(((nk_u32_t)row[index * 2] | ((nk_u32_t)row[index * 2 + 1] << 8)) << 16);
@@ -386,8 +388,8 @@ NK_HELPER_DEVICE_INLINE nk_f32_t nk_dots_reduce_sumsq_bf16_ampere_(unsigned char
     return sum;
 }
 
-NK_HELPER_DEVICE_INLINE nk_f32_t nk_dots_reduce_sumsq_f16_ampere_(unsigned char const *row, nk_size_t depth,
-                                                                  unsigned lane) {
+NUMKONG_HELPER_DEVICE_INLINE nk_f32_t nk_dots_reduce_sumsq_f16_ampere_(unsigned char const *row, nk_size_t depth,
+                                                                       unsigned lane) {
     nk_f32_t sum = 0;
     for (nk_size_t index = lane; index < depth; index += 32) {
         nk_f32_t const value = __half2float(
@@ -397,8 +399,8 @@ NK_HELPER_DEVICE_INLINE nk_f32_t nk_dots_reduce_sumsq_f16_ampere_(unsigned char 
     return sum;
 }
 
-NK_HELPER_DEVICE_INLINE nk_f32_t nk_dots_reduce_sumsq_e5m2_ampere_(unsigned char const *row, nk_size_t depth,
-                                                                   unsigned lane) {
+NUMKONG_HELPER_DEVICE_INLINE nk_f32_t nk_dots_reduce_sumsq_e5m2_ampere_(unsigned char const *row, nk_size_t depth,
+                                                                        unsigned lane) {
     nk_f32_t sum = 0;
     for (nk_size_t index = lane; index < depth; index += 32) {
         nk_f32_t const value = __half2float(__ushort_as_half((unsigned short)(row[index] << 8)));
@@ -407,8 +409,8 @@ NK_HELPER_DEVICE_INLINE nk_f32_t nk_dots_reduce_sumsq_e5m2_ampere_(unsigned char
     return sum;
 }
 
-NK_HELPER_DEVICE_INLINE nk_f32_t nk_dots_reduce_sumsq_e4m3_ampere_(unsigned char const *row, nk_size_t depth,
-                                                                   unsigned lane) {
+NUMKONG_HELPER_DEVICE_INLINE nk_f32_t nk_dots_reduce_sumsq_e4m3_ampere_(unsigned char const *row, nk_size_t depth,
+                                                                        unsigned lane) {
     nk_f32_t sum = 0;
     for (nk_size_t index = lane; index < depth; index += 32) {
         unsigned const code = row[index];
@@ -419,8 +421,8 @@ NK_HELPER_DEVICE_INLINE nk_f32_t nk_dots_reduce_sumsq_e4m3_ampere_(unsigned char
     return sum;
 }
 
-NK_HELPER_DEVICE_INLINE nk_f32_t nk_dots_reduce_sumsq_e3m2_ampere_(unsigned char const *row, nk_size_t depth,
-                                                                   unsigned lane) {
+NUMKONG_HELPER_DEVICE_INLINE nk_f32_t nk_dots_reduce_sumsq_e3m2_ampere_(unsigned char const *row, nk_size_t depth,
+                                                                        unsigned lane) {
     nk_f32_t sum = 0;
     for (nk_size_t index = lane; index < depth; index += 32) {
         unsigned const code = row[index];
@@ -431,8 +433,8 @@ NK_HELPER_DEVICE_INLINE nk_f32_t nk_dots_reduce_sumsq_e3m2_ampere_(unsigned char
     return sum;
 }
 
-NK_HELPER_DEVICE_INLINE nk_f32_t nk_dots_reduce_sumsq_e2m3_ampere_(unsigned char const *row, nk_size_t depth,
-                                                                   unsigned lane) {
+NUMKONG_HELPER_DEVICE_INLINE nk_f32_t nk_dots_reduce_sumsq_e2m3_ampere_(unsigned char const *row, nk_size_t depth,
+                                                                        unsigned lane) {
     nk_f32_t sum = 0;
     for (nk_size_t index = lane; index < depth; index += 32) {
         nk_f32_t const value = (nk_f32_t)(signed char)nk_e2m3x4_to_i8x4_ampere_(row[index]) * 0.125f;
@@ -444,8 +446,8 @@ NK_HELPER_DEVICE_INLINE nk_f32_t nk_dots_reduce_sumsq_e2m3_ampere_(unsigned char
 /*  Nibble types hold element `2 × i` in the high nibble of byte @c i and element `2 × i + 1` in
  *  the low one. */
 
-NK_HELPER_DEVICE_INLINE nk_f32_t nk_dots_reduce_sumsq_e2m1_ampere_(unsigned char const *row, nk_size_t depth,
-                                                                   unsigned lane) {
+NUMKONG_HELPER_DEVICE_INLINE nk_f32_t nk_dots_reduce_sumsq_e2m1_ampere_(unsigned char const *row, nk_size_t depth,
+                                                                        unsigned lane) {
     nk_f32_t sum = 0;
     for (nk_size_t index = lane; index < depth; index += 32) {
         unsigned const nibble = (index & 1) ? (row[index / 2] & 0x0Fu) : (row[index / 2] >> 4);
@@ -455,8 +457,8 @@ NK_HELPER_DEVICE_INLINE nk_f32_t nk_dots_reduce_sumsq_e2m1_ampere_(unsigned char
     return sum;
 }
 
-NK_HELPER_DEVICE_INLINE nk_u32_t nk_dots_reduce_sumsq_i8_ampere_(unsigned char const *row, nk_size_t depth,
-                                                                 unsigned lane) {
+NUMKONG_HELPER_DEVICE_INLINE nk_u32_t nk_dots_reduce_sumsq_i8_ampere_(unsigned char const *row, nk_size_t depth,
+                                                                      unsigned lane) {
     nk_u32_t sum = 0;
     for (nk_size_t index = lane; index < depth; index += 32) {
         nk_i32_t const value = (signed char)row[index];
@@ -465,8 +467,8 @@ NK_HELPER_DEVICE_INLINE nk_u32_t nk_dots_reduce_sumsq_i8_ampere_(unsigned char c
     return sum;
 }
 
-NK_HELPER_DEVICE_INLINE nk_u32_t nk_dots_reduce_sumsq_i4_ampere_(unsigned char const *row, nk_size_t depth,
-                                                                 unsigned lane) {
+NUMKONG_HELPER_DEVICE_INLINE nk_u32_t nk_dots_reduce_sumsq_i4_ampere_(unsigned char const *row, nk_size_t depth,
+                                                                      unsigned lane) {
     nk_u32_t sum = 0;
     for (nk_size_t index = lane; index < depth; index += 32) {
         unsigned const nibble = (index & 1) ? (row[index / 2] & 0x0Fu) : (row[index / 2] >> 4);
@@ -476,15 +478,15 @@ NK_HELPER_DEVICE_INLINE nk_u32_t nk_dots_reduce_sumsq_i4_ampere_(unsigned char c
     return sum;
 }
 
-NK_HELPER_DEVICE_INLINE nk_u32_t nk_dots_reduce_sumsq_u8_ampere_(unsigned char const *row, nk_size_t depth,
-                                                                 unsigned lane) {
+NUMKONG_HELPER_DEVICE_INLINE nk_u32_t nk_dots_reduce_sumsq_u8_ampere_(unsigned char const *row, nk_size_t depth,
+                                                                      unsigned lane) {
     nk_u32_t sum = 0;
     for (nk_size_t index = lane; index < depth; index += 32) sum += (nk_u32_t)row[index] * row[index];
     return sum;
 }
 
-NK_HELPER_DEVICE_INLINE nk_u32_t nk_dots_reduce_sumsq_u4_ampere_(unsigned char const *row, nk_size_t depth,
-                                                                 unsigned lane) {
+NUMKONG_HELPER_DEVICE_INLINE nk_u32_t nk_dots_reduce_sumsq_u4_ampere_(unsigned char const *row, nk_size_t depth,
+                                                                      unsigned lane) {
     nk_u32_t sum = 0;
     for (nk_size_t index = lane; index < depth; index += 32) {
         nk_u32_t const value = (index & 1) ? (row[index / 2] & 0x0Fu) : (row[index / 2] >> 4);
@@ -497,14 +499,14 @@ NK_HELPER_DEVICE_INLINE nk_u32_t nk_dots_reduce_sumsq_u4_ampere_(unsigned char c
  *  has none. Float8 and Float6 square their F16 widenings, and E2M3 and E2M1 their scaled i8 ones,
  *  so the tile scales them back. */
 
-NK_HELPER_DEVICE_INLINE void nk_f16x2_norm_update_ampere_(nk_u32_t halves, nk_f32_t *real_sum) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_f16x2_norm_update_ampere_(nk_u32_t halves, nk_f32_t *real_sum) {
     nk_f32_t const low = __half2float(__ushort_as_half((unsigned short)(halves & 0xFFFFu)));
     nk_f32_t const high = __half2float(__ushort_as_half((unsigned short)(halves >> 16)));
     *real_sum = __fmaf_rn(high, high, __fmaf_rn(low, low, *real_sum));
 }
 
-NK_HELPER_DEVICE_INLINE void nk_bf16_norm_update_ampere_(nk_u32_t const words[4], nk_u32_t *integer_sum,
-                                                         nk_f32_t *real_sum) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_bf16_norm_update_ampere_(nk_u32_t const words[4], nk_u32_t *integer_sum,
+                                                              nk_f32_t *real_sum) {
 #pragma unroll
     for (unsigned word = 0; word < 4; ++word) {
         nk_f32_t const low = __uint_as_float(words[word] << 16), high = __uint_as_float(words[word] & 0xFFFF0000u);
@@ -512,14 +514,14 @@ NK_HELPER_DEVICE_INLINE void nk_bf16_norm_update_ampere_(nk_u32_t const words[4]
     }
 }
 
-NK_HELPER_DEVICE_INLINE void nk_f16_norm_update_ampere_(nk_u32_t const words[4], nk_u32_t *integer_sum,
-                                                        nk_f32_t *real_sum) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_f16_norm_update_ampere_(nk_u32_t const words[4], nk_u32_t *integer_sum,
+                                                             nk_f32_t *real_sum) {
 #pragma unroll
     for (unsigned word = 0; word < 4; ++word) nk_f16x2_norm_update_ampere_(words[word], real_sum);
 }
 
-NK_HELPER_DEVICE_INLINE void nk_widened_f16_norm_update_ampere_(nk_cross_widen_ampere_t widen, nk_u32_t const words[4],
-                                                                nk_f32_t *real_sum) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_widened_f16_norm_update_ampere_(nk_cross_widen_ampere_t widen,
+                                                                     nk_u32_t const words[4], nk_f32_t *real_sum) {
 #pragma unroll
     for (unsigned word = 0; word < 4; ++word) {
         nk_u32_t low, high;
@@ -529,23 +531,23 @@ NK_HELPER_DEVICE_INLINE void nk_widened_f16_norm_update_ampere_(nk_cross_widen_a
     }
 }
 
-NK_HELPER_DEVICE_INLINE void nk_e5m2_norm_update_ampere_(nk_u32_t const words[4], nk_u32_t *integer_sum,
-                                                         nk_f32_t *real_sum) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_e5m2_norm_update_ampere_(nk_u32_t const words[4], nk_u32_t *integer_sum,
+                                                              nk_f32_t *real_sum) {
     nk_widened_f16_norm_update_ampere_(nk_e5m2x4_to_f16x4_ampere_, words, real_sum);
 }
 
-NK_HELPER_DEVICE_INLINE void nk_e4m3_norm_update_ampere_(nk_u32_t const words[4], nk_u32_t *integer_sum,
-                                                         nk_f32_t *real_sum) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_e4m3_norm_update_ampere_(nk_u32_t const words[4], nk_u32_t *integer_sum,
+                                                              nk_f32_t *real_sum) {
     nk_widened_f16_norm_update_ampere_(nk_e4m3x4_to_f16x4_ampere_, words, real_sum);
 }
 
-NK_HELPER_DEVICE_INLINE void nk_e3m2_norm_update_ampere_(nk_u32_t const words[4], nk_u32_t *integer_sum,
-                                                         nk_f32_t *real_sum) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_e3m2_norm_update_ampere_(nk_u32_t const words[4], nk_u32_t *integer_sum,
+                                                              nk_f32_t *real_sum) {
     nk_widened_f16_norm_update_ampere_(nk_e3m2x4_to_f16x4_ampere_, words, real_sum);
 }
 
-NK_HELPER_DEVICE_INLINE void nk_e2m3_norm_update_ampere_(nk_u32_t const words[4], nk_u32_t *integer_sum,
-                                                         nk_f32_t *real_sum) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_e2m3_norm_update_ampere_(nk_u32_t const words[4], nk_u32_t *integer_sum,
+                                                              nk_f32_t *real_sum) {
 #pragma unroll
     for (unsigned word = 0; word < 4; ++word) {
         nk_u32_t const magnitudes = nk_e2m3x4_to_u8x4_magnitudes_ampere_(words[word]);
@@ -553,8 +555,8 @@ NK_HELPER_DEVICE_INLINE void nk_e2m3_norm_update_ampere_(nk_u32_t const words[4]
     }
 }
 
-NK_HELPER_DEVICE_INLINE void nk_e2m1_norm_update_ampere_(nk_u32_t const words[4], nk_u32_t *integer_sum,
-                                                         nk_f32_t *real_sum) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_e2m1_norm_update_ampere_(nk_u32_t const words[4], nk_u32_t *integer_sum,
+                                                              nk_f32_t *real_sum) {
     // Squares of twice each magnitude, {0, 1, 4, 9, 16, 36, 64, 144}, looked up 4 nibbles at a time.
 #pragma unroll
     for (unsigned word = 0; word < 4; ++word) {
@@ -565,15 +567,15 @@ NK_HELPER_DEVICE_INLINE void nk_e2m1_norm_update_ampere_(nk_u32_t const words[4]
     }
 }
 
-NK_HELPER_DEVICE_INLINE void nk_i8_norm_update_ampere_(nk_u32_t const words[4], nk_u32_t *integer_sum,
-                                                       nk_f32_t *real_sum) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_i8_norm_update_ampere_(nk_u32_t const words[4], nk_u32_t *integer_sum,
+                                                            nk_f32_t *real_sum) {
 #pragma unroll
     for (unsigned word = 0; word < 4; ++word)
         *integer_sum = (nk_u32_t)__dp4a((int)words[word], (int)words[word], (int)*integer_sum);
 }
 
-NK_HELPER_DEVICE_INLINE void nk_i4_norm_update_ampere_(nk_u32_t const words[4], nk_u32_t *integer_sum,
-                                                       nk_f32_t *real_sum) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_i4_norm_update_ampere_(nk_u32_t const words[4], nk_u32_t *integer_sum,
+                                                            nk_f32_t *real_sum) {
 #pragma unroll
     for (unsigned word = 0; word < 4; ++word) {
         nk_u32_t low, high;
@@ -583,14 +585,14 @@ NK_HELPER_DEVICE_INLINE void nk_i4_norm_update_ampere_(nk_u32_t const words[4], 
     }
 }
 
-NK_HELPER_DEVICE_INLINE void nk_u8_norm_update_ampere_(nk_u32_t const words[4], nk_u32_t *integer_sum,
-                                                       nk_f32_t *real_sum) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_u8_norm_update_ampere_(nk_u32_t const words[4], nk_u32_t *integer_sum,
+                                                            nk_f32_t *real_sum) {
 #pragma unroll
     for (unsigned word = 0; word < 4; ++word) *integer_sum = __dp4a(words[word], words[word], *integer_sum);
 }
 
-NK_HELPER_DEVICE_INLINE void nk_u4_norm_update_ampere_(nk_u32_t const words[4], nk_u32_t *integer_sum,
-                                                       nk_f32_t *real_sum) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_u4_norm_update_ampere_(nk_u32_t const words[4], nk_u32_t *integer_sum,
+                                                            nk_f32_t *real_sum) {
 #pragma unroll
     for (unsigned word = 0; word < 4; ++word) {
         nk_u32_t low, high;
@@ -606,14 +608,14 @@ NK_HELPER_DEVICE_INLINE void nk_u4_norm_update_ampere_(nk_u32_t const words[4], 
 
 /** An integer dot product as F32, signed unless its norms are unsigned, the way the serial
  *  metrics read it. */
-NK_HELPER_DEVICE_INLINE nk_f32_t nk_cross_dot_to_f32_ampere_(nk_fui32_t sum, nk_cross_epilogue_t epilogue,
-                                                             nk_cross_norm_t norm, nk_f32_t output_scale) {
+NUMKONG_HELPER_DEVICE_INLINE nk_f32_t nk_cross_dot_to_f32_ampere_(nk_fui32_t sum, nk_cross_epilogue_t epilogue,
+                                                                  nk_cross_norm_t norm, nk_f32_t output_scale) {
     if (epilogue == nk_cross_epilogue_f32_k) return sum.f * output_scale;
     if (epilogue == nk_cross_epilogue_i32_to_f32_k) return (nk_f32_t)sum.i * output_scale;
     return norm == nk_cross_norm_u32_k ? (nk_f32_t)sum.u : (nk_f32_t)sum.i;
 }
 
-NK_HELPER_DEVICE_INLINE nk_f32_t nk_cross_norm_to_f32_ampere_(nk_fui32_t bits, nk_cross_norm_t norm) {
+NUMKONG_HELPER_DEVICE_INLINE nk_f32_t nk_cross_norm_to_f32_ampere_(nk_fui32_t bits, nk_cross_norm_t norm) {
     if (norm == nk_cross_norm_i32_k) return (nk_f32_t)bits.i;
     if (norm == nk_cross_norm_u32_k) return (nk_f32_t)bits.u;
     return bits.f;
@@ -621,8 +623,8 @@ NK_HELPER_DEVICE_INLINE nk_f32_t nk_cross_norm_to_f32_ampere_(nk_fui32_t bits, n
 
 /** A thread's accumulated squared norm in the 32 bits the epilogue reads: integers as summed,
  *  floats in true units. */
-NK_HELPER_DEVICE_INLINE nk_fui32_t nk_cross_norm_finalize_ampere_(nk_cross_norm_t norm, nk_u32_t integer_sum,
-                                                                  nk_f32_t real_sum, nk_f32_t norm_scale) {
+NUMKONG_HELPER_DEVICE_INLINE nk_fui32_t nk_cross_norm_finalize_ampere_(nk_cross_norm_t norm, nk_u32_t integer_sum,
+                                                                       nk_f32_t real_sum, nk_f32_t norm_scale) {
     nk_fui32_t result;
     if (norm == nk_cross_norm_f32_k) result.f = ((nk_f32_t)integer_sum + real_sum) * norm_scale;
     else result.u = integer_sum;
@@ -630,25 +632,25 @@ NK_HELPER_DEVICE_INLINE nk_fui32_t nk_cross_norm_finalize_ampere_(nk_cross_norm_
 }
 
 /** 1 − dot / (‖a‖ ‖b‖) clamped at 0; with a zero norm, 0 when the dot is 0 and 1 otherwise. */
-NK_HELPER_DEVICE_INLINE nk_f32_t nk_f32_angular_ampere_(nk_f32_t dot, nk_f32_t row_norm, nk_f32_t column_norm) {
+NUMKONG_HELPER_DEVICE_INLINE nk_f32_t nk_f32_angular_ampere_(nk_f32_t dot, nk_f32_t row_norm, nk_f32_t column_norm) {
     if (!(row_norm > 0 && column_norm > 0)) return dot == 0 ? 0.0f : 1.0f;
     nk_f32_t const unclipped = 1.0f - dot * (rsqrtf(row_norm) * rsqrtf(column_norm));
     return unclipped > 0 ? unclipped : 0.0f;
 }
 
-NK_HELPER_DEVICE_INLINE nk_f64_t nk_f64_angular_ampere_(nk_f64_t dot, nk_f64_t row_norm, nk_f64_t column_norm) {
+NUMKONG_HELPER_DEVICE_INLINE nk_f64_t nk_f64_angular_ampere_(nk_f64_t dot, nk_f64_t row_norm, nk_f64_t column_norm) {
     if (!(row_norm > 0 && column_norm > 0)) return dot == 0 ? 0.0 : 1.0;
     nk_f64_t const unclipped = 1.0 - dot * (rsqrt(row_norm) * rsqrt(column_norm));
     return unclipped > 0 ? unclipped : 0.0;
 }
 
 /** √(‖a‖² + ‖b‖² − 2 · dot), with a negative radicand from rounding clamped to 0. */
-NK_HELPER_DEVICE_INLINE nk_f32_t nk_f32_euclidean_ampere_(nk_f32_t dot, nk_f32_t row_norm, nk_f32_t column_norm) {
+NUMKONG_HELPER_DEVICE_INLINE nk_f32_t nk_f32_euclidean_ampere_(nk_f32_t dot, nk_f32_t row_norm, nk_f32_t column_norm) {
     nk_f32_t const squared = row_norm + column_norm - 2.0f * dot;
     return squared > 0 ? sqrtf(squared) : 0.0f;
 }
 
-NK_HELPER_DEVICE_INLINE nk_f64_t nk_f64_euclidean_ampere_(nk_f64_t dot, nk_f64_t row_norm, nk_f64_t column_norm) {
+NUMKONG_HELPER_DEVICE_INLINE nk_f64_t nk_f64_euclidean_ampere_(nk_f64_t dot, nk_f64_t row_norm, nk_f64_t column_norm) {
     nk_f64_t const squared = row_norm + column_norm - 2.0 * dot;
     return squared > 0 ? sqrt(squared) : 0.0;
 }
@@ -659,10 +661,10 @@ NK_HELPER_DEVICE_INLINE nk_f64_t nk_f64_euclidean_ampere_(nk_f64_t dot, nk_f64_t
 
 /** Issues one 64-byte depth slab of A and B into a pipeline stage, 16 bytes per copy, 8
  *  copies per thread. */
-NK_HELPER_DEVICE_INLINE void nk_cross_stage_ampere_(unsigned char *a_stage, unsigned char *b_stage,
-                                                    nk_cross_tile_arguments_ampere_t const *arguments,
-                                                    nk_size_t first_row, nk_size_t first_column,
-                                                    nk_size_t slab_offset) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_cross_stage_ampere_(unsigned char *a_stage, unsigned char *b_stage,
+                                                         nk_cross_tile_arguments_ampere_t const *arguments,
+                                                         nk_size_t first_row, nk_size_t first_column,
+                                                         nk_size_t slab_offset) {
 #pragma unroll
     for (unsigned chunk = threadIdx.x; chunk < nk_cross_stage_bytes_ampere_k / 16; chunk += nk_cross_threads_ampere_k) {
         unsigned const tile_row = chunk >> 2, column = chunk & 3;
@@ -689,9 +691,9 @@ NK_HELPER_DEVICE_INLINE void nk_cross_stage_ampere_(unsigned char *a_stage, unsi
 
 /** Adds the squares of this thread's staged row, summing each slab apart before folding it into
  *  the running sum. */
-NK_HELPER_DEVICE_INLINE void nk_cross_stage_norm_ampere_(nk_cross_norm_update_ampere_t norm_update,
-                                                         unsigned char const *stage, nk_u32_t *integer_sum,
-                                                         nk_f32_t *real_sum) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_cross_stage_norm_ampere_(nk_cross_norm_update_ampere_t norm_update,
+                                                              unsigned char const *stage, nk_u32_t *integer_sum,
+                                                              nk_f32_t *real_sum) {
     uint4 const *row = (uint4 const *)(stage + threadIdx.x * nk_cross_slab_bytes_ampere_k);
     nk_f32_t slab_sum = 0;
     // The staging swizzle as the visiting order puts a quarter-warp's 16-byte reads on distinct banks.
@@ -722,11 +724,12 @@ NK_HELPER_DEVICE_INLINE void nk_cross_stage_norm_ampere_(nk_cross_norm_update_am
  *  thread; @c packed reads its column norms from @c b_norms. After the loop both go to the idle
  *  ring for the epilogue.
  */
-NK_HELPER_DEVICE_INLINE void nk_cross_tile_ampere_(nk_cross_multiply_ampere_t multiply, nk_cross_epilogue_t epilogue,
-                                                   nk_f32_t output_scale, nk_cross_triangle_t triangle,
-                                                   nk_cross_metric_t metric, nk_cross_norm_t norm,
-                                                   nk_cross_norm_update_ampere_t norm_update, nk_f32_t norm_scale,
-                                                   nk_cross_tile_arguments_ampere_t const *arguments) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_cross_tile_ampere_(nk_cross_multiply_ampere_t multiply,
+                                                        nk_cross_epilogue_t epilogue, nk_f32_t output_scale,
+                                                        nk_cross_triangle_t triangle, nk_cross_metric_t metric,
+                                                        nk_cross_norm_t norm, nk_cross_norm_update_ampere_t norm_update,
+                                                        nk_f32_t norm_scale,
+                                                        nk_cross_tile_arguments_ampere_t const *arguments) {
     __shared__ __align__(128) unsigned char staged[nk_cross_stages_ampere_k][2][nk_cross_stage_bytes_ampere_k];
 
     unsigned const lane = threadIdx.x & 31, warp = threadIdx.x >> 5;
@@ -867,8 +870,8 @@ NK_HELPER_DEVICE_INLINE void nk_cross_tile_ampere_(nk_cross_multiply_ampere_t mu
 
 /** Adds a × b into a running sum: one F64 FMA, or Dot2's TwoProd and TwoSum with both
  *  errors kept apart. */
-NK_HELPER_DEVICE_INLINE void nk_cross_fma_step_ampere_(nk_cross_accumulation_t accumulation, nk_f64_t a, nk_f64_t b,
-                                                       nk_f64_t *sum, nk_f64_t *compensation) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_cross_fma_step_ampere_(nk_cross_accumulation_t accumulation, nk_f64_t a,
+                                                            nk_f64_t b, nk_f64_t *sum, nk_f64_t *compensation) {
     if (accumulation == nk_cross_accumulation_f64_k) {
         *sum = __fma_rn(a, b, *sum);
         return;
@@ -882,8 +885,9 @@ NK_HELPER_DEVICE_INLINE void nk_cross_fma_step_ampere_(nk_cross_accumulation_t a
 }
 
 /** Merges the running sum of lane `lane ^ offset` into this one, through TwoSum under Dot2. */
-NK_HELPER_DEVICE_INLINE void nk_cross_fma_merge_lanes_ampere_(nk_cross_accumulation_t accumulation, unsigned offset,
-                                                              nk_f64_t *sum, nk_f64_t *compensation) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_cross_fma_merge_lanes_ampere_(nk_cross_accumulation_t accumulation,
+                                                                   unsigned offset, nk_f64_t *sum,
+                                                                   nk_f64_t *compensation) {
     nk_f64_t const other_sum = __shfl_xor_sync(0xFFFFFFFFu, *sum, offset);
     if (accumulation == nk_cross_accumulation_f64_k) {
         *sum = __dadd_rn(*sum, other_sum);
@@ -908,10 +912,10 @@ NK_HELPER_DEVICE_INLINE void nk_cross_fma_merge_lanes_ampere_(nk_cross_accumulat
  *  metric, each thread also squares the 4 A and, for @c symmetric, 4 B elements it loads, and the
  *  16 threads sharing a row merge their sums after the loop.
  */
-NK_HELPER_DEVICE_INLINE void nk_cross_fma_tile_ampere_(nk_cross_load_f64_ampere_t load,
-                                                       nk_cross_accumulation_t accumulation,
-                                                       nk_cross_triangle_t triangle, nk_cross_metric_t metric,
-                                                       nk_cross_tile_arguments_ampere_t const *arguments) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_cross_fma_tile_ampere_(nk_cross_load_f64_ampere_t load,
+                                                            nk_cross_accumulation_t accumulation,
+                                                            nk_cross_triangle_t triangle, nk_cross_metric_t metric,
+                                                            nk_cross_tile_arguments_ampere_t const *arguments) {
     // One extra column breaks the 64-element stride that would put a slab's stores on the same banks.
     __shared__ nk_f64_t a_slab[nk_cross_fma_slab_ampere_k][nk_cross_fma_tile_ampere_k + 1];
     __shared__ nk_f64_t b_slab[nk_cross_fma_slab_ampere_k][nk_cross_fma_tile_ampere_k + 1];
@@ -1033,8 +1037,8 @@ NK_HELPER_DEVICE_INLINE void nk_cross_fma_tile_ampere_(nk_cross_load_f64_ampere_
 
 /** Mirrors @c nk_define_cross_pack_size_: depth padded to whole slabs, plus one more when the
  *  stride is a power of 2. */
-NK_HELPER_INLINE nk_size_t nk_cross_padded_values_ampere_(nk_size_t depth, nk_size_t depth_simd_dimensions,
-                                                          nk_size_t dimensions_per_value, nk_size_t value_bytes) {
+NUMKONG_HELPER_INLINE nk_size_t nk_cross_padded_values_ampere_(nk_size_t depth, nk_size_t depth_simd_dimensions,
+                                                               nk_size_t dimensions_per_value, nk_size_t value_bytes) {
     nk_size_t values = nk_size_round_up_to_multiple_(depth, depth_simd_dimensions) / dimensions_per_value;
     nk_size_t const stride_bytes = values * value_bytes;
     if ((stride_bytes & (stride_bytes - 1)) == 0 && stride_bytes > 0)
@@ -1045,12 +1049,12 @@ NK_HELPER_INLINE nk_size_t nk_cross_padded_values_ampere_(nk_size_t depth, nk_si
 /** Validates the contract and launches as many blocks of @p kernel as stay resident, each walking
  *  @p tile × @p tile output tiles with a stride of the grid. @p b_norms is the packed column norms
  *  a @c packed metric reads, or null. */
-NK_HELPER_INLINE cudaError_t nk_cross_launch_ampere_(void const *kernel, unsigned tile, unsigned threads, void const *a,
-                                                     void const *b, void const *b_norms, void *c,
-                                                     nk_size_t result_bytes, nk_size_t row_start, nk_size_t row_end,
-                                                     nk_size_t column_count, nk_size_t depth, nk_size_t depth_bytes,
-                                                     nk_size_t a_stride, nk_size_t b_stride, nk_size_t c_stride,
-                                                     cudaStream_t stream) {
+NUMKONG_HELPER_INLINE cudaError_t nk_cross_launch_ampere_(void const *kernel, unsigned tile, unsigned threads,
+                                                          void const *a, void const *b, void const *b_norms, void *c,
+                                                          nk_size_t result_bytes, nk_size_t row_start,
+                                                          nk_size_t row_end, nk_size_t column_count, nk_size_t depth,
+                                                          nk_size_t depth_bytes, nk_size_t a_stride, nk_size_t b_stride,
+                                                          nk_size_t c_stride, cudaStream_t stream) {
     if ((((nk_size_t)a) | a_stride | ((nk_size_t)b) | b_stride) & 15 ||
         (((nk_size_t)c) | c_stride) & (result_bytes - 1))
         return cudaErrorMisalignedAddress;
@@ -1083,11 +1087,12 @@ NK_HELPER_INLINE cudaError_t nk_cross_launch_ampere_(void const *kernel, unsigne
 }
 
 /** Launches @p kernel with one warp per packed column, walked with a stride of the grid. */
-NK_HELPER_INLINE cudaError_t nk_cross_pack_launch_ampere_(void const *kernel, void const *b, nk_size_t column_count,
-                                                          nk_size_t depth, nk_size_t depth_bytes, nk_size_t b_stride,
-                                                          void *b_packed, nk_size_t columns_begin,
-                                                          nk_size_t columns_end, nk_size_t depth_values_padded,
-                                                          cudaStream_t stream) {
+NUMKONG_HELPER_INLINE cudaError_t nk_cross_pack_launch_ampere_(void const *kernel, void const *b,
+                                                               nk_size_t column_count, nk_size_t depth,
+                                                               nk_size_t depth_bytes, nk_size_t b_stride,
+                                                               void *b_packed, nk_size_t columns_begin,
+                                                               nk_size_t columns_end, nk_size_t depth_values_padded,
+                                                               cudaStream_t stream) {
     nk_size_t const columns = columns_end > columns_begin ? columns_end - columns_begin : 0;
     nk_size_t const needed = nk_size_divide_round_up_(columns, nk_cross_pack_warps_ampere_k);
     nk_size_t const blocks = needed == 0 ? 1 : needed < 65535 ? needed : 65535;
@@ -1110,7 +1115,7 @@ NK_HELPER_INLINE cudaError_t nk_cross_pack_launch_ampere_(void const *kernel, vo
  *  @sa nk_define_cross_packed_shape_ for the host-resident original.
  */
 #define nk_define_cross_cuda_packed_shape_(api_name, input_type_name, isa_suffix)                                \
-    NK_API_COMPTIME cudaError_t nk_##api_name##_packed_shape_##input_type_name##_##isa_suffix(                   \
+    NUMKONG_API_COMPTIME cudaError_t nk_##api_name##_packed_shape_##input_type_name##_##isa_suffix(              \
         void const *b_packed, nk_size_t *width, nk_size_t *depth, cudaStream_t stream) {                         \
         nk_cross_packed_buffer_header_t header;                                                                  \
         cudaError_t status = cudaMemcpyAsync(&header, b_packed, sizeof(header), cudaMemcpyDeviceToHost, stream); \
@@ -1163,7 +1168,7 @@ NK_HELPER_INLINE cudaError_t nk_cross_pack_launch_ampere_(void const *kernel, vo
             if (lane == 0) norms[column] = norm;                                                                      \
         }                                                                                                             \
     }                                                                                                                 \
-    NK_API_COMPTIME cudaError_t nk_##api_name##_pack_##input_type_name##_##isa_suffix(                                \
+    NUMKONG_API_COMPTIME cudaError_t nk_##api_name##_pack_##input_type_name##_##isa_suffix(                           \
         nk_##input_value_type##_t const *b, nk_size_t column_count, nk_size_t depth, nk_size_t b_stride_in_bytes,     \
         void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, cudaStream_t stream) {                        \
         nk_size_t const depth_values_padded = nk_cross_padded_values_ampere_(                                         \
@@ -1193,7 +1198,7 @@ NK_HELPER_INLINE cudaError_t nk_cross_pack_launch_ampere_(void const *kernel, vo
         nk_cross_tile_ampere_(multiply_fn, epilogue, output_scale, nk_cross_triangle_full_k, nk_cross_metric_dot_k,    \
                               nk_cross_norm_f32_k, 0, 1.0f, &arguments);                                               \
     }                                                                                                                  \
-    NK_API_COMPTIME cudaError_t nk_##api_name##_packed_##input_type_name##_##isa_suffix(                               \
+    NUMKONG_API_COMPTIME cudaError_t nk_##api_name##_packed_##input_type_name##_##isa_suffix(                          \
         nk_##input_value_type##_t const *a_matrix, void const *b_packed_buffer, nk_##result_value_type##_t *c_matrix,  \
         nk_size_t row_count, nk_size_t column_count, nk_size_t depth, nk_size_t a_stride_in_bytes,                     \
         nk_size_t c_stride_in_bytes, cudaStream_t stream) {                                                            \
@@ -1222,7 +1227,7 @@ NK_HELPER_INLINE cudaError_t nk_cross_pack_launch_ampere_(void const *kernel, vo
         nk_cross_tile_ampere_(multiply_fn, epilogue, output_scale, nk_cross_triangle_upper_k, nk_cross_metric_dot_k,   \
                               nk_cross_norm_f32_k, 0, 1.0f, &arguments);                                               \
     }                                                                                                                  \
-    NK_API_COMPTIME cudaError_t nk_##api_name##_symmetric_##input_type_name##_##isa_suffix(                            \
+    NUMKONG_API_COMPTIME cudaError_t nk_##api_name##_symmetric_##input_type_name##_##isa_suffix(                       \
         nk_##input_value_type##_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, \
         nk_##result_value_type##_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start,                     \
         nk_size_t row_count, cudaStream_t stream) {                                                                    \
@@ -1250,7 +1255,7 @@ NK_HELPER_INLINE cudaError_t nk_cross_pack_launch_ampere_(void const *kernel, vo
             nk_cross_tile_arguments_ampere_t arguments) {                                                              \
         nk_cross_fma_tile_ampere_(load_fn, accumulation, nk_cross_triangle_full_k, nk_cross_metric_dot_k, &arguments); \
     }                                                                                                                  \
-    NK_API_COMPTIME cudaError_t nk_##api_name##_packed_##input_type_name##_##isa_suffix(                               \
+    NUMKONG_API_COMPTIME cudaError_t nk_##api_name##_packed_##input_type_name##_##isa_suffix(                          \
         nk_##input_value_type##_t const *a_matrix, void const *b_packed_buffer, nk_##result_value_type##_t *c_matrix,  \
         nk_size_t row_count, nk_size_t column_count, nk_size_t depth, nk_size_t a_stride_in_bytes,                     \
         nk_size_t c_stride_in_bytes, cudaStream_t stream) {                                                            \
@@ -1278,7 +1283,7 @@ NK_HELPER_INLINE cudaError_t nk_cross_pack_launch_ampere_(void const *kernel, vo
         nk_cross_fma_tile_ampere_(load_fn, accumulation, nk_cross_triangle_upper_k, nk_cross_metric_dot_k,             \
                                   &arguments);                                                                         \
     }                                                                                                                  \
-    NK_API_COMPTIME cudaError_t nk_##api_name##_symmetric_##input_type_name##_##isa_suffix(                            \
+    NUMKONG_API_COMPTIME cudaError_t nk_##api_name##_symmetric_##input_type_name##_##isa_suffix(                       \
         nk_##input_value_type##_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, \
         nk_##result_value_type##_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start,                     \
         nk_size_t row_count, cudaStream_t stream) {                                                                    \
@@ -1295,8 +1300,8 @@ NK_HELPER_INLINE cudaError_t nk_cross_pack_launch_ampere_(void const *kernel, vo
 
 #pragma region Multiplies
 
-NK_HELPER_DEVICE_INLINE void nk_dots_bf16_multiply_ampere_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
-                                                           nk_u32_t const b[8][2]) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_dots_bf16_multiply_ampere_(nk_fui32_t accumulators[4][8][4],
+                                                                nk_u32_t const a[4][4], nk_u32_t const b[8][2]) {
 #pragma unroll
     for (unsigned row_tile = 0; row_tile < 4; ++row_tile)
 #pragma unroll
@@ -1304,8 +1309,8 @@ NK_HELPER_DEVICE_INLINE void nk_dots_bf16_multiply_ampere_(nk_fui32_t accumulato
             nk_mma_bf16_ampere_(accumulators[row_tile][column_tile], a[row_tile], b[column_tile][0], b[column_tile][1]);
 }
 
-NK_HELPER_DEVICE_INLINE void nk_dots_f16_multiply_ampere_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
-                                                          nk_u32_t const b[8][2]) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_dots_f16_multiply_ampere_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
+                                                               nk_u32_t const b[8][2]) {
 #pragma unroll
     for (unsigned row_tile = 0; row_tile < 4; ++row_tile)
 #pragma unroll
@@ -1315,9 +1320,9 @@ NK_HELPER_DEVICE_INLINE void nk_dots_f16_multiply_ampere_(nk_fui32_t accumulator
 
 /** Widens 1-byte fragments into F16: 4 codes per register become the depth of
  *  two m16n8k16 steps. */
-NK_HELPER_DEVICE_INLINE void nk_dots_widened_f16_multiply_ampere_(nk_cross_widen_ampere_t widen,
-                                                                  nk_fui32_t accumulators[4][8][4],
-                                                                  nk_u32_t const a[4][4], nk_u32_t const b[8][2]) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_dots_widened_f16_multiply_ampere_(nk_cross_widen_ampere_t widen,
+                                                                       nk_fui32_t accumulators[4][8][4],
+                                                                       nk_u32_t const a[4][4], nk_u32_t const b[8][2]) {
     nk_u32_t b_low[8][2], b_high[8][2];
 #pragma unroll
     for (unsigned column_tile = 0; column_tile < 8; ++column_tile)
@@ -1342,25 +1347,25 @@ NK_HELPER_DEVICE_INLINE void nk_dots_widened_f16_multiply_ampere_(nk_cross_widen
     }
 }
 
-NK_HELPER_DEVICE_INLINE void nk_dots_e5m2_multiply_ampere_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
-                                                           nk_u32_t const b[8][2]) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_dots_e5m2_multiply_ampere_(nk_fui32_t accumulators[4][8][4],
+                                                                nk_u32_t const a[4][4], nk_u32_t const b[8][2]) {
     nk_dots_widened_f16_multiply_ampere_(nk_e5m2x4_to_f16x4_ampere_, accumulators, a, b);
 }
 
-NK_HELPER_DEVICE_INLINE void nk_dots_e4m3_multiply_ampere_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
-                                                           nk_u32_t const b[8][2]) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_dots_e4m3_multiply_ampere_(nk_fui32_t accumulators[4][8][4],
+                                                                nk_u32_t const a[4][4], nk_u32_t const b[8][2]) {
     nk_dots_widened_f16_multiply_ampere_(nk_e4m3x4_to_f16x4_ampere_, accumulators, a, b);
 }
 
-NK_HELPER_DEVICE_INLINE void nk_dots_e3m2_multiply_ampere_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
-                                                           nk_u32_t const b[8][2]) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_dots_e3m2_multiply_ampere_(nk_fui32_t accumulators[4][8][4],
+                                                                nk_u32_t const a[4][4], nk_u32_t const b[8][2]) {
     nk_dots_widened_f16_multiply_ampere_(nk_e3m2x4_to_f16x4_ampere_, accumulators, a, b);
 }
 
 /** E2M3 against the scaled i8 its pack produced: only A converts, one integer step per
  *  16 × 8 output. */
-NK_HELPER_DEVICE_INLINE void nk_dots_e2m3_packed_multiply_ampere_(nk_fui32_t accumulators[4][8][4],
-                                                                  nk_u32_t const a[4][4], nk_u32_t const b[8][2]) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_dots_e2m3_packed_multiply_ampere_(nk_fui32_t accumulators[4][8][4],
+                                                                       nk_u32_t const a[4][4], nk_u32_t const b[8][2]) {
 #pragma unroll
     for (unsigned row_tile = 0; row_tile < 4; ++row_tile) {
         nk_u32_t const a_scaled[4] = {
@@ -1373,8 +1378,8 @@ NK_HELPER_DEVICE_INLINE void nk_dots_e2m3_packed_multiply_ampere_(nk_fui32_t acc
 }
 
 /** E2M3 on both sides, for @c symmetric, where B is the raw codes again. */
-NK_HELPER_DEVICE_INLINE void nk_dots_e2m3_multiply_ampere_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
-                                                           nk_u32_t const b[8][2]) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_dots_e2m3_multiply_ampere_(nk_fui32_t accumulators[4][8][4],
+                                                                nk_u32_t const a[4][4], nk_u32_t const b[8][2]) {
     nk_u32_t b_scaled[8][2];
 #pragma unroll
     for (unsigned column_tile = 0; column_tile < 8; ++column_tile)
@@ -1386,10 +1391,10 @@ NK_HELPER_DEVICE_INLINE void nk_dots_e2m3_multiply_ampere_(nk_fui32_t accumulato
 
 /** Widens nibble fragments into 1-byte ones: 8 nibbles per register become the depth of
  *  two m16n8k32 steps. */
-NK_HELPER_DEVICE_INLINE void nk_dots_widened_i8_multiply_ampere_(nk_cross_widen_ampere_t widen,
-                                                                 nk_cross_mma_ampere_t mma,
-                                                                 nk_fui32_t accumulators[4][8][4],
-                                                                 nk_u32_t const a[4][4], nk_u32_t const b[8][2]) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_dots_widened_i8_multiply_ampere_(nk_cross_widen_ampere_t widen,
+                                                                      nk_cross_mma_ampere_t mma,
+                                                                      nk_fui32_t accumulators[4][8][4],
+                                                                      nk_u32_t const a[4][4], nk_u32_t const b[8][2]) {
     nk_u32_t b_low[8][2], b_high[8][2];
 #pragma unroll
     for (unsigned column_tile = 0; column_tile < 8; ++column_tile)
@@ -1412,13 +1417,13 @@ NK_HELPER_DEVICE_INLINE void nk_dots_widened_i8_multiply_ampere_(nk_cross_widen_
     }
 }
 
-NK_HELPER_DEVICE_INLINE void nk_dots_e2m1_multiply_ampere_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
-                                                           nk_u32_t const b[8][2]) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_dots_e2m1_multiply_ampere_(nk_fui32_t accumulators[4][8][4],
+                                                                nk_u32_t const a[4][4], nk_u32_t const b[8][2]) {
     nk_dots_widened_i8_multiply_ampere_(nk_e2m1x8_to_i8x8_ampere_, nk_mma_i8_ampere_, accumulators, a, b);
 }
 
-NK_HELPER_DEVICE_INLINE void nk_dots_i8_multiply_ampere_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
-                                                         nk_u32_t const b[8][2]) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_dots_i8_multiply_ampere_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
+                                                              nk_u32_t const b[8][2]) {
 #pragma unroll
     for (unsigned row_tile = 0; row_tile < 4; ++row_tile)
 #pragma unroll
@@ -1426,8 +1431,8 @@ NK_HELPER_DEVICE_INLINE void nk_dots_i8_multiply_ampere_(nk_fui32_t accumulators
             nk_mma_i8_ampere_(accumulators[row_tile][column_tile], a[row_tile], b[column_tile][0], b[column_tile][1]);
 }
 
-NK_HELPER_DEVICE_INLINE void nk_dots_u8_multiply_ampere_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
-                                                         nk_u32_t const b[8][2]) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_dots_u8_multiply_ampere_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
+                                                              nk_u32_t const b[8][2]) {
 #pragma unroll
     for (unsigned row_tile = 0; row_tile < 4; ++row_tile)
 #pragma unroll
@@ -1439,20 +1444,20 @@ NK_HELPER_DEVICE_INLINE void nk_dots_u8_multiply_ampere_(nk_fui32_t accumulators
  *  8-bit steps instead. */
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 900
 
-NK_HELPER_DEVICE_INLINE void nk_dots_i4_multiply_ampere_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
-                                                         nk_u32_t const b[8][2]) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_dots_i4_multiply_ampere_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
+                                                              nk_u32_t const b[8][2]) {
     nk_dots_widened_i8_multiply_ampere_(nk_i4x8_to_i8x8_ampere_, nk_mma_i8_ampere_, accumulators, a, b);
 }
 
-NK_HELPER_DEVICE_INLINE void nk_dots_u4_multiply_ampere_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
-                                                         nk_u32_t const b[8][2]) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_dots_u4_multiply_ampere_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
+                                                              nk_u32_t const b[8][2]) {
     nk_dots_widened_i8_multiply_ampere_(nk_u4x8_to_u8x8_ampere_, nk_mma_u8_ampere_, accumulators, a, b);
 }
 
 #else
 
-NK_HELPER_DEVICE_INLINE void nk_dots_i4_multiply_ampere_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
-                                                         nk_u32_t const b[8][2]) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_dots_i4_multiply_ampere_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
+                                                              nk_u32_t const b[8][2]) {
 #pragma unroll
     for (unsigned row_tile = 0; row_tile < 4; ++row_tile)
 #pragma unroll
@@ -1460,8 +1465,8 @@ NK_HELPER_DEVICE_INLINE void nk_dots_i4_multiply_ampere_(nk_fui32_t accumulators
             nk_mma_i4_ampere_(accumulators[row_tile][column_tile], a[row_tile], b[column_tile][0], b[column_tile][1]);
 }
 
-NK_HELPER_DEVICE_INLINE void nk_dots_u4_multiply_ampere_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
-                                                         nk_u32_t const b[8][2]) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_dots_u4_multiply_ampere_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
+                                                              nk_u32_t const b[8][2]) {
 #pragma unroll
     for (unsigned row_tile = 0; row_tile < 4; ++row_tile)
 #pragma unroll
@@ -1666,5 +1671,5 @@ nk_define_cross_cuda_packed_(dots, u4, ampere, u4x2, u4x2, u32, nk_dots_u4_multi
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_AMPERE
-#endif // NK_DOTS_AMPERE_CUH
+#endif // NUMKONG_TARGET_AMPERE
+#endif // NUMKONG_DOTS_AMPERE_CUH

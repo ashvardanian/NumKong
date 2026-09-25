@@ -1,5 +1,5 @@
 /**
- *  @file test/test.hpp
+ *  @file test/harness.hpp
  *  @author Ash Vardanian
  *  @date December 28, 2025
  *  @brief C++ test suite with precision analysis using double-double arithmetic.
@@ -10,93 +10,91 @@
  *  Environment Variables:
  *
  *  @verbatim
- *  NK_FILTER=<pattern>           - Filter tests by name RegEx (default: run all)
- *  NK_SEED=N                     - RNG seed (default: 42)
+ *  NUMKONG_FILTER=<pattern>           - Filter tests by name RegEx (default: run all)
+ *  NUMKONG_SEED=N                     - RNG seed, or random to draw one (default: 42)
  *
- *  NK_DENSE_DIMENSIONS=N         - Vector dimension for dot/spatial tests (default: 1536)
- *  NK_CURVED_DIMENSIONS=N        - Vector dimension for curved tests (default: 64)
- *  NK_SPARSE_DIMENSIONS=N        - Vector dimension for sparse tests (default: 256)
- *  NK_MESH_POINTS=N              - Point count for mesh tests (default: 1000)
- *  NK_MATRIX_HEIGHT=N            - GEMM M dimension (default: 1024)
- *  NK_MATRIX_WIDTH=N             - GEMM N dimension (default: 128)
- *  NK_MATRIX_DEPTH=N             - GEMM K dimension (default: 1536)
+ *  NUMKONG_DENSE_DIMENSIONS=N[,...]   - Vector dimension for dot/spatial tests (default: 1536)
+ *  NUMKONG_CURVED_DIMENSIONS=N[,...]  - Vector dimension for curved tests (default: 64)
+ *  NUMKONG_SPARSE_DIMENSIONS=N[,...]  - Vector dimension for sparse tests (default: 256)
+ *  NUMKONG_MESH_POINTS=N              - Point count for mesh tests (default: 1000)
+ *  NUMKONG_MATRIX_HEIGHT=N[,...]      - GEMM M dimension (default: 1024)
+ *  NUMKONG_MATRIX_WIDTH=N[,...]       - GEMM N dimension (default: 128)
+ *  NUMKONG_MATRIX_DEPTH=N[,...]       - GEMM K dimension (default: 1536)
  *
- *  NK_IN_QEMU                    - Set when running under QEMU, relaxing accuracy thresholds
- *  NK_TEST_ASSERT=1              - Assert on failed accuracy checks (default: 0)
- *  NK_TEST_VERBOSE=1             - Show per-dimension ULP breakdown (default: 0)
- *  NK_ULP_THRESHOLD_F32=N        - Max allowed ULP for f32 (default: 4)
- *  NK_ULP_THRESHOLD_F16=N        - Max allowed ULP for f16 (default: 32)
- *  NK_ULP_THRESHOLD_BF16=N       - Max allowed ULP for bf16 (default: 256)
- *  NK_BUDGET_SECS=<seconds>      - Time budget per kernel in seconds (default: 1)
- *  NK_RANDOM_DISTRIBUTION=<type> - uniform, lognormal or cauchy (default: lognormal)
+ *  NUMKONG_IN_QEMU=1                  - Shrink shapes for emulated runs; unset, 0 or false keep them
+ *  NUMKONG_ASSERT=1                   - Exit 1 when any kernel fails its accuracy check (default: 0)
+ *  NUMKONG_VERBOSE=1                  - Show per-dimension ULP breakdown (default: 0)
+ *  NUMKONG_ULP_THRESHOLD_F32=N        - Max allowed ULP for f32 (default: 4)
+ *  NUMKONG_ULP_THRESHOLD_F16=N        - Max allowed ULP for f16 (default: 32)
+ *  NUMKONG_ULP_THRESHOLD_BF16=N       - Max allowed ULP for bf16 (default: 256)
+ *  NUMKONG_BUDGET_SECS=<seconds>      - Time budget per kernel in seconds (default: 1)
+ *  NUMKONG_RANDOM_DISTRIBUTION=<type> - uniform_k, lognormal_k or cauchy_k (default: lognormal_k)
  *  @endverbatim
  */
 
 #pragma once
-#ifndef NK_TEST_HPP
-#define NK_TEST_HPP
+#ifndef NUMKONG_TEST_HARNESS_HPP
+#define NUMKONG_TEST_HARNESS_HPP
 
 #include <cmath>   // `std::fabs`, `std::isnan`, `std::isinf`
 #include <cstdint> // `std::uint64_t`, `std::int32_t`, `std::int64_t`
-#include <cstdio>  // `std::printf`, `std::fflush`
-#include <cstdlib> // `std::abort`
-#include <cstring> // `std::memcpy`, `std::strstr`
-#if __has_include(<unistd.h>)
-#include <unistd.h> // `isatty`
-#endif
+#include <cstdio>  // `std::fflush`, `stdout`, `stderr`
+#include <cstdlib> // `std::abort`, `std::getenv`, `std::strtod`
+#include <cstring> // `std::memcpy`, `std::strstr`, `std::strcmp`, `std::strcspn`
 
-#include <algorithm>   // `std::min`, `std::max`
-#include <array>       // `std::array`
-#include <cassert>     // `assert`
-#include <chrono>      // `std::chrono::steady_clock`, `std::chrono::duration_cast`
-#include <complex>     // `std::complex`
-#include <limits>      // `std::numeric_limits`
-#include <new>         // `std::bad_alloc`
-#include <optional>    // `std::optional`
-#include <type_traits> // `std::is_same_v`
+#include <algorithm>    // `std::min`, `std::max`
+#include <array>        // `std::array`
+#include <cassert>      // `assert`
+#include <charconv>     // `std::from_chars`
+#include <chrono>       // `std::chrono::steady_clock`, `std::chrono::duration`
+#include <complex>      // `std::complex`
+#include <limits>       // `std::numeric_limits`
+#include <new>          // `std::bad_alloc`
+#include <optional>     // `std::optional`
+#include <random>       // `std::random_device`
+#include <system_error> // `std::errc`
+#include <type_traits>  // `std::is_same_v`
 
-#if NK_TEST_USE_OPENMP
-#include <omp.h>
-#endif
+#include <fmt/base.h> // `fmt::print`, `fmt::println`
 
 #if __has_include(<regex.h>)
 #include <regex.h>
-#define NK_HAS_POSIX_REGEX_ 1
+#define NUMKONG_HAS_POSIX_REGEX_ 1
 #else
 #include <regex>
-#define NK_HAS_POSIX_REGEX_ 0
+#define NUMKONG_HAS_POSIX_REGEX_ 0
 #endif
 
-#ifndef NK_ALLOW_ISA_REDIRECT
-#define NK_ALLOW_ISA_REDIRECT 0
+#ifndef NUMKONG_ALLOW_ISA_REDIRECT
+#define NUMKONG_ALLOW_ISA_REDIRECT 0
 #endif
 
 /** Optional BLAS/MKL integration for precision comparison */
-#ifndef NK_COMPARE_TO_BLAS
-#define NK_COMPARE_TO_BLAS 0
+#ifndef NUMKONG_COMPARE_TO_BLAS
+#define NUMKONG_COMPARE_TO_BLAS 0
 #endif
-#ifndef NK_COMPARE_TO_MKL
-#define NK_COMPARE_TO_MKL 0
+#ifndef NUMKONG_COMPARE_TO_MKL
+#define NUMKONG_COMPARE_TO_MKL 0
 #endif
-#ifndef NK_COMPARE_TO_ACCELERATE
-#define NK_COMPARE_TO_ACCELERATE 0
+#ifndef NUMKONG_COMPARE_TO_ACCELERATE
+#define NUMKONG_COMPARE_TO_ACCELERATE 0
 #endif
 
 /* Include reference library headers - MKL, Accelerate, or generic CBLAS */
-#if NK_COMPARE_TO_MKL
+#if NUMKONG_COMPARE_TO_MKL
 #include <mkl.h> // MKL includes its own CBLAS interface
-#elif NK_COMPARE_TO_ACCELERATE
+#elif NUMKONG_COMPARE_TO_ACCELERATE
 #include <Accelerate/Accelerate.h> // Apple Accelerate framework
-#elif NK_COMPARE_TO_BLAS
+#elif NUMKONG_COMPARE_TO_BLAS
 #include <cblas.h> // Generic CBLAS (OpenBLAS, etc.)
 #endif
 
 /* In tests we want to make sure our custom floating-point routines are used instead of
  * compiler-provided native types. */
-#undef NK_NATIVE_F16
-#define NK_NATIVE_F16 0
-#undef NK_NATIVE_BF16
-#define NK_NATIVE_BF16 0
+#undef NUMKONG_NATIVE_F16
+#define NUMKONG_NATIVE_F16 0
+#undef NUMKONG_NATIVE_BF16
+#define NUMKONG_NATIVE_BF16 0
 
 #include "numkong/capabilities.h" // `nk_capabilities_detected`, `nk_capability_t`
 #include "numkong/types.hpp"
@@ -162,6 +160,28 @@ using nk::nvfp4_t;
 using steady_clock = std::chrono::steady_clock;
 using time_point = steady_clock::time_point;
 
+/** Reads @p name from the environment as @p value_type_, or @p fallback when it is unset or empty.
+ *  Aborts, naming the variable, when its text does not parse: a typo never passes as a default. */
+template <typename value_type_>
+[[nodiscard]] value_type_ env_variable(char const *name, value_type_ fallback) noexcept {
+    char const *const text = std::getenv(name);
+    if (!text || !*text) return fallback;
+    if constexpr (std::is_same_v<value_type_, char const *>) return text;
+    else if constexpr (std::is_same_v<value_type_, bool>) return std::strcmp(text, "0") && std::strcmp(text, "false");
+    else {
+        value_type_ value {};
+        char *stop = nullptr;
+        if constexpr (std::is_floating_point_v<value_type_>) value = static_cast<value_type_>(std::strtod(text, &stop));
+        else {
+            auto const [end, error] = std::from_chars(text, text + std::strlen(text), value);
+            stop = error == std::errc {} ? const_cast<char *>(end) : const_cast<char *>(text);
+        }
+        if (stop != text && *stop == '\0') return value;
+        fmt::println(stderr, "{}=\"{}\" does not parse", name, text);
+        std::abort();
+    }
+}
+
 /**
  *  @brief Maps scalar types to appropriate reference types for ULP testing.
  *
@@ -219,62 +239,71 @@ inline constexpr comparison_family_spec_t comparison_family_spec(comparison_fami
 
 struct test_config_t {
 
-    /** Assert on failed accuracy checks. Override: `NK_TEST_ASSERT=1`. */
+    /** Exit 1 when any kernel fails its accuracy check. Override: `NUMKONG_ASSERT=1`. */
     bool assert_on_failure = false;
 
-    /** Show per-dimension ULP breakdown. Override: `NK_TEST_VERBOSE=1`. */
+    /** Show per-dimension ULP breakdown. Override: `NUMKONG_VERBOSE=1`. */
     bool verbose = false;
 
-    /** Relaxed accuracy for emulated SIMD. Override: @c NK_IN_QEMU. */
+    /** Shrinks shapes for emulated SIMD. Override: @c NUMKONG_IN_QEMU. */
     bool running_in_qemu = false;
 
-    /** Max allowed ULP for f32. Override: @c NK_ULP_THRESHOLD_F32. */
+    /** Max allowed ULP for f32. Override: @c NUMKONG_ULP_THRESHOLD_F32. */
     std::uint64_t ulp_threshold_f32 = 4;
 
-    /** Max allowed ULP for f16. Override: @c NK_ULP_THRESHOLD_F16. */
+    /** Max allowed ULP for f16. Override: @c NUMKONG_ULP_THRESHOLD_F16. */
     std::uint64_t ulp_threshold_f16 = 32;
 
-    /** Max allowed ULP for bf16. Override: @c NK_ULP_THRESHOLD_BF16. */
+    /** Max allowed ULP for bf16. Override: @c NUMKONG_ULP_THRESHOLD_BF16. */
     std::uint64_t ulp_threshold_bf16 = 256;
 
     /** Max absolute error as a fraction of the largest reference magnitude, for the
-     *  normalized-reduction family. Override: @c NK_SCALE_THRESHOLD. */
+     *  normalized-reduction family. Override: @c NUMKONG_SCALE_THRESHOLD. */
     nk_f64_t scale_threshold = 0.02;
 
-    /** Time budget per kernel in milliseconds. Override: @c NK_BUDGET_SECS. */
-    std::size_t time_budget_ms = 1000;
+    /** Time budget per kernel in seconds. Override: @c NUMKONG_BUDGET_SECS. */
+    double budget_seconds = 1;
 
-    /** Random seed for reproducible tests. Override: @c NK_SEED. */
+    /** The binary's @c argv[0], which closes every rerun line. */
+    char const *program = "";
+
+    /** Random seed for reproducible tests. Override: @c NUMKONG_SEED, where random draws one. */
     std::uint32_t seed = 42;
 
-    /** Filter tests by name (regex or substring). Override: @c NK_FILTER. */
+    /** Filter tests by name (regex or substring), set through @c set_filter. Override: @c NUMKONG_FILTER. */
     char const *filter = nullptr;
+#if NUMKONG_HAS_POSIX_REGEX_
+    regex_t filter_regex {};
+    bool filter_compiled = false;
+#else
+    std::optional<std::regex> filter_regex;
+#endif
 
-    /** Random distribution for test inputs. Override: @c NK_RANDOM_DISTRIBUTION. */
+    /** Random distribution for test inputs. Override: @c NUMKONG_RANDOM_DISTRIBUTION. */
     random_distribution_kind_t distribution = random_distribution_kind_t::lognormal_k;
 
-    /** For dot products, spatial metrics. Override: @c NK_DENSE_DIMENSIONS. */
+    /** For dot products, spatial metrics. Override: @c NUMKONG_DENSE_DIMENSIONS. */
     std::size_t dense_dimensions = 1536;
 
-    /** For curved metrics, quadratic in dimensions. Override: @c NK_CURVED_DIMENSIONS. */
+    /** For curved metrics, quadratic in dimensions. Override: @c NUMKONG_CURVED_DIMENSIONS. */
     std::size_t curved_dimensions = 64;
 
-    /** For sparse set intersection and sparse dot. Override: @c NK_SPARSE_DIMENSIONS. */
+    /** For sparse set intersection and sparse dot. Override: @c NUMKONG_SPARSE_DIMENSIONS. */
     std::size_t sparse_dimensions = 256;
 
-    /** Number of 3D points for RMSD, Kabsch. Override: @c NK_MESH_POINTS. */
+    /** Number of 3D points for RMSD, Kabsch. Override: @c NUMKONG_MESH_POINTS. */
     std::size_t mesh_points = 1000;
 
-    /** GEMM M dimension. Override: @c NK_MATRIX_HEIGHT. */
+    /** GEMM M dimension. Override: @c NUMKONG_MATRIX_HEIGHT. */
     std::size_t matrix_height = 1024;
 
-    /** GEMM N dimension. Override: @c NK_MATRIX_WIDTH. */
+    /** GEMM N dimension. Override: @c NUMKONG_MATRIX_WIDTH. */
     std::size_t matrix_width = 128;
 
-    /** GEMM K dimension. Override: @c NK_MATRIX_DEPTH. */
+    /** GEMM K dimension. Override: @c NUMKONG_MATRIX_DEPTH. */
     std::size_t matrix_depth = 1536;
 
-    /** Max angular separation in degrees for geospatial tests. Override: @c NK_MAX_COORD_ANGLE. */
+    /** Max geospatial angular separation, in degrees. Override: @c NUMKONG_MAX_COORD_ANGLE. */
     float max_coord_angle = 180.0f;
 
     /** Count of kernels that ran their accuracy checks. */
@@ -283,87 +312,87 @@ struct test_config_t {
     /** Count of kernels that failed the configured accuracy checks. */
     std::size_t failure_count = 0;
 
-    bool should_run(char const *test_name) const {
-        if (!filter) return true;
-#if NK_HAS_POSIX_REGEX_
-        regex_t pattern;
-        int return_code = regcomp(&pattern, filter, REG_EXTENDED | REG_NOSUB);
-        if (return_code != 0) return std::strstr(test_name, filter) != nullptr;
-        return_code = regexec(&pattern, test_name, 0, nullptr, 0);
-        regfree(&pattern);
-        return return_code == 0;
+    /** Compiles @p pattern as an extended regex; an invalid one matches as a substring instead. */
+    void set_filter(char const *pattern) noexcept {
+        filter = pattern;
+#if NUMKONG_HAS_POSIX_REGEX_
+        if (filter_compiled) regfree(&filter_regex);
+        filter_compiled = pattern && regcomp(&filter_regex, pattern, REG_EXTENDED | REG_NOSUB) == 0;
 #else
+        filter_regex.reset();
         try {
-            std::regex pattern(filter);
-            return std::regex_search(test_name, pattern);
+            if (pattern) filter_regex.emplace(pattern);
         }
         catch (std::regex_error const &) {
-            return std::strstr(test_name, filter) != nullptr;
         }
 #endif
     }
 
-    /** Applies the `NK_*` environment overrides on top of whatever the command line already set. */
-    void load_environment() {
-        if (std::getenv("NK_IN_QEMU")) running_in_qemu = true;
-        if (char const *env = std::getenv("NK_TEST_ASSERT")) assert_on_failure = std::atoi(env) != 0;
-        if (char const *env = std::getenv("NK_TEST_VERBOSE")) verbose = std::atoi(env) != 0;
-        if (char const *env = std::getenv("NK_ULP_THRESHOLD_F32")) ulp_threshold_f32 = std::atoll(env);
-        if (char const *env = std::getenv("NK_ULP_THRESHOLD_F16")) ulp_threshold_f16 = std::atoll(env);
-        if (char const *env = std::getenv("NK_ULP_THRESHOLD_BF16")) ulp_threshold_bf16 = std::atoll(env);
-        if (char const *env = std::getenv("NK_SCALE_THRESHOLD")) scale_threshold = std::atof(env);
-        if (char const *env = std::getenv("NK_SEED")) seed = std::atoll(env);
-        if (!filter) filter = std::getenv("NK_FILTER"); // e.g., "dot", "angular", "kld"
+    bool should_run(char const *test_name) const noexcept {
+        if (!filter) return true;
+#if NUMKONG_HAS_POSIX_REGEX_
+        if (filter_compiled) return regexec(&filter_regex, test_name, 0, nullptr, 0) == 0;
+#else
+        if (filter_regex) return std::regex_search(test_name, *filter_regex);
+#endif
+        return std::strstr(test_name, filter) != nullptr;
+    }
 
-        if (time_budget_ms == 1000) {
-            if (char const *env = std::getenv("NK_BUDGET_SECS")) {
-                double seconds = std::atof(env);
-                if (seconds > 0) time_budget_ms = static_cast<std::size_t>(seconds * 1000);
+    /** Applies the `NUMKONG_*` environment overrides, which the command line, parsed afterwards,
+     *  overrides in turn. */
+    void load_environment() noexcept {
+        auto const positive = [](char const *name, auto fallback) noexcept {
+            auto const value = env_variable(name, fallback);
+            if (value > 0) return value;
+            fmt::println(stderr, "{} must be positive", name);
+            std::abort();
+        };
+        // Python and JS take a comma list of dimensions, of which C++ runs the first
+        auto const dimension = [](char const *name, std::size_t fallback) noexcept {
+            char const *const text = env_variable<char const *>(name, nullptr);
+            if (!text) return fallback;
+            char const *const first_end = text + std::strcspn(text, ",");
+            std::size_t value = 0;
+            auto const [end, error] = std::from_chars(text, first_end, value);
+            if (error == std::errc {} && end == first_end && value > 0) return value;
+            fmt::println(stderr, "{}=\"{}\" does not start with a positive count", name, text);
+            std::abort();
+        };
+        running_in_qemu = env_variable("NUMKONG_IN_QEMU", running_in_qemu);
+        assert_on_failure = env_variable("NUMKONG_ASSERT", assert_on_failure);
+        verbose = env_variable("NUMKONG_VERBOSE", verbose);
+        ulp_threshold_f32 = env_variable("NUMKONG_ULP_THRESHOLD_F32", ulp_threshold_f32);
+        ulp_threshold_f16 = env_variable("NUMKONG_ULP_THRESHOLD_F16", ulp_threshold_f16);
+        ulp_threshold_bf16 = env_variable("NUMKONG_ULP_THRESHOLD_BF16", ulp_threshold_bf16);
+        scale_threshold = env_variable("NUMKONG_SCALE_THRESHOLD", scale_threshold);
+        bool const random_seed = std::strcmp(env_variable("NUMKONG_SEED", ""), "random") == 0;
+        seed = random_seed ? std::random_device {}() : env_variable("NUMKONG_SEED", seed);
+        set_filter(env_variable("NUMKONG_FILTER", filter)); // e.g., "dot", "angular", "kld"
+        // A zero or negative budget keeps the default, rather than running no iterations at all
+        if (double const budget = env_variable("NUMKONG_BUDGET_SECS", 0.0); budget > 0) budget_seconds = budget;
+
+        if (char const *const text = env_variable<char const *>("NUMKONG_RANDOM_DISTRIBUTION", nullptr)) {
+            if (std::strcmp(text, "uniform_k") == 0) distribution = random_distribution_kind_t::uniform_k;
+            else if (std::strcmp(text, "cauchy_k") == 0) distribution = random_distribution_kind_t::cauchy_k;
+            else if (std::strcmp(text, "lognormal_k") == 0) distribution = random_distribution_kind_t::lognormal_k;
+            else {
+                fmt::println(stderr, "NUMKONG_RANDOM_DISTRIBUTION=\"{}\" is not uniform_k, lognormal_k or cauchy_k",
+                             text);
+                std::abort();
             }
         }
 
-        if (char const *env = std::getenv("NK_RANDOM_DISTRIBUTION")) {
-            if (std::strcmp(env, "uniform_k") == 0) distribution = random_distribution_kind_t::uniform_k;
-            else if (std::strcmp(env, "cauchy_k") == 0) distribution = random_distribution_kind_t::cauchy_k;
-            else if (std::strcmp(env, "lognormal_k") == 0) distribution = random_distribution_kind_t::lognormal_k;
-        }
-
-        // Parse dimension overrides from environment variables
-        if (char const *env = std::getenv("NK_DENSE_DIMENSIONS")) {
-            std::size_t val = static_cast<std::size_t>(std::atoll(env));
-            if (val > 0) dense_dimensions = val;
-        }
-        if (char const *env = std::getenv("NK_CURVED_DIMENSIONS")) {
-            std::size_t val = static_cast<std::size_t>(std::atoll(env));
-            if (val > 0) curved_dimensions = val;
-        }
-        if (char const *env = std::getenv("NK_SPARSE_DIMENSIONS")) {
-            std::size_t val = static_cast<std::size_t>(std::atoll(env));
-            if (val > 0) sparse_dimensions = val;
-        }
-        if (char const *env = std::getenv("NK_MESH_POINTS")) {
-            std::size_t val = static_cast<std::size_t>(std::atoll(env));
-            if (val > 0) mesh_points = val;
-        }
-        if (char const *env = std::getenv("NK_MATRIX_HEIGHT")) {
-            std::size_t val = static_cast<std::size_t>(std::atoll(env));
-            if (val > 0) matrix_height = val;
-        }
-        if (char const *env = std::getenv("NK_MATRIX_WIDTH")) {
-            std::size_t val = static_cast<std::size_t>(std::atoll(env));
-            if (val > 0) matrix_width = val;
-        }
-        if (char const *env = std::getenv("NK_MATRIX_DEPTH")) {
-            std::size_t val = static_cast<std::size_t>(std::atoll(env));
-            if (val > 0) matrix_depth = val;
-        }
-        if (char const *env = std::getenv("NK_MAX_COORD_ANGLE")) {
-            float val = static_cast<float>(std::atof(env));
-            if (val > 0) max_coord_angle = val;
-        }
+        dense_dimensions = dimension("NUMKONG_DENSE_DIMENSIONS", dense_dimensions);
+        curved_dimensions = dimension("NUMKONG_CURVED_DIMENSIONS", curved_dimensions);
+        sparse_dimensions = dimension("NUMKONG_SPARSE_DIMENSIONS", sparse_dimensions);
+        mesh_points = positive("NUMKONG_MESH_POINTS", mesh_points);
+        matrix_height = dimension("NUMKONG_MATRIX_HEIGHT", matrix_height);
+        matrix_width = dimension("NUMKONG_MATRIX_WIDTH", matrix_width);
+        matrix_depth = dimension("NUMKONG_MATRIX_DEPTH", matrix_depth);
+        max_coord_angle = positive("NUMKONG_MAX_COORD_ANGLE", max_coord_angle);
 
         // Shrink dimensions for QEMU — divides whatever value is currently stored,
-        // so explicit env-var or CLI overrides are proportionally reduced too.
+        // so explicit env-var overrides are proportionally reduced too.
         if (running_in_qemu) {
             dense_dimensions = std::max<std::size_t>(1, dense_dimensions / 4);
             matrix_height = std::max<std::size_t>(1, matrix_height / 4);
@@ -393,9 +422,8 @@ extern test_config_t global_config;
 
 inline void print_stats_header(comparison_family_t family) noexcept {
     comparison_family_spec_t const spec = comparison_family_spec(family);
-    std::printf("%-40s %12s %10s %12s %12s %10s\n", "Kernel", spec.column_labels[0], spec.column_labels[1],
-                spec.column_labels[2], spec.column_labels[3], spec.column_labels[4]);
-    std::printf("\n");
+    fmt::println("{:<40} {:>12} {:>10} {:>12} {:>12} {:>10}\n", "Kernel", spec.column_labels[0], spec.column_labels[1],
+                 spec.column_labels[2], spec.column_labels[3], spec.column_labels[4]);
 }
 
 struct error_stats_t;
@@ -413,7 +441,7 @@ struct error_stats_section_t {
     std::optional<comparison_family_t> last_family = std::nullopt;
     bool emitted_any = false;
 
-    /** Runs only kernels whose family is in @p available: `#if NK_TARGET_X` says built, this says
+    /** Runs only kernels whose family is in @p available: `#if NUMKONG_TARGET_X` says built, this says
      *  runnable. */
     explicit error_stats_section_t(nk_capability_t available = nk_capabilities_detected()) noexcept
         : available(available) {}
@@ -442,10 +470,7 @@ struct error_stats_section_t {
         nk_test_current_kernel_ = nullptr;
 
         if (!emitted_any) {
-            if (title) {
-                std::puts("");
-                std::printf("%s:\n", title);
-            }
+            if (title) fmt::println("\n{}:", title);
             emitted_any = true;
         }
         if (last_family != stats.family) {
@@ -454,15 +479,18 @@ struct error_stats_section_t {
         }
         print_stats_row(kernel_name, stats);
         ++global_config.kernel_count;
-        if (global_config.assert_on_failure && should_fail(kernel_name, stats)) ++global_config.failure_count;
+        if (should_fail(kernel_name, stats)) {
+            ++global_config.failure_count;
+            fmt::println("  rerun: NUMKONG_SEED={} NUMKONG_FILTER='^{}$' {}", global_config.seed, kernel_name,
+                         global_config.program);
+        }
     }
 };
 
 inline time_point test_start_time() { return steady_clock::now(); }
 
 inline bool within_time_budget(time_point start) {
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(steady_clock::now() - start).count();
-    return elapsed < static_cast<long long>(global_config.time_budget_ms);
+    return std::chrono::duration<double>(steady_clock::now() - start).count() < global_config.budget_seconds;
 }
 
 /**
@@ -689,31 +717,30 @@ inline bool should_fail(char const *kernel_name, error_stats_t const &stats) noe
 inline void print_stats_row(char const *kernel_name, error_stats_t const &stats) noexcept {
     switch (stats.family) {
     case comparison_family_t::exact_k:
-        std::printf("%-40s %12llu %10.1f %12.2e %12zu %10zu\n", kernel_name,
-                    static_cast<unsigned long long>(stats.max_ulp), stats.mean_ulp(), stats.max_abs_err,
-                    stats.mismatches(), stats.exact_matches);
+        fmt::println("{:<40} {:>12} {:>10.1f} {:>12.2e} {:>12} {:>10}", kernel_name, stats.max_ulp, stats.mean_ulp(),
+                     stats.max_abs_err, stats.mismatches(), stats.exact_matches);
         break;
     case comparison_family_t::probability_k:
-        std::printf("%-40s %12.2e %10.2e %12.2e %12.2e %10.2e\n", kernel_name, stats.max_abs_err, stats.mean_abs_err(),
-                    stats.max_rel_err, stats.mean_rel_err(), stats.mean_ulp());
+        fmt::println("{:<40} {:>12.2e} {:>10.2e} {:>12.2e} {:>12.2e} {:>10.2e}", kernel_name, stats.max_abs_err,
+                     stats.mean_abs_err(), stats.max_rel_err, stats.mean_rel_err(), stats.mean_ulp());
         break;
     case comparison_family_t::geospatial_k:
-        std::printf("%-40s %12.2e %10.2e %12.2e %12.1f %10llu\n", kernel_name, stats.max_abs_err, stats.mean_abs_err(),
-                    stats.max_rel_err, stats.mean_ulp(), static_cast<unsigned long long>(stats.max_ulp));
+        fmt::println("{:<40} {:>12.2e} {:>10.2e} {:>12.2e} {:>12.1f} {:>10}", kernel_name, stats.max_abs_err,
+                     stats.mean_abs_err(), stats.max_rel_err, stats.mean_ulp(), stats.max_ulp);
         break;
     case comparison_family_t::approximate_k:
     case comparison_family_t::normalized_reduction_k:
-        std::printf("%-40s %12.2e %10.2e %12.2e %12llu %10zu\n", kernel_name, stats.max_abs_err, stats.max_rel_err,
-                    stats.mean_ulp(), static_cast<unsigned long long>(stats.max_ulp), stats.exact_matches);
+        fmt::println("{:<40} {:>12.2e} {:>10.2e} {:>12.2e} {:>12} {:>10}", kernel_name, stats.max_abs_err,
+                     stats.max_rel_err, stats.mean_ulp(), stats.max_ulp, stats.exact_matches);
         break;
     case comparison_family_t::bounded_k:
-        std::printf("%-40s %12.2e %10.2e %12.2e %12llu %10zu\n", kernel_name, stats.max_abs_err, stats.max_rel_err,
-                    stats.max_bound_ratio, static_cast<unsigned long long>(stats.max_ulp), stats.exact_matches);
+        fmt::println("{:<40} {:>12.2e} {:>10.2e} {:>12.2e} {:>12} {:>10}", kernel_name, stats.max_abs_err,
+                     stats.max_rel_err, stats.max_bound_ratio, stats.max_ulp, stats.exact_matches);
         break;
     }
     // The counters say how many properties failed; this says which one.
     if (stats.first_failure && (stats.mismatches() || stats.failed_expectations))
-        std::printf("    first failure: %s\n", stats.first_failure);
+        fmt::println("    first failure: {}", stats.first_failure);
     std::fflush(stdout);
 }
 
@@ -824,116 +851,15 @@ struct host_backend_t {
 
 #pragma region Suite Header
 
-inline bool colors_enabled() {
-    static bool const result = [] {
-        if (std::getenv("NO_COLOR")) return false;
-        if (std::getenv("FORCE_COLOR")) return true;
-#if __has_include(<unistd.h>)
-        return isatty(fileno(stdout)) != 0;
-#else
-        return false;
-#endif
-    }();
-    return result;
-}
-
-inline void print_indicator(bool on) {
-    if (on) std::printf(colors_enabled() ? "\033[32m\xe2\x97\x8f\033[0m" : "\xe2\x97\x8f");
-    else std::printf(colors_enabled() ? "\033[2m\xe2\x97\x8b\033[0m" : "\xe2\x97\x8b");
-}
-
-/**
- *  @brief Prints a tri-state glyph for whether a kernel is compiled in and the runtime supports it.
- *
- *  @verbatim
- *  ● compiled & runtime usable kernel    — green
- *  ◐ compiled but runtime lacks it       — red (invoking this kernel will SIGILL)
- *  ◑ runtime has it but not compiled in  — yellow (perf left on the table)
- *  ○ neither                             — muted
- *  @endverbatim
- */
-inline void print_indicator_dual(bool compiled, bool runtime) {
-    char const *glyph;
-    char const *color;
-    if (compiled && runtime) glyph = "\xe2\x97\x8f", color = "\033[32m";
-    else if (compiled && !runtime) glyph = "\xe2\x97\x90", color = "\033[31m";
-    else if (!compiled && runtime) glyph = "\xe2\x97\x91", color = "\033[33m";
-    else glyph = "\xe2\x97\x8b", color = "\033[2m";
-    if (colors_enabled()) std::printf("%s%s\033[0m", color, glyph);
-    else std::printf("%s", glyph);
-}
-
-inline void print_isa(char const *name, int compiled, nk_capability_t cap, nk_capability_t runtime_caps) {
-    bool const runtime = (runtime_caps & cap) != 0;
-    if (!compiled && !runtime) return;
-    std::printf("  %s ", name);
-    print_indicator_dual(compiled != 0, runtime);
-}
-
-/** Prints the @p suite title, the compilation row, and every CPU ISA compiled in or detected in
- *  @p runtime_caps. */
-inline void print_suite_header(char const *suite, nk_capability_t runtime_caps) {
-    std::printf(colors_enabled() ? "\033[1mNumKong Precision Testing Suite v%d.%d.%d\033[0m\n" : "%s v%d.%d.%d\n",
-                suite, NK_VERSION_MAJOR, NK_VERSION_MINOR, NK_VERSION_PATCH);
-
-    // Compilation row
-    std::printf("  Compilation: F16 ");
-    print_indicator(NK_NATIVE_F16);
-    std::printf("  BF16 ");
-    print_indicator(NK_NATIVE_BF16);
-    std::printf("  MKL ");
-    print_indicator(NK_COMPARE_TO_MKL);
-    std::printf("\n");
-
-    // ISA row
-    std::printf("  ISA:");
-    // x86
-    print_isa("Haswell", NK_TARGET_HASWELL, nk_cap_haswell_k, runtime_caps);
-    print_isa("Alder", NK_TARGET_ALDER, nk_cap_alder_k, runtime_caps);
-    print_isa("Sierra", NK_TARGET_SIERRA, nk_cap_sierra_k, runtime_caps);
-    print_isa("Skylake", NK_TARGET_SKYLAKE, nk_cap_skylake_k, runtime_caps);
-    print_isa("Ice Lake", NK_TARGET_ICELAKE, nk_cap_icelake_k, runtime_caps);
-    print_isa("Genoa", NK_TARGET_GENOA, nk_cap_genoa_k, runtime_caps);
-    print_isa("Turin", NK_TARGET_TURIN, nk_cap_turin_k, runtime_caps);
-    print_isa("Sapphire", NK_TARGET_SAPPHIRE, nk_cap_sapphire_k, runtime_caps);
-    print_isa("Sapphire AMX", NK_TARGET_SAPPHIREAMX, nk_cap_sapphireamx_k, runtime_caps);
-    print_isa("Granite AMX", NK_TARGET_GRANITEAMX, nk_cap_graniteamx_k, runtime_caps);
-    print_isa("Diamond", NK_TARGET_DIAMOND, nk_cap_diamond_k, runtime_caps);
-    // Arm
-    print_isa("NEON", NK_TARGET_NEON, nk_cap_neon_k, runtime_caps);
-    print_isa("NEON HALF", NK_TARGET_NEONHALF, nk_cap_neonhalf_k, runtime_caps);
-    print_isa("NEON BF16", NK_TARGET_NEONBFDOT, nk_cap_neonbfdot_k, runtime_caps);
-    print_isa("NEON I8", NK_TARGET_NEONSDOT, nk_cap_neonsdot_k, runtime_caps);
-    print_isa("NEON FHM", NK_TARGET_NEONFHM, nk_cap_neonfhm_k, runtime_caps);
-    print_isa("NEON FP8", NK_TARGET_NEONFP8, nk_cap_neonfp8_k, runtime_caps);
-    print_isa("SVE", NK_TARGET_SVE, nk_cap_sve_k, runtime_caps);
-    print_isa("SVE HALF", NK_TARGET_SVEHALF, nk_cap_svehalf_k, runtime_caps);
-    print_isa("SVE BF16", NK_TARGET_SVEBFDOT, nk_cap_svebfdot_k, runtime_caps);
-    print_isa("SVE I8", NK_TARGET_SVESDOT, nk_cap_svesdot_k, runtime_caps);
-    print_isa("SVE2", NK_TARGET_SVE2, nk_cap_sve2_k, runtime_caps);
-    print_isa("SVE2P1", NK_TARGET_SVE2P1, nk_cap_sve2p1_k, runtime_caps);
-    print_isa("SME", NK_TARGET_SME, nk_cap_sme_k, runtime_caps);
-    print_isa("SME2", NK_TARGET_SME2, nk_cap_sme2_k, runtime_caps);
-    print_isa("SME2P1", NK_TARGET_SME2P1, nk_cap_sme2p1_k, runtime_caps);
-    print_isa("SME F64", NK_TARGET_SMEF64, nk_cap_smef64_k, runtime_caps);
-    print_isa("SME HALF", NK_TARGET_SMEHALF, nk_cap_smehalf_k, runtime_caps);
-    print_isa("SME BF16", NK_TARGET_SMEBF16, nk_cap_smebf16_k, runtime_caps);
-    print_isa("SME BI32", NK_TARGET_SMEBI32, nk_cap_smebi32_k, runtime_caps);
-    print_isa("SME FA64", NK_TARGET_SMEFA64, nk_cap_smefa64_k, runtime_caps);
-    print_isa("SME LUT2", NK_TARGET_SMELUT2, nk_cap_smelut2_k, runtime_caps);
-    // RISC-V
-    print_isa("RVV", NK_TARGET_RVV, nk_cap_rvv_k, runtime_caps);
-    print_isa("RVV HALF", NK_TARGET_RVVHALF, nk_cap_rvvhalf_k, runtime_caps);
-    print_isa("RVV BF16", NK_TARGET_RVVBF16, nk_cap_rvvbf16_k, runtime_caps);
-    print_isa("RVV BB", NK_TARGET_RVVBB, nk_cap_rvvbb_k, runtime_caps);
-    // LoongArch
-    print_isa("LoongArch LASX", NK_TARGET_LOONGSONASX, nk_cap_loongsonasx_k, runtime_caps);
-    // Power
-    print_isa("Power VSX", NK_TARGET_POWERVSX, nk_cap_powervsx_k, runtime_caps);
-    // WASM
-    print_isa("V128", NK_TARGET_V128, nk_cap_v128_k, runtime_caps);
-    print_isa("V128 Relaxed", NK_TARGET_V128RELAXED, nk_cap_v128relaxed_k, runtime_caps);
-    std::printf("\n");
+/** Prints the library version, the kits compiled in, and the kits this machine offers, once per
+ *  binary. */
+inline void log_environment() {
+    char compiled[NUMKONG_CAPABILITIES_NAME_CAPACITY], detected[NUMKONG_CAPABILITIES_NAME_CAPACITY];
+    nk_name_capabilities(nk_capabilities_compiled(), compiled, sizeof(compiled));
+    nk_name_capabilities(nk_capabilities_detected(), detected, sizeof(detected));
+    fmt::println("NumKong {}.{}.{}", NUMKONG_VERSION_MAJOR, NUMKONG_VERSION_MINOR, NUMKONG_VERSION_PATCH);
+    fmt::println("- Compiled for: {}", compiled);
+    fmt::println("- This machine: {}", detected);
 }
 
 #pragma endregion Suite Header
@@ -969,4 +895,4 @@ void test_cross_power();
 void test_cross_loongarch();
 void test_cross_wasm();
 
-#endif // NK_TEST_HPP
+#endif // NUMKONG_TEST_HARNESS_HPP

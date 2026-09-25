@@ -29,8 +29,8 @@ except Exception:
 
 
 from base import (
-    NK_ATOL,
-    NK_RTOL,
+    NUMKONG_ATOL,
+    NUMKONG_RTOL,
     assert_allclose,
     collect_errors,
     create_stats,
@@ -92,7 +92,7 @@ def test_sparse_dot(capability: str, index_dtype: str, weight_dtype: str):
     accurate_dt, accurate = profile(baseline_kernel, a_idx, a_f64, b_idx, b_f64)
     expected_dt, expected = profile(baseline_kernel, a_idx, a_f64.astype(np.float32), b_idx, b_f64.astype(np.float32))
 
-    assert_allclose(result, accurate, atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result, accurate, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
     collect_errors(
         "sparse_dot", len(a_idx), weight_dtype, accurate, accurate_dt, expected, expected_dt, result, result_dt, stats
     )

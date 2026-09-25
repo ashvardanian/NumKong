@@ -37,9 +37,9 @@ typedef struct matrix_packed_task_t {
 
 static void matrix_packed_tile_(nk_size_t tile_index, void *context) {
     matrix_packed_task_t const *task = (matrix_packed_task_t const *)context;
-    nk_size_t const row = tile_index * NK_PARALLEL_PACKED_TILE;
-    nk_size_t const chunk = (row + NK_PARALLEL_PACKED_TILE <= task->rows) ? NK_PARALLEL_PACKED_TILE
-                                                                          : (task->rows - row);
+    nk_size_t const row = tile_index * NUMKONG_PARALLEL_PACKED_TILE;
+    nk_size_t const chunk = (row + NUMKONG_PARALLEL_PACKED_TILE <= task->rows) ? NUMKONG_PARALLEL_PACKED_TILE
+                                                                               : (task->rows - row);
     task->kernel(task->a + row * task->a_stride_bytes, task->b_packed, task->c + row * task->c_stride_bytes, chunk,
                  task->columns, task->depth, task->a_stride_bytes, task->c_stride_bytes);
 }
@@ -59,9 +59,9 @@ typedef struct matrix_symmetric_task_t {
 
 static void matrix_symmetric_tile_(nk_size_t tile_index, void *context) {
     matrix_symmetric_task_t const *task = (matrix_symmetric_task_t const *)context;
-    nk_size_t const tile_start = task->row_start + tile_index * NK_PARALLEL_SYMMETRIC_TILE;
-    nk_size_t const tile_rows = (tile_start + NK_PARALLEL_SYMMETRIC_TILE <= task->row_end)
-                                    ? NK_PARALLEL_SYMMETRIC_TILE
+    nk_size_t const tile_start = task->row_start + tile_index * NUMKONG_PARALLEL_SYMMETRIC_TILE;
+    nk_size_t const tile_rows = (tile_start + NUMKONG_PARALLEL_SYMMETRIC_TILE <= task->row_end)
+                                    ? NUMKONG_PARALLEL_SYMMETRIC_TILE
                                     : (task->row_end - tile_start);
     task->kernel(task->vectors, task->vectors_count, task->depth, task->stride_bytes, task->result,
                  task->result_stride_bytes, tile_start, tile_rows);
@@ -292,7 +292,7 @@ PyObject *Tensor_matmul(PyObject *self, PyObject *other) {
     task.a_stride_bytes = row_stride;
     task.c_stride_bytes = c_stride;
     PyThreadState *save = PyEval_SaveThread();
-    nk_parallel_for_tiles(nk_size_divide_round_up_(height, NK_PARALLEL_PACKED_TILE), threads, matrix_packed_tile_,
+    nk_parallel_for_tiles(nk_size_divide_round_up_(height, NUMKONG_PARALLEL_PACKED_TILE), threads, matrix_packed_tile_,
                           &task);
     PyEval_RestoreThread(save);
 
@@ -547,7 +547,7 @@ static PyObject *api_packed_common( //
         task.depth = depth_packed;
         task.a_stride_bytes = input_row_stride;
         task.c_stride_bytes = output_row_stride;
-        nk_parallel_for_tiles(nk_size_divide_round_up_(slice_height, NK_PARALLEL_PACKED_TILE), threads,
+        nk_parallel_for_tiles(nk_size_divide_round_up_(slice_height, NUMKONG_PARALLEL_PACKED_TILE), threads,
                               matrix_packed_tile_, &task);
         PyEval_RestoreThread(save);
     }
@@ -681,7 +681,7 @@ static PyObject *api_symmetric_common( //
         task.result_stride_bytes = result_stride;
         task.row_start = row_start;
         task.row_end = row_end;
-        nk_parallel_for_tiles(nk_size_divide_round_up_(row_count_val, NK_PARALLEL_SYMMETRIC_TILE), threads,
+        nk_parallel_for_tiles(nk_size_divide_round_up_(row_count_val, NUMKONG_PARALLEL_SYMMETRIC_TILE), threads,
                               matrix_symmetric_tile_, &task);
         PyEval_RestoreThread(save);
     }

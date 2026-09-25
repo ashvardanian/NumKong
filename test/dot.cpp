@@ -5,7 +5,7 @@
  *  @brief Dot product precision tests.
  */
 
-#include "test.hpp"
+#include "harness.hpp"
 #include "numkong/dot.hpp" // `nk::dot`
 
 using namespace ashvardanian::numkong::test;
@@ -96,7 +96,7 @@ void test_dot() {
     check("dot_bf16c_serial", test_dot<bf16c_t>, nk_dot_bf16c_serial);
     check("vdot_bf16c_serial", test_vdot<bf16c_t>, nk_vdot_bf16c_serial);
 
-#if NK_RUNTIME_DISPATCH
+#if NUMKONG_RUNTIME_DISPATCH
     check.section("Dot Products Runtime Dispatch", nk_cap_serial_k);
     check("dot_f64", test_dot<f64_t>, nk_dot_f64);
     check("dot_f32", test_dot<f32_t>, nk_dot_f32);
@@ -122,7 +122,7 @@ void test_dot() {
     check("vdot_bf16c", test_vdot<bf16c_t>, nk_vdot_bf16c);
 #endif
 
-#if NK_TARGET_NEON
+#if NUMKONG_TARGET_NEON
     check.section("Dot Products NEON", nk_cap_neon_k);
     check("dot_f64_neon", test_dot<f64_t>, nk_dot_f64_neon);
     check("dot_f32_neon", test_dot<f32_t>, nk_dot_f32_neon);
@@ -139,9 +139,9 @@ void test_dot() {
     check("dot_f16c_neon", test_dot<f16c_t>, nk_dot_f16c_neon);
     check("vdot_f16c_neon", test_vdot<f16c_t>, nk_vdot_f16c_neon);
     check("dot_u1_neon", test_dot<u1x8_t>, nk_dot_u1_neon);
-#endif // NK_TARGET_NEON
+#endif // NUMKONG_TARGET_NEON
 
-#if NK_TARGET_NEONSDOT
+#if NUMKONG_TARGET_NEONSDOT
     check.section("Dot Products NEON I8", nk_cap_neonsdot_k);
     check("dot_e3m2_neonsdot", test_dot<e3m2_t>, nk_dot_e3m2_neonsdot);
     check("dot_e2m3_neonsdot", test_dot<e2m3_t>, nk_dot_e2m3_neonsdot);
@@ -150,35 +150,35 @@ void test_dot() {
     check("dot_i4_neonsdot", test_dot<i4x2_t>, nk_dot_i4_neonsdot);
     check("dot_u8_neonsdot", test_dot<u8_t>, nk_dot_u8_neonsdot);
     check("dot_u4_neonsdot", test_dot<u4x2_t>, nk_dot_u4_neonsdot);
-#endif // NK_TARGET_NEONSDOT
+#endif // NUMKONG_TARGET_NEONSDOT
 
-#if NK_TARGET_NEONFHM
+#if NUMKONG_TARGET_NEONFHM
     check.section("Dot Products NEON FHM", nk_cap_neonfhm_k);
     check("dot_f16_neonfhm", test_dot<f16_t>, nk_dot_f16_neonfhm);
     check("dot_f16c_neonfhm", test_dot<f16c_t>, nk_dot_f16c_neonfhm);
     check("vdot_f16c_neonfhm", test_vdot<f16c_t>, nk_vdot_f16c_neonfhm);
     check("dot_e5m2_neonfhm", test_dot<e5m2_t>, nk_dot_e5m2_neonfhm);
     check("dot_e4m3_neonfhm", test_dot<e4m3_t>, nk_dot_e4m3_neonfhm);
-#endif // NK_TARGET_NEONFHM
+#endif // NUMKONG_TARGET_NEONFHM
 
-#if NK_TARGET_NEONBFDOT
+#if NUMKONG_TARGET_NEONBFDOT
     check.section("Dot Products NEON BF16", nk_cap_neonbfdot_k);
     check("dot_bf16_neonbfdot", test_dot<bf16_t>, nk_dot_bf16_neonbfdot);
     check("dot_bf16c_neonbfdot", test_dot<bf16c_t>, nk_dot_bf16c_neonbfdot);
     check("vdot_bf16c_neonbfdot", test_vdot<bf16c_t>, nk_vdot_bf16c_neonbfdot);
     check("dot_e5m2_neonbfdot", test_dot<e5m2_t>, nk_dot_e5m2_neonbfdot);
     check("dot_e4m3_neonbfdot", test_dot<e4m3_t>, nk_dot_e4m3_neonbfdot);
-#endif // NK_TARGET_NEONBFDOT
+#endif // NUMKONG_TARGET_NEONBFDOT
 
-#if NK_TARGET_NEONFP8
+#if NUMKONG_TARGET_NEONFP8
     check.section("Dot Products NEON FP8", nk_cap_neonfp8_k);
     check("dot_e5m2_neonfp8", test_dot<e5m2_t>, nk_dot_e5m2_neonfp8);
     check("dot_e4m3_neonfp8", test_dot<e4m3_t>, nk_dot_e4m3_neonfp8);
     check("dot_e3m2_neonfp8", test_dot<e3m2_t>, nk_dot_e3m2_neonfp8);
     check("dot_e2m3_neonfp8", test_dot<e2m3_t>, nk_dot_e2m3_neonfp8);
-#endif // NK_TARGET_NEONFP8
+#endif // NUMKONG_TARGET_NEONFP8
 
-#if NK_TARGET_SVE
+#if NUMKONG_TARGET_SVE
     check.section("Dot Products SVE", nk_cap_sve_k);
     check("dot_f64_sve", test_dot<f64_t>, nk_dot_f64_sve);
     check("dot_f32_sve", test_dot<f32_t>, nk_dot_f32_sve);
@@ -186,27 +186,27 @@ void test_dot() {
     check("vdot_f32c_sve", test_vdot<f32c_t>, nk_vdot_f32c_sve);
     check("dot_f64c_sve", test_dot<f64c_t>, nk_dot_f64c_sve);
     check("vdot_f64c_sve", test_vdot<f64c_t>, nk_vdot_f64c_sve);
-#endif // NK_TARGET_SVE
+#endif // NUMKONG_TARGET_SVE
 
-#if NK_TARGET_SVEHALF
+#if NUMKONG_TARGET_SVEHALF
     check.section("Dot Products SVE HALF", nk_cap_svehalf_k);
     check("dot_f16_svehalf", test_dot<f16_t>, nk_dot_f16_svehalf);
     check("dot_f16c_svehalf", test_dot<f16c_t>, nk_dot_f16c_svehalf);
     check("vdot_f16c_svehalf", test_vdot<f16c_t>, nk_vdot_f16c_svehalf);
-#endif // NK_TARGET_SVEHALF
+#endif // NUMKONG_TARGET_SVEHALF
 
-#if NK_TARGET_SVEBFDOT
+#if NUMKONG_TARGET_SVEBFDOT
     check.section("Dot Products SVE BF16", nk_cap_svebfdot_k);
     check("dot_bf16_svebfdot", test_dot<bf16_t>, nk_dot_bf16_svebfdot);
-#endif // NK_TARGET_SVEBFDOT
+#endif // NUMKONG_TARGET_SVEBFDOT
 
-#if NK_TARGET_SVESDOT
+#if NUMKONG_TARGET_SVESDOT
     check.section("Dot Products SVE I8", nk_cap_svesdot_k);
     check("dot_i8_svesdot", test_dot<i8_t>, nk_dot_i8_svesdot);
     check("dot_u8_svesdot", test_dot<u8_t>, nk_dot_u8_svesdot);
-#endif // NK_TARGET_SVESDOT
+#endif // NUMKONG_TARGET_SVESDOT
 
-#if NK_TARGET_HASWELL
+#if NUMKONG_TARGET_HASWELL
     check.section("Dot Products Haswell", nk_cap_haswell_k);
     check("dot_f64c_haswell", test_dot<f64c_t>, nk_dot_f64c_haswell);
     check("vdot_f64c_haswell", test_vdot<f64c_t>, nk_vdot_f64c_haswell);
@@ -230,9 +230,9 @@ void test_dot() {
     check("dot_u8_haswell", test_dot<u8_t>, nk_dot_u8_haswell);
     check("dot_u4_haswell", test_dot<u4x2_t>, nk_dot_u4_haswell);
     check("dot_u1_haswell", test_dot<u1x8_t>, nk_dot_u1_haswell);
-#endif // NK_TARGET_HASWELL
+#endif // NUMKONG_TARGET_HASWELL
 
-#if NK_TARGET_SKYLAKE
+#if NUMKONG_TARGET_SKYLAKE
     check.section("Dot Products Skylake", nk_cap_skylake_k);
     check("dot_f64_skylake", test_dot<f64_t>, nk_dot_f64_skylake);
     check("dot_f32_skylake", test_dot<f32_t>, nk_dot_f32_skylake);
@@ -249,9 +249,9 @@ void test_dot() {
     check("vdot_f32c_skylake", test_vdot<f32c_t>, nk_vdot_f32c_skylake);
     check("dot_f64c_skylake", test_dot<f64c_t>, nk_dot_f64c_skylake);
     check("vdot_f64c_skylake", test_vdot<f64c_t>, nk_vdot_f64c_skylake);
-#endif // NK_TARGET_SKYLAKE
+#endif // NUMKONG_TARGET_SKYLAKE
 
-#if NK_TARGET_ICELAKE
+#if NUMKONG_TARGET_ICELAKE
     check.section("Dot Products Ice Lake", nk_cap_icelake_k);
     check("dot_e4m3_icelake", test_dot<e4m3_t>, nk_dot_e4m3_icelake);
     check("dot_e3m2_icelake", test_dot<e3m2_t>, nk_dot_e3m2_icelake);
@@ -261,40 +261,40 @@ void test_dot() {
     check("dot_u8_icelake", test_dot<u8_t>, nk_dot_u8_icelake);
     check("dot_u4_icelake", test_dot<u4x2_t>, nk_dot_u4_icelake);
     check("dot_u1_icelake", test_dot<u1x8_t>, nk_dot_u1_icelake);
-#endif // NK_TARGET_ICELAKE
+#endif // NUMKONG_TARGET_ICELAKE
 
-#if NK_TARGET_ALDER
+#if NUMKONG_TARGET_ALDER
     check.section("Dot Products Alder", nk_cap_alder_k);
     check("dot_e2m3_alder", test_dot<e2m3_t>, nk_dot_e2m3_alder);
     check("dot_e2m1_alder", test_dot<e2m1x2_t>, nk_dot_e2m1_alder);
     check("dot_i8_alder", test_dot<i8_t>, nk_dot_i8_alder);
     check("dot_u8_alder", test_dot<u8_t>, nk_dot_u8_alder);
-#endif // NK_TARGET_ALDER
+#endif // NUMKONG_TARGET_ALDER
 
-#if NK_TARGET_SIERRA
+#if NUMKONG_TARGET_SIERRA
     check.section("Dot Products Sierra", nk_cap_sierra_k);
     check("dot_e2m3_sierra", test_dot<e2m3_t>, nk_dot_e2m3_sierra);
     check("dot_e2m1_sierra", test_dot<e2m1x2_t>, nk_dot_e2m1_sierra);
     check("dot_i8_sierra", test_dot<i8_t>, nk_dot_i8_sierra);
     check("dot_u8_sierra", test_dot<u8_t>, nk_dot_u8_sierra);
-#endif // NK_TARGET_SIERRA
+#endif // NUMKONG_TARGET_SIERRA
 
-#if NK_TARGET_GENOA
+#if NUMKONG_TARGET_GENOA
     check.section("Dot Products Genoa", nk_cap_genoa_k);
     check("dot_bf16_genoa", test_dot<bf16_t>, nk_dot_bf16_genoa);
     check("dot_e5m2_genoa", test_dot<e5m2_t>, nk_dot_e5m2_genoa);
     check("dot_bf16c_genoa", test_dot<bf16c_t>, nk_dot_bf16c_genoa);
     check("vdot_bf16c_genoa", test_vdot<bf16c_t>, nk_vdot_bf16c_genoa);
-#endif // NK_TARGET_GENOA
+#endif // NUMKONG_TARGET_GENOA
 
-#if NK_TARGET_DIAMOND
+#if NUMKONG_TARGET_DIAMOND
     check.section("Dot Products Diamond", nk_cap_diamond_k);
     check("dot_f16_diamond", test_dot<f16_t>, nk_dot_f16_diamond);
     check("dot_e5m2_diamond", test_dot<e5m2_t>, nk_dot_e5m2_diamond);
     check("dot_e4m3_diamond", test_dot<e4m3_t>, nk_dot_e4m3_diamond);
-#endif // NK_TARGET_DIAMOND
+#endif // NUMKONG_TARGET_DIAMOND
 
-#if NK_TARGET_RVV
+#if NUMKONG_TARGET_RVV
     check.section("Dot Products RVV", nk_cap_rvv_k);
     check("dot_f64c_rvv", test_dot<f64c_t>, nk_dot_f64c_rvv);
     check("vdot_f64c_rvv", test_vdot<f64c_t>, nk_vdot_f64c_rvv);
@@ -314,9 +314,9 @@ void test_dot() {
     check("dot_u8_rvv", test_dot<u8_t>, nk_dot_u8_rvv);
     check("dot_u4_rvv", test_dot<u4x2_t>, nk_dot_u4_rvv);
     check("dot_u1_rvv", test_dot<u1x8_t>, nk_dot_u1_rvv);
-#endif // NK_TARGET_RVV
+#endif // NUMKONG_TARGET_RVV
 
-#if NK_TARGET_V128RELAXED
+#if NUMKONG_TARGET_V128RELAXED
     check.section("Dot Products V128 Relaxed", nk_cap_v128relaxed_k);
     check("dot_f64_v128relaxed", test_dot<f64_t>, nk_dot_f64_v128relaxed);
     check("dot_f32_v128relaxed", test_dot<f32_t>, nk_dot_f32_v128relaxed);
@@ -335,45 +335,45 @@ void test_dot() {
     check("vdot_f32c_v128relaxed", test_vdot<f32c_t>, nk_vdot_f32c_v128relaxed);
     check("dot_f64c_v128relaxed", test_dot<f64c_t>, nk_dot_f64c_v128relaxed);
     check("vdot_f64c_v128relaxed", test_vdot<f64c_t>, nk_vdot_f64c_v128relaxed);
-#endif // NK_TARGET_V128RELAXED
+#endif // NUMKONG_TARGET_V128RELAXED
 
-#if NK_TARGET_V128
+#if NUMKONG_TARGET_V128
     check.section("Dot Products V128", nk_cap_v128_k);
     check("dot_bf16_v128", test_dot<bf16_t>, nk_dot_bf16_v128);
     check("dot_i8_v128", test_dot<i8_t>, nk_dot_i8_v128);
     check("dot_u8_v128", test_dot<u8_t>, nk_dot_u8_v128);
     check("dot_u1_v128", test_dot<u1x8_t>, nk_dot_u1_v128);
-#endif // NK_TARGET_V128
+#endif // NUMKONG_TARGET_V128
 
-#if NK_TARGET_RVVHALF
+#if NUMKONG_TARGET_RVVHALF
     check.section("Dot Products RVV HALF", nk_cap_rvvhalf_k);
     check("dot_f16_rvvhalf", test_dot<f16_t>, nk_dot_f16_rvvhalf);
     check("dot_e5m2_rvvhalf", test_dot<e5m2_t>, nk_dot_e5m2_rvvhalf);
     check("dot_e4m3_rvvhalf", test_dot<e4m3_t>, nk_dot_e4m3_rvvhalf);
-#endif // NK_TARGET_RVVHALF
+#endif // NUMKONG_TARGET_RVVHALF
 
-#if NK_TARGET_RVVBF16
+#if NUMKONG_TARGET_RVVBF16
     check.section("Dot Products RVV BF16", nk_cap_rvvbf16_k);
     check("dot_bf16_rvvbf16", test_dot<bf16_t>, nk_dot_bf16_rvvbf16);
     check("dot_e5m2_rvvbf16", test_dot<e5m2_t>, nk_dot_e5m2_rvvbf16);
     check("dot_e4m3_rvvbf16", test_dot<e4m3_t>, nk_dot_e4m3_rvvbf16);
-#endif // NK_TARGET_RVVBF16
+#endif // NUMKONG_TARGET_RVVBF16
 
-#if NK_TARGET_RVVBB
+#if NUMKONG_TARGET_RVVBB
     check.section("Dot Products RVV BB", nk_cap_rvvbb_k);
     check("dot_u1_rvvbb", test_dot<u1x8_t>, nk_dot_u1_rvvbb);
-#endif // NK_TARGET_RVVBB
+#endif // NUMKONG_TARGET_RVVBB
 
-#if NK_TARGET_LOONGSONASX
+#if NUMKONG_TARGET_LOONGSONASX
     check.section("Dot Products LoongArch LASX", nk_cap_loongsonasx_k);
     check("dot_f64_loongsonasx", test_dot<f64_t>, nk_dot_f64_loongsonasx);
     check("dot_f32_loongsonasx", test_dot<f32_t>, nk_dot_f32_loongsonasx);
     check("dot_bf16_loongsonasx", test_dot<bf16_t>, nk_dot_bf16_loongsonasx);
     check("dot_i8_loongsonasx", test_dot<i8_t>, nk_dot_i8_loongsonasx);
     check("dot_u8_loongsonasx", test_dot<u8_t>, nk_dot_u8_loongsonasx);
-#endif // NK_TARGET_LOONGSONASX
+#endif // NUMKONG_TARGET_LOONGSONASX
 
-#if NK_TARGET_POWERVSX
+#if NUMKONG_TARGET_POWERVSX
     check.section("Dot Products Power VSX", nk_cap_powervsx_k);
     check("dot_f64_powervsx", test_dot<f64_t>, nk_dot_f64_powervsx);
     check("dot_f32_powervsx", test_dot<f32_t>, nk_dot_f32_powervsx);
@@ -382,5 +382,5 @@ void test_dot() {
     check("dot_i8_powervsx", test_dot<i8_t>, nk_dot_i8_powervsx);
     check("dot_u8_powervsx", test_dot<u8_t>, nk_dot_u8_powervsx);
     check("dot_u1_powervsx", test_dot<u1x8_t>, nk_dot_u1_powervsx);
-#endif // NK_TARGET_POWERVSX
+#endif // NUMKONG_TARGET_POWERVSX
 }

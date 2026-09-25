@@ -100,7 +100,7 @@ This keeps the accumulated error bounded by $O(1)$ ULP regardless of vector leng
 ## Performance
 
 The following performance tables are produced by manually re-running `numkong_test` and `numkong_bench` included internal tools to measure both accuracy and throughput at different input shapes.
-The input size is controlled by the `NK_DENSE_DIMENSIONS` environment variable and set to 256, 1024, and 4096 elements.
+The input size is controlled by the `NUMWARS_DIMS` environment variable and set to 256, 1024, and 4096 elements.
 The throughput is measured in GB/s as the number of input bytes per second.
 The published tables below summarize mean ULP (units in last place) across all test pairs — the average number of representable floating-point values between the computed result and the exact answer. The current `numkong_test` family also reports max/mean absolute and relative divergence error for detailed inspection.
 Each kernel runs for at least 20 seconds per configuration.

@@ -4,8 +4,8 @@
  *  @date February 5, 2026
  *  @brief C++ bindings for sparse-vector kernels.
  */
-#ifndef NK_SPARSE_HPP
-#define NK_SPARSE_HPP
+#ifndef NUMKONG_SPARSE_HPP
+#define NUMKONG_SPARSE_HPP
 
 #include <cstdint>
 #include <type_traits>
@@ -118,4 +118,4 @@ void sparse_dot(vector_view<index_type_> a, vector_view<index_type_> b, vector_v
 
 } // namespace ashvardanian::numkong
 
-#endif // NK_SPARSE_HPP
+#endif // NUMKONG_SPARSE_HPP

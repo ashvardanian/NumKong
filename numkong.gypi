@@ -60,9 +60,9 @@
                 "<(numkong_root)/include",
             ],
             "defines": [
-                "NK_NATIVE_F16=0",
-                "NK_NATIVE_BF16=0",
-                "NK_RUNTIME_DISPATCH=1",
+                "NUMKONG_NATIVE_F16=0",
+                "NUMKONG_NATIVE_BF16=0",
+                "NUMKONG_RUNTIME_DISPATCH=1",
             ],
             "cflags": [
                 "-std=c11",

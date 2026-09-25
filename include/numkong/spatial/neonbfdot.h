@@ -27,11 +27,11 @@
  *  numerical stability. Angular distance leverages BFDOT directly since it only requires dot
  *  products, not element-wise differences.
  */
-#ifndef NK_SPATIAL_NEONBFDOT_H
-#define NK_SPATIAL_NEONBFDOT_H
+#ifndef NUMKONG_SPATIAL_NEONBFDOT_H
+#define NUMKONG_SPATIAL_NEONBFDOT_H
 
-#if NK_TARGET_ARM64_
-#if NK_TARGET_NEONBFDOT
+#if NUMKONG_ARCH_ARM64_
+#if NUMKONG_TARGET_NEONBFDOT
 
 #include "numkong/types.h"
 #include "numkong/cast/serial.h"  // `nk_partial_load_b16x4_serial_`
@@ -49,7 +49,8 @@ extern "C" {
 #pragma GCC target("arch=armv8.6-a+simd+bf16")
 #endif
 
-NK_API_COMPTIME void nk_angular_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_angular_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                    nk_f32_t *result) {
 
     // Similar to `nk_angular_i8_neonsdot`, we can use the `BFMMLA` instruction through
     // the `vbfmmlaq_f32` intrinsic to compute matrix products and later drop 1/4 of values.
@@ -120,8 +121,8 @@ nk_angular_bf16_neonbfdot_cycle:
     *result = nk_angular_normalize_f32_neon_(dot_product_f32, a_norm_sq_f32, b_norm_sq_f32);
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                   nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_sqeuclidean_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                        nk_f32_t *result) {
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
     bfloat16x4_t a_bf16x4, b_bf16x4;
 
@@ -147,8 +148,8 @@ nk_sqeuclidean_bf16_neonbfdot_cycle:
 
     *result = vaddvq_f32(sum_f32x4);
 }
-NK_API_COMPTIME void nk_euclidean_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                 nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_euclidean_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                      nk_f32_t *result) {
     nk_sqeuclidean_bf16_neonbfdot(a, b, n, result);
     *result = nk_f32_sqrt_neon(*result);
 }
@@ -163,6 +164,6 @@ NK_API_COMPTIME void nk_euclidean_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t c
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_NEONBFDOT
-#endif // NK_TARGET_ARM64_
-#endif // NK_SPATIAL_NEONBFDOT_H
+#endif // NUMKONG_TARGET_NEONBFDOT
+#endif // NUMKONG_ARCH_ARM64_
+#endif // NUMKONG_SPATIAL_NEONBFDOT_H

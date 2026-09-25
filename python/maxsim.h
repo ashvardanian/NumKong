@@ -7,8 +7,8 @@
  *  Declares the MaxSimPackedMatrix type and API functions for MaxSim, ColBERT late-interaction
  *  scoring, used by the Python module.
  */
-#ifndef NK_PYTHON_MAXSIM_H
-#define NK_PYTHON_MAXSIM_H
+#ifndef NUMKONG_PYTHON_MAXSIM_H
+#define NUMKONG_PYTHON_MAXSIM_H
 
 #include "numkong.h"
 
@@ -38,4 +38,4 @@ extern char const doc_maxsim[];
 }
 #endif
 
-#endif // NK_PYTHON_MAXSIM_H
+#endif // NUMKONG_PYTHON_MAXSIM_H

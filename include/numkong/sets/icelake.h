@@ -6,11 +6,11 @@
  *
  *  @sa include/numkong/sets.h
  */
-#ifndef NK_SETS_ICELAKE_H
-#define NK_SETS_ICELAKE_H
+#ifndef NUMKONG_SETS_ICELAKE_H
+#define NUMKONG_SETS_ICELAKE_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_ICELAKE
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_ICELAKE
 
 #include "numkong/set/icelake.h"
 #include "numkong/dots/icelake.h"
@@ -62,6 +62,6 @@ nk_define_cross_normalized_symmetric_(jaccard, u1, icelake, u1x8, u32, /*norm_va
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_ICELAKE
-#endif // NK_TARGET_X8664_
-#endif // NK_SETS_ICELAKE_H
+#endif // NUMKONG_TARGET_ICELAKE
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_SETS_ICELAKE_H

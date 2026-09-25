@@ -691,26 +691,26 @@ assert_verbatim_accepts "note opening a file inside its include guard" include/n
  *  @date January 1, 2026
  *  @brief One staged fixture for one rule.
  */
-#ifndef NK_PROBE_H_
-#define NK_PROBE_H_
+#ifndef PROBE_H_
+#define PROBE_H_
 
 /*  The probe family has one kernel. */
 int probe(void);
 
-#endif // NK_PROBE_H_
+#endif // PROBE_H_
 FIXTURE
 
 assert_accepts "note on a nested directive, a group label, and a guard spelled with defined" include/numkong/probe.h <<'FIXTURE'
-#if !defined(NK_PROBE_TYPES_H_)
-#define NK_PROBE_TYPES_H_
+#if !defined(PROBE_TYPES_H_)
+#define PROBE_TYPES_H_
 
 /*  Debugging and testing. */
-#if !defined(NK_PROBE_DEBUG)
-#define NK_PROBE_DEBUG 0
-#define NK_PROBE_TRACE 0
+#if !defined(PROBE_DEBUG)
+#define PROBE_DEBUG 0
+#define PROBE_TRACE 0
 #endif
 
-#if NK_PROBE_TARGET_EMSCRIPTEN
+#if PROBE_TARGET_EMSCRIPTEN
 #include <emscripten.h>
 
 /*  The probes trip strict-prototype warnings, silenced for this block alone. */
@@ -721,8 +721,8 @@ assert_accepts "note on a nested directive, a group label, and a guard spelled w
 /*  Loads: plain and acquire. */
 
 int probe(void);
-#endif // NK_PROBE_TARGET_EMSCRIPTEN
-#endif // NK_PROBE_TYPES_H_
+#endif // PROBE_TARGET_EMSCRIPTEN
+#endif // PROBE_TYPES_H_
 FIXTURE
 
 assert_accepts "note above a preprocessor section, and a branch note inside a body" include/numkong/probe.h <<'FIXTURE'
@@ -753,7 +753,7 @@ assert_accepts "note above its region" include/numkong/probe.h <<'FIXTURE'
  *  Every one derives from Layer 1. */
 #pragma region Platform Capabilities
 
-#define NK_PROBE_ 1
+#define PROBE_ 1
 
 #pragma endregion Platform Capabilities
 FIXTURE
@@ -817,7 +817,7 @@ int probe(void);
 FIXTURE
 
 assert_accepts "comment in a macro padded to its backslash" include/numkong/probe.h <<'FIXTURE'
-#define NK_PROBE_(name)                                                                                   \
+#define PROBE_(name)                                                                                   \
     /* Short note inside a macro body. */                                                             \
     int name(void)
 FIXTURE
@@ -966,11 +966,11 @@ assert_rejects "table split into adjacent verbatim blocks" "lays out a table out
  *  @brief Lists the variables.
  *
  *  @verbatim
- *  NK_SEED=N           - RNG seed
+ *  PROBE_SEED=N        - RNG seed
  *  @endverbatim
  *
  *  @verbatim
- *  NK_BUDGET_SECS=N    - Time budget
+ *  PROBE_BUDGET_SECS=N - Time budget
  *  @endverbatim
  */
 int probe(void);
@@ -1066,24 +1066,24 @@ FIXTURE
 assert_rejects "plain comment above a single-macro conditional" "explains a macro in a plain" include/numkong/probe.h <<'FIXTURE'
 /* True when the compiler supports multi-argument subscripts. */
 #if defined(__cpp_multidimensional_subscript)
-#define NK_PROBE_SUBSCRIPT_ 1
+#define PROBE_SUBSCRIPT_ 1
 #else
-#define NK_PROBE_SUBSCRIPT_ 0
+#define PROBE_SUBSCRIPT_ 0
 #endif
 FIXTURE
 
 assert_accepts "docblock above a single-macro conditional, plain comment above a mixed block" include/numkong/probe.h <<'FIXTURE'
 /** True when the compiler supports multi-argument subscripts. */
 #if defined(__cpp_multidimensional_subscript)
-#define NK_PROBE_SUBSCRIPT_ 1
+#define PROBE_SUBSCRIPT_ 1
 #else
-#define NK_PROBE_SUBSCRIPT_ 0
+#define PROBE_SUBSCRIPT_ 0
 #endif
 
 /* Silences a warning that the macros below would otherwise trigger under Clang. */
 #if defined(__clang__)
 #pragma clang diagnostic push
-#define NK_PROBE_FIRST_ 1
+#define PROBE_FIRST_ 1
 #endif
 FIXTURE
 
@@ -1232,6 +1232,10 @@ static char const *probe_text = "first half " //
                                 "second half";
 FIXTURE
 
+stage_edited_fixture include/numkong/probe.h 's/^#pragma once$/#pragma once\n#define PROBE_FIRST "first"/; s/^int settled(void);$/"second";/'
+run_precommit
+expect_acceptance "string lines apart in the file, split only by an unchanged line"
+
 assert_rejects "harness namespace missing" "does not open" bench/probe.hpp <<FIXTURE
 namespace other {}
 FIXTURE
@@ -1293,7 +1297,7 @@ FIXTURE
 # region Other Language Fixtures
 
 assert_rejects "CMake list mutation" "mutates a variable" CMakeLists.txt <<'FIXTURE'
-list(APPEND NK_SOURCES_ probe.c)
+list(APPEND PROBE_SOURCES_ probe.c)
 FIXTURE
 
 assert_rejects "CMake manual RPATH" "builds an RPATH by hand" CMakeLists.txt <<'FIXTURE'
@@ -1302,7 +1306,14 @@ FIXTURE
 
 assert_accepts "CMake variable written once" CMakeLists.txt <<'FIXTURE'
 # A variable is written once; never list(APPEND ...) it.
-set(NK_PROBE_SOURCES_ probe.c)
+set(PROBE_SOURCES_ probe.c)
+FIXTURE
+
+assert_accepts "CMake foreach builds its list" CMakeLists.txt <<'FIXTURE'
+set(probe_definitions_ "")
+foreach (probe_tier_ IN ITEMS haswell skylake)
+    list(APPEND probe_definitions_ "PROBE_${probe_tier_}=1")
+endforeach ()
 FIXTURE
 
 assert_rejects "Go pseudo-heading" "pseudo-heading" golang/probe.go <<'FIXTURE'
@@ -2108,17 +2119,17 @@ FIXTURE
 
 assert_rejects "docblock on a kernel definition" "documents a public kernel definition" include/numkong/probe/haswell.h <<'FIXTURE'
 /** Documented here. */
-NK_API_COMPTIME void nk_probe_haswell(void) {}
+NUMKONG_API_COMPTIME void nk_probe_haswell(void) {}
 FIXTURE
 
 assert_rejects "register without dtype" "names a SIMD register" include/numkong/probe/haswell.h <<'FIXTURE'
-NK_API_COMPTIME void nk_probe_haswell(void) {
+NUMKONG_API_COMPTIME void nk_probe_haswell(void) {
     __m256 sum = _mm256_setzero_ps();
 }
 FIXTURE
 
 assert_accepts "register with dtype, and a grandfathered line" include/numkong/probe/haswell.h <<'FIXTURE'
-NK_API_COMPTIME void nk_probe_haswell(void) {
+NUMKONG_API_COMPTIME void nk_probe_haswell(void) {
     __m256 sum_f32x8 = _mm256_setzero_ps();
     __m256 legacy = _mm256_setzero_ps(); // nk-nolint: naming
     /* __m256 commented_out = 0; */
@@ -2145,6 +2156,43 @@ FIXTURE
 
 assert_rejects "CMake lowercase internal" "defines a lowercase nk_" CMakeLists.txt <<'FIXTURE'
 set(nk_probe_sources probe.c)
+FIXTURE
+
+assert_rejects "test body printing to stdout" "prints to stdout from a test body" test/probe.cpp <<'FIXTURE'
+void test_probe() { fmt::println("probe passed"); }
+FIXTURE
+
+assert_rejects "test body streaming to stdout" "prints to stdout from a test body" test/probe.cpp <<'FIXTURE'
+void test_probe() { std::cout << "probe passed\n"; }
+FIXTURE
+
+assert_accepts "test body failing on stderr, and prose naming printf" test/probe.cpp <<'FIXTURE'
+/* A passing body never calls printf() or fmt::println(). */
+void test_probe() { fmt::println(stderr, "probe failed"); }
+FIXTURE
+
+assert_accepts "entry point printing the summary" test/main.cpp <<'FIXTURE'
+void print_summary() { fmt::println("All tests passed."); }
+FIXTURE
+
+assert_rejects "retired prefix" "spells the retired NK_ prefix" include/numkong/probe.h <<'FIXTURE'
+static int probe(void) { return NK_DEBUG + NUMKONG_RUNTIME_DISPATCH; }
+FIXTURE
+
+assert_accepts "full prefix, and a lowercase nk_ helper" include/numkong/probe.h <<'FIXTURE'
+static int probe(void) { return NUMKONG_RUNTIME_DISPATCH + nk_probe_(); }
+FIXTURE
+
+assert_rejects "fact tested with defined" "fact with defined; use #if" include/numkong/probe.h <<'FIXTURE'
+#if defined(NUMKONG_OS_LINUX_)
+static int probe(void) { return 1; }
+#endif
+FIXTURE
+
+assert_accepts "fact tested by value, under its default guard" include/numkong/probe.h <<'FIXTURE'
+#if !defined(NUMKONG_ARCH_ARM64_)
+static int probe(void) { return NUMKONG_OS_LINUX_; }
+#endif
 FIXTURE
 
 # endregion NumKong Fixtures

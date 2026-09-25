@@ -4,8 +4,8 @@
  *  @date February 5, 2026
  *  @brief C++ wrappers for SIMD-accelerated similarity measures for probability distributions.
  */
-#ifndef NK_PROBABILITY_HPP
-#define NK_PROBABILITY_HPP
+#ifndef NUMKONG_PROBABILITY_HPP
+#define NUMKONG_PROBABILITY_HPP
 
 #include <cstdint>
 #include <type_traits>
@@ -117,4 +117,4 @@ void jsd(vector_view<in_type_> p, vector_view<in_type_> q, std::size_t d, result
 
 } // namespace ashvardanian::numkong
 
-#endif // NK_PROBABILITY_HPP
+#endif // NUMKONG_PROBABILITY_HPP

@@ -7,8 +7,8 @@
  *  Declares the PackedMatrix type and API functions for packed/symmetric cross operations used by
  *  the Python module.
  */
-#ifndef NK_PYTHON_MATRIX_H
-#define NK_PYTHON_MATRIX_H
+#ifndef NUMKONG_PYTHON_MATRIX_H
+#define NUMKONG_PYTHON_MATRIX_H
 
 #include "numkong.h"
 
@@ -16,7 +16,7 @@
  *  dominates small products. Explicit dots_packed(..., threads=N) / cdist(..., threads=N) paths are
  *  unaffected — they honor the caller's request as given; only auto-deciders and the `@` operator
  *  look at it. */
-#define NK_PARALLEL_MIN_MACS ((nk_size_t)1 << 20)
+#define NUMKONG_PARALLEL_MIN_MACS ((nk_size_t)1 << 20)
 
 /**
  *  @brief Shared parallelism policy: is a @p work_units-sized op worth threading across @p threads?
@@ -31,7 +31,7 @@
  *  @return Non-zero when the op should run in parallel, zero to stay serial.
  */
 static inline int nk_parallel_worthwhile(nk_size_t work_units, nk_size_t threads) {
-    return threads > 1 && work_units >= NK_PARALLEL_MIN_MACS;
+    return threads > 1 && work_units >= NUMKONG_PARALLEL_MIN_MACS;
 }
 
 #ifdef __cplusplus
@@ -120,4 +120,4 @@ PyObject *Tensor_matmul(PyObject *self, PyObject *other);
 }
 #endif
 
-#endif // NK_PYTHON_MATRIX_H
+#endif // NUMKONG_PYTHON_MATRIX_H

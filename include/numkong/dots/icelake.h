@@ -20,11 +20,11 @@
  *  VPDPBUSD/VPDPWSSD bottleneck on port 0, limiting throughput to 1/cy. AMD Genoa achieves 0.5/cy
  *  via dual-issue on ports 0-1, making it significantly faster for quantized inference workloads.
  */
-#ifndef NK_DOTS_ICELAKE_H
-#define NK_DOTS_ICELAKE_H
+#ifndef NUMKONG_DOTS_ICELAKE_H
+#define NUMKONG_DOTS_ICELAKE_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_ICELAKE
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_ICELAKE
 
 #include "numkong/dot/icelake.h"
 #include "numkong/reduce/skylake.h" // `nk_reduce_add_f32x16_skylake_`
@@ -183,6 +183,6 @@ nk_define_cross_packed_(dots, u1, icelake, u1x8, u1x8, u32, nk_b512_vec_t, nk_do
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_ICELAKE
-#endif // NK_TARGET_X8664_
-#endif // NK_DOTS_ICELAKE_H
+#endif // NUMKONG_TARGET_ICELAKE
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_DOTS_ICELAKE_H

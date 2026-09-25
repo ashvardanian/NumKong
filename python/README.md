@@ -59,18 +59,18 @@ python -c "import numkong as nk; print(nk.get_capabilities_available())"
 
 Pre-built wheels are available on PyPI for Linux (x86_64, aarch64, riscv64, plus i686, ppc64le, s390x), macOS (x86_64, arm64), and Windows (AMD64, ARM64).
 Python 3.10 through 3.14 is supported, including free-threading variants (3.13t, 3.14t).
-Every wheel is built with `NK_RUNTIME_DISPATCH=1`, so a single wheel covers all CPU generations on a given architecture.
+Every wheel is built with `NUMKONG_RUNTIME_DISPATCH=1`, so a single wheel covers all CPU generations on a given architecture.
 
 When building from source, the compiler requirements depend on the platform.
 On macOS x86 only AVX2 is available; on macOS ARM NEON is always present, but SME requires Apple M4+ with Xcode 16+ (AppleClang 16+).
 RISC-V builds require Clang and LLD because GCC lacks `zvfh`, `zvfbfwma`, and `zvbb` support.
 On Windows, MSVC 19.44+ (Visual Studio 2022 17.14+) is recommended for full AVX-512 with FP16/BF16/VNNI.
-Build parallelism is controlled by `NK_BUILD_PARALLEL`, which defaults to `min(cpu_count, 4)` and should be lowered in memory-constrained containers.
+Build parallelism is controlled by `NUMKONG_BUILD_PARALLEL`, which defaults to `min(cpu_count, 4)` and should be lowered in memory-constrained containers.
 There is no OpenMP dependency.
 Python-side parallelism uses the `threads=` argument on the GIL-free kernels, or `concurrent.futures` around them.
 
 ```sh
-NK_BUILD_PARALLEL=2 pip install . --no-build-isolation
+NUMKONG_BUILD_PARALLEL=2 pip install . --no-build-isolation
 ```
 
 ## Dot Products

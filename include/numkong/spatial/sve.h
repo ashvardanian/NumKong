@@ -31,11 +31,11 @@
  *  Spatial operations like L2 distance and angular similarity benefit from SVE's fused multiply-add
  *  instructions. The FADDV reduction dominates the critical path for short vectors.
  */
-#ifndef NK_SPATIAL_SVE_H
-#define NK_SPATIAL_SVE_H
+#ifndef NUMKONG_SPATIAL_SVE_H
+#define NUMKONG_SPATIAL_SVE_H
 
-#if NK_TARGET_ARM64_
-#if NK_TARGET_SVE
+#if NUMKONG_ARCH_ARM64_
+#if NUMKONG_TARGET_SVE
 
 #include "numkong/types.h"
 #include "numkong/reduce/sve.h"   // `nk_svaddv_f64_`
@@ -67,7 +67,8 @@ extern "C" {
  *  @param[in] x Input vector, which must be positive for meaningful results.
  *  @return Approximate 1/√x with ~23-bit mantissa accuracy.
  */
-NK_HELPER_INLINE svfloat32_t nk_rsqrt_f32x_sve_(svbool_t predicate_b32x, svfloat32_t x) NK_STREAMING_COMPATIBLE_ {
+NUMKONG_HELPER_INLINE svfloat32_t nk_rsqrt_f32x_sve_(svbool_t predicate_b32x,
+                                                     svfloat32_t x) NUMKONG_STREAMING_COMPATIBLE_ {
     svfloat32_t r_f32x = svrsqrte_f32(x);
     r_f32x = svmul_f32_x(predicate_b32x, r_f32x, svrsqrts_f32(svmul_f32_x(predicate_b32x, x, r_f32x), r_f32x));
     r_f32x = svmul_f32_x(predicate_b32x, r_f32x, svrsqrts_f32(svmul_f32_x(predicate_b32x, x, r_f32x), r_f32x));
@@ -88,7 +89,8 @@ NK_HELPER_INLINE svfloat32_t nk_rsqrt_f32x_sve_(svbool_t predicate_b32x, svfloat
  *  @param[in] x Input vector, which must be positive for meaningful results.
  *  @return Approximate 1/√x with ~52-bit mantissa accuracy.
  */
-NK_HELPER_INLINE svfloat64_t nk_rsqrt_f64x_sve_(svbool_t predicate_b64x, svfloat64_t x) NK_STREAMING_COMPATIBLE_ {
+NUMKONG_HELPER_INLINE svfloat64_t nk_rsqrt_f64x_sve_(svbool_t predicate_b64x,
+                                                     svfloat64_t x) NUMKONG_STREAMING_COMPATIBLE_ {
     svfloat64_t r_f64x = svrsqrte_f64(x);
     r_f64x = svmul_f64_x(predicate_b64x, r_f64x, svrsqrts_f64(svmul_f64_x(predicate_b64x, x, r_f64x), r_f64x));
     r_f64x = svmul_f64_x(predicate_b64x, r_f64x, svrsqrts_f64(svmul_f64_x(predicate_b64x, x, r_f64x), r_f64x));
@@ -96,7 +98,7 @@ NK_HELPER_INLINE svfloat64_t nk_rsqrt_f64x_sve_(svbool_t predicate_b64x, svfloat
     return r_f64x;
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
     nk_size_t i = 0;
     svfloat64_t dist_sq_f64x = svdupq_n_f64(0.0, 0.0);
     for (; i < n; i += svcntw()) {
@@ -122,12 +124,12 @@ NK_API_COMPTIME void nk_sqeuclidean_f32_sve(nk_f32_t const *a, nk_f32_t const *b
     *result = dist_sq_f64;
 }
 
-NK_API_COMPTIME void nk_euclidean_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_euclidean_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
     nk_sqeuclidean_f32_sve(a, b, n, result);
     *result = nk_f64_sqrt_neon(*result);
 }
 
-NK_API_COMPTIME void nk_angular_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_angular_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
     nk_size_t i = 0;
     svfloat64_t ab_f64x = svdupq_n_f64(0.0, 0.0);
     svfloat64_t a2_f64x = svdupq_n_f64(0.0, 0.0);
@@ -160,7 +162,7 @@ NK_API_COMPTIME void nk_angular_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk
     *result = nk_angular_normalize_f64_neon_(ab_f64, a2_f64, b2_f64);
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     // Neumaier compensated summation for numerical stability
     nk_size_t i = 0;
     svfloat64_t sum_f64x = svdupq_n_f64(0.0, 0.0);
@@ -190,12 +192,12 @@ NK_API_COMPTIME void nk_sqeuclidean_f64_sve(nk_f64_t const *a, nk_f64_t const *b
     *result = nk_dot_stable_sum_f64_sve_(predicate_all_b64x, sum_f64x, compensation_f64x);
 }
 
-NK_API_COMPTIME void nk_euclidean_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_euclidean_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     nk_sqeuclidean_f64_sve(a, b, n, result);
     *result = nk_f64_sqrt_neon(*result);
 }
 
-NK_API_COMPTIME void nk_angular_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_angular_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     // Dot2 (Ogita-Rump-Oishi) for cross-product ab (may have cancellation),
     // simple FMA for self-products a2/b2 (all positive, no cancellation)
     nk_size_t i = 0;
@@ -245,6 +247,6 @@ NK_API_COMPTIME void nk_angular_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_SVE
-#endif // NK_TARGET_ARM64_
-#endif // NK_SPATIAL_SVE_H
+#endif // NUMKONG_TARGET_SVE
+#endif // NUMKONG_ARCH_ARM64_
+#endif // NUMKONG_SPATIAL_SVE_H

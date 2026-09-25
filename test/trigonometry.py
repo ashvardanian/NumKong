@@ -29,8 +29,8 @@ except Exception:
     numpy_available = False
 
 from base import (
-    NK_ATOL,
-    NK_RTOL,
+    NUMKONG_ATOL,
+    NUMKONG_RTOL,
     assert_allclose,
     collect_errors,
     create_stats,
@@ -141,7 +141,7 @@ def test_trigonometry_random_accuracy(shape: tuple, dtype: str, metric: str, cap
         accurate = np.asarray(accurate).reshape(-1)
         expected = np.asarray(expected).reshape(-1)
 
-    assert_allclose(result, accurate, atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result, accurate, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
     collect_errors(
         metric,
         len(accurate),
@@ -167,9 +167,9 @@ def test_trigonometry_at_zero(ndim: int, dtype: str, capability: str):
     cos_values = list(nk.cos(zeros_vector))
     atan_values = list(nk.atan(zeros_vector))
     for i in range(ndim):
-        assert abs(sin_values[i]) < NK_ATOL, f"sin(0)[{i}]={sin_values[i]}"
-        assert abs(cos_values[i] - 1.0) < NK_ATOL, f"cos(0)[{i}]={cos_values[i]}"
-        assert abs(atan_values[i]) < NK_ATOL, f"atan(0)[{i}]={atan_values[i]}"
+        assert abs(sin_values[i]) < NUMKONG_ATOL, f"sin(0)[{i}]={sin_values[i]}"
+        assert abs(cos_values[i] - 1.0) < NUMKONG_ATOL, f"cos(0)[{i}]={cos_values[i]}"
+        assert abs(atan_values[i]) < NUMKONG_ATOL, f"atan(0)[{i}]={atan_values[i]}"
 
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
@@ -184,9 +184,9 @@ def test_trigonometry_known_values(ndim: int, dtype: str, capability: str):
     cos_values = list(nk.cos(half_pi))
     atan_one = list(nk.atan(ones_vector))
     for i in range(ndim):
-        assert abs(sin_values[i] - 1.0) < NK_ATOL, f"sin(pi/2)[{i}]={sin_values[i]}"
-        assert abs(cos_values[i]) < NK_ATOL, f"cos(pi/2)[{i}]={cos_values[i]}"
-        assert abs(atan_one[i] - math.pi / 4) < NK_ATOL, f"atan(1)[{i}]={atan_one[i]}"
+        assert abs(sin_values[i] - 1.0) < NUMKONG_ATOL, f"sin(pi/2)[{i}]={sin_values[i]}"
+        assert abs(cos_values[i]) < NUMKONG_ATOL, f"cos(pi/2)[{i}]={cos_values[i]}"
+        assert abs(atan_one[i] - math.pi / 4) < NUMKONG_ATOL, f"atan(1)[{i}]={atan_one[i]}"
 
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
@@ -200,7 +200,7 @@ def test_pythagorean_identity(ndim: int, dtype: str, capability: str):
     cos_values = list(nk.cos(input_angles))
     for i in range(ndim):
         identity = sin_values[i] ** 2 + cos_values[i] ** 2
-        assert abs(identity - 1.0) < NK_ATOL, f"sin²+cos²={identity} at [{i}]"
+        assert abs(identity - 1.0) < NUMKONG_ATOL, f"sin²+cos²={identity} at [{i}]"
 
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
@@ -217,10 +217,10 @@ def test_trigonometry_odd_even(ndim: int, dtype: str, capability: str):
         cos_positive = list(nk.cos(positive_input))
         cos_negative = list(nk.cos(negative_input))
         for i in range(ndim):
-            assert abs(sin_negative[i] + sin_positive[i]) < NK_ATOL, (
+            assert abs(sin_negative[i] + sin_positive[i]) < NUMKONG_ATOL, (
                 f"sin(-{random_angles}) + sin({random_angles}) = {sin_negative[i] + sin_positive[i]}"
             )
-            assert abs(cos_negative[i] - cos_positive[i]) < NK_ATOL, (
+            assert abs(cos_negative[i] - cos_positive[i]) < NUMKONG_ATOL, (
                 f"cos(-{random_angles}) - cos({random_angles}) = {cos_negative[i] - cos_positive[i]}"
             )
 

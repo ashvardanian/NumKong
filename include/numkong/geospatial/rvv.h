@@ -32,11 +32,11 @@
  *  __riscv_vmerge_vvm_f64m4(a, b, m, vl)   Conditional merge (per-lane select)
  *  @endverbatim
  */
-#ifndef NK_GEOSPATIAL_RVV_H
-#define NK_GEOSPATIAL_RVV_H
+#ifndef NUMKONG_GEOSPATIAL_RVV_H
+#define NUMKONG_GEOSPATIAL_RVV_H
 
-#if NK_TARGET_RISCV64_
-#if NK_TARGET_RVV
+#if NUMKONG_ARCH_RISCV64_
+#if NUMKONG_TARGET_RVV
 
 #include "numkong/types.h"
 #include "numkong/trigonometry/rvv.h" // nk_f64m4_sin_rvv_, nk_f64m4_cos_rvv_, nk_f64m4_atan2_rvv_, etc.
@@ -60,7 +60,7 @@ extern "C" {
 /**
  *  @brief  RVV internal kernel for Haversine distance on vector_length f64 point pairs.
  *
- *  Haversine formula, where R is @c NK_EARTH_MEDIATORIAL_RADIUS:
+ *  Haversine formula, where R is @c NUMKONG_EARTH_MEDIATORIAL_RADIUS:
  *
  *  @verbatim
  *      dlat = lat2 - lat1
@@ -70,9 +70,9 @@ extern "C" {
  *      distance = R × c
  *  @endverbatim
  */
-NK_HELPER_INLINE void nk_haversine_f64_rvv_kernel_( //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
+NUMKONG_HELPER_INLINE void nk_haversine_f64_rvv_kernel_( //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons,      //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons,      //
     nk_size_t vector_length, nk_f64_t *results) {
 
     vfloat64m4_t lat1_f64m4 = __riscv_vle64_v_f64m4(a_lats, vector_length);
@@ -118,12 +118,12 @@ NK_HELPER_INLINE void nk_haversine_f64_rvv_kernel_( //
     central_angle_f64m4 = __riscv_vfmul_vf_f64m4(central_angle_f64m4, 2.0, vector_length);
 
     // distance = R * c
-    vfloat64m4_t distances_f64m4 = __riscv_vfmul_vf_f64m4(central_angle_f64m4, NK_EARTH_MEDIATORIAL_RADIUS,
+    vfloat64m4_t distances_f64m4 = __riscv_vfmul_vf_f64m4(central_angle_f64m4, NUMKONG_EARTH_MEDIATORIAL_RADIUS,
                                                           vector_length);
     __riscv_vse64_v_f64m4(results, distances_f64m4, vector_length);
 }
 
-NK_API_COMPTIME void nk_haversine_f64_rvv(          //
+NUMKONG_API_COMPTIME void nk_haversine_f64_rvv(     //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results) {
@@ -136,9 +136,9 @@ NK_API_COMPTIME void nk_haversine_f64_rvv(          //
 }
 
 /** RVV internal kernel for Haversine distance on vector_length f32 point pairs. */
-NK_HELPER_INLINE void nk_haversine_f32_rvv_kernel_( //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
+NUMKONG_HELPER_INLINE void nk_haversine_f32_rvv_kernel_( //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons,      //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons,      //
     nk_size_t vector_length, nk_f32_t *results) {
 
     vfloat32m4_t lat1_f32m4 = __riscv_vle32_v_f32m4(a_lats, vector_length);
@@ -184,12 +184,12 @@ NK_HELPER_INLINE void nk_haversine_f32_rvv_kernel_( //
     central_angle_f32m4 = __riscv_vfmul_vf_f32m4(central_angle_f32m4, 2.0f, vector_length);
 
     // distance = R * c
-    vfloat32m4_t distances_f32m4 = __riscv_vfmul_vf_f32m4(central_angle_f32m4, (nk_f32_t)NK_EARTH_MEDIATORIAL_RADIUS,
-                                                          vector_length);
+    vfloat32m4_t distances_f32m4 = __riscv_vfmul_vf_f32m4(central_angle_f32m4,
+                                                          (nk_f32_t)NUMKONG_EARTH_MEDIATORIAL_RADIUS, vector_length);
     __riscv_vse32_v_f32m4(results, distances_f32m4, vector_length);
 }
 
-NK_API_COMPTIME void nk_haversine_f32_rvv(          //
+NUMKONG_API_COMPTIME void nk_haversine_f32_rvv(     //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results) {
@@ -209,13 +209,13 @@ NK_API_COMPTIME void nk_haversine_f32_rvv(          //
  *  @brief  RVV internal kernel for Vincenty's geodesic distance on vector_length f64 point pairs.
  *  @note   This is a true SIMD implementation using masked convergence tracking via vmerge.
  *
- *  Vincenty's formulae iterate to solve the geodesic on an oblate spheroid (WGS-84 ellipsoid).
- *  Each SIMD lane tracks its own convergence state via mask registers. The loop terminates
- *  when all lanes have converged (vcpop == vector_length) or after NK_VINCENTY_MAX_ITERATIONS.
+ *  Vincenty's formulae iterate to solve the geodesic on an oblate spheroid (WGS-84 ellipsoid). Each
+ *  SIMD lane tracks its own convergence state via mask registers. The loop terminates when all
+ *  lanes have converged (vcpop == vector_length) or after NUMKONG_VINCENTY_MAX_ITERATIONS.
  */
-NK_HELPER_INLINE void nk_vincenty_f64_rvv_kernel_(  //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
+NUMKONG_HELPER_INLINE void nk_vincenty_f64_rvv_kernel_( //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons,     //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons,     //
     nk_size_t vector_length, nk_f64_t *results) {
 
     vfloat64m4_t lat1_f64m4 = __riscv_vle64_v_f64m4(a_lats, vector_length);
@@ -223,12 +223,13 @@ NK_HELPER_INLINE void nk_vincenty_f64_rvv_kernel_(  //
     vfloat64m4_t lat2_f64m4 = __riscv_vle64_v_f64m4(b_lats, vector_length);
     vfloat64m4_t lon2_f64m4 = __riscv_vle64_v_f64m4(b_lons, vector_length);
 
-    vfloat64m4_t const v_equatorial_radius_f64m4 = __riscv_vfmv_v_f_f64m4(NK_EARTH_ELLIPSOID_EQUATORIAL_RADIUS,
+    vfloat64m4_t const v_equatorial_radius_f64m4 = __riscv_vfmv_v_f_f64m4(NUMKONG_EARTH_ELLIPSOID_EQUATORIAL_RADIUS,
                                                                           vector_length);
-    vfloat64m4_t const v_polar_radius_f64m4 = __riscv_vfmv_v_f_f64m4(NK_EARTH_ELLIPSOID_POLAR_RADIUS, vector_length);
-    nk_f64_t const flattening_scalar = 1.0 / NK_EARTH_ELLIPSOID_INVERSE_FLATTENING;
+    vfloat64m4_t const v_polar_radius_f64m4 = __riscv_vfmv_v_f_f64m4(NUMKONG_EARTH_ELLIPSOID_POLAR_RADIUS,
+                                                                     vector_length);
+    nk_f64_t const flattening_scalar = 1.0 / NUMKONG_EARTH_ELLIPSOID_INVERSE_FLATTENING;
     vfloat64m4_t const v_flattening_f64m4 = __riscv_vfmv_v_f_f64m4(flattening_scalar, vector_length);
-    vfloat64m4_t const v_convergence_f64m4 = __riscv_vfmv_v_f_f64m4(NK_VINCENTY_CONVERGENCE_THRESHOLD_F64,
+    vfloat64m4_t const v_convergence_f64m4 = __riscv_vfmv_v_f_f64m4(NUMKONG_VINCENTY_CONVERGENCE_THRESHOLD_F64,
                                                                     vector_length);
     vfloat64m4_t const v_one_f64m4 = __riscv_vfmv_v_f_f64m4(1.0, vector_length);
     vfloat64m4_t const v_two_f64m4 = __riscv_vfmv_v_f_f64m4(2.0, vector_length);
@@ -283,7 +284,7 @@ NK_HELPER_INLINE void nk_vincenty_f64_rvv_kernel_(  //
     vbool16_t converged_mask_b16 = __riscv_vmfeq_vv_f64m4_b16(v_zero_f64m4, v_one_f64m4, vector_length); // all false
     vbool16_t coincident_mask_b16 = converged_mask_b16;
 
-    for (nk_u32_t iteration = 0; iteration < NK_VINCENTY_MAX_ITERATIONS; ++iteration) {
+    for (nk_u32_t iteration = 0; iteration < NUMKONG_VINCENTY_MAX_ITERATIONS; ++iteration) {
         // Check if all lanes converged
         if (__riscv_vcpop_m_b16(converged_mask_b16, vector_length) == vector_length) break;
 
@@ -474,7 +475,7 @@ NK_HELPER_INLINE void nk_vincenty_f64_rvv_kernel_(  //
     __riscv_vse64_v_f64m4(results, distances_f64m4, vector_length);
 }
 
-NK_API_COMPTIME void nk_vincenty_f64_rvv(           //
+NUMKONG_API_COMPTIME void nk_vincenty_f64_rvv(      //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results) {
@@ -490,9 +491,9 @@ NK_API_COMPTIME void nk_vincenty_f64_rvv(           //
  *  @brief  RVV internal kernel for Vincenty's geodesic distance on vector_length f32 point pairs.
  *  @note   This is a true SIMD implementation using masked convergence tracking via vmerge.
  */
-NK_HELPER_INLINE void nk_vincenty_f32_rvv_kernel_(  //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
+NUMKONG_HELPER_INLINE void nk_vincenty_f32_rvv_kernel_( //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons,     //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons,     //
     nk_size_t vector_length, nk_f32_t *results) {
 
     vfloat32m4_t lat1_f32m4 = __riscv_vle32_v_f32m4(a_lats, vector_length);
@@ -501,12 +502,12 @@ NK_HELPER_INLINE void nk_vincenty_f32_rvv_kernel_(  //
     vfloat32m4_t lon2_f32m4 = __riscv_vle32_v_f32m4(b_lons, vector_length);
 
     vfloat32m4_t const v_equatorial_radius_f32m4 = __riscv_vfmv_v_f_f32m4(
-        (nk_f32_t)NK_EARTH_ELLIPSOID_EQUATORIAL_RADIUS, vector_length);
-    vfloat32m4_t const v_polar_radius_f32m4 = __riscv_vfmv_v_f_f32m4((nk_f32_t)NK_EARTH_ELLIPSOID_POLAR_RADIUS,
+        (nk_f32_t)NUMKONG_EARTH_ELLIPSOID_EQUATORIAL_RADIUS, vector_length);
+    vfloat32m4_t const v_polar_radius_f32m4 = __riscv_vfmv_v_f_f32m4((nk_f32_t)NUMKONG_EARTH_ELLIPSOID_POLAR_RADIUS,
                                                                      vector_length);
-    nk_f32_t const flattening_scalar = 1.0f / (nk_f32_t)NK_EARTH_ELLIPSOID_INVERSE_FLATTENING;
+    nk_f32_t const flattening_scalar = 1.0f / (nk_f32_t)NUMKONG_EARTH_ELLIPSOID_INVERSE_FLATTENING;
     vfloat32m4_t const v_flattening_f32m4 = __riscv_vfmv_v_f_f32m4(flattening_scalar, vector_length);
-    vfloat32m4_t const v_convergence_f32m4 = __riscv_vfmv_v_f_f32m4(NK_VINCENTY_CONVERGENCE_THRESHOLD_F32,
+    vfloat32m4_t const v_convergence_f32m4 = __riscv_vfmv_v_f_f32m4(NUMKONG_VINCENTY_CONVERGENCE_THRESHOLD_F32,
                                                                     vector_length);
     vfloat32m4_t const v_one_f32m4 = __riscv_vfmv_v_f_f32m4(1.0f, vector_length);
     vfloat32m4_t const v_two_f32m4 = __riscv_vfmv_v_f_f32m4(2.0f, vector_length);
@@ -561,7 +562,7 @@ NK_HELPER_INLINE void nk_vincenty_f32_rvv_kernel_(  //
     vbool8_t converged_mask_b8 = __riscv_vmfeq_vv_f32m4_b8(v_zero_f32m4, v_one_f32m4, vector_length); // all false
     vbool8_t coincident_mask_b8 = converged_mask_b8;
 
-    for (nk_u32_t iteration = 0; iteration < NK_VINCENTY_MAX_ITERATIONS; ++iteration) {
+    for (nk_u32_t iteration = 0; iteration < NUMKONG_VINCENTY_MAX_ITERATIONS; ++iteration) {
         // Check if all lanes converged
         if (__riscv_vcpop_m_b8(converged_mask_b8, vector_length) == vector_length) break;
 
@@ -742,7 +743,7 @@ NK_HELPER_INLINE void nk_vincenty_f32_rvv_kernel_(  //
     __riscv_vse32_v_f32m4(results, distances_f32m4, vector_length);
 }
 
-NK_API_COMPTIME void nk_vincenty_f32_rvv(           //
+NUMKONG_API_COMPTIME void nk_vincenty_f32_rvv(      //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results) {
@@ -766,6 +767,6 @@ NK_API_COMPTIME void nk_vincenty_f32_rvv(           //
 #pragma GCC pop_options
 #endif
 
-#endif // NK_TARGET_RVV
-#endif // NK_TARGET_RISCV64_
-#endif // NK_GEOSPATIAL_RVV_H
+#endif // NUMKONG_TARGET_RVV
+#endif // NUMKONG_ARCH_RISCV64_
+#endif // NUMKONG_GEOSPATIAL_RVV_H

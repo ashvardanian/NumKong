@@ -7,8 +7,8 @@
  *  Forward declarations for the trigonometric, sin/cos/atan, and rotary position embedding, RoPE,
  *  api_* functions, and their documentation strings.
  */
-#ifndef NK_PYTHON_TRIGONOMETRY_H
-#define NK_PYTHON_TRIGONOMETRY_H
+#ifndef NUMKONG_PYTHON_TRIGONOMETRY_H
+#define NUMKONG_PYTHON_TRIGONOMETRY_H
 
 #include "numkong.h"
 
@@ -37,4 +37,4 @@ extern char const doc_rope[];
 }
 #endif
 
-#endif // NK_PYTHON_TRIGONOMETRY_H
+#endif // NUMKONG_PYTHON_TRIGONOMETRY_H

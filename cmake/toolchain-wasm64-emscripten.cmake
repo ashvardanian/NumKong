@@ -1,7 +1,7 @@
 # WASM64/Emscripten Memory64 toolchain for NumKong: 64-bit addressing, the only way one module passes 4 GiB.
 # Usage: cmake -B build-wasm64-emscripten -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm64-emscripten.cmake
 #
-# Every engine with Memory64 also has Relaxed SIMD, so the tier defaults to `v128relaxed`; `-DNK_WASM_SIMD=v128`
+# Every engine with Memory64 also has Relaxed SIMD, so the tier defaults to `v128relaxed`; `-DNUMKONG_WASM_SIMD=v128`
 # narrows it. The kernels are thread-free, so no `-pthread` here. The flags go into the cache once, so use one
 # build directory per tier.
 
@@ -16,13 +16,13 @@ if (NOT DEFINED ENV{EMSDK})
 endif ()
 
 # SIMD tier: the flags define `__wasm_simd128__` / `__wasm_relaxed_simd__`, which `types.h` reads.
-set(NK_WASM_SIMD "v128relaxed" CACHE STRING "WebAssembly SIMD tier of this module: v128 or v128relaxed")
-if (NK_WASM_SIMD STREQUAL "v128relaxed")
+set(NUMKONG_WASM_SIMD "v128relaxed" CACHE STRING "WebAssembly SIMD tier of this module: v128 or v128relaxed")
+if (NUMKONG_WASM_SIMD STREQUAL "v128relaxed")
     set(WASM_SIMD_FLAGS "-msimd128 -mrelaxed-simd")
-elseif (NK_WASM_SIMD STREQUAL "v128")
+elseif (NUMKONG_WASM_SIMD STREQUAL "v128")
     set(WASM_SIMD_FLAGS "-msimd128")
 else ()
-    message(FATAL_ERROR "NK_WASM_SIMD must be v128 or v128relaxed, not `${NK_WASM_SIMD}`")
+    message(FATAL_ERROR "NUMKONG_WASM_SIMD must be v128 or v128relaxed, not `${NUMKONG_WASM_SIMD}`")
 endif ()
 
 # Emscripten's own toolchain file reads the width off these flags as it loads, so they precede the include.
@@ -57,4 +57,4 @@ execute_process(
 )
 string(REGEX MATCH "[0-9]+\\.[0-9]+\\.[0-9]+" EMCC_VERSION "${EMCC_VERSION_OUTPUT}")
 message(STATUS "NumKong WASM64: Emscripten ${EMCC_VERSION}")
-message(STATUS "NumKong WASM64: SIMD tier ${NK_WASM_SIMD}, Memory64 enabled")
+message(STATUS "NumKong WASM64: SIMD tier ${NUMKONG_WASM_SIMD}, Memory64 enabled")

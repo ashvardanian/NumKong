@@ -4,8 +4,8 @@
  *  @date March 6, 2026
  *  @brief C++ wrappers for SIMD-accelerated batched spatial distance matrices.
  */
-#ifndef NK_SPATIALS_HPP
-#define NK_SPATIALS_HPP
+#ifndef NUMKONG_SPATIALS_HPP
+#define NUMKONG_SPATIALS_HPP
 
 #include <cstdint>
 #include <cstring>
@@ -518,4 +518,4 @@ matrix<typename value_type_::euclidean_result_t, allocator_type_> try_euclideans
 
 } // namespace ashvardanian::numkong
 
-#endif // NK_SPATIALS_HPP
+#endif // NUMKONG_SPATIALS_HPP

@@ -6,11 +6,11 @@
  *
  *  @sa include/numkong/dots.h
  */
-#ifndef NK_DOTS_GENOA_H
-#define NK_DOTS_GENOA_H
+#ifndef NUMKONG_DOTS_GENOA_H
+#define NUMKONG_DOTS_GENOA_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_GENOA
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_GENOA
 
 #include "numkong/dot/genoa.h"
 #include "numkong/cast/icelake.h"   // `nk_load_e4m3x32_to_bf16x32_icelake_`
@@ -100,6 +100,6 @@ nk_define_cross_packed_(dots, e5m2, genoa, e5m2, bf16, f32, nk_b512_vec_t, nk_do
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_GENOA
-#endif // NK_TARGET_X8664_
-#endif // NK_DOTS_GENOA_H
+#endif // NUMKONG_TARGET_GENOA
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_DOTS_GENOA_H

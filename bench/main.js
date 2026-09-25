@@ -1,5 +1,5 @@
 /**
- *  @file bench/bench.js
+ *  @file bench/main.js
  *  @author Ash Vardanian
  *  @date October 20, 2023
  *  @brief Angular-distance benchmarks of NumKong against pure JavaScript, MathJS and USearch.

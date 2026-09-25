@@ -23,7 +23,7 @@ void bench_cross_power() {
     constexpr nk_dtype_t u8_k = nk_u8_k;
     constexpr nk_dtype_t u1_k = nk_u1_k;
 
-#if NK_TARGET_POWERVSX
+#if NUMKONG_TARGET_POWERVSX
     run_dots_packed<f64_k>("dots_packed_f64_powervsx", nk_dots_pack_size_f64_powervsx, nk_dots_pack_f64_powervsx,
                            nk_dots_packed_f64_powervsx);
     run_dots_packed<f32_k>("dots_packed_f32_powervsx", nk_dots_pack_size_f32_powervsx, nk_dots_pack_f32_powervsx,

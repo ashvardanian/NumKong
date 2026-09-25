@@ -28,10 +28,10 @@
  *  wasm_i8x16_all_true(a)                  Vincenty convergence check (all lanes at once)
  *  @endverbatim
  */
-#ifndef NK_GEOSPATIAL_V128RELAXED_H
-#define NK_GEOSPATIAL_V128RELAXED_H
+#ifndef NUMKONG_GEOSPATIAL_V128RELAXED_H
+#define NUMKONG_GEOSPATIAL_V128RELAXED_H
 
-#if NK_TARGET_V128RELAXED
+#if NUMKONG_TARGET_V128RELAXED
 
 #include "numkong/types.h"
 #include "numkong/trigonometry/v128relaxed.h"
@@ -48,11 +48,11 @@ extern "C" {
 /*  WASM Relaxed SIMD implementations using 2-wide f64 and 4-wide f32 SIMD.
  *  These require WASM trigonometric kernels from trigonometry/v128relaxed.h. */
 
-NK_HELPER_INLINE v128_t nk_haversine_f64x2_v128relaxed_(         //
+NUMKONG_HELPER_INLINE v128_t nk_haversine_f64x2_v128relaxed_(    //
     v128_t first_latitudes_f64x2, v128_t first_longitudes_f64x2, //
     v128_t second_latitudes_f64x2, v128_t second_longitudes_f64x2) {
 
-    v128_t const earth_radius_f64x2 = wasm_f64x2_splat(NK_EARTH_MEDIATORIAL_RADIUS);
+    v128_t const earth_radius_f64x2 = wasm_f64x2_splat(NUMKONG_EARTH_MEDIATORIAL_RADIUS);
     v128_t const half_f64x2 = wasm_f64x2_splat(0.5);
     v128_t const one_f64x2 = wasm_f64x2_splat(1.0);
     v128_t const two_f64x2 = wasm_f64x2_splat(2.0);
@@ -94,9 +94,9 @@ NK_HELPER_INLINE v128_t nk_haversine_f64x2_v128relaxed_(         //
     return wasm_f64x2_mul(earth_radius_f64x2, central_angle_f64x2);
 }
 
-NK_API_COMPTIME void nk_haversine_f64_v128relaxed(  //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
+NUMKONG_API_COMPTIME void nk_haversine_f64_v128relaxed( //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons,     //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons,     //
     nk_size_t n, nk_f64_t *results) {
 
     while (n >= 2) {
@@ -126,11 +126,11 @@ NK_API_COMPTIME void nk_haversine_f64_v128relaxed(  //
     }
 }
 
-NK_HELPER_INLINE v128_t nk_haversine_f32x4_v128relaxed_(         //
+NUMKONG_HELPER_INLINE v128_t nk_haversine_f32x4_v128relaxed_(    //
     v128_t first_latitudes_f32x4, v128_t first_longitudes_f32x4, //
     v128_t second_latitudes_f32x4, v128_t second_longitudes_f32x4) {
 
-    v128_t const earth_radius_f32x4 = wasm_f32x4_splat((float)NK_EARTH_MEDIATORIAL_RADIUS);
+    v128_t const earth_radius_f32x4 = wasm_f32x4_splat((float)NUMKONG_EARTH_MEDIATORIAL_RADIUS);
     v128_t const half_f32x4 = wasm_f32x4_splat(0.5f);
     v128_t const one_f32x4 = wasm_f32x4_splat(1.0f);
     v128_t const two_f32x4 = wasm_f32x4_splat(2.0f);
@@ -173,9 +173,9 @@ NK_HELPER_INLINE v128_t nk_haversine_f32x4_v128relaxed_(         //
     return wasm_f32x4_mul(earth_radius_f32x4, central_angle_f32x4);
 }
 
-NK_API_COMPTIME void nk_haversine_f32_v128relaxed(  //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
+NUMKONG_API_COMPTIME void nk_haversine_f32_v128relaxed( //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons,     //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons,     //
     nk_size_t n, nk_f32_t *results) {
 
     while (n >= 4) {
@@ -209,14 +209,14 @@ NK_API_COMPTIME void nk_haversine_f32_v128relaxed(  //
  *  @brief  WASM Relaxed SIMD helper for Vincenty's geodesic distance on 2 f64 point pairs.
  *  @note   This is a true SIMD implementation using masked convergence tracking via blending.
  */
-NK_HELPER_INLINE v128_t nk_vincenty_f64x2_v128relaxed_(          //
+NUMKONG_HELPER_INLINE v128_t nk_vincenty_f64x2_v128relaxed_(     //
     v128_t first_latitudes_f64x2, v128_t first_longitudes_f64x2, //
     v128_t second_latitudes_f64x2, v128_t second_longitudes_f64x2) {
 
-    v128_t const equatorial_radius_f64x2 = wasm_f64x2_splat(NK_EARTH_ELLIPSOID_EQUATORIAL_RADIUS);
-    v128_t const polar_radius_f64x2 = wasm_f64x2_splat(NK_EARTH_ELLIPSOID_POLAR_RADIUS);
-    v128_t const flattening_f64x2 = wasm_f64x2_splat(1.0 / NK_EARTH_ELLIPSOID_INVERSE_FLATTENING);
-    v128_t const convergence_threshold_f64x2 = wasm_f64x2_splat(NK_VINCENTY_CONVERGENCE_THRESHOLD_F64);
+    v128_t const equatorial_radius_f64x2 = wasm_f64x2_splat(NUMKONG_EARTH_ELLIPSOID_EQUATORIAL_RADIUS);
+    v128_t const polar_radius_f64x2 = wasm_f64x2_splat(NUMKONG_EARTH_ELLIPSOID_POLAR_RADIUS);
+    v128_t const flattening_f64x2 = wasm_f64x2_splat(1.0 / NUMKONG_EARTH_ELLIPSOID_INVERSE_FLATTENING);
+    v128_t const convergence_threshold_f64x2 = wasm_f64x2_splat(NUMKONG_VINCENTY_CONVERGENCE_THRESHOLD_F64);
     v128_t const one_f64x2 = wasm_f64x2_splat(1.0);
     v128_t const two_f64x2 = wasm_f64x2_splat(2.0);
     v128_t const three_f64x2 = wasm_f64x2_splat(3.0);
@@ -256,7 +256,7 @@ NK_HELPER_INLINE v128_t nk_vincenty_f64x2_v128relaxed_(          //
     v128_t converged_mask_i64x2 = wasm_i64x2_splat(0);
     v128_t coincident_mask_i64x2 = wasm_i64x2_splat(0);
 
-    for (nk_u32_t iteration = 0; iteration < NK_VINCENTY_MAX_ITERATIONS; ++iteration) {
+    for (nk_u32_t iteration = 0; iteration < NUMKONG_VINCENTY_MAX_ITERATIONS; ++iteration) {
         // Check if all lanes converged
         if (wasm_i8x16_all_true(converged_mask_i64x2)) break;
 
@@ -393,9 +393,9 @@ NK_HELPER_INLINE v128_t nk_vincenty_f64x2_v128relaxed_(          //
     return distances_f64x2;
 }
 
-NK_API_COMPTIME void nk_vincenty_f64_v128relaxed(   //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
+NUMKONG_API_COMPTIME void nk_vincenty_f64_v128relaxed( //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons,    //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons,    //
     nk_size_t n, nk_f64_t *results) {
 
     while (n >= 2) {
@@ -429,14 +429,14 @@ NK_API_COMPTIME void nk_vincenty_f64_v128relaxed(   //
  *  @brief  WASM Relaxed SIMD helper for Vincenty's geodesic distance on 4 f32 point pairs.
  *  @note   This is a true SIMD implementation using masked convergence tracking via blending.
  */
-NK_HELPER_INLINE v128_t nk_vincenty_f32x4_v128relaxed_(          //
+NUMKONG_HELPER_INLINE v128_t nk_vincenty_f32x4_v128relaxed_(     //
     v128_t first_latitudes_f32x4, v128_t first_longitudes_f32x4, //
     v128_t second_latitudes_f32x4, v128_t second_longitudes_f32x4) {
 
-    v128_t const equatorial_radius_f32x4 = wasm_f32x4_splat((float)NK_EARTH_ELLIPSOID_EQUATORIAL_RADIUS);
-    v128_t const polar_radius_f32x4 = wasm_f32x4_splat((float)NK_EARTH_ELLIPSOID_POLAR_RADIUS);
-    v128_t const flattening_f32x4 = wasm_f32x4_splat(1.0f / (float)NK_EARTH_ELLIPSOID_INVERSE_FLATTENING);
-    v128_t const convergence_threshold_f32x4 = wasm_f32x4_splat(NK_VINCENTY_CONVERGENCE_THRESHOLD_F32);
+    v128_t const equatorial_radius_f32x4 = wasm_f32x4_splat((float)NUMKONG_EARTH_ELLIPSOID_EQUATORIAL_RADIUS);
+    v128_t const polar_radius_f32x4 = wasm_f32x4_splat((float)NUMKONG_EARTH_ELLIPSOID_POLAR_RADIUS);
+    v128_t const flattening_f32x4 = wasm_f32x4_splat(1.0f / (float)NUMKONG_EARTH_ELLIPSOID_INVERSE_FLATTENING);
+    v128_t const convergence_threshold_f32x4 = wasm_f32x4_splat(NUMKONG_VINCENTY_CONVERGENCE_THRESHOLD_F32);
     v128_t const one_f32x4 = wasm_f32x4_splat(1.0f);
     v128_t const two_f32x4 = wasm_f32x4_splat(2.0f);
     v128_t const three_f32x4 = wasm_f32x4_splat(3.0f);
@@ -476,7 +476,7 @@ NK_HELPER_INLINE v128_t nk_vincenty_f32x4_v128relaxed_(          //
     v128_t converged_mask_i32x4 = wasm_i32x4_splat(0);
     v128_t coincident_mask_i32x4 = wasm_i32x4_splat(0);
 
-    for (nk_u32_t iteration = 0; iteration < NK_VINCENTY_MAX_ITERATIONS; ++iteration) {
+    for (nk_u32_t iteration = 0; iteration < NUMKONG_VINCENTY_MAX_ITERATIONS; ++iteration) {
         // Check if all lanes converged
         if (wasm_i8x16_all_true(converged_mask_i32x4)) break;
 
@@ -607,9 +607,9 @@ NK_HELPER_INLINE v128_t nk_vincenty_f32x4_v128relaxed_(          //
     return distances_f32x4;
 }
 
-NK_API_COMPTIME void nk_vincenty_f32_v128relaxed(   //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
+NUMKONG_API_COMPTIME void nk_vincenty_f32_v128relaxed( //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons,    //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons,    //
     nk_size_t n, nk_f32_t *results) {
 
     while (n >= 4) {
@@ -647,5 +647,5 @@ NK_API_COMPTIME void nk_vincenty_f32_v128relaxed(   //
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_V128RELAXED
-#endif // NK_GEOSPATIAL_V128RELAXED_H
+#endif // NUMKONG_TARGET_V128RELAXED
+#endif // NUMKONG_GEOSPATIAL_V128RELAXED_H

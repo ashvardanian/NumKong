@@ -44,11 +44,11 @@
  *  2. No output matrix materialization → eliminates M × N f32 memory round-trip
  *  3. Vertical column reads → ~128 element-wise svmax, 1cy, vs ~256 svmaxv reductions, 8cy
  */
-#ifndef NK_MAXSIM_SME_H
-#define NK_MAXSIM_SME_H
+#ifndef NUMKONG_MAXSIM_SME_H
+#define NUMKONG_MAXSIM_SME_H
 
-#if NK_TARGET_ARM64_
-#if NK_TARGET_SME
+#if NUMKONG_ARCH_ARM64_
+#if NUMKONG_TARGET_SME
 
 #include "numkong/dots/sme.h"    // `nk_dots_sme_packed_header_t`
 #include "numkong/reduce/sve.h"  // `nk_svaddv_f64_`
@@ -85,7 +85,7 @@ typedef struct {
     nk_u32_t reserved[8];       // padding to 64 bytes
 } nk_maxsim_sme_packed_header_t;
 
-NK_STATIC_ASSERT(sizeof(nk_maxsim_sme_packed_header_t) == 64, nk_maxsim_sme_packed_header_must_be_64_bytes);
+NUMKONG_STATIC_ASSERT(sizeof(nk_maxsim_sme_packed_header_t) == 64, nk_maxsim_sme_packed_header_must_be_64_bytes);
 
 /**
  *  @brief MaxSim f16 kernel with both Q and D pre-packed, extracting through vertical column reads.
@@ -98,7 +98,7 @@ NK_STATIC_ASSERT(sizeof(nk_maxsim_sme_packed_header_t) == 64, nk_maxsim_sme_pack
  */
 __arm_new("za") static void nk_maxsim_packed_f16_streaming_( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
-    nk_size_t depth, nk_f32_t *result) NK_STREAMING_ {
+    nk_size_t depth, nk_f32_t *result) NUMKONG_STREAMING_ {
 
     nk_maxsim_sme_packed_header_t const *query_header = (nk_maxsim_sme_packed_header_t const *)query_packed;
     nk_maxsim_sme_packed_header_t const *document_header = (nk_maxsim_sme_packed_header_t const *)document_packed;
@@ -133,7 +133,7 @@ __arm_new("za") static void nk_maxsim_packed_f16_streaming_( //
                                                                                : svwhilelt_b32_u64(0u, rows_remaining);
 
         // Running max + argmax vectors for angular distance finalization
-        svfloat32_t running_maximum_f32x = svdup_f32(NK_F32_MIN);
+        svfloat32_t running_maximum_f32x = svdup_f32(NUMKONG_F32_MIN);
         svuint32_t running_argmax_u32x = svdup_u32(0);
 
         nk_size_t column_tile_index = 0;
@@ -179,8 +179,8 @@ __arm_new("za") static void nk_maxsim_packed_f16_streaming_( //
                 // Tile 0
                 {
                     nk_u32_t document_index = (nk_u32_t)((column_tile_index + 0) * tile_dimension + column_within_tile);
-                    svfloat32_t column_dots_f32x = svread_ver_za32_f32_m(svdup_f32(NK_F32_MIN), predicate_all_b32x, 0,
-                                                                         column_within_tile);
+                    svfloat32_t column_dots_f32x = svread_ver_za32_f32_m(svdup_f32(NUMKONG_F32_MIN), predicate_all_b32x,
+                                                                         0, column_within_tile);
                     svbool_t is_better_b32x = svcmpgt_f32(predicate_all_b32x, column_dots_f32x, running_maximum_f32x);
                     running_maximum_f32x = svsel_f32(is_better_b32x, column_dots_f32x, running_maximum_f32x);
                     running_argmax_u32x = svsel_u32(is_better_b32x, svdup_u32(document_index), running_argmax_u32x);
@@ -188,8 +188,8 @@ __arm_new("za") static void nk_maxsim_packed_f16_streaming_( //
                 // Tile 1
                 {
                     nk_u32_t document_index = (nk_u32_t)((column_tile_index + 1) * tile_dimension + column_within_tile);
-                    svfloat32_t column_dots_f32x = svread_ver_za32_f32_m(svdup_f32(NK_F32_MIN), predicate_all_b32x, 1,
-                                                                         column_within_tile);
+                    svfloat32_t column_dots_f32x = svread_ver_za32_f32_m(svdup_f32(NUMKONG_F32_MIN), predicate_all_b32x,
+                                                                         1, column_within_tile);
                     svbool_t is_better_b32x = svcmpgt_f32(predicate_all_b32x, column_dots_f32x, running_maximum_f32x);
                     running_maximum_f32x = svsel_f32(is_better_b32x, column_dots_f32x, running_maximum_f32x);
                     running_argmax_u32x = svsel_u32(is_better_b32x, svdup_u32(document_index), running_argmax_u32x);
@@ -197,8 +197,8 @@ __arm_new("za") static void nk_maxsim_packed_f16_streaming_( //
                 // Tile 2
                 {
                     nk_u32_t document_index = (nk_u32_t)((column_tile_index + 2) * tile_dimension + column_within_tile);
-                    svfloat32_t column_dots_f32x = svread_ver_za32_f32_m(svdup_f32(NK_F32_MIN), predicate_all_b32x, 2,
-                                                                         column_within_tile);
+                    svfloat32_t column_dots_f32x = svread_ver_za32_f32_m(svdup_f32(NUMKONG_F32_MIN), predicate_all_b32x,
+                                                                         2, column_within_tile);
                     svbool_t is_better_b32x = svcmpgt_f32(predicate_all_b32x, column_dots_f32x, running_maximum_f32x);
                     running_maximum_f32x = svsel_f32(is_better_b32x, column_dots_f32x, running_maximum_f32x);
                     running_argmax_u32x = svsel_u32(is_better_b32x, svdup_u32(document_index), running_argmax_u32x);
@@ -206,8 +206,8 @@ __arm_new("za") static void nk_maxsim_packed_f16_streaming_( //
                 // Tile 3, whose zero-padded columns would outscore all-negative dots
                 if (column_within_tile < last_cols_remaining) {
                     nk_u32_t document_index = (nk_u32_t)((column_tile_index + 3) * tile_dimension + column_within_tile);
-                    svfloat32_t column_dots_f32x = svread_ver_za32_f32_m(svdup_f32(NK_F32_MIN), predicate_all_b32x, 3,
-                                                                         column_within_tile);
+                    svfloat32_t column_dots_f32x = svread_ver_za32_f32_m(svdup_f32(NUMKONG_F32_MIN), predicate_all_b32x,
+                                                                         3, column_within_tile);
                     svbool_t is_better_b32x = svcmpgt_f32(predicate_all_b32x, column_dots_f32x, running_maximum_f32x);
                     running_maximum_f32x = svsel_f32(is_better_b32x, column_dots_f32x, running_maximum_f32x);
                     running_argmax_u32x = svsel_u32(is_better_b32x, svdup_u32(document_index), running_argmax_u32x);
@@ -243,7 +243,7 @@ __arm_new("za") static void nk_maxsim_packed_f16_streaming_( //
             // Vertical column extraction from ZA0 + argmax update
             for (nk_size_t column_within_tile = 0; column_within_tile < cols_remaining; column_within_tile++) {
                 nk_u32_t document_index = (nk_u32_t)(col_start + column_within_tile);
-                svfloat32_t column_dots_f32x = svread_ver_za32_f32_m(svdup_f32(NK_F32_MIN), predicate_all_b32x, 0,
+                svfloat32_t column_dots_f32x = svread_ver_za32_f32_m(svdup_f32(NUMKONG_F32_MIN), predicate_all_b32x, 0,
                                                                      column_within_tile);
                 svbool_t is_better_b32x = svcmpgt_f32(predicate_all_b32x, column_dots_f32x, running_maximum_f32x);
                 running_maximum_f32x = svsel_f32(is_better_b32x, column_dots_f32x, running_maximum_f32x);
@@ -273,7 +273,7 @@ __arm_new("za") static void nk_maxsim_packed_f16_streaming_( //
     *result = total_angular_distance;
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_f16_sme( //
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f16_sme( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {
 
@@ -293,7 +293,7 @@ NK_API_COMPTIME void nk_maxsim_packed_f16_sme( //
  */
 __arm_new("za") static void nk_maxsim_packed_bf16_streaming_( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
-    nk_size_t depth, nk_f32_t *result) NK_STREAMING_ {
+    nk_size_t depth, nk_f32_t *result) NUMKONG_STREAMING_ {
 
     nk_maxsim_sme_packed_header_t const *query_header = (nk_maxsim_sme_packed_header_t const *)query_packed;
     nk_maxsim_sme_packed_header_t const *document_header = (nk_maxsim_sme_packed_header_t const *)document_packed;
@@ -329,7 +329,7 @@ __arm_new("za") static void nk_maxsim_packed_bf16_streaming_( //
                                                                                : svwhilelt_b32_u64(0u, rows_remaining);
 
         // Running max + argmax vectors for angular distance finalization
-        svfloat32_t running_maximum_f32x = svdup_f32(NK_F32_MIN);
+        svfloat32_t running_maximum_f32x = svdup_f32(NUMKONG_F32_MIN);
         svuint32_t running_argmax_u32x = svdup_u32(0);
 
         nk_size_t column_tile_index = 0;
@@ -379,8 +379,8 @@ __arm_new("za") static void nk_maxsim_packed_bf16_streaming_( //
                 // Tile 0
                 {
                     nk_u32_t document_index = (nk_u32_t)((column_tile_index + 0) * tile_dimension + column_within_tile);
-                    svfloat32_t column_dots_f32x = svread_ver_za32_f32_m(svdup_f32(NK_F32_MIN), predicate_all_b32x, 0,
-                                                                         column_within_tile);
+                    svfloat32_t column_dots_f32x = svread_ver_za32_f32_m(svdup_f32(NUMKONG_F32_MIN), predicate_all_b32x,
+                                                                         0, column_within_tile);
                     svbool_t is_better_b32x = svcmpgt_f32(predicate_all_b32x, column_dots_f32x, running_maximum_f32x);
                     running_maximum_f32x = svsel_f32(is_better_b32x, column_dots_f32x, running_maximum_f32x);
                     running_argmax_u32x = svsel_u32(is_better_b32x, svdup_u32(document_index), running_argmax_u32x);
@@ -388,8 +388,8 @@ __arm_new("za") static void nk_maxsim_packed_bf16_streaming_( //
                 // Tile 1
                 {
                     nk_u32_t document_index = (nk_u32_t)((column_tile_index + 1) * tile_dimension + column_within_tile);
-                    svfloat32_t column_dots_f32x = svread_ver_za32_f32_m(svdup_f32(NK_F32_MIN), predicate_all_b32x, 1,
-                                                                         column_within_tile);
+                    svfloat32_t column_dots_f32x = svread_ver_za32_f32_m(svdup_f32(NUMKONG_F32_MIN), predicate_all_b32x,
+                                                                         1, column_within_tile);
                     svbool_t is_better_b32x = svcmpgt_f32(predicate_all_b32x, column_dots_f32x, running_maximum_f32x);
                     running_maximum_f32x = svsel_f32(is_better_b32x, column_dots_f32x, running_maximum_f32x);
                     running_argmax_u32x = svsel_u32(is_better_b32x, svdup_u32(document_index), running_argmax_u32x);
@@ -397,8 +397,8 @@ __arm_new("za") static void nk_maxsim_packed_bf16_streaming_( //
                 // Tile 2
                 {
                     nk_u32_t document_index = (nk_u32_t)((column_tile_index + 2) * tile_dimension + column_within_tile);
-                    svfloat32_t column_dots_f32x = svread_ver_za32_f32_m(svdup_f32(NK_F32_MIN), predicate_all_b32x, 2,
-                                                                         column_within_tile);
+                    svfloat32_t column_dots_f32x = svread_ver_za32_f32_m(svdup_f32(NUMKONG_F32_MIN), predicate_all_b32x,
+                                                                         2, column_within_tile);
                     svbool_t is_better_b32x = svcmpgt_f32(predicate_all_b32x, column_dots_f32x, running_maximum_f32x);
                     running_maximum_f32x = svsel_f32(is_better_b32x, column_dots_f32x, running_maximum_f32x);
                     running_argmax_u32x = svsel_u32(is_better_b32x, svdup_u32(document_index), running_argmax_u32x);
@@ -406,8 +406,8 @@ __arm_new("za") static void nk_maxsim_packed_bf16_streaming_( //
                 // Tile 3, whose zero-padded columns would outscore all-negative dots
                 if (column_within_tile < last_cols_remaining) {
                     nk_u32_t document_index = (nk_u32_t)((column_tile_index + 3) * tile_dimension + column_within_tile);
-                    svfloat32_t column_dots_f32x = svread_ver_za32_f32_m(svdup_f32(NK_F32_MIN), predicate_all_b32x, 3,
-                                                                         column_within_tile);
+                    svfloat32_t column_dots_f32x = svread_ver_za32_f32_m(svdup_f32(NUMKONG_F32_MIN), predicate_all_b32x,
+                                                                         3, column_within_tile);
                     svbool_t is_better_b32x = svcmpgt_f32(predicate_all_b32x, column_dots_f32x, running_maximum_f32x);
                     running_maximum_f32x = svsel_f32(is_better_b32x, column_dots_f32x, running_maximum_f32x);
                     running_argmax_u32x = svsel_u32(is_better_b32x, svdup_u32(document_index), running_argmax_u32x);
@@ -443,7 +443,7 @@ __arm_new("za") static void nk_maxsim_packed_bf16_streaming_( //
             // Vertical column extraction from ZA0 + argmax update
             for (nk_size_t column_within_tile = 0; column_within_tile < cols_remaining; column_within_tile++) {
                 nk_u32_t document_index = (nk_u32_t)(col_start + column_within_tile);
-                svfloat32_t column_dots_f32x = svread_ver_za32_f32_m(svdup_f32(NK_F32_MIN), predicate_all_b32x, 0,
+                svfloat32_t column_dots_f32x = svread_ver_za32_f32_m(svdup_f32(NUMKONG_F32_MIN), predicate_all_b32x, 0,
                                                                      column_within_tile);
                 svbool_t is_better_b32x = svcmpgt_f32(predicate_all_b32x, column_dots_f32x, running_maximum_f32x);
                 running_maximum_f32x = svsel_f32(is_better_b32x, column_dots_f32x, running_maximum_f32x);
@@ -473,7 +473,7 @@ __arm_new("za") static void nk_maxsim_packed_bf16_streaming_( //
     *result = total_angular_distance;
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_bf16_sme( //
+NUMKONG_API_COMPTIME void nk_maxsim_packed_bf16_sme( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {
 
@@ -482,27 +482,27 @@ NK_API_COMPTIME void nk_maxsim_packed_bf16_sme( //
     nk_sme_stop_streaming_();
 }
 
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_sme(nk_size_t columns, nk_size_t depth) { //
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_sme(nk_size_t columns, nk_size_t depth) { //
     return nk_dots_pack_size_bf16_sme(columns, depth);
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_shape_bf16_sme(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_bf16_sme(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
     nk_maxsim_sme_packed_header_t const *header = (nk_maxsim_sme_packed_header_t const *)packed;
     *vectors = header->columns;
     *depth = header->depth;
 }
 
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_sme(nk_size_t columns, nk_size_t depth) { //
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_sme(nk_size_t columns, nk_size_t depth) { //
     return nk_dots_pack_size_f16_sme(columns, depth);
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_shape_f16_sme(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f16_sme(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
     nk_maxsim_sme_packed_header_t const *header = (nk_maxsim_sme_packed_header_t const *)packed;
     *vectors = header->columns;
     *depth = header->depth;
 }
 
-NK_API_COMPTIME void nk_maxsim_pack_bf16_sme(                                                                //
+NUMKONG_API_COMPTIME void nk_maxsim_pack_bf16_sme(                                                           //
     nk_bf16_t const *vectors, nk_size_t columns, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) { //
     nk_size_t const blob_bytes = nk_maxsim_pack_size_bf16_sme(columns, depth);
     for (nk_size_t byte_index = 0; byte_index < blob_bytes; byte_index++) ((char *)packed)[byte_index] = 0;
@@ -525,7 +525,7 @@ NK_API_COMPTIME void nk_maxsim_pack_bf16_sme(                                   
     }
 }
 
-NK_API_COMPTIME void nk_maxsim_pack_f16_sme(                                                                //
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_sme(                                                           //
     nk_f16_t const *vectors, nk_size_t columns, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) { //
     nk_size_t const blob_bytes = nk_maxsim_pack_size_f16_sme(columns, depth);
     for (nk_size_t byte_index = 0; byte_index < blob_bytes; byte_index++) ((char *)packed)[byte_index] = 0;
@@ -548,7 +548,7 @@ NK_API_COMPTIME void nk_maxsim_pack_f16_sme(                                    
     }
 }
 
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_sme(nk_size_t columns, nk_size_t depth) { //
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_sme(nk_size_t columns, nk_size_t depth) { //
     nk_size_t const expansion = 4;                                                          // i8->i32 SMOPA
     nk_size_t const tile_dimension = nk_sme_cntw_();                                        // 16 for SVL=512
     nk_size_t const vector_elements = nk_sme_cntb_();                                       // 64 for SVL=512
@@ -563,13 +563,13 @@ NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_sme(nk_size_t columns, nk_size
     return size;
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_shape_f32_sme(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f32_sme(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
     nk_maxsim_sme_packed_header_t const *header = (nk_maxsim_sme_packed_header_t const *)packed;
     *vectors = header->columns;
     *depth = header->depth;
 }
 
-NK_API_COMPTIME void nk_maxsim_pack_f32_sme(                                                                //
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f32_sme(                                                           //
     nk_f32_t const *vectors, nk_size_t columns, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) { //
     nk_size_t const blob_bytes = nk_maxsim_pack_size_f32_sme(columns, depth);
     for (nk_size_t byte_index = 0; byte_index < blob_bytes; byte_index++) ((char *)packed)[byte_index] = 0;
@@ -655,8 +655,8 @@ NK_API_COMPTIME void nk_maxsim_pack_f32_sme(                                    
 
 /** Streaming-compatible f32 dot product with f64 accumulation, following the svcntd() stride and
  *  svcvt_f64_f32_x widening of @c nk_dots_reduce_sumsq_f32_ssve_. */
-NK_HELPER_AUTO nk_f64_t nk_maxsim_reduce_dot_f32_ssve_(                    //
-    nk_f32_t const *a, nk_f32_t const *b, nk_size_t count) NK_STREAMING_ { //
+NUMKONG_HELPER_AUTO nk_f64_t nk_maxsim_reduce_dot_f32_ssve_(                    //
+    nk_f32_t const *a, nk_f32_t const *b, nk_size_t count) NUMKONG_STREAMING_ { //
     svfloat64_t accumulator_even_f64x = svdup_f64(0.0);
     svfloat64_t accumulator_odd_f64x = svdup_f64(0.0);
     nk_size_t const vector_length = svcntw();
@@ -681,9 +681,9 @@ NK_HELPER_AUTO nk_f64_t nk_maxsim_reduce_dot_f32_ssve_(                    //
 
 /** Streaming-compatible angular distance accumulation from pre-reduced dot products and contiguous
  *  f64 norm arrays. Computes rsqrt via Newton-Raphson and accumulates 1 − dot / √(‖q‖² × ‖d‖²). */
-NK_HELPER_AUTO nk_f64_t nk_maxsim_angular_from_dots_ssve_(                               //
-    nk_f64_t const *dot_products, nk_size_t count,                                       //
-    nk_f64_t const *query_norms_f64, nk_f64_t const *document_norms_f64) NK_STREAMING_ { //
+NUMKONG_HELPER_AUTO nk_f64_t nk_maxsim_angular_from_dots_ssve_(                               //
+    nk_f64_t const *dot_products, nk_size_t count,                                            //
+    nk_f64_t const *query_norms_f64, nk_f64_t const *document_norms_f64) NUMKONG_STREAMING_ { //
 
     nk_f64_t total_angular_distance_f64 = 0.0;
     nk_size_t const vector_length = svcntd();
@@ -727,7 +727,7 @@ NK_HELPER_AUTO nk_f64_t nk_maxsim_angular_from_dots_ssve_(                      
  */
 __arm_new("za") static void nk_maxsim_packed_f32_streaming_( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
-    nk_size_t depth, nk_f64_t *result) NK_STREAMING_ {
+    nk_size_t depth, nk_f64_t *result) NUMKONG_STREAMING_ {
 
     nk_maxsim_sme_packed_header_t const *query_header = (nk_maxsim_sme_packed_header_t const *)query_packed;
     nk_maxsim_sme_packed_header_t const *document_header = (nk_maxsim_sme_packed_header_t const *)document_packed;
@@ -770,7 +770,7 @@ __arm_new("za") static void nk_maxsim_packed_f32_streaming_( //
         svbool_t const row_predicate_b32x = (rows_remaining == tile_dimension) ? svptrue_b32()
                                                                                : svwhilelt_b32_u64(0u, rows_remaining);
 
-        svint32_t running_max_i32x = svdup_s32(NK_I32_MIN);
+        svint32_t running_max_i32x = svdup_s32(NUMKONG_I32_MIN);
         svuint32_t running_argmax_u32x = svdup_u32(0);
 
         nk_size_t column_tile_index = 0;
@@ -815,8 +815,8 @@ __arm_new("za") static void nk_maxsim_packed_f32_streaming_( //
                 // Tile 0
                 {
                     nk_u32_t document_index = (nk_u32_t)((column_tile_index + 0) * tile_dimension + column_within_tile);
-                    svint32_t column_dots_i32x = svread_ver_za32_s32_m(svdup_s32(NK_I32_MIN), predicate_all_b32x, 0,
-                                                                       column_within_tile);
+                    svint32_t column_dots_i32x = svread_ver_za32_s32_m(svdup_s32(NUMKONG_I32_MIN), predicate_all_b32x,
+                                                                       0, column_within_tile);
                     svbool_t is_better_b32x = svcmpgt_s32(predicate_all_b32x, column_dots_i32x, running_max_i32x);
                     running_max_i32x = svsel_s32(is_better_b32x, column_dots_i32x, running_max_i32x);
                     running_argmax_u32x = svsel_u32(is_better_b32x, svdup_u32(document_index), running_argmax_u32x);
@@ -824,8 +824,8 @@ __arm_new("za") static void nk_maxsim_packed_f32_streaming_( //
                 // Tile 1
                 {
                     nk_u32_t document_index = (nk_u32_t)((column_tile_index + 1) * tile_dimension + column_within_tile);
-                    svint32_t column_dots_i32x = svread_ver_za32_s32_m(svdup_s32(NK_I32_MIN), predicate_all_b32x, 1,
-                                                                       column_within_tile);
+                    svint32_t column_dots_i32x = svread_ver_za32_s32_m(svdup_s32(NUMKONG_I32_MIN), predicate_all_b32x,
+                                                                       1, column_within_tile);
                     svbool_t is_better_b32x = svcmpgt_s32(predicate_all_b32x, column_dots_i32x, running_max_i32x);
                     running_max_i32x = svsel_s32(is_better_b32x, column_dots_i32x, running_max_i32x);
                     running_argmax_u32x = svsel_u32(is_better_b32x, svdup_u32(document_index), running_argmax_u32x);
@@ -833,8 +833,8 @@ __arm_new("za") static void nk_maxsim_packed_f32_streaming_( //
                 // Tile 2
                 {
                     nk_u32_t document_index = (nk_u32_t)((column_tile_index + 2) * tile_dimension + column_within_tile);
-                    svint32_t column_dots_i32x = svread_ver_za32_s32_m(svdup_s32(NK_I32_MIN), predicate_all_b32x, 2,
-                                                                       column_within_tile);
+                    svint32_t column_dots_i32x = svread_ver_za32_s32_m(svdup_s32(NUMKONG_I32_MIN), predicate_all_b32x,
+                                                                       2, column_within_tile);
                     svbool_t is_better_b32x = svcmpgt_s32(predicate_all_b32x, column_dots_i32x, running_max_i32x);
                     running_max_i32x = svsel_s32(is_better_b32x, column_dots_i32x, running_max_i32x);
                     running_argmax_u32x = svsel_u32(is_better_b32x, svdup_u32(document_index), running_argmax_u32x);
@@ -842,8 +842,8 @@ __arm_new("za") static void nk_maxsim_packed_f32_streaming_( //
                 // Tile 3, whose zero-padded columns would outscore all-negative dots
                 if (column_within_tile < last_cols_remaining) {
                     nk_u32_t document_index = (nk_u32_t)((column_tile_index + 3) * tile_dimension + column_within_tile);
-                    svint32_t column_dots_i32x = svread_ver_za32_s32_m(svdup_s32(NK_I32_MIN), predicate_all_b32x, 3,
-                                                                       column_within_tile);
+                    svint32_t column_dots_i32x = svread_ver_za32_s32_m(svdup_s32(NUMKONG_I32_MIN), predicate_all_b32x,
+                                                                       3, column_within_tile);
                     svbool_t is_better_b32x = svcmpgt_s32(predicate_all_b32x, column_dots_i32x, running_max_i32x);
                     running_max_i32x = svsel_s32(is_better_b32x, column_dots_i32x, running_max_i32x);
                     running_argmax_u32x = svsel_u32(is_better_b32x, svdup_u32(document_index), running_argmax_u32x);
@@ -877,7 +877,7 @@ __arm_new("za") static void nk_maxsim_packed_f32_streaming_( //
 
             for (nk_size_t column_within_tile = 0; column_within_tile < cols_remaining; column_within_tile++) {
                 nk_u32_t document_index = (nk_u32_t)(col_start + column_within_tile);
-                svint32_t column_dots_i32x = svread_ver_za32_s32_m(svdup_s32(NK_I32_MIN), predicate_all_b32x, 0,
+                svint32_t column_dots_i32x = svread_ver_za32_s32_m(svdup_s32(NUMKONG_I32_MIN), predicate_all_b32x, 0,
                                                                    column_within_tile);
                 svbool_t is_better_b32x = svcmpgt_s32(predicate_all_b32x, column_dots_i32x, running_max_i32x);
                 running_max_i32x = svsel_s32(is_better_b32x, column_dots_i32x, running_max_i32x);
@@ -996,7 +996,7 @@ __arm_new("za") static void nk_maxsim_packed_f32_streaming_( //
     *result = total_angular_distance_f64;
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_f32_sme( //
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f32_sme( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f64_t *result) {
 
@@ -1015,6 +1015,6 @@ NK_API_COMPTIME void nk_maxsim_packed_f32_sme( //
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_SME
-#endif // NK_TARGET_ARM64_
-#endif // NK_MAXSIM_SME_H
+#endif // NUMKONG_TARGET_SME
+#endif // NUMKONG_ARCH_ARM64_
+#endif // NUMKONG_MAXSIM_SME_H

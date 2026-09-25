@@ -8,8 +8,8 @@
  *  detection infrastructure.
  */
 
-#ifndef NK_NUMKONG_H
-#define NK_NUMKONG_H
+#ifndef NUMKONG_NUMKONG_H
+#define NUMKONG_NUMKONG_H
 
 #include "numkong/capabilities.h" // Runtime detection, like `nk_capabilities_detected_x8664_`
 #include "numkong/scalar.h"       // Scalar math: sqrt, rsqrt, fma, saturating, order, like `nk_f32_sqrt`
@@ -36,7 +36,7 @@ extern "C" {
 #endif
 
 /** Returns the output dtype for a given metric kind and input dtype. */
-NK_API_COMPTIME nk_dtype_t nk_kernel_output_dtype(nk_kernel_kind_t kind, nk_dtype_t input) {
+NUMKONG_API_COMPTIME nk_dtype_t nk_kernel_output_dtype(nk_kernel_kind_t kind, nk_dtype_t input) {
     switch (kind) {
     case nk_kernel_dot_k:
     case nk_kernel_vdot_k:
@@ -76,4 +76,4 @@ NK_API_COMPTIME nk_dtype_t nk_kernel_output_dtype(nk_kernel_kind_t kind, nk_dtyp
 } // extern "C"
 #endif
 
-#endif // NK_NUMKONG_H
+#endif // NUMKONG_NUMKONG_H

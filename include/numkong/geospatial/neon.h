@@ -16,11 +16,11 @@
  *  vsqrtq_f64  FSQRT.D (vec)  13cy @ V02    16cy @ V02   16cy @ V02
  *  @endverbatim
  */
-#ifndef NK_GEOSPATIAL_NEON_H
-#define NK_GEOSPATIAL_NEON_H
+#ifndef NUMKONG_GEOSPATIAL_NEON_H
+#define NUMKONG_GEOSPATIAL_NEON_H
 
-#if NK_TARGET_ARM64_
-#if NK_TARGET_NEON
+#if NUMKONG_ARCH_ARM64_
+#if NUMKONG_TARGET_NEON
 
 #include "numkong/types.h"
 #include "numkong/trigonometry/neon.h" // `nk_sin_f64x2_neon_`, `nk_cos_f64x2_neon_`, `nk_atan2_f64x2_neon_`
@@ -39,11 +39,11 @@ extern "C" {
 /*  NEON implementations using 2-wide f64 and 4-wide f32 SIMD.
  *  These require NEON trigonometric kernels from trigonometry/neon.h. */
 
-NK_HELPER_INLINE float64x2_t nk_haversine_f64x2_neon_(                     //
+NUMKONG_HELPER_INLINE float64x2_t nk_haversine_f64x2_neon_(                //
     float64x2_t first_latitudes_f64x2, float64x2_t first_longitudes_f64x2, //
     float64x2_t second_latitudes_f64x2, float64x2_t second_longitudes_f64x2) {
 
-    float64x2_t const earth_radius_f64x2 = vdupq_n_f64(NK_EARTH_MEDIATORIAL_RADIUS);
+    float64x2_t const earth_radius_f64x2 = vdupq_n_f64(NUMKONG_EARTH_MEDIATORIAL_RADIUS);
     float64x2_t const half_f64x2 = vdupq_n_f64(0.5);
     float64x2_t const one_f64x2 = vdupq_n_f64(1.0);
     float64x2_t const two_f64x2 = vdupq_n_f64(2.0);
@@ -82,7 +82,7 @@ NK_HELPER_INLINE float64x2_t nk_haversine_f64x2_neon_(                     //
     return vmulq_f64(earth_radius_f64x2, central_angle_f64x2);
 }
 
-NK_API_COMPTIME void nk_haversine_f64_neon(         //
+NUMKONG_API_COMPTIME void nk_haversine_f64_neon(    //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results) {
@@ -114,11 +114,11 @@ NK_API_COMPTIME void nk_haversine_f64_neon(         //
     }
 }
 
-NK_HELPER_INLINE float32x4_t nk_haversine_f32x4_neon_(                     //
+NUMKONG_HELPER_INLINE float32x4_t nk_haversine_f32x4_neon_(                //
     float32x4_t first_latitudes_f32x4, float32x4_t first_longitudes_f32x4, //
     float32x4_t second_latitudes_f32x4, float32x4_t second_longitudes_f32x4) {
 
-    float32x4_t const earth_radius_f32x4 = vdupq_n_f32((float)NK_EARTH_MEDIATORIAL_RADIUS);
+    float32x4_t const earth_radius_f32x4 = vdupq_n_f32((float)NUMKONG_EARTH_MEDIATORIAL_RADIUS);
     float32x4_t const half_f32x4 = vdupq_n_f32(0.5f);
     float32x4_t const one_f32x4 = vdupq_n_f32(1.0f);
     float32x4_t const two_f32x4 = vdupq_n_f32(2.0f);
@@ -158,7 +158,7 @@ NK_HELPER_INLINE float32x4_t nk_haversine_f32x4_neon_(                     //
     return vmulq_f32(earth_radius_f32x4, central_angle_f32x4);
 }
 
-NK_API_COMPTIME void nk_haversine_f32_neon(         //
+NUMKONG_API_COMPTIME void nk_haversine_f32_neon(    //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results) {
@@ -194,14 +194,14 @@ NK_API_COMPTIME void nk_haversine_f32_neon(         //
  *  @brief  NEON helper for Vincenty's geodesic distance on 2 f64 point pairs.
  *  @note   This is a true SIMD implementation using masked convergence tracking via blending.
  */
-NK_HELPER_INLINE float64x2_t nk_vincenty_f64x2_neon_(                      //
+NUMKONG_HELPER_INLINE float64x2_t nk_vincenty_f64x2_neon_(                 //
     float64x2_t first_latitudes_f64x2, float64x2_t first_longitudes_f64x2, //
     float64x2_t second_latitudes_f64x2, float64x2_t second_longitudes_f64x2) {
 
-    float64x2_t const equatorial_radius_f64x2 = vdupq_n_f64(NK_EARTH_ELLIPSOID_EQUATORIAL_RADIUS);
-    float64x2_t const polar_radius_f64x2 = vdupq_n_f64(NK_EARTH_ELLIPSOID_POLAR_RADIUS);
-    float64x2_t const flattening_f64x2 = vdupq_n_f64(1.0 / NK_EARTH_ELLIPSOID_INVERSE_FLATTENING);
-    float64x2_t const convergence_threshold_f64x2 = vdupq_n_f64(NK_VINCENTY_CONVERGENCE_THRESHOLD_F64);
+    float64x2_t const equatorial_radius_f64x2 = vdupq_n_f64(NUMKONG_EARTH_ELLIPSOID_EQUATORIAL_RADIUS);
+    float64x2_t const polar_radius_f64x2 = vdupq_n_f64(NUMKONG_EARTH_ELLIPSOID_POLAR_RADIUS);
+    float64x2_t const flattening_f64x2 = vdupq_n_f64(1.0 / NUMKONG_EARTH_ELLIPSOID_INVERSE_FLATTENING);
+    float64x2_t const convergence_threshold_f64x2 = vdupq_n_f64(NUMKONG_VINCENTY_CONVERGENCE_THRESHOLD_F64);
     float64x2_t const one_f64x2 = vdupq_n_f64(1.0);
     float64x2_t const two_f64x2 = vdupq_n_f64(2.0);
     float64x2_t const three_f64x2 = vdupq_n_f64(3.0);
@@ -239,7 +239,7 @@ NK_HELPER_INLINE float64x2_t nk_vincenty_f64x2_neon_(                      //
     uint64x2_t converged_mask_u64x2 = vdupq_n_u64(0);
     uint64x2_t coincident_mask_u64x2 = vdupq_n_u64(0);
 
-    for (nk_u32_t iteration = 0; iteration < NK_VINCENTY_MAX_ITERATIONS; ++iteration) {
+    for (nk_u32_t iteration = 0; iteration < NUMKONG_VINCENTY_MAX_ITERATIONS; ++iteration) {
         // Check if all lanes converged
         nk_u64_t converged_bits = vgetq_lane_u64(converged_mask_u64x2, 0) & vgetq_lane_u64(converged_mask_u64x2, 1);
         if (converged_bits) break;
@@ -364,7 +364,7 @@ NK_HELPER_INLINE float64x2_t nk_vincenty_f64x2_neon_(                      //
     return distances_f64x2;
 }
 
-NK_API_COMPTIME void nk_vincenty_f64_neon(          //
+NUMKONG_API_COMPTIME void nk_vincenty_f64_neon(     //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results) {
@@ -400,14 +400,14 @@ NK_API_COMPTIME void nk_vincenty_f64_neon(          //
  *  @brief  NEON helper for Vincenty's geodesic distance on 4 f32 point pairs.
  *  @note   This is a true SIMD implementation using masked convergence tracking via blending.
  */
-NK_HELPER_INLINE float32x4_t nk_vincenty_f32x4_neon_(                      //
+NUMKONG_HELPER_INLINE float32x4_t nk_vincenty_f32x4_neon_(                 //
     float32x4_t first_latitudes_f32x4, float32x4_t first_longitudes_f32x4, //
     float32x4_t second_latitudes_f32x4, float32x4_t second_longitudes_f32x4) {
 
-    float32x4_t const equatorial_radius_f32x4 = vdupq_n_f32((float)NK_EARTH_ELLIPSOID_EQUATORIAL_RADIUS);
-    float32x4_t const polar_radius_f32x4 = vdupq_n_f32((float)NK_EARTH_ELLIPSOID_POLAR_RADIUS);
-    float32x4_t const flattening_f32x4 = vdupq_n_f32(1.0f / (float)NK_EARTH_ELLIPSOID_INVERSE_FLATTENING);
-    float32x4_t const convergence_threshold_f32x4 = vdupq_n_f32(NK_VINCENTY_CONVERGENCE_THRESHOLD_F32);
+    float32x4_t const equatorial_radius_f32x4 = vdupq_n_f32((float)NUMKONG_EARTH_ELLIPSOID_EQUATORIAL_RADIUS);
+    float32x4_t const polar_radius_f32x4 = vdupq_n_f32((float)NUMKONG_EARTH_ELLIPSOID_POLAR_RADIUS);
+    float32x4_t const flattening_f32x4 = vdupq_n_f32(1.0f / (float)NUMKONG_EARTH_ELLIPSOID_INVERSE_FLATTENING);
+    float32x4_t const convergence_threshold_f32x4 = vdupq_n_f32(NUMKONG_VINCENTY_CONVERGENCE_THRESHOLD_F32);
     float32x4_t const one_f32x4 = vdupq_n_f32(1.0f);
     float32x4_t const two_f32x4 = vdupq_n_f32(2.0f);
     float32x4_t const three_f32x4 = vdupq_n_f32(3.0f);
@@ -445,7 +445,7 @@ NK_HELPER_INLINE float32x4_t nk_vincenty_f32x4_neon_(                      //
     uint32x4_t converged_mask_u32x4 = vdupq_n_u32(0);
     uint32x4_t coincident_mask_u32x4 = vdupq_n_u32(0);
 
-    for (nk_u32_t iteration = 0; iteration < NK_VINCENTY_MAX_ITERATIONS; ++iteration) {
+    for (nk_u32_t iteration = 0; iteration < NUMKONG_VINCENTY_MAX_ITERATIONS; ++iteration) {
         // Check if all lanes converged (all bits set = 0xFFFFFFFF per lane)
         nk_u32_t converged_bits = vminvq_u32(converged_mask_u32x4);
         if (converged_bits == 0xFFFFFFFF) break;
@@ -563,7 +563,7 @@ NK_HELPER_INLINE float32x4_t nk_vincenty_f32x4_neon_(                      //
     return distances_f32x4;
 }
 
-NK_API_COMPTIME void nk_vincenty_f32_neon(          //
+NUMKONG_API_COMPTIME void nk_vincenty_f32_neon(     //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results) {
@@ -605,6 +605,6 @@ NK_API_COMPTIME void nk_vincenty_f32_neon(          //
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_NEON
-#endif // NK_TARGET_ARM64_
-#endif // NK_GEOSPATIAL_NEON_H
+#endif // NUMKONG_TARGET_NEON
+#endif // NUMKONG_ARCH_ARM64_
+#endif // NUMKONG_GEOSPATIAL_NEON_H

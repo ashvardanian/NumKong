@@ -30,11 +30,11 @@
  *  - @c svcvt_f64_f32_x or @c FCVT: f32 → f64 conversion
  *  - @c svwrite_hor_za64_f64_m or @c MOVA: direct Z → ZA tile write, without a bounce buffer
  */
-#ifndef NK_DOTS_SMEF64_H
-#define NK_DOTS_SMEF64_H
+#ifndef NUMKONG_DOTS_SMEF64_H
+#define NUMKONG_DOTS_SMEF64_H
 
-#if NK_TARGET_ARM64_
-#if NK_TARGET_SME
+#if NUMKONG_ARCH_ARM64_
+#if NUMKONG_TARGET_SME
 
 #include "numkong/types.h"
 #include "numkong/dots/sme.h" // `nk_dots_sme_packed_header_t`
@@ -71,7 +71,7 @@ extern "C" {
  *  Apple M4 has `hw.optional.arm.SME_F32F32: 1` but we don't use it here. */
 #pragma region F32 Floats
 
-NK_API_COMPTIME nk_size_t nk_dots_pack_size_f32_smef64(nk_size_t columns, nk_size_t depth) {
+NUMKONG_API_COMPTIME nk_size_t nk_dots_pack_size_f32_smef64(nk_size_t columns, nk_size_t depth) {
     nk_size_t const tile_dimension = nk_sme_cntd_();  // rows per `ZA64` tile (8 for SVL=512)
     nk_size_t const depth_tile_size = nk_sme_cntw_(); // `f32` depth elements per tile (16 for SVL=512)
 
@@ -85,15 +85,15 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_f32_smef64(nk_size_t columns, nk_siz
     return size;
 }
 
-NK_API_COMPTIME void nk_dots_packed_shape_f32_smef64(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_dots_packed_shape_f32_smef64(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     *width = header->columns;
     *depth = header->depth;
 }
 
-NK_API_COMPTIME void nk_dots_pack_f32_smef64(nk_f32_t const *b, nk_size_t columns, nk_size_t depth,
-                                             nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
-                                             nk_size_t columns_end) {
+NUMKONG_API_COMPTIME void nk_dots_pack_f32_smef64(nk_f32_t const *b, nk_size_t columns, nk_size_t depth,
+                                                  nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
+                                                  nk_size_t columns_end) {
 
     nk_size_t const tile_dimension = nk_sme_cntd_();                  // rows per `ZA64` tile (8 for SVL=512)
     nk_size_t const depth_tile_size = nk_sme_cntw_();                 // `f32` depth elements per tile (16 for SVL=512)
@@ -166,7 +166,7 @@ NK_API_COMPTIME void nk_dots_pack_f32_smef64(nk_f32_t const *b, nk_size_t column
 
 __arm_new("za") static void nk_dots_packed_f32_smef64_streaming_( //
     nk_f32_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
+    nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
 
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_size_t const column_tile_count = header->column_tile_count;
@@ -401,7 +401,7 @@ __arm_new("za") static void nk_dots_packed_f32_smef64_streaming_( //
     }
 }
 
-NK_API_COMPTIME void nk_dots_packed_f32_smef64( //
+NUMKONG_API_COMPTIME void nk_dots_packed_f32_smef64( //
     nk_f32_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
 
@@ -418,7 +418,7 @@ NK_API_COMPTIME void nk_dots_packed_f32_smef64( //
  *  reloads ZA0 with widened B data per column tile. Eliminates all scalar B-packing loops. */
 __arm_new("za") static void nk_dots_symmetric_f32_smef64_streaming_( //
     nk_f32_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f64_t *result,
-    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
+    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
 
     nk_size_t const tile_dimension = svcntd();              // 8 for SVL=512
     nk_size_t const depth_tile_size = svcntw();             // 16 for SVL=512
@@ -426,7 +426,7 @@ __arm_new("za") static void nk_dots_symmetric_f32_smef64_streaming_( //
 
     svbool_t const predicate_all_b64x = svptrue_b64();
 
-    NK_ALIGN64 nk_f64_t a_buffer[8][8];
+    NUMKONG_ALIGN64_ nk_f64_t a_buffer[8][8];
 
     nk_size_t const row_end = row_start + row_count;
     nk_size_t const column_tile_count = nk_size_divide_round_up_(vectors_count, tile_dimension);
@@ -752,7 +752,7 @@ __arm_new("za") static void nk_dots_symmetric_f32_smef64_streaming_( //
     }
 }
 
-NK_API_COMPTIME void nk_dots_symmetric_f32_smef64( //
+NUMKONG_API_COMPTIME void nk_dots_symmetric_f32_smef64( //
     nk_f32_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f64_t *result,
     nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
 
@@ -816,17 +816,17 @@ NK_API_COMPTIME void nk_dots_symmetric_f32_smef64( //
  *  All slices fit in the 24-bit significand of f32. Products reach at most 19 + 19 = 38 ≤ 53 bits,
  *  so they are exact in f64.
  */
-NK_HELPER_AUTO nk_u64_t nk_f64_smef64_ozaki_mask_19_bits_(void) {
+NUMKONG_HELPER_AUTO nk_u64_t nk_f64_smef64_ozaki_mask_19_bits_(void) {
     return 0xFFFFFFFC00000000ULL; // keep top 19 sig bits
 }
-NK_HELPER_AUTO nk_u64_t nk_f64_smef64_ozaki_mask_17_bits_(void) {
+NUMKONG_HELPER_AUTO nk_u64_t nk_f64_smef64_ozaki_mask_17_bits_(void) {
     return 0xFFFFFFF000000000ULL; // keep top 17 sig bits
 }
 
 /*  Split a scalar f64 into 3 non-overlapping Ozaki slices (19+17+17 mantissa bits).
  *  Each slice fits in f32. Outputs stored via pointers. */
-NK_HELPER_AUTO void nk_f64_smef64_ozaki_split_f64_(nk_f64_t val, nk_f64_t *slice_0, nk_f64_t *slice_1,
-                                                   nk_f64_t *slice_2) {
+NUMKONG_HELPER_AUTO void nk_f64_smef64_ozaki_split_f64_(nk_f64_t val, nk_f64_t *slice_0, nk_f64_t *slice_1,
+                                                        nk_f64_t *slice_2) {
     nk_fui64_t pun;
     pun.f = val;
     pun.u &= nk_f64_smef64_ozaki_mask_19_bits_();
@@ -840,7 +840,7 @@ NK_HELPER_AUTO void nk_f64_smef64_ozaki_split_f64_(nk_f64_t val, nk_f64_t *slice
 
 __arm_new("za") static void nk_dots_symmetric_f64_smef64_streaming_( //
     nk_f64_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f64_t *result,
-    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
+    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
 
     nk_size_t const tile_dimension = svcntd();
     nk_size_t const depth_steps_per_batch = tile_dimension;
@@ -849,7 +849,7 @@ __arm_new("za") static void nk_dots_symmetric_f64_smef64_streaming_( //
     svuint64_t const ozaki_mask_19_u64x = svdup_u64(nk_f64_smef64_ozaki_mask_19_bits_());
     svuint64_t const ozaki_mask_17_u64x = svdup_u64(nk_f64_smef64_ozaki_mask_17_bits_());
 
-    NK_ALIGN64 nk_f64_t a_buffer[8][8]; // save A columns before reusing ZA0 for B
+    NUMKONG_ALIGN64_ nk_f64_t a_buffer[8][8]; // save A columns before reusing ZA0 for B
 
     nk_size_t const row_end = row_start + row_count;
     nk_size_t const column_tile_count = nk_size_divide_round_up_(vectors_count, tile_dimension);
@@ -966,7 +966,7 @@ __arm_new("za") static void nk_dots_symmetric_f64_smef64_streaming_( //
     }
 }
 
-NK_API_COMPTIME void nk_dots_symmetric_f64_smef64( //
+NUMKONG_API_COMPTIME void nk_dots_symmetric_f64_smef64( //
     nk_f64_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f64_t *result,
     nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
 
@@ -978,7 +978,7 @@ NK_API_COMPTIME void nk_dots_symmetric_f64_smef64( //
     nk_sme_stop_streaming_();
 }
 
-NK_API_COMPTIME nk_size_t nk_dots_pack_size_f64_smef64(nk_size_t columns, nk_size_t depth) {
+NUMKONG_API_COMPTIME nk_size_t nk_dots_pack_size_f64_smef64(nk_size_t columns, nk_size_t depth) {
     nk_size_t const tile_dimension = nk_sme_cntd_();
     nk_size_t const depth_tile_size = nk_sme_cntw_();
     nk_size_t const column_tile_count = nk_size_divide_round_up_(columns, tile_dimension);
@@ -990,15 +990,15 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_f64_smef64(nk_size_t columns, nk_siz
     return size;
 }
 
-NK_API_COMPTIME void nk_dots_packed_shape_f64_smef64(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_dots_packed_shape_f64_smef64(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     *width = header->columns;
     *depth = header->depth;
 }
 
-NK_API_COMPTIME void nk_dots_pack_f64_smef64(nk_f64_t const *b, nk_size_t columns, nk_size_t depth,
-                                             nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
-                                             nk_size_t columns_end) {
+NUMKONG_API_COMPTIME void nk_dots_pack_f64_smef64(nk_f64_t const *b, nk_size_t columns, nk_size_t depth,
+                                                  nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
+                                                  nk_size_t columns_end) {
 
     nk_size_t const b_stride_elements = b_stride_in_bytes / sizeof(nk_f64_t);
 
@@ -1072,7 +1072,7 @@ NK_API_COMPTIME void nk_dots_pack_f64_smef64(nk_f64_t const *b, nk_size_t column
 
 __arm_new("za") static void nk_dots_packed_f64_smef64_streaming_( //
     nk_f64_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
+    nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
 
     // Read header
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1348,7 +1348,7 @@ __arm_new("za") static void nk_dots_packed_f64_smef64_streaming_( //
     }
 }
 
-NK_API_COMPTIME void nk_dots_packed_f64_smef64( //
+NUMKONG_API_COMPTIME void nk_dots_packed_f64_smef64( //
     nk_f64_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
 
@@ -1372,6 +1372,6 @@ NK_API_COMPTIME void nk_dots_packed_f64_smef64( //
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_SME
-#endif // NK_TARGET_ARM64_
-#endif // NK_DOTS_SMEF64_H
+#endif // NUMKONG_TARGET_SME
+#endif // NUMKONG_ARCH_ARM64_
+#endif // NUMKONG_DOTS_SMEF64_H

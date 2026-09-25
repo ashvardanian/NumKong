@@ -5,8 +5,8 @@
  *  @brief C++ bindings for mesh-distance kernels.
  *
  */
-#ifndef NK_MESH_HPP
-#define NK_MESH_HPP
+#ifndef NUMKONG_MESH_HPP
+#define NUMKONG_MESH_HPP
 
 #include <cstdint>
 #include <type_traits>
@@ -740,4 +740,4 @@ void umeyama(in_type_ const *a, in_type_ const *b, std::size_t n, transform_type
 
 } // namespace ashvardanian::numkong
 
-#endif // NK_MESH_HPP
+#endif // NUMKONG_MESH_HPP

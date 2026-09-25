@@ -29,11 +29,11 @@
  *  providing the same 4-way dot product as NEON SDOT but with scalable vector widths.
  *  On 256-bit SVE, this processes 32 int8 elements per instruction vs NEON's fixed 16.
  */
-#ifndef NK_DOT_SVESDOT_H
-#define NK_DOT_SVESDOT_H
+#ifndef NUMKONG_DOT_SVESDOT_H
+#define NUMKONG_DOT_SVESDOT_H
 
-#if NK_TARGET_ARM64_
-#if NK_TARGET_SVESDOT
+#if NUMKONG_ARCH_ARM64_
+#if NUMKONG_TARGET_SVESDOT
 
 #include "numkong/types.h"
 #include "numkong/reduce/sve.h" // `nk_svaddv_f64_`
@@ -49,8 +49,8 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+sve+dotprod")
 #endif
 
-NK_API_COMPTIME void nk_dot_i8_svesdot(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
-                                       nk_i32_t *result) {
+NUMKONG_API_COMPTIME void nk_dot_i8_svesdot(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
+                                            nk_i32_t *result) {
     nk_size_t idx_scalars = 0;
     svint32_t sum_i32x = svdup_s32(0);
     do {
@@ -63,8 +63,8 @@ NK_API_COMPTIME void nk_dot_i8_svesdot(nk_i8_t const *a_scalars, nk_i8_t const *
     *result = (nk_i32_t)nk_svaddv_s32_(svptrue_b32(), sum_i32x);
 }
 
-NK_API_COMPTIME void nk_dot_u8_svesdot(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
-                                       nk_u32_t *result) {
+NUMKONG_API_COMPTIME void nk_dot_u8_svesdot(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
+                                            nk_u32_t *result) {
     nk_size_t idx_scalars = 0;
     svuint32_t sum_u32x = svdup_u32(0);
     do {
@@ -87,6 +87,6 @@ NK_API_COMPTIME void nk_dot_u8_svesdot(nk_u8_t const *a_scalars, nk_u8_t const *
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_SVESDOT
-#endif // NK_TARGET_ARM64_
-#endif // NK_DOT_SVESDOT_H
+#endif // NUMKONG_TARGET_SVESDOT
+#endif // NUMKONG_ARCH_ARM64_
+#endif // NUMKONG_DOT_SVESDOT_H

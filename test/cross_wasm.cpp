@@ -7,14 +7,14 @@
  *  The strict tier carries the bf16, i8, u8 and u1 GEMMs and the packing routines every module
  *  shares; the relaxed tier carries every other dtype and its own bf16, i8 and u8 twins.
  */
-#include "test.hpp"
+#include "harness.hpp"
 #include "cross.cuh"
 
 using namespace ashvardanian::numkong::test;
 
 void test_cross_wasm() {
     [[maybe_unused]] error_stats_section_t check;
-#if NK_TARGET_V128RELAXED
+#if NUMKONG_TARGET_V128RELAXED
     check.section("Cross V128 Relaxed", nk_cap_v128relaxed_k);
     check("dots_packed_f64_v128relaxed", test_dots_packed<f64_t>, nk_dots_pack_size_f64_v128relaxed,
           nk_dots_pack_f64_v128relaxed, nk_dots_packed_f64_v128relaxed);
@@ -197,9 +197,9 @@ void test_cross_wasm() {
           nk_attention_pack_size_i8_v128, nk_attention_pack_i8_v128, nk_attention_bidirectional_packed_i8_v128relaxed);
     check("attention_causal_packed_i8_v128relaxed", test_attention_causal_packed<i8_t>, nk_attention_pack_size_i8_v128,
           nk_attention_pack_i8_v128, nk_attention_causal_packed_i8_v128relaxed);
-#endif // NK_TARGET_V128RELAXED
+#endif // NUMKONG_TARGET_V128RELAXED
 
-#if NK_TARGET_V128
+#if NUMKONG_TARGET_V128
     check.section("Cross V128", nk_cap_v128_k);
     check("dots_packed_bf16_v128", test_dots_packed<bf16_t>, nk_dots_pack_size_bf16_v128, nk_dots_pack_bf16_v128,
           nk_dots_packed_bf16_v128);
@@ -264,5 +264,5 @@ void test_cross_wasm() {
           nk_attention_pack_size_i8_v128, nk_attention_pack_i8_v128, nk_attention_bidirectional_packed_i8_serial);
     check("attention_causal_packed_i8_v128", test_attention_causal_packed<i8_t>, nk_attention_pack_size_i8_v128,
           nk_attention_pack_i8_v128, nk_attention_causal_packed_i8_serial);
-#endif // NK_TARGET_V128
+#endif // NUMKONG_TARGET_V128
 }

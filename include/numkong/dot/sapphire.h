@@ -32,11 +32,11 @@
  *  - nk_dot_e2m3x32_state_sapphire_t flushes every 4 iterations (128 elements)
  *  - nk_dot_e3m2x32_state_sapphire_t flushes every 4 iterations (128 elements)
  */
-#ifndef NK_DOT_SAPPHIRE_H
-#define NK_DOT_SAPPHIRE_H
+#ifndef NUMKONG_DOT_SAPPHIRE_H
+#define NUMKONG_DOT_SAPPHIRE_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_SAPPHIRE
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_SAPPHIRE
 
 #include "numkong/types.h"
 #include "numkong/reduce/skylake.h" // `nk_reduce_add_f32x16_skylake_`
@@ -65,7 +65,7 @@ extern "C" {
  *  so no separate sign extraction, shift, or OR is needed. After cvtepu8_epi16, bits 15:6
  *  are zero and permutex2var only reads bits 5:0, so no AND mask is required either.
  */
-NK_HELPER_INLINE __m512h nk_e2m3x32_to_f16x32_sapphire_(__m256i e2m3x32) {
+NUMKONG_HELPER_INLINE __m512h nk_e2m3x32_to_f16x32_sapphire_(__m256i e2m3x32) {
     __m512i index_i16x32 = _mm512_cvtepu8_epi16(e2m3x32);
 
     // 32-entry LUT for positive E2M3 magnitudes → F16
@@ -96,7 +96,7 @@ NK_HELPER_INLINE __m512h nk_e2m3x32_to_f16x32_sapphire_(__m256i e2m3x32) {
  *
  *  Same permutex2var technique as E2M3 — sign bit 5 selects the LUT source.
  */
-NK_HELPER_INLINE __m512h nk_e3m2x32_to_f16x32_sapphire_(__m256i e3m2x32) {
+NUMKONG_HELPER_INLINE __m512h nk_e3m2x32_to_f16x32_sapphire_(__m256i e3m2x32) {
     __m512i index_i16x32 = _mm512_cvtepu8_epi16(e3m2x32);
 
     // 32-entry LUT for positive E3M2 magnitudes → F16
@@ -125,7 +125,7 @@ NK_HELPER_INLINE __m512h nk_e3m2x32_to_f16x32_sapphire_(__m256i e3m2x32) {
 }
 
 /** Flush 32 FP16 values to FP32 accumulator by splitting into 2x16 halves. */
-NK_HELPER_INLINE __m512 nk_flush_f16_to_f32_sapphire_(__m512h accumulator_f16x32, __m512 sum_f32x16) {
+NUMKONG_HELPER_INLINE __m512 nk_flush_f16_to_f32_sapphire_(__m512h accumulator_f16x32, __m512 sum_f32x16) {
     __m256i low_f16x16 = _mm512_castsi512_si256(nk_m512i_from_m512h_(accumulator_f16x32));
     __m256i high_f16x16 = _mm512_extracti64x4_epi64(nk_m512i_from_m512h_(accumulator_f16x32), 1);
     sum_f32x16 = _mm512_add_ps(sum_f32x16, _mm512_cvtph_ps(low_f16x16));
@@ -143,6 +143,6 @@ NK_HELPER_INLINE __m512 nk_flush_f16_to_f32_sapphire_(__m512h accumulator_f16x32
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_SAPPHIRE
-#endif // NK_TARGET_X8664_
-#endif // NK_DOT_SAPPHIRE_H
+#endif // NUMKONG_TARGET_SAPPHIRE
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_DOT_SAPPHIRE_H

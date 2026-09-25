@@ -9,11 +9,11 @@
  *  Uses VCVTHF82PH/VCVTBF82PH for native FP8 → FP16 conversion, then VDPPHPS for FP16-pair dot
  *  products accumulating into FP32. Processes 32 FP8 elements per iteration.
  */
-#ifndef NK_DOTS_DIAMOND_H
-#define NK_DOTS_DIAMOND_H
+#ifndef NUMKONG_DOTS_DIAMOND_H
+#define NUMKONG_DOTS_DIAMOND_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_DIAMOND
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_DIAMOND
 
 #include "numkong/dot/diamond.h"
 
@@ -87,6 +87,6 @@ nk_define_cross_packed_(dots, e5m2, diamond, e5m2, e5m2, f32, nk_b512_vec_t, nk_
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_DIAMOND
-#endif // NK_TARGET_X8664_
-#endif // NK_DOTS_DIAMOND_H
+#endif // NUMKONG_TARGET_DIAMOND
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_DOTS_DIAMOND_H

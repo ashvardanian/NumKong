@@ -624,7 +624,7 @@ PyObject *api_attention_causal_packed(PyObject *self, PyObject *const *args, Py_
     nk_size_t threads = 1;
     attention_causal_task_t task;
     task.diagonal_offset = 0;
-    task.window = NK_SIZE_MAX;
+    task.window = NUMKONG_SIZE_MAX;
 
     Py_ssize_t const keyword_count = kwnames ? PyTuple_Size(kwnames) : 0;
     if (nargs < 2 || nargs > 3 || nargs + keyword_count > 8) {

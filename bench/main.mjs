@@ -1,22 +1,22 @@
 #!/usr/bin/env node
 /**
- *  @file bench/bench.mjs
+ *  @file bench/main.mjs
  *  @author Ash Vardanian
  *  @date February 4, 2026
  *  @brief Unified multi-runtime benchmark and reporting for NumKong.
  *
  *  All-in-one benchmark suite for every runtime, with report generation, read from these variables:
  *
- *  - `NK_DIMENSIONS`: vector dimensionality, default 1536
- *  - `NK_ITERATIONS`: benchmark iterations, default 1000
- *  - `NK_FILTER`: regex to filter tests, default `.*`
- *  - `NK_RUNTIME`: runtime to use, default `native`
- *  - `NK_SEED`: random seed, default 42
+ *  - `NUMWARS_DIMS`: vector dimensionality, default 1536
+ *  - `NUMKONG_ITERATIONS`: benchmark iterations, default 1000
+ *  - `NUMWARS_FILTER`: regex to filter tests, default `.*`
+ *  - `NUMKONG_RUNTIME`: runtime to use, default `native`
+ *  - `NUMKONG_SEED`: random seed, default 42, or `random` to draw one
  *
  *  ```sh
- *  node bench.mjs              # run benchmarks for the configured runtime
- *  node bench.mjs --report     # generate a comparison report from saved results
- *  node bench.mjs --browser    # run browser benchmarks through Playwright
+ *  node main.mjs              # run benchmarks for the configured runtime
+ *  node main.mjs --report     # generate a comparison report from saved results
+ *  node main.mjs --browser    # run browser benchmarks through Playwright
  *  ```
  */
 
@@ -32,12 +32,21 @@ const rootDir = path.join(__dirname, '..');
 const resultsDir = path.join(__dirname, 'results');
 
 
+/** `NUMKONG_SEED` as a number: 42 when unset, a fresh draw for `random`; anything else throws. */
+function readSeed() {
+    const text = process.env.NUMKONG_SEED || '42';
+    if (text === 'random') return Math.floor(Math.random() * 0x100000000);
+    const seed = Number(text);
+    if (!Number.isSafeInteger(seed) || seed < 0) throw new Error(`NUMKONG_SEED="${text}" does not parse`);
+    return seed;
+}
+
 const CONFIG = {
-    dimensions: parseInt(process.env.NK_DIMENSIONS || '1536'),
-    iterations: parseInt(process.env.NK_ITERATIONS || '1000'),
-    filter: new RegExp(process.env.NK_FILTER || '.*'),
-    runtime: process.env.NK_RUNTIME || 'native',
-    seed: parseInt(process.env.NK_SEED || '42')
+    dimensions: parseInt(process.env.NUMWARS_DIMS || '1536'),
+    iterations: parseInt(process.env.NUMKONG_ITERATIONS || '1000'),
+    filter: new RegExp(process.env.NUMWARS_FILTER || '.*'),
+    runtime: process.env.NUMKONG_RUNTIME || 'native',
+    seed: readSeed()
 };
 
 const BENCHMARK_MATRIX = {
@@ -116,7 +125,7 @@ async function loadEmscripten() {
         console.log('✓ Loaded NumKong Emscripten WASM');
         return numkong;
     } catch (e) {
-        throw new Error(`Failed to load Emscripten WASM: ${e.message}\nBuild with: cmake -B build-wasm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake -DNK_BUILD_SHARED=ON && cmake --build build-wasm`);
+        throw new Error(`Failed to load Emscripten WASM: ${e.message}\nBuild with: cmake -B build-wasm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake -DNUMKONG_BUILD_SHARED=ON && cmake --build build-wasm`);
     }
 }
 
@@ -275,7 +284,7 @@ async function runBrowserBenchmarks() {
         console.error(`   Expected: ${wasmPath}`);
         console.error('   Build it with:');
         console.error('     source ~/emsdk/emsdk_env.sh');
-        console.error('     cmake -B build-wasm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake -DNK_WASM_SIMD=v128relaxed');
+        console.error('     cmake -B build-wasm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake -DNUMKONG_WASM_SIMD=v128relaxed');
         console.error('     cmake --build build-wasm');
         process.exit(1);
     }
@@ -342,7 +351,7 @@ async function runBrowserBenchmarks() {
         writeFileSync(resultsFile, JSON.stringify(results, null, 2));
 
         console.log(`\n✓ Results saved to: ${resultsFile}`);
-        console.log('\nGenerate comparison report with: node bench.mjs --report');
+        console.log('\nGenerate comparison report with: node main.mjs --report');
 
     } catch (error) {
         console.error(`\n❌ Benchmark failed: ${error.message}`);
@@ -363,7 +372,7 @@ async function runBrowserBenchmarks() {
 
 function loadAllResults() {
     if (!existsSync(resultsDir)) {
-        throw new Error(`Results directory not found: ${resultsDir}\nRun benchmarks first with: node bench.mjs`);
+        throw new Error(`Results directory not found: ${resultsDir}\nRun benchmarks first with: node main.mjs`);
     }
 
     const files = readdirSync(resultsDir).filter(f => f.endsWith('.json'));
@@ -383,7 +392,7 @@ function generateMarkdownReport(allResults) {
     const runtimes = Object.keys(allResults);
 
     if (runtimes.length === 0) {
-        return '# No benchmark results found\n\nRun benchmarks with: node bench.mjs';
+        return '# No benchmark results found\n\nRun benchmarks with: node main.mjs';
     }
 
     // Get configuration from first result

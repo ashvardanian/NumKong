@@ -10,10 +10,10 @@
  *  every integer GEMM is exact without a correction pass; bf16 shifts even and odd halves straight
  *  into f32 lanes.
  */
-#ifndef NK_DOTS_V128_H
-#define NK_DOTS_V128_H
+#ifndef NUMKONG_DOTS_V128_H
+#define NUMKONG_DOTS_V128_H
 
-#if NK_TARGET_V128
+#if NUMKONG_TARGET_V128
 
 #include "numkong/dot/v128.h"
 #include "numkong/dots/serial.h"
@@ -110,5 +110,5 @@ nk_define_cross_packed_(dots, u1, v128, u1x8, u1x8, u32, nk_b128_vec_t, nk_dot_u
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_V128
-#endif // NK_DOTS_V128_H
+#endif // NUMKONG_TARGET_V128
+#endif // NUMKONG_DOTS_V128_H

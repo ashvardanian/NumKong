@@ -1,5 +1,5 @@
 /**
- *  @file test/test.mjs
+ *  @file test/main.mjs
  *  @author Ash Vardanian
  *  @date October 17, 2023
  *  @brief Tests for the NumKong JavaScript bindings.

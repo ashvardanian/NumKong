@@ -138,7 +138,7 @@ For complex dot products, `FMLSL` provides the subtraction path $a_{re} b_{im} -
 ## Performance
 
 The following performance tables are produced by manually re-running `numkong_test` and `numkong_bench` included internal tools to measure both accuracy and throughput at different input shapes.
-The input size is controlled by the `NK_DENSE_DIMENSIONS` environment variable and set to 256, 1024, and 4096 elements.
+The input size is controlled by the `NUMWARS_DIMS` environment variable and set to 256, 1024, and 4096 elements.
 The throughput is measured in gb/s as the number of bytes read per second amortized for a large batch of vector pairs.
 Accuracy is reported as mean ULP (units in last place) unless noted otherwise — the average number of representable floating-point values between the result and the exact answer.
 Rows marked `🧩` use external BLAS baselines rather than NumKong kernels.

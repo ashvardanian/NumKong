@@ -469,7 +469,7 @@ mod wasm_runtime_tests {
     use wasmtime_wasi::WasiCtx;
 
     fn resolve_wasi_module() -> Option<String> {
-        if let Ok(path) = std::env::var("NK_WASI_MODULE") {
+        if let Ok(path) = std::env::var("NUMKONG_WASI_MODULE") {
             if Path::new(&path).exists() {
                 return Some(path);
             }
@@ -489,7 +489,7 @@ mod wasm_runtime_tests {
         let Some(wasm_path) = resolve_wasi_module() else {
             panic!(
                 "WASI build not found. Run:\n  export WASI_SDK_PATH=~/wasi-sdk\n  cmake -B build-wasi \
-                 -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-wasi.cmake -DNK_BUILD_TEST=ON\n  cmake --build \
+                 -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-wasi.cmake -DNUMKONG_BUILD_TEST=ON\n  cmake --build \
                  build-wasi --target numkong_test"
             );
         };

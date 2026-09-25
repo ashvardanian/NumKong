@@ -15,10 +15,10 @@
  *  the triangle @c symmetric writes follow the serial backends: F64 for F64 and F32 inputs, F32
  *  otherwise, and I8 and I4 norms read as I32.
  */
-#ifndef NK_SPATIALS_AMPERE_CUH
-#define NK_SPATIALS_AMPERE_CUH
+#ifndef NUMKONG_SPATIALS_AMPERE_CUH
+#define NUMKONG_SPATIALS_AMPERE_CUH
 
-#if NK_TARGET_AMPERE
+#if NUMKONG_TARGET_AMPERE
 
 #include "numkong/dots/ampere.cuh"
 
@@ -46,7 +46,7 @@ extern "C" {
         nk_cross_tile_ampere_(multiply_fn, epilogue, output_scale, nk_cross_triangle_full_k,                           \
                               nk_cross_metric_##metric_name##_k, norm, norm_update_fn, norm_scale, &arguments);        \
     }                                                                                                                  \
-    NK_API_COMPTIME cudaError_t nk_##metric_name##s_packed_##input_type_name##_##isa_suffix(                           \
+    NUMKONG_API_COMPTIME cudaError_t nk_##metric_name##s_packed_##input_type_name##_##isa_suffix(                      \
         nk_##input_value_type##_t const *a_matrix, void const *b_packed_buffer, nk_f32_t *c_matrix,                    \
         nk_size_t row_count, nk_size_t column_count, nk_size_t depth, nk_size_t a_stride_in_bytes,                     \
         nk_size_t c_stride_in_bytes, cudaStream_t stream) {                                                            \
@@ -77,7 +77,7 @@ extern "C" {
         nk_cross_tile_ampere_(multiply_fn, epilogue, output_scale, nk_cross_triangle_upper_k,                          \
                               nk_cross_metric_##metric_name##_k, norm, norm_update_fn, norm_scale, &arguments);        \
     }                                                                                                                  \
-    NK_API_COMPTIME cudaError_t nk_##metric_name##s_symmetric_##input_type_name##_##isa_suffix(                        \
+    NUMKONG_API_COMPTIME cudaError_t nk_##metric_name##s_symmetric_##input_type_name##_##isa_suffix(                   \
         nk_##input_value_type##_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, \
         nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count,                  \
         cudaStream_t stream) {                                                                                         \
@@ -104,7 +104,7 @@ extern "C" {
         nk_cross_fma_tile_ampere_(load_fn, accumulation, nk_cross_triangle_full_k, nk_cross_metric_##metric_name##_k,  \
                                   &arguments);                                                                         \
     }                                                                                                                  \
-    NK_API_COMPTIME cudaError_t nk_##metric_name##s_packed_##input_type_name##_##isa_suffix(                           \
+    NUMKONG_API_COMPTIME cudaError_t nk_##metric_name##s_packed_##input_type_name##_##isa_suffix(                      \
         nk_##input_value_type##_t const *a_matrix, void const *b_packed_buffer, nk_f64_t *c_matrix,                    \
         nk_size_t row_count, nk_size_t column_count, nk_size_t depth, nk_size_t a_stride_in_bytes,                     \
         nk_size_t c_stride_in_bytes, cudaStream_t stream) {                                                            \
@@ -133,7 +133,7 @@ extern "C" {
         nk_cross_fma_tile_ampere_(load_fn, accumulation, nk_cross_triangle_upper_k, nk_cross_metric_##metric_name##_k, \
                                   &arguments);                                                                         \
     }                                                                                                                  \
-    NK_API_COMPTIME cudaError_t nk_##metric_name##s_symmetric_##input_type_name##_##isa_suffix(                        \
+    NUMKONG_API_COMPTIME cudaError_t nk_##metric_name##s_symmetric_##input_type_name##_##isa_suffix(                   \
         nk_##input_value_type##_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, \
         nk_f64_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count,                  \
         cudaStream_t stream) {                                                                                         \
@@ -398,5 +398,5 @@ nk_define_cross_cuda_normalized_symmetric_(euclidean, u4, ampere, u4x2, nk_dots_
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_AMPERE
-#endif // NK_SPATIALS_AMPERE_CUH
+#endif // NUMKONG_TARGET_AMPERE
+#endif // NUMKONG_SPATIALS_AMPERE_CUH

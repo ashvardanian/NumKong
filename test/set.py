@@ -29,8 +29,8 @@ except Exception:
     numpy_available = False
 
 from base import (
-    NK_ATOL,
-    NK_RTOL,
+    NUMKONG_ATOL,
+    NUMKONG_RTOL,
     PACKING_GRANULARITY,
     assert_allclose,
     collect_errors,
@@ -99,14 +99,14 @@ def test_hamming_jaccard_random_accuracy(ndim: int, metric: str, capability: str
     result_dt, result = profile(simd_kernel, np.packbits(a_bits), np.packbits(b_bits), "uint1")
     result = np.asarray(result)
 
-    assert_allclose(result, expected, atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
     collect_errors(metric, ndim, "uint1", accurate, accurate_dt, expected, expected_dt, result, result_dt, stats)
 
     # Also verify with boolean view
     result_dt, result = profile(simd_kernel, np.packbits(a_bits).view(np.bool_), np.packbits(b_bits).view(np.bool_))
     result = np.asarray(result)
 
-    assert_allclose(result, expected, atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
     collect_errors(metric, ndim, "uint1", accurate, accurate_dt, expected, expected_dt, result, result_dt, stats)
 
 
@@ -127,4 +127,4 @@ def test_jaccard_self_zero(ndim: int, capability: str):
     keep_one_capability(capability)
     packed_vector = array.array("B", [0xAA] * ndim)
     result = nk.jaccard(packed_vector, packed_vector, "uint1")
-    assert abs(result) < NK_ATOL, f"jaccard(v,v) = {result}, expected 0"
+    assert abs(result) < NUMKONG_ATOL, f"jaccard(v,v) = {result}, expected 0"

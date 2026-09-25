@@ -104,12 +104,12 @@ list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES PPC_TOOLCHAIN_PATH PPC_TRIPLE P
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 
 if (DEFINED PPC_TOOLCHAIN_PATH)
-    set(_NK_PPC_PREFIX "${PPC_TOOLCHAIN_PATH}/bin/${PPC_TRIPLE}-")
+    set(_NUMKONG_PPC_PREFIX "${PPC_TOOLCHAIN_PATH}/bin/${PPC_TRIPLE}-")
 else ()
-    set(_NK_PPC_PREFIX "${PPC_TRIPLE}-")
+    set(_NUMKONG_PPC_PREFIX "${PPC_TRIPLE}-")
 endif ()
-set(CMAKE_C_COMPILER "${_NK_PPC_PREFIX}gcc${PPC_COMPILER_SUFFIX}")
-set(CMAKE_CXX_COMPILER "${_NK_PPC_PREFIX}g++${PPC_COMPILER_SUFFIX}")
+set(CMAKE_C_COMPILER "${_NUMKONG_PPC_PREFIX}gcc${PPC_COMPILER_SUFFIX}")
+set(CMAKE_CXX_COMPILER "${_NUMKONG_PPC_PREFIX}g++${PPC_COMPILER_SUFFIX}")
 
 # No `-mcpu` here: `CMakeLists.txt` pins the dispatch floor with `add_compile_options(-mcpu=power8)`,
 # which lands after `CMAKE_C_FLAGS` and wins, and `nk_power_isa_probes.cmake` gates the POWER9
@@ -120,9 +120,9 @@ if (DEFINED PPC_SYSROOT)
     set(CMAKE_FIND_ROOT_PATH "${PPC_SYSROOT}")
 endif ()
 
-find_program(_NK_QEMU_PPC64LE qemu-ppc64le)
-if (_NK_QEMU_PPC64LE)
-    set(CMAKE_CROSSCOMPILING_EMULATOR "${_NK_QEMU_PPC64LE};-L;${PPC_QEMU_LD_PREFIX};-cpu;${PPC_QEMU_CPU}")
+find_program(_NUMKONG_QEMU_PPC64LE qemu-ppc64le)
+if (_NUMKONG_QEMU_PPC64LE)
+    set(CMAKE_CROSSCOMPILING_EMULATOR "${_NUMKONG_QEMU_PPC64LE};-L;${PPC_QEMU_LD_PREFIX};-cpu;${PPC_QEMU_CPU}")
 endif ()
 
 # Search paths for libraries and headers (target system only).

@@ -18,8 +18,8 @@
  *  masked row is not credited for the keys it skips.
  */
 #pragma once
-#ifndef NK_BENCH_CROSS_CUH
-#define NK_BENCH_CROSS_CUH
+#ifndef NUMKONG_BENCH_CROSS_CUH
+#define NUMKONG_BENCH_CROSS_CUH
 
 #include <cmath>   // `std::fma`, `std::sqrt`
 #include <cstdint> // `std::int64_t`, `std::uint64_t`
@@ -34,8 +34,8 @@
 
 #include "numkong/cast.h" // `nk_cast_serial`
 
-#include "../test/test.hpp" // `test::host_backend_t`
-#include "bench.hpp"
+#include "../test/harness.hpp" // `test::host_backend_t`
+#include "harness.hpp"
 
 namespace ashvardanian::numkong::bench {
 
@@ -346,7 +346,8 @@ void register_packed(std::string const &name, reference_metric_t metric, pack_si
                               metric, packed_size_fn, pack_fn, kernel, height, width, depth));
 }
 
-/** Registers a symmetric row over @c NK_MATRIX_HEIGHT vectors of @c NK_MATRIX_DEPTH dimensions. */
+/** Registers a symmetric row over @c NUMWARS_DIMS_HEIGHT vectors of @c NUMWARS_DIMS_DEPTH
+ *  dimensions. */
 template <nk_dtype_t input_dtype_, typename output_type_, typename backend_type_, typename kernel_type_>
 void register_symmetric(std::string const &name, reference_metric_t metric, kernel_type_ kernel) {
     std::size_t const height = bench_config.matrix_height, depth = bench_config.matrix_depth;
@@ -402,9 +403,9 @@ void run_euclideans_symmetric(std::string const &name, kernel_type_ kernel) {
 
 #pragma region Attention
 
-/** Visible keys including the query itself, @c NK_SIZE_MAX when unbounded. */
+/** Visible keys including the query itself, @c NUMKONG_SIZE_MAX when unbounded. */
 inline nk_size_t attention_window(attention_visibility_t visibility) noexcept {
-    return visibility == attention_visibility_t::causal_window_1024_k ? 1024 : NK_SIZE_MAX;
+    return visibility == attention_visibility_t::causal_window_1024_k ? 1024 : NUMKONG_SIZE_MAX;
 }
 
 /** Whether the 1024-key window hides keys a plain causal row of @p shape would see. */
@@ -586,4 +587,4 @@ void run_attention_causal(std::string const &name, pack_size_kernel_type_ packed
 
 } // namespace ashvardanian::numkong::bench
 
-#endif // NK_BENCH_CROSS_CUH
+#endif // NUMKONG_BENCH_CROSS_CUH

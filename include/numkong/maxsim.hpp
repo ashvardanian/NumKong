@@ -4,8 +4,8 @@
  *  @date February 28, 2026
  *  @brief C++ bindings for multi-target MaxSim, ColBERT late-interaction kernels.
  */
-#ifndef NK_MAXSIM_HPP
-#define NK_MAXSIM_HPP
+#ifndef NUMKONG_MAXSIM_HPP
+#define NUMKONG_MAXSIM_HPP
 
 #include <cstddef>
 #include <cstring>
@@ -36,8 +36,8 @@ namespace ashvardanian::numkong {
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::maxsim_result_t,
           allow_simd_t allow_simd_ = prefer_simd_k>
-NK_API_COMPTIME void maxsim_packed(void const *query_packed, void const *document_packed, std::size_t query_count,
-                                   std::size_t document_count, std::size_t depth, result_type_ *result) {
+NUMKONG_API_COMPTIME void maxsim_packed(void const *query_packed, void const *document_packed, std::size_t query_count,
+                                        std::size_t document_count, std::size_t depth, result_type_ *result) {
     constexpr bool simd = allow_simd_ == prefer_simd_k &&
                           std::is_same_v<result_type_, typename in_type_::maxsim_result_t>;
 
@@ -85,10 +85,10 @@ NK_API_COMPTIME void maxsim_packed(void const *query_packed, void const *documen
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::angular_result_t,
           allow_simd_t allow_simd_ = prefer_simd_k>
-NK_API_COMPTIME void maxsim_reference(typename in_type_::raw_t const *queries, std::size_t query_count,
-                                      std::size_t query_stride, typename in_type_::raw_t const *documents,
-                                      std::size_t document_count, std::size_t document_stride, std::size_t depth,
-                                      result_type_ *result) {
+NUMKONG_API_COMPTIME void maxsim_reference(typename in_type_::raw_t const *queries, std::size_t query_count,
+                                           std::size_t query_stride, typename in_type_::raw_t const *documents,
+                                           std::size_t document_count, std::size_t document_stride, std::size_t depth,
+                                           result_type_ *result) {
     result_type_ total_angular_distance {};
 
     for (std::size_t query_index = 0; query_index < query_count; query_index++) {
@@ -134,4 +134,4 @@ typename value_type_::maxsim_result_t maxsim(packed_maxsim<value_type_> const &q
 
 } // namespace ashvardanian::numkong
 
-#endif // NK_MAXSIM_HPP
+#endif // NUMKONG_MAXSIM_HPP

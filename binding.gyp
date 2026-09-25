@@ -1,8 +1,8 @@
 {
     "variables": {
         "openssl_fips": "",
-        # `NK_MARCH_NATIVE=1` opts into a host-tuned, non-portable build, as in CMakeLists.txt.
-        "nk_march_native%": "<!(node -p \"['1','true','TRUE'].includes(process.env.NK_MARCH_NATIVE||'')?1:0\")"
+        # `NUMKONG_MARCH_NATIVE=1` opts into a host-tuned, non-portable build, as in CMakeLists.txt.
+        "nk_march_native%": "<!(node -p \"['1','true','TRUE'].includes(process.env.NUMKONG_MARCH_NATIVE||'')?1:0\")"
     },
     "targets": [
         {
@@ -42,9 +42,9 @@
                 "c"
             ],
             "defines": [
-                "NK_NATIVE_F16=0",
-                "NK_NATIVE_BF16=0",
-                "NK_RUNTIME_DISPATCH=1"
+                "NUMKONG_NATIVE_F16=0",
+                "NUMKONG_NATIVE_BF16=0",
+                "NUMKONG_RUNTIME_DISPATCH=1"
             ],
             "cflags": [
                 "-std=c11",

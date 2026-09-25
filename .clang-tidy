@@ -27,4 +27,4 @@ FormatStyle: file
 
 CheckOptions:
   - key: bugprone-assert-side-effect.AssertMacros
-    value: 'assert,NK_ASSERT'
+    value: 'assert,nk_assert_'

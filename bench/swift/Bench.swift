@@ -9,11 +9,11 @@
 //  swift test -c release --filter Bench
 //  ```
 //
-//  Environment variables, matching C++ nk_bench:
-//      NK_DENSE_DIMENSIONS  — pairwise vector length, defaulting to 1536
-//      NK_MATRIX_HEIGHT     — GEMM M / dataset rows, defaulting to 1024
-//      NK_MATRIX_WIDTH      — GEMM N / query rows, defaulting to 128
-//      NK_MATRIX_DEPTH      — GEMM K / vector dims, defaulting to 1536
+//  Environment variables, matching C++ numkong_bench:
+//      NUMWARS_DIMS         — pairwise vector length, defaulting to 1536
+//      NUMWARS_DIMS_HEIGHT  — GEMM M / dataset rows, defaulting to 1024
+//      NUMWARS_DIMS_WIDTH   — GEMM N / query rows, defaulting to 128
+//      NUMWARS_DIMS_DEPTH   — GEMM K / vector dims, defaulting to 1536
 //
 //  `xcodebuild` forwards them to the tests only with a `TEST_RUNNER_` prefix.
 //
@@ -31,10 +31,10 @@ private func env(_ key: String, default d: Int) -> Int {
     environment[key].flatMap { Int($0) } ?? d
 }
 
-private let denseDims = env("NK_DENSE_DIMENSIONS", default: 1536)
-private let matrixHeight = env("NK_MATRIX_HEIGHT", default: 1024)
-private let matrixWidth = env("NK_MATRIX_WIDTH", default: 128)
-private let matrixDepth = env("NK_MATRIX_DEPTH", default: 1536)
+private let denseDims = env("NUMWARS_DIMS", default: 1536)
+private let matrixHeight = env("NUMWARS_DIMS_HEIGHT", default: 1024)
+private let matrixWidth = env("NUMWARS_DIMS_WIDTH", default: 128)
+private let matrixDepth = env("NUMWARS_DIMS_DEPTH", default: 1536)
 private let pairwiseReps = 10_000
 
 /// One benchmark: `prepare` builds its inputs once and returns the call to time.

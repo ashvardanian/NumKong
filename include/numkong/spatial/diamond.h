@@ -9,11 +9,11 @@
  *  For L2 distance, uses (a−b)² = a² + b² − 2 × a × b, with VCVTHF82PH and VCVTBF82PH converting
  *  FP8 → FP16 in one instruction and VDPPHPS accumulating FP16 pairs into FP32.
  */
-#ifndef NK_SPATIAL_DIAMOND_H
-#define NK_SPATIAL_DIAMOND_H
+#ifndef NUMKONG_SPATIAL_DIAMOND_H
+#define NUMKONG_SPATIAL_DIAMOND_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_DIAMOND
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_DIAMOND
 
 #include "numkong/types.h"
 #include "numkong/spatial/haswell.h" // `nk_angular_normalize_f32_haswell_`, `nk_f32_sqrt_haswell`
@@ -37,8 +37,8 @@ extern "C" {
                    "bmi", "bmi2")
 #endif
 
-NK_API_COMPTIME void nk_sqeuclidean_e4m3_diamond(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
-                                                 nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e4m3_diamond(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                      nk_f32_t *result) {
     __m512 a_sq_f32x16 = _mm512_setzero_ps();
     __m512 b_sq_f32x16 = _mm512_setzero_ps();
     __m512 ab_f32x16 = _mm512_setzero_ps();
@@ -67,12 +67,14 @@ nk_sqeuclidean_e4m3_diamond_cycle:
     *result = nk_reduce_add_f32x16_skylake_(_mm512_fnmadd_ps(_mm512_set1_ps(2.0f), ab_f32x16, sum_sq_f32x16));
 }
 
-NK_API_COMPTIME void nk_euclidean_e4m3_diamond(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_euclidean_e4m3_diamond(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                    nk_f32_t *result) {
     nk_sqeuclidean_e4m3_diamond(a, b, n, result);
     *result = nk_f32_sqrt_haswell(*result);
 }
 
-NK_API_COMPTIME void nk_angular_e4m3_diamond(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_angular_e4m3_diamond(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                  nk_f32_t *result) {
     __m512 dot_f32x16 = _mm512_setzero_ps();
     __m512 a_norm_sq_f32x16 = _mm512_setzero_ps();
     __m512 b_norm_sq_f32x16 = _mm512_setzero_ps();
@@ -103,8 +105,8 @@ nk_angular_e4m3_diamond_cycle:
     *result = nk_angular_normalize_f32_haswell_(dot_f32, a_norm_sq_f32, b_norm_sq_f32);
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_e5m2_diamond(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
-                                                 nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e5m2_diamond(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                      nk_f32_t *result) {
     __m512 a_sq_f32x16 = _mm512_setzero_ps();
     __m512 b_sq_f32x16 = _mm512_setzero_ps();
     __m512 ab_f32x16 = _mm512_setzero_ps();
@@ -133,12 +135,14 @@ nk_sqeuclidean_e5m2_diamond_cycle:
     *result = nk_reduce_add_f32x16_skylake_(_mm512_fnmadd_ps(_mm512_set1_ps(2.0f), ab_f32x16, sum_sq_f32x16));
 }
 
-NK_API_COMPTIME void nk_euclidean_e5m2_diamond(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_euclidean_e5m2_diamond(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                    nk_f32_t *result) {
     nk_sqeuclidean_e5m2_diamond(a, b, n, result);
     *result = nk_f32_sqrt_haswell(*result);
 }
 
-NK_API_COMPTIME void nk_angular_e5m2_diamond(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_angular_e5m2_diamond(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                  nk_f32_t *result) {
     __m512 dot_f32x16 = _mm512_setzero_ps();
     __m512 a_norm_sq_f32x16 = _mm512_setzero_ps();
     __m512 b_norm_sq_f32x16 = _mm512_setzero_ps();
@@ -169,7 +173,8 @@ nk_angular_e5m2_diamond_cycle:
     *result = nk_angular_normalize_f32_haswell_(dot_f32, a_norm_sq_f32, b_norm_sq_f32);
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_f16_diamond(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f16_diamond(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                     nk_f32_t *result) {
     __m512 a_sq_f32x16 = _mm512_setzero_ps();
     __m512 b_sq_f32x16 = _mm512_setzero_ps();
     __m512 ab_f32x16 = _mm512_setzero_ps();
@@ -196,12 +201,13 @@ nk_sqeuclidean_f16_diamond_cycle:
     *result = nk_reduce_add_f32x16_skylake_(_mm512_fnmadd_ps(_mm512_set1_ps(2.0f), ab_f32x16, sum_sq_f32x16));
 }
 
-NK_API_COMPTIME void nk_euclidean_f16_diamond(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_euclidean_f16_diamond(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                   nk_f32_t *result) {
     nk_sqeuclidean_f16_diamond(a, b, n, result);
     *result = nk_f32_sqrt_haswell(*result);
 }
 
-NK_API_COMPTIME void nk_angular_f16_diamond(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_angular_f16_diamond(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
     __m512 dot_f32x16 = _mm512_setzero_ps();
     __m512 a_norm_sq_f32x16 = _mm512_setzero_ps();
     __m512 b_norm_sq_f32x16 = _mm512_setzero_ps();
@@ -240,6 +246,6 @@ nk_angular_f16_diamond_cycle:
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_DIAMOND
-#endif // NK_TARGET_X8664_
-#endif // NK_SPATIAL_DIAMOND_H
+#endif // NUMKONG_TARGET_DIAMOND
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_SPATIAL_DIAMOND_H

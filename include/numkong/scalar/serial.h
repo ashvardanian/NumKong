@@ -9,8 +9,8 @@
  *  Uses the Quake 3 fast inverse square root trick with Newton-Raphson refinement: three iterations
  *  for f32, ~34.9 correct bits, and four for f64, ~69.3 correct bits.
  */
-#ifndef NK_SCALAR_SERIAL_H
-#define NK_SCALAR_SERIAL_H
+#ifndef NUMKONG_SCALAR_SERIAL_H
+#define NUMKONG_SCALAR_SERIAL_H
 
 #include "numkong/types.h"
 #include "numkong/cast/serial.h"
@@ -21,7 +21,7 @@ extern "C" {
 
 /*  GCC inlines a helper only into callers whose targets include its own, so serial code builds at
  *  the Armv8-A floor. */
-#if defined(__GNUC__) && !defined(__clang__) && NK_TARGET_ARM64_
+#if defined(__GNUC__) && !defined(__clang__) && NUMKONG_ARCH_ARM64_
 #pragma GCC push_options
 #pragma GCC target("arch=armv8-a")
 #endif
@@ -35,7 +35,7 @@ extern "C" {
 #pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
 #endif
 
-NK_API_COMPTIME nk_f32_t nk_f32_rsqrt_serial(nk_f32_t number) {
+NUMKONG_API_COMPTIME nk_f32_t nk_f32_rsqrt_serial(nk_f32_t number) {
     nk_fui32_t conv;
     conv.f = number;
     conv.u = 0x5F375A86 - (conv.u >> 1);
@@ -46,11 +46,11 @@ NK_API_COMPTIME nk_f32_t nk_f32_rsqrt_serial(nk_f32_t number) {
     return y;
 }
 
-NK_API_COMPTIME nk_f32_t nk_f32_sqrt_serial(nk_f32_t number) {
+NUMKONG_API_COMPTIME nk_f32_t nk_f32_sqrt_serial(nk_f32_t number) {
     return number > 0 ? number * nk_f32_rsqrt_serial(number) : 0;
 }
 
-NK_API_COMPTIME nk_f64_t nk_f64_rsqrt_serial(nk_f64_t number) {
+NUMKONG_API_COMPTIME nk_f64_t nk_f64_rsqrt_serial(nk_f64_t number) {
     nk_fui64_t conv;
     conv.f = number;
     conv.u = 0x5FE6EB50C7B537A9ULL - (conv.u >> 1);
@@ -62,11 +62,11 @@ NK_API_COMPTIME nk_f64_t nk_f64_rsqrt_serial(nk_f64_t number) {
     return y;
 }
 
-NK_API_COMPTIME nk_f64_t nk_f64_sqrt_serial(nk_f64_t number) {
+NUMKONG_API_COMPTIME nk_f64_t nk_f64_sqrt_serial(nk_f64_t number) {
     return number > 0 ? number * nk_f64_rsqrt_serial(number) : 0;
 }
 
-NK_API_COMPTIME nk_f16_t nk_f16_sqrt_serial(nk_f16_t x) {
+NUMKONG_API_COMPTIME nk_f16_t nk_f16_sqrt_serial(nk_f16_t x) {
     nk_f32_t x_f32;
     nk_f16_to_f32_serial(&x, &x_f32);
     x_f32 = nk_f32_sqrt_serial(x_f32);
@@ -75,7 +75,7 @@ NK_API_COMPTIME nk_f16_t nk_f16_sqrt_serial(nk_f16_t x) {
     return result;
 }
 
-NK_API_COMPTIME nk_f16_t nk_f16_rsqrt_serial(nk_f16_t x) {
+NUMKONG_API_COMPTIME nk_f16_t nk_f16_rsqrt_serial(nk_f16_t x) {
     nk_f32_t x_f32;
     nk_f16_to_f32_serial(&x, &x_f32);
     x_f32 = nk_f32_rsqrt_serial(x_f32);
@@ -84,7 +84,7 @@ NK_API_COMPTIME nk_f16_t nk_f16_rsqrt_serial(nk_f16_t x) {
     return result;
 }
 
-NK_API_COMPTIME nk_f64_t nk_f64_fma_serial(nk_f64_t multiplicand, nk_f64_t multiplier, nk_f64_t addend) {
+NUMKONG_API_COMPTIME nk_f64_t nk_f64_fma_serial(nk_f64_t multiplicand, nk_f64_t multiplier, nk_f64_t addend) {
     nk_f64_t product = multiplicand * multiplier;
     // Dekker splitting: break each operand into non-overlapping high and low halves
     nk_f64_t const dekker_split = 134217729.0; // 2^27 + 1 for double precision
@@ -106,7 +106,7 @@ NK_API_COMPTIME nk_f64_t nk_f64_fma_serial(nk_f64_t multiplicand, nk_f64_t multi
     return result + (product_error + addition_error);
 }
 
-NK_API_COMPTIME nk_f32_t nk_f32_fma_serial(nk_f32_t multiplicand, nk_f32_t multiplier, nk_f32_t addend) {
+NUMKONG_API_COMPTIME nk_f32_t nk_f32_fma_serial(nk_f32_t multiplicand, nk_f32_t multiplier, nk_f32_t addend) {
     nk_f32_t product = multiplicand * multiplier;
     // Dekker splitting: break each operand into non-overlapping high and low halves
     nk_f32_t const dekker_split = 4097.0f; // 2^12 + 1 for single precision
@@ -137,8 +137,8 @@ NK_API_COMPTIME nk_f32_t nk_f32_fma_serial(nk_f32_t multiplicand, nk_f32_t multi
 /** Scalar Dot2 accumulator: sum += a × b with error compensation, using the TwoProd, via FMA, and
  *  TwoSum error-free transformations from "Accurate Sum and Dot Product" by T. Ogita, S. M. Rump
  *  and S. Oishi, 2005. */
-NK_HELPER_INLINE void nk_f64_dot2_(nk_f64_t *sum, nk_f64_t *compensation, nk_f64_t a,
-                                   nk_f64_t b) NK_STREAMING_COMPATIBLE_ {
+NUMKONG_HELPER_INLINE void nk_f64_dot2_(nk_f64_t *sum, nk_f64_t *compensation, nk_f64_t a,
+                                        nk_f64_t b) NUMKONG_STREAMING_COMPATIBLE_ {
     nk_f64_t product = a * b;
     nk_f64_t product_error = nk_f64_fma_serial(a, b, -product);
     nk_f64_t running_sum = *sum + product;
@@ -155,7 +155,7 @@ NK_HELPER_INLINE void nk_f64_dot2_(nk_f64_t *sum, nk_f64_t *compensation, nk_f64
 #pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
 #endif
 
-NK_API_COMPTIME nk_f16_t nk_f16_fma_serial(nk_f16_t a, nk_f16_t b, nk_f16_t c) {
+NUMKONG_API_COMPTIME nk_f16_t nk_f16_fma_serial(nk_f16_t a, nk_f16_t b, nk_f16_t c) {
     nk_f32_t a_f32, b_f32, c_f32;
     nk_f16_to_f32_serial(&a, &a_f32);
     nk_f16_to_f32_serial(&b, &b_f32);
@@ -166,34 +166,34 @@ NK_API_COMPTIME nk_f16_t nk_f16_fma_serial(nk_f16_t a, nk_f16_t b, nk_f16_t c) {
     return result;
 }
 
-NK_API_COMPTIME nk_u8_t nk_u8_saturating_add_serial(nk_u8_t a, nk_u8_t b) {
+NUMKONG_API_COMPTIME nk_u8_t nk_u8_saturating_add_serial(nk_u8_t a, nk_u8_t b) {
     nk_u16_t result = (nk_u16_t)a + (nk_u16_t)b;
     return (result > 255u) ? (nk_u8_t)255u : (nk_u8_t)result;
 }
-NK_API_COMPTIME nk_u16_t nk_u16_saturating_add_serial(nk_u16_t a, nk_u16_t b) {
+NUMKONG_API_COMPTIME nk_u16_t nk_u16_saturating_add_serial(nk_u16_t a, nk_u16_t b) {
     nk_u32_t result = (nk_u32_t)a + (nk_u32_t)b;
     return (result > 65535u) ? (nk_u16_t)65535u : (nk_u16_t)result;
 }
-NK_API_COMPTIME nk_u32_t nk_u32_saturating_add_serial(nk_u32_t a, nk_u32_t b) {
+NUMKONG_API_COMPTIME nk_u32_t nk_u32_saturating_add_serial(nk_u32_t a, nk_u32_t b) {
     nk_u64_t result = (nk_u64_t)a + (nk_u64_t)b;
     return (result > 4294967295u) ? (nk_u32_t)4294967295u : (nk_u32_t)result;
 }
-NK_API_COMPTIME nk_u64_t nk_u64_saturating_add_serial(nk_u64_t a, nk_u64_t b) {
+NUMKONG_API_COMPTIME nk_u64_t nk_u64_saturating_add_serial(nk_u64_t a, nk_u64_t b) {
     return (a + b < a) ? 18446744073709551615ull : (a + b);
 }
-NK_API_COMPTIME nk_i8_t nk_i8_saturating_add_serial(nk_i8_t a, nk_i8_t b) {
+NUMKONG_API_COMPTIME nk_i8_t nk_i8_saturating_add_serial(nk_i8_t a, nk_i8_t b) {
     nk_i16_t result = (nk_i16_t)a + (nk_i16_t)b;
     return (result > 127) ? 127 : (result < -128 ? -128 : result);
 }
-NK_API_COMPTIME nk_i16_t nk_i16_saturating_add_serial(nk_i16_t a, nk_i16_t b) {
+NUMKONG_API_COMPTIME nk_i16_t nk_i16_saturating_add_serial(nk_i16_t a, nk_i16_t b) {
     nk_i32_t result = (nk_i32_t)a + (nk_i32_t)b;
     return (result > 32767) ? 32767 : (result < -32768 ? -32768 : result);
 }
-NK_API_COMPTIME nk_i32_t nk_i32_saturating_add_serial(nk_i32_t a, nk_i32_t b) {
+NUMKONG_API_COMPTIME nk_i32_t nk_i32_saturating_add_serial(nk_i32_t a, nk_i32_t b) {
     nk_i64_t result = (nk_i64_t)a + (nk_i64_t)b;
     return (result > 2147483647ll) ? 2147483647ll : (result < -2147483648ll ? -2147483648ll : (nk_i32_t)result);
 }
-NK_API_COMPTIME nk_i64_t nk_i64_saturating_add_serial(nk_i64_t a, nk_i64_t b) {
+NUMKONG_API_COMPTIME nk_i64_t nk_i64_saturating_add_serial(nk_i64_t a, nk_i64_t b) {
     //? We can't just write `-9223372036854775808ll`, even though it's the smallest signed 64-bit value.
     //? The compiler will complain about the number being too large for the type, as it will process the
     //? constant and the sign separately. So we use the same hint that compilers use to define the `INT64_MIN`.
@@ -202,22 +202,22 @@ NK_API_COMPTIME nk_i64_t nk_i64_saturating_add_serial(nk_i64_t a, nk_i64_t b) {
     return a + b;
 }
 
-NK_API_COMPTIME nk_u8_t nk_u8_saturating_mul_serial(nk_u8_t a, nk_u8_t b) {
+NUMKONG_API_COMPTIME nk_u8_t nk_u8_saturating_mul_serial(nk_u8_t a, nk_u8_t b) {
     nk_u16_t result = (nk_u16_t)a * (nk_u16_t)b;
     return (result > 255) ? 255 : (nk_u8_t)result;
 }
 
-NK_API_COMPTIME nk_u16_t nk_u16_saturating_mul_serial(nk_u16_t a, nk_u16_t b) {
+NUMKONG_API_COMPTIME nk_u16_t nk_u16_saturating_mul_serial(nk_u16_t a, nk_u16_t b) {
     nk_u32_t result = (nk_u32_t)a * (nk_u32_t)b;
     return (result > 65535) ? 65535 : (nk_u16_t)result;
 }
 
-NK_API_COMPTIME nk_u32_t nk_u32_saturating_mul_serial(nk_u32_t a, nk_u32_t b) {
+NUMKONG_API_COMPTIME nk_u32_t nk_u32_saturating_mul_serial(nk_u32_t a, nk_u32_t b) {
     nk_u64_t result = (nk_u64_t)a * (nk_u64_t)b;
     return (result > 4294967295u) ? 4294967295u : (nk_u32_t)result;
 }
 
-NK_API_COMPTIME nk_u64_t nk_u64_saturating_mul_serial(nk_u64_t a, nk_u64_t b) {
+NUMKONG_API_COMPTIME nk_u64_t nk_u64_saturating_mul_serial(nk_u64_t a, nk_u64_t b) {
     // Split the inputs into high and low 32-bit parts
     nk_u64_t a_high = a >> 32;
     nk_u64_t a_low = a & 0xFFFFFFFF;
@@ -239,22 +239,22 @@ NK_API_COMPTIME nk_u64_t nk_u64_saturating_mul_serial(nk_u64_t a, nk_u64_t b) {
     return result;
 }
 
-NK_API_COMPTIME nk_i8_t nk_i8_saturating_mul_serial(nk_i8_t a, nk_i8_t b) {
+NUMKONG_API_COMPTIME nk_i8_t nk_i8_saturating_mul_serial(nk_i8_t a, nk_i8_t b) {
     nk_i16_t result = (nk_i16_t)a * (nk_i16_t)b;
     return (result > 127) ? 127 : (result < -128 ? -128 : (nk_i8_t)result);
 }
 
-NK_API_COMPTIME nk_i16_t nk_i16_saturating_mul_serial(nk_i16_t a, nk_i16_t b) {
+NUMKONG_API_COMPTIME nk_i16_t nk_i16_saturating_mul_serial(nk_i16_t a, nk_i16_t b) {
     nk_i32_t result = (nk_i32_t)a * (nk_i32_t)b;
     return (result > 32767) ? 32767 : (result < -32768 ? -32768 : (nk_i16_t)result);
 }
 
-NK_API_COMPTIME nk_i32_t nk_i32_saturating_mul_serial(nk_i32_t a, nk_i32_t b) {
+NUMKONG_API_COMPTIME nk_i32_t nk_i32_saturating_mul_serial(nk_i32_t a, nk_i32_t b) {
     nk_i64_t result = (nk_i64_t)a * (nk_i64_t)b;
     return (result > 2147483647ll) ? 2147483647ll : (result < -2147483648ll ? -2147483648ll : (nk_i32_t)result);
 }
 
-NK_API_COMPTIME nk_i64_t nk_i64_saturating_mul_serial(nk_i64_t a, nk_i64_t b) {
+NUMKONG_API_COMPTIME nk_i64_t nk_i64_saturating_mul_serial(nk_i64_t a, nk_i64_t b) {
     int sign = ((a < 0) ^ (b < 0)) ? -1 : 1; // Track the sign of the result
 
     // Take absolute values for easy multiplication and overflow detection
@@ -282,28 +282,28 @@ NK_API_COMPTIME nk_i64_t nk_i64_saturating_mul_serial(nk_i64_t a, nk_i64_t b) {
     return (sign < 0) ? -((nk_i64_t)result) : (nk_i64_t)result;
 }
 
-NK_API_COMPTIME nk_i4x2_t nk_i4x2_saturating_add_serial(nk_i4x2_t a, nk_i4x2_t b) {
+NUMKONG_API_COMPTIME nk_i4x2_t nk_i4x2_saturating_add_serial(nk_i4x2_t a, nk_i4x2_t b) {
     nk_i8_t low = nk_i4x2_low_(a) + nk_i4x2_low_(b);
     nk_i8_t high = nk_i4x2_high_(a) + nk_i4x2_high_(b);
     low = (low > 7) ? 7 : (low < -8 ? -8 : low);
     high = (high > 7) ? 7 : (high < -8 ? -8 : high);
     return (nk_i4x2_t)((low & 0x0F) | ((high & 0x0F) << 4));
 }
-NK_API_COMPTIME nk_u4x2_t nk_u4x2_saturating_add_serial(nk_u4x2_t a, nk_u4x2_t b) {
+NUMKONG_API_COMPTIME nk_u4x2_t nk_u4x2_saturating_add_serial(nk_u4x2_t a, nk_u4x2_t b) {
     nk_u8_t low = nk_u4x2_low_(a) + nk_u4x2_low_(b);
     nk_u8_t high = nk_u4x2_high_(a) + nk_u4x2_high_(b);
     low = (low > 15) ? 15 : low;
     high = (high > 15) ? 15 : high;
     return (nk_u4x2_t)((low & 0x0F) | ((high & 0x0F) << 4));
 }
-NK_API_COMPTIME nk_i4x2_t nk_i4x2_saturating_mul_serial(nk_i4x2_t a, nk_i4x2_t b) {
+NUMKONG_API_COMPTIME nk_i4x2_t nk_i4x2_saturating_mul_serial(nk_i4x2_t a, nk_i4x2_t b) {
     nk_i8_t low = nk_i4x2_low_(a) * nk_i4x2_low_(b);
     nk_i8_t high = nk_i4x2_high_(a) * nk_i4x2_high_(b);
     low = (low > 7) ? 7 : (low < -8 ? -8 : low);
     high = (high > 7) ? 7 : (high < -8 ? -8 : high);
     return (nk_i4x2_t)((low & 0x0F) | ((high & 0x0F) << 4));
 }
-NK_API_COMPTIME nk_u4x2_t nk_u4x2_saturating_mul_serial(nk_u4x2_t a, nk_u4x2_t b) {
+NUMKONG_API_COMPTIME nk_u4x2_t nk_u4x2_saturating_mul_serial(nk_u4x2_t a, nk_u4x2_t b) {
     nk_u8_t low = nk_u4x2_low_(a) * nk_u4x2_low_(b);
     nk_u8_t high = nk_u4x2_high_(a) * nk_u4x2_high_(b);
     low = (low > 15) ? 15 : low;
@@ -311,34 +311,34 @@ NK_API_COMPTIME nk_u4x2_t nk_u4x2_saturating_mul_serial(nk_u4x2_t a, nk_u4x2_t b
     return (nk_u4x2_t)((low & 0x0F) | ((high & 0x0F) << 4));
 }
 
-NK_API_COMPTIME int nk_e4m3_order_serial(nk_e4m3_t a, nk_e4m3_t b) {
+NUMKONG_API_COMPTIME int nk_e4m3_order_serial(nk_e4m3_t a, nk_e4m3_t b) {
     int sign_a = a >> 7, sign_b = b >> 7;
     return (a ^ -sign_a) - (b ^ -sign_b);
 }
-NK_API_COMPTIME int nk_e5m2_order_serial(nk_e5m2_t a, nk_e5m2_t b) {
+NUMKONG_API_COMPTIME int nk_e5m2_order_serial(nk_e5m2_t a, nk_e5m2_t b) {
     int sign_a = a >> 7, sign_b = b >> 7;
     return (a ^ -sign_a) - (b ^ -sign_b);
 }
 
-NK_API_COMPTIME int nk_e2m3_order_serial(nk_e2m3_t a, nk_e2m3_t b) {
+NUMKONG_API_COMPTIME int nk_e2m3_order_serial(nk_e2m3_t a, nk_e2m3_t b) {
     int value_a = a & 0x3F, value_b = b & 0x3F;
     int sign_a = value_a >> 5, sign_b = value_b >> 5;
     return (value_a ^ -sign_a) - (value_b ^ -sign_b);
 }
-NK_API_COMPTIME int nk_e3m2_order_serial(nk_e3m2_t a, nk_e3m2_t b) {
+NUMKONG_API_COMPTIME int nk_e3m2_order_serial(nk_e3m2_t a, nk_e3m2_t b) {
     int value_a = a & 0x3F, value_b = b & 0x3F;
     int sign_a = value_a >> 5, sign_b = value_b >> 5;
     return (value_a ^ -sign_a) - (value_b ^ -sign_b);
 }
 
-NK_API_COMPTIME int nk_bf16_order_serial(nk_bf16_t a, nk_bf16_t b) {
+NUMKONG_API_COMPTIME int nk_bf16_order_serial(nk_bf16_t a, nk_bf16_t b) {
     nk_fui16_t a_fui, b_fui;
     a_fui.bf = a, b_fui.bf = b;
     int sign_a = a_fui.u >> 15, sign_b = b_fui.u >> 15;
     return ((int)a_fui.u ^ -sign_a) - ((int)b_fui.u ^ -sign_b);
 }
 
-NK_API_COMPTIME int nk_f16_order_serial(nk_f16_t a, nk_f16_t b) {
+NUMKONG_API_COMPTIME int nk_f16_order_serial(nk_f16_t a, nk_f16_t b) {
     nk_fui16_t a_fui, b_fui;
     a_fui.f = a, b_fui.f = b;
     int sign_a = a_fui.u >> 15, sign_b = b_fui.u >> 15;
@@ -356,7 +356,7 @@ NK_API_COMPTIME int nk_f16_order_serial(nk_f16_t a, nk_f16_t b) {
  *  costs a ~150-cycle microcode assist on most cores. Shared reference for every fused kernel
  *  needing a sigmoid / SiLU / softmax weight; the SIMD backends match this polynomial to keep
  *  serial and vector paths in agreement. */
-NK_HELPER_INLINE nk_f32_t nk_f32_exp2_serial_(nk_f32_t x) {
+NUMKONG_HELPER_INLINE nk_f32_t nk_f32_exp2_serial_(nk_f32_t x) {
     x = x > 127.0f ? 127.0f : x;
     x = x < -125.0f ? -125.0f : x;
     nk_i32_t whole = (nk_i32_t)(x >= 0 ? x + 0.5f : x - 0.5f);
@@ -372,14 +372,14 @@ NK_HELPER_INLINE nk_f32_t nk_f32_exp2_serial_(nk_f32_t x) {
 }
 
 /** Scalar logistic sigmoid `1 / (1 + e^-x)`, built on the shared fast exponent. */
-NK_HELPER_INLINE nk_f32_t nk_f32_sigmoid_serial_(nk_f32_t x) {
-    return 1.0f / (1.0f + nk_f32_exp2_serial_(-x * NK_F32_LOG2E_));
+NUMKONG_HELPER_INLINE nk_f32_t nk_f32_sigmoid_serial_(nk_f32_t x) {
+    return 1.0f / (1.0f + nk_f32_exp2_serial_(-x * NUMKONG_F32_LOG2E_));
 }
 
 /** Scalar SiLU, or swish, x × sigmoid(x), built on the shared fast exponent. */
-NK_HELPER_INLINE nk_f32_t nk_f32_silu_serial_(nk_f32_t x) { return x * nk_f32_sigmoid_serial_(x); }
+NUMKONG_HELPER_INLINE nk_f32_t nk_f32_silu_serial_(nk_f32_t x) { return x * nk_f32_sigmoid_serial_(x); }
 
-#if defined(__GNUC__) && !defined(__clang__) && NK_TARGET_ARM64_
+#if defined(__GNUC__) && !defined(__clang__) && NUMKONG_ARCH_ARM64_
 #pragma GCC pop_options
 #endif
 
@@ -387,4 +387,4 @@ NK_HELPER_INLINE nk_f32_t nk_f32_silu_serial_(nk_f32_t x) { return x * nk_f32_si
 } // extern "C"
 #endif
 
-#endif // NK_SCALAR_SERIAL_H
+#endif // NUMKONG_SCALAR_SERIAL_H

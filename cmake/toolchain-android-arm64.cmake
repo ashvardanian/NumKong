@@ -3,7 +3,7 @@
 # Usage:
 #   export ANDROID_NDK_ROOT=/path/to/android-ndk-r29
 #   cmake -B build_android -D CMAKE_TOOLCHAIN_FILE=cmake/toolchain-android-arm64.cmake \
-#         -D NK_BUILD_SHARED=ON
+#         -D NUMKONG_BUILD_SHARED=ON
 #   cmake --build build_android
 #
 # Requires ANDROID_NDK_ROOT or ANDROID_NDK to point to the NDK.

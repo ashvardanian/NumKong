@@ -134,9 +134,9 @@ PyObject *api_fma(PyObject *self, PyObject *const *args, Py_ssize_t const positi
         !nk_get_buffer(b_obj, &b_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &b_backing) ||
         !nk_get_buffer(c_obj, &c_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &c_backing))
         goto cleanup;
-    if (a_buffer.ndim > NK_TENSOR_MAX_RANK) {
+    if (a_buffer.ndim > NUMKONG_TENSOR_MAX_RANK) {
         PyErr_Format(PyExc_ValueError, "Tensor rank %d exceeds maximum supported rank %d", a_buffer.ndim,
-                     NK_TENSOR_MAX_RANK);
+                     NUMKONG_TENSOR_MAX_RANK);
         goto cleanup;
     }
     if (!buffers_shapes_match(&a_buffer, &b_buffer) || !buffers_shapes_match(&a_buffer, &c_buffer)) goto cleanup;
@@ -178,7 +178,7 @@ PyObject *api_fma(PyObject *self, PyObject *const *args, Py_ssize_t const positi
     }
 
     char *result_data = NULL;
-    Py_ssize_t result_strides[NK_TENSOR_MAX_RANK];
+    Py_ssize_t result_strides[NUMKONG_TENSOR_MAX_RANK];
     int contiguous_tail = 0;
     Py_buffer const *inputs[] = {&a_buffer, &b_buffer, &c_buffer};
     if (!elementwise_prepare_out(out_obj, &out_buffer, &out_backing, inputs, 3, dtype, //
@@ -282,9 +282,9 @@ PyObject *api_blend(PyObject *self, PyObject *const *args, Py_ssize_t const posi
     if (!nk_get_buffer(a_obj, &a_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &a_backing) ||
         !nk_get_buffer(b_obj, &b_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &b_backing))
         goto cleanup;
-    if (a_buffer.ndim > NK_TENSOR_MAX_RANK) {
+    if (a_buffer.ndim > NUMKONG_TENSOR_MAX_RANK) {
         PyErr_Format(PyExc_ValueError, "Tensor rank %d exceeds maximum supported rank %d", a_buffer.ndim,
-                     NK_TENSOR_MAX_RANK);
+                     NUMKONG_TENSOR_MAX_RANK);
         goto cleanup;
     }
     if (!buffers_shapes_match(&a_buffer, &b_buffer)) goto cleanup;
@@ -325,7 +325,7 @@ PyObject *api_blend(PyObject *self, PyObject *const *args, Py_ssize_t const posi
     }
 
     char *result_data = NULL;
-    Py_ssize_t result_strides[NK_TENSOR_MAX_RANK];
+    Py_ssize_t result_strides[NUMKONG_TENSOR_MAX_RANK];
     int contiguous_tail = 0;
     Py_buffer const *inputs[] = {&a_buffer, &b_buffer};
     if (!elementwise_prepare_out(out_obj, &out_buffer, &out_backing, inputs, 2, dtype, //
@@ -422,9 +422,9 @@ PyObject *api_scale(PyObject *self, PyObject *const *args, Py_ssize_t const posi
 
     // Acquire the (N-D, possibly strided) input buffer.
     if (!nk_get_buffer(a_obj, &a_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &a_backing)) return NULL;
-    if (a_buffer.ndim > NK_TENSOR_MAX_RANK) {
+    if (a_buffer.ndim > NUMKONG_TENSOR_MAX_RANK) {
         PyErr_Format(PyExc_ValueError, "Tensor rank %d exceeds maximum supported rank %d", a_buffer.ndim,
-                     NK_TENSOR_MAX_RANK);
+                     NUMKONG_TENSOR_MAX_RANK);
         goto cleanup;
     }
 
@@ -459,7 +459,7 @@ PyObject *api_scale(PyObject *self, PyObject *const *args, Py_ssize_t const posi
     }
 
     char *result_data = NULL;
-    Py_ssize_t result_strides[NK_TENSOR_MAX_RANK];
+    Py_ssize_t result_strides[NUMKONG_TENSOR_MAX_RANK];
     int contiguous_tail = 0;
     Py_buffer const *inputs[] = {&a_buffer};
     if (!elementwise_prepare_out(out_obj, &out_buffer, &out_backing, inputs, 1, dtype, //
@@ -559,7 +559,7 @@ PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t const po
     if (gamma_obj == Py_None) gamma_obj = NULL;
 
     if (!nk_get_buffer(x_obj, &x_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &x_backing)) return NULL;
-    if (x_buffer.ndim < 1 || x_buffer.ndim > NK_TENSOR_MAX_RANK) {
+    if (x_buffer.ndim < 1 || x_buffer.ndim > NUMKONG_TENSOR_MAX_RANK) {
         PyErr_Format(PyExc_ValueError, "Tensor rank %d unsupported", x_buffer.ndim);
         goto cleanup;
     }
@@ -616,7 +616,7 @@ PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t const po
     }
 
     char *result_data = NULL;
-    Py_ssize_t result_strides[NK_TENSOR_MAX_RANK];
+    Py_ssize_t result_strides[NUMKONG_TENSOR_MAX_RANK];
     int contiguous_tail = 0;
     Py_buffer const *inputs[] = {&x_buffer};
     if (!elementwise_prepare_out(out_obj, &out_buffer, &out_backing, inputs, 1, dtype, //
@@ -696,7 +696,7 @@ PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t const pos
     }
 
     if (!nk_get_buffer(gate_obj, &gate_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &gate_backing)) return NULL;
-    if (gate_buffer.ndim < 1 || gate_buffer.ndim > NK_TENSOR_MAX_RANK) {
+    if (gate_buffer.ndim < 1 || gate_buffer.ndim > NUMKONG_TENSOR_MAX_RANK) {
         PyErr_Format(PyExc_ValueError, "Tensor rank %d unsupported", gate_buffer.ndim);
         goto cleanup;
     }
@@ -722,7 +722,7 @@ PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t const pos
     }
     nk_size_t const gate_row_stride = ndim >= 2 ? (nk_size_t)gate_buffer.strides[ndim - 2] : 0;
 
-    void const *up_ptr = NK_NULL;
+    void const *up_ptr = NUMKONG_NULL;
     nk_size_t up_row_stride = 0;
     if (up_obj) {
         if (!nk_get_buffer(up_obj, &up_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &up_backing)) goto cleanup;
@@ -749,7 +749,7 @@ PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t const pos
     }
 
     char *result_data = NULL;
-    Py_ssize_t result_strides[NK_TENSOR_MAX_RANK];
+    Py_ssize_t result_strides[NUMKONG_TENSOR_MAX_RANK];
     int contiguous_tail = 0;
     Py_buffer const *inputs[] = {&gate_buffer};
     if (!elementwise_prepare_out(out_obj, &out_buffer, &out_backing, inputs, 1, dtype, //
@@ -797,9 +797,9 @@ static PyObject *add_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyO
     memset(&out_buffer, 0, sizeof(Py_buffer));
 
     if (!nk_get_buffer(array_obj, &a_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &a_backing)) return NULL;
-    if (a_buffer.ndim > NK_TENSOR_MAX_RANK) {
+    if (a_buffer.ndim > NUMKONG_TENSOR_MAX_RANK) {
         PyErr_Format(PyExc_ValueError, "Tensor rank %d exceeds maximum supported rank %d", a_buffer.ndim,
-                     NK_TENSOR_MAX_RANK);
+                     NUMKONG_TENSOR_MAX_RANK);
         goto cleanup;
     }
     if (out_obj && !get_out_buffer(out_obj, &out_buffer, &out_backing)) goto cleanup;
@@ -836,7 +836,7 @@ static PyObject *add_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyO
         }
 
     char *result_data = NULL;
-    Py_ssize_t result_strides[NK_TENSOR_MAX_RANK];
+    Py_ssize_t result_strides[NUMKONG_TENSOR_MAX_RANK];
     nk_dtype_t out_buf_dtype = nk_dtype_unknown_k;
     Py_buffer const *input_bufs[] = {&a_buffer};
     int contiguous_tail = shared_contiguous_tail_dimensions(input_bufs, 1, a_buffer.ndim);
@@ -854,7 +854,7 @@ static PyObject *add_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyO
     else if ((out_buf_dtype = resolve_nk_dtype_in_py_buffer(&out_buffer)) != nk_dtype_unknown_k &&
              out_buf_dtype != dtype) {
         if (!validate_cast_writeback_target(&out_buffer, out_buf_dtype)) goto cleanup;
-        cast_staging = PyMem_Malloc(total_elements * element_size + NK_TENSOR_PADDING_);
+        cast_staging = PyMem_Malloc(total_elements * element_size + NUMKONG_TENSOR_PADDING_);
         if (!cast_staging) {
             PyErr_NoMemory();
             goto cleanup;
@@ -904,9 +904,9 @@ static PyObject *add_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out
     memset(&out_buffer, 0, sizeof(Py_buffer));
 
     if (!nk_get_buffer(a_obj, &a_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &a_backing)) return NULL;
-    if (a_buffer.ndim > NK_TENSOR_MAX_RANK) {
+    if (a_buffer.ndim > NUMKONG_TENSOR_MAX_RANK) {
         PyErr_Format(PyExc_ValueError, "Tensor rank %d exceeds maximum supported rank %d", a_buffer.ndim,
-                     NK_TENSOR_MAX_RANK);
+                     NUMKONG_TENSOR_MAX_RANK);
         goto cleanup;
     }
     if (!nk_get_buffer(b_obj, &b_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &b_backing)) goto cleanup;
@@ -964,11 +964,11 @@ static PyObject *add_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out
     if (!b_promoted) goto cleanup;
 
     size_t const element_size = nk_dtype_bytes_per_value(dtype);
-    Py_ssize_t promoted_strides[NK_TENSOR_MAX_RANK];
+    Py_ssize_t promoted_strides[NUMKONG_TENSOR_MAX_RANK];
     compute_contiguous_strides((size_t)num_dims, a_buffer.shape, dtype, promoted_strides);
 
     char *result_data = NULL;
-    Py_ssize_t result_strides[NK_TENSOR_MAX_RANK];
+    Py_ssize_t result_strides[NUMKONG_TENSOR_MAX_RANK];
     nk_dtype_t out_buf_dtype = nk_dtype_unknown_k;
     int contiguous_tail = num_dims;
 
@@ -986,7 +986,7 @@ static PyObject *add_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out
     else if ((out_buf_dtype = resolve_nk_dtype_in_py_buffer(&out_buffer)) != nk_dtype_unknown_k &&
              out_buf_dtype != dtype) {
         if (!validate_cast_writeback_target(&out_buffer, out_buf_dtype)) goto cleanup;
-        cast_staging = PyMem_Malloc(total_elements * element_size + NK_TENSOR_PADDING_);
+        cast_staging = PyMem_Malloc(total_elements * element_size + NUMKONG_TENSOR_PADDING_);
         if (!cast_staging) {
             PyErr_NoMemory();
             goto cleanup;
@@ -1104,9 +1104,9 @@ static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj
     memset(&out_buffer, 0, sizeof(Py_buffer));
 
     if (!nk_get_buffer(array_obj, &a_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &a_backing)) return NULL;
-    if (a_buffer.ndim > NK_TENSOR_MAX_RANK) {
+    if (a_buffer.ndim > NUMKONG_TENSOR_MAX_RANK) {
         PyErr_Format(PyExc_ValueError, "Tensor rank %d exceeds maximum supported rank %d", a_buffer.ndim,
-                     NK_TENSOR_MAX_RANK);
+                     NUMKONG_TENSOR_MAX_RANK);
         goto cleanup;
     }
     if (out_obj && !get_out_buffer(out_obj, &out_buffer, &out_backing)) goto cleanup;
@@ -1143,7 +1143,7 @@ static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj
         }
 
     char *result_data = NULL;
-    Py_ssize_t result_strides[NK_TENSOR_MAX_RANK];
+    Py_ssize_t result_strides[NUMKONG_TENSOR_MAX_RANK];
     nk_dtype_t out_buf_dtype = nk_dtype_unknown_k;
     Py_buffer const *input_bufs[] = {&a_buffer};
     int contiguous_tail = shared_contiguous_tail_dimensions(input_bufs, 1, a_buffer.ndim);
@@ -1161,7 +1161,7 @@ static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj
     else if ((out_buf_dtype = resolve_nk_dtype_in_py_buffer(&out_buffer)) != nk_dtype_unknown_k &&
              out_buf_dtype != dtype) {
         if (!validate_cast_writeback_target(&out_buffer, out_buf_dtype)) goto cleanup;
-        cast_staging = PyMem_Malloc(total_elements * element_size + NK_TENSOR_PADDING_);
+        cast_staging = PyMem_Malloc(total_elements * element_size + NUMKONG_TENSOR_PADDING_);
         if (!cast_staging) {
             PyErr_NoMemory();
             goto cleanup;
@@ -1211,9 +1211,9 @@ static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject
     memset(&out_buffer, 0, sizeof(Py_buffer));
 
     if (!nk_get_buffer(a_obj, &a_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &a_backing)) return NULL;
-    if (a_buffer.ndim > NK_TENSOR_MAX_RANK) {
+    if (a_buffer.ndim > NUMKONG_TENSOR_MAX_RANK) {
         PyErr_Format(PyExc_ValueError, "Tensor rank %d exceeds maximum supported rank %d", a_buffer.ndim,
-                     NK_TENSOR_MAX_RANK);
+                     NUMKONG_TENSOR_MAX_RANK);
         goto cleanup;
     }
     if (!nk_get_buffer(b_obj, &b_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &b_backing)) goto cleanup;
@@ -1277,11 +1277,11 @@ static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject
     if (!b_promoted) goto cleanup;
 
     size_t const element_size = nk_dtype_bytes_per_value(dtype);
-    Py_ssize_t promoted_strides[NK_TENSOR_MAX_RANK];
+    Py_ssize_t promoted_strides[NUMKONG_TENSOR_MAX_RANK];
     compute_contiguous_strides((size_t)num_dims, a_buffer.shape, dtype, promoted_strides);
 
     char *result_data = NULL;
-    Py_ssize_t result_strides[NK_TENSOR_MAX_RANK];
+    Py_ssize_t result_strides[NUMKONG_TENSOR_MAX_RANK];
     nk_dtype_t out_buf_dtype = nk_dtype_unknown_k;
     int contiguous_tail = num_dims;
 
@@ -1300,7 +1300,7 @@ static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject
     else if ((out_buf_dtype = resolve_nk_dtype_in_py_buffer(&out_buffer)) != nk_dtype_unknown_k &&
              out_buf_dtype != dtype) {
         if (!validate_cast_writeback_target(&out_buffer, out_buf_dtype)) goto cleanup;
-        cast_staging = PyMem_Malloc(total_elements * element_size + NK_TENSOR_PADDING_);
+        cast_staging = PyMem_Malloc(total_elements * element_size + NUMKONG_TENSOR_PADDING_);
         if (!cast_staging) {
             PyErr_NoMemory();
             goto cleanup;

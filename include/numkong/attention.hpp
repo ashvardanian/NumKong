@@ -4,8 +4,8 @@
  *  @date July 7, 2026
  *  @brief C++ bindings for multi-target ragged scaled-dot-product attention kernels.
  */
-#ifndef NK_ATTENTION_HPP
-#define NK_ATTENTION_HPP
+#ifndef NUMKONG_ATTENTION_HPP
+#define NUMKONG_ATTENTION_HPP
 
 #include <cstddef>
 
@@ -20,8 +20,8 @@ namespace ashvardanian::numkong {
  *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k.
  */
 template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
-NK_API_COMPTIME std::size_t attention_pack_size(std::size_t key_value_head_count, std::size_t depth,
-                                                nk_u32_t const *segment_lengths, std::size_t segment_count) {
+NUMKONG_API_COMPTIME std::size_t attention_pack_size(std::size_t key_value_head_count, std::size_t depth,
+                                                     nk_u32_t const *segment_lengths, std::size_t segment_count) {
     constexpr bool simd = allow_simd_ == prefer_simd_k;
     if constexpr (std::is_same_v<in_type_, bf16_t> && simd)
         return nk_attention_pack_size_bf16(key_value_head_count, depth, segment_lengths, segment_count);
@@ -44,11 +44,12 @@ NK_API_COMPTIME std::size_t attention_pack_size(std::size_t key_value_head_count
  *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k.
  */
 template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
-NK_API_COMPTIME void attention_pack(in_type_ const *keys, in_type_ const *values, std::size_t key_value_head_count,
-                                    std::size_t depth, nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
-                                    std::size_t segment_count, std::size_t key_stride_bytes,
-                                    std::size_t value_stride_bytes, void *key_value_packed, std::size_t task_begin = 0,
-                                    std::size_t task_end = static_cast<std::size_t>(-1)) {
+NUMKONG_API_COMPTIME void attention_pack(in_type_ const *keys, in_type_ const *values, std::size_t key_value_head_count,
+                                         std::size_t depth, nk_u32_t const *segment_offsets,
+                                         nk_u32_t const *segment_lengths, std::size_t segment_count,
+                                         std::size_t key_stride_bytes, std::size_t value_stride_bytes,
+                                         void *key_value_packed, std::size_t task_begin = 0,
+                                         std::size_t task_end = static_cast<std::size_t>(-1)) {
     using raw_t = typename in_type_::raw_t;
     constexpr bool simd = allow_simd_ == prefer_simd_k;
     raw_t const *keys_raw = reinterpret_cast<raw_t const *>(keys);
@@ -86,13 +87,13 @@ NK_API_COMPTIME void attention_pack(in_type_ const *keys, in_type_ const *values
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::attention_result_t,
           allow_simd_t allow_simd_ = prefer_simd_k>
-NK_API_COMPTIME void attention_bidirectional_packed(in_type_ const *queries, void const *key_value_packed,
-                                                    result_type_ *output, std::size_t head_count,
-                                                    std::size_t key_value_head_count, std::size_t depth,
-                                                    nk_u32_t const *query_offsets, std::size_t query_stride_bytes,
-                                                    std::size_t output_stride_bytes, nk_f32_t scale,
-                                                    std::size_t task_start = 0,
-                                                    std::size_t task_count = static_cast<std::size_t>(-1)) {
+NUMKONG_API_COMPTIME void attention_bidirectional_packed(in_type_ const *queries, void const *key_value_packed,
+                                                         result_type_ *output, std::size_t head_count,
+                                                         std::size_t key_value_head_count, std::size_t depth,
+                                                         nk_u32_t const *query_offsets, std::size_t query_stride_bytes,
+                                                         std::size_t output_stride_bytes, nk_f32_t scale,
+                                                         std::size_t task_start = 0,
+                                                         std::size_t task_count = static_cast<std::size_t>(-1)) {
     using raw_t = typename in_type_::raw_t;
     static_assert(std::is_same_v<result_type_, typename in_type_::attention_result_t>,
                   "Attention accumulates and normalizes in F32");
@@ -132,7 +133,7 @@ NK_API_COMPTIME void attention_bidirectional_packed(in_type_ const *queries, voi
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::attention_result_t,
           allow_simd_t allow_simd_ = prefer_simd_k>
-NK_API_COMPTIME void attention_causal_packed(
+NUMKONG_API_COMPTIME void attention_causal_packed(
     in_type_ const *queries, void const *key_value_packed, result_type_ *output, std::size_t head_count,
     std::size_t key_value_head_count, std::size_t depth, nk_u32_t const *query_offsets, std::size_t query_stride_bytes,
     std::size_t output_stride_bytes, nk_f32_t scale, nk_i64_t diagonal_offset = 0,
@@ -172,4 +173,4 @@ NK_API_COMPTIME void attention_causal_packed(
 
 } // namespace ashvardanian::numkong
 
-#endif // NK_ATTENTION_HPP
+#endif // NUMKONG_ATTENTION_HPP

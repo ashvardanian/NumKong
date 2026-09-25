@@ -6,8 +6,8 @@
  *
  *  @sa include/numkong/sets.h
  */
-#ifndef NK_SETS_SERIAL_H
-#define NK_SETS_SERIAL_H
+#ifndef NUMKONG_SETS_SERIAL_H
+#define NUMKONG_SETS_SERIAL_H
 
 #include "numkong/set/serial.h"
 #include "numkong/dots/serial.h"
@@ -40,4 +40,4 @@ nk_define_cross_normalized_symmetric_(jaccard, u1, serial, u1x8, u32, /*norm_val
 } // extern "C"
 #endif
 
-#endif // NK_SETS_SERIAL_H
+#endif // NUMKONG_SETS_SERIAL_H

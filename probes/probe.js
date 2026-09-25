@@ -6,7 +6,8 @@
  *  @brief NumKong ISA probe script for Node.js and node-gyp builds.
  *
  *  Try-compiles each probe .c file from probes/ to determine which ISA extensions the current
- *  compiler supports, and writes the results to build/nk_probes.h as `#define NK_TARGET_FOO 1/0`.
+ *  compiler supports, and writes the results to build/nk_probes.h as
+ *  `#define NUMKONG_TARGET_FOO 1/0`.
  *
  *  Usage: node scripts/probe_isa.js, called automatically via the package.json "preinstall" hook.
  */
@@ -45,53 +46,53 @@ function probeIsa(probeFile, flags) {
  *  `-mavx2`. */
 const PROBES = [
     // x86
-    ["NK_TARGET_HASWELL", "probes/x86_haswell.c", ["-mavx2", "-mfma", "-mf16c"], ["/arch:AVX2"]],
-    ["NK_TARGET_SKYLAKE", "probes/x86_skylake.c", ["-mavx512f", "-mavx512bw", "-mavx512dq", "-mavx512vl"], ["/arch:AVX512"]],
-    ["NK_TARGET_ICELAKE", "probes/x86_icelake.c", ["-mavx512vnni", "-mavx512vl"], ["/arch:AVX512"]],
-    ["NK_TARGET_GENOA", "probes/x86_genoa.c", ["-mavx512bf16", "-mavx512vl"], ["/arch:AVX512"]],
-    ["NK_TARGET_SAPPHIRE", "probes/x86_sapphire.c", ["-mavx512fp16", "-mavx512vl"], ["/arch:AVX512"]],
-    ["NK_TARGET_SAPPHIREAMX", "probes/x86_sapphireamx.c", ["-mamx-tile", "-mamx-int8"], ["/arch:AVX512"]],
-    ["NK_TARGET_GRANITEAMX", "probes/x86_graniteamx.c", ["-mamx-tile", "-mamx-fp16"], ["/arch:AVX512"]],
-    ["NK_TARGET_DIAMOND", "probes/x86_diamond.c", ["-mavx10.2-512"], ["/arch:AVX10.2"]],
-    ["NK_TARGET_TURIN", "probes/x86_turin.c", ["-mavx512vp2intersect"], ["/arch:AVX512"]],
-    ["NK_TARGET_ALDER", "probes/x86_alder.c", ["-mavxvnni"], ["/arch:AVX2"]],
-    ["NK_TARGET_SIERRA", "probes/x86_sierra.c", ["-mavxvnniint8"], ["/arch:AVX2"]],
+    ["NUMKONG_TARGET_HASWELL", "probes/x86_haswell.c", ["-mavx2", "-mfma", "-mf16c"], ["/arch:AVX2"]],
+    ["NUMKONG_TARGET_SKYLAKE", "probes/x86_skylake.c", ["-mavx512f", "-mavx512bw", "-mavx512dq", "-mavx512vl"], ["/arch:AVX512"]],
+    ["NUMKONG_TARGET_ICELAKE", "probes/x86_icelake.c", ["-mavx512vnni", "-mavx512vl"], ["/arch:AVX512"]],
+    ["NUMKONG_TARGET_GENOA", "probes/x86_genoa.c", ["-mavx512bf16", "-mavx512vl"], ["/arch:AVX512"]],
+    ["NUMKONG_TARGET_SAPPHIRE", "probes/x86_sapphire.c", ["-mavx512fp16", "-mavx512vl"], ["/arch:AVX512"]],
+    ["NUMKONG_TARGET_SAPPHIREAMX", "probes/x86_sapphireamx.c", ["-mamx-tile", "-mamx-int8"], ["/arch:AVX512"]],
+    ["NUMKONG_TARGET_GRANITEAMX", "probes/x86_graniteamx.c", ["-mamx-tile", "-mamx-fp16"], ["/arch:AVX512"]],
+    ["NUMKONG_TARGET_DIAMOND", "probes/x86_diamond.c", ["-mavx10.2-512"], ["/arch:AVX10.2"]],
+    ["NUMKONG_TARGET_TURIN", "probes/x86_turin.c", ["-mavx512vp2intersect"], ["/arch:AVX512"]],
+    ["NUMKONG_TARGET_ALDER", "probes/x86_alder.c", ["-mavxvnni"], ["/arch:AVX2"]],
+    ["NUMKONG_TARGET_SIERRA", "probes/x86_sierra.c", ["-mavxvnniint8"], ["/arch:AVX2"]],
     // ARM NEON base probes, with empty MSVC flags because MSVC does not define `__ARM_FEATURE_*`
     // macros via /arch: flags, so its header-only builds infer them from `__ARM_ARCH` in types.h.
-    ["NK_TARGET_NEON", "probes/arm_neon.c", ["-march=armv8-a+simd"], []], // FEAT_AdvSIMD
-    ["NK_TARGET_NEONHALF", "probes/arm_neon_half.c", ["-march=armv8.2-a+simd+fp16"], ["/arch:armv8.2"]], // FEAT_FP16
-    ["NK_TARGET_NEONSDOT", "probes/arm_neon_sdot.c", ["-march=armv8.2-a+dotprod"], ["/arch:armv8.4"]], // FEAT_DotProd
-    ["NK_TARGET_NEONBFDOT", "probes/arm_neon_bfdot.c", ["-march=armv8.6-a+simd+bf16"], ["/arch:armv8.6"]], // FEAT_BF16
-    ["NK_TARGET_NEONFHM", "probes/arm_neon_fhm.c", ["-march=armv8.2-a+simd+fp16+fp16fml"], ["/arch:armv8.4"]], // FEAT_FHM
+    ["NUMKONG_TARGET_NEON", "probes/arm_neon.c", ["-march=armv8-a+simd"], []], // FEAT_AdvSIMD
+    ["NUMKONG_TARGET_NEONHALF", "probes/arm_neon_half.c", ["-march=armv8.2-a+simd+fp16"], ["/arch:armv8.2"]], // FEAT_FP16
+    ["NUMKONG_TARGET_NEONSDOT", "probes/arm_neon_sdot.c", ["-march=armv8.2-a+dotprod"], ["/arch:armv8.4"]], // FEAT_DotProd
+    ["NUMKONG_TARGET_NEONBFDOT", "probes/arm_neon_bfdot.c", ["-march=armv8.6-a+simd+bf16"], ["/arch:armv8.6"]], // FEAT_BF16
+    ["NUMKONG_TARGET_NEONFHM", "probes/arm_neon_fhm.c", ["-march=armv8.2-a+simd+fp16+fp16fml"], ["/arch:armv8.4"]], // FEAT_FHM
     // ARM SVE/SME
-    ["NK_TARGET_SVE", "probes/arm_sve.c", ["-march=armv8.2-a+sve"], []],
-    ["NK_TARGET_SVEHALF", "probes/arm_sve_half.c", ["-march=armv8.2-a+sve+fp16"], []],
-    ["NK_TARGET_SVEBFDOT", "probes/arm_sve_bfdot.c", ["-march=armv8.2-a+sve+bf16"], []],
-    ["NK_TARGET_SVESDOT", "probes/arm_sve_sdot.c", ["-march=armv8.2-a+sve+dotprod"], []],
-    ["NK_TARGET_SVE2", "probes/arm_sve2.c", ["-march=armv8.2-a+sve2"], []],
-    ["NK_TARGET_SVE2P1", "probes/arm_sve2p1.c", ["-march=armv8.2-a+sve2p1"], []],
-    ["NK_TARGET_NEONFP8", "probes/arm_neonfp8.c", ["-march=armv8-a+simd+fp8dot4"], []],
-    ["NK_TARGET_SME", "probes/arm_sme.c", ["-march=armv8-a+sme"], []],
-    ["NK_TARGET_SME2", "probes/arm_sme2.c", ["-march=armv8-a+sme2"], []],
-    ["NK_TARGET_SME2P1", "probes/arm_sme2p1.c", ["-march=armv8-a+sme2p1"], []],
-    ["NK_TARGET_SMEF64", "probes/arm_sme_f64.c", ["-march=armv8-a+sme+sme-f64f64"], []],
-    ["NK_TARGET_SMEHALF", "probes/arm_sme_half.c", ["-march=armv8-a+sme+sme-f16f16"], []],
-    ["NK_TARGET_SMEBF16", "probes/arm_sme_bf16.c", ["-march=armv8-a+sme2+sme-b16b16"], []],
-    ["NK_TARGET_SMEBI32", "probes/arm_sme_bi32.c", ["-march=armv8-a+sme2"], []],
-    ["NK_TARGET_SMELUT2", "probes/arm_sme_lut2.c", ["-march=armv8-a+sme2+sme-lutv2"], []],
-    ["NK_TARGET_SMEFA64", "probes/arm_sme_fa64.c", ["-march=armv8-a+sme+sme-fa64"], []],
+    ["NUMKONG_TARGET_SVE", "probes/arm_sve.c", ["-march=armv8.2-a+sve"], []],
+    ["NUMKONG_TARGET_SVEHALF", "probes/arm_sve_half.c", ["-march=armv8.2-a+sve+fp16"], []],
+    ["NUMKONG_TARGET_SVEBFDOT", "probes/arm_sve_bfdot.c", ["-march=armv8.2-a+sve+bf16"], []],
+    ["NUMKONG_TARGET_SVESDOT", "probes/arm_sve_sdot.c", ["-march=armv8.2-a+sve+dotprod"], []],
+    ["NUMKONG_TARGET_SVE2", "probes/arm_sve2.c", ["-march=armv8.2-a+sve2"], []],
+    ["NUMKONG_TARGET_SVE2P1", "probes/arm_sve2p1.c", ["-march=armv8.2-a+sve2p1"], []],
+    ["NUMKONG_TARGET_NEONFP8", "probes/arm_neonfp8.c", ["-march=armv8-a+simd+fp8dot4"], []],
+    ["NUMKONG_TARGET_SME", "probes/arm_sme.c", ["-march=armv8-a+sme"], []],
+    ["NUMKONG_TARGET_SME2", "probes/arm_sme2.c", ["-march=armv8-a+sme2"], []],
+    ["NUMKONG_TARGET_SME2P1", "probes/arm_sme2p1.c", ["-march=armv8-a+sme2p1"], []],
+    ["NUMKONG_TARGET_SMEF64", "probes/arm_sme_f64.c", ["-march=armv8-a+sme+sme-f64f64"], []],
+    ["NUMKONG_TARGET_SMEHALF", "probes/arm_sme_half.c", ["-march=armv8-a+sme+sme-f16f16"], []],
+    ["NUMKONG_TARGET_SMEBF16", "probes/arm_sme_bf16.c", ["-march=armv8-a+sme2+sme-b16b16"], []],
+    ["NUMKONG_TARGET_SMEBI32", "probes/arm_sme_bi32.c", ["-march=armv8-a+sme2"], []],
+    ["NUMKONG_TARGET_SMELUT2", "probes/arm_sme_lut2.c", ["-march=armv8-a+sme2+sme-lutv2"], []],
+    ["NUMKONG_TARGET_SMEFA64", "probes/arm_sme_fa64.c", ["-march=armv8-a+sme+sme-fa64"], []],
     // RISC-V
-    ["NK_TARGET_RVV", "probes/riscv_rvv.c", ["-march=rv64gcv"], []],
-    ["NK_TARGET_RVVHALF", "probes/riscv_rvv_half.c", ["-march=rv64gcv_zvfh"], []],
-    ["NK_TARGET_RVVBF16", "probes/riscv_rvv_bf16.c", ["-march=rv64gcv_zvfbfwma"], []],
-    ["NK_TARGET_RVVBB", "probes/riscv_rvv_bb.c", ["-march=rv64gcv_zvbb"], []],
+    ["NUMKONG_TARGET_RVV", "probes/riscv_rvv.c", ["-march=rv64gcv"], []],
+    ["NUMKONG_TARGET_RVVHALF", "probes/riscv_rvv_half.c", ["-march=rv64gcv_zvfh"], []],
+    ["NUMKONG_TARGET_RVVBF16", "probes/riscv_rvv_bf16.c", ["-march=rv64gcv_zvfbfwma"], []],
+    ["NUMKONG_TARGET_RVVBB", "probes/riscv_rvv_bb.c", ["-march=rv64gcv_zvbb"], []],
     // LoongArch
-    ["NK_TARGET_LOONGSONASX", "probes/loongarch_lasx.c", ["-mlasx"], []],
+    ["NUMKONG_TARGET_LOONGSONASX", "probes/loongarch_lasx.c", ["-mlasx"], []],
     // Power
-    ["NK_TARGET_POWERVSX", "probes/power_vsx.c", ["-mcpu=power9", "-mvsx"], []],
+    ["NUMKONG_TARGET_POWERVSX", "probes/power_vsx.c", ["-mcpu=power9", "-mvsx"], []],
     // WASM
-    ["NK_TARGET_V128", "probes/wasm_v128.c", ["-msimd128"], []],
-    ["NK_TARGET_V128RELAXED", "probes/wasm_v128relaxed.c", ["-msimd128", "-mrelaxed-simd"], []],
+    ["NUMKONG_TARGET_V128", "probes/wasm_v128.c", ["-msimd128"], []],
+    ["NUMKONG_TARGET_V128RELAXED", "probes/wasm_v128relaxed.c", ["-msimd128", "-mrelaxed-simd"], []],
 ];
 
 function main() {

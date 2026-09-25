@@ -14,10 +14,10 @@
  *  2⁰, at four times the 16-bit rate, straight from packed nibble pairs. Only the 12.x family
  *  carries these instructions, so every other device pass traps.
  */
-#ifndef NK_DOTS_BLACKWELLRTX_CUH
-#define NK_DOTS_BLACKWELLRTX_CUH
+#ifndef NUMKONG_DOTS_BLACKWELLRTX_CUH
+#define NUMKONG_DOTS_BLACKWELLRTX_CUH
 
-#if NK_TARGET_BLACKWELLRTX
+#if NUMKONG_TARGET_BLACKWELLRTX
 
 #include "numkong/dots/ampere.cuh"
 
@@ -30,32 +30,32 @@ extern "C" {
 #if defined(__CUDA_ARCH_FAMILY_SPECIFIC__) && __CUDA_ARCH_FAMILY_SPECIFIC__ >= 1200 && \
     __CUDA_ARCH_FAMILY_SPECIFIC__ < 1300
 
-NK_HELPER_DEVICE_INLINE void nk_mma_e5m2_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                                       nk_u32_t b_second) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_mma_e5m2_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4],
+                                                            nk_u32_t b_first, nk_u32_t b_second) {
     asm volatile("mma.sync.aligned.m16n8k32.row.col.kind::f8f6f4.f32.e5m2.e5m2.f32 " //
                  "{%0, %1, %2, %3}, {%4, %5, %6, %7}, {%8, %9}, {%0, %1, %2, %3};\n"
                  : "+f"(accumulator[0].f), "+f"(accumulator[1].f), "+f"(accumulator[2].f), "+f"(accumulator[3].f)
                  : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b_first), "r"(b_second));
 }
 
-NK_HELPER_DEVICE_INLINE void nk_mma_e4m3_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                                       nk_u32_t b_second) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_mma_e4m3_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4],
+                                                            nk_u32_t b_first, nk_u32_t b_second) {
     asm volatile("mma.sync.aligned.m16n8k32.row.col.kind::f8f6f4.f32.e4m3.e4m3.f32 " //
                  "{%0, %1, %2, %3}, {%4, %5, %6, %7}, {%8, %9}, {%0, %1, %2, %3};\n"
                  : "+f"(accumulator[0].f), "+f"(accumulator[1].f), "+f"(accumulator[2].f), "+f"(accumulator[3].f)
                  : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b_first), "r"(b_second));
 }
 
-NK_HELPER_DEVICE_INLINE void nk_mma_e3m2_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                                       nk_u32_t b_second) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_mma_e3m2_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4],
+                                                            nk_u32_t b_first, nk_u32_t b_second) {
     asm volatile("mma.sync.aligned.m16n8k32.row.col.kind::f8f6f4.f32.e3m2.e3m2.f32 " //
                  "{%0, %1, %2, %3}, {%4, %5, %6, %7}, {%8, %9}, {%0, %1, %2, %3};\n"
                  : "+f"(accumulator[0].f), "+f"(accumulator[1].f), "+f"(accumulator[2].f), "+f"(accumulator[3].f)
                  : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b_first), "r"(b_second));
 }
 
-NK_HELPER_DEVICE_INLINE void nk_mma_e2m3_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                                       nk_u32_t b_second) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_mma_e2m3_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4],
+                                                            nk_u32_t b_first, nk_u32_t b_second) {
     asm volatile("mma.sync.aligned.m16n8k32.row.col.kind::f8f6f4.f32.e2m3.e2m3.f32 " //
                  "{%0, %1, %2, %3}, {%4, %5, %6, %7}, {%8, %9}, {%0, %1, %2, %3};\n"
                  : "+f"(accumulator[0].f), "+f"(accumulator[1].f), "+f"(accumulator[2].f), "+f"(accumulator[3].f)
@@ -64,8 +64,8 @@ NK_HELPER_DEVICE_INLINE void nk_mma_e2m3_blackwellrtx_(nk_fui32_t accumulator[4]
 
 /*  One 16 × 8 × 64 step from nibble pairs, both block scales at 2⁰ so the products are the codes'
  *  own. */
-NK_HELPER_DEVICE_INLINE void nk_mma_e2m1_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                                       nk_u32_t b_second) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_mma_e2m1_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4],
+                                                            nk_u32_t b_first, nk_u32_t b_second) {
     asm volatile("mma.sync.aligned.m16n8k64.row.col.kind::mxf4.block_scale.scale_vec::2X.f32.e2m1.e2m1.f32.ue8m0 " //
                  "{%0, %1, %2, %3}, {%4, %5, %6, %7}, {%8, %9}, {%0, %1, %2, %3}, %10, {0, 0}, %10, {0, 0};\n"
                  : "+f"(accumulator[0].f), "+f"(accumulator[1].f), "+f"(accumulator[2].f), "+f"(accumulator[3].f)
@@ -74,24 +74,24 @@ NK_HELPER_DEVICE_INLINE void nk_mma_e2m1_blackwellrtx_(nk_fui32_t accumulator[4]
 
 #else
 
-NK_HELPER_DEVICE_INLINE void nk_mma_e5m2_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                                       nk_u32_t b_second) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_mma_e5m2_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4],
+                                                            nk_u32_t b_first, nk_u32_t b_second) {
     __trap();
 }
-NK_HELPER_DEVICE_INLINE void nk_mma_e4m3_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                                       nk_u32_t b_second) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_mma_e4m3_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4],
+                                                            nk_u32_t b_first, nk_u32_t b_second) {
     __trap();
 }
-NK_HELPER_DEVICE_INLINE void nk_mma_e3m2_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                                       nk_u32_t b_second) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_mma_e3m2_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4],
+                                                            nk_u32_t b_first, nk_u32_t b_second) {
     __trap();
 }
-NK_HELPER_DEVICE_INLINE void nk_mma_e2m3_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                                       nk_u32_t b_second) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_mma_e2m3_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4],
+                                                            nk_u32_t b_first, nk_u32_t b_second) {
     __trap();
 }
-NK_HELPER_DEVICE_INLINE void nk_mma_e2m1_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                                       nk_u32_t b_second) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_mma_e2m1_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4],
+                                                            nk_u32_t b_first, nk_u32_t b_second) {
     __trap();
 }
 
@@ -101,8 +101,8 @@ NK_HELPER_DEVICE_INLINE void nk_mma_e2m1_blackwellrtx_(nk_fui32_t accumulator[4]
 
 #pragma region Multiplies
 
-NK_HELPER_DEVICE_INLINE void nk_dots_e5m2_multiply_blackwellrtx_(nk_fui32_t accumulators[4][8][4],
-                                                                 nk_u32_t const a[4][4], nk_u32_t const b[8][2]) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_dots_e5m2_multiply_blackwellrtx_(nk_fui32_t accumulators[4][8][4],
+                                                                      nk_u32_t const a[4][4], nk_u32_t const b[8][2]) {
 #pragma unroll
     for (unsigned row_tile = 0; row_tile < 4; ++row_tile)
 #pragma unroll
@@ -111,8 +111,8 @@ NK_HELPER_DEVICE_INLINE void nk_dots_e5m2_multiply_blackwellrtx_(nk_fui32_t accu
                                       b[column_tile][1]);
 }
 
-NK_HELPER_DEVICE_INLINE void nk_dots_e4m3_multiply_blackwellrtx_(nk_fui32_t accumulators[4][8][4],
-                                                                 nk_u32_t const a[4][4], nk_u32_t const b[8][2]) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_dots_e4m3_multiply_blackwellrtx_(nk_fui32_t accumulators[4][8][4],
+                                                                      nk_u32_t const a[4][4], nk_u32_t const b[8][2]) {
 #pragma unroll
     for (unsigned row_tile = 0; row_tile < 4; ++row_tile)
 #pragma unroll
@@ -121,8 +121,8 @@ NK_HELPER_DEVICE_INLINE void nk_dots_e4m3_multiply_blackwellrtx_(nk_fui32_t accu
                                       b[column_tile][1]);
 }
 
-NK_HELPER_DEVICE_INLINE void nk_dots_e3m2_multiply_blackwellrtx_(nk_fui32_t accumulators[4][8][4],
-                                                                 nk_u32_t const a[4][4], nk_u32_t const b[8][2]) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_dots_e3m2_multiply_blackwellrtx_(nk_fui32_t accumulators[4][8][4],
+                                                                      nk_u32_t const a[4][4], nk_u32_t const b[8][2]) {
 #pragma unroll
     for (unsigned row_tile = 0; row_tile < 4; ++row_tile)
 #pragma unroll
@@ -131,8 +131,8 @@ NK_HELPER_DEVICE_INLINE void nk_dots_e3m2_multiply_blackwellrtx_(nk_fui32_t accu
                                       b[column_tile][1]);
 }
 
-NK_HELPER_DEVICE_INLINE void nk_dots_e2m3_multiply_blackwellrtx_(nk_fui32_t accumulators[4][8][4],
-                                                                 nk_u32_t const a[4][4], nk_u32_t const b[8][2]) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_dots_e2m3_multiply_blackwellrtx_(nk_fui32_t accumulators[4][8][4],
+                                                                      nk_u32_t const a[4][4], nk_u32_t const b[8][2]) {
 #pragma unroll
     for (unsigned row_tile = 0; row_tile < 4; ++row_tile)
 #pragma unroll
@@ -141,8 +141,8 @@ NK_HELPER_DEVICE_INLINE void nk_dots_e2m3_multiply_blackwellrtx_(nk_fui32_t accu
                                       b[column_tile][1]);
 }
 
-NK_HELPER_DEVICE_INLINE void nk_dots_e2m1_multiply_blackwellrtx_(nk_fui32_t accumulators[4][8][4],
-                                                                 nk_u32_t const a[4][4], nk_u32_t const b[8][2]) {
+NUMKONG_HELPER_DEVICE_INLINE void nk_dots_e2m1_multiply_blackwellrtx_(nk_fui32_t accumulators[4][8][4],
+                                                                      nk_u32_t const a[4][4], nk_u32_t const b[8][2]) {
 #pragma unroll
     for (unsigned row_tile = 0; row_tile < 4; ++row_tile)
 #pragma unroll
@@ -233,5 +233,5 @@ nk_define_cross_cuda_packed_(dots, e2m1, blackwellrtx, e2m1x2, e2m1x2, f32, nk_d
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_BLACKWELLRTX
-#endif // NK_DOTS_BLACKWELLRTX_CUH
+#endif // NUMKONG_TARGET_BLACKWELLRTX
+#endif // NUMKONG_DOTS_BLACKWELLRTX_CUH

@@ -10,11 +10,11 @@
  *  sqrt, so no Newton-Raphson refinement is needed. Broadcast goes via @c xvreplgr2vr and
  *  extraction via @c xvpickve2gr, with no memory round-trips.
  */
-#ifndef NK_SCALAR_LOONGSONASX_H
-#define NK_SCALAR_LOONGSONASX_H
+#ifndef NUMKONG_SCALAR_LOONGSONASX_H
+#define NUMKONG_SCALAR_LOONGSONASX_H
 
-#if NK_TARGET_LOONGARCH64_
-#if NK_TARGET_LOONGSONASX
+#if NUMKONG_ARCH_LOONGARCH64_
+#if NUMKONG_TARGET_LOONGSONASX
 
 #include "numkong/types.h"
 
@@ -23,27 +23,27 @@ extern "C" {
 #endif
 
 /** Broadcast f32 scalar into all 4 lanes of a 128-bit register (GCC/Clang portable). */
-NK_HELPER_INLINE __m128 nk_xvreplgr2vr_s_128_(float x) {
+NUMKONG_HELPER_INLINE __m128 nk_xvreplgr2vr_s_128_(float x) {
     nk_fui32_t c;
     c.f = x;
     return (__m128)__lsx_vreplgr2vr_w((int)c.u);
 }
 
 /** Broadcast f32 scalar into all 8 lanes of a 256-bit register (GCC/Clang portable). */
-NK_HELPER_INLINE __m256 nk_xvfreplgr2vr_s_(float x) {
+NUMKONG_HELPER_INLINE __m256 nk_xvfreplgr2vr_s_(float x) {
     nk_fui32_t c;
     c.f = x;
     return (__m256)__lasx_xvreplgr2vr_w((int)c.u);
 }
 
 /** Broadcast f64 scalar into all 4 lanes of a 256-bit register (GCC/Clang portable). */
-NK_HELPER_INLINE __m256d nk_xvfreplgr2vr_d_(double x) {
+NUMKONG_HELPER_INLINE __m256d nk_xvfreplgr2vr_d_(double x) {
     nk_fui64_t c;
     c.f = x;
     return (__m256d)__lasx_xvreplgr2vr_d((long long)c.u);
 }
 
-NK_API_COMPTIME nk_f32_t nk_f32_rsqrt_loongsonasx(nk_f32_t x) {
+NUMKONG_API_COMPTIME nk_f32_t nk_f32_rsqrt_loongsonasx(nk_f32_t x) {
     // xvfrsqrt.s is full precision — no Newton-Raphson needed
     __m256 x_f32x8 = nk_xvfreplgr2vr_s_(x);
     __m256 result_f32x8 = __lasx_xvfrsqrt_s(x_f32x8);
@@ -52,9 +52,11 @@ NK_API_COMPTIME nk_f32_t nk_f32_rsqrt_loongsonasx(nk_f32_t x) {
     return c.f;
 }
 
-NK_API_COMPTIME nk_f32_t nk_f32_sqrt_loongsonasx(nk_f32_t x) { return x > 0 ? x * nk_f32_rsqrt_loongsonasx(x) : 0; }
+NUMKONG_API_COMPTIME nk_f32_t nk_f32_sqrt_loongsonasx(nk_f32_t x) {
+    return x > 0 ? x * nk_f32_rsqrt_loongsonasx(x) : 0;
+}
 
-NK_API_COMPTIME nk_f64_t nk_f64_sqrt_loongsonasx(nk_f64_t x) {
+NUMKONG_API_COMPTIME nk_f64_t nk_f64_sqrt_loongsonasx(nk_f64_t x) {
     __m256d x_f64x4 = nk_xvfreplgr2vr_d_(x);
     __m256d result_f64x4 = __lasx_xvfsqrt_d(x_f64x4);
     nk_fui64_t c;
@@ -62,12 +64,12 @@ NK_API_COMPTIME nk_f64_t nk_f64_sqrt_loongsonasx(nk_f64_t x) {
     return c.f;
 }
 
-NK_API_COMPTIME nk_f64_t nk_f64_rsqrt_loongsonasx(nk_f64_t x) { return 1.0 / nk_f64_sqrt_loongsonasx(x); }
+NUMKONG_API_COMPTIME nk_f64_t nk_f64_rsqrt_loongsonasx(nk_f64_t x) { return 1.0 / nk_f64_sqrt_loongsonasx(x); }
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_LOONGSONASX
-#endif // NK_TARGET_LOONGARCH64_
-#endif // NK_SCALAR_LOONGSONASX_H
+#endif // NUMKONG_TARGET_LOONGSONASX
+#endif // NUMKONG_ARCH_LOONGARCH64_
+#endif // NUMKONG_SCALAR_LOONGSONASX_H

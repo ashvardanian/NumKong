@@ -28,7 +28,7 @@
  *  @section dot_alder_stateful Stateful Streaming Logic
  *
  *  To build memory-optimal tiled algorithms, this file defines following structures and
- *  force-inlined @c NK_HELPER_INLINE functions:
+ *  force-inlined @c NUMKONG_HELPER_INLINE functions:
  *
  *  - nk_dot_i8x32 for 8-bit signed integer inputs using DPBUSD with algebraic transformation,
  *  - nk_dot_u8x32 for 8-bit unsigned integer inputs using DPBUSD with algebraic transformation.
@@ -79,11 +79,11 @@
  *  nk_dot_u8x32_finalize_alder(&state_first, &state_second, &state_third, &state_fourth, depth, &results_u32x4);
  *  @endcode
  */
-#ifndef NK_DOT_ALDER_H
-#define NK_DOT_ALDER_H
+#ifndef NUMKONG_DOT_ALDER_H
+#define NUMKONG_DOT_ALDER_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_ALDER
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_ALDER
 
 #include "numkong/types.h"
 #include "numkong/cast/serial.h"    // `nk_partial_load_b8x32_serial_`
@@ -107,8 +107,8 @@ extern "C" {
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2", "avxvnni")
 #endif
 
-NK_API_COMPTIME void nk_dot_i8_alder(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
-                                     nk_i32_t *result) {
+NUMKONG_API_COMPTIME void nk_dot_i8_alder(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
+                                          nk_i32_t *result) {
     // Optimized i8 × i8 dot product using algebraic transformation with DPBUSD
     //
     // Algebraic transformation:
@@ -177,19 +177,20 @@ typedef struct nk_dot_i8x32_state_alder_t {
     __m256i biased_product_sum_i32x8; // Single accumulator: (a+128) × b, correction applied at finalize
 } nk_dot_i8x32_state_alder_t;
 
-NK_HELPER_INLINE void nk_dot_i8x32_init_alder(nk_dot_i8x32_state_alder_t *state) {
+NUMKONG_HELPER_INLINE void nk_dot_i8x32_init_alder(nk_dot_i8x32_state_alder_t *state) {
     state->biased_product_sum_i32x8 = _mm256_setzero_si256();
 }
 
-NK_HELPER_INLINE void nk_dot_i8x32_update_alder(nk_dot_i8x32_state_alder_t *state, nk_b256_vec_t a, nk_b256_vec_t b,
-                                                nk_size_t depth_offset, nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_i8x32_update_alder(nk_dot_i8x32_state_alder_t *state, nk_b256_vec_t a,
+                                                     nk_b256_vec_t b, nk_size_t depth_offset,
+                                                     nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     __m256i a_unsigned_u8x32 = _mm256_xor_si256(a.ymm, _mm256_set1_epi8((char)0x80));
     state->biased_product_sum_i32x8 = _mm256_dpbusd_avx_epi32(state->biased_product_sum_i32x8, a_unsigned_u8x32, b.ymm);
 }
 
-NK_HELPER_INLINE void nk_dot_i8x32_finalize_alder(                                        //
+NUMKONG_HELPER_INLINE void nk_dot_i8x32_finalize_alder(                                   //
     nk_dot_i8x32_state_alder_t const *state_a, nk_dot_i8x32_state_alder_t const *state_b, //
     nk_dot_i8x32_state_alder_t const *state_c, nk_dot_i8x32_state_alder_t const *state_d, //
     nk_size_t total_dimensions,                                                           //
@@ -224,8 +225,8 @@ NK_HELPER_INLINE void nk_dot_i8x32_finalize_alder(                              
     result_vec->xmm = _mm_sub_epi32(biased_i32x4, correction_i32x4);
 }
 
-NK_API_COMPTIME void nk_dot_u8_alder(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
-                                     nk_u32_t *result) {
+NUMKONG_API_COMPTIME void nk_dot_u8_alder(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
+                                          nk_u32_t *result) {
     // Optimized u8 × u8 dot product using algebraic transformation with DPBUSD
     //
     // Algebraic transformation:
@@ -297,12 +298,13 @@ typedef struct nk_dot_u8x32_state_alder_t {
     __m256i biased_product_sum_i32x8; // Single accumulator: DPBUSD(b, a^0x80), correction applied at finalize
 } nk_dot_u8x32_state_alder_t;
 
-NK_HELPER_INLINE void nk_dot_u8x32_init_alder(nk_dot_u8x32_state_alder_t *state) {
+NUMKONG_HELPER_INLINE void nk_dot_u8x32_init_alder(nk_dot_u8x32_state_alder_t *state) {
     state->biased_product_sum_i32x8 = _mm256_setzero_si256();
 }
 
-NK_HELPER_INLINE void nk_dot_u8x32_update_alder(nk_dot_u8x32_state_alder_t *state, nk_b256_vec_t a, nk_b256_vec_t b,
-                                                nk_size_t depth_offset, nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_u8x32_update_alder(nk_dot_u8x32_state_alder_t *state, nk_b256_vec_t a,
+                                                     nk_b256_vec_t b, nk_size_t depth_offset,
+                                                     nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     // Operand swap: DPBUSD(b, a^0x80) = b · (a−128) → result = biased + 128 · Σb
@@ -310,7 +312,7 @@ NK_HELPER_INLINE void nk_dot_u8x32_update_alder(nk_dot_u8x32_state_alder_t *stat
     state->biased_product_sum_i32x8 = _mm256_dpbusd_avx_epi32(state->biased_product_sum_i32x8, b.ymm, a_signed_i8x32);
 }
 
-NK_HELPER_INLINE void nk_dot_u8x32_finalize_alder(                                        //
+NUMKONG_HELPER_INLINE void nk_dot_u8x32_finalize_alder(                                   //
     nk_dot_u8x32_state_alder_t const *state_a, nk_dot_u8x32_state_alder_t const *state_b, //
     nk_dot_u8x32_state_alder_t const *state_c, nk_dot_u8x32_state_alder_t const *state_d, //
     nk_size_t total_dimensions,                                                           //
@@ -353,16 +355,16 @@ typedef struct nk_sum_i8x32_state_alder_t {
     __m256i biased_sum_u64x4; /* Accumulates SAD of (v ^ 0x80), needs bias correction at finalize */
 } nk_sum_i8x32_state_alder_t;
 
-NK_HELPER_INLINE void nk_sum_i8x32_init_alder(nk_sum_i8x32_state_alder_t *state) {
+NUMKONG_HELPER_INLINE void nk_sum_i8x32_init_alder(nk_sum_i8x32_state_alder_t *state) {
     state->biased_sum_u64x4 = _mm256_setzero_si256();
 }
-NK_HELPER_INLINE void nk_sum_i8x32_update_alder(nk_sum_i8x32_state_alder_t *state, nk_b256_vec_t vector) {
+NUMKONG_HELPER_INLINE void nk_sum_i8x32_update_alder(nk_sum_i8x32_state_alder_t *state, nk_b256_vec_t vector) {
     // Convert signed→unsigned via XOR 0x80, then SAD against zero gives sum of unsigned values
     __m256i vector_unsigned_u8x32 = _mm256_xor_si256(vector.ymm, _mm256_set1_epi8((char)0x80));
     __m256i sad_result_u64x4 = _mm256_sad_epu8(vector_unsigned_u8x32, _mm256_setzero_si256());
     state->biased_sum_u64x4 = _mm256_add_epi64(state->biased_sum_u64x4, sad_result_u64x4);
 }
-NK_HELPER_INLINE nk_i32_t nk_sum_i8x32_finalize_alder(nk_sum_i8x32_state_alder_t const *state, nk_size_t count) {
+NUMKONG_HELPER_INLINE nk_i32_t nk_sum_i8x32_finalize_alder(nk_sum_i8x32_state_alder_t const *state, nk_size_t count) {
     // Horizontal reduce u64x4 → scalar
     __m128i low_u64x2 = _mm256_castsi256_si128(state->biased_sum_u64x4);
     __m128i high_u64x2 = _mm256_extracti128_si256(state->biased_sum_u64x4, 1);
@@ -379,14 +381,14 @@ typedef struct nk_sum_u8x32_state_alder_t {
     __m256i sum_u64x4; /* Direct SAD accumulator */
 } nk_sum_u8x32_state_alder_t;
 
-NK_HELPER_INLINE void nk_sum_u8x32_init_alder(nk_sum_u8x32_state_alder_t *state) {
+NUMKONG_HELPER_INLINE void nk_sum_u8x32_init_alder(nk_sum_u8x32_state_alder_t *state) {
     state->sum_u64x4 = _mm256_setzero_si256();
 }
-NK_HELPER_INLINE void nk_sum_u8x32_update_alder(nk_sum_u8x32_state_alder_t *state, nk_b256_vec_t vector) {
+NUMKONG_HELPER_INLINE void nk_sum_u8x32_update_alder(nk_sum_u8x32_state_alder_t *state, nk_b256_vec_t vector) {
     __m256i sad_result_u64x4 = _mm256_sad_epu8(vector.ymm, _mm256_setzero_si256());
     state->sum_u64x4 = _mm256_add_epi64(state->sum_u64x4, sad_result_u64x4);
 }
-NK_HELPER_INLINE nk_u32_t nk_sum_u8x32_finalize_alder(nk_sum_u8x32_state_alder_t const *state, nk_size_t count) {
+NUMKONG_HELPER_INLINE nk_u32_t nk_sum_u8x32_finalize_alder(nk_sum_u8x32_state_alder_t const *state, nk_size_t count) {
     nk_unused_(count);
     __m128i low_u64x2 = _mm256_castsi256_si128(state->sum_u64x4);
     __m128i high_u64x2 = _mm256_extracti128_si256(state->sum_u64x4, 1);
@@ -396,8 +398,8 @@ NK_HELPER_INLINE nk_u32_t nk_sum_u8x32_finalize_alder(nk_sum_u8x32_state_alder_t
     return (nk_u32_t)_mm_cvtsi128_si64(total_u64x2);
 }
 
-NK_API_COMPTIME void nk_dot_e2m3_alder(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars, nk_size_t count_scalars,
-                                       nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_dot_e2m3_alder(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
+                                            nk_size_t count_scalars, nk_f32_t *result) {
     // Integer dot product for e2m3 using dual-VPSHUFB (LUT) + VPDPBUSD (unsigned × signed).
     // Every e2m3 value × 16 is an exact integer in [-120, +120].
     // Result = i32_dot / 256.0f (exact, no rounding error).
@@ -468,12 +470,13 @@ typedef struct nk_dot_e2m3x32_state_alder_t {
     __m256i sum_i32x8; // DPBUSD accumulator: u8_magnitude × i8_signed → i32
 } nk_dot_e2m3x32_state_alder_t;
 
-NK_HELPER_INLINE void nk_dot_e2m3x32_init_alder(nk_dot_e2m3x32_state_alder_t *state) {
+NUMKONG_HELPER_INLINE void nk_dot_e2m3x32_init_alder(nk_dot_e2m3x32_state_alder_t *state) {
     state->sum_i32x8 = _mm256_setzero_si256();
 }
 
-NK_HELPER_INLINE void nk_dot_e2m3x32_update_alder(nk_dot_e2m3x32_state_alder_t *state, nk_b256_vec_t a, nk_b256_vec_t b,
-                                                  nk_size_t depth_offset, nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_e2m3x32_update_alder(nk_dot_e2m3x32_state_alder_t *state, nk_b256_vec_t a,
+                                                       nk_b256_vec_t b, nk_size_t depth_offset,
+                                                       nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     __m256i const lut_low_u8x32 = _mm256_set_epi8(                 //
@@ -518,7 +521,7 @@ NK_HELPER_INLINE void nk_dot_e2m3x32_update_alder(nk_dot_e2m3x32_state_alder_t *
     state->sum_i32x8 = _mm256_dpbusd_avx_epi32(state->sum_i32x8, a_unsigned_u8x32, b_signed_i8x32);
 }
 
-NK_HELPER_INLINE void nk_dot_e2m3x32_finalize_alder(                                          //
+NUMKONG_HELPER_INLINE void nk_dot_e2m3x32_finalize_alder(                                     //
     nk_dot_e2m3x32_state_alder_t const *state_a, nk_dot_e2m3x32_state_alder_t const *state_b, //
     nk_dot_e2m3x32_state_alder_t const *state_c, nk_dot_e2m3x32_state_alder_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *results) {
@@ -556,13 +559,14 @@ typedef struct nk_dot_e2m1x64_state_alder_t {
     __m256i sum_i32x8;
 } nk_dot_e2m1x64_state_alder_t;
 
-NK_HELPER_INLINE void nk_dot_e2m1x64_init_alder(nk_dot_e2m1x64_state_alder_t *state) {
+NUMKONG_HELPER_INLINE void nk_dot_e2m1x64_init_alder(nk_dot_e2m1x64_state_alder_t *state) {
     state->sum_i32x8 = _mm256_setzero_si256();
 }
 
 /** Looks up twice every E2M1 value by its full nibble, sign bit included. */
-NK_HELPER_INLINE void nk_dot_e2m1x64_update_alder(nk_dot_e2m1x64_state_alder_t *state, nk_b256_vec_t a, nk_b256_vec_t b,
-                                                  nk_size_t depth_offset, nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_e2m1x64_update_alder(nk_dot_e2m1x64_state_alder_t *state, nk_b256_vec_t a,
+                                                       nk_b256_vec_t b, nk_size_t depth_offset,
+                                                       nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     __m256i const lut_i8x32 = _mm256_setr_epi8(0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12, //
@@ -581,7 +585,7 @@ NK_HELPER_INLINE void nk_dot_e2m1x64_update_alder(nk_dot_e2m1x64_state_alder_t *
                                                _mm256_sign_epi8(b_high_i8x32, a_high_i8x32));
 }
 
-NK_HELPER_INLINE void nk_dot_e2m1x64_finalize_alder(                                          //
+NUMKONG_HELPER_INLINE void nk_dot_e2m1x64_finalize_alder(                                     //
     nk_dot_e2m1x64_state_alder_t const *state_a, nk_dot_e2m1x64_state_alder_t const *state_b, //
     nk_dot_e2m1x64_state_alder_t const *state_c, nk_dot_e2m1x64_state_alder_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *results) {
@@ -607,7 +611,7 @@ NK_HELPER_INLINE void nk_dot_e2m1x64_finalize_alder(                            
     results->xmm = _mm_castps_si128(_mm_mul_ps(_mm_cvtepi32_ps(sum_i32x4), _mm_set1_ps(0.25f)));
 }
 
-NK_API_COMPTIME void nk_dot_e2m1_alder(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_dot_e2m1_alder(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_dot_e2m1x64_state_alder_t state;
     nk_dot_e2m1x64_init_alder(&state);
     nk_b256_vec_t a_vec, b_vec;
@@ -634,6 +638,6 @@ NK_API_COMPTIME void nk_dot_e2m1_alder(nk_e2m1x2_t const *a, nk_e2m1x2_t const *
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_ALDER
-#endif // NK_TARGET_X8664_
-#endif // NK_DOT_ALDER_H
+#endif // NUMKONG_TARGET_ALDER
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_DOT_ALDER_H

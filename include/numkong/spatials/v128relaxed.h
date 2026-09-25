@@ -6,10 +6,10 @@
  *
  *  @sa include/numkong/spatials.h
  */
-#ifndef NK_SPATIALS_V128RELAXED_H
-#define NK_SPATIALS_V128RELAXED_H
+#ifndef NUMKONG_SPATIALS_V128RELAXED_H
+#define NUMKONG_SPATIALS_V128RELAXED_H
 
-#if NK_TARGET_V128RELAXED
+#if NUMKONG_TARGET_V128RELAXED
 
 #include "numkong/spatial/v128relaxed.h"
 #include "numkong/dots/v128relaxed.h"
@@ -249,5 +249,5 @@ nk_define_cross_normalized_symmetric_(euclidean, f64, v128relaxed, f64, f64, /*n
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_V128RELAXED
-#endif // NK_SPATIALS_V128RELAXED_H
+#endif // NUMKONG_TARGET_V128RELAXED
+#endif // NUMKONG_SPATIALS_V128RELAXED_H

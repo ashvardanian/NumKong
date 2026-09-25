@@ -9,11 +9,11 @@
  *  Uses AVX-VNNI, 256-bit, for integer GEMM via DPBUSD with algebraic sign transformations for
  *  signed*signed and unsigned*unsigned cases.
  */
-#ifndef NK_DOTS_ALDER_H
-#define NK_DOTS_ALDER_H
+#ifndef NUMKONG_DOTS_ALDER_H
+#define NUMKONG_DOTS_ALDER_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_ALDER
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_ALDER
 
 #include "numkong/dot/alder.h"   // Alder-specific dot product helpers
 #include "numkong/dot/haswell.h" // Haswell partial load functions
@@ -135,6 +135,6 @@ nk_define_cross_packed_(dots, e2m1, alder, e2m1x2, e2m1x2, f32, nk_b256_vec_t, n
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_ALDER
-#endif // NK_TARGET_X8664_
-#endif // NK_DOTS_ALDER_H
+#endif // NUMKONG_TARGET_ALDER
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_DOTS_ALDER_H

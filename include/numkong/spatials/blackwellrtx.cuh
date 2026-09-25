@@ -10,10 +10,10 @@
  *  The native Float8, Float6 and Float4 products with the Ampere norm updates, whose widenings read
  *  a Float6 code from its low 6 bits exactly as the MMA does, so both see the same values.
  */
-#ifndef NK_SPATIALS_BLACKWELLRTX_CUH
-#define NK_SPATIALS_BLACKWELLRTX_CUH
+#ifndef NUMKONG_SPATIALS_BLACKWELLRTX_CUH
+#define NUMKONG_SPATIALS_BLACKWELLRTX_CUH
 
-#if NK_TARGET_BLACKWELLRTX
+#if NUMKONG_TARGET_BLACKWELLRTX
 
 #include "numkong/dots/blackwellrtx.cuh"
 #include "numkong/spatials/ampere.cuh"
@@ -129,5 +129,5 @@ nk_define_cross_cuda_normalized_symmetric_(euclidean, e2m1, blackwellrtx, e2m1x2
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_BLACKWELLRTX
-#endif // NK_SPATIALS_BLACKWELLRTX_CUH
+#endif // NUMKONG_TARGET_BLACKWELLRTX
+#endif // NUMKONG_SPATIALS_BLACKWELLRTX_CUH

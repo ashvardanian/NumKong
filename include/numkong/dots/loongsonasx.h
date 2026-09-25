@@ -10,11 +10,11 @@
  *  is 256-bit, matching AVX2 in register width. Type-specific tile sizes: f32/f64 use
  *  depth_simd_dimensions=4, i8/u8 use depth_simd_dimensions=16.
  */
-#ifndef NK_DOTS_LOONGSONASX_H
-#define NK_DOTS_LOONGSONASX_H
+#ifndef NUMKONG_DOTS_LOONGSONASX_H
+#define NUMKONG_DOTS_LOONGSONASX_H
 
-#if NK_TARGET_LOONGARCH64_
-#if NK_TARGET_LOONGSONASX
+#if NUMKONG_ARCH_LOONGARCH64_
+#if NUMKONG_TARGET_LOONGSONASX
 
 #include "numkong/dot/loongsonasx.h"
 #include "numkong/cast/loongsonasx.h"
@@ -179,6 +179,6 @@ nk_define_cross_packed_(dots, f16, loongsonasx, f16, f32, f32, nk_b256_vec_t, nk
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_LOONGSONASX
-#endif // NK_TARGET_LOONGARCH64_
-#endif // NK_DOTS_LOONGSONASX_H
+#endif // NUMKONG_TARGET_LOONGSONASX
+#endif // NUMKONG_ARCH_LOONGARCH64_
+#endif // NUMKONG_DOTS_LOONGSONASX_H

@@ -15,8 +15,8 @@
  *  @see DLPack repository: https://github.com/dmlc/dlpack
  *  @see Array API data interchange: https://data-apis.org/array-api/latest/design_topics/data_interchange.html
  */
-#ifndef NK_PYTHON_DLPACK_INTEROP_H
-#define NK_PYTHON_DLPACK_INTEROP_H
+#ifndef NUMKONG_PYTHON_DLPACK_INTEROP_H
+#define NUMKONG_PYTHON_DLPACK_INTEROP_H
 
 #include "numkong.h"
 #include "tensor.h"
@@ -66,4 +66,4 @@ extern char const doc_dlpack_device[];
 }
 #endif
 
-#endif // NK_PYTHON_DLPACK_INTEROP_H
+#endif // NUMKONG_PYTHON_DLPACK_INTEROP_H

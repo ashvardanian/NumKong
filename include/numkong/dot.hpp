@@ -4,8 +4,8 @@
  *  @date February 5, 2026
  *  @brief C++ bindings for dot-product kernels: ⟨a,b⟩ = Σ aᵢ × bᵢ
  */
-#ifndef NK_DOT_HPP
-#define NK_DOT_HPP
+#ifndef NUMKONG_DOT_HPP
+#define NUMKONG_DOT_HPP
 
 #include <cstdint>
 #include <type_traits>
@@ -92,4 +92,4 @@ void vdot(vector_view<in_type_> a, vector_view<in_type_> b, std::size_t d, resul
 
 } // namespace ashvardanian::numkong
 
-#endif // NK_DOT_HPP
+#endif // NUMKONG_DOT_HPP

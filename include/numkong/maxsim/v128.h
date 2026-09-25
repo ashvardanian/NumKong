@@ -9,10 +9,10 @@
  *  Packs vectors into the i8 coarse-screening layout shared with `maxsim/v128relaxed.h`, where the
  *  packed kernels themselves live: quantization keeps both operands within the i7 range [-63, 63].
  */
-#ifndef NK_MAXSIM_V128_H
-#define NK_MAXSIM_V128_H
+#ifndef NUMKONG_MAXSIM_V128_H
+#define NUMKONG_MAXSIM_V128_H
 
-#if NK_TARGET_V128
+#if NUMKONG_TARGET_V128
 
 #include "numkong/types.h"
 #include "numkong/maxsim/serial.h" // `nk_maxsim_packed_header_t`
@@ -27,31 +27,31 @@ extern "C" {
 #pragma clang attribute push(__attribute__((target("simd128"))), apply_to = function)
 #endif
 
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_v128(nk_size_t vector_count, nk_size_t depth) {
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_v128(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_bf16_t), 16);
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_shape_bf16_v128(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_bf16_v128(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
     nk_maxsim_packed_shape_(packed, vectors, depth);
 }
 
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_v128(nk_size_t vector_count, nk_size_t depth) {
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_v128(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f32_t), 16);
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_shape_f32_v128(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f32_v128(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
     nk_maxsim_packed_shape_(packed, vectors, depth);
 }
 
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_v128(nk_size_t vector_count, nk_size_t depth) {
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_v128(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f16_t), 16);
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_shape_f16_v128(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f16_v128(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
     nk_maxsim_packed_shape_(packed, vectors, depth);
 }
 
-NK_API_COMPTIME void nk_maxsim_pack_bf16_v128( //
+NUMKONG_API_COMPTIME void nk_maxsim_pack_bf16_v128( //
     nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const element_bytes = sizeof(nk_bf16_t);
@@ -77,7 +77,7 @@ NK_API_COMPTIME void nk_maxsim_pack_bf16_v128( //
     }
 }
 
-NK_API_COMPTIME void nk_maxsim_pack_f32_v128( //
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f32_v128( //
     nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const element_bytes = sizeof(nk_f32_t);
@@ -102,7 +102,7 @@ NK_API_COMPTIME void nk_maxsim_pack_f32_v128( //
     }
 }
 
-NK_API_COMPTIME void nk_maxsim_pack_f16_v128( //
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_v128( //
     nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const element_bytes = sizeof(nk_f16_t);
@@ -136,5 +136,5 @@ NK_API_COMPTIME void nk_maxsim_pack_f16_v128( //
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_V128
-#endif // NK_MAXSIM_V128_H
+#endif // NUMKONG_TARGET_V128
+#endif // NUMKONG_MAXSIM_V128_H

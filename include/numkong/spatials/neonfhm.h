@@ -6,11 +6,11 @@
  *
  *  @sa include/numkong/spatials.h
  */
-#ifndef NK_SPATIALS_NEONFHM_H
-#define NK_SPATIALS_NEONFHM_H
+#ifndef NUMKONG_SPATIALS_NEONFHM_H
+#define NUMKONG_SPATIALS_NEONFHM_H
 
-#if NK_TARGET_ARM64_
-#if NK_TARGET_NEONFHM
+#if NUMKONG_ARCH_ARM64_
+#if NUMKONG_TARGET_NEONFHM
 
 #include "numkong/spatial/neon.h"
 #include "numkong/dots/neonfhm.h"
@@ -87,6 +87,6 @@ nk_define_cross_normalized_symmetric_(euclidean, e5m2, neonfhm, e5m2, f32, /*nor
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_NEONFHM
-#endif // NK_TARGET_ARM64_
-#endif // NK_SPATIALS_NEONFHM_H
+#endif // NUMKONG_TARGET_NEONFHM
+#endif // NUMKONG_ARCH_ARM64_
+#endif // NUMKONG_SPATIALS_NEONFHM_H

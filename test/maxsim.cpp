@@ -5,7 +5,7 @@
  *  @brief MaxSim precision tests, ColBERT late-interaction.
  */
 
-#include "test.hpp"
+#include "harness.hpp"
 
 #include "numkong/maxsim.h"
 #include "numkong/maxsim.hpp"
@@ -69,7 +69,7 @@ void test_maxsim() {
     check("maxsim_packed_f16_serial", test_maxsim_packed<f16_t>, nk_maxsim_pack_size_f16_serial,
           nk_maxsim_pack_f16_serial, nk_maxsim_packed_f16_serial);
 
-#if NK_RUNTIME_DISPATCH
+#if NUMKONG_RUNTIME_DISPATCH
     check.section("MaxSim Runtime Dispatch", nk_cap_serial_k);
     check("maxsim_packed_bf16", test_maxsim_packed<bf16_t>, nk_maxsim_pack_size_bf16, nk_maxsim_pack_bf16,
           nk_maxsim_packed_bf16);
@@ -79,7 +79,7 @@ void test_maxsim() {
           nk_maxsim_packed_f16);
 #endif
 
-#if NK_TARGET_HASWELL
+#if NUMKONG_TARGET_HASWELL
     check.section("MaxSim Haswell", nk_cap_haswell_k);
     check("maxsim_packed_bf16_haswell", test_maxsim_packed<bf16_t>, nk_maxsim_pack_size_bf16_haswell,
           nk_maxsim_pack_bf16_haswell, nk_maxsim_packed_bf16_haswell);
@@ -87,9 +87,9 @@ void test_maxsim() {
           nk_maxsim_pack_f32_haswell, nk_maxsim_packed_f32_haswell);
     check("maxsim_packed_f16_haswell", test_maxsim_packed<f16_t>, nk_maxsim_pack_size_f16_haswell,
           nk_maxsim_pack_f16_haswell, nk_maxsim_packed_f16_haswell);
-#endif // NK_TARGET_HASWELL
+#endif // NUMKONG_TARGET_HASWELL
 
-#if NK_TARGET_ALDER
+#if NUMKONG_TARGET_ALDER
     check.section("MaxSim Alder", nk_cap_alder_k);
     check("maxsim_packed_bf16_alder", test_maxsim_packed<bf16_t>, nk_maxsim_pack_size_bf16_alder,
           nk_maxsim_pack_bf16_alder, nk_maxsim_packed_bf16_alder);
@@ -97,23 +97,23 @@ void test_maxsim() {
           nk_maxsim_packed_f32_alder);
     check("maxsim_packed_f16_alder", test_maxsim_packed<f16_t>, nk_maxsim_pack_size_f16_alder, nk_maxsim_pack_f16_alder,
           nk_maxsim_packed_f16_alder);
-#endif // NK_TARGET_ALDER
+#endif // NUMKONG_TARGET_ALDER
 
-#if NK_TARGET_ICELAKE
+#if NUMKONG_TARGET_ICELAKE
     check.section("MaxSim Ice Lake", nk_cap_icelake_k);
     check("maxsim_packed_f32_icelake", test_maxsim_packed<f32_t>, nk_maxsim_pack_size_f32_icelake,
           nk_maxsim_pack_f32_icelake, nk_maxsim_packed_f32_icelake);
     check("maxsim_packed_f16_icelake", test_maxsim_packed<f16_t>, nk_maxsim_pack_size_f16_icelake,
           nk_maxsim_pack_f16_icelake, nk_maxsim_packed_f16_icelake);
-#endif // NK_TARGET_ICELAKE
+#endif // NUMKONG_TARGET_ICELAKE
 
-#if NK_TARGET_GENOA
+#if NUMKONG_TARGET_GENOA
     check.section("MaxSim Genoa", nk_cap_genoa_k);
     check("maxsim_packed_bf16_genoa", test_maxsim_packed<bf16_t>, nk_maxsim_pack_size_bf16_genoa,
           nk_maxsim_pack_bf16_genoa, nk_maxsim_packed_bf16_genoa);
-#endif // NK_TARGET_GENOA
+#endif // NUMKONG_TARGET_GENOA
 
-#if NK_TARGET_SAPPHIREAMX
+#if NUMKONG_TARGET_SAPPHIREAMX
     check.section("MaxSim Sapphire AMX", nk_cap_sapphireamx_k);
     check("maxsim_packed_bf16_sapphireamx", test_maxsim_packed<bf16_t>, nk_maxsim_pack_size_bf16_sapphireamx,
           nk_maxsim_pack_bf16_sapphireamx, nk_maxsim_packed_bf16_sapphireamx);
@@ -121,9 +121,9 @@ void test_maxsim() {
           nk_maxsim_pack_f32_sapphireamx, nk_maxsim_packed_f32_sapphireamx);
     check("maxsim_packed_f16_sapphireamx", test_maxsim_packed<f16_t>, nk_maxsim_pack_size_f16_sapphireamx,
           nk_maxsim_pack_f16_sapphireamx, nk_maxsim_packed_f16_sapphireamx);
-#endif // NK_TARGET_SAPPHIREAMX
+#endif // NUMKONG_TARGET_SAPPHIREAMX
 
-#if NK_TARGET_NEONSDOT
+#if NUMKONG_TARGET_NEONSDOT
     check.section("MaxSim NEON I8", nk_cap_neonsdot_k);
     check("maxsim_packed_bf16_neonsdot", test_maxsim_packed<bf16_t>, nk_maxsim_pack_size_bf16_neonsdot,
           nk_maxsim_pack_bf16_neonsdot, nk_maxsim_packed_bf16_neonsdot);
@@ -131,9 +131,9 @@ void test_maxsim() {
           nk_maxsim_pack_f32_neonsdot, nk_maxsim_packed_f32_neonsdot);
     check("maxsim_packed_f16_neonsdot", test_maxsim_packed<f16_t>, nk_maxsim_pack_size_f16_neonsdot,
           nk_maxsim_pack_f16_neonsdot, nk_maxsim_packed_f16_neonsdot);
-#endif // NK_TARGET_NEONSDOT
+#endif // NUMKONG_TARGET_NEONSDOT
 
-#if NK_TARGET_V128RELAXED
+#if NUMKONG_TARGET_V128RELAXED
     check.section("MaxSim V128 Relaxed", nk_cap_v128relaxed_k);
     check("maxsim_packed_bf16_v128relaxed", test_maxsim_packed<bf16_t>, nk_maxsim_pack_size_bf16_v128,
           nk_maxsim_pack_bf16_v128, nk_maxsim_packed_bf16_v128relaxed);
@@ -141,9 +141,9 @@ void test_maxsim() {
           nk_maxsim_pack_f32_v128, nk_maxsim_packed_f32_v128relaxed);
     check("maxsim_packed_f16_v128relaxed", test_maxsim_packed<f16_t>, nk_maxsim_pack_size_f16_v128,
           nk_maxsim_pack_f16_v128, nk_maxsim_packed_f16_v128relaxed);
-#endif // NK_TARGET_V128RELAXED
+#endif // NUMKONG_TARGET_V128RELAXED
 
-#if NK_TARGET_V128
+#if NUMKONG_TARGET_V128
     check.section("MaxSim V128", nk_cap_v128_k);
     check("maxsim_packed_bf16_v128", test_maxsim_packed<bf16_t>, nk_maxsim_pack_size_bf16_v128,
           nk_maxsim_pack_bf16_v128, nk_maxsim_packed_bf16_serial);
@@ -151,9 +151,9 @@ void test_maxsim() {
           nk_maxsim_packed_f32_serial);
     check("maxsim_packed_f16_v128", test_maxsim_packed<f16_t>, nk_maxsim_pack_size_f16_v128, nk_maxsim_pack_f16_v128,
           nk_maxsim_packed_f16_serial);
-#endif // NK_TARGET_V128
+#endif // NUMKONG_TARGET_V128
 
-#if NK_TARGET_SME
+#if NUMKONG_TARGET_SME
     check.section("MaxSim SME", nk_cap_sme_k);
     check("maxsim_packed_bf16_sme", test_maxsim_packed<bf16_t>, nk_maxsim_pack_size_bf16_sme, nk_maxsim_pack_bf16_sme,
           nk_maxsim_packed_bf16_sme);
@@ -161,5 +161,5 @@ void test_maxsim() {
           nk_maxsim_packed_f32_sme);
     check("maxsim_packed_f16_sme", test_maxsim_packed<f16_t>, nk_maxsim_pack_size_f16_sme, nk_maxsim_pack_f16_sme,
           nk_maxsim_packed_f16_sme);
-#endif // NK_TARGET_SME
+#endif // NUMKONG_TARGET_SME
 }

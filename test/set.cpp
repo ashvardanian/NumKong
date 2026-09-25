@@ -5,7 +5,7 @@
  *  @brief Binary set operations tests: Hamming, Jaccard.
  */
 
-#include "test.hpp"
+#include "harness.hpp"
 #include "numkong/set.hpp"
 
 using namespace ashvardanian::numkong::test;
@@ -78,77 +78,77 @@ void test_set() {
     check("jaccard_u16_serial", test_jaccard<u16_t>, nk_jaccard_u16_serial);
     check("jaccard_u32_serial", test_jaccard<u32_t>, nk_jaccard_u32_serial);
 
-#if NK_RUNTIME_DISPATCH
+#if NUMKONG_RUNTIME_DISPATCH
     check.section("Binary Distances Runtime Dispatch", nk_cap_serial_k);
     check("hamming_u1", test_hamming<u1x8_t>, nk_hamming_u1);
     check("jaccard_u1", test_jaccard<u1x8_t>, nk_jaccard_u1);
 #endif
 
-#if NK_TARGET_NEON
+#if NUMKONG_TARGET_NEON
     check.section("Binary Distances NEON", nk_cap_neon_k);
     check("hamming_u1_neon", test_hamming<u1x8_t>, nk_hamming_u1_neon);
     check("jaccard_u1_neon", test_jaccard<u1x8_t>, nk_jaccard_u1_neon);
     check("hamming_u8_neon", test_hamming<u8_t>, nk_hamming_u8_neon);
     check("jaccard_u16_neon", test_jaccard<u16_t>, nk_jaccard_u16_neon);
     check("jaccard_u32_neon", test_jaccard<u32_t>, nk_jaccard_u32_neon);
-#endif // NK_TARGET_NEON
+#endif // NUMKONG_TARGET_NEON
 
-#if NK_TARGET_HASWELL
+#if NUMKONG_TARGET_HASWELL
     check.section("Binary Distances Haswell", nk_cap_haswell_k);
     check("hamming_u1_haswell", test_hamming<u1x8_t>, nk_hamming_u1_haswell);
     check("jaccard_u1_haswell", test_jaccard<u1x8_t>, nk_jaccard_u1_haswell);
     check("hamming_u8_haswell", test_hamming<u8_t>, nk_hamming_u8_haswell);
     check("jaccard_u16_haswell", test_jaccard<u16_t>, nk_jaccard_u16_haswell);
     check("jaccard_u32_haswell", test_jaccard<u32_t>, nk_jaccard_u32_haswell);
-#endif // NK_TARGET_HASWELL
+#endif // NUMKONG_TARGET_HASWELL
 
-#if NK_TARGET_ICELAKE
+#if NUMKONG_TARGET_ICELAKE
     check.section("Binary Distances Ice Lake", nk_cap_icelake_k);
     check("hamming_u1_icelake", test_hamming<u1x8_t>, nk_hamming_u1_icelake);
     check("jaccard_u1_icelake", test_jaccard<u1x8_t>, nk_jaccard_u1_icelake);
     check("hamming_u8_icelake", test_hamming<u8_t>, nk_hamming_u8_icelake);
     check("jaccard_u16_icelake", test_jaccard<u16_t>, nk_jaccard_u16_icelake);
     check("jaccard_u32_icelake", test_jaccard<u32_t>, nk_jaccard_u32_icelake);
-#endif // NK_TARGET_ICELAKE
+#endif // NUMKONG_TARGET_ICELAKE
 
-#if NK_TARGET_SVE
+#if NUMKONG_TARGET_SVE
     check.section("Binary Distances SVE", nk_cap_sve_k);
     check("hamming_u1_sve", test_hamming<u1x8_t>, nk_hamming_u1_sve);
     check("jaccard_u1_sve", test_jaccard<u1x8_t>, nk_jaccard_u1_sve);
     check("hamming_u8_sve", test_hamming<u8_t>, nk_hamming_u8_sve);
     check("jaccard_u16_sve", test_jaccard<u16_t>, nk_jaccard_u16_sve);
     check("jaccard_u32_sve", test_jaccard<u32_t>, nk_jaccard_u32_sve);
-#endif // NK_TARGET_SVE
+#endif // NUMKONG_TARGET_SVE
 
-#if NK_TARGET_RVV
+#if NUMKONG_TARGET_RVV
     check.section("Binary Distances RVV", nk_cap_rvv_k);
     check("hamming_u1_rvv", test_hamming<u1x8_t>, nk_hamming_u1_rvv);
     check("jaccard_u1_rvv", test_jaccard<u1x8_t>, nk_jaccard_u1_rvv);
     check("hamming_u8_rvv", test_hamming<u8_t>, nk_hamming_u8_rvv);
     check("jaccard_u16_rvv", test_jaccard<u16_t>, nk_jaccard_u16_rvv);
     check("jaccard_u32_rvv", test_jaccard<u32_t>, nk_jaccard_u32_rvv);
-#endif // NK_TARGET_RVV
+#endif // NUMKONG_TARGET_RVV
 
-#if NK_TARGET_V128
+#if NUMKONG_TARGET_V128
     check.section("Binary Distances V128", nk_cap_v128_k);
     check("hamming_u1_v128", test_hamming<u1x8_t>, nk_hamming_u1_v128);
     check("jaccard_u1_v128", test_jaccard<u1x8_t>, nk_jaccard_u1_v128);
     check("hamming_u8_v128", test_hamming<u8_t>, nk_hamming_u8_v128);
     check("jaccard_u16_v128", test_jaccard<u16_t>, nk_jaccard_u16_v128);
     check("jaccard_u32_v128", test_jaccard<u32_t>, nk_jaccard_u32_v128);
-#endif // NK_TARGET_V128
+#endif // NUMKONG_TARGET_V128
 
-#if NK_TARGET_LOONGSONASX
+#if NUMKONG_TARGET_LOONGSONASX
     check.section("Binary Distances LoongArch LASX", nk_cap_loongsonasx_k);
     check("hamming_u1_loongsonasx", test_hamming<u1x8_t>, nk_hamming_u1_loongsonasx);
     check("jaccard_u1_loongsonasx", test_jaccard<u1x8_t>, nk_jaccard_u1_loongsonasx);
     check("hamming_u8_loongsonasx", test_hamming<u8_t>, nk_hamming_u8_loongsonasx);
-#endif // NK_TARGET_LOONGSONASX
+#endif // NUMKONG_TARGET_LOONGSONASX
 
-#if NK_TARGET_POWERVSX
+#if NUMKONG_TARGET_POWERVSX
     check.section("Binary Distances Power VSX", nk_cap_powervsx_k);
     check("hamming_u1_powervsx", test_hamming<u1x8_t>, nk_hamming_u1_powervsx);
     check("jaccard_u1_powervsx", test_jaccard<u1x8_t>, nk_jaccard_u1_powervsx);
     check("hamming_u8_powervsx", test_hamming<u8_t>, nk_hamming_u8_powervsx);
-#endif // NK_TARGET_POWERVSX
+#endif // NUMKONG_TARGET_POWERVSX
 }

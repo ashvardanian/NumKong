@@ -8,7 +8,7 @@
 #include "numkong/reduce.h"
 #include "numkong/reduce/serial.h"
 
-#include "bench.hpp"
+#include "harness.hpp"
 
 using namespace ashvardanian::numkong::bench;
 
@@ -142,7 +142,7 @@ void bench_reduce() {
     constexpr nk_dtype_t u4_k = nk_u4_k;
     constexpr nk_dtype_t u1_k = nk_u1_k;
 
-#if NK_TARGET_NEON
+#if NUMKONG_TARGET_NEON
     run_reduce_moments<f64_k>("reduce_moments_f64_neon", nk_reduce_moments_f64_neon);
     run_reduce_moments<f32_k>("reduce_moments_f32_neon", nk_reduce_moments_f32_neon);
     run_reduce_moments<f16_k>("reduce_moments_f16_neon", nk_reduce_moments_f16_neon);
@@ -175,22 +175,22 @@ void bench_reduce() {
     run_reduce_minmax<e3m2_k>("reduce_minmax_e3m2_neon", nk_reduce_minmax_e3m2_neon);
 #endif
 
-#if NK_TARGET_NEONBFDOT
+#if NUMKONG_TARGET_NEONBFDOT
     run_reduce_moments<bf16_k>("reduce_moments_bf16_neonbfdot", nk_reduce_moments_bf16_neonbfdot);
 #endif
 
-#if NK_TARGET_NEONSDOT
+#if NUMKONG_TARGET_NEONSDOT
     run_reduce_moments<i8_k>("reduce_moments_i8_neonsdot", nk_reduce_moments_i8_neonsdot);
     run_reduce_moments<u8_k>("reduce_moments_u8_neonsdot", nk_reduce_moments_u8_neonsdot);
     run_reduce_moments<e2m3_k>("reduce_moments_e2m3_neonsdot", nk_reduce_moments_e2m3_neonsdot);
 #endif
 
-#if NK_TARGET_NEONFHM
+#if NUMKONG_TARGET_NEONFHM
     run_reduce_moments<e4m3_k>("reduce_moments_e4m3_neonfhm", nk_reduce_moments_e4m3_neonfhm);
     run_reduce_moments<e5m2_k>("reduce_moments_e5m2_neonfhm", nk_reduce_moments_e5m2_neonfhm);
 #endif
 
-#if NK_TARGET_HASWELL
+#if NUMKONG_TARGET_HASWELL
     run_reduce_moments<f32_k>("reduce_moments_f32_haswell", nk_reduce_moments_f32_haswell);
     run_reduce_moments<f64_k>("reduce_moments_f64_haswell", nk_reduce_moments_f64_haswell);
     run_reduce_moments<i8_k>("reduce_moments_i8_haswell", nk_reduce_moments_i8_haswell);
@@ -231,7 +231,7 @@ void bench_reduce() {
     run_reduce_minmax<f16_k>("reduce_minmax_f16_haswell", nk_reduce_minmax_f16_haswell);
 #endif
 
-#if NK_TARGET_SKYLAKE
+#if NUMKONG_TARGET_SKYLAKE
     run_reduce_moments<f32_k>("reduce_moments_f32_skylake", nk_reduce_moments_f32_skylake);
     run_reduce_moments<f64_k>("reduce_moments_f64_skylake", nk_reduce_moments_f64_skylake);
     run_reduce_moments<i8_k>("reduce_moments_i8_skylake", nk_reduce_moments_i8_skylake);
@@ -272,7 +272,7 @@ void bench_reduce() {
     run_reduce_minmax<f16_k>("reduce_minmax_f16_skylake", nk_reduce_minmax_f16_skylake);
 #endif
 
-#if NK_TARGET_ICELAKE
+#if NUMKONG_TARGET_ICELAKE
     run_reduce_moments<i8_k>("reduce_moments_i8_icelake", nk_reduce_moments_i8_icelake);
     run_reduce_moments<u8_k>("reduce_moments_u8_icelake", nk_reduce_moments_u8_icelake);
     run_reduce_moments<i16_k>("reduce_moments_i16_icelake", nk_reduce_moments_i16_icelake);
@@ -280,7 +280,7 @@ void bench_reduce() {
     run_reduce_moments<e3m2_k>("reduce_moments_e3m2_icelake", nk_reduce_moments_e3m2_icelake);
 #endif
 
-#if NK_TARGET_GENOA
+#if NUMKONG_TARGET_GENOA
     run_reduce_moments<bf16_k>("reduce_moments_bf16_genoa", nk_reduce_moments_bf16_genoa);
     run_reduce_rmsnorm<bf16_k>("reduce_rmsnorm_bf16_genoa", nk_reduce_rmsnorm_bf16_genoa);
     run_reduce_rmsnorm<e4m3_k>("reduce_rmsnorm_e4m3_genoa", nk_reduce_rmsnorm_e4m3_genoa);
@@ -288,20 +288,20 @@ void bench_reduce() {
     run_reduce_moments<e5m2_k>("reduce_moments_e5m2_genoa", nk_reduce_moments_e5m2_genoa);
 #endif
 
-#if NK_TARGET_ALDER
+#if NUMKONG_TARGET_ALDER
     run_reduce_moments<u8_k>("reduce_moments_u8_alder", nk_reduce_moments_u8_alder);
     run_reduce_moments<i16_k>("reduce_moments_i16_alder", nk_reduce_moments_i16_alder);
     run_reduce_moments<u16_k>("reduce_moments_u16_alder", nk_reduce_moments_u16_alder);
     run_reduce_moments<e3m2_k>("reduce_moments_e3m2_alder", nk_reduce_moments_e3m2_alder);
 #endif
 
-#if NK_TARGET_SIERRA
+#if NUMKONG_TARGET_SIERRA
     run_reduce_moments<i8_k>("reduce_moments_i8_sierra", nk_reduce_moments_i8_sierra);
     run_reduce_moments<u8_k>("reduce_moments_u8_sierra", nk_reduce_moments_u8_sierra);
     run_reduce_moments<e2m3_k>("reduce_moments_e2m3_sierra", nk_reduce_moments_e2m3_sierra);
 #endif
 
-#if NK_TARGET_RVV
+#if NUMKONG_TARGET_RVV
     run_reduce_moments<f32_k>("reduce_moments_f32_rvv", nk_reduce_moments_f32_rvv);
     run_reduce_moments<f64_k>("reduce_moments_f64_rvv", nk_reduce_moments_f64_rvv);
     run_reduce_moments<i8_k>("reduce_moments_i8_rvv", nk_reduce_moments_i8_rvv);
@@ -336,7 +336,7 @@ void bench_reduce() {
     run_reduce_minmax<e3m2_k>("reduce_minmax_e3m2_rvv", nk_reduce_minmax_e3m2_rvv);
 #endif
 
-#if NK_TARGET_V128RELAXED
+#if NUMKONG_TARGET_V128RELAXED
     run_reduce_moments<f32_k>("reduce_moments_f32_v128relaxed", nk_reduce_moments_f32_v128relaxed);
     run_reduce_moments<i64_k>("reduce_moments_i64_v128relaxed", nk_reduce_moments_i64_v128relaxed);
     run_reduce_moments<u64_k>("reduce_moments_u64_v128relaxed", nk_reduce_moments_u64_v128relaxed);
@@ -363,7 +363,7 @@ void bench_reduce() {
     run_reduce_minmax<f16_k>("reduce_minmax_f16_v128relaxed", nk_reduce_minmax_f16_v128relaxed);
 #endif
 
-#if NK_TARGET_V128
+#if NUMKONG_TARGET_V128
     run_reduce_moments<f64_k>("reduce_moments_f64_v128", nk_reduce_moments_f64_v128);
     run_reduce_moments<bf16_k>("reduce_moments_bf16_v128", nk_reduce_moments_bf16_v128);
     run_reduce_moments<i8_k>("reduce_moments_i8_v128", nk_reduce_moments_i8_v128);

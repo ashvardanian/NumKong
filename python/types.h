@@ -14,8 +14,8 @@
  *  nk.bfloat16(1.0) + nk.bfloat16(2.0)  # arithmetic
  *  @endcode
  */
-#ifndef NK_PYTHON_SCALARS_H
-#define NK_PYTHON_SCALARS_H
+#ifndef NUMKONG_PYTHON_SCALARS_H
+#define NUMKONG_PYTHON_SCALARS_H
 
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
@@ -91,4 +91,4 @@ int nk_register_scalar_types(PyObject *module);
 }
 #endif
 
-#endif // NK_PYTHON_SCALARS_H
+#endif // NUMKONG_PYTHON_SCALARS_H

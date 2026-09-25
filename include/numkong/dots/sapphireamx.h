@@ -72,11 +72,11 @@
  *  - Tile load latency is ~20-30 cycles; software pipelining essential
  *  - PDEP/PEXT used for Morton Z-curve encoding (BMI2): 2-3cy @ p1
  */
-#ifndef NK_DOTS_SAPPHIREAMX_H
-#define NK_DOTS_SAPPHIREAMX_H
+#ifndef NUMKONG_DOTS_SAPPHIREAMX_H
+#define NUMKONG_DOTS_SAPPHIREAMX_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_SAPPHIREAMX
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_SAPPHIREAMX
 
 #include "numkong/cast/icelake.h" // For FP8 ↔ BF16 conversions
 #include "numkong/dots/serial.h"  // `nk_dots_reduce_sumsq_bf16_`
@@ -115,36 +115,36 @@ typedef struct {
 /*  BF16 A tile: 16 rows × 32 depth-elements, row-major layout.
  *  Loaded from source matrix, used as left operand in AMX multiply. */
 typedef struct {
-    NK_ALIGN64 nk_bf16_t data[16][32]; // 16 rows × 32 columns = 1KB
+    NUMKONG_ALIGN64_ nk_bf16_t data[16][32]; // 16 rows × 32 columns = 1KB
 } nk_dots_bf16_a16x32_sapphireamx_t;
 
 /*  BF16 B tile: 32 depth × 16 columns, pair-interleaved for TDPBF16PS.
  *  Access pattern: data[depth/2][column][depth%2] for logical B[depth, column].
  *  Pre-packed from column-major or transposed source. */
 typedef struct {
-    NK_ALIGN64 nk_bf16_t data[16][16][2]; // 16 depth-groups × 16 columns × 2 = 1KB
+    NUMKONG_ALIGN64_ nk_bf16_t data[16][16][2]; // 16 depth-groups × 16 columns × 2 = 1KB
 } nk_dots_bf16_b32x16_sapphireamx_t;
 
 /*  BF16 output state: 16 × 16 F32 accumulator tile.
  *  Holds partial sums during depth-dimension accumulation. */
 typedef struct {
-    NK_ALIGN64 nk_f32_t data[16][16]; // 16 × 16 = 1KB
+    NUMKONG_ALIGN64_ nk_f32_t data[16][16]; // 16 × 16 = 1KB
 } nk_dots_bf16_state_sapphireamx_t;
 
 /*  INT8 A tile: 16 rows × 64 depth-elements, row-major layout. */
 typedef struct {
-    NK_ALIGN64 nk_i8_t data[16][64]; // 16 rows × 64 columns = 1KB
+    NUMKONG_ALIGN64_ nk_i8_t data[16][64]; // 16 rows × 64 columns = 1KB
 } nk_dots_i8_a16x64_sapphireamx_t;
 
 /*  INT8 B tile: 64 depth × 16 columns, quad-interleaved for TDPBSSD.
  *  Access pattern: data[depth/4][column][depth%4] for logical B[depth, column]. */
 typedef struct {
-    NK_ALIGN64 nk_i8_t data[16][16][4]; // 16 depth-groups × 16 columns × 4 = 1KB
+    NUMKONG_ALIGN64_ nk_i8_t data[16][16][4]; // 16 depth-groups × 16 columns × 4 = 1KB
 } nk_dots_i8_b64x16_sapphireamx_t;
 
 /*  INT8 output state: 16 × 16 I32 accumulator tile. */
 typedef struct {
-    NK_ALIGN64 nk_i32_t data[16][16]; // 16 × 16 = 1KB
+    NUMKONG_ALIGN64_ nk_i32_t data[16][16]; // 16 × 16 = 1KB
 } nk_dots_i8_state_sapphireamx_t;
 
 /*  BF16 2 × 2 output state: 32 × 32 F32 output (4 accumulator tiles).
@@ -161,17 +161,17 @@ typedef struct {
 /*  UINT8 A tile: 16 rows × 64 depth-elements, row-major layout.
  *  Same layout as I8, different interpretation of signed vs unsigned. */
 typedef struct {
-    NK_ALIGN64 nk_u8_t data[16][64]; // 16 rows × 64 columns = 1KB
+    NUMKONG_ALIGN64_ nk_u8_t data[16][64]; // 16 rows × 64 columns = 1KB
 } nk_dots_u8_a16x64_sapphireamx_t;
 
 /*  UINT8 B tile: 64 depth × 16 columns, quad-interleaved for TDPBUUD. */
 typedef struct {
-    NK_ALIGN64 nk_u8_t data[16][16][4]; // 16 depth-groups × 16 columns × 4 = 1KB
+    NUMKONG_ALIGN64_ nk_u8_t data[16][16][4]; // 16 depth-groups × 16 columns × 4 = 1KB
 } nk_dots_u8_b64x16_sapphireamx_t;
 
 /*  UINT8 output state: 16 × 16 U32 accumulator tile. */
 typedef struct {
-    NK_ALIGN64 nk_u32_t data[16][16]; // 16 × 16 = 1KB
+    NUMKONG_ALIGN64_ nk_u32_t data[16][16]; // 16 × 16 = 1KB
 } nk_dots_u8_state_sapphireamx_t;
 
 /*  UINT8 2 × 2 output state: 32 × 32 U32 output (4 accumulator tiles). */
@@ -180,13 +180,13 @@ typedef struct {
 } nk_dots_u8_state2x2_sapphireamx_t;
 
 /* Morton Z-curve encoding for cache-friendly tile traversal */
-NK_HELPER_INLINE nk_u64_t nk_morton_encode_sapphireamx_(nk_u32_t tile_row, nk_u32_t tile_col) {
+NUMKONG_HELPER_INLINE nk_u64_t nk_morton_encode_sapphireamx_(nk_u32_t tile_row, nk_u32_t tile_col) {
     return _pdep_u64(tile_row, 0x5555555555555555ULL) | _pdep_u64(tile_col, 0xAAAAAAAAAAAAAAAAULL);
 }
 
 /* Configure AMX tile registers */
-NK_HELPER_INLINE void nk_amx_tile_configure_sapphireamx_(void) {
-    NK_ALIGN64 nk_u8_t tile_config[64] = {0};
+NUMKONG_HELPER_INLINE void nk_amx_tile_configure_sapphireamx_(void) {
+    NUMKONG_ALIGN64_ nk_u8_t tile_config[64] = {0};
     tile_config[0] = 1; // palette 1 (standard tile configuration)
 
     nk_u16_t *bytes_per_row = (nk_u16_t *)&tile_config[16];
@@ -201,21 +201,21 @@ NK_HELPER_INLINE void nk_amx_tile_configure_sapphireamx_(void) {
 
 /** Compiler memory barrier to ensure stores complete before AMX tile loads */
 #if defined(_MSC_VER)
-NK_HELPER_INLINE void nk_compiler_barrier_sapphireamx_(void) { _ReadWriteBarrier(); }
+NUMKONG_HELPER_INLINE void nk_compiler_barrier_sapphireamx_(void) { _ReadWriteBarrier(); }
 #else
-NK_HELPER_INLINE void nk_compiler_barrier_sapphireamx_(void) { __asm__ volatile("" ::: "memory"); }
+NUMKONG_HELPER_INLINE void nk_compiler_barrier_sapphireamx_(void) { __asm__ volatile("" ::: "memory"); }
 #endif
 
 /* Initialize BF16 output state to zero */
-NK_HELPER_INLINE void nk_dots_bf16_init_sapphireamx_(nk_dots_bf16_state_sapphireamx_t *state) {
+NUMKONG_HELPER_INLINE void nk_dots_bf16_init_sapphireamx_(nk_dots_bf16_state_sapphireamx_t *state) {
     __m512 zero_f32x16 = _mm512_setzero_ps();
     for (nk_size_t row_idx = 0; row_idx < 16; row_idx++) { _mm512_store_ps(state->data[row_idx], zero_f32x16); }
 }
 
 /* Load A tile from row-major source with masking for edge tiles */
-NK_HELPER_INLINE void nk_dots_bf16_load_a_sapphireamx_(  //
-    nk_dots_bf16_a16x32_sapphireamx_t *a_tile,           //
-    nk_bf16_t const *src, nk_size_t src_stride_elements, //
+NUMKONG_HELPER_INLINE void nk_dots_bf16_load_a_sapphireamx_( //
+    nk_dots_bf16_a16x32_sapphireamx_t *a_tile,               //
+    nk_bf16_t const *src, nk_size_t src_stride_elements,     //
     nk_size_t valid_rows, nk_size_t valid_cols) {
 
     __mmask32 column_m32 = (valid_cols >= 32) ? 0xFFFFFFFF : ((__mmask32)1 << valid_cols) - 1;
@@ -232,9 +232,9 @@ NK_HELPER_INLINE void nk_dots_bf16_load_a_sapphireamx_(  //
 }
 
 /* Store state to output matrix with masking for edge tiles */
-NK_HELPER_INLINE void nk_dots_bf16_store_sapphireamx_( //
-    nk_dots_bf16_state_sapphireamx_t const *state,     //
-    nk_f32_t *dst, nk_size_t dst_stride_elements,      //
+NUMKONG_HELPER_INLINE void nk_dots_bf16_store_sapphireamx_( //
+    nk_dots_bf16_state_sapphireamx_t const *state,          //
+    nk_f32_t *dst, nk_size_t dst_stride_elements,           //
     nk_size_t valid_rows, nk_size_t valid_cols) {
 
     __mmask16 column_m16 = (valid_cols >= 16) ? 0xFFFF : ((__mmask16)1 << valid_cols) - 1;
@@ -247,8 +247,8 @@ NK_HELPER_INLINE void nk_dots_bf16_store_sapphireamx_( //
 
 /** Store a 16 × 16 tile of 4-byte cells starting @p column_offset right of the diagonal, skipping
  *  the cells below it. */
-NK_HELPER_INLINE void nk_dots_symmetric_store_sapphireamx_(     //
-    void const *tile, void *dst, nk_size_t dst_stride_elements, //
+NUMKONG_HELPER_INLINE void nk_dots_symmetric_store_sapphireamx_( //
+    void const *tile, void *dst, nk_size_t dst_stride_elements,  //
     nk_size_t valid_rows, nk_size_t valid_cols, nk_size_t column_offset) {
 
     __mmask16 column_m16 = (valid_cols >= 16) ? 0xFFFF : ((__mmask16)1 << valid_cols) - 1;
@@ -262,13 +262,13 @@ NK_HELPER_INLINE void nk_dots_symmetric_store_sapphireamx_(     //
 }
 
 /* Accumulate 3 A x B tile pairs into state using AMX TDPBF16PS */
-NK_HELPER_INLINE void nk_dots_bf16_update_sapphireamx_( //
-    nk_dots_bf16_state_sapphireamx_t *state,            //
-    nk_dots_bf16_a16x32_sapphireamx_t const *a_tile_0,  //
-    nk_dots_bf16_a16x32_sapphireamx_t const *a_tile_1,  //
-    nk_dots_bf16_a16x32_sapphireamx_t const *a_tile_2,  //
-    nk_dots_bf16_b32x16_sapphireamx_t const *b_tile_0,  //
-    nk_dots_bf16_b32x16_sapphireamx_t const *b_tile_1,  //
+NUMKONG_HELPER_INLINE void nk_dots_bf16_update_sapphireamx_( //
+    nk_dots_bf16_state_sapphireamx_t *state,                 //
+    nk_dots_bf16_a16x32_sapphireamx_t const *a_tile_0,       //
+    nk_dots_bf16_a16x32_sapphireamx_t const *a_tile_1,       //
+    nk_dots_bf16_a16x32_sapphireamx_t const *a_tile_2,       //
+    nk_dots_bf16_b32x16_sapphireamx_t const *b_tile_0,       //
+    nk_dots_bf16_b32x16_sapphireamx_t const *b_tile_1,       //
     nk_dots_bf16_b32x16_sapphireamx_t const *b_tile_2) {
 
     // Load all tiles into registers
@@ -290,7 +290,7 @@ NK_HELPER_INLINE void nk_dots_bf16_update_sapphireamx_( //
 }
 
 /* Initialize INT8 output state to zero */
-NK_HELPER_INLINE void nk_dots_i8_init_sapphireamx_(nk_dots_i8_state_sapphireamx_t *state) {
+NUMKONG_HELPER_INLINE void nk_dots_i8_init_sapphireamx_(nk_dots_i8_state_sapphireamx_t *state) {
     __m512i zero_i32x16 = _mm512_setzero_si512();
     for (nk_size_t row_idx = 0; row_idx < 16; row_idx++) {
         _mm512_store_si512((__m512i *)state->data[row_idx], zero_i32x16);
@@ -298,9 +298,9 @@ NK_HELPER_INLINE void nk_dots_i8_init_sapphireamx_(nk_dots_i8_state_sapphireamx_
 }
 
 /* Load A tile from row-major source with masking for edge tiles */
-NK_HELPER_INLINE void nk_dots_i8_load_a_sapphireamx_( //
-    nk_dots_i8_a16x64_sapphireamx_t *a_tile,          //
-    nk_i8_t const *src, nk_size_t src_stride,         //
+NUMKONG_HELPER_INLINE void nk_dots_i8_load_a_sapphireamx_( //
+    nk_dots_i8_a16x64_sapphireamx_t *a_tile,               //
+    nk_i8_t const *src, nk_size_t src_stride,              //
     nk_size_t valid_rows, nk_size_t valid_cols) {
 
     __mmask64 column_m64 = (valid_cols >= 64) ? 0xFFFFFFFFFFFFFFFFULL : ((__mmask64)1 << valid_cols) - 1;
@@ -317,9 +317,9 @@ NK_HELPER_INLINE void nk_dots_i8_load_a_sapphireamx_( //
 }
 
 /* Store state to output matrix with masking for edge tiles */
-NK_HELPER_INLINE void nk_dots_i8_store_sapphireamx_( //
-    nk_dots_i8_state_sapphireamx_t const *state,     //
-    nk_i32_t *dst, nk_size_t dst_stride_elements,    //
+NUMKONG_HELPER_INLINE void nk_dots_i8_store_sapphireamx_( //
+    nk_dots_i8_state_sapphireamx_t const *state,          //
+    nk_i32_t *dst, nk_size_t dst_stride_elements,         //
     nk_size_t valid_rows, nk_size_t valid_cols) {
 
     __mmask16 column_m16 = (valid_cols >= 16) ? 0xFFFF : ((__mmask16)1 << valid_cols) - 1;
@@ -331,13 +331,13 @@ NK_HELPER_INLINE void nk_dots_i8_store_sapphireamx_( //
 }
 
 /* Accumulate 3 A x B tile pairs into state using AMX TDPBSSD */
-NK_HELPER_INLINE void nk_dots_i8_update_sapphireamx_( //
-    nk_dots_i8_state_sapphireamx_t *state,            //
-    nk_dots_i8_a16x64_sapphireamx_t const *a_tile_0,  //
-    nk_dots_i8_a16x64_sapphireamx_t const *a_tile_1,  //
-    nk_dots_i8_a16x64_sapphireamx_t const *a_tile_2,  //
-    nk_dots_i8_b64x16_sapphireamx_t const *b_tile_0,  //
-    nk_dots_i8_b64x16_sapphireamx_t const *b_tile_1,  //
+NUMKONG_HELPER_INLINE void nk_dots_i8_update_sapphireamx_( //
+    nk_dots_i8_state_sapphireamx_t *state,                 //
+    nk_dots_i8_a16x64_sapphireamx_t const *a_tile_0,       //
+    nk_dots_i8_a16x64_sapphireamx_t const *a_tile_1,       //
+    nk_dots_i8_a16x64_sapphireamx_t const *a_tile_2,       //
+    nk_dots_i8_b64x16_sapphireamx_t const *b_tile_0,       //
+    nk_dots_i8_b64x16_sapphireamx_t const *b_tile_1,       //
     nk_dots_i8_b64x16_sapphireamx_t const *b_tile_2) {
 
     // Load all tiles into registers
@@ -359,9 +359,9 @@ NK_HELPER_INLINE void nk_dots_i8_update_sapphireamx_( //
 }
 
 /* Store BF16 2x2 state to output matrix with masking for edge tiles */
-NK_HELPER_INLINE void nk_dots_bf16_output2x2_sapphireamx_( //
-    nk_dots_bf16_state2x2_sapphireamx_t const *state,      //
-    nk_f32_t *dst, nk_size_t dst_stride_elements,          //
+NUMKONG_HELPER_INLINE void nk_dots_bf16_output2x2_sapphireamx_( //
+    nk_dots_bf16_state2x2_sapphireamx_t const *state,           //
+    nk_f32_t *dst, nk_size_t dst_stride_elements,               //
     nk_size_t valid_rows, nk_size_t valid_cols) {
 
     // Rows 0-15
@@ -386,9 +386,9 @@ NK_HELPER_INLINE void nk_dots_bf16_output2x2_sapphireamx_( //
 }
 
 /* Store INT8 2x2 state to output matrix with masking for edge tiles */
-NK_HELPER_INLINE void nk_dots_i8_output2x2_sapphireamx_( //
-    nk_dots_i8_state2x2_sapphireamx_t const *state,      //
-    nk_i32_t *dst, nk_size_t dst_stride_elements,        //
+NUMKONG_HELPER_INLINE void nk_dots_i8_output2x2_sapphireamx_( //
+    nk_dots_i8_state2x2_sapphireamx_t const *state,           //
+    nk_i32_t *dst, nk_size_t dst_stride_elements,             //
     nk_size_t valid_rows, nk_size_t valid_cols) {
 
     nk_size_t const rows_high = (valid_rows > 16) ? 16 : valid_rows;
@@ -411,14 +411,14 @@ NK_HELPER_INLINE void nk_dots_i8_output2x2_sapphireamx_( //
 }
 
 /* Initialize UINT8 output state to zero */
-NK_HELPER_INLINE void nk_dots_u8_init_sapphireamx_(nk_dots_u8_state_sapphireamx_t *state) {
+NUMKONG_HELPER_INLINE void nk_dots_u8_init_sapphireamx_(nk_dots_u8_state_sapphireamx_t *state) {
     nk_dots_i8_init_sapphireamx_((nk_dots_i8_state_sapphireamx_t *)state);
 }
 
 /* Load U8 A tile from row-major source with masking for edge tiles */
-NK_HELPER_INLINE void nk_dots_u8_load_a_sapphireamx_( //
-    nk_dots_u8_a16x64_sapphireamx_t *a_tile,          //
-    nk_u8_t const *src, nk_size_t src_stride,         //
+NUMKONG_HELPER_INLINE void nk_dots_u8_load_a_sapphireamx_( //
+    nk_dots_u8_a16x64_sapphireamx_t *a_tile,               //
+    nk_u8_t const *src, nk_size_t src_stride,              //
     nk_size_t valid_rows, nk_size_t valid_cols) {
     nk_dots_i8_load_a_sapphireamx_(                //
         (nk_dots_i8_a16x64_sapphireamx_t *)a_tile, //
@@ -426,9 +426,9 @@ NK_HELPER_INLINE void nk_dots_u8_load_a_sapphireamx_( //
 }
 
 /* Store U8 state to output matrix with masking for edge tiles */
-NK_HELPER_INLINE void nk_dots_u8_store_sapphireamx_( //
-    nk_dots_u8_state_sapphireamx_t const *state,     //
-    nk_u32_t *dst, nk_size_t dst_stride_elements,    //
+NUMKONG_HELPER_INLINE void nk_dots_u8_store_sapphireamx_( //
+    nk_dots_u8_state_sapphireamx_t const *state,          //
+    nk_u32_t *dst, nk_size_t dst_stride_elements,         //
     nk_size_t valid_rows, nk_size_t valid_cols) {
     nk_dots_i8_store_sapphireamx_(                     //
         (nk_dots_i8_state_sapphireamx_t const *)state, //
@@ -436,9 +436,9 @@ NK_HELPER_INLINE void nk_dots_u8_store_sapphireamx_( //
 }
 
 /* Store UINT8 2x2 state to output matrix with masking for edge tiles */
-NK_HELPER_INLINE void nk_dots_u8_output2x2_sapphireamx_( //
-    nk_dots_u8_state2x2_sapphireamx_t const *state,      //
-    nk_u32_t *dst, nk_size_t dst_stride_elements,        //
+NUMKONG_HELPER_INLINE void nk_dots_u8_output2x2_sapphireamx_( //
+    nk_dots_u8_state2x2_sapphireamx_t const *state,           //
+    nk_u32_t *dst, nk_size_t dst_stride_elements,             //
     nk_size_t valid_rows, nk_size_t valid_cols) {
     nk_dots_i8_output2x2_sapphireamx_(                    //
         (nk_dots_i8_state2x2_sapphireamx_t const *)state, //
@@ -446,8 +446,8 @@ NK_HELPER_INLINE void nk_dots_u8_output2x2_sapphireamx_( //
 }
 
 /* Pack U8 A transposed into B format */
-NK_HELPER_INLINE void nk_dots_pack_u8_transposed_sapphireamx_( //
-    nk_dots_u8_a16x64_sapphireamx_t const *a_tile,             //
+NUMKONG_HELPER_INLINE void nk_dots_pack_u8_transposed_sapphireamx_( //
+    nk_dots_u8_a16x64_sapphireamx_t const *a_tile,                  //
     nk_dots_u8_b64x16_sapphireamx_t *b_tile) {
 
     // Load all 16 rows - each row is 64 UINT8 = 64 bytes = 1 ZMM
@@ -565,13 +565,13 @@ NK_HELPER_INLINE void nk_dots_pack_u8_transposed_sapphireamx_( //
 }
 
 /* Accumulate 3 A x B tile pairs into state using AMX TDPBUUD */
-NK_HELPER_INLINE void nk_dots_u8_update_sapphireamx_( //
-    nk_dots_u8_state_sapphireamx_t *state,            //
-    nk_dots_u8_a16x64_sapphireamx_t const *a_tile_0,  //
-    nk_dots_u8_a16x64_sapphireamx_t const *a_tile_1,  //
-    nk_dots_u8_a16x64_sapphireamx_t const *a_tile_2,  //
-    nk_dots_u8_b64x16_sapphireamx_t const *b_tile_0,  //
-    nk_dots_u8_b64x16_sapphireamx_t const *b_tile_1,  //
+NUMKONG_HELPER_INLINE void nk_dots_u8_update_sapphireamx_( //
+    nk_dots_u8_state_sapphireamx_t *state,                 //
+    nk_dots_u8_a16x64_sapphireamx_t const *a_tile_0,       //
+    nk_dots_u8_a16x64_sapphireamx_t const *a_tile_1,       //
+    nk_dots_u8_a16x64_sapphireamx_t const *a_tile_2,       //
+    nk_dots_u8_b64x16_sapphireamx_t const *b_tile_0,       //
+    nk_dots_u8_b64x16_sapphireamx_t const *b_tile_1,       //
     nk_dots_u8_b64x16_sapphireamx_t const *b_tile_2) {
 
     // Load all tiles into registers
@@ -593,9 +593,9 @@ NK_HELPER_INLINE void nk_dots_u8_update_sapphireamx_( //
 }
 
 /* Load E4M3 A tile with FP8 to BF16 conversion */
-NK_HELPER_INLINE void nk_dots_e4m3_load_a_sapphireamx_( //
-    nk_dots_bf16_a16x32_sapphireamx_t *a_tile,          //
-    nk_e4m3_t const *src, nk_size_t src_stride,         //
+NUMKONG_HELPER_INLINE void nk_dots_e4m3_load_a_sapphireamx_( //
+    nk_dots_bf16_a16x32_sapphireamx_t *a_tile,               //
+    nk_e4m3_t const *src, nk_size_t src_stride,              //
     nk_size_t valid_rows, nk_size_t valid_cols) {
 
     __mmask32 column_m32 = (valid_cols >= 32) ? 0xFFFFFFFF : ((__mmask32)1 << valid_cols) - 1;
@@ -615,9 +615,9 @@ NK_HELPER_INLINE void nk_dots_e4m3_load_a_sapphireamx_( //
 }
 
 /* Load E5M2 A tile with FP8 to BF16 conversion */
-NK_HELPER_INLINE void nk_dots_e5m2_load_a_sapphireamx_( //
-    nk_dots_bf16_a16x32_sapphireamx_t *a_tile,          //
-    nk_e5m2_t const *src, nk_size_t src_stride,         //
+NUMKONG_HELPER_INLINE void nk_dots_e5m2_load_a_sapphireamx_( //
+    nk_dots_bf16_a16x32_sapphireamx_t *a_tile,               //
+    nk_e5m2_t const *src, nk_size_t src_stride,              //
     nk_size_t valid_rows, nk_size_t valid_cols) {
 
     __mmask32 column_m32 = (valid_cols >= 32) ? 0xFFFFFFFF : ((__mmask32)1 << valid_cols) - 1;
@@ -635,8 +635,8 @@ NK_HELPER_INLINE void nk_dots_e5m2_load_a_sapphireamx_( //
 }
 
 /* Pack A transposed into B format for BF16 */
-NK_HELPER_INLINE void nk_dots_pack_bf16_transposed_sapphireamx_( //
-    nk_dots_bf16_a16x32_sapphireamx_t const *a_tile,             //
+NUMKONG_HELPER_INLINE void nk_dots_pack_bf16_transposed_sapphireamx_( //
+    nk_dots_bf16_a16x32_sapphireamx_t const *a_tile,                  //
     nk_dots_bf16_b32x16_sapphireamx_t *b_tile) {
 
     // Load all 16 rows - each row is 32 BF16 = 64 bytes = 1 ZMM
@@ -755,8 +755,8 @@ NK_HELPER_INLINE void nk_dots_pack_bf16_transposed_sapphireamx_( //
 }
 
 /* Pack A transposed into B format for INT8 */
-NK_HELPER_INLINE void nk_dots_pack_i8_transposed_sapphireamx_( //
-    nk_dots_i8_a16x64_sapphireamx_t const *a_tile,             //
+NUMKONG_HELPER_INLINE void nk_dots_pack_i8_transposed_sapphireamx_( //
+    nk_dots_i8_a16x64_sapphireamx_t const *a_tile,                  //
     nk_dots_i8_b64x16_sapphireamx_t *b_tile) {
 
     // Load all 16 rows - each row is 64 INT8 = 64 bytes = 1 ZMM
@@ -875,7 +875,7 @@ NK_HELPER_INLINE void nk_dots_pack_i8_transposed_sapphireamx_( //
 
 #pragma region F16 Floats
 
-NK_API_COMPTIME nk_size_t nk_dots_pack_size_bf16_sapphireamx(nk_size_t column_count, nk_size_t depth) {
+NUMKONG_API_COMPTIME nk_size_t nk_dots_pack_size_bf16_sapphireamx(nk_size_t column_count, nk_size_t depth) {
     nk_size_t const tmm_rows = 16;
     nk_size_t const tmm_cols = 32;
     nk_size_t const tile_bytes = 512 * sizeof(nk_bf16_t); // 16 × 32 × 2 = 1KB
@@ -899,13 +899,14 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_bf16_sapphireamx(nk_size_t column_co
     return size;
 }
 
-NK_API_COMPTIME void nk_dots_packed_shape_bf16_sapphireamx(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_dots_packed_shape_bf16_sapphireamx(void const *b_packed, nk_size_t *width,
+                                                                nk_size_t *depth) {
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     *width = header->columns;
     *depth = header->depth;
 }
 
-NK_API_COMPTIME void nk_dots_pack_bf16_sapphireamx(              //
+NUMKONG_API_COMPTIME void nk_dots_pack_bf16_sapphireamx(         //
     nk_bf16_t const *b, nk_size_t column_count, nk_size_t depth, //
     nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end) {
 
@@ -1004,7 +1005,7 @@ NK_API_COMPTIME void nk_dots_pack_bf16_sapphireamx(              //
         norms[col] = nk_dots_reduce_sumsq_bf16_(b + col * b_stride_elements, depth);
 }
 
-NK_API_COMPTIME void nk_dots_packed_bf16_sapphireamx(      //
+NUMKONG_API_COMPTIME void nk_dots_packed_bf16_sapphireamx( //
     nk_bf16_t const *a, void const *b_packed, nk_f32_t *c, //
     nk_size_t rows_count, nk_size_t cols_count, nk_size_t depth, nk_size_t a_stride_bytes, nk_size_t c_stride_bytes) {
     nk_unused_(cols_count);
@@ -1324,7 +1325,7 @@ NK_API_COMPTIME void nk_dots_packed_bf16_sapphireamx(      //
     _tile_release();
 }
 
-NK_API_COMPTIME void nk_dots_compact_bf16_sapphireamx( //
+NUMKONG_API_COMPTIME void nk_dots_compact_bf16_sapphireamx( //
     void *c, nk_size_t row_count, nk_size_t column_count, nk_size_t c_stride_in_bytes) {
 
     nk_size_t const c_stride_f32 = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -1353,7 +1354,7 @@ NK_API_COMPTIME void nk_dots_compact_bf16_sapphireamx( //
     }
 }
 
-NK_API_COMPTIME void nk_dots_symmetric_bf16_sapphireamx(                           //
+NUMKONG_API_COMPTIME void nk_dots_symmetric_bf16_sapphireamx(                      //
     nk_bf16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,            //
     nk_size_t stride_in_bytes, nk_f32_t *result, nk_size_t result_stride_in_bytes, //
     nk_size_t row_start, nk_size_t row_count) {
@@ -1424,7 +1425,7 @@ NK_API_COMPTIME void nk_dots_symmetric_bf16_sapphireamx(                        
 
 #pragma region Signed Integers
 
-NK_API_COMPTIME nk_size_t nk_dots_pack_size_i8_sapphireamx(nk_size_t column_count, nk_size_t depth) {
+NUMKONG_API_COMPTIME nk_size_t nk_dots_pack_size_i8_sapphireamx(nk_size_t column_count, nk_size_t depth) {
     nk_size_t const tmm_rows = 16;
     nk_size_t const tmm_cols = 64;
     nk_size_t const tile_bytes = 1024 * sizeof(nk_i8_t); // 16 × 64×1 = 1KB
@@ -1448,13 +1449,14 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_i8_sapphireamx(nk_size_t column_coun
     return size;
 }
 
-NK_API_COMPTIME void nk_dots_packed_shape_i8_sapphireamx(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_dots_packed_shape_i8_sapphireamx(void const *b_packed, nk_size_t *width,
+                                                              nk_size_t *depth) {
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     *width = header->columns;
     *depth = header->depth;
 }
 
-NK_API_COMPTIME void nk_dots_pack_i8_sapphireamx(              //
+NUMKONG_API_COMPTIME void nk_dots_pack_i8_sapphireamx(         //
     nk_i8_t const *b, nk_size_t column_count, nk_size_t depth, //
     nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end) {
 
@@ -1556,7 +1558,7 @@ NK_API_COMPTIME void nk_dots_pack_i8_sapphireamx(              //
         norms[col] = nk_dots_reduce_sumsq_i8_(b + col * b_stride_in_bytes, depth);
 }
 
-NK_API_COMPTIME void nk_dots_packed_i8_sapphireamx(      //
+NUMKONG_API_COMPTIME void nk_dots_packed_i8_sapphireamx( //
     nk_i8_t const *a, void const *b_packed, nk_i32_t *c, //
     nk_size_t rows_count, nk_size_t cols_count, nk_size_t depth, nk_size_t a_stride_bytes, nk_size_t c_stride_bytes) {
     nk_unused_(cols_count);
@@ -1870,7 +1872,7 @@ NK_API_COMPTIME void nk_dots_packed_i8_sapphireamx(      //
     _tile_release();
 }
 
-NK_API_COMPTIME void nk_dots_compact_i8_sapphireamx( //
+NUMKONG_API_COMPTIME void nk_dots_compact_i8_sapphireamx( //
     void *c, nk_size_t row_count, nk_size_t column_count, nk_size_t c_stride_in_bytes, nk_i32_t const *a_squared_norms,
     nk_i32_t const *b_squared_norms) {
 
@@ -1970,7 +1972,7 @@ NK_API_COMPTIME void nk_dots_compact_i8_sapphireamx( //
     }
 }
 
-NK_API_COMPTIME void nk_dots_symmetric_i8_sapphireamx(                             //
+NUMKONG_API_COMPTIME void nk_dots_symmetric_i8_sapphireamx(                        //
     nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,              //
     nk_size_t stride_in_bytes, nk_i32_t *result, nk_size_t result_stride_in_bytes, //
     nk_size_t row_start, nk_size_t row_count) {
@@ -2040,18 +2042,19 @@ NK_API_COMPTIME void nk_dots_symmetric_i8_sapphireamx(                          
 
 #pragma region Unsigned Integers
 
-NK_API_COMPTIME nk_size_t nk_dots_pack_size_u8_sapphireamx(nk_size_t column_count, nk_size_t depth) {
+NUMKONG_API_COMPTIME nk_size_t nk_dots_pack_size_u8_sapphireamx(nk_size_t column_count, nk_size_t depth) {
     // Same layout as I8 - just different type interpretation
     return nk_dots_pack_size_i8_sapphireamx(column_count, depth);
 }
 
-NK_API_COMPTIME void nk_dots_packed_shape_u8_sapphireamx(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_dots_packed_shape_u8_sapphireamx(void const *b_packed, nk_size_t *width,
+                                                              nk_size_t *depth) {
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     *width = header->columns;
     *depth = header->depth;
 }
 
-NK_API_COMPTIME void nk_dots_pack_u8_sapphireamx(              //
+NUMKONG_API_COMPTIME void nk_dots_pack_u8_sapphireamx(         //
     nk_u8_t const *b, nk_size_t column_count, nk_size_t depth, //
     nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end) {
 
@@ -2147,7 +2150,7 @@ NK_API_COMPTIME void nk_dots_pack_u8_sapphireamx(              //
         norms[col] = nk_dots_reduce_sumsq_u8_(b + col * b_stride_in_bytes, depth);
 }
 
-NK_API_COMPTIME void nk_dots_packed_u8_sapphireamx(      //
+NUMKONG_API_COMPTIME void nk_dots_packed_u8_sapphireamx( //
     nk_u8_t const *a, void const *b_packed, nk_u32_t *c, //
     nk_size_t rows_count, nk_size_t cols_count, nk_size_t depth, nk_size_t a_stride_bytes, nk_size_t c_stride_bytes) {
     nk_unused_(cols_count);
@@ -2454,7 +2457,7 @@ NK_API_COMPTIME void nk_dots_packed_u8_sapphireamx(      //
     _tile_release();
 }
 
-NK_API_COMPTIME void nk_dots_symmetric_u8_sapphireamx(                             //
+NUMKONG_API_COMPTIME void nk_dots_symmetric_u8_sapphireamx(                        //
     nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,              //
     nk_size_t stride_in_bytes, nk_u32_t *result, nk_size_t result_stride_in_bytes, //
     nk_size_t row_start, nk_size_t row_count) {
@@ -2524,18 +2527,19 @@ NK_API_COMPTIME void nk_dots_symmetric_u8_sapphireamx(                          
 
 #pragma region E4M3 Floats
 
-NK_API_COMPTIME nk_size_t nk_dots_pack_size_e4m3_sapphireamx(nk_size_t column_count, nk_size_t depth) {
+NUMKONG_API_COMPTIME nk_size_t nk_dots_pack_size_e4m3_sapphireamx(nk_size_t column_count, nk_size_t depth) {
     // FP8 uses BF16 tile layout after conversion (same element count: 32 per row)
     return nk_dots_pack_size_bf16_sapphireamx(column_count, depth);
 }
 
-NK_API_COMPTIME void nk_dots_packed_shape_e4m3_sapphireamx(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_dots_packed_shape_e4m3_sapphireamx(void const *b_packed, nk_size_t *width,
+                                                                nk_size_t *depth) {
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     *width = header->columns;
     *depth = header->depth;
 }
 
-NK_API_COMPTIME void nk_dots_pack_e4m3_sapphireamx(              //
+NUMKONG_API_COMPTIME void nk_dots_pack_e4m3_sapphireamx(         //
     nk_e4m3_t const *b, nk_size_t column_count, nk_size_t depth, //
     nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end) {
 
@@ -2621,7 +2625,7 @@ NK_API_COMPTIME void nk_dots_pack_e4m3_sapphireamx(              //
         norms[col] = nk_dots_reduce_sumsq_e4m3_(b + col * b_stride_in_bytes, depth);
 }
 
-NK_API_COMPTIME void nk_dots_packed_e4m3_sapphireamx(      //
+NUMKONG_API_COMPTIME void nk_dots_packed_e4m3_sapphireamx( //
     nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c, //
     nk_size_t rows_count, nk_size_t cols_count, nk_size_t depth, nk_size_t a_stride_bytes, nk_size_t c_stride_bytes) {
     nk_unused_(cols_count);
@@ -2823,17 +2827,18 @@ NK_API_COMPTIME void nk_dots_packed_e4m3_sapphireamx(      //
 
 #pragma region E5M2 Floats
 
-NK_API_COMPTIME nk_size_t nk_dots_pack_size_e5m2_sapphireamx(nk_size_t column_count, nk_size_t depth) {
+NUMKONG_API_COMPTIME nk_size_t nk_dots_pack_size_e5m2_sapphireamx(nk_size_t column_count, nk_size_t depth) {
     return nk_dots_pack_size_bf16_sapphireamx(column_count, depth);
 }
 
-NK_API_COMPTIME void nk_dots_packed_shape_e5m2_sapphireamx(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_dots_packed_shape_e5m2_sapphireamx(void const *b_packed, nk_size_t *width,
+                                                                nk_size_t *depth) {
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     *width = header->columns;
     *depth = header->depth;
 }
 
-NK_API_COMPTIME void nk_dots_pack_e5m2_sapphireamx(              //
+NUMKONG_API_COMPTIME void nk_dots_pack_e5m2_sapphireamx(         //
     nk_e5m2_t const *b, nk_size_t column_count, nk_size_t depth, //
     nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end) {
 
@@ -2917,7 +2922,7 @@ NK_API_COMPTIME void nk_dots_pack_e5m2_sapphireamx(              //
         norms[col] = nk_dots_reduce_sumsq_e5m2_(b + col * b_stride_in_bytes, depth);
 }
 
-NK_API_COMPTIME void nk_dots_packed_e5m2_sapphireamx(      //
+NUMKONG_API_COMPTIME void nk_dots_packed_e5m2_sapphireamx( //
     nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, //
     nk_size_t rows_count, nk_size_t cols_count, nk_size_t depth, nk_size_t a_stride_bytes, nk_size_t c_stride_bytes) {
     nk_unused_(cols_count);
@@ -3113,7 +3118,7 @@ NK_API_COMPTIME void nk_dots_packed_e5m2_sapphireamx(      //
     _tile_release();
 }
 
-NK_API_COMPTIME void nk_dots_symmetric_e5m2_sapphireamx(                           //
+NUMKONG_API_COMPTIME void nk_dots_symmetric_e5m2_sapphireamx(                      //
     nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,            //
     nk_size_t stride_in_bytes, nk_f32_t *result, nk_size_t result_stride_in_bytes, //
     nk_size_t row_start, nk_size_t row_count) {
@@ -3179,7 +3184,7 @@ NK_API_COMPTIME void nk_dots_symmetric_e5m2_sapphireamx(                        
     }
 }
 
-NK_API_COMPTIME void nk_dots_symmetric_e4m3_sapphireamx(                           //
+NUMKONG_API_COMPTIME void nk_dots_symmetric_e4m3_sapphireamx(                      //
     nk_e4m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth,            //
     nk_size_t stride_in_bytes, nk_f32_t *result, nk_size_t result_stride_in_bytes, //
     nk_size_t row_start, nk_size_t row_count) {
@@ -3253,9 +3258,9 @@ NK_API_COMPTIME void nk_dots_symmetric_e4m3_sapphireamx(                        
  *  sign in bit 5 and a 5-bit magnitude index in bits 4:0. The LUT maps the magnitude to 16 times
  *  its value, then the sign is applied via conditional negation. The result is stored in an INT8
  *  tile for use with @c _tile_dpbssd. */
-NK_HELPER_INLINE void nk_dots_e2m3_load_a_sapphireamx_( //
-    nk_dots_i8_a16x64_sapphireamx_t *a_tile,            //
-    nk_e2m3_t const *src, nk_size_t src_stride,         //
+NUMKONG_HELPER_INLINE void nk_dots_e2m3_load_a_sapphireamx_( //
+    nk_dots_i8_a16x64_sapphireamx_t *a_tile,                 //
+    nk_e2m3_t const *src, nk_size_t src_stride,              //
     nk_size_t valid_rows, nk_size_t valid_cols) {
 
     // Build 64-byte LUT for VPERMB: 32 entries replicated to fill both halves.
@@ -3264,7 +3269,7 @@ NK_HELPER_INLINE void nk_dots_e2m3_load_a_sapphireamx_( //
     //  e=1 (step 2): {16,18,20,22,24,26,28,30},
     //  e=2 (step 4): {32,36,40,44,48,52,56,60},
     //  e=3 (step 8): {64,72,80,88,96,104,112,120}
-    NK_ALIGN64 static nk_u8_t const lut_bytes[64] = {
+    NUMKONG_ALIGN64_ static nk_u8_t const lut_bytes[64] = {
         0,  2,  4,  6,  8,  10,  12,  14,  //
         16, 18, 20, 22, 24, 26,  28,  30,  //
         32, 36, 40, 44, 48, 52,  56,  60,  //
@@ -3297,9 +3302,9 @@ NK_HELPER_INLINE void nk_dots_e2m3_load_a_sapphireamx_( //
 }
 
 /* Store E2M3 accumulator: read I32 state, convert to F32, multiply by 1/256, store as F32. */
-NK_HELPER_INLINE void nk_dots_e2m3_store_sapphireamx_( //
-    nk_dots_i8_state_sapphireamx_t const *state,       //
-    nk_f32_t *dst, nk_size_t dst_stride_elements,      //
+NUMKONG_HELPER_INLINE void nk_dots_e2m3_store_sapphireamx_( //
+    nk_dots_i8_state_sapphireamx_t const *state,            //
+    nk_f32_t *dst, nk_size_t dst_stride_elements,           //
     nk_size_t valid_rows, nk_size_t valid_cols) {
 
     __mmask16 column_m16 = (valid_cols >= 16) ? 0xFFFF : ((__mmask16)1 << valid_cols) - 1;
@@ -3313,9 +3318,9 @@ NK_HELPER_INLINE void nk_dots_e2m3_store_sapphireamx_( //
 }
 
 /* Store E2M3 2x2 accumulator state to F32 output matrix with masking for edge tiles. */
-NK_HELPER_INLINE void nk_dots_e2m3_output2x2_sapphireamx_( //
-    nk_dots_i8_state2x2_sapphireamx_t const *state,        //
-    nk_f32_t *dst, nk_size_t dst_stride_elements,          //
+NUMKONG_HELPER_INLINE void nk_dots_e2m3_output2x2_sapphireamx_( //
+    nk_dots_i8_state2x2_sapphireamx_t const *state,             //
+    nk_f32_t *dst, nk_size_t dst_stride_elements,               //
     nk_size_t valid_rows, nk_size_t valid_cols) {
 
     nk_size_t const rows_high = (valid_rows > 16) ? 16 : valid_rows;
@@ -3337,18 +3342,19 @@ NK_HELPER_INLINE void nk_dots_e2m3_output2x2_sapphireamx_( //
     }
 }
 
-NK_API_COMPTIME nk_size_t nk_dots_pack_size_e2m3_sapphireamx(nk_size_t column_count, nk_size_t depth) {
+NUMKONG_API_COMPTIME nk_size_t nk_dots_pack_size_e2m3_sapphireamx(nk_size_t column_count, nk_size_t depth) {
     // E2M3 uses INT8 tile layout after conversion (same element count: 64 per row)
     return nk_dots_pack_size_i8_sapphireamx(column_count, depth);
 }
 
-NK_API_COMPTIME void nk_dots_packed_shape_e2m3_sapphireamx(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_dots_packed_shape_e2m3_sapphireamx(void const *b_packed, nk_size_t *width,
+                                                                nk_size_t *depth) {
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     *width = header->columns;
     *depth = header->depth;
 }
 
-NK_API_COMPTIME void nk_dots_pack_e2m3_sapphireamx(              //
+NUMKONG_API_COMPTIME void nk_dots_pack_e2m3_sapphireamx(         //
     nk_e2m3_t const *b, nk_size_t column_count, nk_size_t depth, //
     nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end) {
 
@@ -3450,7 +3456,7 @@ NK_API_COMPTIME void nk_dots_pack_e2m3_sapphireamx(              //
         norms[col] = nk_dots_reduce_sumsq_e2m3_(b + col * b_stride_in_bytes, depth);
 }
 
-NK_API_COMPTIME void nk_dots_packed_e2m3_sapphireamx(      //
+NUMKONG_API_COMPTIME void nk_dots_packed_e2m3_sapphireamx( //
     nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c, //
     nk_size_t rows_count, nk_size_t cols_count, nk_size_t depth, nk_size_t a_stride_bytes, nk_size_t c_stride_bytes) {
     nk_unused_(cols_count);
@@ -3651,7 +3657,7 @@ NK_API_COMPTIME void nk_dots_packed_e2m3_sapphireamx(      //
     _tile_release();
 }
 
-NK_API_COMPTIME void nk_dots_symmetric_e2m3_sapphireamx(                           //
+NUMKONG_API_COMPTIME void nk_dots_symmetric_e2m3_sapphireamx(                      //
     nk_e2m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth,            //
     nk_size_t stride_in_bytes, nk_f32_t *result, nk_size_t result_stride_in_bytes, //
     nk_size_t row_start, nk_size_t row_count) {
@@ -3710,7 +3716,7 @@ NK_API_COMPTIME void nk_dots_symmetric_e2m3_sapphireamx(                        
                     &state, &a_tiles[0], &a_tiles[1], &a_tiles[2], &b_tiles[0], &b_tiles[1], &b_tiles[2]);
             }
 
-            NK_ALIGN64 nk_f32_t scaled[16][16];
+            NUMKONG_ALIGN64_ nk_f32_t scaled[16][16];
             nk_dots_e2m3_store_sapphireamx_(&state, &scaled[0][0], 16, valid_rows, valid_cols);
             nk_dots_symmetric_store_sapphireamx_(                              //
                 scaled, result + row_tile * result_stride_elements + col_tile, //
@@ -3725,7 +3731,7 @@ NK_API_COMPTIME void nk_dots_symmetric_e2m3_sapphireamx(                        
 
 /** Decode 64 E2M1 nibbles from 32 bytes into doubled signed I8 values, the high nibble of each
  *  byte first. */
-NK_HELPER_INLINE __m512i nk_e2m1x64_to_i8x64_sapphireamx_(__m256i packed_u8x32) {
+NUMKONG_HELPER_INLINE __m512i nk_e2m1x64_to_i8x64_sapphireamx_(__m256i packed_u8x32) {
     __m512i const lut_i8x64 = _mm512_broadcast_i32x4(
         _mm_setr_epi8(0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12));
     __m512i bytes_u16x32 = _mm512_cvtepu8_epi16(packed_u8x32);
@@ -3737,12 +3743,12 @@ NK_HELPER_INLINE __m512i nk_e2m1x64_to_i8x64_sapphireamx_(__m256i packed_u8x32) 
 
 /** Load an E2M1 A tile of up to 64 dimensions per row, decoding nibbles to doubled I8 and zeroing
  *  past @p valid_cols. */
-NK_HELPER_INLINE void nk_dots_e2m1_load_a_sapphireamx_( //
-    nk_dots_i8_a16x64_sapphireamx_t *a_tile,            //
-    nk_e2m1x2_t const *src, nk_size_t src_stride,       //
+NUMKONG_HELPER_INLINE void nk_dots_e2m1_load_a_sapphireamx_( //
+    nk_dots_i8_a16x64_sapphireamx_t *a_tile,                 //
+    nk_e2m1x2_t const *src, nk_size_t src_stride,            //
     nk_size_t valid_rows, nk_size_t valid_cols) {
 
-    nk_size_t const valid_bytes = valid_cols / NK_NIBBLES_PER_BYTE;
+    nk_size_t const valid_bytes = valid_cols / NUMKONG_NIBBLES_PER_BYTE;
     __mmask32 byte_m32 = (valid_bytes >= 32) ? 0xFFFFFFFFu : (((__mmask32)1 << valid_bytes) - 1);
     __mmask64 column_m64 = (valid_cols >= 64) ? 0xFFFFFFFFFFFFFFFFULL : ((__mmask64)1 << valid_cols) - 1;
     __m512i zero_i8x64 = _mm512_setzero_si512();
@@ -3759,9 +3765,9 @@ NK_HELPER_INLINE void nk_dots_e2m1_load_a_sapphireamx_( //
 }
 
 /* Store E2M1 accumulator: read I32 state, convert to F32, multiply by 1/4, store as F32. */
-NK_HELPER_INLINE void nk_dots_e2m1_store_sapphireamx_( //
-    nk_dots_i8_state_sapphireamx_t const *state,       //
-    nk_f32_t *dst, nk_size_t dst_stride_elements,      //
+NUMKONG_HELPER_INLINE void nk_dots_e2m1_store_sapphireamx_( //
+    nk_dots_i8_state_sapphireamx_t const *state,            //
+    nk_f32_t *dst, nk_size_t dst_stride_elements,           //
     nk_size_t valid_rows, nk_size_t valid_cols) {
 
     __mmask16 column_m16 = (valid_cols >= 16) ? 0xFFFF : ((__mmask16)1 << valid_cols) - 1;
@@ -3775,9 +3781,9 @@ NK_HELPER_INLINE void nk_dots_e2m1_store_sapphireamx_( //
 }
 
 /* Store E2M1 2x2 accumulator state to F32 output matrix with masking for edge tiles. */
-NK_HELPER_INLINE void nk_dots_e2m1_output2x2_sapphireamx_( //
-    nk_dots_i8_state2x2_sapphireamx_t const *state,        //
-    nk_f32_t *dst, nk_size_t dst_stride_elements,          //
+NUMKONG_HELPER_INLINE void nk_dots_e2m1_output2x2_sapphireamx_( //
+    nk_dots_i8_state2x2_sapphireamx_t const *state,             //
+    nk_f32_t *dst, nk_size_t dst_stride_elements,               //
     nk_size_t valid_rows, nk_size_t valid_cols) {
 
     nk_size_t const rows_high = (valid_rows > 16) ? 16 : valid_rows;
@@ -3799,18 +3805,19 @@ NK_HELPER_INLINE void nk_dots_e2m1_output2x2_sapphireamx_( //
     }
 }
 
-NK_API_COMPTIME nk_size_t nk_dots_pack_size_e2m1_sapphireamx(nk_size_t column_count, nk_size_t depth) {
+NUMKONG_API_COMPTIME nk_size_t nk_dots_pack_size_e2m1_sapphireamx(nk_size_t column_count, nk_size_t depth) {
     // E2M1 packs one decoded I8 per dimension, the same INT8 tile layout as I8
     return nk_dots_pack_size_i8_sapphireamx(column_count, depth);
 }
 
-NK_API_COMPTIME void nk_dots_packed_shape_e2m1_sapphireamx(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_dots_packed_shape_e2m1_sapphireamx(void const *b_packed, nk_size_t *width,
+                                                                nk_size_t *depth) {
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     *width = header->columns;
     *depth = header->depth;
 }
 
-NK_API_COMPTIME void nk_dots_pack_e2m1_sapphireamx(                //
+NUMKONG_API_COMPTIME void nk_dots_pack_e2m1_sapphireamx(           //
     nk_e2m1x2_t const *b, nk_size_t column_count, nk_size_t depth, //
     nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end) {
 
@@ -3892,7 +3899,7 @@ NK_API_COMPTIME void nk_dots_pack_e2m1_sapphireamx(                //
                                                 depth);
 }
 
-NK_API_COMPTIME void nk_dots_packed_e2m1_sapphireamx(        //
+NUMKONG_API_COMPTIME void nk_dots_packed_e2m1_sapphireamx(   //
     nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c, //
     nk_size_t rows_count, nk_size_t cols_count, nk_size_t depth, nk_size_t a_stride_bytes, nk_size_t c_stride_bytes) {
     nk_unused_(cols_count);
@@ -4093,7 +4100,7 @@ NK_API_COMPTIME void nk_dots_packed_e2m1_sapphireamx(        //
     _tile_release();
 }
 
-NK_API_COMPTIME void nk_dots_symmetric_e2m1_sapphireamx(                           //
+NUMKONG_API_COMPTIME void nk_dots_symmetric_e2m1_sapphireamx(                      //
     nk_e2m1x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,          //
     nk_size_t stride_in_bytes, nk_f32_t *result, nk_size_t result_stride_in_bytes, //
     nk_size_t row_start, nk_size_t row_count) {
@@ -4150,7 +4157,7 @@ NK_API_COMPTIME void nk_dots_symmetric_e2m1_sapphireamx(                        
                     &state, &a_tiles[0], &a_tiles[1], &a_tiles[2], &b_tiles[0], &b_tiles[1], &b_tiles[2]);
             }
 
-            NK_ALIGN64 nk_f32_t scaled[16][16];
+            NUMKONG_ALIGN64_ nk_f32_t scaled[16][16];
             nk_dots_e2m1_store_sapphireamx_(&state, &scaled[0][0], 16, valid_rows, valid_cols);
             nk_dots_symmetric_store_sapphireamx_(                              //
                 scaled, result + row_tile * result_stride_elements + col_tile, //
@@ -4164,9 +4171,9 @@ NK_API_COMPTIME void nk_dots_symmetric_e2m1_sapphireamx(                        
 #pragma region E3M2 Floats
 
 /** Load E3M2 A tile with FP8 to BF16 conversion. */
-NK_HELPER_INLINE void nk_dots_e3m2_load_a_sapphireamx_( //
-    nk_dots_bf16_a16x32_sapphireamx_t *a_tile,          //
-    nk_e3m2_t const *src, nk_size_t src_stride,         //
+NUMKONG_HELPER_INLINE void nk_dots_e3m2_load_a_sapphireamx_( //
+    nk_dots_bf16_a16x32_sapphireamx_t *a_tile,               //
+    nk_e3m2_t const *src, nk_size_t src_stride,              //
     nk_size_t valid_rows, nk_size_t valid_cols) {
 
     __mmask32 column_m32 = (valid_cols >= 32) ? 0xFFFFFFFF : ((__mmask32)1 << valid_cols) - 1;
@@ -4183,17 +4190,18 @@ NK_HELPER_INLINE void nk_dots_e3m2_load_a_sapphireamx_( //
     nk_compiler_barrier_sapphireamx_();
 }
 
-NK_API_COMPTIME nk_size_t nk_dots_pack_size_e3m2_sapphireamx(nk_size_t column_count, nk_size_t depth) {
+NUMKONG_API_COMPTIME nk_size_t nk_dots_pack_size_e3m2_sapphireamx(nk_size_t column_count, nk_size_t depth) {
     return nk_dots_pack_size_bf16_sapphireamx(column_count, depth);
 }
 
-NK_API_COMPTIME void nk_dots_packed_shape_e3m2_sapphireamx(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_dots_packed_shape_e3m2_sapphireamx(void const *b_packed, nk_size_t *width,
+                                                                nk_size_t *depth) {
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     *width = header->columns;
     *depth = header->depth;
 }
 
-NK_API_COMPTIME void nk_dots_pack_e3m2_sapphireamx(              //
+NUMKONG_API_COMPTIME void nk_dots_pack_e3m2_sapphireamx(         //
     nk_e3m2_t const *b, nk_size_t column_count, nk_size_t depth, //
     nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end) {
 
@@ -4277,7 +4285,7 @@ NK_API_COMPTIME void nk_dots_pack_e3m2_sapphireamx(              //
         norms[col] = nk_dots_reduce_sumsq_e3m2_(b + col * b_stride_in_bytes, depth);
 }
 
-NK_API_COMPTIME void nk_dots_packed_e3m2_sapphireamx(      //
+NUMKONG_API_COMPTIME void nk_dots_packed_e3m2_sapphireamx( //
     nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c, //
     nk_size_t rows_count, nk_size_t cols_count, nk_size_t depth, nk_size_t a_stride_bytes, nk_size_t c_stride_bytes) {
     nk_unused_(cols_count);
@@ -4473,7 +4481,7 @@ NK_API_COMPTIME void nk_dots_packed_e3m2_sapphireamx(      //
     _tile_release();
 }
 
-NK_API_COMPTIME void nk_dots_symmetric_e3m2_sapphireamx(                           //
+NUMKONG_API_COMPTIME void nk_dots_symmetric_e3m2_sapphireamx(                      //
     nk_e3m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,            //
     nk_size_t stride_in_bytes, nk_f32_t *result, nk_size_t result_stride_in_bytes, //
     nk_size_t row_start, nk_size_t row_count) {
@@ -4552,6 +4560,6 @@ NK_API_COMPTIME void nk_dots_symmetric_e3m2_sapphireamx(                        
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_SAPPHIREAMX
-#endif // NK_TARGET_X8664_
-#endif // NK_DOTS_SAPPHIREAMX_H
+#endif // NUMKONG_TARGET_SAPPHIREAMX
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_DOTS_SAPPHIREAMX_H

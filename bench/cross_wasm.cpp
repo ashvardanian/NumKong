@@ -33,7 +33,7 @@ void bench_cross_wasm() {
     constexpr nk_dtype_t u4_k = nk_u4_k;
     constexpr nk_dtype_t u1_k = nk_u1_k;
 
-#if NK_TARGET_V128RELAXED
+#if NUMKONG_TARGET_V128RELAXED
     run_dots_packed<f64_k>("dots_packed_f64_v128relaxed", nk_dots_pack_size_f64_v128relaxed,
                            nk_dots_pack_f64_v128relaxed, nk_dots_packed_f64_v128relaxed);
     run_dots_packed<f32_k>("dots_packed_f32_v128relaxed", nk_dots_pack_size_f32_v128relaxed,
@@ -160,7 +160,7 @@ void bench_cross_wasm() {
     run_attention_causal<i8_k>("attention_causal_packed_i8_v128relaxed", nk_attention_pack_size_i8_v128,
                                nk_attention_pack_i8_v128, nk_attention_causal_packed_i8_v128relaxed);
 #endif
-#if NK_TARGET_V128
+#if NUMKONG_TARGET_V128
     run_dots_packed<bf16_k>("dots_packed_bf16_v128", nk_dots_pack_size_bf16_v128, nk_dots_pack_bf16_v128,
                             nk_dots_packed_bf16_v128);
     run_dots_packed<i8_k>("dots_packed_i8_v128", nk_dots_pack_size_i8_v128, nk_dots_pack_i8_v128,

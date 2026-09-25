@@ -28,10 +28,10 @@
  *  via shuffle chains. No dual-accumulator unrolling is used since WASM engines already handle
  *  instruction scheduling.
  */
-#ifndef NK_MESH_V128RELAXED_H
-#define NK_MESH_V128RELAXED_H
+#ifndef NUMKONG_MESH_V128RELAXED_H
+#define NUMKONG_MESH_V128RELAXED_H
 
-#if NK_TARGET_V128RELAXED
+#if NUMKONG_TARGET_V128RELAXED
 
 #include "numkong/types.h"
 #include "numkong/mesh/serial.h"
@@ -51,8 +51,8 @@ extern "C" {
  *
  *  Input:  [x0,y0,z0, x1,y1,z1, x2,y2,z2, x3,y3,z3]
  *  Output: x[4], y[4], z[4] vectors */
-NK_HELPER_INLINE void nk_deinterleave_f32x4_v128relaxed_(nk_f32_t const *ptr, v128_t *xs_f32x4, v128_t *ys_f32x4,
-                                                         v128_t *zs_f32x4) {
+NUMKONG_HELPER_INLINE void nk_deinterleave_f32x4_v128relaxed_(nk_f32_t const *ptr, v128_t *xs_f32x4, v128_t *ys_f32x4,
+                                                              v128_t *zs_f32x4) {
     v128_t v0_f32x4 = wasm_v128_load(ptr);     // x0 y0 z0 x1
     v128_t v1_f32x4 = wasm_v128_load(ptr + 4); // y1 z1 x2 y2
     v128_t v2_f32x4 = wasm_v128_load(ptr + 8); // z2 x3 y3 z3
@@ -71,8 +71,8 @@ NK_HELPER_INLINE void nk_deinterleave_f32x4_v128relaxed_(nk_f32_t const *ptr, v1
  *
  *  Input:  [x0,y0,z0, x1,y1,z1]
  *  Output: x[2], y[2], z[2] vectors */
-NK_HELPER_INLINE void nk_deinterleave_f64x2_v128relaxed_(nk_f64_t const *ptr, v128_t *xs_f64x2, v128_t *ys_f64x2,
-                                                         v128_t *zs_f64x2) {
+NUMKONG_HELPER_INLINE void nk_deinterleave_f64x2_v128relaxed_(nk_f64_t const *ptr, v128_t *xs_f64x2, v128_t *ys_f64x2,
+                                                              v128_t *zs_f64x2) {
     v128_t v0_f64x2 = wasm_v128_load(ptr);                    // x0 y0
     v128_t v1_f64x2 = wasm_v128_load(ptr + 2);                // z0 x1
     v128_t v2_f64x2 = wasm_v128_load(ptr + 4);                // y1 z1
@@ -82,11 +82,11 @@ NK_HELPER_INLINE void nk_deinterleave_f64x2_v128relaxed_(nk_f64_t const *ptr, v1
 }
 
 /* Horizontal sum of both f64 lanes. */
-NK_HELPER_INLINE nk_f64_t nk_hsum_f64x2_v128relaxed_(v128_t v) {
+NUMKONG_HELPER_INLINE nk_f64_t nk_hsum_f64x2_v128relaxed_(v128_t v) {
     return wasm_f64x2_extract_lane(v, 0) + wasm_f64x2_extract_lane(v, 1);
 }
 
-NK_HELPER_INLINE nk_f64_t nk_reduce_stable_f64x2_v128relaxed_(v128_t values_f64x2) {
+NUMKONG_HELPER_INLINE nk_f64_t nk_reduce_stable_f64x2_v128relaxed_(v128_t values_f64x2) {
     nk_b128_vec_t values;
     values.v128 = values_f64x2;
     nk_f64_t sum = 0.0, compensation = 0.0;
@@ -95,10 +95,10 @@ NK_HELPER_INLINE nk_f64_t nk_reduce_stable_f64x2_v128relaxed_(v128_t values_f64x
     return sum + compensation;
 }
 
-NK_HELPER_INLINE void nk_centroid_and_cross_covariance_f32_v128relaxed_(    //
-    nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,                      //
-    nk_f64_t *centroid_a_x, nk_f64_t *centroid_a_y, nk_f64_t *centroid_a_z, //
-    nk_f64_t *centroid_b_x, nk_f64_t *centroid_b_y, nk_f64_t *centroid_b_z, //
+NUMKONG_HELPER_INLINE void nk_centroid_and_cross_covariance_f32_v128relaxed_( //
+    nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,                        //
+    nk_f64_t *centroid_a_x, nk_f64_t *centroid_a_y, nk_f64_t *centroid_a_z,   //
+    nk_f64_t *centroid_b_x, nk_f64_t *centroid_b_y, nk_f64_t *centroid_b_z,   //
     nk_f64_t cross_covariance[9], nk_f64_t *centered_norm_squared_a, nk_f64_t *centered_norm_squared_b) {
     v128_t zero_f64x2 = wasm_f64x2_splat(0.0);
     v128_t sum_a_x_low_f64x2 = zero_f64x2, sum_a_x_high_f64x2 = zero_f64x2;
@@ -243,10 +243,10 @@ NK_HELPER_INLINE void nk_centroid_and_cross_covariance_f32_v128relaxed_(    //
     if (*centered_norm_squared_b < 0.0) *centered_norm_squared_b = 0.0;
 }
 
-NK_HELPER_INLINE void nk_centroid_and_cross_covariance_and_variance_f32_v128relaxed_( //
-    nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,                                //
-    nk_f64_t *centroid_a_x, nk_f64_t *centroid_a_y, nk_f64_t *centroid_a_z,           //
-    nk_f64_t *centroid_b_x, nk_f64_t *centroid_b_y, nk_f64_t *centroid_b_z,           //
+NUMKONG_HELPER_INLINE void nk_centroid_and_cross_covariance_and_variance_f32_v128relaxed_( //
+    nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,                                     //
+    nk_f64_t *centroid_a_x, nk_f64_t *centroid_a_y, nk_f64_t *centroid_a_z,                //
+    nk_f64_t *centroid_b_x, nk_f64_t *centroid_b_y, nk_f64_t *centroid_b_z,                //
     nk_f64_t cross_covariance[9], nk_f64_t *centered_norm_squared_a, nk_f64_t *centered_norm_squared_b) {
     v128_t zero_f64x2 = wasm_f64x2_splat(0.0);
     v128_t sum_a_x_low_f64x2 = zero_f64x2, sum_a_x_high_f64x2 = zero_f64x2;
@@ -395,9 +395,9 @@ NK_HELPER_INLINE void nk_centroid_and_cross_covariance_and_variance_f32_v128rela
     if (*centered_norm_squared_b < 0.0) *centered_norm_squared_b = 0.0;
 }
 
-NK_API_COMPTIME void nk_rmsd_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                             nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                             nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_rmsd_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
+                                                  nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
+                                                  nk_f32_t *scale, nk_f64_t *result) {
     if (rotation)
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
         rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
@@ -466,9 +466,9 @@ NK_API_COMPTIME void nk_rmsd_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *
     *result = nk_f64_sqrt_v128((sum_sq_x + sum_sq_y + sum_sq_z) / (nk_f64_t)n);
 }
 
-NK_API_COMPTIME void nk_rmsd_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
-                                             nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
-                                             nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_rmsd_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
+                                                  nk_f64_t *a_centroid, nk_f64_t *b_centroid, nk_f64_t *rotation,
+                                                  nk_f64_t *scale, nk_f64_t *result) {
     if (rotation)
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
         rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
@@ -527,9 +527,9 @@ NK_API_COMPTIME void nk_rmsd_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *
     *result = nk_f64_sqrt_v128((total_squared_x + total_squared_y + total_squared_z) / (nk_f64_t)n);
 }
 
-NK_API_COMPTIME void nk_kabsch_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                               nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                               nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_kabsch_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
+                                                    nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
+                                                    nk_f32_t *scale, nk_f64_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -617,9 +617,9 @@ NK_API_COMPTIME void nk_kabsch_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const
     *result = nk_f64_sqrt_v128(sum_squared / (nk_f64_t)n);
 }
 
-NK_API_COMPTIME void nk_kabsch_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
-                                               nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
-                                               nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_kabsch_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
+                                                    nk_f64_t *a_centroid, nk_f64_t *b_centroid, nk_f64_t *rotation,
+                                                    nk_f64_t *scale, nk_f64_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -825,9 +825,9 @@ NK_API_COMPTIME void nk_kabsch_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const
     *result = nk_f64_sqrt_v128(sum_squared * inv_points_count);
 }
 
-NK_API_COMPTIME void nk_umeyama_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                                nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                                nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_umeyama_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
+                                                     nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
+                                                     nk_f32_t *scale, nk_f64_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -922,9 +922,9 @@ NK_API_COMPTIME void nk_umeyama_f32_v128relaxed(nk_f32_t const *a, nk_f32_t cons
     *result = nk_f64_sqrt_v128(sum_squared / (nk_f64_t)n);
 }
 
-NK_API_COMPTIME void nk_umeyama_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
-                                                nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
-                                                nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_umeyama_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
+                                                     nk_f64_t *a_centroid, nk_f64_t *b_centroid, nk_f64_t *rotation,
+                                                     nk_f64_t *scale, nk_f64_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -1143,5 +1143,5 @@ NK_API_COMPTIME void nk_umeyama_f64_v128relaxed(nk_f64_t const *a, nk_f64_t cons
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_V128RELAXED
-#endif // NK_MESH_V128RELAXED_H
+#endif // NUMKONG_TARGET_V128RELAXED
+#endif // NUMKONG_MESH_V128RELAXED_H

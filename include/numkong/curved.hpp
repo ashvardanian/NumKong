@@ -4,8 +4,8 @@
  *  @date February 5, 2026
  *  @brief Curved-space kernels: bilinear, mahalanobis.
  */
-#ifndef NK_CURVED_HPP
-#define NK_CURVED_HPP
+#ifndef NUMKONG_CURVED_HPP
+#define NUMKONG_CURVED_HPP
 
 #include <cstdint>     // `std::uint32_t`
 #include <type_traits> // `std::is_same_v`
@@ -141,4 +141,4 @@ void mahalanobis(vector_view<in_type_> a, vector_view<in_type_> b, vector_view<i
 
 } // namespace ashvardanian::numkong
 
-#endif // NK_CURVED_HPP
+#endif // NUMKONG_CURVED_HPP

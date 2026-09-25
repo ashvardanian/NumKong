@@ -50,7 +50,7 @@
  *  All MinMax scans are performed with respect to NaN values beyond simple total ordering. All
  *  positive and negative NaN values are masked out on the fly and can never be included in the
  *  output. For empty or NaN-only inputs, the returned argmin/argmax positions will be set to
- *  sentinel value @c NK_SIZE_MAX.
+ *  sentinel value @c NUMKONG_SIZE_MAX.
  *
  *  @section reduction_strategy Reduction Strategy
  *
@@ -94,8 +94,8 @@
  *  }
  *  @endcode
  */
-#ifndef NK_REDUCE_H
-#define NK_REDUCE_H
+#ifndef NUMKONG_REDUCE_H
+#define NUMKONG_REDUCE_H
 
 #include "numkong/types.h"
 
@@ -111,8 +111,8 @@ extern "C" {
  *  @param[out] sum_ptr Output sum.
  *  @param[out] sumsq_ptr Output sum of squares.
  */
-NK_API_RUNTIME void nk_reduce_moments_f64(nk_f64_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                          nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_moments_f64(nk_f64_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                               nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr);
 
 /**
  *  @brief  Horizontal min+max reduction with argmin/argmax over a strided array.
@@ -124,153 +124,153 @@ NK_API_RUNTIME void nk_reduce_moments_f64(nk_f64_t const *data, nk_size_t count,
  *  @param[out] max_value_ptr Output maximum value.
  *  @param[out] max_index_ptr Output index of the maximum value.
  */
-NK_API_RUNTIME void nk_reduce_minmax_f64(nk_f64_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                         nk_f64_t *min_value_ptr, nk_size_t *min_index_ptr, nk_f64_t *max_value_ptr,
-                                         nk_size_t *max_index_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_minmax_f64(nk_f64_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                              nk_f64_t *min_value_ptr, nk_size_t *min_index_ptr,
+                                              nk_f64_t *max_value_ptr, nk_size_t *max_index_ptr);
 
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_RUNTIME void nk_reduce_moments_f32(nk_f32_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                          nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_moments_f32(nk_f32_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                               nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_RUNTIME void nk_reduce_minmax_f32(nk_f32_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                         nk_f32_t *min_value_ptr, nk_size_t *min_index_ptr, nk_f32_t *max_value_ptr,
-                                         nk_size_t *max_index_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_minmax_f32(nk_f32_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                              nk_f32_t *min_value_ptr, nk_size_t *min_index_ptr,
+                                              nk_f32_t *max_value_ptr, nk_size_t *max_index_ptr);
 
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_RUNTIME void nk_reduce_moments_i8(nk_i8_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                         nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_moments_i8(nk_i8_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                              nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_RUNTIME void nk_reduce_minmax_i8(nk_i8_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                        nk_i8_t *min_value_ptr, nk_size_t *min_index_ptr, nk_i8_t *max_value_ptr,
-                                        nk_size_t *max_index_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_minmax_i8(nk_i8_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                             nk_i8_t *min_value_ptr, nk_size_t *min_index_ptr, nk_i8_t *max_value_ptr,
+                                             nk_size_t *max_index_ptr);
 
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_RUNTIME void nk_reduce_moments_u8(nk_u8_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                         nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_moments_u8(nk_u8_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                              nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_RUNTIME void nk_reduce_minmax_u8(nk_u8_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                        nk_u8_t *min_value_ptr, nk_size_t *min_index_ptr, nk_u8_t *max_value_ptr,
-                                        nk_size_t *max_index_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_minmax_u8(nk_u8_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                             nk_u8_t *min_value_ptr, nk_size_t *min_index_ptr, nk_u8_t *max_value_ptr,
+                                             nk_size_t *max_index_ptr);
 
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_RUNTIME void nk_reduce_moments_i16(nk_i16_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                          nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_moments_i16(nk_i16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                               nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_RUNTIME void nk_reduce_minmax_i16(nk_i16_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                         nk_i16_t *min_value_ptr, nk_size_t *min_index_ptr, nk_i16_t *max_value_ptr,
-                                         nk_size_t *max_index_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_minmax_i16(nk_i16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                              nk_i16_t *min_value_ptr, nk_size_t *min_index_ptr,
+                                              nk_i16_t *max_value_ptr, nk_size_t *max_index_ptr);
 
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_RUNTIME void nk_reduce_moments_u16(nk_u16_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                          nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_moments_u16(nk_u16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                               nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_RUNTIME void nk_reduce_minmax_u16(nk_u16_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                         nk_u16_t *min_value_ptr, nk_size_t *min_index_ptr, nk_u16_t *max_value_ptr,
-                                         nk_size_t *max_index_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_minmax_u16(nk_u16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                              nk_u16_t *min_value_ptr, nk_size_t *min_index_ptr,
+                                              nk_u16_t *max_value_ptr, nk_size_t *max_index_ptr);
 
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_RUNTIME void nk_reduce_moments_i32(nk_i32_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                          nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_moments_i32(nk_i32_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                               nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_RUNTIME void nk_reduce_minmax_i32(nk_i32_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                         nk_i32_t *min_value_ptr, nk_size_t *min_index_ptr, nk_i32_t *max_value_ptr,
-                                         nk_size_t *max_index_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_minmax_i32(nk_i32_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                              nk_i32_t *min_value_ptr, nk_size_t *min_index_ptr,
+                                              nk_i32_t *max_value_ptr, nk_size_t *max_index_ptr);
 
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_RUNTIME void nk_reduce_moments_u32(nk_u32_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                          nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_moments_u32(nk_u32_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                               nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_RUNTIME void nk_reduce_minmax_u32(nk_u32_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                         nk_u32_t *min_value_ptr, nk_size_t *min_index_ptr, nk_u32_t *max_value_ptr,
-                                         nk_size_t *max_index_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_minmax_u32(nk_u32_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                              nk_u32_t *min_value_ptr, nk_size_t *min_index_ptr,
+                                              nk_u32_t *max_value_ptr, nk_size_t *max_index_ptr);
 
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_RUNTIME void nk_reduce_moments_i64(nk_i64_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                          nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_moments_i64(nk_i64_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                               nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_RUNTIME void nk_reduce_minmax_i64(nk_i64_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                         nk_i64_t *min_value_ptr, nk_size_t *min_index_ptr, nk_i64_t *max_value_ptr,
-                                         nk_size_t *max_index_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_minmax_i64(nk_i64_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                              nk_i64_t *min_value_ptr, nk_size_t *min_index_ptr,
+                                              nk_i64_t *max_value_ptr, nk_size_t *max_index_ptr);
 
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_RUNTIME void nk_reduce_moments_u64(nk_u64_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                          nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_moments_u64(nk_u64_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                               nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_RUNTIME void nk_reduce_minmax_u64(nk_u64_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                         nk_u64_t *min_value_ptr, nk_size_t *min_index_ptr, nk_u64_t *max_value_ptr,
-                                         nk_size_t *max_index_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_minmax_u64(nk_u64_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                              nk_u64_t *min_value_ptr, nk_size_t *min_index_ptr,
+                                              nk_u64_t *max_value_ptr, nk_size_t *max_index_ptr);
 
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_RUNTIME void nk_reduce_moments_f16(nk_f16_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                          nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_moments_f16(nk_f16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                               nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_RUNTIME void nk_reduce_minmax_f16(nk_f16_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                         nk_f16_t *min_value_ptr, nk_size_t *min_index_ptr, nk_f16_t *max_value_ptr,
-                                         nk_size_t *max_index_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_minmax_f16(nk_f16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                              nk_f16_t *min_value_ptr, nk_size_t *min_index_ptr,
+                                              nk_f16_t *max_value_ptr, nk_size_t *max_index_ptr);
 
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_RUNTIME void nk_reduce_moments_bf16(nk_bf16_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                           nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_moments_bf16(nk_bf16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                                nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_RUNTIME void nk_reduce_minmax_bf16(nk_bf16_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                          nk_bf16_t *min_value_ptr, nk_size_t *min_index_ptr, nk_bf16_t *max_value_ptr,
-                                          nk_size_t *max_index_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_minmax_bf16(nk_bf16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                               nk_bf16_t *min_value_ptr, nk_size_t *min_index_ptr,
+                                               nk_bf16_t *max_value_ptr, nk_size_t *max_index_ptr);
 
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_RUNTIME void nk_reduce_moments_e4m3(nk_e4m3_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                           nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_moments_e4m3(nk_e4m3_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                                nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_RUNTIME void nk_reduce_minmax_e4m3(nk_e4m3_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                          nk_e4m3_t *min_value_ptr, nk_size_t *min_index_ptr, nk_e4m3_t *max_value_ptr,
-                                          nk_size_t *max_index_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_minmax_e4m3(nk_e4m3_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                               nk_e4m3_t *min_value_ptr, nk_size_t *min_index_ptr,
+                                               nk_e4m3_t *max_value_ptr, nk_size_t *max_index_ptr);
 
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_RUNTIME void nk_reduce_moments_e5m2(nk_e5m2_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                           nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_moments_e5m2(nk_e5m2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                                nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_RUNTIME void nk_reduce_minmax_e5m2(nk_e5m2_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                          nk_e5m2_t *min_value_ptr, nk_size_t *min_index_ptr, nk_e5m2_t *max_value_ptr,
-                                          nk_size_t *max_index_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_minmax_e5m2(nk_e5m2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                               nk_e5m2_t *min_value_ptr, nk_size_t *min_index_ptr,
+                                               nk_e5m2_t *max_value_ptr, nk_size_t *max_index_ptr);
 
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_RUNTIME void nk_reduce_moments_e2m3(nk_e2m3_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                           nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_moments_e2m3(nk_e2m3_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                                nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_RUNTIME void nk_reduce_minmax_e2m3(nk_e2m3_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                          nk_e2m3_t *min_value_ptr, nk_size_t *min_index_ptr, nk_e2m3_t *max_value_ptr,
-                                          nk_size_t *max_index_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_minmax_e2m3(nk_e2m3_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                               nk_e2m3_t *min_value_ptr, nk_size_t *min_index_ptr,
+                                               nk_e2m3_t *max_value_ptr, nk_size_t *max_index_ptr);
 
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_RUNTIME void nk_reduce_moments_e3m2(nk_e3m2_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                           nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_moments_e3m2(nk_e3m2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                                nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_RUNTIME void nk_reduce_minmax_e3m2(nk_e3m2_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                          nk_e3m2_t *min_value_ptr, nk_size_t *min_index_ptr, nk_e3m2_t *max_value_ptr,
-                                          nk_size_t *max_index_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_minmax_e3m2(nk_e3m2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                               nk_e3m2_t *min_value_ptr, nk_size_t *min_index_ptr,
+                                               nk_e3m2_t *max_value_ptr, nk_size_t *max_index_ptr);
 
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_RUNTIME void nk_reduce_moments_i4(nk_i4x2_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                         nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_moments_i4(nk_i4x2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                              nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_RUNTIME void nk_reduce_minmax_i4(nk_i4x2_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                        nk_i8_t *min_value_ptr, nk_size_t *min_index_ptr, nk_i8_t *max_value_ptr,
-                                        nk_size_t *max_index_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_minmax_i4(nk_i4x2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                             nk_i8_t *min_value_ptr, nk_size_t *min_index_ptr, nk_i8_t *max_value_ptr,
+                                             nk_size_t *max_index_ptr);
 
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_RUNTIME void nk_reduce_moments_u4(nk_u4x2_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                         nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_moments_u4(nk_u4x2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                              nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_RUNTIME void nk_reduce_minmax_u4(nk_u4x2_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                        nk_u8_t *min_value_ptr, nk_size_t *min_index_ptr, nk_u8_t *max_value_ptr,
-                                        nk_size_t *max_index_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_minmax_u4(nk_u4x2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                             nk_u8_t *min_value_ptr, nk_size_t *min_index_ptr, nk_u8_t *max_value_ptr,
+                                             nk_size_t *max_index_ptr);
 
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_RUNTIME void nk_reduce_moments_u1(nk_u1x8_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                         nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_moments_u1(nk_u1x8_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                              nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_RUNTIME void nk_reduce_minmax_u1(nk_u1x8_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                        nk_u8_t *min_value_ptr, nk_size_t *min_index_ptr, nk_u8_t *max_value_ptr,
-                                        nk_size_t *max_index_ptr);
+NUMKONG_API_RUNTIME void nk_reduce_minmax_u1(nk_u1x8_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                             nk_u8_t *min_value_ptr, nk_size_t *min_index_ptr, nk_u8_t *max_value_ptr,
+                                             nk_size_t *max_index_ptr);
 
 /**
  *  @brief Grouped RMSNorm: y = x * rsqrt(mean(x^2) + eps) * gamma; NULL means unit scale.
@@ -285,649 +285,680 @@ NK_API_RUNTIME void nk_reduce_minmax_u1(nk_u1x8_t const *data, nk_size_t count, 
  *  @param[in] eps Variance epsilon added before the reciprocal square root.
  *  @param[in] input_scale Scalar folded onto every loaded element (E4M3 descale; 1.0 for BF16/F32).
  */
-NK_API_RUNTIME void nk_reduce_rmsnorm_f32(nk_f32_t const *x, nk_f32_t const *gamma, nk_f32_t *y, nk_size_t rows,
-                                          nk_size_t groups, nk_size_t cols, nk_size_t x_row_stride,
-                                          nk_size_t y_row_stride, nk_f32_t eps, nk_f32_t input_scale);
+NUMKONG_API_RUNTIME void nk_reduce_rmsnorm_f32(nk_f32_t const *x, nk_f32_t const *gamma, nk_f32_t *y, nk_size_t rows,
+                                               nk_size_t groups, nk_size_t cols, nk_size_t x_row_stride,
+                                               nk_size_t y_row_stride, nk_f32_t eps, nk_f32_t input_scale);
 /** @copydoc nk_reduce_rmsnorm_f32 */
-NK_API_RUNTIME void nk_reduce_rmsnorm_bf16(nk_bf16_t const *x, nk_f32_t const *gamma, nk_bf16_t *y, nk_size_t rows,
-                                           nk_size_t groups, nk_size_t cols, nk_size_t x_row_stride,
-                                           nk_size_t y_row_stride, nk_f32_t eps, nk_f32_t input_scale);
+NUMKONG_API_RUNTIME void nk_reduce_rmsnorm_bf16(nk_bf16_t const *x, nk_f32_t const *gamma, nk_bf16_t *y, nk_size_t rows,
+                                                nk_size_t groups, nk_size_t cols, nk_size_t x_row_stride,
+                                                nk_size_t y_row_stride, nk_f32_t eps, nk_f32_t input_scale);
 /** @copydoc nk_reduce_rmsnorm_f32 */
-NK_API_RUNTIME void nk_reduce_rmsnorm_e4m3(nk_e4m3_t const *x, nk_f32_t const *gamma, nk_e4m3_t *y, nk_size_t rows,
-                                           nk_size_t groups, nk_size_t cols, nk_size_t x_row_stride,
-                                           nk_size_t y_row_stride, nk_f32_t eps, nk_f32_t input_scale);
+NUMKONG_API_RUNTIME void nk_reduce_rmsnorm_e4m3(nk_e4m3_t const *x, nk_f32_t const *gamma, nk_e4m3_t *y, nk_size_t rows,
+                                                nk_size_t groups, nk_size_t cols, nk_size_t x_row_stride,
+                                                nk_size_t y_row_stride, nk_f32_t eps, nk_f32_t input_scale);
 
 /** @copydoc nk_reduce_rmsnorm_f32 */
-NK_API_COMPTIME void nk_reduce_rmsnorm_f32_serial(nk_f32_t const *, nk_f32_t const *, nk_f32_t *, nk_size_t, nk_size_t,
-                                                  nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
+NUMKONG_API_COMPTIME void nk_reduce_rmsnorm_f32_serial(nk_f32_t const *, nk_f32_t const *, nk_f32_t *, nk_size_t,
+                                                       nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
 /** @copydoc nk_reduce_rmsnorm_f32 */
-NK_API_COMPTIME void nk_reduce_rmsnorm_bf16_serial(nk_bf16_t const *, nk_f32_t const *, nk_bf16_t *, nk_size_t,
-                                                   nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
+NUMKONG_API_COMPTIME void nk_reduce_rmsnorm_bf16_serial(nk_bf16_t const *, nk_f32_t const *, nk_bf16_t *, nk_size_t,
+                                                        nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
 /** @copydoc nk_reduce_rmsnorm_f32 */
-NK_API_COMPTIME void nk_reduce_rmsnorm_e4m3_serial(nk_e4m3_t const *, nk_f32_t const *, nk_e4m3_t *, nk_size_t,
-                                                   nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
+NUMKONG_API_COMPTIME void nk_reduce_rmsnorm_e4m3_serial(nk_e4m3_t const *, nk_f32_t const *, nk_e4m3_t *, nk_size_t,
+                                                        nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
 
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_f32_serial(nk_f32_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *);
+NUMKONG_API_COMPTIME void nk_reduce_moments_f32_serial(nk_f32_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *);
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_f64_serial(nk_f64_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *);
+NUMKONG_API_COMPTIME void nk_reduce_moments_f64_serial(nk_f64_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *);
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i8_serial(nk_i8_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+NUMKONG_API_COMPTIME void nk_reduce_moments_i8_serial(nk_i8_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u8_serial(nk_u8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+NUMKONG_API_COMPTIME void nk_reduce_moments_u8_serial(nk_u8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i16_serial(nk_i16_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+NUMKONG_API_COMPTIME void nk_reduce_moments_i16_serial(nk_i16_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u16_serial(nk_u16_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+NUMKONG_API_COMPTIME void nk_reduce_moments_u16_serial(nk_u16_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i32_serial(nk_i32_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+NUMKONG_API_COMPTIME void nk_reduce_moments_i32_serial(nk_i32_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u32_serial(nk_u32_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+NUMKONG_API_COMPTIME void nk_reduce_moments_u32_serial(nk_u32_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i64_serial(nk_i64_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+NUMKONG_API_COMPTIME void nk_reduce_moments_i64_serial(nk_i64_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u64_serial(nk_u64_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+NUMKONG_API_COMPTIME void nk_reduce_moments_u64_serial(nk_u64_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_f16_serial(nk_f16_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
+NUMKONG_API_COMPTIME void nk_reduce_moments_f16_serial(nk_f16_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_bf16_serial(nk_bf16_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e4m3_serial(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e5m2_serial(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e2m3_serial(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e2m1_serial(nk_e2m1x2_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e3m2_serial(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i4_serial(nk_i4x2_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u4_serial(nk_u4x2_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u1_serial(nk_u1x8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_f32_serial(nk_f32_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_size_t *,
-                                                 nk_f32_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_f64_serial(nk_f64_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_size_t *,
-                                                 nk_f64_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_i8_serial(nk_i8_t const *, nk_size_t, nk_size_t, nk_i8_t *, nk_size_t *,
-                                                nk_i8_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_u8_serial(nk_u8_t const *, nk_size_t, nk_size_t, nk_u8_t *, nk_size_t *,
-                                                nk_u8_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_i16_serial(nk_i16_t const *, nk_size_t, nk_size_t, nk_i16_t *, nk_size_t *,
-                                                 nk_i16_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_u16_serial(nk_u16_t const *, nk_size_t, nk_size_t, nk_u16_t *, nk_size_t *,
-                                                 nk_u16_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_i32_serial(nk_i32_t const *, nk_size_t, nk_size_t, nk_i32_t *, nk_size_t *,
-                                                 nk_i32_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_u32_serial(nk_u32_t const *, nk_size_t, nk_size_t, nk_u32_t *, nk_size_t *,
-                                                 nk_u32_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_i64_serial(nk_i64_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_size_t *,
-                                                 nk_i64_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_u64_serial(nk_u64_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_size_t *,
-                                                 nk_u64_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_f16_serial(nk_f16_t const *, nk_size_t, nk_size_t, nk_f16_t *, nk_size_t *,
-                                                 nk_f16_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_bf16_serial(nk_bf16_t const *, nk_size_t, nk_size_t, nk_bf16_t *, nk_size_t *,
-                                                  nk_bf16_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_e4m3_serial(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_e4m3_t *, nk_size_t *,
-                                                  nk_e4m3_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_e5m2_serial(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_e5m2_t *, nk_size_t *,
-                                                  nk_e5m2_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_e2m3_serial(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_e2m3_t *, nk_size_t *,
-                                                  nk_e2m3_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_e3m2_serial(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_e3m2_t *, nk_size_t *,
-                                                  nk_e3m2_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_i4_serial(nk_i4x2_t const *, nk_size_t, nk_size_t, nk_i8_t *, nk_size_t *,
-                                                nk_i8_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_u4_serial(nk_u4x2_t const *, nk_size_t, nk_size_t, nk_u8_t *, nk_size_t *,
-                                                nk_u8_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_u1_serial(nk_u1x8_t const *, nk_size_t, nk_size_t, nk_u8_t *, nk_size_t *,
-                                                nk_u8_t *, nk_size_t *);
-
-#if NK_TARGET_NEON
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_f32_neon(nk_f32_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_f64_neon(nk_f64_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i8_neon(nk_i8_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u8_neon(nk_u8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i16_neon(nk_i16_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u16_neon(nk_u16_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u1_neon(nk_u1x8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i32_neon(nk_i32_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u32_neon(nk_u32_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i64_neon(nk_i64_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u64_neon(nk_u64_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e2m3_neon(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e3m2_neon(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e4m3_neon(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e5m2_neon(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_f32_neon(nk_f32_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_size_t *,
-                                               nk_f32_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_f64_neon(nk_f64_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_size_t *,
-                                               nk_f64_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_i8_neon(nk_i8_t const *, nk_size_t, nk_size_t, nk_i8_t *, nk_size_t *, nk_i8_t *,
-                                              nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_u8_neon(nk_u8_t const *, nk_size_t, nk_size_t, nk_u8_t *, nk_size_t *, nk_u8_t *,
-                                              nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_i16_neon(nk_i16_t const *, nk_size_t, nk_size_t, nk_i16_t *, nk_size_t *,
-                                               nk_i16_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_u16_neon(nk_u16_t const *, nk_size_t, nk_size_t, nk_u16_t *, nk_size_t *,
-                                               nk_u16_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_i32_neon(nk_i32_t const *, nk_size_t, nk_size_t, nk_i32_t *, nk_size_t *,
-                                               nk_i32_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_u32_neon(nk_u32_t const *, nk_size_t, nk_size_t, nk_u32_t *, nk_size_t *,
-                                               nk_u32_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_i64_neon(nk_i64_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_size_t *,
-                                               nk_i64_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_u64_neon(nk_u64_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_size_t *,
-                                               nk_u64_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_e2m3_neon(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_e2m3_t *, nk_size_t *,
-                                                nk_e2m3_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_e3m2_neon(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_e3m2_t *, nk_size_t *,
-                                                nk_e3m2_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_e4m3_neon(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_e4m3_t *, nk_size_t *,
-                                                nk_e4m3_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_e5m2_neon(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_e5m2_t *, nk_size_t *,
-                                                nk_e5m2_t *, nk_size_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_f16_neon(nk_f16_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-#endif // NK_TARGET_NEON
-
-#if NK_TARGET_NEONBFDOT
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_bf16_neonbfdot(nk_bf16_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-#endif // NK_TARGET_NEONBFDOT
-
-#if NK_TARGET_NEONSDOT
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i8_neonsdot(nk_i8_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u8_neonsdot(nk_u8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e2m3_neonsdot(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-#endif // NK_TARGET_NEONSDOT
-
-#if NK_TARGET_NEONFHM
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e4m3_neonfhm(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e5m2_neonfhm(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-#endif // NK_TARGET_NEONFHM
-
-#if NK_TARGET_HASWELL
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_f32_haswell(nk_f32_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_f64_haswell(nk_f64_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i8_haswell(nk_i8_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u8_haswell(nk_u8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i16_haswell(nk_i16_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u16_haswell(nk_u16_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i32_haswell(nk_i32_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u32_haswell(nk_u32_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i64_haswell(nk_i64_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u64_haswell(nk_u64_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_f16_haswell(nk_f16_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_bf16_haswell(nk_bf16_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e4m3_haswell(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e5m2_haswell(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e2m3_haswell(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e3m2_haswell(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i4_haswell(nk_i4x2_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u4_haswell(nk_u4x2_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u1_haswell(nk_u1x8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_f32_haswell(nk_f32_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_size_t *,
-                                                  nk_f32_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_f64_haswell(nk_f64_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_size_t *,
-                                                  nk_f64_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_i8_haswell(nk_i8_t const *, nk_size_t, nk_size_t, nk_i8_t *, nk_size_t *,
-                                                 nk_i8_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_u8_haswell(nk_u8_t const *, nk_size_t, nk_size_t, nk_u8_t *, nk_size_t *,
-                                                 nk_u8_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_i16_haswell(nk_i16_t const *, nk_size_t, nk_size_t, nk_i16_t *, nk_size_t *,
-                                                  nk_i16_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_u16_haswell(nk_u16_t const *, nk_size_t, nk_size_t, nk_u16_t *, nk_size_t *,
-                                                  nk_u16_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_i32_haswell(nk_i32_t const *, nk_size_t, nk_size_t, nk_i32_t *, nk_size_t *,
-                                                  nk_i32_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_u32_haswell(nk_u32_t const *, nk_size_t, nk_size_t, nk_u32_t *, nk_size_t *,
-                                                  nk_u32_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_i64_haswell(nk_i64_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_size_t *,
-                                                  nk_i64_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_u64_haswell(nk_u64_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_size_t *,
-                                                  nk_u64_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_f16_haswell(nk_f16_t const *, nk_size_t, nk_size_t, nk_f16_t *, nk_size_t *,
-                                                  nk_f16_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_bf16_haswell(nk_bf16_t const *, nk_size_t, nk_size_t, nk_bf16_t *, nk_size_t *,
-                                                   nk_bf16_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_e4m3_haswell(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_e4m3_t *, nk_size_t *,
-                                                   nk_e4m3_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_e5m2_haswell(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_e5m2_t *, nk_size_t *,
-                                                   nk_e5m2_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_e2m3_haswell(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_e2m3_t *, nk_size_t *,
-                                                   nk_e2m3_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_e3m2_haswell(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_e3m2_t *, nk_size_t *,
-                                                   nk_e3m2_t *, nk_size_t *);
-/** @copydoc nk_reduce_rmsnorm_f32 */
-NK_API_COMPTIME void nk_reduce_rmsnorm_f32_haswell(nk_f32_t const *, nk_f32_t const *, nk_f32_t *, nk_size_t, nk_size_t,
-                                                   nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
-/** @copydoc nk_reduce_rmsnorm_f32 */
-NK_API_COMPTIME void nk_reduce_rmsnorm_bf16_haswell(nk_bf16_t const *, nk_f32_t const *, nk_bf16_t *, nk_size_t,
-                                                    nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
-/** @copydoc nk_reduce_rmsnorm_f32 */
-NK_API_COMPTIME void nk_reduce_rmsnorm_e4m3_haswell(nk_e4m3_t const *, nk_f32_t const *, nk_e4m3_t *, nk_size_t,
-                                                    nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
-#endif // NK_TARGET_HASWELL
-
-#if NK_TARGET_SKYLAKE
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_f32_skylake(nk_f32_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_f64_skylake(nk_f64_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i8_skylake(nk_i8_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u8_skylake(nk_u8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i16_skylake(nk_i16_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u16_skylake(nk_u16_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i32_skylake(nk_i32_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u32_skylake(nk_u32_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i64_skylake(nk_i64_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u64_skylake(nk_u64_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_f16_skylake(nk_f16_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_bf16_skylake(nk_bf16_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e4m3_skylake(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e5m2_skylake(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e2m3_skylake(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e3m2_skylake(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i4_skylake(nk_i4x2_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u4_skylake(nk_u4x2_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u1_skylake(nk_u1x8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_f32_skylake(nk_f32_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_size_t *,
-                                                  nk_f32_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_f64_skylake(nk_f64_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_size_t *,
-                                                  nk_f64_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_i8_skylake(nk_i8_t const *, nk_size_t, nk_size_t, nk_i8_t *, nk_size_t *,
-                                                 nk_i8_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_u8_skylake(nk_u8_t const *, nk_size_t, nk_size_t, nk_u8_t *, nk_size_t *,
-                                                 nk_u8_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_i16_skylake(nk_i16_t const *, nk_size_t, nk_size_t, nk_i16_t *, nk_size_t *,
-                                                  nk_i16_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_u16_skylake(nk_u16_t const *, nk_size_t, nk_size_t, nk_u16_t *, nk_size_t *,
-                                                  nk_u16_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_i32_skylake(nk_i32_t const *, nk_size_t, nk_size_t, nk_i32_t *, nk_size_t *,
-                                                  nk_i32_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_u32_skylake(nk_u32_t const *, nk_size_t, nk_size_t, nk_u32_t *, nk_size_t *,
-                                                  nk_u32_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_i64_skylake(nk_i64_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_size_t *,
-                                                  nk_i64_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_u64_skylake(nk_u64_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_size_t *,
-                                                  nk_u64_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_f16_skylake(nk_f16_t const *, nk_size_t, nk_size_t, nk_f16_t *, nk_size_t *,
-                                                  nk_f16_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_bf16_skylake(nk_bf16_t const *, nk_size_t, nk_size_t, nk_bf16_t *, nk_size_t *,
-                                                   nk_bf16_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_e4m3_skylake(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_e4m3_t *, nk_size_t *,
-                                                   nk_e4m3_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_e5m2_skylake(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_e5m2_t *, nk_size_t *,
-                                                   nk_e5m2_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_e2m3_skylake(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_e2m3_t *, nk_size_t *,
-                                                   nk_e2m3_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_e3m2_skylake(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_e3m2_t *, nk_size_t *,
-                                                   nk_e3m2_t *, nk_size_t *);
-/** @copydoc nk_reduce_rmsnorm_f32 */
-NK_API_COMPTIME void nk_reduce_rmsnorm_f32_skylake(nk_f32_t const *, nk_f32_t const *, nk_f32_t *, nk_size_t, nk_size_t,
-                                                   nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
-/** @copydoc nk_reduce_rmsnorm_f32 */
-NK_API_COMPTIME void nk_reduce_rmsnorm_bf16_skylake(nk_bf16_t const *, nk_f32_t const *, nk_bf16_t *, nk_size_t,
-                                                    nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
-/** @copydoc nk_reduce_rmsnorm_f32 */
-NK_API_COMPTIME void nk_reduce_rmsnorm_e4m3_skylake(nk_e4m3_t const *, nk_f32_t const *, nk_e4m3_t *, nk_size_t,
-                                                    nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
-#endif // NK_TARGET_SKYLAKE
-
-#if NK_TARGET_ICELAKE
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i8_icelake(nk_i8_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u8_icelake(nk_u8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i16_icelake(nk_i16_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e2m3_icelake(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e3m2_icelake(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-#endif // NK_TARGET_ICELAKE
-
-#if NK_TARGET_GENOA
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_bf16_genoa(nk_bf16_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e4m3_genoa(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e5m2_genoa(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_rmsnorm_f32 */
-NK_API_COMPTIME void nk_reduce_rmsnorm_bf16_genoa(nk_bf16_t const *, nk_f32_t const *, nk_bf16_t *, nk_size_t,
-                                                  nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
-/** @copydoc nk_reduce_rmsnorm_f32 */
-NK_API_COMPTIME void nk_reduce_rmsnorm_e4m3_genoa(nk_e4m3_t const *, nk_f32_t const *, nk_e4m3_t *, nk_size_t,
-                                                  nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
-#endif // NK_TARGET_GENOA
-
-#if NK_TARGET_ALDER
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u8_alder(nk_u8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i16_alder(nk_i16_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u16_alder(nk_u16_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e3m2_alder(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e2m3_alder(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-#endif // NK_TARGET_ALDER
-#if NK_TARGET_SIERRA
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i8_sierra(nk_i8_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u8_sierra(nk_u8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e2m3_sierra(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-#endif // NK_TARGET_SIERRA
-
-#if NK_TARGET_RVV
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_f32_rvv(nk_f32_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_f64_rvv(nk_f64_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i8_rvv(nk_i8_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u8_rvv(nk_u8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i16_rvv(nk_i16_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u16_rvv(nk_u16_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i32_rvv(nk_i32_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u32_rvv(nk_u32_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i64_rvv(nk_i64_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u64_rvv(nk_u64_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_f16_rvv(nk_f16_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_bf16_rvv(nk_bf16_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e4m3_rvv(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e5m2_rvv(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e2m3_rvv(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e3m2_rvv(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_f32_rvv(nk_f32_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_size_t *,
-                                              nk_f32_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_f64_rvv(nk_f64_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_size_t *,
-                                              nk_f64_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_i8_rvv(nk_i8_t const *, nk_size_t, nk_size_t, nk_i8_t *, nk_size_t *, nk_i8_t *,
-                                             nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_u8_rvv(nk_u8_t const *, nk_size_t, nk_size_t, nk_u8_t *, nk_size_t *, nk_u8_t *,
-                                             nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_i16_rvv(nk_i16_t const *, nk_size_t, nk_size_t, nk_i16_t *, nk_size_t *,
-                                              nk_i16_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_u16_rvv(nk_u16_t const *, nk_size_t, nk_size_t, nk_u16_t *, nk_size_t *,
-                                              nk_u16_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_i32_rvv(nk_i32_t const *, nk_size_t, nk_size_t, nk_i32_t *, nk_size_t *,
-                                              nk_i32_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_u32_rvv(nk_u32_t const *, nk_size_t, nk_size_t, nk_u32_t *, nk_size_t *,
-                                              nk_u32_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_i64_rvv(nk_i64_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_size_t *,
-                                              nk_i64_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_u64_rvv(nk_u64_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_size_t *,
-                                              nk_u64_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_f16_rvv(nk_f16_t const *, nk_size_t, nk_size_t, nk_f16_t *, nk_size_t *,
-                                              nk_f16_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_bf16_rvv(nk_bf16_t const *, nk_size_t, nk_size_t, nk_bf16_t *, nk_size_t *,
-                                               nk_bf16_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_e4m3_rvv(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_e4m3_t *, nk_size_t *,
-                                               nk_e4m3_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_e5m2_rvv(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_e5m2_t *, nk_size_t *,
-                                               nk_e5m2_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_e2m3_rvv(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_e2m3_t *, nk_size_t *,
-                                               nk_e2m3_t *, nk_size_t *);
-/** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_e3m2_rvv(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_e3m2_t *, nk_size_t *,
-                                               nk_e3m2_t *, nk_size_t *);
-#endif // NK_TARGET_RVV
-
-#if NK_TARGET_V128
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_f64_v128(nk_f64_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_bf16_v128(nk_bf16_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i8_v128(nk_i8_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u8_v128(nk_u8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i16_v128(nk_i16_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u16_v128(nk_u16_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i32_v128(nk_i32_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u32_v128(nk_u32_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-#endif // NK_TARGET_V128
-
-#if NK_TARGET_V128RELAXED
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_f32_v128relaxed(nk_f32_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_i64_v128relaxed(nk_i64_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_u64_v128relaxed(nk_u64_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_f16_v128relaxed(nk_f16_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
-/** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e4m3_v128relaxed(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_f32_t *,
+NUMKONG_API_COMPTIME void nk_reduce_moments_bf16_serial(nk_bf16_t const *, nk_size_t, nk_size_t, nk_f32_t *,
                                                         nk_f32_t *);
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e5m2_v128relaxed(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_f32_t *,
+NUMKONG_API_COMPTIME void nk_reduce_moments_e4m3_serial(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_f32_t *,
                                                         nk_f32_t *);
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e2m3_v128relaxed(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_f32_t *,
+NUMKONG_API_COMPTIME void nk_reduce_moments_e5m2_serial(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_f32_t *,
                                                         nk_f32_t *);
 /** @copydoc nk_reduce_moments_f64 */
-NK_API_COMPTIME void nk_reduce_moments_e3m2_v128relaxed(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_f32_t *,
+NUMKONG_API_COMPTIME void nk_reduce_moments_e2m3_serial(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_f32_t *,
                                                         nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e2m1_serial(nk_e2m1x2_t const *, nk_size_t, nk_size_t, nk_f32_t *,
+                                                        nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e3m2_serial(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_f32_t *,
+                                                        nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_i4_serial(nk_i4x2_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u4_serial(nk_u4x2_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u1_serial(nk_u1x8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_f32_v128relaxed(nk_f32_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_size_t *,
+NUMKONG_API_COMPTIME void nk_reduce_minmax_f32_serial(nk_f32_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_size_t *,
                                                       nk_f32_t *, nk_size_t *);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_f64_v128relaxed(nk_f64_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_size_t *,
+NUMKONG_API_COMPTIME void nk_reduce_minmax_f64_serial(nk_f64_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_size_t *,
                                                       nk_f64_t *, nk_size_t *);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_i8_v128relaxed(nk_i8_t const *, nk_size_t, nk_size_t, nk_i8_t *, nk_size_t *,
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i8_serial(nk_i8_t const *, nk_size_t, nk_size_t, nk_i8_t *, nk_size_t *,
                                                      nk_i8_t *, nk_size_t *);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_u8_v128relaxed(nk_u8_t const *, nk_size_t, nk_size_t, nk_u8_t *, nk_size_t *,
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u8_serial(nk_u8_t const *, nk_size_t, nk_size_t, nk_u8_t *, nk_size_t *,
                                                      nk_u8_t *, nk_size_t *);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_i16_v128relaxed(nk_i16_t const *, nk_size_t, nk_size_t, nk_i16_t *, nk_size_t *,
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i16_serial(nk_i16_t const *, nk_size_t, nk_size_t, nk_i16_t *, nk_size_t *,
                                                       nk_i16_t *, nk_size_t *);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_u16_v128relaxed(nk_u16_t const *, nk_size_t, nk_size_t, nk_u16_t *, nk_size_t *,
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u16_serial(nk_u16_t const *, nk_size_t, nk_size_t, nk_u16_t *, nk_size_t *,
                                                       nk_u16_t *, nk_size_t *);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_i32_v128relaxed(nk_i32_t const *, nk_size_t, nk_size_t, nk_i32_t *, nk_size_t *,
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i32_serial(nk_i32_t const *, nk_size_t, nk_size_t, nk_i32_t *, nk_size_t *,
                                                       nk_i32_t *, nk_size_t *);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_u32_v128relaxed(nk_u32_t const *, nk_size_t, nk_size_t, nk_u32_t *, nk_size_t *,
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u32_serial(nk_u32_t const *, nk_size_t, nk_size_t, nk_u32_t *, nk_size_t *,
                                                       nk_u32_t *, nk_size_t *);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_i64_v128relaxed(nk_i64_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_size_t *,
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i64_serial(nk_i64_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_size_t *,
                                                       nk_i64_t *, nk_size_t *);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_u64_v128relaxed(nk_u64_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_size_t *,
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u64_serial(nk_u64_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_size_t *,
                                                       nk_u64_t *, nk_size_t *);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_f16_v128relaxed(nk_f16_t const *, nk_size_t, nk_size_t, nk_f16_t *, nk_size_t *,
+NUMKONG_API_COMPTIME void nk_reduce_minmax_f16_serial(nk_f16_t const *, nk_size_t, nk_size_t, nk_f16_t *, nk_size_t *,
                                                       nk_f16_t *, nk_size_t *);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_bf16_v128relaxed(nk_bf16_t const *, nk_size_t, nk_size_t, nk_bf16_t *,
+NUMKONG_API_COMPTIME void nk_reduce_minmax_bf16_serial(nk_bf16_t const *, nk_size_t, nk_size_t, nk_bf16_t *,
                                                        nk_size_t *, nk_bf16_t *, nk_size_t *);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_e4m3_v128relaxed(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_e4m3_t *,
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e4m3_serial(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_e4m3_t *,
                                                        nk_size_t *, nk_e4m3_t *, nk_size_t *);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_e5m2_v128relaxed(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_e5m2_t *,
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e5m2_serial(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_e5m2_t *,
                                                        nk_size_t *, nk_e5m2_t *, nk_size_t *);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_e2m3_v128relaxed(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_e2m3_t *,
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e2m3_serial(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_e2m3_t *,
                                                        nk_size_t *, nk_e2m3_t *, nk_size_t *);
 /** @copydoc nk_reduce_minmax_f64 */
-NK_API_COMPTIME void nk_reduce_minmax_e3m2_v128relaxed(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_e3m2_t *,
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e3m2_serial(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_e3m2_t *,
                                                        nk_size_t *, nk_e3m2_t *, nk_size_t *);
-#endif // NK_TARGET_V128RELAXED
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i4_serial(nk_i4x2_t const *, nk_size_t, nk_size_t, nk_i8_t *, nk_size_t *,
+                                                     nk_i8_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u4_serial(nk_u4x2_t const *, nk_size_t, nk_size_t, nk_u8_t *, nk_size_t *,
+                                                     nk_u8_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u1_serial(nk_u1x8_t const *, nk_size_t, nk_size_t, nk_u8_t *, nk_size_t *,
+                                                     nk_u8_t *, nk_size_t *);
+
+#if NUMKONG_TARGET_NEON
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_f32_neon(nk_f32_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_f64_neon(nk_f64_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_i8_neon(nk_i8_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u8_neon(nk_u8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_i16_neon(nk_i16_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u16_neon(nk_u16_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u1_neon(nk_u1x8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_i32_neon(nk_i32_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u32_neon(nk_u32_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_i64_neon(nk_i64_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u64_neon(nk_u64_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e2m3_neon(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e3m2_neon(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e4m3_neon(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e5m2_neon(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_f32_neon(nk_f32_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_size_t *,
+                                                    nk_f32_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_f64_neon(nk_f64_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_size_t *,
+                                                    nk_f64_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i8_neon(nk_i8_t const *, nk_size_t, nk_size_t, nk_i8_t *, nk_size_t *,
+                                                   nk_i8_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u8_neon(nk_u8_t const *, nk_size_t, nk_size_t, nk_u8_t *, nk_size_t *,
+                                                   nk_u8_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i16_neon(nk_i16_t const *, nk_size_t, nk_size_t, nk_i16_t *, nk_size_t *,
+                                                    nk_i16_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u16_neon(nk_u16_t const *, nk_size_t, nk_size_t, nk_u16_t *, nk_size_t *,
+                                                    nk_u16_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i32_neon(nk_i32_t const *, nk_size_t, nk_size_t, nk_i32_t *, nk_size_t *,
+                                                    nk_i32_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u32_neon(nk_u32_t const *, nk_size_t, nk_size_t, nk_u32_t *, nk_size_t *,
+                                                    nk_u32_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i64_neon(nk_i64_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_size_t *,
+                                                    nk_i64_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u64_neon(nk_u64_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_size_t *,
+                                                    nk_u64_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e2m3_neon(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_e2m3_t *, nk_size_t *,
+                                                     nk_e2m3_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e3m2_neon(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_e3m2_t *, nk_size_t *,
+                                                     nk_e3m2_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e4m3_neon(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_e4m3_t *, nk_size_t *,
+                                                     nk_e4m3_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e5m2_neon(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_e5m2_t *, nk_size_t *,
+                                                     nk_e5m2_t *, nk_size_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_f16_neon(nk_f16_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
+#endif // NUMKONG_TARGET_NEON
+
+#if NUMKONG_TARGET_NEONBFDOT
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_bf16_neonbfdot(nk_bf16_t const *, nk_size_t, nk_size_t, nk_f32_t *,
+                                                           nk_f32_t *);
+#endif // NUMKONG_TARGET_NEONBFDOT
+
+#if NUMKONG_TARGET_NEONSDOT
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_i8_neonsdot(nk_i8_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u8_neonsdot(nk_u8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e2m3_neonsdot(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_f32_t *,
+                                                          nk_f32_t *);
+#endif // NUMKONG_TARGET_NEONSDOT
+
+#if NUMKONG_TARGET_NEONFHM
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e4m3_neonfhm(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_f32_t *,
+                                                         nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e5m2_neonfhm(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_f32_t *,
+                                                         nk_f32_t *);
+#endif // NUMKONG_TARGET_NEONFHM
+
+#if NUMKONG_TARGET_HASWELL
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_f32_haswell(nk_f32_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_f64_haswell(nk_f64_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_i8_haswell(nk_i8_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u8_haswell(nk_u8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_i16_haswell(nk_i16_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u16_haswell(nk_u16_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_i32_haswell(nk_i32_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u32_haswell(nk_u32_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_i64_haswell(nk_i64_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u64_haswell(nk_u64_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_f16_haswell(nk_f16_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_bf16_haswell(nk_bf16_t const *, nk_size_t, nk_size_t, nk_f32_t *,
+                                                         nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e4m3_haswell(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_f32_t *,
+                                                         nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e5m2_haswell(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_f32_t *,
+                                                         nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e2m3_haswell(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_f32_t *,
+                                                         nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e3m2_haswell(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_f32_t *,
+                                                         nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_i4_haswell(nk_i4x2_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u4_haswell(nk_u4x2_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u1_haswell(nk_u1x8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_f32_haswell(nk_f32_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_size_t *,
+                                                       nk_f32_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_f64_haswell(nk_f64_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_size_t *,
+                                                       nk_f64_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i8_haswell(nk_i8_t const *, nk_size_t, nk_size_t, nk_i8_t *, nk_size_t *,
+                                                      nk_i8_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u8_haswell(nk_u8_t const *, nk_size_t, nk_size_t, nk_u8_t *, nk_size_t *,
+                                                      nk_u8_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i16_haswell(nk_i16_t const *, nk_size_t, nk_size_t, nk_i16_t *, nk_size_t *,
+                                                       nk_i16_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u16_haswell(nk_u16_t const *, nk_size_t, nk_size_t, nk_u16_t *, nk_size_t *,
+                                                       nk_u16_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i32_haswell(nk_i32_t const *, nk_size_t, nk_size_t, nk_i32_t *, nk_size_t *,
+                                                       nk_i32_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u32_haswell(nk_u32_t const *, nk_size_t, nk_size_t, nk_u32_t *, nk_size_t *,
+                                                       nk_u32_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i64_haswell(nk_i64_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_size_t *,
+                                                       nk_i64_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u64_haswell(nk_u64_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_size_t *,
+                                                       nk_u64_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_f16_haswell(nk_f16_t const *, nk_size_t, nk_size_t, nk_f16_t *, nk_size_t *,
+                                                       nk_f16_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_bf16_haswell(nk_bf16_t const *, nk_size_t, nk_size_t, nk_bf16_t *,
+                                                        nk_size_t *, nk_bf16_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e4m3_haswell(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_e4m3_t *,
+                                                        nk_size_t *, nk_e4m3_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e5m2_haswell(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_e5m2_t *,
+                                                        nk_size_t *, nk_e5m2_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e2m3_haswell(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_e2m3_t *,
+                                                        nk_size_t *, nk_e2m3_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e3m2_haswell(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_e3m2_t *,
+                                                        nk_size_t *, nk_e3m2_t *, nk_size_t *);
+/** @copydoc nk_reduce_rmsnorm_f32 */
+NUMKONG_API_COMPTIME void nk_reduce_rmsnorm_f32_haswell(nk_f32_t const *, nk_f32_t const *, nk_f32_t *, nk_size_t,
+                                                        nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
+/** @copydoc nk_reduce_rmsnorm_f32 */
+NUMKONG_API_COMPTIME void nk_reduce_rmsnorm_bf16_haswell(nk_bf16_t const *, nk_f32_t const *, nk_bf16_t *, nk_size_t,
+                                                         nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t,
+                                                         nk_f32_t);
+/** @copydoc nk_reduce_rmsnorm_f32 */
+NUMKONG_API_COMPTIME void nk_reduce_rmsnorm_e4m3_haswell(nk_e4m3_t const *, nk_f32_t const *, nk_e4m3_t *, nk_size_t,
+                                                         nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t,
+                                                         nk_f32_t);
+#endif // NUMKONG_TARGET_HASWELL
+
+#if NUMKONG_TARGET_SKYLAKE
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_f32_skylake(nk_f32_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_f64_skylake(nk_f64_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_i8_skylake(nk_i8_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u8_skylake(nk_u8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_i16_skylake(nk_i16_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u16_skylake(nk_u16_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_i32_skylake(nk_i32_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u32_skylake(nk_u32_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_i64_skylake(nk_i64_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u64_skylake(nk_u64_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_f16_skylake(nk_f16_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_bf16_skylake(nk_bf16_t const *, nk_size_t, nk_size_t, nk_f32_t *,
+                                                         nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e4m3_skylake(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_f32_t *,
+                                                         nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e5m2_skylake(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_f32_t *,
+                                                         nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e2m3_skylake(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_f32_t *,
+                                                         nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e3m2_skylake(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_f32_t *,
+                                                         nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_i4_skylake(nk_i4x2_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u4_skylake(nk_u4x2_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u1_skylake(nk_u1x8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_f32_skylake(nk_f32_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_size_t *,
+                                                       nk_f32_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_f64_skylake(nk_f64_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_size_t *,
+                                                       nk_f64_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i8_skylake(nk_i8_t const *, nk_size_t, nk_size_t, nk_i8_t *, nk_size_t *,
+                                                      nk_i8_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u8_skylake(nk_u8_t const *, nk_size_t, nk_size_t, nk_u8_t *, nk_size_t *,
+                                                      nk_u8_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i16_skylake(nk_i16_t const *, nk_size_t, nk_size_t, nk_i16_t *, nk_size_t *,
+                                                       nk_i16_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u16_skylake(nk_u16_t const *, nk_size_t, nk_size_t, nk_u16_t *, nk_size_t *,
+                                                       nk_u16_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i32_skylake(nk_i32_t const *, nk_size_t, nk_size_t, nk_i32_t *, nk_size_t *,
+                                                       nk_i32_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u32_skylake(nk_u32_t const *, nk_size_t, nk_size_t, nk_u32_t *, nk_size_t *,
+                                                       nk_u32_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i64_skylake(nk_i64_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_size_t *,
+                                                       nk_i64_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u64_skylake(nk_u64_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_size_t *,
+                                                       nk_u64_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_f16_skylake(nk_f16_t const *, nk_size_t, nk_size_t, nk_f16_t *, nk_size_t *,
+                                                       nk_f16_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_bf16_skylake(nk_bf16_t const *, nk_size_t, nk_size_t, nk_bf16_t *,
+                                                        nk_size_t *, nk_bf16_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e4m3_skylake(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_e4m3_t *,
+                                                        nk_size_t *, nk_e4m3_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e5m2_skylake(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_e5m2_t *,
+                                                        nk_size_t *, nk_e5m2_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e2m3_skylake(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_e2m3_t *,
+                                                        nk_size_t *, nk_e2m3_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e3m2_skylake(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_e3m2_t *,
+                                                        nk_size_t *, nk_e3m2_t *, nk_size_t *);
+/** @copydoc nk_reduce_rmsnorm_f32 */
+NUMKONG_API_COMPTIME void nk_reduce_rmsnorm_f32_skylake(nk_f32_t const *, nk_f32_t const *, nk_f32_t *, nk_size_t,
+                                                        nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
+/** @copydoc nk_reduce_rmsnorm_f32 */
+NUMKONG_API_COMPTIME void nk_reduce_rmsnorm_bf16_skylake(nk_bf16_t const *, nk_f32_t const *, nk_bf16_t *, nk_size_t,
+                                                         nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t,
+                                                         nk_f32_t);
+/** @copydoc nk_reduce_rmsnorm_f32 */
+NUMKONG_API_COMPTIME void nk_reduce_rmsnorm_e4m3_skylake(nk_e4m3_t const *, nk_f32_t const *, nk_e4m3_t *, nk_size_t,
+                                                         nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t,
+                                                         nk_f32_t);
+#endif // NUMKONG_TARGET_SKYLAKE
+
+#if NUMKONG_TARGET_ICELAKE
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_i8_icelake(nk_i8_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u8_icelake(nk_u8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_i16_icelake(nk_i16_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e2m3_icelake(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_f32_t *,
+                                                         nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e3m2_icelake(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_f32_t *,
+                                                         nk_f32_t *);
+#endif // NUMKONG_TARGET_ICELAKE
+
+#if NUMKONG_TARGET_GENOA
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_bf16_genoa(nk_bf16_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e4m3_genoa(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e5m2_genoa(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
+/** @copydoc nk_reduce_rmsnorm_f32 */
+NUMKONG_API_COMPTIME void nk_reduce_rmsnorm_bf16_genoa(nk_bf16_t const *, nk_f32_t const *, nk_bf16_t *, nk_size_t,
+                                                       nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
+/** @copydoc nk_reduce_rmsnorm_f32 */
+NUMKONG_API_COMPTIME void nk_reduce_rmsnorm_e4m3_genoa(nk_e4m3_t const *, nk_f32_t const *, nk_e4m3_t *, nk_size_t,
+                                                       nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t);
+#endif // NUMKONG_TARGET_GENOA
+
+#if NUMKONG_TARGET_ALDER
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u8_alder(nk_u8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_i16_alder(nk_i16_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u16_alder(nk_u16_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e3m2_alder(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e2m3_alder(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
+#endif // NUMKONG_TARGET_ALDER
+#if NUMKONG_TARGET_SIERRA
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_i8_sierra(nk_i8_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u8_sierra(nk_u8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e2m3_sierra(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_f32_t *,
+                                                        nk_f32_t *);
+#endif // NUMKONG_TARGET_SIERRA
+
+#if NUMKONG_TARGET_RVV
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_f32_rvv(nk_f32_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_f64_rvv(nk_f64_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_i8_rvv(nk_i8_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u8_rvv(nk_u8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_i16_rvv(nk_i16_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u16_rvv(nk_u16_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_i32_rvv(nk_i32_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u32_rvv(nk_u32_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_i64_rvv(nk_i64_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u64_rvv(nk_u64_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_f16_rvv(nk_f16_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_bf16_rvv(nk_bf16_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e4m3_rvv(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e5m2_rvv(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e2m3_rvv(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e3m2_rvv(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_f32_rvv(nk_f32_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_size_t *,
+                                                   nk_f32_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_f64_rvv(nk_f64_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_size_t *,
+                                                   nk_f64_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i8_rvv(nk_i8_t const *, nk_size_t, nk_size_t, nk_i8_t *, nk_size_t *,
+                                                  nk_i8_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u8_rvv(nk_u8_t const *, nk_size_t, nk_size_t, nk_u8_t *, nk_size_t *,
+                                                  nk_u8_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i16_rvv(nk_i16_t const *, nk_size_t, nk_size_t, nk_i16_t *, nk_size_t *,
+                                                   nk_i16_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u16_rvv(nk_u16_t const *, nk_size_t, nk_size_t, nk_u16_t *, nk_size_t *,
+                                                   nk_u16_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i32_rvv(nk_i32_t const *, nk_size_t, nk_size_t, nk_i32_t *, nk_size_t *,
+                                                   nk_i32_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u32_rvv(nk_u32_t const *, nk_size_t, nk_size_t, nk_u32_t *, nk_size_t *,
+                                                   nk_u32_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i64_rvv(nk_i64_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_size_t *,
+                                                   nk_i64_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u64_rvv(nk_u64_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_size_t *,
+                                                   nk_u64_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_f16_rvv(nk_f16_t const *, nk_size_t, nk_size_t, nk_f16_t *, nk_size_t *,
+                                                   nk_f16_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_bf16_rvv(nk_bf16_t const *, nk_size_t, nk_size_t, nk_bf16_t *, nk_size_t *,
+                                                    nk_bf16_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e4m3_rvv(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_e4m3_t *, nk_size_t *,
+                                                    nk_e4m3_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e5m2_rvv(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_e5m2_t *, nk_size_t *,
+                                                    nk_e5m2_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e2m3_rvv(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_e2m3_t *, nk_size_t *,
+                                                    nk_e2m3_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e3m2_rvv(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_e3m2_t *, nk_size_t *,
+                                                    nk_e3m2_t *, nk_size_t *);
+#endif // NUMKONG_TARGET_RVV
+
+#if NUMKONG_TARGET_V128
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_f64_v128(nk_f64_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_bf16_v128(nk_bf16_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_i8_v128(nk_i8_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u8_v128(nk_u8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_i16_v128(nk_i16_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u16_v128(nk_u16_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_i32_v128(nk_i32_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u32_v128(nk_u32_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *);
+#endif // NUMKONG_TARGET_V128
+
+#if NUMKONG_TARGET_V128RELAXED
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_f32_v128relaxed(nk_f32_t const *, nk_size_t, nk_size_t, nk_f64_t *,
+                                                            nk_f64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_i64_v128relaxed(nk_i64_t const *, nk_size_t, nk_size_t, nk_i64_t *,
+                                                            nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_u64_v128relaxed(nk_u64_t const *, nk_size_t, nk_size_t, nk_u64_t *,
+                                                            nk_u64_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_f16_v128relaxed(nk_f16_t const *, nk_size_t, nk_size_t, nk_f32_t *,
+                                                            nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e4m3_v128relaxed(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_f32_t *,
+                                                             nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e5m2_v128relaxed(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_f32_t *,
+                                                             nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e2m3_v128relaxed(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_f32_t *,
+                                                             nk_f32_t *);
+/** @copydoc nk_reduce_moments_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_moments_e3m2_v128relaxed(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_f32_t *,
+                                                             nk_f32_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_f32_v128relaxed(nk_f32_t const *, nk_size_t, nk_size_t, nk_f32_t *,
+                                                           nk_size_t *, nk_f32_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_f64_v128relaxed(nk_f64_t const *, nk_size_t, nk_size_t, nk_f64_t *,
+                                                           nk_size_t *, nk_f64_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i8_v128relaxed(nk_i8_t const *, nk_size_t, nk_size_t, nk_i8_t *, nk_size_t *,
+                                                          nk_i8_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u8_v128relaxed(nk_u8_t const *, nk_size_t, nk_size_t, nk_u8_t *, nk_size_t *,
+                                                          nk_u8_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i16_v128relaxed(nk_i16_t const *, nk_size_t, nk_size_t, nk_i16_t *,
+                                                           nk_size_t *, nk_i16_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u16_v128relaxed(nk_u16_t const *, nk_size_t, nk_size_t, nk_u16_t *,
+                                                           nk_size_t *, nk_u16_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i32_v128relaxed(nk_i32_t const *, nk_size_t, nk_size_t, nk_i32_t *,
+                                                           nk_size_t *, nk_i32_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u32_v128relaxed(nk_u32_t const *, nk_size_t, nk_size_t, nk_u32_t *,
+                                                           nk_size_t *, nk_u32_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i64_v128relaxed(nk_i64_t const *, nk_size_t, nk_size_t, nk_i64_t *,
+                                                           nk_size_t *, nk_i64_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u64_v128relaxed(nk_u64_t const *, nk_size_t, nk_size_t, nk_u64_t *,
+                                                           nk_size_t *, nk_u64_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_f16_v128relaxed(nk_f16_t const *, nk_size_t, nk_size_t, nk_f16_t *,
+                                                           nk_size_t *, nk_f16_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_bf16_v128relaxed(nk_bf16_t const *, nk_size_t, nk_size_t, nk_bf16_t *,
+                                                            nk_size_t *, nk_bf16_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e4m3_v128relaxed(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_e4m3_t *,
+                                                            nk_size_t *, nk_e4m3_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e5m2_v128relaxed(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_e5m2_t *,
+                                                            nk_size_t *, nk_e5m2_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e2m3_v128relaxed(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_e2m3_t *,
+                                                            nk_size_t *, nk_e2m3_t *, nk_size_t *);
+/** @copydoc nk_reduce_minmax_f64 */
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e3m2_v128relaxed(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_e3m2_t *,
+                                                            nk_size_t *, nk_e3m2_t *, nk_size_t *);
+#endif // NUMKONG_TARGET_V128RELAXED
 
 /**
  *  @brief  Returns the accumulator dtype for the @c sum output of reduce_moments.
  *
  *  Float types accumulate into wider floats; signed ints into i64; unsigned ints into u64.
  */
-NK_HELPER_INLINE nk_dtype_t nk_reduce_moments_sum_dtype(nk_dtype_t dtype) {
+NUMKONG_HELPER_INLINE nk_dtype_t nk_reduce_moments_sum_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k: return nk_f64_k;
     case nk_f32_k: return nk_f64_k;
@@ -957,7 +988,7 @@ NK_HELPER_INLINE nk_dtype_t nk_reduce_moments_sum_dtype(nk_dtype_t dtype) {
  *
  *  Same as sum except all integers (signed and unsigned) accumulate into u64.
  */
-NK_HELPER_INLINE nk_dtype_t nk_reduce_moments_sumsq_dtype(nk_dtype_t dtype) {
+NUMKONG_HELPER_INLINE nk_dtype_t nk_reduce_moments_sumsq_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k: return nk_f64_k;
     case nk_f32_k: return nk_f64_k;
@@ -987,7 +1018,7 @@ NK_HELPER_INLINE nk_dtype_t nk_reduce_moments_sumsq_dtype(nk_dtype_t dtype) {
  *
  *  Standard types return themselves. Sub-byte types widen: i4 → i8, u4 → u8, u1 → u8.
  */
-NK_HELPER_INLINE nk_dtype_t nk_reduce_minmax_value_dtype(nk_dtype_t dtype) {
+NUMKONG_HELPER_INLINE nk_dtype_t nk_reduce_minmax_value_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_i4_k: return nk_i8_k;
     case nk_u4_k: return nk_u8_k;
@@ -1019,684 +1050,686 @@ NK_HELPER_INLINE nk_dtype_t nk_reduce_minmax_value_dtype(nk_dtype_t dtype) {
 extern "C" {
 #endif
 
-#if !NK_RUNTIME_DISPATCH
+#if !NUMKONG_RUNTIME_DISPATCH
 
-NK_API_COMPTIME void nk_reduce_moments_f32(nk_f32_t const *d, nk_size_t n, nk_size_t s, nk_f64_t *sum,
-                                           nk_f64_t *sumsq) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_reduce_moments_f32(nk_f32_t const *d, nk_size_t n, nk_size_t s, nk_f64_t *sum,
+                                                nk_f64_t *sumsq) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_reduce_moments_f32_skylake(d, n, s, sum, sumsq);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_moments_f32_haswell(d, n, s, sum, sumsq);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_moments_f32_neon(d, n, s, sum, sumsq);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_moments_f32_rvv(d, n, s, sum, sumsq);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_reduce_moments_f32_v128relaxed(d, n, s, sum, sumsq);
 #else
     nk_reduce_moments_f32_serial(d, n, s, sum, sumsq);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_f32(nk_f32_t const *d, nk_size_t n, nk_size_t s, nk_f32_t *mn, nk_size_t *mi,
-                                          nk_f32_t *mx, nk_size_t *xi) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_reduce_minmax_f32(nk_f32_t const *d, nk_size_t n, nk_size_t s, nk_f32_t *mn, nk_size_t *mi,
+                                               nk_f32_t *mx, nk_size_t *xi) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_reduce_minmax_f32_skylake(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_minmax_f32_haswell(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_minmax_f32_neon(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_minmax_f32_rvv(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_reduce_minmax_f32_v128relaxed(d, n, s, mn, mi, mx, xi);
 #else
     nk_reduce_minmax_f32_serial(d, n, s, mn, mi, mx, xi);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_moments_f64(nk_f64_t const *d, nk_size_t n, nk_size_t s, nk_f64_t *sum,
-                                           nk_f64_t *sumsq) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_reduce_moments_f64(nk_f64_t const *d, nk_size_t n, nk_size_t s, nk_f64_t *sum,
+                                                nk_f64_t *sumsq) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_reduce_moments_f64_skylake(d, n, s, sum, sumsq);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_moments_f64_haswell(d, n, s, sum, sumsq);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_moments_f64_neon(d, n, s, sum, sumsq);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_moments_f64_rvv(d, n, s, sum, sumsq);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     nk_reduce_moments_f64_v128(d, n, s, sum, sumsq);
 #else
     nk_reduce_moments_f64_serial(d, n, s, sum, sumsq);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_f64(nk_f64_t const *d, nk_size_t n, nk_size_t s, nk_f64_t *mn, nk_size_t *mi,
-                                          nk_f64_t *mx, nk_size_t *xi) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_reduce_minmax_f64(nk_f64_t const *d, nk_size_t n, nk_size_t s, nk_f64_t *mn, nk_size_t *mi,
+                                               nk_f64_t *mx, nk_size_t *xi) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_reduce_minmax_f64_skylake(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_minmax_f64_haswell(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_minmax_f64_neon(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_minmax_f64_rvv(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_reduce_minmax_f64_v128relaxed(d, n, s, mn, mi, mx, xi);
 #else
     nk_reduce_minmax_f64_serial(d, n, s, mn, mi, mx, xi);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_moments_i8(nk_i8_t const *d, nk_size_t n, nk_size_t s, nk_i64_t *sum, nk_u64_t *sumsq) {
-#if NK_TARGET_ICELAKE
+NUMKONG_API_COMPTIME void nk_reduce_moments_i8(nk_i8_t const *d, nk_size_t n, nk_size_t s, nk_i64_t *sum,
+                                               nk_u64_t *sumsq) {
+#if NUMKONG_TARGET_ICELAKE
     nk_reduce_moments_i8_icelake(d, n, s, sum, sumsq);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_reduce_moments_i8_skylake(d, n, s, sum, sumsq);
-#elif NK_TARGET_SIERRA
+#elif NUMKONG_TARGET_SIERRA
     nk_reduce_moments_i8_sierra(d, n, s, sum, sumsq);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_moments_i8_haswell(d, n, s, sum, sumsq);
-#elif NK_TARGET_NEONSDOT
+#elif NUMKONG_TARGET_NEONSDOT
     nk_reduce_moments_i8_neonsdot(d, n, s, sum, sumsq);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_moments_i8_neon(d, n, s, sum, sumsq);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_moments_i8_rvv(d, n, s, sum, sumsq);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     nk_reduce_moments_i8_v128(d, n, s, sum, sumsq);
 #else
     nk_reduce_moments_i8_serial(d, n, s, sum, sumsq);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_i8(nk_i8_t const *d, nk_size_t n, nk_size_t s, nk_i8_t *mn, nk_size_t *mi,
-                                         nk_i8_t *mx, nk_size_t *xi) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i8(nk_i8_t const *d, nk_size_t n, nk_size_t s, nk_i8_t *mn, nk_size_t *mi,
+                                              nk_i8_t *mx, nk_size_t *xi) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_reduce_minmax_i8_skylake(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_minmax_i8_haswell(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_minmax_i8_neon(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_minmax_i8_rvv(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_reduce_minmax_i8_v128relaxed(d, n, s, mn, mi, mx, xi);
 #else
     nk_reduce_minmax_i8_serial(d, n, s, mn, mi, mx, xi);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_moments_u8(nk_u8_t const *d, nk_size_t n, nk_size_t s, nk_u64_t *sum, nk_u64_t *sumsq) {
-#if NK_TARGET_ICELAKE
+NUMKONG_API_COMPTIME void nk_reduce_moments_u8(nk_u8_t const *d, nk_size_t n, nk_size_t s, nk_u64_t *sum,
+                                               nk_u64_t *sumsq) {
+#if NUMKONG_TARGET_ICELAKE
     nk_reduce_moments_u8_icelake(d, n, s, sum, sumsq);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_reduce_moments_u8_skylake(d, n, s, sum, sumsq);
-#elif NK_TARGET_SIERRA
+#elif NUMKONG_TARGET_SIERRA
     nk_reduce_moments_u8_sierra(d, n, s, sum, sumsq);
-#elif NK_TARGET_ALDER
+#elif NUMKONG_TARGET_ALDER
     nk_reduce_moments_u8_alder(d, n, s, sum, sumsq);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_moments_u8_haswell(d, n, s, sum, sumsq);
-#elif NK_TARGET_NEONSDOT
+#elif NUMKONG_TARGET_NEONSDOT
     nk_reduce_moments_u8_neonsdot(d, n, s, sum, sumsq);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_moments_u8_neon(d, n, s, sum, sumsq);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_moments_u8_rvv(d, n, s, sum, sumsq);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     nk_reduce_moments_u8_v128(d, n, s, sum, sumsq);
 #else
     nk_reduce_moments_u8_serial(d, n, s, sum, sumsq);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_u8(nk_u8_t const *d, nk_size_t n, nk_size_t s, nk_u8_t *mn, nk_size_t *mi,
-                                         nk_u8_t *mx, nk_size_t *xi) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u8(nk_u8_t const *d, nk_size_t n, nk_size_t s, nk_u8_t *mn, nk_size_t *mi,
+                                              nk_u8_t *mx, nk_size_t *xi) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_reduce_minmax_u8_skylake(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_minmax_u8_haswell(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_minmax_u8_neon(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_minmax_u8_rvv(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_reduce_minmax_u8_v128relaxed(d, n, s, mn, mi, mx, xi);
 #else
     nk_reduce_minmax_u8_serial(d, n, s, mn, mi, mx, xi);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_moments_i16(nk_i16_t const *d, nk_size_t n, nk_size_t s, nk_i64_t *sum,
-                                           nk_u64_t *sumsq) {
-#if NK_TARGET_ICELAKE
+NUMKONG_API_COMPTIME void nk_reduce_moments_i16(nk_i16_t const *d, nk_size_t n, nk_size_t s, nk_i64_t *sum,
+                                                nk_u64_t *sumsq) {
+#if NUMKONG_TARGET_ICELAKE
     nk_reduce_moments_i16_icelake(d, n, s, sum, sumsq);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_reduce_moments_i16_skylake(d, n, s, sum, sumsq);
-#elif NK_TARGET_ALDER
+#elif NUMKONG_TARGET_ALDER
     nk_reduce_moments_i16_alder(d, n, s, sum, sumsq);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_moments_i16_haswell(d, n, s, sum, sumsq);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_moments_i16_neon(d, n, s, sum, sumsq);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_moments_i16_rvv(d, n, s, sum, sumsq);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     nk_reduce_moments_i16_v128(d, n, s, sum, sumsq);
 #else
     nk_reduce_moments_i16_serial(d, n, s, sum, sumsq);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_i16(nk_i16_t const *d, nk_size_t n, nk_size_t s, nk_i16_t *mn, nk_size_t *mi,
-                                          nk_i16_t *mx, nk_size_t *xi) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i16(nk_i16_t const *d, nk_size_t n, nk_size_t s, nk_i16_t *mn, nk_size_t *mi,
+                                               nk_i16_t *mx, nk_size_t *xi) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_reduce_minmax_i16_skylake(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_minmax_i16_haswell(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_minmax_i16_neon(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_minmax_i16_rvv(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_reduce_minmax_i16_v128relaxed(d, n, s, mn, mi, mx, xi);
 #else
     nk_reduce_minmax_i16_serial(d, n, s, mn, mi, mx, xi);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_moments_u16(nk_u16_t const *d, nk_size_t n, nk_size_t s, nk_u64_t *sum,
-                                           nk_u64_t *sumsq) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_reduce_moments_u16(nk_u16_t const *d, nk_size_t n, nk_size_t s, nk_u64_t *sum,
+                                                nk_u64_t *sumsq) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_reduce_moments_u16_skylake(d, n, s, sum, sumsq);
-#elif NK_TARGET_ALDER
+#elif NUMKONG_TARGET_ALDER
     nk_reduce_moments_u16_alder(d, n, s, sum, sumsq);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_moments_u16_haswell(d, n, s, sum, sumsq);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_moments_u16_neon(d, n, s, sum, sumsq);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_moments_u16_rvv(d, n, s, sum, sumsq);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     nk_reduce_moments_u16_v128(d, n, s, sum, sumsq);
 #else
     nk_reduce_moments_u16_serial(d, n, s, sum, sumsq);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_u16(nk_u16_t const *d, nk_size_t n, nk_size_t s, nk_u16_t *mn, nk_size_t *mi,
-                                          nk_u16_t *mx, nk_size_t *xi) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u16(nk_u16_t const *d, nk_size_t n, nk_size_t s, nk_u16_t *mn, nk_size_t *mi,
+                                               nk_u16_t *mx, nk_size_t *xi) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_reduce_minmax_u16_skylake(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_minmax_u16_haswell(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_minmax_u16_neon(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_minmax_u16_rvv(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_reduce_minmax_u16_v128relaxed(d, n, s, mn, mi, mx, xi);
 #else
     nk_reduce_minmax_u16_serial(d, n, s, mn, mi, mx, xi);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_moments_i32(nk_i32_t const *d, nk_size_t n, nk_size_t s, nk_i64_t *sum,
-                                           nk_u64_t *sumsq) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_reduce_moments_i32(nk_i32_t const *d, nk_size_t n, nk_size_t s, nk_i64_t *sum,
+                                                nk_u64_t *sumsq) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_reduce_moments_i32_skylake(d, n, s, sum, sumsq);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_moments_i32_haswell(d, n, s, sum, sumsq);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_moments_i32_neon(d, n, s, sum, sumsq);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_moments_i32_rvv(d, n, s, sum, sumsq);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     nk_reduce_moments_i32_v128(d, n, s, sum, sumsq);
 #else
     nk_reduce_moments_i32_serial(d, n, s, sum, sumsq);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_i32(nk_i32_t const *d, nk_size_t n, nk_size_t s, nk_i32_t *mn, nk_size_t *mi,
-                                          nk_i32_t *mx, nk_size_t *xi) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i32(nk_i32_t const *d, nk_size_t n, nk_size_t s, nk_i32_t *mn, nk_size_t *mi,
+                                               nk_i32_t *mx, nk_size_t *xi) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_reduce_minmax_i32_skylake(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_minmax_i32_haswell(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_minmax_i32_neon(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_minmax_i32_rvv(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_reduce_minmax_i32_v128relaxed(d, n, s, mn, mi, mx, xi);
 #else
     nk_reduce_minmax_i32_serial(d, n, s, mn, mi, mx, xi);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_moments_u32(nk_u32_t const *d, nk_size_t n, nk_size_t s, nk_u64_t *sum,
-                                           nk_u64_t *sumsq) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_reduce_moments_u32(nk_u32_t const *d, nk_size_t n, nk_size_t s, nk_u64_t *sum,
+                                                nk_u64_t *sumsq) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_reduce_moments_u32_skylake(d, n, s, sum, sumsq);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_moments_u32_haswell(d, n, s, sum, sumsq);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_moments_u32_neon(d, n, s, sum, sumsq);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_moments_u32_rvv(d, n, s, sum, sumsq);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     nk_reduce_moments_u32_v128(d, n, s, sum, sumsq);
 #else
     nk_reduce_moments_u32_serial(d, n, s, sum, sumsq);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_u32(nk_u32_t const *d, nk_size_t n, nk_size_t s, nk_u32_t *mn, nk_size_t *mi,
-                                          nk_u32_t *mx, nk_size_t *xi) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u32(nk_u32_t const *d, nk_size_t n, nk_size_t s, nk_u32_t *mn, nk_size_t *mi,
+                                               nk_u32_t *mx, nk_size_t *xi) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_reduce_minmax_u32_skylake(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_minmax_u32_haswell(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_minmax_u32_neon(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_minmax_u32_rvv(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_reduce_minmax_u32_v128relaxed(d, n, s, mn, mi, mx, xi);
 #else
     nk_reduce_minmax_u32_serial(d, n, s, mn, mi, mx, xi);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_moments_i64(nk_i64_t const *d, nk_size_t n, nk_size_t s, nk_i64_t *sum,
-                                           nk_u64_t *sumsq) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_reduce_moments_i64(nk_i64_t const *d, nk_size_t n, nk_size_t s, nk_i64_t *sum,
+                                                nk_u64_t *sumsq) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_reduce_moments_i64_skylake(d, n, s, sum, sumsq);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_moments_i64_haswell(d, n, s, sum, sumsq);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_moments_i64_neon(d, n, s, sum, sumsq);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_moments_i64_rvv(d, n, s, sum, sumsq);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_reduce_moments_i64_v128relaxed(d, n, s, sum, sumsq);
 #else
     nk_reduce_moments_i64_serial(d, n, s, sum, sumsq);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_i64(nk_i64_t const *d, nk_size_t n, nk_size_t s, nk_i64_t *mn, nk_size_t *mi,
-                                          nk_i64_t *mx, nk_size_t *xi) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i64(nk_i64_t const *d, nk_size_t n, nk_size_t s, nk_i64_t *mn, nk_size_t *mi,
+                                               nk_i64_t *mx, nk_size_t *xi) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_reduce_minmax_i64_skylake(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_minmax_i64_haswell(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_minmax_i64_neon(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_minmax_i64_rvv(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_reduce_minmax_i64_v128relaxed(d, n, s, mn, mi, mx, xi);
 #else
     nk_reduce_minmax_i64_serial(d, n, s, mn, mi, mx, xi);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_moments_u64(nk_u64_t const *d, nk_size_t n, nk_size_t s, nk_u64_t *sum,
-                                           nk_u64_t *sumsq) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_reduce_moments_u64(nk_u64_t const *d, nk_size_t n, nk_size_t s, nk_u64_t *sum,
+                                                nk_u64_t *sumsq) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_reduce_moments_u64_skylake(d, n, s, sum, sumsq);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_moments_u64_haswell(d, n, s, sum, sumsq);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_moments_u64_neon(d, n, s, sum, sumsq);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_moments_u64_rvv(d, n, s, sum, sumsq);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_reduce_moments_u64_v128relaxed(d, n, s, sum, sumsq);
 #else
     nk_reduce_moments_u64_serial(d, n, s, sum, sumsq);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_u64(nk_u64_t const *d, nk_size_t n, nk_size_t s, nk_u64_t *mn, nk_size_t *mi,
-                                          nk_u64_t *mx, nk_size_t *xi) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u64(nk_u64_t const *d, nk_size_t n, nk_size_t s, nk_u64_t *mn, nk_size_t *mi,
+                                               nk_u64_t *mx, nk_size_t *xi) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_reduce_minmax_u64_skylake(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_minmax_u64_haswell(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_minmax_u64_neon(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_minmax_u64_rvv(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_reduce_minmax_u64_v128relaxed(d, n, s, mn, mi, mx, xi);
 #else
     nk_reduce_minmax_u64_serial(d, n, s, mn, mi, mx, xi);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_moments_f16(nk_f16_t const *d, nk_size_t n, nk_size_t s, nk_f32_t *sum,
-                                           nk_f32_t *sumsq) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_reduce_moments_f16(nk_f16_t const *d, nk_size_t n, nk_size_t s, nk_f32_t *sum,
+                                                nk_f32_t *sumsq) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_reduce_moments_f16_skylake(d, n, s, sum, sumsq);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_moments_f16_haswell(d, n, s, sum, sumsq);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_moments_f16_neon(d, n, s, sum, sumsq);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_moments_f16_rvv(d, n, s, sum, sumsq);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_reduce_moments_f16_v128relaxed(d, n, s, sum, sumsq);
 #else
     nk_reduce_moments_f16_serial(d, n, s, sum, sumsq);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_f16(nk_f16_t const *d, nk_size_t n, nk_size_t s, nk_f16_t *mn, nk_size_t *mi,
-                                          nk_f16_t *mx, nk_size_t *xi) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_reduce_minmax_f16(nk_f16_t const *d, nk_size_t n, nk_size_t s, nk_f16_t *mn, nk_size_t *mi,
+                                               nk_f16_t *mx, nk_size_t *xi) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_reduce_minmax_f16_skylake(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_minmax_f16_haswell(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_NEONHALF
+#elif NUMKONG_TARGET_NEONHALF
     nk_reduce_minmax_f16_serial(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_minmax_f16_rvv(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_reduce_minmax_f16_v128relaxed(d, n, s, mn, mi, mx, xi);
 #else
     nk_reduce_minmax_f16_serial(d, n, s, mn, mi, mx, xi);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_moments_bf16(nk_bf16_t const *d, nk_size_t n, nk_size_t s, nk_f32_t *sum,
-                                            nk_f32_t *sumsq) {
-#if NK_TARGET_GENOA
+NUMKONG_API_COMPTIME void nk_reduce_moments_bf16(nk_bf16_t const *d, nk_size_t n, nk_size_t s, nk_f32_t *sum,
+                                                 nk_f32_t *sumsq) {
+#if NUMKONG_TARGET_GENOA
     nk_reduce_moments_bf16_genoa(d, n, s, sum, sumsq);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_reduce_moments_bf16_skylake(d, n, s, sum, sumsq);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_moments_bf16_haswell(d, n, s, sum, sumsq);
-#elif NK_TARGET_NEONBFDOT
+#elif NUMKONG_TARGET_NEONBFDOT
     nk_reduce_moments_bf16_neonbfdot(d, n, s, sum, sumsq);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_moments_bf16_rvv(d, n, s, sum, sumsq);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     nk_reduce_moments_bf16_v128(d, n, s, sum, sumsq);
 #else
     nk_reduce_moments_bf16_serial(d, n, s, sum, sumsq);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_bf16(nk_bf16_t const *d, nk_size_t n, nk_size_t s, nk_bf16_t *mn, nk_size_t *mi,
-                                           nk_bf16_t *mx, nk_size_t *xi) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_reduce_minmax_bf16(nk_bf16_t const *d, nk_size_t n, nk_size_t s, nk_bf16_t *mn,
+                                                nk_size_t *mi, nk_bf16_t *mx, nk_size_t *xi) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_reduce_minmax_bf16_skylake(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_minmax_bf16_haswell(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_minmax_bf16_rvv(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_reduce_minmax_bf16_v128relaxed(d, n, s, mn, mi, mx, xi);
 #else
     nk_reduce_minmax_bf16_serial(d, n, s, mn, mi, mx, xi);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_moments_e4m3(nk_e4m3_t const *d, nk_size_t n, nk_size_t s, nk_f32_t *sum,
-                                            nk_f32_t *sumsq) {
-#if NK_TARGET_GENOA
+NUMKONG_API_COMPTIME void nk_reduce_moments_e4m3(nk_e4m3_t const *d, nk_size_t n, nk_size_t s, nk_f32_t *sum,
+                                                 nk_f32_t *sumsq) {
+#if NUMKONG_TARGET_GENOA
     nk_reduce_moments_e4m3_genoa(d, n, s, sum, sumsq);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_reduce_moments_e4m3_skylake(d, n, s, sum, sumsq);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_moments_e4m3_haswell(d, n, s, sum, sumsq);
-#elif NK_TARGET_NEONFHM
+#elif NUMKONG_TARGET_NEONFHM
     nk_reduce_moments_e4m3_neonfhm(d, n, s, sum, sumsq);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_moments_e4m3_neon(d, n, s, sum, sumsq);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_moments_e4m3_rvv(d, n, s, sum, sumsq);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_reduce_moments_e4m3_v128relaxed(d, n, s, sum, sumsq);
 #else
     nk_reduce_moments_e4m3_serial(d, n, s, sum, sumsq);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_e4m3(nk_e4m3_t const *d, nk_size_t n, nk_size_t s, nk_e4m3_t *mn, nk_size_t *mi,
-                                           nk_e4m3_t *mx, nk_size_t *xi) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e4m3(nk_e4m3_t const *d, nk_size_t n, nk_size_t s, nk_e4m3_t *mn,
+                                                nk_size_t *mi, nk_e4m3_t *mx, nk_size_t *xi) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_reduce_minmax_e4m3_skylake(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_minmax_e4m3_haswell(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_minmax_e4m3_neon(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_minmax_e4m3_rvv(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_reduce_minmax_e4m3_v128relaxed(d, n, s, mn, mi, mx, xi);
 #else
     nk_reduce_minmax_e4m3_serial(d, n, s, mn, mi, mx, xi);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_moments_e5m2(nk_e5m2_t const *d, nk_size_t n, nk_size_t s, nk_f32_t *sum,
-                                            nk_f32_t *sumsq) {
-#if NK_TARGET_GENOA
+NUMKONG_API_COMPTIME void nk_reduce_moments_e5m2(nk_e5m2_t const *d, nk_size_t n, nk_size_t s, nk_f32_t *sum,
+                                                 nk_f32_t *sumsq) {
+#if NUMKONG_TARGET_GENOA
     nk_reduce_moments_e5m2_genoa(d, n, s, sum, sumsq);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_reduce_moments_e5m2_skylake(d, n, s, sum, sumsq);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_moments_e5m2_haswell(d, n, s, sum, sumsq);
-#elif NK_TARGET_NEONFHM
+#elif NUMKONG_TARGET_NEONFHM
     nk_reduce_moments_e5m2_neonfhm(d, n, s, sum, sumsq);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_moments_e5m2_neon(d, n, s, sum, sumsq);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_moments_e5m2_rvv(d, n, s, sum, sumsq);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_reduce_moments_e5m2_v128relaxed(d, n, s, sum, sumsq);
 #else
     nk_reduce_moments_e5m2_serial(d, n, s, sum, sumsq);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_e5m2(nk_e5m2_t const *d, nk_size_t n, nk_size_t s, nk_e5m2_t *mn, nk_size_t *mi,
-                                           nk_e5m2_t *mx, nk_size_t *xi) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e5m2(nk_e5m2_t const *d, nk_size_t n, nk_size_t s, nk_e5m2_t *mn,
+                                                nk_size_t *mi, nk_e5m2_t *mx, nk_size_t *xi) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_reduce_minmax_e5m2_skylake(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_minmax_e5m2_haswell(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_minmax_e5m2_neon(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_minmax_e5m2_rvv(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_reduce_minmax_e5m2_v128relaxed(d, n, s, mn, mi, mx, xi);
 #else
     nk_reduce_minmax_e5m2_serial(d, n, s, mn, mi, mx, xi);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_moments_e2m3(nk_e2m3_t const *d, nk_size_t n, nk_size_t s, nk_f32_t *sum,
-                                            nk_f32_t *sumsq) {
-#if NK_TARGET_ICELAKE
+NUMKONG_API_COMPTIME void nk_reduce_moments_e2m3(nk_e2m3_t const *d, nk_size_t n, nk_size_t s, nk_f32_t *sum,
+                                                 nk_f32_t *sumsq) {
+#if NUMKONG_TARGET_ICELAKE
     nk_reduce_moments_e2m3_icelake(d, n, s, sum, sumsq);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_reduce_moments_e2m3_skylake(d, n, s, sum, sumsq);
-#elif NK_TARGET_SIERRA
+#elif NUMKONG_TARGET_SIERRA
     nk_reduce_moments_e2m3_sierra(d, n, s, sum, sumsq);
-#elif NK_TARGET_ALDER
+#elif NUMKONG_TARGET_ALDER
     nk_reduce_moments_e2m3_alder(d, n, s, sum, sumsq);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_moments_e2m3_haswell(d, n, s, sum, sumsq);
-#elif NK_TARGET_NEONSDOT
+#elif NUMKONG_TARGET_NEONSDOT
     nk_reduce_moments_e2m3_neonsdot(d, n, s, sum, sumsq);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_moments_e2m3_neon(d, n, s, sum, sumsq);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_moments_e2m3_rvv(d, n, s, sum, sumsq);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_reduce_moments_e2m3_v128relaxed(d, n, s, sum, sumsq);
 #else
     nk_reduce_moments_e2m3_serial(d, n, s, sum, sumsq);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_e2m3(nk_e2m3_t const *d, nk_size_t n, nk_size_t s, nk_e2m3_t *mn, nk_size_t *mi,
-                                           nk_e2m3_t *mx, nk_size_t *xi) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e2m3(nk_e2m3_t const *d, nk_size_t n, nk_size_t s, nk_e2m3_t *mn,
+                                                nk_size_t *mi, nk_e2m3_t *mx, nk_size_t *xi) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_reduce_minmax_e2m3_skylake(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_minmax_e2m3_haswell(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_minmax_e2m3_neon(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_minmax_e2m3_rvv(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_reduce_minmax_e2m3_v128relaxed(d, n, s, mn, mi, mx, xi);
 #else
     nk_reduce_minmax_e2m3_serial(d, n, s, mn, mi, mx, xi);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_moments_e3m2(nk_e3m2_t const *d, nk_size_t n, nk_size_t s, nk_f32_t *sum,
-                                            nk_f32_t *sumsq) {
-#if NK_TARGET_ICELAKE
+NUMKONG_API_COMPTIME void nk_reduce_moments_e3m2(nk_e3m2_t const *d, nk_size_t n, nk_size_t s, nk_f32_t *sum,
+                                                 nk_f32_t *sumsq) {
+#if NUMKONG_TARGET_ICELAKE
     nk_reduce_moments_e3m2_icelake(d, n, s, sum, sumsq);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_reduce_moments_e3m2_skylake(d, n, s, sum, sumsq);
-#elif NK_TARGET_ALDER
+#elif NUMKONG_TARGET_ALDER
     nk_reduce_moments_e3m2_alder(d, n, s, sum, sumsq);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_moments_e3m2_haswell(d, n, s, sum, sumsq);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_moments_e3m2_neon(d, n, s, sum, sumsq);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_moments_e3m2_rvv(d, n, s, sum, sumsq);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_reduce_moments_e3m2_v128relaxed(d, n, s, sum, sumsq);
 #else
     nk_reduce_moments_e3m2_serial(d, n, s, sum, sumsq);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_e3m2(nk_e3m2_t const *d, nk_size_t n, nk_size_t s, nk_e3m2_t *mn, nk_size_t *mi,
-                                           nk_e3m2_t *mx, nk_size_t *xi) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_reduce_minmax_e3m2(nk_e3m2_t const *d, nk_size_t n, nk_size_t s, nk_e3m2_t *mn,
+                                                nk_size_t *mi, nk_e3m2_t *mx, nk_size_t *xi) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_reduce_minmax_e3m2_skylake(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_minmax_e3m2_haswell(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_minmax_e3m2_neon(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_reduce_minmax_e3m2_rvv(d, n, s, mn, mi, mx, xi);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_reduce_minmax_e3m2_v128relaxed(d, n, s, mn, mi, mx, xi);
 #else
     nk_reduce_minmax_e3m2_serial(d, n, s, mn, mi, mx, xi);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_moments_i4(nk_i4x2_t const *d, nk_size_t n, nk_size_t s, nk_i64_t *sum,
-                                          nk_u64_t *sumsq) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_reduce_moments_i4(nk_i4x2_t const *d, nk_size_t n, nk_size_t s, nk_i64_t *sum,
+                                               nk_u64_t *sumsq) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_reduce_moments_i4_skylake(d, n, s, sum, sumsq);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_moments_i4_haswell(d, n, s, sum, sumsq);
 #else
     nk_reduce_moments_i4_serial(d, n, s, sum, sumsq);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_i4(nk_i4x2_t const *d, nk_size_t n, nk_size_t s, nk_i8_t *mn, nk_size_t *mi,
-                                         nk_i8_t *mx, nk_size_t *xi) {
+NUMKONG_API_COMPTIME void nk_reduce_minmax_i4(nk_i4x2_t const *d, nk_size_t n, nk_size_t s, nk_i8_t *mn, nk_size_t *mi,
+                                              nk_i8_t *mx, nk_size_t *xi) {
     nk_reduce_minmax_i4_serial(d, n, s, mn, mi, mx, xi);
 }
 
-NK_API_COMPTIME void nk_reduce_moments_u4(nk_u4x2_t const *d, nk_size_t n, nk_size_t s, nk_u64_t *sum,
-                                          nk_u64_t *sumsq) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_reduce_moments_u4(nk_u4x2_t const *d, nk_size_t n, nk_size_t s, nk_u64_t *sum,
+                                               nk_u64_t *sumsq) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_reduce_moments_u4_skylake(d, n, s, sum, sumsq);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_moments_u4_haswell(d, n, s, sum, sumsq);
 #else
     nk_reduce_moments_u4_serial(d, n, s, sum, sumsq);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_u4(nk_u4x2_t const *d, nk_size_t n, nk_size_t s, nk_u8_t *mn, nk_size_t *mi,
-                                         nk_u8_t *mx, nk_size_t *xi) {
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u4(nk_u4x2_t const *d, nk_size_t n, nk_size_t s, nk_u8_t *mn, nk_size_t *mi,
+                                              nk_u8_t *mx, nk_size_t *xi) {
     nk_reduce_minmax_u4_serial(d, n, s, mn, mi, mx, xi);
 }
 
-NK_API_COMPTIME void nk_reduce_moments_u1(nk_u1x8_t const *d, nk_size_t n, nk_size_t s, nk_u64_t *sum,
-                                          nk_u64_t *sumsq) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_reduce_moments_u1(nk_u1x8_t const *d, nk_size_t n, nk_size_t s, nk_u64_t *sum,
+                                               nk_u64_t *sumsq) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_reduce_moments_u1_skylake(d, n, s, sum, sumsq);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_moments_u1_haswell(d, n, s, sum, sumsq);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_reduce_moments_u1_neon(d, n, s, sum, sumsq);
 #else
     nk_reduce_moments_u1_serial(d, n, s, sum, sumsq);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_minmax_u1(nk_u1x8_t const *d, nk_size_t n, nk_size_t s, nk_u8_t *mn, nk_size_t *mi,
-                                         nk_u8_t *mx, nk_size_t *xi) {
+NUMKONG_API_COMPTIME void nk_reduce_minmax_u1(nk_u1x8_t const *d, nk_size_t n, nk_size_t s, nk_u8_t *mn, nk_size_t *mi,
+                                              nk_u8_t *mx, nk_size_t *xi) {
     nk_reduce_minmax_u1_serial(d, n, s, mn, mi, mx, xi);
 }
 
-NK_API_COMPTIME void nk_reduce_rmsnorm_f32(nk_f32_t const *x, nk_f32_t const *g, nk_f32_t *y, nk_size_t rows,
-                                           nk_size_t groups, nk_size_t cols, nk_size_t xs, nk_size_t ys, nk_f32_t eps,
-                                           nk_f32_t input_scale) {
-#if NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_reduce_rmsnorm_f32(nk_f32_t const *x, nk_f32_t const *g, nk_f32_t *y, nk_size_t rows,
+                                                nk_size_t groups, nk_size_t cols, nk_size_t xs, nk_size_t ys,
+                                                nk_f32_t eps, nk_f32_t input_scale) {
+#if NUMKONG_TARGET_SKYLAKE
     nk_reduce_rmsnorm_f32_skylake(x, g, y, rows, groups, cols, xs, ys, eps, input_scale);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_rmsnorm_f32_haswell(x, g, y, rows, groups, cols, xs, ys, eps, input_scale);
 #else
     nk_reduce_rmsnorm_f32_serial(x, g, y, rows, groups, cols, xs, ys, eps, input_scale);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_rmsnorm_bf16(nk_bf16_t const *x, nk_f32_t const *g, nk_bf16_t *y, nk_size_t rows,
-                                            nk_size_t groups, nk_size_t cols, nk_size_t xs, nk_size_t ys, nk_f32_t eps,
-                                            nk_f32_t input_scale) {
-#if NK_TARGET_GENOA
+NUMKONG_API_COMPTIME void nk_reduce_rmsnorm_bf16(nk_bf16_t const *x, nk_f32_t const *g, nk_bf16_t *y, nk_size_t rows,
+                                                 nk_size_t groups, nk_size_t cols, nk_size_t xs, nk_size_t ys,
+                                                 nk_f32_t eps, nk_f32_t input_scale) {
+#if NUMKONG_TARGET_GENOA
     nk_reduce_rmsnorm_bf16_genoa(x, g, y, rows, groups, cols, xs, ys, eps, input_scale);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_reduce_rmsnorm_bf16_skylake(x, g, y, rows, groups, cols, xs, ys, eps, input_scale);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_rmsnorm_bf16_haswell(x, g, y, rows, groups, cols, xs, ys, eps, input_scale);
 #else
     nk_reduce_rmsnorm_bf16_serial(x, g, y, rows, groups, cols, xs, ys, eps, input_scale);
 #endif
 }
 
-NK_API_COMPTIME void nk_reduce_rmsnorm_e4m3(nk_e4m3_t const *x, nk_f32_t const *g, nk_e4m3_t *y, nk_size_t rows,
-                                            nk_size_t groups, nk_size_t cols, nk_size_t xs, nk_size_t ys, nk_f32_t eps,
-                                            nk_f32_t input_scale) {
-#if NK_TARGET_GENOA
+NUMKONG_API_COMPTIME void nk_reduce_rmsnorm_e4m3(nk_e4m3_t const *x, nk_f32_t const *g, nk_e4m3_t *y, nk_size_t rows,
+                                                 nk_size_t groups, nk_size_t cols, nk_size_t xs, nk_size_t ys,
+                                                 nk_f32_t eps, nk_f32_t input_scale) {
+#if NUMKONG_TARGET_GENOA
     nk_reduce_rmsnorm_e4m3_genoa(x, g, y, rows, groups, cols, xs, ys, eps, input_scale);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_reduce_rmsnorm_e4m3_skylake(x, g, y, rows, groups, cols, xs, ys, eps, input_scale);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_reduce_rmsnorm_e4m3_haswell(x, g, y, rows, groups, cols, xs, ys, eps, input_scale);
 #else
     nk_reduce_rmsnorm_e4m3_serial(x, g, y, rows, groups, cols, xs, ys, eps, input_scale);
 #endif
 }
 
-#endif // !NK_RUNTIME_DISPATCH
+#endif // !NUMKONG_RUNTIME_DISPATCH
 
 #ifdef __cplusplus
 } // extern "C"
 #endif
 
-#endif // NK_REDUCE_H
+#endif // NUMKONG_REDUCE_H

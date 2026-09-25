@@ -7,7 +7,7 @@
 
 #include "numkong/sparse.h"
 
-#include "bench.hpp"
+#include "harness.hpp"
 
 using namespace ashvardanian::numkong::bench;
 
@@ -73,25 +73,25 @@ void bench_sparse() {
     constexpr nk_dtype_t u32_k = nk_u32_k;
     constexpr nk_dtype_t u64_k = nk_u64_k;
 
-#if NK_TARGET_NEON
+#if NUMKONG_TARGET_NEON
     run_sparse<u16_k>("sparse_intersect_u16_neon", nk_sparse_intersect_u16_neon);
     run_sparse<u32_k>("sparse_intersect_u32_neon", nk_sparse_intersect_u32_neon);
     run_sparse<u64_k>("sparse_intersect_u64_neon", nk_sparse_intersect_u64_neon);
 #endif
 
-#if NK_TARGET_SVE2
+#if NUMKONG_TARGET_SVE2
     run_sparse<u16_k>("sparse_intersect_u16_sve2", nk_sparse_intersect_u16_sve2);
     run_sparse<u32_k>("sparse_intersect_u32_sve2", nk_sparse_intersect_u32_sve2);
     run_sparse<u64_k>("sparse_intersect_u64_sve2", nk_sparse_intersect_u64_sve2);
 #endif
 
-#if NK_TARGET_ICELAKE
+#if NUMKONG_TARGET_ICELAKE
     run_sparse<u16_k>("sparse_intersect_u16_icelake", nk_sparse_intersect_u16_icelake);
     run_sparse<u32_k>("sparse_intersect_u32_icelake", nk_sparse_intersect_u32_icelake);
     run_sparse<u64_k>("sparse_intersect_u64_icelake", nk_sparse_intersect_u64_icelake);
 #endif
 
-#if NK_TARGET_TURIN
+#if NUMKONG_TARGET_TURIN
     run_sparse<u16_k>("sparse_intersect_u16_turin", nk_sparse_intersect_u16_turin);
     run_sparse<u32_k>("sparse_intersect_u32_turin", nk_sparse_intersect_u32_turin);
     run_sparse<u64_k>("sparse_intersect_u64_turin", nk_sparse_intersect_u64_turin);
@@ -178,22 +178,22 @@ void bench_sparse_dot() {
     constexpr nk_dtype_t f32_k = nk_f32_k;
     constexpr nk_dtype_t bf16_k = nk_bf16_k;
 
-#if NK_TARGET_SVE2
+#if NUMKONG_TARGET_SVE2
     run_sparse_dot<u32_k, f32_k>("sparse_dot_u32f32_sve2", nk_sparse_dot_u32f32_sve2);
-#if NK_TARGET_SVEBFDOT
+#if NUMKONG_TARGET_SVEBFDOT
     run_sparse_dot<u16_k, bf16_k>("sparse_dot_u16bf16_sve2", nk_sparse_dot_u16bf16_sve2);
 #endif
 #endif
 
-#if NK_TARGET_ICELAKE
+#if NUMKONG_TARGET_ICELAKE
     run_sparse_dot<u32_k, f32_k>("sparse_dot_u32f32_icelake", nk_sparse_dot_u32f32_icelake);
 #endif
 
-#if NK_TARGET_HASWELL
+#if NUMKONG_TARGET_HASWELL
     run_sparse_dot<u32_k, f32_k>("sparse_dot_u32f32_haswell", nk_sparse_dot_u32f32_haswell);
 #endif
 
-#if NK_TARGET_TURIN
+#if NUMKONG_TARGET_TURIN
     run_sparse_dot<u16_k, bf16_k>("sparse_dot_u16bf16_turin", nk_sparse_dot_u16bf16_turin);
     run_sparse_dot<u32_k, f32_k>("sparse_dot_u32f32_turin", nk_sparse_dot_u32f32_turin);
 #endif

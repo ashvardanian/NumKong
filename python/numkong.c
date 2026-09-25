@@ -662,7 +662,7 @@ int nk_scalar_buffer_export(                                   //
     nk_scalar_buffer_t converted;
     if (!nk_scalar_buffer_to_f64c(source, source_dtype, &converted.f64c)) return 0;
     if (!nk_scalar_buffer_from_f64c(&converted.f64c, &converted, target_dtype)) return 0;
-    nk_size_t target_size = nk_dtype_bits(target_dtype) / NK_BITS_PER_BYTE;
+    nk_size_t target_size = nk_dtype_bits(target_dtype) / NUMKONG_BITS_PER_BYTE;
     nk_copy_bytes_(target, &converted, target_size);
     return 1;
 }
@@ -756,9 +756,10 @@ static int nk_get_buffer_via_array_interface(PyObject *obj, Py_buffer *buffer, n
         return 0;
     }
     Py_ssize_t rank = PyTuple_GET_SIZE(shape_obj);
-    if (rank < 1 || rank > NK_TENSOR_MAX_RANK) {
+    if (rank < 1 || rank > NUMKONG_TENSOR_MAX_RANK) {
         Py_DECREF(iface);
-        PyErr_Format(PyExc_ValueError, "Tensor rank %zd exceeds maximum supported rank %d", rank, NK_TENSOR_MAX_RANK);
+        PyErr_Format(PyExc_ValueError, "Tensor rank %zd exceeds maximum supported rank %d", rank,
+                     NUMKONG_TENSOR_MAX_RANK);
         return 0;
     }
     for (Py_ssize_t i = 0; i < rank; i++) {
@@ -899,9 +900,9 @@ int parse_tensor(PyObject *tensor, Py_buffer *buffer, MatrixOrVectorView *parsed
                  nk_dtype_t dtype_hint) {
     if (!nk_get_buffer(tensor, buffer, PyBUF_STRIDES | PyBUF_FORMAT, backing)) return 0;
 
-    if (buffer->ndim > NK_TENSOR_MAX_RANK) {
+    if (buffer->ndim > NUMKONG_TENSOR_MAX_RANK) {
         PyErr_Format(PyExc_ValueError, "Tensor rank %d exceeds maximum supported rank %d", buffer->ndim,
-                     NK_TENSOR_MAX_RANK);
+                     NUMKONG_TENSOR_MAX_RANK);
         PyBuffer_Release(buffer);
         return 0;
     }
@@ -955,8 +956,8 @@ int parse_tensor(PyObject *tensor, Py_buffer *buffer, MatrixOrVectorView *parsed
 int parse_tensor_nd(PyObject *obj, Py_buffer *buffer, TensorView *view, nk_buffer_backing_t *backing,
                     nk_dtype_t dtype_hint) {
     if (!nk_get_buffer(obj, buffer, PyBUF_STRIDES | PyBUF_FORMAT, backing)) return 0;
-    if ((size_t)buffer->ndim > NK_TENSOR_MAX_RANK) {
-        PyErr_Format(PyExc_ValueError, "rank %d exceeds maximum %d", buffer->ndim, NK_TENSOR_MAX_RANK);
+    if ((size_t)buffer->ndim > NUMKONG_TENSOR_MAX_RANK) {
+        PyErr_Format(PyExc_ValueError, "rank %d exceeds maximum %d", buffer->ndim, NUMKONG_TENSOR_MAX_RANK);
         PyBuffer_Release(buffer);
         return 0;
     }
@@ -979,63 +980,6 @@ int parse_tensor_nd(PyObject *obj, Py_buffer *buffer, TensorView *view, nk_buffe
     view->strides = buffer->strides;
     return 1;
 }
-
-static struct {
-    char const *name;
-    nk_capability_t flag;
-} const cap_table[] = {
-    {"serial", nk_cap_serial_k},
-    // ARM NEON
-    {"neon", nk_cap_neon_k},
-    {"neonhalf", nk_cap_neonhalf_k},
-    {"neonfhm", nk_cap_neonfhm_k},
-    {"neonbfdot", nk_cap_neonbfdot_k},
-    {"neonsdot", nk_cap_neonsdot_k},
-    {"neonfp8", nk_cap_neonfp8_k},
-    // ARM SVE
-    {"sve", nk_cap_sve_k},
-    {"svehalf", nk_cap_svehalf_k},
-    {"svebfdot", nk_cap_svebfdot_k},
-    {"svesdot", nk_cap_svesdot_k},
-    {"sve2", nk_cap_sve2_k},
-    {"sve2p1", nk_cap_sve2p1_k},
-    // ARM SME
-    {"sme", nk_cap_sme_k},
-    {"sme2", nk_cap_sme2_k},
-    {"sme2p1", nk_cap_sme2p1_k},
-    {"smef64", nk_cap_smef64_k},
-    {"smehalf", nk_cap_smehalf_k},
-    {"smebf16", nk_cap_smebf16_k},
-    {"smebi32", nk_cap_smebi32_k},
-    {"smelut2", nk_cap_smelut2_k},
-    {"smefa64", nk_cap_smefa64_k},
-    // x86
-    {"haswell", nk_cap_haswell_k},
-    {"alder", nk_cap_alder_k},
-    {"sierra", nk_cap_sierra_k},
-    {"skylake", nk_cap_skylake_k},
-    {"icelake", nk_cap_icelake_k},
-    {"genoa", nk_cap_genoa_k},
-    {"turin", nk_cap_turin_k},
-    {"sapphire", nk_cap_sapphire_k},
-    {"sapphireamx", nk_cap_sapphireamx_k},
-    {"graniteamx", nk_cap_graniteamx_k},
-    {"diamond", nk_cap_diamond_k},
-    {"diamondamx", nk_cap_diamondamx_k},
-    // RISC-V
-    {"rvv", nk_cap_rvv_k},
-    {"rvvhalf", nk_cap_rvvhalf_k},
-    {"rvvbf16", nk_cap_rvvbf16_k},
-    {"rvvbb", nk_cap_rvvbb_k},
-    // LoongArch
-    {"loongsonasx", nk_cap_loongsonasx_k},
-    // Power
-    {"powervsx", nk_cap_powervsx_k},
-    // WASM
-    {"v128", nk_cap_v128_k},
-    {"v128relaxed", nk_cap_v128relaxed_k},
-    {NULL},
-};
 
 char const doc_enable_capability[] =                                                       //
     "Enable a specific SIMD kernel family.\n\n"                                            //
@@ -1063,13 +1007,14 @@ PyObject *api_enable_capability(PyObject *self, PyObject *cap_name_obj) {
         return NULL;
     }
 
-    for (size_t i = 0; cap_table[i].name; ++i) {
-        if (same_string(cap_name, cap_table[i].name)) {
-            if (cap_table[i].flag == nk_cap_serial_k) {
+    for (size_t i = 0; nk_capability_names_[i].name; ++i) {
+        if (nk_capability_names_[i].flag & nk_cap_devices_k) continue;
+        if (same_string(cap_name, nk_capability_names_[i].name)) {
+            if (nk_capability_names_[i].flag == nk_cap_serial_k) {
                 PyErr_SetString(PyExc_ValueError, "Can't change the serial functionality");
                 return NULL;
             }
-            nk_capabilities_enable(cap_table[i].flag);
+            nk_capabilities_enable(nk_capability_names_[i].flag);
             if (!configure_thread_for_enabled_capabilities()) return NULL;
             Py_RETURN_NONE;
         }
@@ -1093,13 +1038,14 @@ PyObject *api_disable_capability(PyObject *self, PyObject *cap_name_obj) {
         return NULL;
     }
 
-    for (size_t i = 0; cap_table[i].name; ++i) {
-        if (same_string(cap_name, cap_table[i].name)) {
-            if (cap_table[i].flag == nk_cap_serial_k) {
+    for (size_t i = 0; nk_capability_names_[i].name; ++i) {
+        if (nk_capability_names_[i].flag & nk_cap_devices_k) continue;
+        if (same_string(cap_name, nk_capability_names_[i].name)) {
+            if (nk_capability_names_[i].flag == nk_cap_serial_k) {
                 PyErr_SetString(PyExc_ValueError, "Can't change the serial functionality");
                 return NULL;
             }
-            nk_capabilities_disable(cap_table[i].flag);
+            nk_capabilities_disable(nk_capability_names_[i].flag);
             if (!configure_thread_for_enabled_capabilities()) return NULL;
             Py_RETURN_NONE;
         }
@@ -1154,9 +1100,10 @@ static PyObject *capabilities_to_dict(nk_capability_t caps) {
     PyObject *cap_dict = PyDict_New();
     if (!cap_dict) return NULL;
 
-    for (size_t i = 0; cap_table[i].name; ++i) {
-        PyObject *val = PyBool_FromLong((caps & cap_table[i].flag) != 0);
-        if (PyDict_SetItemString(cap_dict, cap_table[i].name, val) < 0) {
+    for (size_t i = 0; nk_capability_names_[i].name; ++i) {
+        if (nk_capability_names_[i].flag & nk_cap_devices_k) continue;
+        PyObject *val = PyBool_FromLong((caps & nk_capability_names_[i].flag) != 0);
+        if (PyDict_SetItemString(cap_dict, nk_capability_names_[i].name, val) < 0) {
             Py_DECREF(val);
             Py_DECREF(cap_dict);
             return NULL;
@@ -1373,7 +1320,8 @@ PyMODINIT_FUNC PyInit__numkong(void) {
     // Add version metadata
     {
         char version_str[64];
-        snprintf(version_str, sizeof(version_str), "%d.%d.%d", NK_VERSION_MAJOR, NK_VERSION_MINOR, NK_VERSION_PATCH);
+        snprintf(version_str, sizeof(version_str), "%d.%d.%d", NUMKONG_VERSION_MAJOR, NUMKONG_VERSION_MINOR,
+                 NUMKONG_VERSION_PATCH);
         PyModule_AddStringConstant(m, "__version__", version_str);
     }
 

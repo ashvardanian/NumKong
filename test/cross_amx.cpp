@@ -4,7 +4,7 @@
  *  @date February 6, 2026
  *  @brief Batch operation tests - AMX ISA family, Sapphire Rapids AMX.
  */
-#include "test.hpp"
+#include "harness.hpp"
 #include "cross.cuh"
 
 using namespace ashvardanian::numkong::test;
@@ -12,7 +12,7 @@ using namespace ashvardanian::numkong::test;
 void test_cross_amx() {
     [[maybe_unused]] error_stats_section_t check;
 
-#if NK_TARGET_SAPPHIREAMX
+#if NUMKONG_TARGET_SAPPHIREAMX
     check.section("Cross Sapphire AMX", nk_cap_sapphireamx_k);
     check("dots_packed_bf16_sapphireamx", test_dots_packed<bf16_t>, nk_dots_pack_size_bf16_sapphireamx,
           nk_dots_pack_bf16_sapphireamx, nk_dots_packed_bf16_sapphireamx);
@@ -82,9 +82,9 @@ void test_cross_amx() {
     check("attention_causal_packed_i8_sapphireamx", test_attention_causal_packed<i8_t>,
           nk_attention_pack_size_i8_sapphireamx, nk_attention_pack_i8_sapphireamx,
           nk_attention_causal_packed_i8_sapphireamx);
-#endif // NK_TARGET_SAPPHIREAMX
+#endif // NUMKONG_TARGET_SAPPHIREAMX
 
-#if NK_TARGET_GRANITEAMX
+#if NUMKONG_TARGET_GRANITEAMX
     check.section("Cross Granite AMX", nk_cap_graniteamx_k);
     check("dots_packed_f16_graniteamx", test_dots_packed<f16_t>, nk_dots_pack_size_f16_graniteamx,
           nk_dots_pack_f16_graniteamx, nk_dots_packed_f16_graniteamx);
@@ -117,9 +117,9 @@ void test_cross_amx() {
           nk_dots_pack_e5m2_graniteamx, nk_euclideans_packed_e5m2_graniteamx);
     check("euclideans_symmetric_e5m2_graniteamx", test_euclideans_symmetric<e5m2_t>,
           nk_euclideans_symmetric_e5m2_graniteamx);
-#endif // NK_TARGET_GRANITEAMX
+#endif // NUMKONG_TARGET_GRANITEAMX
 
-#if NK_TARGET_DIAMONDAMX
+#if NUMKONG_TARGET_DIAMONDAMX
     check.section("Cross Diamond AMX", nk_cap_diamondamx_k);
     check("attention_bidirectional_packed_e4m3_diamondamx", test_attention_bidirectional_packed<e4m3_t>,
           nk_attention_pack_size_e4m3_diamondamx, nk_attention_pack_e4m3_diamondamx,
@@ -127,5 +127,5 @@ void test_cross_amx() {
     check("attention_causal_packed_e4m3_diamondamx", test_attention_causal_packed<e4m3_t>,
           nk_attention_pack_size_e4m3_diamondamx, nk_attention_pack_e4m3_diamondamx,
           nk_attention_causal_packed_e4m3_diamondamx);
-#endif // NK_TARGET_DIAMONDAMX
+#endif // NUMKONG_TARGET_DIAMONDAMX
 }

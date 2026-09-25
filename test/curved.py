@@ -28,8 +28,8 @@ except Exception:
     numpy_available = False
 
 from base import (
-    NK_ATOL,
-    NK_RTOL,
+    NUMKONG_ATOL,
+    NUMKONG_RTOL,
     LazyFormat,
     assert_allclose,
     collect_errors,
@@ -182,7 +182,7 @@ def test_curved_random_accuracy(ndim: int, dtypes: str, metric: str, capability:
         )
     )
 
-    assert_allclose(result, accurate, atol=NK_ATOL, rtol=NK_RTOL, err_msg=err_msg)
+    assert_allclose(result, accurate, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL, err_msg=err_msg)
     collect_errors(metric, ndim, dtype, accurate, accurate_dt, expected, expected_dt, result, result_dt, stats)
 
 
@@ -210,5 +210,5 @@ def test_bilinear_complex_accuracy(ndim: int, dtype: str, capability: str):
     result_dt, result = profile(simd_kernel, a_vector, b_vector, c_matrix)
     result = np.asarray(result)
 
-    assert_allclose(result, accurate, atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result, accurate, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
     collect_errors("bilinear", ndim, dtype, accurate, accurate_dt, expected, expected_dt, result, result_dt, stats)

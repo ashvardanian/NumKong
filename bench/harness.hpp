@@ -1,5 +1,5 @@
 /**
- *  @file bench/bench.hpp
+ *  @file bench/harness.hpp
  *  @author Ash Vardanian
  *  @date March 14, 2023
  *  @brief NumKong C++ benchmark suite using Google Benchmark, header file.
@@ -9,12 +9,8 @@
  */
 
 #pragma once
-#ifndef NK_BENCH_HPP
-#define NK_BENCH_HPP
-
-#include <cstdio>  // `std::printf`, `std::fprintf`
-#include <cstdlib> // `std::getenv`, `std::atoll`, `std::atof`
-#include <cstring> // `std::strcmp`, `std::strncmp`
+#ifndef NUMKONG_BENCH_HARNESS_HPP
+#define NUMKONG_BENCH_HARNESS_HPP
 
 #include <algorithm> // `std::min`, `std::max`
 #include <bit>       // `std::bit_floor`
@@ -24,28 +20,28 @@
 
 #include <benchmark/benchmark.h>
 
-#if !defined(NK_ALLOW_ISA_REDIRECT)
-#define NK_ALLOW_ISA_REDIRECT 0
+#if !defined(NUMKONG_ALLOW_ISA_REDIRECT)
+#define NUMKONG_ALLOW_ISA_REDIRECT 0
 #endif
 
-#if !defined(NK_COMPARE_TO_MKL)
-#define NK_COMPARE_TO_MKL 0
+#if !defined(NUMKONG_COMPARE_TO_MKL)
+#define NUMKONG_COMPARE_TO_MKL 0
 #endif
-#if !defined(NK_COMPARE_TO_BLAS)
-#define NK_COMPARE_TO_BLAS 0
+#if !defined(NUMKONG_COMPARE_TO_BLAS)
+#define NUMKONG_COMPARE_TO_BLAS 0
 #endif
-#if !defined(NK_COMPARE_TO_ACCELERATE)
-#define NK_COMPARE_TO_ACCELERATE 0
+#if !defined(NUMKONG_COMPARE_TO_ACCELERATE)
+#define NUMKONG_COMPARE_TO_ACCELERATE 0
 #endif
 
 /*  MKL provides additional GEMM routines:
  *  - cblas_gemm_bf16bf16f32: BF16 inputs to F32 output
  *  - cblas_hgemm: F16 GEMM, if available */
-#if NK_COMPARE_TO_MKL
+#if NUMKONG_COMPARE_TO_MKL
 #include <mkl.h>
-#elif NK_COMPARE_TO_ACCELERATE
+#elif NUMKONG_COMPARE_TO_ACCELERATE
 #include <Accelerate/Accelerate.h> // Apple Accelerate framework
-#elif NK_COMPARE_TO_BLAS
+#elif NUMKONG_COMPARE_TO_BLAS
 #include <cblas.h> // Generic CBLAS (OpenBLAS, etc.)
 
 /** OpenBLAS thread control, weak symbol to avoid link errors if not present. */
@@ -63,165 +59,52 @@ namespace ashvardanian::numkong::bench {
 
 struct bench_config_t {
 
-    /** Vector dimension for dot products and spatial metrics. Override: @c NK_DENSE_DIMENSIONS. */
+    /** Vector dimension for dot products and spatial metrics. Override: @c NUMWARS_DIMS. */
     std::size_t dense_dimensions = 1536;
 
-    /** Curved metric dimensions (quadratic impact). Override: @c NK_CURVED_DIMENSIONS. */
+    /** Curved metric dimensions (quadratic impact). Override: @c NUMKONG_CURVED_DIMENSIONS. */
     std::size_t curved_dimensions = 64;
 
-    /** Number of 3D points for mesh metrics (RMSD, Kabsch). Override: @c NK_MESH_POINTS. */
+    /** Number of 3D points for mesh metrics (RMSD, Kabsch). Override: @c NUMWARS_MESH_POINTS. */
     std::size_t mesh_points = 1000;
 
-    /** GEMM M dimension. Override: @c NK_MATRIX_HEIGHT. */
+    /** GEMM M dimension. Override: @c NUMWARS_DIMS_HEIGHT. */
     std::size_t matrix_height = 1024;
 
-    /** GEMM N dimension. Override: @c NK_MATRIX_WIDTH. */
+    /** GEMM N dimension. Override: @c NUMWARS_DIMS_WIDTH. */
     std::size_t matrix_width = 128;
 
-    /** GEMM K dimension. Override: @c NK_MATRIX_DEPTH. */
+    /** GEMM K dimension. Override: @c NUMWARS_DIMS_DEPTH. */
     std::size_t matrix_depth = 1536;
 
-    /** Random seed for reproducible benchmarks. Override: @c NK_SEED. */
+    /** Random seed for reproducible benchmarks. Override: @c NUMKONG_SEED. */
     std::uint32_t seed = 42;
 
-    /** First sparse set size. Override: @c NK_SPARSE_FIRST_LENGTH. */
+    /** First sparse set size. Override: @c NUMKONG_SPARSE_FIRST_LENGTH. */
     std::size_t sparse_first_length = 1024;
 
-    /** Second sparse set size. Override: @c NK_SPARSE_SECOND_LENGTH. */
+    /** Second sparse set size. Override: @c NUMKONG_SPARSE_SECOND_LENGTH. */
     std::size_t sparse_second_length = 8192;
 
-    /** Sparse intersection share [0.0, 1.0]. Override: @c NK_SPARSE_INTERSECTION. */
+    /** Sparse intersection share [0.0, 1.0]. Override: @c NUMKONG_SPARSE_INTERSECTION. */
     double sparse_intersection_share = 0.5;
 
-    /** Max geospatial angular separation, in degrees. Override: @c NK_MAX_COORD_ANGLE. */
+    /** Max geospatial angular separation, in degrees. Override: @c NUMKONG_MAX_COORD_ANGLE. */
     float max_coord_angle = 180.0f;
 
-    /** Memory budget in bytes for pre-allocated inputs. Override: @c NK_BUDGET_MB. */
+    /** Memory budget in bytes for pre-allocated inputs. Override: @c NUMKONG_BUDGET_MB. */
 #if defined(__wasi__)
     std::size_t budget_bytes = std::size_t(32) * 1024 * 1024;
 #else
     std::size_t budget_bytes = std::size_t(1024) * 1024 * 1024;
 #endif
 
-    /** Applies the `NK_*` environment overrides, keeping the default wherever a value is unset or
-     *  out of range. */
-    void load_environment() noexcept {
-        auto load_count = [](char const *name, std::size_t &value) {
-            if (char const *text = std::getenv(name); text && std::atoll(text) > 0)
-                value = std::size_t(std::atoll(text));
-        };
-        load_count("NK_DENSE_DIMENSIONS", dense_dimensions);
-        load_count("NK_CURVED_DIMENSIONS", curved_dimensions);
-        load_count("NK_MESH_POINTS", mesh_points);
-        load_count("NK_MATRIX_HEIGHT", matrix_height);
-        load_count("NK_MATRIX_WIDTH", matrix_width);
-        load_count("NK_MATRIX_DEPTH", matrix_depth);
-        load_count("NK_SPARSE_FIRST_LENGTH", sparse_first_length);
-        load_count("NK_SPARSE_SECOND_LENGTH", sparse_second_length);
-        if (char const *text = std::getenv("NK_SEED")) seed = std::uint32_t(std::atoll(text));
-        if (char const *text = std::getenv("NK_SPARSE_INTERSECTION");
-            text && std::atof(text) >= 0 && std::atof(text) <= 1)
-            sparse_intersection_share = std::atof(text);
-        if (char const *text = std::getenv("NK_MAX_COORD_ANGLE"); text && std::atof(text) > 0 && std::atof(text) <= 180)
-            max_coord_angle = float(std::atof(text));
-        std::size_t budget_megabytes = 0;
-        load_count("NK_BUDGET_MB", budget_megabytes);
-        if (budget_megabytes) budget_bytes = budget_megabytes << 20;
-    }
+    /** Applies the `NUMWARS_*` and `NUMKONG_*` environment overrides, aborting on a value out of
+     *  range. */
+    void load_environment() noexcept;
 };
 
 extern bench_config_t bench_config;
-
-/** Translates foreign flags, injects @c NK_FILTER and @c NK_BUDGET_SECS, runs Google Benchmark. */
-inline bool initialize_benchmarks(int argc, char **argv) {
-    // Static, because Google Benchmark keeps `argv[0]` for its `Running` line after this returns
-    static std::vector<std::string> arguments = {argv[0]};
-    bool user_set_min_time = false;
-    bool wants_help = false;
-
-    for (int index = 1; index < argc; ++index) {
-        // Foreign flags from nk_test
-        if (std::strncmp(argv[index], "--filter=", 9) == 0) {
-            arguments.push_back(std::string("--benchmark_filter=") + (argv[index] + 9));
-            std::fprintf(stderr, "Note: Mapped --filter to --benchmark_filter. Prefer: --benchmark_filter='%s'\n",
-                         argv[index] + 9);
-        }
-        else if (std::strcmp(argv[index], "--filter") == 0 && index + 1 < argc) {
-            arguments.push_back(std::string("--benchmark_filter=") + argv[++index]);
-            std::fprintf(stderr, "Note: Mapped --filter to --benchmark_filter. Prefer: --benchmark_filter='%s'\n",
-                         argv[index]);
-        }
-        else if (std::strcmp(argv[index], "--assert") == 0 || std::strcmp(argv[index], "--verbose") == 0) {
-            std::fprintf(stderr, "Note: '%s' is an nk_test flag, not supported in nk_bench. Ignoring.\n", argv[index]);
-        }
-        // Foreign flags from GTest
-        else if (std::strncmp(argv[index], "--gtest_filter=", 15) == 0) {
-            arguments.push_back(std::string("--benchmark_filter=") + (argv[index] + 15));
-            std::fprintf(stderr, "Note: Mapped --gtest_filter to --benchmark_filter. Prefer: --benchmark_filter='%s'\n",
-                         argv[index] + 15);
-        }
-        else if (std::strncmp(argv[index], "--gtest_", 8) == 0) {
-            std::fprintf(stderr, "Note: GTest flag '%s' is not supported in nk_bench. Ignoring.\n", argv[index]);
-        }
-        // Track user-provided --benchmark_min_time so we don't override it
-        else if (std::strncmp(argv[index], "--benchmark_min_time", 20) == 0) {
-            user_set_min_time = true;
-            arguments.push_back(argv[index]);
-        }
-        else if (std::strcmp(argv[index], "--help") == 0 || std::strcmp(argv[index], "-h") == 0) {
-            wants_help = true;
-            arguments.push_back(argv[index]);
-        }
-        // Everything else passes through to Google Benchmark
-        else { arguments.push_back(argv[index]); }
-    }
-
-    // Inject from env vars
-    if (char const *env_filter = std::getenv("NK_FILTER")) {
-        arguments.push_back(std::string("--benchmark_filter=") + env_filter);
-        std::printf("Applying benchmark filter from NK_FILTER: %s\n\n", env_filter);
-    }
-    if (!user_set_min_time) {
-        if (char const *env_time = std::getenv("NK_BUDGET_SECS"))
-            arguments.push_back(std::string("--benchmark_min_time=") + env_time + "s");
-        else arguments.push_back("--benchmark_min_time=10s");
-    }
-
-    static std::vector<char *> argument_pointers;
-    for (auto &argument : arguments) argument_pointers.push_back(argument.data());
-    int arguments_count = static_cast<int>(argument_pointers.size());
-
-    // Print help if requested
-    if (wants_help) {
-        std::fprintf( //
-            stdout,
-            "Usage: nk_bench [--benchmark_filter=<regex>] [--benchmark_min_time=<N>s] [--help]\n" //
-            "\n"                                                                                  //
-            "NumKong Environment Variables:\n"                                                    //
-            "  NK_FILTER=<regex>              Same as --benchmark_filter\n"                       //
-            "  NK_BUDGET_SECS=<seconds>       Min time per benchmark (default: 10)\n"             //
-            "  NK_SEED=<int>                  Random seed\n"                                      //
-            "  NK_DENSE_DIMENSIONS=N          Dense vector dimensions (default: 1536)\n"          //
-            "  NK_CURVED_DIMENSIONS=N         Curved vector dimensions (default: 64)\n"           //
-            "  NK_MESH_POINTS=N               Mesh point count (default: 1000)\n"                 //
-            "  NK_MATRIX_HEIGHT=N             Matrix height\n"                                    //
-            "  NK_MATRIX_WIDTH=N              Matrix width\n"                                     //
-            "  NK_MATRIX_DEPTH=N              Matrix depth\n"                                     //
-            "  NK_SPARSE_FIRST_LENGTH=N       First sparse vector length\n"                       //
-            "  NK_SPARSE_SECOND_LENGTH=N      Second sparse vector length\n"                      //
-            "  NK_SPARSE_INTERSECTION=F       Intersection share [0.0, 1.0]\n"                    //
-            "  NK_MAX_COORD_ANGLE=F           Max angular separation in degrees (default: 180)\n" //
-            "  NK_BUDGET_MB=N                 Memory budget in MB for inputs (default: %zu)\n"    //
-            "  NO_COLOR=1                     Disable colored output\n"                           //
-            "  FORCE_COLOR=1                  Force colored output\n"                             //
-            "\n"                                                                                  //
-            "Google Benchmark flags (passed through):\n",
-            bench_config.budget_bytes / (1024 * 1024)); //
-    }
-
-    bm::Initialize(&arguments_count, argument_pointers.data());
-    return !bm::ReportUnrecognizedArguments(arguments_count, argument_pointers.data());
-}
 
 inline std::mt19937 make_random_engine() { return std::mt19937(bench_config.seed); }
 
@@ -231,7 +114,7 @@ inline std::mt19937 make_random_engine() { return std::mt19937(bench_config.seed
  *  Uses @c nk_dtype_bits to get the correct bits per element, then rounds up to whole bytes.
  */
 inline std::size_t bench_dtype_bytes(nk_dtype_t dtype, std::size_t count) {
-    return nk::divide_round_up(count * nk_dtype_bits(dtype), std::size_t(NK_BITS_PER_BYTE));
+    return nk::divide_round_up(count * nk_dtype_bits(dtype), std::size_t(NUMKONG_BITS_PER_BYTE));
 }
 
 /**
@@ -570,4 +453,4 @@ void bench_cross_loongarch();
 void bench_cross_cuda();
 void print_cuda_header();
 
-#endif // NK_BENCH_HPP
+#endif // NUMKONG_BENCH_HARNESS_HPP

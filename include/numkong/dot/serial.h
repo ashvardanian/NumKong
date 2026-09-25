@@ -21,7 +21,7 @@
  *  @section dot_serial_stateful Stateful Streaming Logic
  *
  *  To build memory-optimal tiled algorithms, this file defines following structures and
- *  force-inlined @c NK_HELPER_INLINE functions:
+ *  force-inlined @c NUMKONG_HELPER_INLINE functions:
  *
  *  - nk_dot_f64x2 state with compensated summation for numerical stability,
  *  - nk_dot_f32x4 state with simple f32 accumulation,
@@ -83,8 +83,8 @@
  *  nk_dot_i8x16_finalize_serial(&state_first, &state_second, &state_third, &state_fourth, depth, &results_i32x4);
  *  @endcode
  */
-#ifndef NK_DOT_SERIAL_H
-#define NK_DOT_SERIAL_H
+#ifndef NUMKONG_DOT_SERIAL_H
+#define NUMKONG_DOT_SERIAL_H
 
 #include "numkong/types.h"
 #include "numkong/reduce/serial.h" // `nk_f64_abs_`
@@ -94,57 +94,57 @@ extern "C" {
 #endif
 
 /** Macro for dot product with simple accumulation. */
-#define nk_define_dot_(input_type, accumulator_type, output_type, load_and_convert)                               \
-    NK_API_COMPTIME void nk_dot_##input_type##_serial(nk_##input_type##_t const *a, nk_##input_type##_t const *b, \
-                                                      nk_size_t n, nk_##output_type##_t *result) {                \
-        nk_##accumulator_type##_t sum = 0, a_value, b_value;                                                      \
-        for (nk_size_t i = 0; i != n; ++i) {                                                                      \
-            load_and_convert(a + i, &a_value);                                                                    \
-            load_and_convert(b + i, &b_value);                                                                    \
-            sum += a_value * b_value;                                                                             \
-        }                                                                                                         \
-        *result = (nk_##output_type##_t)sum;                                                                      \
+#define nk_define_dot_(input_type, accumulator_type, output_type, load_and_convert)                                    \
+    NUMKONG_API_COMPTIME void nk_dot_##input_type##_serial(nk_##input_type##_t const *a, nk_##input_type##_t const *b, \
+                                                           nk_size_t n, nk_##output_type##_t *result) {                \
+        nk_##accumulator_type##_t sum = 0, a_value, b_value;                                                           \
+        for (nk_size_t i = 0; i != n; ++i) {                                                                           \
+            load_and_convert(a + i, &a_value);                                                                         \
+            load_and_convert(b + i, &b_value);                                                                         \
+            sum += a_value * b_value;                                                                                  \
+        }                                                                                                              \
+        *result = (nk_##output_type##_t)sum;                                                                           \
     }
 
-#define nk_define_dot_complex_(input_type, accumulator_type, output_complex_type, load_and_convert)              \
-    NK_API_COMPTIME void nk_dot_##input_type##_serial(nk_##input_type##_t const *a_pairs,                        \
-                                                      nk_##input_type##_t const *b_pairs, nk_size_t count_pairs, \
-                                                      nk_##output_complex_type##_t *result) {                    \
-        nk_##accumulator_type##_t sum_real = 0, sum_imag = 0;                                                    \
-        nk_##accumulator_type##_t a_real, b_real, a_imag, b_imag;                                                \
-        for (nk_size_t i = 0; i != count_pairs; ++i) {                                                           \
-            load_and_convert(&(a_pairs + i)->real, &a_real);                                                     \
-            load_and_convert(&(b_pairs + i)->real, &b_real);                                                     \
-            load_and_convert(&(a_pairs + i)->imag, &a_imag);                                                     \
-            load_and_convert(&(b_pairs + i)->imag, &b_imag);                                                     \
-            sum_real += a_real * b_real - a_imag * b_imag;                                                       \
-            sum_imag += a_real * b_imag + a_imag * b_real;                                                       \
-        }                                                                                                        \
-        result->real = sum_real;                                                                                 \
-        result->imag = sum_imag;                                                                                 \
+#define nk_define_dot_complex_(input_type, accumulator_type, output_complex_type, load_and_convert)                   \
+    NUMKONG_API_COMPTIME void nk_dot_##input_type##_serial(nk_##input_type##_t const *a_pairs,                        \
+                                                           nk_##input_type##_t const *b_pairs, nk_size_t count_pairs, \
+                                                           nk_##output_complex_type##_t *result) {                    \
+        nk_##accumulator_type##_t sum_real = 0, sum_imag = 0;                                                         \
+        nk_##accumulator_type##_t a_real, b_real, a_imag, b_imag;                                                     \
+        for (nk_size_t i = 0; i != count_pairs; ++i) {                                                                \
+            load_and_convert(&(a_pairs + i)->real, &a_real);                                                          \
+            load_and_convert(&(b_pairs + i)->real, &b_real);                                                          \
+            load_and_convert(&(a_pairs + i)->imag, &a_imag);                                                          \
+            load_and_convert(&(b_pairs + i)->imag, &b_imag);                                                          \
+            sum_real += a_real * b_real - a_imag * b_imag;                                                            \
+            sum_imag += a_real * b_imag + a_imag * b_real;                                                            \
+        }                                                                                                             \
+        result->real = sum_real;                                                                                      \
+        result->imag = sum_imag;                                                                                      \
     }
 
-#define nk_define_vdot_complex_(input_type, accumulator_type, output_complex_type, load_and_convert)              \
-    NK_API_COMPTIME void nk_vdot_##input_type##_serial(nk_##input_type##_t const *a_pairs,                        \
-                                                       nk_##input_type##_t const *b_pairs, nk_size_t count_pairs, \
-                                                       nk_##output_complex_type##_t *result) {                    \
-        nk_##accumulator_type##_t sum_real = 0, sum_imag = 0;                                                     \
-        nk_##accumulator_type##_t a_real, b_real, a_imag, b_imag;                                                 \
-        for (nk_size_t i = 0; i != count_pairs; ++i) {                                                            \
-            load_and_convert(&(a_pairs + i)->real, &a_real);                                                      \
-            load_and_convert(&(b_pairs + i)->real, &b_real);                                                      \
-            load_and_convert(&(a_pairs + i)->imag, &a_imag);                                                      \
-            load_and_convert(&(b_pairs + i)->imag, &b_imag);                                                      \
-            sum_real += a_real * b_real + a_imag * b_imag;                                                        \
-            sum_imag += a_real * b_imag - a_imag * b_real;                                                        \
-        }                                                                                                         \
-        result->real = sum_real;                                                                                  \
-        result->imag = sum_imag;                                                                                  \
+#define nk_define_vdot_complex_(input_type, accumulator_type, output_complex_type, load_and_convert)                   \
+    NUMKONG_API_COMPTIME void nk_vdot_##input_type##_serial(nk_##input_type##_t const *a_pairs,                        \
+                                                            nk_##input_type##_t const *b_pairs, nk_size_t count_pairs, \
+                                                            nk_##output_complex_type##_t *result) {                    \
+        nk_##accumulator_type##_t sum_real = 0, sum_imag = 0;                                                          \
+        nk_##accumulator_type##_t a_real, b_real, a_imag, b_imag;                                                      \
+        for (nk_size_t i = 0; i != count_pairs; ++i) {                                                                 \
+            load_and_convert(&(a_pairs + i)->real, &a_real);                                                           \
+            load_and_convert(&(b_pairs + i)->real, &b_real);                                                           \
+            load_and_convert(&(a_pairs + i)->imag, &a_imag);                                                           \
+            load_and_convert(&(b_pairs + i)->imag, &b_imag);                                                           \
+            sum_real += a_real * b_real + a_imag * b_imag;                                                             \
+            sum_imag += a_real * b_imag - a_imag * b_real;                                                             \
+        }                                                                                                              \
+        result->real = sum_real;                                                                                       \
+        result->imag = sum_imag;                                                                                       \
     }
 
 /*  GCC inlines a helper only into callers whose targets include its own, so serial code builds at
  *  the Armv8-A floor. */
-#if defined(__GNUC__) && !defined(__clang__) && NK_TARGET_ARM64_
+#if defined(__GNUC__) && !defined(__clang__) && NUMKONG_ARCH_ARM64_
 #pragma GCC push_options
 #pragma GCC target("arch=armv8-a")
 #endif
@@ -181,8 +181,9 @@ nk_define_dot_(e5m2, f32, f32, nk_e5m2_to_f32_serial) // nk_dot_e5m2_serial
 nk_define_dot_(e2m3, f32, f32, nk_e2m3_to_f32_serial) // nk_dot_e2m3_serial
 nk_define_dot_(e3m2, f32, f32, nk_e3m2_to_f32_serial) // nk_dot_e3m2_serial
 
-NK_API_COMPTIME void nk_dot_e2m1_serial(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n, nk_f32_t *result) {
-    nk_size_t const n_bytes = n / NK_NIBBLES_PER_BYTE;
+NUMKONG_API_COMPTIME void nk_dot_e2m1_serial(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n,
+                                             nk_f32_t *result) {
+    nk_size_t const n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
     nk_i32_t sum = 0; // twice every E2M1 value is an integer, so products sum exactly
     for (nk_size_t i = 0; i < n_bytes; ++i) {
         sum += nk_e2m1_nibble_to_i8x2_serial_(a[i] >> 4) * nk_e2m1_nibble_to_i8x2_serial_(b[i] >> 4);
@@ -202,10 +203,10 @@ nk_define_dot_(u8, u32, u32, nk_assign_from_to_) // nk_dot_u8_serial
 #undef nk_define_dot_complex_
 #undef nk_define_vdot_complex_
 
-NK_API_COMPTIME void nk_dot_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_i32_t *result) {
+NUMKONG_API_COMPTIME void nk_dot_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_i32_t *result) {
     // i4 values are packed as nibbles: two 4-bit signed values per byte.
     // Sign extension: (nibble ^ 8) - 8 maps [0,15] to [-8,7]
-    nk_size_t const n_bytes = n / NK_NIBBLES_PER_BYTE;
+    nk_size_t const n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
     nk_i32_t sum = 0;
     for (nk_size_t i = 0; i < n_bytes; ++i) {
         nk_i32_t a_low = (nk_i32_t)nk_i4x2_low_(a[i]);
@@ -217,10 +218,10 @@ NK_API_COMPTIME void nk_dot_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b, nk
     *result = sum;
 }
 
-NK_API_COMPTIME void nk_dot_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME void nk_dot_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result) {
     // u4 values are packed as nibbles: two 4-bit unsigned values per byte.
     // No sign extension needed - values are ∈ [0,15].
-    nk_size_t const n_bytes = n / NK_NIBBLES_PER_BYTE;
+    nk_size_t const n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
     nk_u32_t sum = 0;
     for (nk_size_t i = 0; i < n_bytes; ++i) {
         nk_u32_t a_low = (nk_u32_t)nk_u4x2_low_(a[i]);
@@ -252,14 +253,14 @@ NK_API_COMPTIME void nk_dot_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk
  */
 #pragma region F32 and F64 Floats
 
-NK_API_COMPTIME void nk_dot_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_dot_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     nk_f64_t sum = 0, compensation = 0;
     for (nk_size_t i = 0; i != n; ++i) nk_f64_dot2_(&sum, &compensation, a[i], b[i]);
     *result = sum + compensation;
 }
 
-NK_API_COMPTIME void nk_dot_f64c_serial(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
-                                        nk_f64c_t *result) {
+NUMKONG_API_COMPTIME void nk_dot_f64c_serial(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
+                                             nk_f64c_t *result) {
     nk_f64_t sum_real = 0, sum_imag = 0, compensation_real = 0, compensation_imag = 0;
     for (nk_size_t i = 0; i != count_pairs; ++i) {
         nk_f64_t a_real = a_pairs[i].real, b_real = b_pairs[i].real;
@@ -273,8 +274,8 @@ NK_API_COMPTIME void nk_dot_f64c_serial(nk_f64c_t const *a_pairs, nk_f64c_t cons
     result->imag = sum_imag + compensation_imag;
 }
 
-NK_API_COMPTIME void nk_vdot_f64c_serial(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
-                                         nk_f64c_t *result) {
+NUMKONG_API_COMPTIME void nk_vdot_f64c_serial(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
+                                              nk_f64c_t *result) {
     nk_f64_t sum_real = 0, sum_imag = 0, compensation_real = 0, compensation_imag = 0;
     for (nk_size_t i = 0; i != count_pairs; ++i) {
         nk_f64_t a_real = a_pairs[i].real, b_real = b_pairs[i].real;
@@ -299,13 +300,14 @@ typedef struct nk_dot_f64x2_state_serial_t {
 #pragma GCC pop_options
 #endif
 
-NK_HELPER_INLINE void nk_dot_f64x2_init_serial(nk_dot_f64x2_state_serial_t *state) {
+NUMKONG_HELPER_INLINE void nk_dot_f64x2_init_serial(nk_dot_f64x2_state_serial_t *state) {
     state->sums[0] = 0, state->sums[1] = 0;
     state->compensations[0] = 0, state->compensations[1] = 0;
 }
 
-NK_HELPER_INLINE void nk_dot_f64x2_update_serial(nk_dot_f64x2_state_serial_t *state, nk_b128_vec_t a, nk_b128_vec_t b,
-                                                 nk_size_t depth_offset, nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_f64x2_update_serial(nk_dot_f64x2_state_serial_t *state, nk_b128_vec_t a,
+                                                      nk_b128_vec_t b, nk_size_t depth_offset,
+                                                      nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     nk_f64_t sum0 = state->sums[0], compensation0 = state->compensations[0];
@@ -317,7 +319,7 @@ NK_HELPER_INLINE void nk_dot_f64x2_update_serial(nk_dot_f64x2_state_serial_t *st
     state->compensations[0] = compensation0, state->compensations[1] = compensation1;
 }
 
-NK_HELPER_INLINE void nk_dot_f64x2_finalize_serial(                                         //
+NUMKONG_HELPER_INLINE void nk_dot_f64x2_finalize_serial(                                    //
     nk_dot_f64x2_state_serial_t const *state_a, nk_dot_f64x2_state_serial_t const *state_b, //
     nk_dot_f64x2_state_serial_t const *state_c, nk_dot_f64x2_state_serial_t const *state_d, //
     nk_size_t total_dimensions, nk_b256_vec_t *result) {
@@ -332,12 +334,13 @@ typedef struct nk_dot_f32x4_state_serial_t {
     nk_f64_t sums[4];
 } nk_dot_f32x4_state_serial_t;
 
-NK_HELPER_INLINE void nk_dot_f32x4_init_serial(nk_dot_f32x4_state_serial_t *state) {
+NUMKONG_HELPER_INLINE void nk_dot_f32x4_init_serial(nk_dot_f32x4_state_serial_t *state) {
     state->sums[0] = 0, state->sums[1] = 0, state->sums[2] = 0, state->sums[3] = 0;
 }
 
-NK_HELPER_INLINE void nk_dot_f32x4_update_serial(nk_dot_f32x4_state_serial_t *state, nk_b128_vec_t a, nk_b128_vec_t b,
-                                                 nk_size_t depth_offset, nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_f32x4_update_serial(nk_dot_f32x4_state_serial_t *state, nk_b128_vec_t a,
+                                                      nk_b128_vec_t b, nk_size_t depth_offset,
+                                                      nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     nk_f64_t sum0 = state->sums[0];
@@ -349,7 +352,7 @@ NK_HELPER_INLINE void nk_dot_f32x4_update_serial(nk_dot_f32x4_state_serial_t *st
     state->sums[0] = sum0, state->sums[1] = sum1, state->sums[2] = sum2, state->sums[3] = sum3;
 }
 
-NK_HELPER_INLINE void nk_dot_f32x4_finalize_serial(                                         //
+NUMKONG_HELPER_INLINE void nk_dot_f32x4_finalize_serial(                                    //
     nk_dot_f32x4_state_serial_t const *state_a, nk_dot_f32x4_state_serial_t const *state_b, //
     nk_dot_f32x4_state_serial_t const *state_c, nk_dot_f32x4_state_serial_t const *state_d, //
     nk_size_t total_dimensions, nk_b256_vec_t *result) {
@@ -368,12 +371,13 @@ typedef struct nk_dot_f16x8_state_serial_t {
     nk_f32_t sums[4];
 } nk_dot_f16x8_state_serial_t;
 
-NK_HELPER_INLINE void nk_dot_f16x8_init_serial(nk_dot_f16x8_state_serial_t *state) {
+NUMKONG_HELPER_INLINE void nk_dot_f16x8_init_serial(nk_dot_f16x8_state_serial_t *state) {
     state->sums[0] = 0, state->sums[1] = 0, state->sums[2] = 0, state->sums[3] = 0;
 }
 
-NK_HELPER_INLINE void nk_dot_f16x8_update_serial(nk_dot_f16x8_state_serial_t *state, nk_b128_vec_t a, nk_b128_vec_t b,
-                                                 nk_size_t depth_offset, nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_f16x8_update_serial(nk_dot_f16x8_state_serial_t *state, nk_b128_vec_t a,
+                                                      nk_b128_vec_t b, nk_size_t depth_offset,
+                                                      nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     nk_f32_t sum0 = state->sums[0], sum1 = state->sums[1], sum2 = state->sums[2], sum3 = state->sums[3];
@@ -388,7 +392,7 @@ NK_HELPER_INLINE void nk_dot_f16x8_update_serial(nk_dot_f16x8_state_serial_t *st
     state->sums[0] = sum0, state->sums[1] = sum1, state->sums[2] = sum2, state->sums[3] = sum3;
 }
 
-NK_HELPER_INLINE void nk_dot_f16x8_finalize_serial(                                         //
+NUMKONG_HELPER_INLINE void nk_dot_f16x8_finalize_serial(                                    //
     nk_dot_f16x8_state_serial_t const *state_a, nk_dot_f16x8_state_serial_t const *state_b, //
     nk_dot_f16x8_state_serial_t const *state_c, nk_dot_f16x8_state_serial_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -403,13 +407,13 @@ typedef struct nk_dot_through_f32x4_state_serial_t {
     nk_f32_t sums[4];
 } nk_dot_through_f32x4_state_serial_t;
 
-NK_HELPER_INLINE void nk_dot_through_f32x4_init_serial(nk_dot_through_f32x4_state_serial_t *state) {
+NUMKONG_HELPER_INLINE void nk_dot_through_f32x4_init_serial(nk_dot_through_f32x4_state_serial_t *state) {
     state->sums[0] = 0, state->sums[1] = 0, state->sums[2] = 0, state->sums[3] = 0;
 }
 
-NK_HELPER_INLINE void nk_dot_through_f32x4_update_serial(nk_dot_through_f32x4_state_serial_t *state, nk_b128_vec_t a,
-                                                         nk_b128_vec_t b, nk_size_t depth_offset,
-                                                         nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_through_f32x4_update_serial(nk_dot_through_f32x4_state_serial_t *state,
+                                                              nk_b128_vec_t a, nk_b128_vec_t b, nk_size_t depth_offset,
+                                                              nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     state->sums[0] += a.f32s[0] * b.f32s[0];
@@ -418,7 +422,7 @@ NK_HELPER_INLINE void nk_dot_through_f32x4_update_serial(nk_dot_through_f32x4_st
     state->sums[3] += a.f32s[3] * b.f32s[3];
 }
 
-NK_HELPER_INLINE void nk_dot_through_f32x4_finalize_serial(                                                 //
+NUMKONG_HELPER_INLINE void nk_dot_through_f32x4_finalize_serial(                                            //
     nk_dot_through_f32x4_state_serial_t const *state_a, nk_dot_through_f32x4_state_serial_t const *state_b, //
     nk_dot_through_f32x4_state_serial_t const *state_c, nk_dot_through_f32x4_state_serial_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -433,12 +437,13 @@ typedef struct nk_dot_bf16x8_state_serial_t {
     nk_f32_t sums[4];
 } nk_dot_bf16x8_state_serial_t;
 
-NK_HELPER_INLINE void nk_dot_bf16x8_init_serial(nk_dot_bf16x8_state_serial_t *state) {
+NUMKONG_HELPER_INLINE void nk_dot_bf16x8_init_serial(nk_dot_bf16x8_state_serial_t *state) {
     state->sums[0] = 0, state->sums[1] = 0, state->sums[2] = 0, state->sums[3] = 0;
 }
 
-NK_HELPER_INLINE void nk_dot_bf16x8_update_serial(nk_dot_bf16x8_state_serial_t *state, nk_b128_vec_t a, nk_b128_vec_t b,
-                                                  nk_size_t depth_offset, nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_bf16x8_update_serial(nk_dot_bf16x8_state_serial_t *state, nk_b128_vec_t a,
+                                                       nk_b128_vec_t b, nk_size_t depth_offset,
+                                                       nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     nk_f32_t sum0 = state->sums[0], sum1 = state->sums[1], sum2 = state->sums[2], sum3 = state->sums[3];
@@ -453,7 +458,7 @@ NK_HELPER_INLINE void nk_dot_bf16x8_update_serial(nk_dot_bf16x8_state_serial_t *
     state->sums[0] = sum0, state->sums[1] = sum1, state->sums[2] = sum2, state->sums[3] = sum3;
 }
 
-NK_HELPER_INLINE void nk_dot_bf16x8_finalize_serial(                                          //
+NUMKONG_HELPER_INLINE void nk_dot_bf16x8_finalize_serial(                                     //
     nk_dot_bf16x8_state_serial_t const *state_a, nk_dot_bf16x8_state_serial_t const *state_b, //
     nk_dot_bf16x8_state_serial_t const *state_c, nk_dot_bf16x8_state_serial_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -472,12 +477,13 @@ typedef struct nk_dot_i8x16_state_serial_t {
     nk_i64_t sums[2];
 } nk_dot_i8x16_state_serial_t;
 
-NK_HELPER_INLINE void nk_dot_i8x16_init_serial(nk_dot_i8x16_state_serial_t *state) {
+NUMKONG_HELPER_INLINE void nk_dot_i8x16_init_serial(nk_dot_i8x16_state_serial_t *state) {
     state->sums[0] = 0, state->sums[1] = 0;
 }
 
-NK_HELPER_INLINE void nk_dot_i8x16_update_serial(nk_dot_i8x16_state_serial_t *state, nk_b128_vec_t a, nk_b128_vec_t b,
-                                                 nk_size_t depth_offset, nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_i8x16_update_serial(nk_dot_i8x16_state_serial_t *state, nk_b128_vec_t a,
+                                                      nk_b128_vec_t b, nk_size_t depth_offset,
+                                                      nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     nk_i64_t sum0 = state->sums[0];
@@ -493,7 +499,7 @@ NK_HELPER_INLINE void nk_dot_i8x16_update_serial(nk_dot_i8x16_state_serial_t *st
     state->sums[0] = sum0, state->sums[1] = sum1;
 }
 
-NK_HELPER_INLINE void nk_dot_i8x16_finalize_serial(                                         //
+NUMKONG_HELPER_INLINE void nk_dot_i8x16_finalize_serial(                                    //
     nk_dot_i8x16_state_serial_t const *state_a, nk_dot_i8x16_state_serial_t const *state_b, //
     nk_dot_i8x16_state_serial_t const *state_c, nk_dot_i8x16_state_serial_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -508,12 +514,13 @@ typedef struct nk_dot_u8x16_state_serial_t {
     nk_u64_t sums[2];
 } nk_dot_u8x16_state_serial_t;
 
-NK_HELPER_INLINE void nk_dot_u8x16_init_serial(nk_dot_u8x16_state_serial_t *state) {
+NUMKONG_HELPER_INLINE void nk_dot_u8x16_init_serial(nk_dot_u8x16_state_serial_t *state) {
     state->sums[0] = 0, state->sums[1] = 0;
 }
 
-NK_HELPER_INLINE void nk_dot_u8x16_update_serial(nk_dot_u8x16_state_serial_t *state, nk_b128_vec_t a, nk_b128_vec_t b,
-                                                 nk_size_t depth_offset, nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_u8x16_update_serial(nk_dot_u8x16_state_serial_t *state, nk_b128_vec_t a,
+                                                      nk_b128_vec_t b, nk_size_t depth_offset,
+                                                      nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     nk_u64_t sum0 = state->sums[0];
@@ -530,7 +537,7 @@ NK_HELPER_INLINE void nk_dot_u8x16_update_serial(nk_dot_u8x16_state_serial_t *st
     state->sums[0] = sum0, state->sums[1] = sum1;
 }
 
-NK_HELPER_INLINE void nk_dot_u8x16_finalize_serial(                                         //
+NUMKONG_HELPER_INLINE void nk_dot_u8x16_finalize_serial(                                    //
     nk_dot_u8x16_state_serial_t const *state_a, nk_dot_u8x16_state_serial_t const *state_b, //
     nk_dot_u8x16_state_serial_t const *state_c, nk_dot_u8x16_state_serial_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -549,13 +556,13 @@ typedef struct nk_dot_e4m3x16_state_serial_t {
     nk_f32_t sums[4];
 } nk_dot_e4m3x16_state_serial_t;
 
-NK_HELPER_INLINE void nk_dot_e4m3x16_init_serial(nk_dot_e4m3x16_state_serial_t *state) {
+NUMKONG_HELPER_INLINE void nk_dot_e4m3x16_init_serial(nk_dot_e4m3x16_state_serial_t *state) {
     state->sums[0] = 0, state->sums[1] = 0, state->sums[2] = 0, state->sums[3] = 0;
 }
 
-NK_HELPER_INLINE void nk_dot_e4m3x16_update_serial(nk_dot_e4m3x16_state_serial_t *state, nk_b128_vec_t a,
-                                                   nk_b128_vec_t b, nk_size_t depth_offset,
-                                                   nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_e4m3x16_update_serial(nk_dot_e4m3x16_state_serial_t *state, nk_b128_vec_t a,
+                                                        nk_b128_vec_t b, nk_size_t depth_offset,
+                                                        nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     nk_f32_t sum0 = state->sums[0];
@@ -575,7 +582,7 @@ NK_HELPER_INLINE void nk_dot_e4m3x16_update_serial(nk_dot_e4m3x16_state_serial_t
     state->sums[0] = sum0, state->sums[1] = sum1, state->sums[2] = sum2, state->sums[3] = sum3;
 }
 
-NK_HELPER_INLINE void nk_dot_e4m3x16_finalize_serial(                                           //
+NUMKONG_HELPER_INLINE void nk_dot_e4m3x16_finalize_serial(                                      //
     nk_dot_e4m3x16_state_serial_t const *state_a, nk_dot_e4m3x16_state_serial_t const *state_b, //
     nk_dot_e4m3x16_state_serial_t const *state_c, nk_dot_e4m3x16_state_serial_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -590,13 +597,13 @@ typedef struct nk_dot_e5m2x16_state_serial_t {
     nk_f32_t sums[4];
 } nk_dot_e5m2x16_state_serial_t;
 
-NK_HELPER_INLINE void nk_dot_e5m2x16_init_serial(nk_dot_e5m2x16_state_serial_t *state) {
+NUMKONG_HELPER_INLINE void nk_dot_e5m2x16_init_serial(nk_dot_e5m2x16_state_serial_t *state) {
     state->sums[0] = 0, state->sums[1] = 0, state->sums[2] = 0, state->sums[3] = 0;
 }
 
-NK_HELPER_INLINE void nk_dot_e5m2x16_update_serial(nk_dot_e5m2x16_state_serial_t *state, nk_b128_vec_t a,
-                                                   nk_b128_vec_t b, nk_size_t depth_offset,
-                                                   nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_e5m2x16_update_serial(nk_dot_e5m2x16_state_serial_t *state, nk_b128_vec_t a,
+                                                        nk_b128_vec_t b, nk_size_t depth_offset,
+                                                        nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     nk_f32_t sum0 = state->sums[0];
@@ -616,7 +623,7 @@ NK_HELPER_INLINE void nk_dot_e5m2x16_update_serial(nk_dot_e5m2x16_state_serial_t
     state->sums[0] = sum0, state->sums[1] = sum1, state->sums[2] = sum2, state->sums[3] = sum3;
 }
 
-NK_HELPER_INLINE void nk_dot_e5m2x16_finalize_serial(                                           //
+NUMKONG_HELPER_INLINE void nk_dot_e5m2x16_finalize_serial(                                      //
     nk_dot_e5m2x16_state_serial_t const *state_a, nk_dot_e5m2x16_state_serial_t const *state_b, //
     nk_dot_e5m2x16_state_serial_t const *state_c, nk_dot_e5m2x16_state_serial_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -631,13 +638,13 @@ typedef struct nk_dot_e2m3x16_state_serial_t {
     nk_f32_t sums[4];
 } nk_dot_e2m3x16_state_serial_t;
 
-NK_HELPER_INLINE void nk_dot_e2m3x16_init_serial(nk_dot_e2m3x16_state_serial_t *state) {
+NUMKONG_HELPER_INLINE void nk_dot_e2m3x16_init_serial(nk_dot_e2m3x16_state_serial_t *state) {
     state->sums[0] = 0, state->sums[1] = 0, state->sums[2] = 0, state->sums[3] = 0;
 }
 
-NK_HELPER_INLINE void nk_dot_e2m3x16_update_serial(nk_dot_e2m3x16_state_serial_t *state, nk_b128_vec_t a,
-                                                   nk_b128_vec_t b, nk_size_t depth_offset,
-                                                   nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_e2m3x16_update_serial(nk_dot_e2m3x16_state_serial_t *state, nk_b128_vec_t a,
+                                                        nk_b128_vec_t b, nk_size_t depth_offset,
+                                                        nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     nk_f32_t sum0 = state->sums[0];
@@ -657,7 +664,7 @@ NK_HELPER_INLINE void nk_dot_e2m3x16_update_serial(nk_dot_e2m3x16_state_serial_t
     state->sums[0] = sum0, state->sums[1] = sum1, state->sums[2] = sum2, state->sums[3] = sum3;
 }
 
-NK_HELPER_INLINE void nk_dot_e2m3x16_finalize_serial(                                           //
+NUMKONG_HELPER_INLINE void nk_dot_e2m3x16_finalize_serial(                                      //
     nk_dot_e2m3x16_state_serial_t const *state_a, nk_dot_e2m3x16_state_serial_t const *state_b, //
     nk_dot_e2m3x16_state_serial_t const *state_c, nk_dot_e2m3x16_state_serial_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -672,13 +679,13 @@ typedef struct nk_dot_e3m2x16_state_serial_t {
     nk_f32_t sums[4];
 } nk_dot_e3m2x16_state_serial_t;
 
-NK_HELPER_INLINE void nk_dot_e3m2x16_init_serial(nk_dot_e3m2x16_state_serial_t *state) {
+NUMKONG_HELPER_INLINE void nk_dot_e3m2x16_init_serial(nk_dot_e3m2x16_state_serial_t *state) {
     state->sums[0] = 0, state->sums[1] = 0, state->sums[2] = 0, state->sums[3] = 0;
 }
 
-NK_HELPER_INLINE void nk_dot_e3m2x16_update_serial(nk_dot_e3m2x16_state_serial_t *state, nk_b128_vec_t a,
-                                                   nk_b128_vec_t b, nk_size_t depth_offset,
-                                                   nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_e3m2x16_update_serial(nk_dot_e3m2x16_state_serial_t *state, nk_b128_vec_t a,
+                                                        nk_b128_vec_t b, nk_size_t depth_offset,
+                                                        nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     nk_f32_t sum0 = state->sums[0];
@@ -698,7 +705,7 @@ NK_HELPER_INLINE void nk_dot_e3m2x16_update_serial(nk_dot_e3m2x16_state_serial_t
     state->sums[0] = sum0, state->sums[1] = sum1, state->sums[2] = sum2, state->sums[3] = sum3;
 }
 
-NK_HELPER_INLINE void nk_dot_e3m2x16_finalize_serial(                                           //
+NUMKONG_HELPER_INLINE void nk_dot_e3m2x16_finalize_serial(                                      //
     nk_dot_e3m2x16_state_serial_t const *state_a, nk_dot_e3m2x16_state_serial_t const *state_b, //
     nk_dot_e3m2x16_state_serial_t const *state_c, nk_dot_e3m2x16_state_serial_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -714,10 +721,11 @@ typedef struct nk_dot_e2m1x16_state_serial_t {
     nk_i32_t sum;
 } nk_dot_e2m1x16_state_serial_t;
 
-NK_HELPER_INLINE void nk_dot_e2m1x16_init_serial(nk_dot_e2m1x16_state_serial_t *state) { state->sum = 0; }
+NUMKONG_HELPER_INLINE void nk_dot_e2m1x16_init_serial(nk_dot_e2m1x16_state_serial_t *state) { state->sum = 0; }
 
-NK_HELPER_INLINE void nk_dot_e2m1x16_update_serial(nk_dot_e2m1x16_state_serial_t *state, nk_b64_vec_t a, nk_b64_vec_t b,
-                                                   nk_size_t depth_offset, nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_e2m1x16_update_serial(nk_dot_e2m1x16_state_serial_t *state, nk_b64_vec_t a,
+                                                        nk_b64_vec_t b, nk_size_t depth_offset,
+                                                        nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     nk_u8_t const *a_bytes = (nk_u8_t const *)&a.u64, *b_bytes = (nk_u8_t const *)&b.u64;
@@ -729,7 +737,7 @@ NK_HELPER_INLINE void nk_dot_e2m1x16_update_serial(nk_dot_e2m1x16_state_serial_t
     state->sum = sum;
 }
 
-NK_HELPER_INLINE void nk_dot_e2m1x16_finalize_serial(                                           //
+NUMKONG_HELPER_INLINE void nk_dot_e2m1x16_finalize_serial(                                      //
     nk_dot_e2m1x16_state_serial_t const *state_a, nk_dot_e2m1x16_state_serial_t const *state_b, //
     nk_dot_e2m1x16_state_serial_t const *state_c, nk_dot_e2m1x16_state_serial_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -749,12 +757,13 @@ typedef struct nk_dot_u4x16_state_serial_t {
     nk_u64_t sums[2]; // sums[0]: low nibbles, sums[1]: high nibbles
 } nk_dot_u4x16_state_serial_t;
 
-NK_HELPER_INLINE void nk_dot_u4x16_init_serial(nk_dot_u4x16_state_serial_t *state) {
+NUMKONG_HELPER_INLINE void nk_dot_u4x16_init_serial(nk_dot_u4x16_state_serial_t *state) {
     state->sums[0] = 0, state->sums[1] = 0;
 }
 
-NK_HELPER_INLINE void nk_dot_u4x16_update_serial(nk_dot_u4x16_state_serial_t *state, nk_b64_vec_t a, nk_b64_vec_t b,
-                                                 nk_size_t depth_offset, nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_u4x16_update_serial(nk_dot_u4x16_state_serial_t *state, nk_b64_vec_t a,
+                                                      nk_b64_vec_t b, nk_size_t depth_offset,
+                                                      nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     // Process 8 bytes (16 nibbles total) using SWAR
@@ -781,11 +790,11 @@ NK_HELPER_INLINE void nk_dot_u4x16_update_serial(nk_dot_u4x16_state_serial_t *st
     state->sums[0] = sum_low, state->sums[1] = sum_high;
 }
 
-NK_HELPER_INLINE void nk_dot_u4x16_finalize_serial(nk_dot_u4x16_state_serial_t const *state_a,
-                                                   nk_dot_u4x16_state_serial_t const *state_b,
-                                                   nk_dot_u4x16_state_serial_t const *state_c,
-                                                   nk_dot_u4x16_state_serial_t const *state_d,
-                                                   nk_size_t total_dimensions, nk_b128_vec_t *result) {
+NUMKONG_HELPER_INLINE void nk_dot_u4x16_finalize_serial(nk_dot_u4x16_state_serial_t const *state_a,
+                                                        nk_dot_u4x16_state_serial_t const *state_b,
+                                                        nk_dot_u4x16_state_serial_t const *state_c,
+                                                        nk_dot_u4x16_state_serial_t const *state_d,
+                                                        nk_size_t total_dimensions, nk_b128_vec_t *result) {
     nk_unused_(total_dimensions);
     result->u32s[0] = (nk_u32_t)(state_a->sums[0] + state_a->sums[1]);
     result->u32s[1] = (nk_u32_t)(state_b->sums[0] + state_b->sums[1]);
@@ -793,26 +802,26 @@ NK_HELPER_INLINE void nk_dot_u4x16_finalize_serial(nk_dot_u4x16_state_serial_t c
     result->u32s[3] = (nk_u32_t)(state_d->sums[0] + state_d->sums[1]);
 }
 
-NK_HELPER_INLINE void nk_load_i4x16_to_i8x16_serial_(void const *src, nk_b128_vec_t *dst) {
+NUMKONG_HELPER_INLINE void nk_load_i4x16_to_i8x16_serial_(void const *src, nk_b128_vec_t *dst) {
     nk_i4x2_t const *pairs = (nk_i4x2_t const *)src;
     for (nk_size_t i = 0; i < 8; ++i) nk_i4x2_to_i8x2_serial(&pairs[i], &dst->i8s[i * 2]);
 }
 
-NK_HELPER_INLINE void nk_partial_load_i4x16_to_i8x16_serial_(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
+NUMKONG_HELPER_INLINE void nk_partial_load_i4x16_to_i8x16_serial_(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
     nk_i4x2_t const *pairs = (nk_i4x2_t const *)src;
-    nk_size_t const count_pairs = n / NK_NIBBLES_PER_BYTE;
+    nk_size_t const count_pairs = n / NUMKONG_NIBBLES_PER_BYTE;
     for (nk_size_t i = 0; i < count_pairs; ++i) nk_i4x2_to_i8x2_serial(&pairs[i], &dst->i8s[i * 2]);
     for (nk_size_t i = n; i < 16; ++i) dst->i8s[i] = 0;
 }
 
-NK_HELPER_INLINE void nk_load_u4x16_to_u8x16_serial_(void const *src, nk_b128_vec_t *dst) {
+NUMKONG_HELPER_INLINE void nk_load_u4x16_to_u8x16_serial_(void const *src, nk_b128_vec_t *dst) {
     nk_u4x2_t const *pairs = (nk_u4x2_t const *)src;
     for (nk_size_t i = 0; i < 8; ++i) nk_u4x2_to_u8x2_serial(&pairs[i], &dst->u8s[i * 2]);
 }
 
-NK_HELPER_INLINE void nk_partial_load_u4x16_to_u8x16_serial_(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
+NUMKONG_HELPER_INLINE void nk_partial_load_u4x16_to_u8x16_serial_(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
     nk_u4x2_t const *pairs = (nk_u4x2_t const *)src;
-    nk_size_t const count_pairs = n / NK_NIBBLES_PER_BYTE;
+    nk_size_t const count_pairs = n / NUMKONG_NIBBLES_PER_BYTE;
     for (nk_size_t i = 0; i < count_pairs; ++i) nk_u4x2_to_u8x2_serial(&pairs[i], &dst->u8s[i * 2]);
     for (nk_size_t i = n; i < 16; ++i) dst->u8s[i] = 0;
 }
@@ -821,12 +830,13 @@ typedef struct nk_dot_i4x16_state_serial_t {
     nk_i64_t sums[2]; // sums[0]: low nibbles, sums[1]: high nibbles
 } nk_dot_i4x16_state_serial_t;
 
-NK_HELPER_INLINE void nk_dot_i4x16_init_serial(nk_dot_i4x16_state_serial_t *state) {
+NUMKONG_HELPER_INLINE void nk_dot_i4x16_init_serial(nk_dot_i4x16_state_serial_t *state) {
     state->sums[0] = 0, state->sums[1] = 0;
 }
 
-NK_HELPER_INLINE void nk_dot_i4x16_update_serial(nk_dot_i4x16_state_serial_t *state, nk_b64_vec_t a, nk_b64_vec_t b,
-                                                 nk_size_t depth_offset, nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_i4x16_update_serial(nk_dot_i4x16_state_serial_t *state, nk_b64_vec_t a,
+                                                      nk_b64_vec_t b, nk_size_t depth_offset,
+                                                      nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     // Process 8 bytes (16 nibbles total) using SWAR with sign extension
@@ -853,11 +863,11 @@ NK_HELPER_INLINE void nk_dot_i4x16_update_serial(nk_dot_i4x16_state_serial_t *st
     state->sums[0] = sum_low, state->sums[1] = sum_high;
 }
 
-NK_HELPER_INLINE void nk_dot_i4x16_finalize_serial(nk_dot_i4x16_state_serial_t const *state_a,
-                                                   nk_dot_i4x16_state_serial_t const *state_b,
-                                                   nk_dot_i4x16_state_serial_t const *state_c,
-                                                   nk_dot_i4x16_state_serial_t const *state_d,
-                                                   nk_size_t total_dimensions, nk_b128_vec_t *result) {
+NUMKONG_HELPER_INLINE void nk_dot_i4x16_finalize_serial(nk_dot_i4x16_state_serial_t const *state_a,
+                                                        nk_dot_i4x16_state_serial_t const *state_b,
+                                                        nk_dot_i4x16_state_serial_t const *state_c,
+                                                        nk_dot_i4x16_state_serial_t const *state_d,
+                                                        nk_size_t total_dimensions, nk_b128_vec_t *result) {
     nk_unused_(total_dimensions);
     result->i32s[0] = (nk_i32_t)(state_a->sums[0] + state_a->sums[1]);
     result->i32s[1] = (nk_i32_t)(state_b->sums[0] + state_b->sums[1]);
@@ -876,9 +886,9 @@ NK_HELPER_INLINE void nk_dot_i4x16_finalize_serial(nk_dot_i4x16_state_serial_t c
 #pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
 #endif
 
-NK_API_COMPTIME void nk_dot_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result) {
+NUMKONG_API_COMPTIME void nk_dot_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result) {
     nk_u32_t dot = 0;
-    nk_size_t bytes = n_bits / NK_BITS_PER_BYTE;
+    nk_size_t bytes = n_bits / NUMKONG_BITS_PER_BYTE;
     for (nk_size_t i = 0; i < bytes; ++i) dot += nk_u1x8_popcount_(((nk_u8_t const *)a)[i] & ((nk_u8_t const *)b)[i]);
     *result = dot;
 }
@@ -893,10 +903,11 @@ typedef struct nk_dot_u1x128_state_serial_t {
 #pragma GCC pop_options
 #endif
 
-NK_HELPER_INLINE void nk_dot_u1x128_init_serial(nk_dot_u1x128_state_serial_t *state) { state->dot_count = 0; }
+NUMKONG_HELPER_INLINE void nk_dot_u1x128_init_serial(nk_dot_u1x128_state_serial_t *state) { state->dot_count = 0; }
 
-NK_HELPER_INLINE void nk_dot_u1x128_update_serial(nk_dot_u1x128_state_serial_t *state, nk_b128_vec_t a, nk_b128_vec_t b,
-                                                  nk_size_t depth_offset, nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_u1x128_update_serial(nk_dot_u1x128_state_serial_t *state, nk_b128_vec_t a,
+                                                       nk_b128_vec_t b, nk_size_t depth_offset,
+                                                       nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     nk_u64_t and_low = a.u64s[0] & b.u64s[0];
@@ -905,11 +916,11 @@ NK_HELPER_INLINE void nk_dot_u1x128_update_serial(nk_dot_u1x128_state_serial_t *
     state->dot_count += (nk_u32_t)nk_u64_popcount_(and_high);
 }
 
-NK_HELPER_INLINE void nk_dot_u1x128_finalize_serial(nk_dot_u1x128_state_serial_t const *state_a,
-                                                    nk_dot_u1x128_state_serial_t const *state_b,
-                                                    nk_dot_u1x128_state_serial_t const *state_c,
-                                                    nk_dot_u1x128_state_serial_t const *state_d,
-                                                    nk_size_t total_dimensions, nk_b128_vec_t *result) {
+NUMKONG_HELPER_INLINE void nk_dot_u1x128_finalize_serial(nk_dot_u1x128_state_serial_t const *state_a,
+                                                         nk_dot_u1x128_state_serial_t const *state_b,
+                                                         nk_dot_u1x128_state_serial_t const *state_c,
+                                                         nk_dot_u1x128_state_serial_t const *state_d,
+                                                         nk_size_t total_dimensions, nk_b128_vec_t *result) {
     nk_unused_(total_dimensions);
     result->u32s[0] = state_a->dot_count;
     result->u32s[1] = state_b->dot_count;
@@ -928,9 +939,9 @@ typedef struct nk_sum_i4x32_state_serial_t {
     nk_i64_t sum;
 } nk_sum_i4x32_state_serial_t;
 
-NK_HELPER_INLINE void nk_sum_i4x32_init_serial(nk_sum_i4x32_state_serial_t *state) { state->sum = 0; }
+NUMKONG_HELPER_INLINE void nk_sum_i4x32_init_serial(nk_sum_i4x32_state_serial_t *state) { state->sum = 0; }
 
-NK_HELPER_INLINE void nk_sum_i4x32_update_serial(nk_sum_i4x32_state_serial_t *state, nk_b128_vec_t v) {
+NUMKONG_HELPER_INLINE void nk_sum_i4x32_update_serial(nk_sum_i4x32_state_serial_t *state, nk_b128_vec_t v) {
     nk_u8_t const *d = (nk_u8_t const *)&v;
     for (int i = 0; i < 16; i++) {
         nk_i8_t low = (nk_i8_t)((d[i] & 0x0F) ^ 0x08) - 8; // sign-extend low nibble
@@ -939,14 +950,14 @@ NK_HELPER_INLINE void nk_sum_i4x32_update_serial(nk_sum_i4x32_state_serial_t *st
     }
 }
 
-NK_HELPER_INLINE nk_i32_t nk_sum_i4x32_finalize_serial(nk_sum_i4x32_state_serial_t const *state, nk_size_t count) {
+NUMKONG_HELPER_INLINE nk_i32_t nk_sum_i4x32_finalize_serial(nk_sum_i4x32_state_serial_t const *state, nk_size_t count) {
     nk_unused_(count);
     return (nk_i32_t)state->sum;
 }
 
 #pragma endregion Stateful Element Sum Helpers
 
-#if defined(__GNUC__) && !defined(__clang__) && NK_TARGET_ARM64_
+#if defined(__GNUC__) && !defined(__clang__) && NUMKONG_ARCH_ARM64_
 #pragma GCC pop_options
 #endif
 
@@ -954,4 +965,4 @@ NK_HELPER_INLINE nk_i32_t nk_sum_i4x32_finalize_serial(nk_sum_i4x32_state_serial
 } // extern "C"
 #endif
 
-#endif // NK_DOT_SERIAL_H
+#endif // NUMKONG_DOT_SERIAL_H

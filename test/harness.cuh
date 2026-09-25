@@ -1,15 +1,15 @@
 /**
- *  @file test/test.cuh
+ *  @file test/harness.cuh
  *  @author Ash Vardanian
  *  @date September 23, 2026
  *  @brief CUDA memory and the CUDA backend the cross-kernel tests and benchmarks share.
  *
  *  Both allocators return @c nullptr on failure instead of throwing, so the non-throwing `try_*`
- *  factories report it. Benchmarks reach this header as `#include "../test/test.cuh"`.
+ *  factories report it. Benchmarks reach this header as `#include "../test/harness.cuh"`.
  */
 #pragma once
-#ifndef NK_TEST_CUH
-#define NK_TEST_CUH
+#ifndef NUMKONG_TEST_HARNESS_CUH
+#define NUMKONG_TEST_HARNESS_CUH
 
 #include <cstddef> // `std::size_t`, `std::ptrdiff_t`
 
@@ -19,7 +19,7 @@
 
 #include "numkong/vector.hpp" // `nk::vector`
 
-#include "test.hpp" // `accumulation_t`, `host_backend_t`
+#include "harness.hpp" // `accumulation_t`, `host_backend_t`
 
 namespace ashvardanian::numkong::test {
 
@@ -175,4 +175,4 @@ struct cuda_backend_t {
 
 } // namespace ashvardanian::numkong::test
 
-#endif // NK_TEST_CUH
+#endif // NUMKONG_TEST_HARNESS_CUH

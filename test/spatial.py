@@ -31,8 +31,8 @@ except Exception:
 
 from base import (
     NATIVE_COMPUTE_DTYPE,
-    NK_ATOL,
-    NK_RTOL,
+    NUMKONG_ATOL,
+    NUMKONG_RTOL,
     LazyFormat,
     assert_allclose,
     collect_errors,
@@ -189,7 +189,7 @@ def test_angular_zero_vector(ndim: int, dtype: str, capability: str):
     assert result == 0, f"Expected 0 distance from itself, but got {result}"
 
     result = nk.angular(b, b)
-    assert abs(result) < NK_ATOL, f"Expected 0 distance from itself, but got {result}"
+    assert abs(result) < NUMKONG_ATOL, f"Expected 0 distance from itself, but got {result}"
 
     assert np.all(result >= 0), "Negative result for angular distance"
 
@@ -201,7 +201,7 @@ def test_spatial_self_distance_zero(ndim: int, dtype: str, capability: str):
     """d(v, v) should be 0 for euclidean, sqeuclidean, and angular."""
     keep_one_capability(capability)
     v = nk.full((ndim,), 1.5, dtype=dtype)
-    atol = NK_ATOL
+    atol = NUMKONG_ATOL
     assert abs(nk.euclidean(v, v)) < atol
     assert abs(nk.sqeuclidean(v, v)) < atol
     assert abs(nk.angular(v, v)) < atol
@@ -217,7 +217,7 @@ def test_euclidean_known(ndim: int, dtype: str, capability: str):
     zeros_vector = nk.zeros((ndim,), dtype=dtype)
     result = nk.euclidean(ones_vector, zeros_vector)
     expected = math.sqrt(ndim)
-    assert abs(result - expected) < NK_ATOL + NK_RTOL * expected
+    assert abs(result - expected) < NUMKONG_ATOL + NUMKONG_RTOL * expected
 
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
@@ -229,7 +229,7 @@ def test_sqeuclidean_known(ndim: int, dtype: str, capability: str):
     ones_vector = nk.ones((ndim,), dtype=dtype)
     zeros_vector = nk.zeros((ndim,), dtype=dtype)
     result = nk.sqeuclidean(ones_vector, zeros_vector)
-    assert abs(result - ndim) < NK_ATOL + NK_RTOL * ndim
+    assert abs(result - ndim) < NUMKONG_ATOL + NUMKONG_RTOL * ndim
 
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
@@ -243,7 +243,7 @@ def test_spatial_symmetry(ndim: int, dtype: str, capability: str):
     for metric_fn in [nk.euclidean, nk.sqeuclidean, nk.angular]:
         d_ab = metric_fn(a, b)
         d_ba = metric_fn(b, a)
-        assert abs(d_ab - d_ba) < NK_ATOL, f"{metric_fn.__name__}: d(a,b)={d_ab} != d(b,a)={d_ba}"
+        assert abs(d_ab - d_ba) < NUMKONG_ATOL, f"{metric_fn.__name__}: d(a,b)={d_ab} != d(b,a)={d_ba}"
 
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
@@ -256,7 +256,7 @@ def test_spatial_non_negative(ndim: int, dtype: str, capability: str):
     b = make_random_buffer(ndim, dtype)
     for metric_fn in [nk.euclidean, nk.sqeuclidean, nk.angular]:
         distance = metric_fn(a, b)
-        assert distance >= -NK_ATOL, f"{metric_fn.__name__}: d(a,b)={distance} is negative"
+        assert distance >= -NUMKONG_ATOL, f"{metric_fn.__name__}: d(a,b)={distance} is negative"
 
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
@@ -271,4 +271,6 @@ def test_euclidean_triangle_inequality(ndim: int, dtype: str, capability: str):
     d_ac = nk.euclidean(a, c)
     d_ab = nk.euclidean(a, b)
     d_bc = nk.euclidean(b, c)
-    assert d_ac <= d_ab + d_bc + NK_ATOL, f"Triangle inequality violated: d(a,c)={d_ac} > d(a,b)+d(b,c)={d_ab + d_bc}"
+    assert d_ac <= d_ab + d_bc + NUMKONG_ATOL, (
+        f"Triangle inequality violated: d(a,c)={d_ac} > d(a,b)+d(b,c)={d_ab + d_bc}"
+    )

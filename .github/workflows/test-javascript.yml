@@ -170,7 +170,7 @@ jobs:
         run: |
           source ~/emsdk/emsdk_env.sh
           cmake -B ${{ matrix.build }} -DCMAKE_TOOLCHAIN_FILE=cmake/${{ matrix.toolchain }}.cmake \
-            -DNK_WASM_SIMD=${{ matrix.simd }} -DNK_BUILD_SHARED=ON
+            -DNUMKONG_WASM_SIMD=${{ matrix.simd }} -DNUMKONG_BUILD_SHARED=ON
           cmake --build ${{ matrix.build }}
 
       - name: Upload Emscripten Module
@@ -189,8 +189,8 @@ jobs:
         run: |
           export WASI_SDK_PATH=~/wasi-sdk
           cmake -B build-wasi -DCMAKE_TOOLCHAIN_FILE=cmake/${{ matrix.toolchain }}.cmake \
-            -DNK_WASM_SIMD=${{ matrix.simd }} -DNK_BUILD_TEST=ON \
-            -DNK_WASI_HOSTED=${{ matrix.runtime == 'wasi-node' && 'ON' || 'OFF' }}
+            -DNUMKONG_WASM_SIMD=${{ matrix.simd }} -DNUMKONG_BUILD_TEST=ON \
+            -DNUMKONG_WASI_HOSTED=${{ matrix.runtime == 'wasi-node' && 'ON' || 'OFF' }}
           cmake --build build-wasi
 
       - name: Build JavaScript Bindings
@@ -201,7 +201,7 @@ jobs:
 
       - name: Test on Node.js
         if: matrix.runtime == 'emscripten' || matrix.runtime == 'emscripten64' || matrix.runtime == 'wasi-node'
-        run: NK_RUNTIME=${{ matrix.runtime }} node --test test/wasm.mjs
+        run: NUMKONG_RUNTIME=${{ matrix.runtime }} node --test test/wasm.mjs
 
       - name: Install Rust Toolchain
         if: matrix.runtime == 'standalone'
@@ -212,8 +212,8 @@ jobs:
         if: matrix.runtime == 'standalone'
         run: cargo test --features wasm-runtime -- wasm_runtime
         env:
-          NK_WASI_MODULE: build-wasi/numkong_test.wasm
-          NK_BUDGET_SECS: 0.1
+          NUMKONG_WASI_MODULE: build-wasi/numkong_test.wasm
+          NUMKONG_BUDGET_SECS: 0.1
 
       # Install the latest released Wasmer (which now ships relaxed-SIMD). Building
       # `--git main` broke: upstream's main pulls a private SSH submodule
@@ -235,7 +235,7 @@ jobs:
           wasmer run --enable-simd ${{ matrix.simd == 'v128relaxed' && '--enable-relaxed-simd' || '' }} \
             --forward-host-env ./build-wasi/numkong_test.wasm
         env:
-          NK_BUDGET_SECS: 0.1
+          NUMKONG_BUDGET_SECS: 0.1
 
       - name: Install Wasmtime
         if: matrix.runtime == 'wasmtime-threads'
@@ -252,7 +252,7 @@ jobs:
           export PATH="$HOME/.wasmtime/bin:$PATH"
           wasmtime run -W relaxed-simd=y,threads=y -S threads=y,inherit-env=y ./build-wasi/numkong_test.wasm
         env:
-          NK_BUDGET_SECS: 0.1
+          NUMKONG_BUDGET_SECS: 0.1
 
   # Both wasm32 tiers meet in one directory, where the loader picks by what each browser validates.
   test_browsers:
@@ -365,7 +365,7 @@ jobs:
           deno-version: v2.x
 
       - name: Test with Deno
-        run: deno test -A --no-check
+        run: deno test -A --no-check test/main.mjs
 
   test_bun:
     name: Test Bun
@@ -416,4 +416,4 @@ jobs:
         uses: oven-sh/setup-bun@v2
 
       - name: Test with Bun
-        run: bun test ./test/test.mjs
+        run: bun test ./test/main.mjs

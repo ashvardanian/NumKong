@@ -72,7 +72,7 @@ static napi_value nk_scalar_buffer_to_js_number(napi_env env, nk_scalar_buffer_t
 }
 
 /** Returns the byte width for a given dtype. */
-static inline size_t dtype_byte_width(nk_dtype_t dtype) { return nk_dtype_bits(dtype) / NK_BITS_PER_BYTE; }
+static inline size_t dtype_byte_width(nk_dtype_t dtype) { return nk_dtype_bits(dtype) / NUMKONG_BITS_PER_BYTE; }
 
 /** Returns the N-API typed array type for a given output dtype. */
 static inline napi_typedarray_type napi_type_for_dtype(nk_dtype_t dtype) {
@@ -574,9 +574,9 @@ typedef struct packed_task_t {
 
 static void packed_tile_(nk_size_t tile_index, void *context) {
     packed_task_t const *task = (packed_task_t const *)context;
-    nk_size_t const row = tile_index * NK_PARALLEL_PACKED_TILE;
-    nk_size_t const chunk = (row + NK_PARALLEL_PACKED_TILE <= task->rows) ? NK_PARALLEL_PACKED_TILE
-                                                                          : (task->rows - row);
+    nk_size_t const row = tile_index * NUMKONG_PARALLEL_PACKED_TILE;
+    nk_size_t const chunk = (row + NUMKONG_PARALLEL_PACKED_TILE <= task->rows) ? NUMKONG_PARALLEL_PACKED_TILE
+                                                                               : (task->rows - row);
     task->kernel(task->a + row * task->a_stride_bytes, task->b_packed, task->c + row * task->c_stride_bytes, chunk,
                  task->columns, task->depth, task->a_stride_bytes, task->c_stride_bytes);
 }
@@ -654,7 +654,7 @@ static napi_value api_packed_common(napi_env env, napi_callback_info info, nk_ke
     task.depth = depth;
     task.a_stride_bytes = a_stride;
     task.c_stride_bytes = result_stride;
-    nk_parallel_for_tiles(nk_size_divide_round_up_(height, NK_PARALLEL_PACKED_TILE), threads, packed_tile_, &task);
+    nk_parallel_for_tiles(nk_size_divide_round_up_(height, NUMKONG_PARALLEL_PACKED_TILE), threads, packed_tile_, &task);
     return NULL;
 }
 
@@ -683,9 +683,9 @@ typedef struct symmetric_task_t {
 
 static void symmetric_tile_(nk_size_t tile_index, void *context) {
     symmetric_task_t const *task = (symmetric_task_t const *)context;
-    nk_size_t const tile_start = task->row_start + tile_index * NK_PARALLEL_SYMMETRIC_TILE;
-    nk_size_t const tile_rows = (tile_start + NK_PARALLEL_SYMMETRIC_TILE <= task->row_end)
-                                    ? NK_PARALLEL_SYMMETRIC_TILE
+    nk_size_t const tile_start = task->row_start + tile_index * NUMKONG_PARALLEL_SYMMETRIC_TILE;
+    nk_size_t const tile_rows = (tile_start + NUMKONG_PARALLEL_SYMMETRIC_TILE <= task->row_end)
+                                    ? NUMKONG_PARALLEL_SYMMETRIC_TILE
                                     : (task->row_end - tile_start);
     task->kernel(task->vectors, task->vectors_count, task->depth, task->stride_bytes, task->result,
                  task->result_stride_bytes, tile_start, tile_rows);
@@ -762,8 +762,8 @@ static napi_value api_symmetric_common(napi_env env, napi_callback_info info, nk
     task.row_start = row_start;
     // Widen before the sum so two `uint32_t` row bounds cannot wrap.
     task.row_end = (nk_size_t)row_start + row_count;
-    nk_parallel_for_tiles(nk_size_divide_round_up_(row_count, NK_PARALLEL_SYMMETRIC_TILE), threads, symmetric_tile_,
-                          &task);
+    nk_parallel_for_tiles(nk_size_divide_round_up_(row_count, NUMKONG_PARALLEL_SYMMETRIC_TILE), threads,
+                          symmetric_tile_, &task);
 
     return NULL;
 }

@@ -24,23 +24,28 @@ cmake/                    Toolchain files for cross-compilation — WASM, WASI, 
 
 ```sh
 cmake -B build_release -D CMAKE_BUILD_TYPE=Release \
-      -D NK_BUILD_TEST=1 \
-      -D NK_BUILD_BENCH=1 \
-      -D NK_COMPARE_TO_BLAS=1
+      -D NUMKONG_BUILD_TEST=1 \
+      -D NUMKONG_BUILD_BENCH=1 \
+      -D NUMKONG_COMPARE_TO_BLAS=1
 cmake --build build_release --config Release --parallel
 build_release/numkong_bench
 build_release/numkong_test
 ```
 
-| CMake Flag             | Default            | Description                                                                   |
-| :--------------------- | :----------------- | :---------------------------------------------------------------------------- |
-| `NK_BUILD_TEST`        | `OFF`              | Compile precision tests with ULP error analysis                               |
-| `NK_BUILD_BENCH`       | `OFF`              | Compile micro-benchmarks                                                      |
-| `NK_BUILD_SHARED`      | `ON`, if top-level | Compile dynamic library                                                       |
-| `NK_BUILD_SHARED_TEST` | `OFF`              | Compile tests against the shared library                                      |
-| `NK_COMPARE_TO_BLAS`   | `AUTO`             | Include OpenBLAS, or Apple's Accelerate on macOS, into test/bench comparisons |
-| `NK_COMPARE_TO_MKL`    | `AUTO`             | Include Intel' MKL into test/bench comparisons                                |
-| `NK_MARCH_NATIVE`      | `OFF`              | Tune for host CPU with `-march=native`                                        |
+| CMake Flag                  | Default            | Description                                                                   |
+| :-------------------------- | :----------------- | :---------------------------------------------------------------------------- |
+| `NUMKONG_BUILD_TEST`        | `OFF`              | Compile precision tests with ULP error analysis                               |
+| `NUMKONG_BUILD_BENCH`       | `OFF`              | Compile micro-benchmarks                                                      |
+| `NUMKONG_BUILD_SHARED`      | `ON`, if top-level | Compile dynamic library                                                       |
+| `NUMKONG_BUILD_SHARED_TEST` | `OFF`              | Compile tests against the shared library                                      |
+| `NUMKONG_COMPARE_TO_BLAS`   | `AUTO`             | Include OpenBLAS, or Apple's Accelerate on macOS, into test/bench comparisons |
+| `NUMKONG_COMPARE_TO_MKL`    | `AUTO`             | Include Intel' MKL into test/bench comparisons                                |
+| `NUMKONG_MARCH_NATIVE`      | `OFF`              | Tune for host CPU with `-march=native`                                        |
+
+The test suites seed from 42, or from a fresh draw under `NUMKONG_SEED=random`, and print the seed they use.
+`NUMKONG_FILTER` is a regex over kernel names, and each failing kernel prints a `rerun:` line with its seed and a filter selecting it alone.
+Failures are always counted, and `NUMKONG_ASSERT=1` turns them into exit code 1.
+The [test README](test/README.md#environment-variables) lists every variable.
 
 ### Target Baseline Policy
 
@@ -62,7 +67,7 @@ LoongArch is the one arch that can't honor the per-function-pragma model: `__att
 Until NumKong's minimum supported toolchain catches up, LoongArch artifacts require LASX-capable hardware (LA464+, c. 2021).
 `Package.swift` and `golang/numkong.go` do not pin baselines: SPM forbids `.unsafeFlags()` on remotely consumed targets, and the cgo bindings rely on the surrounding compiler default.
 
-For host-tuned local builds, set `NK_MARCH_NATIVE=1` (env var honored by `build.rs` and `setup.py`; CMake option `-DNK_MARCH_NATIVE=ON`).
+For host-tuned local builds, set `NUMKONG_MARCH_NATIVE=1` (env var honored by `build.rs` and `setup.py`; CMake option `-DNUMKONG_MARCH_NATIVE=ON`).
 The resulting artifact bakes host-specific instructions into scaffolding code and is __not__ portable.
 
 ### Compiler Requirements
@@ -107,9 +112,9 @@ Targets with a `qemu-*` emulator additionally require `qemu-user`.
 | WASI                    | `wasm32-wasi`         | Wasmtime / Wasmer           | WASI SDK 24+, tier `v128` by default              |
 | WASI threads            | `wasm32-wasi-threads` | Wasmtime with threads       | WASI SDK 24+, tier `v128relaxed` by default       |
 
-A WebAssembly module carries one SIMD tier, so each wasm toolchain fixes it through `NK_WASM_SIMD` — `v128` or `v128relaxed` — and one build directory holds one tier.
+A WebAssembly module carries one SIMD tier, so each wasm toolchain fixes it through `NUMKONG_WASM_SIMD` — `v128` or `v128relaxed` — and one build directory holds one tier.
 
-Set `NK_IN_QEMU=1` to relax half-precision accuracy thresholds under emulation.
+Set `NUMKONG_IN_QEMU=1` to shrink test shapes under emulation, and repetitions too in Python.
 
 __ARM64 Linux__
 
@@ -167,7 +172,7 @@ cmake --build build-wasm --parallel
 For the relaxed tier of the same 32-bit module, and for wasm64 — Memory64:
 
 ```sh
-cmake -B build-wasm-relaxed -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake -DNK_WASM_SIMD=v128relaxed
+cmake -B build-wasm-relaxed -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake -DNUMKONG_WASM_SIMD=v128relaxed
 cmake --build build-wasm-relaxed --parallel
 cmake -B build-wasm64 -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm64-emscripten.cmake
 cmake --build build-wasm64 --parallel
@@ -208,9 +213,9 @@ With Apple Clang and Homebrew OpenBLAS:
 ```sh
 brew install openblas
 cmake -B build_release -D CMAKE_BUILD_TYPE=Release \
-      -D NK_BUILD_TEST=1 \
-      -D NK_BUILD_BENCH=1 \
-      -D NK_COMPARE_TO_BLAS=1 \
+      -D NUMKONG_BUILD_TEST=1 \
+      -D NUMKONG_BUILD_BENCH=1 \
+      -D NUMKONG_COMPARE_TO_BLAS=1 \
       -D CMAKE_PREFIX_PATH="$(brew --prefix openblas)" \
       -D CMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES="$(brew --prefix openblas)/include"
 cmake --build build_release --config Release --parallel
@@ -222,9 +227,9 @@ With Homebrew Clang — recommended for full ISA support:
 brew install llvm openblas
 unset DEVELOPER_DIR
 cmake -B build_release -D CMAKE_BUILD_TYPE=Release \
-      -D NK_BUILD_TEST=1 \
-      -D NK_BUILD_BENCH=1 \
-      -D NK_COMPARE_TO_BLAS=1 \
+      -D NUMKONG_BUILD_TEST=1 \
+      -D NUMKONG_BUILD_BENCH=1 \
+      -D NUMKONG_COMPARE_TO_BLAS=1 \
       -D CMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES="$(brew --prefix openblas)/include" \
       -D CMAKE_C_LINK_FLAGS="-L$(xcrun --sdk macosx --show-sdk-path)/usr/lib" \
       -D CMAKE_EXE_LINKER_FLAGS="-L$(xcrun --sdk macosx --show-sdk-path)/usr/lib" \
@@ -298,7 +303,7 @@ CC=$(brew --prefix llvm)/bin/clang CXX=$(brew --prefix llvm)/bin/clang++ pip ins
 ```
 
 Wheels pin a portable per-arch baseline by default — see [Target Baseline Policy](#target-baseline-policy).
-For host-tuned local installs, set `NK_MARCH_NATIVE=1 pip install -e .` (the resulting build is not redistributable).
+For host-tuned local installs, set `NUMKONG_MARCH_NATIVE=1 pip install -e .` (the resulting build is not redistributable).
 
 Before merging your changes you may want to test your changes against the entire matrix of Python versions NumKong supports.
 For that you need the `cibuildwheel`, which is tricky to use on macOS and Windows, as it would target just the local environment.
@@ -343,7 +348,7 @@ Configuring the CMake build (`cmake -B build ...`) arms the repo's Git hooks (`c
 ```sh
 cargo test -p numkong
 cargo test -p numkong -- --nocapture      # to see the output
-NK_MARCH_NATIVE=1 cargo build --release   # for host-tuned local builds
+NUMKONG_MARCH_NATIVE=1 cargo build --release   # for host-tuned local builds
 ```
 
 The crate pins a portable per-arch baseline by default — see [Target Baseline Policy](#target-baseline-policy).
@@ -421,7 +426,7 @@ To add a new operation family, for example `foo`:
 4. __C++ wrapper__: create `include/numkong/foo.hpp` with the typed C++ API.
 5. __Test__: create `test/foo.cpp` with precision validation against `f118_t` references.
 6. __Benchmark__: create `bench/foo.cpp` with Google Benchmark harness.
-7. __Cross-platform tests__: add a scenario to `test/cross.cuh`, then register it in the relevant `test/cross_*.cpp` files and, for CUDA kernels, in `test/test.cu`.
+7. __Cross-platform tests__: add a scenario to `test/cross.cuh`, then register it in the relevant `test/cross_*.cpp` files and, for CUDA kernels, in `test/main.cu`.
 8. __CMakeLists.txt__: wire the new source files into the `numkong_test` and `numkong_bench` targets.
 9. __Language bindings__: update `python/numkong.c`, `javascript/numkong.c`, `rust/numkong.rs`, etc. as needed.
 
@@ -429,8 +434,8 @@ To add a new operation family, for example `foo`:
 
 For primary kernels, every backend implementation should be wired in five places beyond the backend header itself:
 
-1. __Forward declaration__: add the `NK_API_COMPTIME` declaration with the matching `@copydoc` in the first half of `include/numkong/<family>.h`.
-2. __Compile-time dispatch__: add the `#if !NK_RUNTIME_DISPATCH` branch in the second half of `include/numkong/<family>.h`.
+1. __Forward declaration__: add the `NUMKONG_API_COMPTIME` declaration with the matching `@copydoc` in the first half of `include/numkong/<family>.h`.
+2. __Compile-time dispatch__: add the `#if !NUMKONG_RUNTIME_DISPATCH` branch in the second half of `include/numkong/<family>.h`.
 3. __Run-time dispatch__: add the dtype-specific entry to the relevant `c/dispatch_*.c` table.
 4. __Precision tests__: register the kernel in `numkong_test`, usually in the existing `test/<family>.cpp` suite.
 5. __Benchmarks__: register the kernel in `numkong_bench`, usually in the existing `bench/<family>.cpp` suite.
@@ -505,10 +510,10 @@ For scalar variables, similar preferences for cleaner and longer variable names 
 Prefer explicit named intrinsics over implicit syntax or manual bit manipulation.
 Power VSX uses `vec_xl()`, `vec_xst()` — never implicit Altivec vector operators.
 x86 AVX-512 uses `_mm512_mask_*` K-mask intrinsics — never manual bitwise ops on `__mmask16`.
-When hardware has no intrinsic, wrap raw assembly in an `NK_HELPER_INLINE` helper and document the instruction mnemonic:
+When hardware has no intrinsic, wrap raw assembly in a `NUMKONG_HELPER_INLINE` helper and document the instruction mnemonic:
 
 ```c
-NK_HELPER_INLINE void nk_sme_start_streaming_(void) {
+NUMKONG_HELPER_INLINE void nk_sme_start_streaming_(void) {
     __asm__ __volatile__("smstart sm" ::: "memory");
 }
 ```
@@ -518,3 +523,21 @@ NK_HELPER_INLINE void nk_sme_start_streaming_(void) {
 Public API: `nk_<operation>_<dtype>_<isa>` — e.g. `nk_dot_f32_sve`, `nk_angular_f16_sme`.
 Internal helpers use a trailing underscore: `nk_reduce_add_f32x16_skylake_`.
 Conversions: `nk_<src>x<count>_to_<dst>x<count>_<isa>_` — e.g. `nk_e4m3x8_to_f32x8_haswell_`.
+
+### Macro Naming
+
+Every all-caps name starts with the full project name, `NUMKONG_`.
+A trailing `_` marks a name as internal: it may change in any release, and nothing outside this repository may define or test it.
+A name without it is a public contract, either a switch you may set or a value you may read.
+
+| Family                       | Form                       | Example                                   |
+| :--------------------------- | :------------------------- | :---------------------------------------- |
+| ISA tier, backend, GPU layer | `NUMKONG_TARGET_<TIER>`    | `NUMKONG_TARGET_HASWELL`                  |
+| Dispatch mode                | `NUMKONG_RUNTIME_DISPATCH` |                                           |
+| Permission for a liberty     | `NUMKONG_ALLOW_<LIBERTY>`  | `NUMKONG_ALLOW_ISA_REDIRECT`              |
+| Architecture fact            | `NUMKONG_ARCH_<ARCH>_`     | `NUMKONG_ARCH_X86_64_`                    |
+| Operating-system fact        | `NUMKONG_OS_<OS>_`         | `NUMKONG_OS_LINUX_`                       |
+| Toolchain fact               | `NUMKONG_HAS_<FEATURE>_`   | `NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_` |
+
+Architectures are spelled `X86_64`, `X86_32`, `ARM64`, `RISCV64`, `PPC64`, `LOONGARCH64`, `S390X` and `WASM`.
+Every name in these families is always defined, as 0 or 1, and tested with `#if`, never with `defined(...)`.

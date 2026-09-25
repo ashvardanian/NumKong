@@ -6,8 +6,8 @@
  *
  *  Forward declarations for api_* distance functions, pointer APIs, and documentation strings.
  */
-#ifndef NK_PYTHON_DISTANCE_H
-#define NK_PYTHON_DISTANCE_H
+#ifndef NUMKONG_PYTHON_DISTANCE_H
+#define NUMKONG_PYTHON_DISTANCE_H
 
 #include "numkong.h"
 
@@ -72,4 +72,4 @@ extern char const doc_jaccard_pointer[];
 }
 #endif
 
-#endif // NK_PYTHON_DISTANCE_H
+#endif // NUMKONG_PYTHON_DISTANCE_H

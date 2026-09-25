@@ -9,11 +9,11 @@
 
 #include <vector> // `std::vector`
 
-#include "bench.hpp"
+#include "harness.hpp"
 
 using namespace ashvardanian::numkong::bench;
 
-#if NK_COMPARE_TO_BLAS || NK_COMPARE_TO_MKL || NK_COMPARE_TO_ACCELERATE
+#if NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
 
 struct identity_init_t {
     template <typename scalar_type_>
@@ -118,9 +118,9 @@ void measure_dots_symmetric_f64_with_blas(bm::State &state, std::size_t n, std::
     });
 }
 
-#endif // NK_COMPARE_TO_BLAS || NK_COMPARE_TO_MKL || NK_COMPARE_TO_ACCELERATE
+#endif // NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
 
-#if NK_COMPARE_TO_ACCELERATE
+#if NUMKONG_COMPARE_TO_ACCELERATE
 
 static BNNSNDArrayDescriptor bnns_matrix_desc(BNNSDataType dtype, void *data, std::size_t rows, std::size_t cols) {
     BNNSNDArrayDescriptor desc = {};
@@ -174,9 +174,9 @@ void measure_dots_bf16_with_accelerate(bm::State &state, std::size_t m, std::siz
         });
 }
 
-#endif // NK_COMPARE_TO_ACCELERATE
+#endif // NUMKONG_COMPARE_TO_ACCELERATE
 
-#if NK_COMPARE_TO_MKL
+#if NUMKONG_COMPARE_TO_MKL
 
 void measure_dots_f32_with_mkl(bm::State &state, std::size_t m, std::size_t n, std::size_t k) {
     measure_dots_unpacked<float>(state, m, n, k,
@@ -260,7 +260,7 @@ void measure_dots_i16_with_mkl(bm::State &state, std::size_t m, std::size_t n, s
         });
 }
 
-#endif // NK_COMPARE_TO_MKL
+#endif // NUMKONG_COMPARE_TO_MKL
 
 void bench_cross_blas() {
 
@@ -272,7 +272,7 @@ void bench_cross_blas() {
     nk_unused_(syrk_dims);
     nk_unused_(gemm_dims);
 
-#if NK_COMPARE_TO_BLAS || NK_COMPARE_TO_MKL || NK_COMPARE_TO_ACCELERATE
+#if NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
     // BLAS GEMM baselines for matmul comparison (same layout as NumKong: A x B^T)
     bm::RegisterBenchmark(("dots_packed_f32_with_blas<" + gemm_dims + ">").c_str(), measure_dots_f32_with_blas,
                           bench_config.matrix_height, bench_config.matrix_width, bench_config.matrix_depth);
@@ -286,7 +286,7 @@ void bench_cross_blas() {
                           measure_dots_symmetric_f64_with_blas, bench_config.matrix_height, bench_config.matrix_depth);
 #endif
 
-#if NK_COMPARE_TO_ACCELERATE
+#if NUMKONG_COMPARE_TO_ACCELERATE
     bm::RegisterBenchmark(("dots_packed_f16_with_accelerate<" + gemm_dims + ">").c_str(),
                           measure_dots_f16_with_accelerate, bench_config.matrix_height, bench_config.matrix_width,
                           bench_config.matrix_depth);
@@ -295,7 +295,7 @@ void bench_cross_blas() {
                           bench_config.matrix_depth);
 #endif
 
-#if NK_COMPARE_TO_MKL
+#if NUMKONG_COMPARE_TO_MKL
     bm::RegisterBenchmark(("dots_packed_f32_with_mkl<" + gemm_dims + ">").c_str(), measure_dots_f32_with_mkl,
                           bench_config.matrix_height, bench_config.matrix_width, bench_config.matrix_depth);
     bm::RegisterBenchmark(("dots_packed_bf16_with_mkl<" + gemm_dims + ">").c_str(), measure_dots_bf16_with_mkl,

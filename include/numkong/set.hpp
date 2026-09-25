@@ -4,8 +4,8 @@
  *  @date February 5, 2026
  *  @brief C++ bindings for set-intersection kernels.
  */
-#ifndef NK_SET_HPP
-#define NK_SET_HPP
+#ifndef NUMKONG_SET_HPP
+#define NUMKONG_SET_HPP
 
 #include <cstdint>
 #include <type_traits>
@@ -111,4 +111,4 @@ void jaccard(vector_view<in_type_> a, vector_view<in_type_> b, std::size_t d, re
 
 } // namespace ashvardanian::numkong
 
-#endif // NK_SET_HPP
+#endif // NUMKONG_SET_HPP

@@ -5,7 +5,7 @@
  *  @brief Reduction tests.
  */
 
-#include "test.hpp"
+#include "harness.hpp"
 #include "numkong/reduce.hpp"
 #include "numkong/reduce/serial.h"
 
@@ -130,7 +130,7 @@ void test_reduce() {
     check("reduce_minmax_u4_serial", test_reduce_minmax<u4x2_t>, nk_reduce_minmax_u4_serial);
     check("reduce_minmax_u1_serial", test_reduce_minmax<u1x8_t>, nk_reduce_minmax_u1_serial);
 
-#if NK_RUNTIME_DISPATCH
+#if NUMKONG_RUNTIME_DISPATCH
     check.section("Reductions Runtime Dispatch", nk_cap_serial_k);
     check("reduce_moments_f32", test_reduce_moments<f32_t>, nk_reduce_moments_f32);
     check("reduce_moments_f64", test_reduce_moments<f64_t>, nk_reduce_moments_f64);
@@ -172,7 +172,7 @@ void test_reduce() {
     check("reduce_minmax_u1", test_reduce_minmax<u1x8_t>, nk_reduce_minmax_u1);
 #endif
 
-#if NK_TARGET_NEON
+#if NUMKONG_TARGET_NEON
     check.section("Reductions NEON", nk_cap_neon_k);
     check("reduce_moments_f32_neon", test_reduce_moments<f32_t>, nk_reduce_moments_f32_neon);
     check("reduce_moments_f64_neon", test_reduce_moments<f64_t>, nk_reduce_moments_f64_neon);
@@ -203,27 +203,27 @@ void test_reduce() {
     check("reduce_minmax_e5m2_neon", test_reduce_minmax<e5m2_t>, nk_reduce_minmax_e5m2_neon);
     check("reduce_minmax_e2m3_neon", test_reduce_minmax<e2m3_t>, nk_reduce_minmax_e2m3_neon);
     check("reduce_minmax_e3m2_neon", test_reduce_minmax<e3m2_t>, nk_reduce_minmax_e3m2_neon);
-#endif // NK_TARGET_NEON
+#endif // NUMKONG_TARGET_NEON
 
-#if NK_TARGET_NEONBFDOT
+#if NUMKONG_TARGET_NEONBFDOT
     check.section("Reductions NEON BF16", nk_cap_neonbfdot_k);
     check("reduce_moments_bf16_neonbfdot", test_reduce_moments<bf16_t>, nk_reduce_moments_bf16_neonbfdot);
-#endif // NK_TARGET_NEONBFDOT
+#endif // NUMKONG_TARGET_NEONBFDOT
 
-#if NK_TARGET_NEONSDOT
+#if NUMKONG_TARGET_NEONSDOT
     check.section("Reductions NEON I8", nk_cap_neonsdot_k);
     check("reduce_moments_i8_neonsdot", test_reduce_moments<i8_t>, nk_reduce_moments_i8_neonsdot);
     check("reduce_moments_u8_neonsdot", test_reduce_moments<u8_t>, nk_reduce_moments_u8_neonsdot);
     check("reduce_moments_e2m3_neonsdot", test_reduce_moments<e2m3_t>, nk_reduce_moments_e2m3_neonsdot);
-#endif // NK_TARGET_NEONSDOT
+#endif // NUMKONG_TARGET_NEONSDOT
 
-#if NK_TARGET_NEONFHM
+#if NUMKONG_TARGET_NEONFHM
     check.section("Reductions NEON FHM", nk_cap_neonfhm_k);
     check("reduce_moments_e4m3_neonfhm", test_reduce_moments<e4m3_t>, nk_reduce_moments_e4m3_neonfhm);
     check("reduce_moments_e5m2_neonfhm", test_reduce_moments<e5m2_t>, nk_reduce_moments_e5m2_neonfhm);
-#endif // NK_TARGET_NEONFHM
+#endif // NUMKONG_TARGET_NEONFHM
 
-#if NK_TARGET_HASWELL
+#if NUMKONG_TARGET_HASWELL
     check.section("Reductions Haswell", nk_cap_haswell_k);
     check("reduce_moments_f32_haswell", test_reduce_moments<f32_t>, nk_reduce_moments_f32_haswell);
     check("reduce_moments_f64_haswell", test_reduce_moments<f64_t>, nk_reduce_moments_f64_haswell);
@@ -260,9 +260,9 @@ void test_reduce() {
     check("reduce_minmax_e3m2_haswell", test_reduce_minmax<e3m2_t>, nk_reduce_minmax_e3m2_haswell);
     check("reduce_minmax_bf16_haswell", test_reduce_minmax<bf16_t>, nk_reduce_minmax_bf16_haswell);
     check("reduce_minmax_f16_haswell", test_reduce_minmax<f16_t>, nk_reduce_minmax_f16_haswell);
-#endif // NK_TARGET_HASWELL
+#endif // NUMKONG_TARGET_HASWELL
 
-#if NK_TARGET_SKYLAKE
+#if NUMKONG_TARGET_SKYLAKE
     check.section("Reductions Skylake", nk_cap_skylake_k);
     check("reduce_moments_f32_skylake", test_reduce_moments<f32_t>, nk_reduce_moments_f32_skylake);
     check("reduce_moments_f64_skylake", test_reduce_moments<f64_t>, nk_reduce_moments_f64_skylake);
@@ -299,40 +299,40 @@ void test_reduce() {
     check("reduce_minmax_bf16_skylake", test_reduce_minmax<bf16_t>, nk_reduce_minmax_bf16_skylake);
     check("reduce_moments_f16_skylake", test_reduce_moments<f16_t>, nk_reduce_moments_f16_skylake);
     check("reduce_minmax_f16_skylake", test_reduce_minmax<f16_t>, nk_reduce_minmax_f16_skylake);
-#endif // NK_TARGET_SKYLAKE
+#endif // NUMKONG_TARGET_SKYLAKE
 
-#if NK_TARGET_ICELAKE
+#if NUMKONG_TARGET_ICELAKE
     check.section("Reductions Ice Lake", nk_cap_icelake_k);
     check("reduce_moments_i8_icelake", test_reduce_moments<i8_t>, nk_reduce_moments_i8_icelake);
     check("reduce_moments_u8_icelake", test_reduce_moments<u8_t>, nk_reduce_moments_u8_icelake);
     check("reduce_moments_i16_icelake", test_reduce_moments<i16_t>, nk_reduce_moments_i16_icelake);
     check("reduce_moments_e2m3_icelake", test_reduce_moments<e2m3_t>, nk_reduce_moments_e2m3_icelake);
     check("reduce_moments_e3m2_icelake", test_reduce_moments<e3m2_t>, nk_reduce_moments_e3m2_icelake);
-#endif // NK_TARGET_ICELAKE
+#endif // NUMKONG_TARGET_ICELAKE
 
-#if NK_TARGET_GENOA
+#if NUMKONG_TARGET_GENOA
     check.section("Reductions Genoa", nk_cap_genoa_k);
     check("reduce_moments_bf16_genoa", test_reduce_moments<bf16_t>, nk_reduce_moments_bf16_genoa);
     check("reduce_moments_e4m3_genoa", test_reduce_moments<e4m3_t>, nk_reduce_moments_e4m3_genoa);
     check("reduce_moments_e5m2_genoa", test_reduce_moments<e5m2_t>, nk_reduce_moments_e5m2_genoa);
-#endif // NK_TARGET_GENOA
+#endif // NUMKONG_TARGET_GENOA
 
-#if NK_TARGET_ALDER
+#if NUMKONG_TARGET_ALDER
     check.section("Reductions Alder", nk_cap_alder_k);
     check("reduce_moments_u8_alder", test_reduce_moments<u8_t>, nk_reduce_moments_u8_alder);
     check("reduce_moments_i16_alder", test_reduce_moments<i16_t>, nk_reduce_moments_i16_alder);
     check("reduce_moments_u16_alder", test_reduce_moments<u16_t>, nk_reduce_moments_u16_alder);
     check("reduce_moments_e3m2_alder", test_reduce_moments<e3m2_t>, nk_reduce_moments_e3m2_alder);
-#endif // NK_TARGET_ALDER
+#endif // NUMKONG_TARGET_ALDER
 
-#if NK_TARGET_SIERRA
+#if NUMKONG_TARGET_SIERRA
     check.section("Reductions Sierra", nk_cap_sierra_k);
     check("reduce_moments_i8_sierra", test_reduce_moments<i8_t>, nk_reduce_moments_i8_sierra);
     check("reduce_moments_u8_sierra", test_reduce_moments<u8_t>, nk_reduce_moments_u8_sierra);
     check("reduce_moments_e2m3_sierra", test_reduce_moments<e2m3_t>, nk_reduce_moments_e2m3_sierra);
-#endif // NK_TARGET_SIERRA
+#endif // NUMKONG_TARGET_SIERRA
 
-#if NK_TARGET_RVV
+#if NUMKONG_TARGET_RVV
     check.section("Reductions RVV", nk_cap_rvv_k);
     check("reduce_moments_f32_rvv", test_reduce_moments<f32_t>, nk_reduce_moments_f32_rvv);
     check("reduce_moments_f64_rvv", test_reduce_moments<f64_t>, nk_reduce_moments_f64_rvv);
@@ -366,9 +366,9 @@ void test_reduce() {
     check("reduce_minmax_e5m2_rvv", test_reduce_minmax<e5m2_t>, nk_reduce_minmax_e5m2_rvv);
     check("reduce_minmax_e2m3_rvv", test_reduce_minmax<e2m3_t>, nk_reduce_minmax_e2m3_rvv);
     check("reduce_minmax_e3m2_rvv", test_reduce_minmax<e3m2_t>, nk_reduce_minmax_e3m2_rvv);
-#endif // NK_TARGET_RVV
+#endif // NUMKONG_TARGET_RVV
 
-#if NK_TARGET_V128RELAXED
+#if NUMKONG_TARGET_V128RELAXED
     check.section("Reductions V128 Relaxed", nk_cap_v128relaxed_k);
     check("reduce_moments_f32_v128relaxed", test_reduce_moments<f32_t>, nk_reduce_moments_f32_v128relaxed);
     check("reduce_moments_i64_v128relaxed", test_reduce_moments<i64_t>, nk_reduce_moments_i64_v128relaxed);
@@ -394,9 +394,9 @@ void test_reduce() {
     check("reduce_minmax_e3m2_v128relaxed", test_reduce_minmax<e3m2_t>, nk_reduce_minmax_e3m2_v128relaxed);
     check("reduce_minmax_bf16_v128relaxed", test_reduce_minmax<bf16_t>, nk_reduce_minmax_bf16_v128relaxed);
     check("reduce_minmax_f16_v128relaxed", test_reduce_minmax<f16_t>, nk_reduce_minmax_f16_v128relaxed);
-#endif // NK_TARGET_V128RELAXED
+#endif // NUMKONG_TARGET_V128RELAXED
 
-#if NK_TARGET_V128
+#if NUMKONG_TARGET_V128
     check.section("Reductions V128", nk_cap_v128_k);
     check("reduce_moments_f64_v128", test_reduce_moments<f64_t>, nk_reduce_moments_f64_v128);
     check("reduce_moments_bf16_v128", test_reduce_moments<bf16_t>, nk_reduce_moments_bf16_v128);
@@ -406,5 +406,5 @@ void test_reduce() {
     check("reduce_moments_u16_v128", test_reduce_moments<u16_t>, nk_reduce_moments_u16_v128);
     check("reduce_moments_i32_v128", test_reduce_moments<i32_t>, nk_reduce_moments_i32_v128);
     check("reduce_moments_u32_v128", test_reduce_moments<u32_t>, nk_reduce_moments_u32_v128);
-#endif // NK_TARGET_V128
+#endif // NUMKONG_TARGET_V128
 }

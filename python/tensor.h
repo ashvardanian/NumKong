@@ -12,8 +12,8 @@
  *  - Recursive elementwise dispatch helpers: each_sum_recursive, each_scale_recursive,
  *    each_fma_recursive, each_blend_recursive.
  */
-#ifndef NK_PYTHON_TENSOR_H
-#define NK_PYTHON_TENSOR_H
+#ifndef NUMKONG_PYTHON_TENSOR_H
+#define NUMKONG_PYTHON_TENSOR_H
 
 #include "numkong.h"
 
@@ -23,9 +23,9 @@
  *  the logical buffer end. Adding one ZMM register, 64 bytes, of padding absorbs any such spill;
  *  GCC and Clang emit the masked instructions correctly, so zero padding suffices there. */
 #if defined(_MSC_VER)
-#define NK_TENSOR_PADDING_ 64
+#define NUMKONG_TENSOR_PADDING_ 64
 #else
-#define NK_TENSOR_PADDING_ 0
+#define NUMKONG_TENSOR_PADDING_ 0
 #endif
 
 #ifdef __cplusplus
@@ -55,10 +55,10 @@ typedef struct Tensor {
     size_t rank;
 
     /** Extent along each dimension. */
-    Py_ssize_t shape[NK_TENSOR_MAX_RANK];
+    Py_ssize_t shape[NUMKONG_TENSOR_MAX_RANK];
 
     /** Stride in bytes for each dimension. */
-    Py_ssize_t strides[NK_TENSOR_MAX_RANK];
+    Py_ssize_t strides[NUMKONG_TENSOR_MAX_RANK];
 
     /** Reference to parent (NULL if owns data). */
     PyObject *parent;
@@ -331,4 +331,4 @@ extern char const doc_reduce_argmax[];
 }
 #endif
 
-#endif // NK_PYTHON_TENSOR_H
+#endif // NUMKONG_PYTHON_TENSOR_H

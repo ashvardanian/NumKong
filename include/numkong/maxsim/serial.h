@@ -23,8 +23,8 @@
  *  - Metadata region: vector_count x 12 bytes (scale + sum + norm_squared per vector)
  *  - Originals region: row-major bf16 or f32, stride padded to 64B for nk_dot_* calls
  */
-#ifndef NK_MAXSIM_SERIAL_H
-#define NK_MAXSIM_SERIAL_H
+#ifndef NUMKONG_MAXSIM_SERIAL_H
+#define NUMKONG_MAXSIM_SERIAL_H
 
 #include "numkong/types.h"
 #include "numkong/cast/serial.h"    // `nk_bf16_to_f32_serial`
@@ -66,7 +66,7 @@ typedef struct {
     nk_u32_t reserved[8];
 } nk_maxsim_packed_header_t;
 
-NK_STATIC_ASSERT(sizeof(nk_maxsim_packed_header_t) == 64, nk_maxsim_packed_header_must_be_64_bytes);
+NUMKONG_STATIC_ASSERT(sizeof(nk_maxsim_packed_header_t) == 64, nk_maxsim_packed_header_must_be_64_bytes);
 
 /** Per-vector quantization metadata, 12 bytes, stored once per vector in the packed buffer's
  *  metadata region. */
@@ -82,21 +82,21 @@ typedef struct {
     nk_f32_t inverse_norm_f32;
 } nk_maxsim_vector_metadata_t;
 
-NK_STATIC_ASSERT(sizeof(nk_maxsim_vector_metadata_t) == 12, nk_maxsim_vector_metadata_must_be_12_bytes);
+NUMKONG_STATIC_ASSERT(sizeof(nk_maxsim_vector_metadata_t) == 12, nk_maxsim_vector_metadata_must_be_12_bytes);
 
 /** Conversion function pointer type for element-to-f32 conversion. Each conversion reads one
  *  element from @c source and writes one f32 to @c destination. */
 typedef void (*nk_maxsim_to_f32_t)(void const *source, nk_f32_t *destination);
 
 /** Identity conversion for f32 sources — just a typed memcpy. */
-NK_HELPER_INLINE void nk_f32_to_f32_(void const *source, nk_f32_t *destination) {
+NUMKONG_HELPER_INLINE void nk_f32_to_f32_(void const *source, nk_f32_t *destination) {
     *destination = *(nk_f32_t const *)source;
 }
 
 /** Fills the packed buffer header and returns the padded i8 depth. Consolidates header/offset
  *  computation duplicated in every pack function. */
-NK_HELPER_INLINE nk_size_t nk_maxsim_packed_header_setup_( //
-    void *packed, nk_size_t vector_count, nk_size_t depth, //
+NUMKONG_HELPER_INLINE nk_size_t nk_maxsim_packed_header_setup_( //
+    void *packed, nk_size_t vector_count, nk_size_t depth,      //
     nk_size_t depth_simd_dimensions, nk_size_t original_element_bytes) {
 
     nk_size_t depth_i8_padded = nk_size_round_up_to_multiple_(depth, depth_simd_dimensions);
@@ -131,7 +131,7 @@ NK_HELPER_INLINE nk_size_t nk_maxsim_packed_header_setup_( //
 
 /** Quantizes a single source vector to i8 and computes its metadata. It calls the conversion
  *  callback element by element, so it needs no scratch buffer and works for any depth. */
-NK_HELPER_INLINE void nk_maxsim_quantize_vector_(                        //
+NUMKONG_HELPER_INLINE void nk_maxsim_quantize_vector_(                   //
     void const *source_vector, nk_size_t element_bytes, nk_size_t depth, //
     nk_size_t depth_i8_padded, nk_f32_t scale_limit,                     //
     nk_maxsim_to_f32_t convert_to_f32,                                   //
@@ -192,7 +192,7 @@ typedef struct {
     nk_size_t document_original_stride;
 } nk_maxsim_packed_regions_t;
 
-NK_HELPER_INLINE nk_maxsim_packed_regions_t nk_maxsim_extract_packed_regions_( //
+NUMKONG_HELPER_INLINE nk_maxsim_packed_regions_t nk_maxsim_extract_packed_regions_( //
     void const *query_packed, void const *document_packed) {
 
     nk_maxsim_packed_header_t const *query_header = (nk_maxsim_packed_header_t const *)query_packed;
@@ -223,8 +223,8 @@ NK_HELPER_INLINE nk_maxsim_packed_regions_t nk_maxsim_extract_packed_regions_( /
  *  @param[in] original_element_bytes Size of each original element (2 for bf16, 4 for f32).
  *  @param[in] depth_simd_dimensions SIMD width for i8 depth padding (1 for serial).
  */
-NK_HELPER_INLINE nk_size_t nk_maxsim_pack_size_( //
-    nk_size_t vector_count, nk_size_t depth,     //
+NUMKONG_HELPER_INLINE nk_size_t nk_maxsim_pack_size_( //
+    nk_size_t vector_count, nk_size_t depth,          //
     nk_size_t original_element_bytes, nk_size_t depth_simd_dimensions) {
 
     // Pad i8 depth to SIMD width
@@ -249,7 +249,7 @@ NK_HELPER_INLINE nk_size_t nk_maxsim_pack_size_( //
  *
  *  Shared by every per-(dtype, ISA) nk_maxsim_packed_shape_* accessor.
  */
-NK_HELPER_INLINE void nk_maxsim_packed_shape_(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+NUMKONG_HELPER_INLINE void nk_maxsim_packed_shape_(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
     nk_maxsim_packed_header_t const *header = (nk_maxsim_packed_header_t const *)packed;
     *vectors = header->vectors;
     *depth = header->depth;
@@ -264,23 +264,23 @@ NK_HELPER_INLINE void nk_maxsim_packed_shape_(void const *packed, nk_size_t *vec
 #pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
 #endif
 
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_serial(nk_size_t vector_count, nk_size_t depth) {
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_serial(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_bf16_t), 1);
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_shape_bf16_serial(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_bf16_serial(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
     nk_maxsim_packed_shape_(packed, vectors, depth);
 }
 
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_serial(nk_size_t vector_count, nk_size_t depth) {
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_serial(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f32_t), 1);
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_shape_f32_serial(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f32_serial(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
     nk_maxsim_packed_shape_(packed, vectors, depth);
 }
 
-NK_API_COMPTIME void nk_maxsim_pack_bf16_serial( //
+NUMKONG_API_COMPTIME void nk_maxsim_pack_bf16_serial( //
     nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const element_bytes = sizeof(nk_bf16_t);
@@ -306,7 +306,7 @@ NK_API_COMPTIME void nk_maxsim_pack_bf16_serial( //
     }
 }
 
-NK_API_COMPTIME void nk_maxsim_pack_f32_serial( //
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f32_serial( //
     nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const element_bytes = sizeof(nk_f32_t);
@@ -331,15 +331,15 @@ NK_API_COMPTIME void nk_maxsim_pack_f32_serial( //
     }
 }
 
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_serial(nk_size_t vector_count, nk_size_t depth) {
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_serial(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f16_t), 1);
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_shape_f16_serial(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f16_serial(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
     nk_maxsim_packed_shape_(packed, vectors, depth);
 }
 
-NK_API_COMPTIME void nk_maxsim_pack_f16_serial( //
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_serial( //
     nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const element_bytes = sizeof(nk_f16_t);
@@ -373,14 +373,14 @@ NK_API_COMPTIME void nk_maxsim_pack_f16_serial( //
 
 /** DType-agnostic coarse i8 argmax kernel for the serial backend, producing per-query best document
  *  indices from signed i8 × i8 dot products, which need no bias correction here. */
-NK_HELPER_INLINE void nk_maxsim_coarse_argmax_serial_( //
+NUMKONG_HELPER_INLINE void nk_maxsim_coarse_argmax_serial_( //
     nk_i8_t const *query_i8, nk_i8_t const *document_i8, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth_i8_padded, nk_u32_t *best_document_indices) {
 
     // Primary path: 4-query grouping
     nk_size_t query_block_start_index = 0;
     for (; query_block_start_index + 4 <= query_count; query_block_start_index += 4) {
-        nk_i32_t running_max_i32[4] = {NK_I32_MIN, NK_I32_MIN, NK_I32_MIN, NK_I32_MIN};
+        nk_i32_t running_max_i32[4] = {NUMKONG_I32_MIN, NUMKONG_I32_MIN, NUMKONG_I32_MIN, NUMKONG_I32_MIN};
         nk_u32_t running_argmax_u32[4] = {0, 0, 0, 0};
 
         for (nk_size_t document_index = 0; document_index < document_count; document_index++) {
@@ -414,7 +414,7 @@ NK_HELPER_INLINE void nk_maxsim_coarse_argmax_serial_( //
     // Edge path: remaining 1-3 queries
     for (nk_size_t query_index = query_block_start_index; query_index < query_count; query_index++) {
         nk_i8_t const *query_i8_row = query_i8 + query_index * depth_i8_padded;
-        nk_i32_t running_max_i32 = NK_I32_MIN;
+        nk_i32_t running_max_i32 = NUMKONG_I32_MIN;
         nk_u32_t running_argmax_u32 = 0;
 
         for (nk_size_t document_index = 0; document_index < document_count; document_index++) {
@@ -441,7 +441,7 @@ NK_HELPER_INLINE void nk_maxsim_coarse_argmax_serial_( //
 #pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
 #endif
 
-NK_API_COMPTIME void nk_maxsim_packed_bf16_serial( //
+NUMKONG_API_COMPTIME void nk_maxsim_packed_bf16_serial( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {
 
@@ -475,7 +475,7 @@ NK_API_COMPTIME void nk_maxsim_packed_bf16_serial( //
     *result = (nk_f32_t)total_angular_distance;
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_f32_serial( //
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f32_serial( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f64_t *result) {
 
@@ -510,7 +510,7 @@ NK_API_COMPTIME void nk_maxsim_packed_f32_serial( //
     *result = total_angular_distance;
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_f16_serial( //
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f16_serial( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {
 
@@ -554,4 +554,4 @@ NK_API_COMPTIME void nk_maxsim_packed_f16_serial( //
 } // extern "C"
 #endif
 
-#endif // NK_MAXSIM_SERIAL_H
+#endif // NUMKONG_MAXSIM_SERIAL_H

@@ -5,7 +5,7 @@
 # WASM/WASI toolchains do not provide a separate math archive.
 #
 # Contract:
-#   Input:  MSVC, NK_IS_WASI_PROJECT_, CMAKE_SYSTEM_NAME
+#   Input:  MSVC, NUMKONG_OS_WASI_, CMAKE_SYSTEM_NAME
 #   Output: caller-provided output variable with either "" or "m"
 
 include(CheckCXXSourceCompiles)
@@ -13,7 +13,7 @@ include(CheckCXXSourceCompiles)
 function (nk_detect_cxx_math_lib_ output_var_)
     set(${output_var_} "" PARENT_SCOPE)
 
-    if (MSVC OR NK_IS_WASI_PROJECT_ OR CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+    if (MSVC OR NUMKONG_OS_WASI_ OR CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
         return()
     endif ()
 

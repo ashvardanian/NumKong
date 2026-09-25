@@ -22,11 +22,11 @@
  *  depth_simd_dimensions=8, i8/u8/fp8 use depth_simd_dimensions=16. Integer dot products use
  *  VPMADDWD for efficient i16 pair multiplication with i32 accumulation.
  */
-#ifndef NK_DOTS_HASWELL_H
-#define NK_DOTS_HASWELL_H
+#ifndef NUMKONG_DOTS_HASWELL_H
+#define NUMKONG_DOTS_HASWELL_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_HASWELL
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_HASWELL
 
 #include "numkong/dot/haswell.h"
 
@@ -349,6 +349,6 @@ nk_define_cross_packed_(dots, u1, haswell, u1x8, u1x8, u32, nk_b128_vec_t, nk_do
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_HASWELL
-#endif // NK_TARGET_X8664_
-#endif // NK_DOTS_HASWELL_H
+#endif // NUMKONG_TARGET_HASWELL
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_DOTS_HASWELL_H

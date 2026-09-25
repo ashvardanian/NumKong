@@ -8,19 +8,19 @@
 
 void nk_dispatch_i32_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punned_t *m, nk_capability_t *c) {
     typedef nk_kernel_punned_t m_t;
-#if NK_TARGET_V128RELAXED
+#if NUMKONG_TARGET_V128RELAXED
     if (v & nk_cap_v128relaxed_k) switch (k) {
         case nk_kernel_reduce_minmax_k: *m = (m_t)&nk_reduce_minmax_i32_v128relaxed, *c = nk_cap_v128relaxed_k; return;
         default: break;
         }
 #endif
-#if NK_TARGET_V128
+#if NUMKONG_TARGET_V128
     if (v & nk_cap_v128_k) switch (k) {
         case nk_kernel_reduce_moments_k: *m = (m_t)&nk_reduce_moments_i32_v128, *c = nk_cap_v128_k; return;
         default: break;
         }
 #endif
-#if NK_TARGET_NEON
+#if NUMKONG_TARGET_NEON
     if (v & nk_cap_neon_k) switch (k) {
         case nk_kernel_each_fma_k: *m = (m_t)&nk_each_fma_i32_neon, *c = nk_cap_neon_k; return;
         case nk_kernel_each_scale_k: *m = (m_t)&nk_each_scale_i32_neon, *c = nk_cap_neon_k; return;
@@ -30,13 +30,13 @@ void nk_dispatch_i32_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punn
         default: break;
         }
 #endif
-#if NK_TARGET_ICELAKE
+#if NUMKONG_TARGET_ICELAKE
     if (v & nk_cap_icelake_k) switch (k) {
         case nk_kernel_each_sum_k: *m = (m_t)&nk_each_sum_i32_icelake, *c = nk_cap_icelake_k; return;
         default: break;
         }
 #endif
-#if NK_TARGET_SKYLAKE
+#if NUMKONG_TARGET_SKYLAKE
     if (v & nk_cap_skylake_k) switch (k) {
         case nk_kernel_each_fma_k: *m = (m_t)&nk_each_fma_i32_skylake, *c = nk_cap_skylake_k; return;
         case nk_kernel_each_scale_k: *m = (m_t)&nk_each_scale_i32_skylake, *c = nk_cap_skylake_k; return;
@@ -45,7 +45,7 @@ void nk_dispatch_i32_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punn
         default: break;
         }
 #endif
-#if NK_TARGET_HASWELL
+#if NUMKONG_TARGET_HASWELL
     if (v & nk_cap_haswell_k) switch (k) {
         case nk_kernel_each_fma_k: *m = (m_t)&nk_each_fma_i32_haswell, *c = nk_cap_haswell_k; return;
         case nk_kernel_each_scale_k: *m = (m_t)&nk_each_scale_i32_haswell, *c = nk_cap_haswell_k; return;
@@ -55,7 +55,7 @@ void nk_dispatch_i32_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punn
         default: break;
         }
 #endif
-#if NK_TARGET_RVV
+#if NUMKONG_TARGET_RVV
     if (v & nk_cap_rvv_k) switch (k) {
         case nk_kernel_each_fma_k: *m = (m_t)&nk_each_fma_i32_rvv, *c = nk_cap_rvv_k; return;
         case nk_kernel_each_scale_k: *m = (m_t)&nk_each_scale_i32_rvv, *c = nk_cap_rvv_k; return;

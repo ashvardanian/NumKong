@@ -10,11 +10,11 @@
  *  - @c _mm256_dpbssd_epi32: i8 × i8 → i32 signed dot product (AVXVNNIINT8)
  *  - @c _mm256_dpbuud_epi32: u8 × u8 → u32 unsigned dot product (AVXVNNIINT8)
  */
-#ifndef NK_REDUCE_SIERRA_H
-#define NK_REDUCE_SIERRA_H
+#ifndef NUMKONG_REDUCE_SIERRA_H
+#define NUMKONG_REDUCE_SIERRA_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_SIERRA
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_SIERRA
 
 #include "numkong/types.h"
 #include "numkong/reduce/serial.h"
@@ -31,8 +31,8 @@ extern "C" {
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2", "avxvnni", "avxvnniint8")
 #endif
 
-NK_HELPER_INLINE void nk_reduce_moments_i8_sierra_contiguous_( //
-    nk_i8_t const *data, nk_size_t count,                      //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_i8_sierra_contiguous_( //
+    nk_i8_t const *data, nk_size_t count,                           //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     __m256i ones_i8x32 = _mm256_set1_epi8(1);
     __m256i sum_i32x8 = _mm256_setzero_si256();
@@ -58,7 +58,7 @@ NK_HELPER_INLINE void nk_reduce_moments_i8_sierra_contiguous_( //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_i8_sierra_strided_(          //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_i8_sierra_strided_(     //
     nk_i8_t const *data, nk_size_t count, nk_size_t stride_elements, //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     __m256i stride_mask_i8x32 = nk_stride_blend_u1x32_(stride_elements);
@@ -85,7 +85,7 @@ NK_HELPER_INLINE void nk_reduce_moments_i8_sierra_strided_(          //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_API_COMPTIME void nk_reduce_moments_i8_sierra(                 //
+NUMKONG_API_COMPTIME void nk_reduce_moments_i8_sierra(            //
     nk_i8_t const *data, nk_size_t count, nk_size_t stride_bytes, //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_i8_t);
@@ -117,8 +117,8 @@ NK_API_COMPTIME void nk_reduce_moments_i8_sierra(                 //
  *  - sum:   dot(data, ones) via DPBUUD — each group of 4 bytes sums into a u32 lane
  *  - sumsq: dot(data, data) via DPBUUD — native u8 × u8 squaring and accumulation
  */
-NK_HELPER_INLINE void nk_reduce_moments_u8_sierra_contiguous_( //
-    nk_u8_t const *data, nk_size_t count,                      //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_u8_sierra_contiguous_( //
+    nk_u8_t const *data, nk_size_t count,                           //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     __m256i ones_u8x32 = _mm256_set1_epi8(1);
     __m256i sum_i32x8 = _mm256_setzero_si256();
@@ -144,7 +144,7 @@ NK_HELPER_INLINE void nk_reduce_moments_u8_sierra_contiguous_( //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_u8_sierra_strided_(          //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_u8_sierra_strided_(     //
     nk_u8_t const *data, nk_size_t count, nk_size_t stride_elements, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     __m256i stride_mask_u8x32 = nk_stride_blend_u1x32_(stride_elements);
@@ -171,7 +171,7 @@ NK_HELPER_INLINE void nk_reduce_moments_u8_sierra_strided_(          //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-NK_API_COMPTIME void nk_reduce_moments_u8_sierra(                 //
+NUMKONG_API_COMPTIME void nk_reduce_moments_u8_sierra(            //
     nk_u8_t const *data, nk_size_t count, nk_size_t stride_bytes, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_u8_t);
@@ -202,8 +202,8 @@ NK_API_COMPTIME void nk_reduce_moments_u8_sierra(                 //
  *  then accumulate with @c _mm256_dpbssd_epi32 (signed i8 × signed i8 → i32).
  *  Final: sum = i32_sum / 16, sumsq = i32_sumsq / 256.
  */
-NK_HELPER_INLINE void nk_reduce_moments_e2m3_sierra_contiguous_( //
-    nk_e2m3_t const *data, nk_size_t count,                      //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_e2m3_sierra_contiguous_( //
+    nk_e2m3_t const *data, nk_size_t count,                           //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     __m256i const lut_low_u8x32 = _mm256_set_epi8(30, 28, 26, 24, 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2, 0, //
                                                   30, 28, 26, 24, 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2, 0);
@@ -256,7 +256,7 @@ NK_HELPER_INLINE void nk_reduce_moments_e2m3_sierra_contiguous_( //
     *sumsq_ptr = (nk_f32_t)sumsq / 256.0f;
 }
 
-NK_HELPER_INLINE void nk_reduce_moments_e2m3_sierra_strided_(          //
+NUMKONG_HELPER_INLINE void nk_reduce_moments_e2m3_sierra_strided_(     //
     nk_e2m3_t const *data, nk_size_t count, nk_size_t stride_elements, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     __m256i stride_mask_u8x32 = nk_stride_blend_u1x32_(stride_elements);
@@ -305,14 +305,14 @@ NK_HELPER_INLINE void nk_reduce_moments_e2m3_sierra_strided_(          //
     *sumsq_ptr = (nk_f32_t)sumsq / 256.0f;
 }
 
-NK_API_COMPTIME void nk_reduce_moments_e2m3_sierra(                 //
+NUMKONG_API_COMPTIME void nk_reduce_moments_e2m3_sierra(            //
     nk_e2m3_t const *data, nk_size_t count, nk_size_t stride_bytes, //
     nk_f32_t *sum, nk_f32_t *sumsq) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_e2m3_t);
     int aligned = (stride_bytes % sizeof(nk_e2m3_t) == 0);
     if (count == 0) *sum = 0, *sumsq = 0;
     else if (!aligned || stride_elements == 0) nk_reduce_moments_e2m3_serial(data, count, stride_bytes, sum, sumsq);
-    else if (count > (nk_size_t)(NK_I16_MAX + 1) * 32) {
+    else if (count > (nk_size_t)(NUMKONG_I16_MAX + 1) * 32) {
         nk_size_t left_count = count / 2;
         nk_f32_t left_sum, left_sumsq, right_sum, right_sumsq;
         nk_reduce_moments_e2m3_sierra(data, left_count, stride_bytes, &left_sum, &left_sumsq);
@@ -335,6 +335,6 @@ NK_API_COMPTIME void nk_reduce_moments_e2m3_sierra(                 //
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_SIERRA
-#endif // NK_TARGET_X8664_
-#endif // NK_REDUCE_SIERRA_H
+#endif // NUMKONG_TARGET_SIERRA
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_REDUCE_SIERRA_H

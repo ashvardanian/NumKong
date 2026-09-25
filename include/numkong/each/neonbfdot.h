@@ -30,11 +30,11 @@
  *  lower throughput than native F16 operations, it prevents overflow issues common with FP16's
  *  limited exponent range in ML training workloads.
  */
-#ifndef NK_EACH_NEONBFDOT_H
-#define NK_EACH_NEONBFDOT_H
+#ifndef NUMKONG_EACH_NEONBFDOT_H
+#define NUMKONG_EACH_NEONBFDOT_H
 
-#if NK_TARGET_ARM64_
-#if NK_TARGET_NEONBFDOT
+#if NUMKONG_ARCH_ARM64_
+#if NUMKONG_TARGET_NEONBFDOT
 
 #include "numkong/types.h"
 #include "numkong/cast/serial.h"
@@ -50,8 +50,8 @@ extern "C" {
 #pragma GCC target("arch=armv8.6-a+simd+bf16")
 #endif
 
-NK_API_COMPTIME void nk_each_sum_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                nk_bf16_t *result) {
+NUMKONG_API_COMPTIME void nk_each_sum_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                     nk_bf16_t *result) {
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         bfloat16x4_t a_bf16x4 = vld1_bf16((bfloat16_t const *)a + i);
@@ -78,8 +78,8 @@ NK_API_COMPTIME void nk_each_sum_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t co
     }
 }
 
-NK_API_COMPTIME void nk_each_scale_bf16_neonbfdot(nk_bf16_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                  nk_f32_t const *beta, nk_bf16_t *result) {
+NUMKONG_API_COMPTIME void nk_each_scale_bf16_neonbfdot(nk_bf16_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                       nk_f32_t const *beta, nk_bf16_t *result) {
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
     float32x4_t alpha_f32x4 = vdupq_n_f32(alpha_val);
@@ -105,7 +105,7 @@ NK_API_COMPTIME void nk_each_scale_bf16_neonbfdot(nk_bf16_t const *a, nk_size_t 
     }
 }
 
-NK_API_COMPTIME void nk_each_blend_bf16_neonbfdot(       //
+NUMKONG_API_COMPTIME void nk_each_blend_bf16_neonbfdot(  //
     nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, //
     nk_f32_t const *alpha, nk_f32_t const *beta, nk_bf16_t *result) {
 
@@ -159,7 +159,7 @@ NK_API_COMPTIME void nk_each_blend_bf16_neonbfdot(       //
     }
 }
 
-NK_API_COMPTIME void nk_each_fma_bf16_neonbfdot(                //
+NUMKONG_API_COMPTIME void nk_each_fma_bf16_neonbfdot(           //
     nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, //
     nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta, nk_bf16_t *result) {
     nk_f32_t alpha_val = *alpha;
@@ -209,6 +209,6 @@ NK_API_COMPTIME void nk_each_fma_bf16_neonbfdot(                //
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_NEONBFDOT
-#endif // NK_TARGET_ARM64_
-#endif // NK_EACH_NEONBFDOT_H
+#endif // NUMKONG_TARGET_NEONBFDOT
+#endif // NUMKONG_ARCH_ARM64_
+#endif // NUMKONG_EACH_NEONBFDOT_H

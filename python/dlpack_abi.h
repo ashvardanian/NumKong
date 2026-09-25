@@ -21,8 +21,8 @@
  *  @see DLPack v1.3 release: https://github.com/dmlc/dlpack/releases/tag/v1.3
  *  @see Array API data interchange: https://data-apis.org/array-api/latest/design_topics/data_interchange.html
  */
-#ifndef NK_PYTHON_DLPACK_ABI_H
-#define NK_PYTHON_DLPACK_ABI_H
+#ifndef NUMKONG_PYTHON_DLPACK_ABI_H
+#define NUMKONG_PYTHON_DLPACK_ABI_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -159,4 +159,4 @@ typedef struct DLManagedTensorVersioned {
 }
 #endif
 
-#endif // NK_PYTHON_DLPACK_ABI_H
+#endif // NUMKONG_PYTHON_DLPACK_ABI_H

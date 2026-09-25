@@ -25,7 +25,7 @@ void bench_cross_loongarch() {
     constexpr nk_dtype_t u8_k = nk_u8_k;
     constexpr nk_dtype_t u1_k = nk_u1_k;
 
-#if NK_TARGET_LOONGSONASX
+#if NUMKONG_TARGET_LOONGSONASX
 
     // Dots: packed
     run_dots_packed<f64_k>("dots_packed_f64_loongsonasx", nk_dots_pack_size_f64_loongsonasx,
@@ -104,5 +104,5 @@ void bench_cross_loongarch() {
                               nk_jaccards_packed_u1_loongsonasx);
     run_jaccards_symmetric<u1_k>("jaccards_symmetric_u1_loongsonasx", nk_jaccards_symmetric_u1_loongsonasx);
 
-#endif // NK_TARGET_LOONGSONASX
+#endif // NUMKONG_TARGET_LOONGSONASX
 }

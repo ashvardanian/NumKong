@@ -10,11 +10,11 @@
  *  @c vrsqrte_f16 gives ~4-bit estimate; 2 Newton-Raphson steps refine to ~16 bits, exceeding f16's
  *  10-bit mantissa precision.
  */
-#ifndef NK_SCALAR_NEONHALF_H
-#define NK_SCALAR_NEONHALF_H
+#ifndef NUMKONG_SCALAR_NEONHALF_H
+#define NUMKONG_SCALAR_NEONHALF_H
 
-#if NK_TARGET_ARM64_
-#if NK_TARGET_NEONHALF
+#if NUMKONG_ARCH_ARM64_
+#if NUMKONG_TARGET_NEONHALF
 
 #include "numkong/types.h"
 
@@ -29,14 +29,14 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+simd+fp16")
 #endif
 
-NK_API_COMPTIME nk_f16_t nk_f16_sqrt_neonhalf(nk_f16_t x) {
+NUMKONG_API_COMPTIME nk_f16_t nk_f16_sqrt_neonhalf(nk_f16_t x) {
     float16x4_t x_f16x4 = vld1_dup_f16((nk_f16_for_arm_simd_t const *)&x);
     x_f16x4 = vsqrt_f16(x_f16x4);
     nk_f16_t result;
     vst1_lane_f16((nk_f16_for_arm_simd_t *)&result, x_f16x4, 0);
     return result;
 }
-NK_API_COMPTIME nk_f16_t nk_f16_rsqrt_neonhalf(nk_f16_t x) {
+NUMKONG_API_COMPTIME nk_f16_t nk_f16_rsqrt_neonhalf(nk_f16_t x) {
     float16x4_t x_f16x4 = vld1_dup_f16((nk_f16_for_arm_simd_t const *)&x);
     float16x4_t estimate_f16x4 = vrsqrte_f16(x_f16x4);
     estimate_f16x4 = vmul_f16(estimate_f16x4, vrsqrts_f16(vmul_f16(x_f16x4, estimate_f16x4), estimate_f16x4));
@@ -45,7 +45,7 @@ NK_API_COMPTIME nk_f16_t nk_f16_rsqrt_neonhalf(nk_f16_t x) {
     vst1_lane_f16((nk_f16_for_arm_simd_t *)&result, estimate_f16x4, 0);
     return result;
 }
-NK_API_COMPTIME nk_f16_t nk_f16_fma_neonhalf(nk_f16_t a, nk_f16_t b, nk_f16_t c) {
+NUMKONG_API_COMPTIME nk_f16_t nk_f16_fma_neonhalf(nk_f16_t a, nk_f16_t b, nk_f16_t c) {
     float16x4_t a_f16x4 = vld1_dup_f16((nk_f16_for_arm_simd_t const *)&a);
     float16x4_t b_f16x4 = vld1_dup_f16((nk_f16_for_arm_simd_t const *)&b);
     float16x4_t c_f16x4 = vld1_dup_f16((nk_f16_for_arm_simd_t const *)&c);
@@ -65,6 +65,6 @@ NK_API_COMPTIME nk_f16_t nk_f16_fma_neonhalf(nk_f16_t a, nk_f16_t b, nk_f16_t c)
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_NEONHALF
-#endif // NK_TARGET_ARM64_
-#endif // NK_SCALAR_NEONHALF_H
+#endif // NUMKONG_TARGET_NEONHALF
+#endif // NUMKONG_ARCH_ARM64_
+#endif // NUMKONG_SCALAR_NEONHALF_H

@@ -4,8 +4,8 @@
  *  @date February 5, 2026
  *  @brief Reduction kernels: reduce_moments (sum, sum-of-squares), reduce_minmax (min/max/indices).
  */
-#ifndef NK_REDUCE_HPP
-#define NK_REDUCE_HPP
+#ifndef NUMKONG_REDUCE_HPP
+#define NUMKONG_REDUCE_HPP
 
 #include <cstddef>     // `std::byte`, `std::size_t`
 #include <cstdint>     // `std::uint32_t`
@@ -940,4 +940,4 @@ tensor<typename value_type_::reduce_minmax_value_t, allocator_type_, max_rank_> 
 
 } // namespace ashvardanian::numkong
 
-#endif // NK_REDUCE_HPP
+#endif // NUMKONG_REDUCE_HPP

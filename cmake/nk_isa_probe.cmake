@@ -2,7 +2,7 @@
 #
 # `nk_instruction_set_probe_()` compiles one probe source per kit twice: with the kit's own flags
 # for `nk_target_<kit>_compiles`, and as this machine would execute it for `nk_target_<kit>_runs`.
-# `nk_build_instruction_set_definitions_()` folds those verdicts into `NK_TARGET_<KIT>=0/1` entries
+# `nk_build_instruction_set_definitions_()` folds those verdicts into `NUMKONG_TARGET_<KIT>=0/1` entries
 # appended per architecture to the cached `nk_compile_definitions_` and `nk_run_definitions_` lists.
 #
 # Each architecture file sets `nk_native_flags_` before including this file, then calls the two.
@@ -65,7 +65,7 @@ function (nk_instruction_set_probe_ variable_ msvc_flags_ gnu_flags_ probe_file_
     endif ()
 endfunction ()
 
-# Appends `NK_TARGET_<KIT>=0/1` per kit to the cached `nk_compile_definitions_` (what the toolchain
+# Appends `NUMKONG_TARGET_<KIT>=0/1` per kit to the cached `nk_compile_definitions_` (what the toolchain
 # builds) and `nk_run_definitions_` (what this machine runs).
 function (nk_build_instruction_set_definitions_ architecture_name_ instruction_set_names_)
     set(compile_definitions_ "${nk_compile_definitions_}")
@@ -73,14 +73,14 @@ function (nk_build_instruction_set_definitions_ architecture_name_ instruction_s
     foreach (instruction_set_ IN LISTS instruction_set_names_)
         string(TOLOWER "${instruction_set_}" instruction_set_lowercase_)
         if (nk_target_${instruction_set_lowercase_}_compiles)
-            list(APPEND compile_definitions_ "NK_TARGET_${instruction_set_}=1")
+            list(APPEND compile_definitions_ "NUMKONG_TARGET_${instruction_set_}=1")
         else ()
-            list(APPEND compile_definitions_ "NK_TARGET_${instruction_set_}=0")
+            list(APPEND compile_definitions_ "NUMKONG_TARGET_${instruction_set_}=0")
         endif ()
         if (nk_target_${instruction_set_lowercase_}_runs)
-            list(APPEND run_definitions_ "NK_TARGET_${instruction_set_}=1")
+            list(APPEND run_definitions_ "NUMKONG_TARGET_${instruction_set_}=1")
         else ()
-            list(APPEND run_definitions_ "NK_TARGET_${instruction_set_}=0")
+            list(APPEND run_definitions_ "NUMKONG_TARGET_${instruction_set_}=0")
         endif ()
     endforeach ()
     list(JOIN compile_definitions_ " " compile_summary_)

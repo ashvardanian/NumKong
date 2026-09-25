@@ -131,8 +131,8 @@
  *  @see Arm intrinsics: https://developer.arm.com/architectures/instruction-sets/intrinsics/
  *
  */
-#ifndef NK_SPATIAL_H
-#define NK_SPATIAL_H
+#ifndef NUMKONG_SPATIAL_H
+#define NUMKONG_SPATIAL_H
 
 #include "numkong/types.h"
 
@@ -151,29 +151,29 @@ extern "C" {
  *  @note The output distance value is non-negative.
  *  @note The output distance value is zero if and only if the two vectors are identical.
  */
-NK_API_RUNTIME void nk_euclidean_f64(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_RUNTIME void nk_euclidean_f64(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_RUNTIME void nk_euclidean_f32(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_RUNTIME void nk_euclidean_f32(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_RUNTIME void nk_euclidean_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_euclidean_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_RUNTIME void nk_euclidean_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_euclidean_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_RUNTIME void nk_euclidean_e4m3(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_euclidean_e4m3(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_RUNTIME void nk_euclidean_e5m2(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_euclidean_e5m2(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_RUNTIME void nk_euclidean_e2m3(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_euclidean_e2m3(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_RUNTIME void nk_euclidean_e3m2(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_euclidean_e3m2(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_RUNTIME void nk_euclidean_i8(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_euclidean_i8(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_RUNTIME void nk_euclidean_u8(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_euclidean_u8(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_RUNTIME void nk_euclidean_i4(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_euclidean_i4(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_RUNTIME void nk_euclidean_u4(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_euclidean_u4(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result);
 
 /**
  *  @brief Squared L2 (Euclidean) distance between two vectors.
@@ -186,29 +186,29 @@ NK_API_RUNTIME void nk_euclidean_u4(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_s
  *  @note The output distance value is non-negative.
  *  @note The output distance value is zero if and only if the two vectors are identical.
  */
-NK_API_RUNTIME void nk_sqeuclidean_f64(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_RUNTIME void nk_sqeuclidean_f64(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_RUNTIME void nk_sqeuclidean_f32(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_RUNTIME void nk_sqeuclidean_f32(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_RUNTIME void nk_sqeuclidean_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_sqeuclidean_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_RUNTIME void nk_sqeuclidean_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_sqeuclidean_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_RUNTIME void nk_sqeuclidean_e4m3(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_sqeuclidean_e4m3(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_RUNTIME void nk_sqeuclidean_e5m2(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_sqeuclidean_e5m2(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_RUNTIME void nk_sqeuclidean_e2m3(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_sqeuclidean_e2m3(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_RUNTIME void nk_sqeuclidean_e3m2(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_sqeuclidean_e3m2(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_RUNTIME void nk_sqeuclidean_i8(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result);
+NUMKONG_API_RUNTIME void nk_sqeuclidean_i8(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_RUNTIME void nk_sqeuclidean_u8(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
+NUMKONG_API_RUNTIME void nk_sqeuclidean_u8(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_RUNTIME void nk_sqeuclidean_i4(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_u32_t *result);
+NUMKONG_API_RUNTIME void nk_sqeuclidean_i4(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_RUNTIME void nk_sqeuclidean_u4(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result);
+NUMKONG_API_RUNTIME void nk_sqeuclidean_u4(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result);
 
 /**
  *  @brief Angular (cosine) distance between two vectors.
@@ -221,239 +221,272 @@ NK_API_RUNTIME void nk_sqeuclidean_u4(nk_u4x2_t const *a, nk_u4x2_t const *b, nk
  *  @note The output distance value is non-negative.
  *  @note The output distance value is zero if and only if the two vectors are identical.
  */
-NK_API_RUNTIME void nk_angular_f64(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_RUNTIME void nk_angular_f64(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_RUNTIME void nk_angular_f32(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_RUNTIME void nk_angular_f32(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_RUNTIME void nk_angular_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_angular_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_RUNTIME void nk_angular_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_angular_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_RUNTIME void nk_angular_e4m3(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_angular_e4m3(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_RUNTIME void nk_angular_e5m2(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_angular_e5m2(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_RUNTIME void nk_angular_e2m3(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_angular_e2m3(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_RUNTIME void nk_angular_e3m2(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_angular_e3m2(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_RUNTIME void nk_angular_i8(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_angular_i8(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_RUNTIME void nk_angular_u8(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_angular_u8(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_RUNTIME void nk_angular_i4(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_angular_i4(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_RUNTIME void nk_angular_u4(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_angular_u4(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result);
 
 /*  Serial backends for all numeric types.
  *  By default they use 32-bit arithmetic, unless the arguments themselves contain 64-bit floats. */
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
+                                                    nk_f64_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_angular_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_f32_serial(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_f32_serial(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_f32_serial(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f32_serial(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
+                                                    nk_f64_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_f32_serial(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_angular_f32_serial(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_f16_serial(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_f16_serial(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_f16_serial(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f16_serial(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                    nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_f16_serial(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_f16_serial(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_bf16_serial(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_bf16_serial(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                   nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_bf16_serial(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_bf16_serial(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                     nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_bf16_serial(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_bf16_serial(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_e4m3_serial(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_e4m3_serial(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                   nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_e4m3_serial(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e4m3_serial(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                     nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_e4m3_serial(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_e4m3_serial(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_e5m2_serial(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_e5m2_serial(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                   nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_e5m2_serial(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e5m2_serial(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                     nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_e5m2_serial(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_e5m2_serial(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_i8_serial(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_i8_serial(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_i8_serial(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_i8_serial(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_i8_serial(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_i8_serial(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_u8_serial(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_u8_serial(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_u8_serial(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_u8_serial(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_u8_serial(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_u8_serial(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
 
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_u32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n,
+                                                   nk_u32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n,
+                                                   nk_u32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result);
 
 /*  SIMD-powered backends for Arm NEON, mostly using 32-bit arithmetic over 128-bit words. By far
  *  the most portable backend, covering most Arm v8 devices, over a billion phones, and almost all
  *  server CPUs produced before 2023. */
-#if NK_TARGET_NEON
+#if NUMKONG_TARGET_NEON
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_angular_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_angular_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_bf16_neon(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_bf16_neon(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_bf16_neon(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_bf16_neon(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
-#endif // NK_TARGET_NEON
-
-#if NK_TARGET_NEONBFDOT
-/** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+NUMKONG_API_COMPTIME void nk_sqeuclidean_bf16_neon(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
                                                    nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
-#endif // NK_TARGET_NEONBFDOT
+NUMKONG_API_COMPTIME void nk_angular_bf16_neon(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_euclidean_f64 */
+NUMKONG_API_COMPTIME void nk_euclidean_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_sqeuclidean_f64 */
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_angular_f64 */
+NUMKONG_API_COMPTIME void nk_angular_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+#endif // NUMKONG_TARGET_NEON
 
-#if NK_TARGET_NEONSDOT
+#if NUMKONG_TARGET_NEONBFDOT
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_i8_neonsdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                      nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_i8_neonsdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                        nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_i8_neonsdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_u8_neonsdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_u8_neonsdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
-/** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_u8_neonsdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_i4_neonsdot(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_i4_neonsdot(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_u32_t *result);
-/** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_i4_neonsdot(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_u4_neonsdot(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_u4_neonsdot(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result);
-/** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_u4_neonsdot(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result);
-#endif // NK_TARGET_NEONSDOT
+NUMKONG_API_COMPTIME void nk_angular_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                    nk_f32_t *result);
+#endif // NUMKONG_TARGET_NEONBFDOT
 
-#if NK_TARGET_SVESDOT
+#if NUMKONG_TARGET_NEONSDOT
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_i8_svesdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_i8_neonsdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_i8_svesdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_i8_neonsdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_i8_svesdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_i8_neonsdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_u8_svesdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_u8_neonsdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_u8_svesdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_u8_neonsdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_u8_svesdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
-#endif // NK_TARGET_SVESDOT
+NUMKONG_API_COMPTIME void nk_angular_u8_neonsdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_euclidean_f64 */
+NUMKONG_API_COMPTIME void nk_euclidean_i4_neonsdot(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n,
+                                                   nk_f32_t *result);
+/** @copydoc nk_sqeuclidean_f64 */
+NUMKONG_API_COMPTIME void nk_sqeuclidean_i4_neonsdot(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n,
+                                                     nk_u32_t *result);
+/** @copydoc nk_angular_f64 */
+NUMKONG_API_COMPTIME void nk_angular_i4_neonsdot(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_euclidean_f64 */
+NUMKONG_API_COMPTIME void nk_euclidean_u4_neonsdot(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n,
+                                                   nk_f32_t *result);
+/** @copydoc nk_sqeuclidean_f64 */
+NUMKONG_API_COMPTIME void nk_sqeuclidean_u4_neonsdot(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n,
+                                                     nk_u32_t *result);
+/** @copydoc nk_angular_f64 */
+NUMKONG_API_COMPTIME void nk_angular_u4_neonsdot(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result);
+#endif // NUMKONG_TARGET_NEONSDOT
 
-#if NK_TARGET_NEONFP8
-/** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_e4m3_neonfp8(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result);
+#if NUMKONG_TARGET_SVESDOT
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_e4m3_neonfp8(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_e4m3_neonfp8(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_i8_svesdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_e5m2_neonfp8(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_e5m2_neonfp8(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_i8_svesdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_e5m2_neonfp8(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_i8_svesdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_euclidean_f64 */
+NUMKONG_API_COMPTIME void nk_euclidean_u8_svesdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_e2m3_neonfp8(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_e2m3_neonfp8(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_u8_svesdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_e2m3_neonfp8(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_u8_svesdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
+#endif // NUMKONG_TARGET_SVESDOT
+
+#if NUMKONG_TARGET_NEONFP8
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_e3m2_neonfp8(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e4m3_neonfp8(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                      nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_e3m2_neonfp8(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_e4m3_neonfp8(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                    nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_e3m2_neonfp8(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
-#endif // NK_TARGET_NEONFP8
+NUMKONG_API_COMPTIME void nk_angular_e4m3_neonfp8(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                  nk_f32_t *result);
+/** @copydoc nk_sqeuclidean_f64 */
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e5m2_neonfp8(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                      nk_f32_t *result);
+/** @copydoc nk_euclidean_f64 */
+NUMKONG_API_COMPTIME void nk_euclidean_e5m2_neonfp8(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                    nk_f32_t *result);
+/** @copydoc nk_angular_f64 */
+NUMKONG_API_COMPTIME void nk_angular_e5m2_neonfp8(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                  nk_f32_t *result);
+/** @copydoc nk_sqeuclidean_f64 */
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e2m3_neonfp8(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                      nk_f32_t *result);
+/** @copydoc nk_euclidean_f64 */
+NUMKONG_API_COMPTIME void nk_euclidean_e2m3_neonfp8(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                    nk_f32_t *result);
+/** @copydoc nk_angular_f64 */
+NUMKONG_API_COMPTIME void nk_angular_e2m3_neonfp8(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                  nk_f32_t *result);
+/** @copydoc nk_sqeuclidean_f64 */
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e3m2_neonfp8(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                      nk_f32_t *result);
+/** @copydoc nk_euclidean_f64 */
+NUMKONG_API_COMPTIME void nk_euclidean_e3m2_neonfp8(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                    nk_f32_t *result);
+/** @copydoc nk_angular_f64 */
+NUMKONG_API_COMPTIME void nk_angular_e3m2_neonfp8(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                  nk_f32_t *result);
+#endif // NUMKONG_TARGET_NEONFP8
 
 /*  SIMD-powered backends for Arm SVE, mostly using 32-bit arithmetic over variable-length
  *  platform-defined word sizes. Designed for Arm Graviton 3, Microsoft Cobalt, as well as NVIDIA
  *  Grace and newer Ampere Altra CPUs. */
-#if NK_TARGET_SVE
+#if NUMKONG_TARGET_SVE
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_angular_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
-#endif // NK_TARGET_SVE
+NUMKONG_API_COMPTIME void nk_angular_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
+#endif // NUMKONG_TARGET_SVE
 
-#if NK_TARGET_SVEHALF
+#if NUMKONG_TARGET_SVEHALF
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_f16_svehalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_f16_svehalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_f16_svehalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f16_svehalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                     nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_f16_svehalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
-#endif // NK_TARGET_SVEHALF
+NUMKONG_API_COMPTIME void nk_angular_f16_svehalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+#endif // NUMKONG_TARGET_SVEHALF
 
-#if NK_TARGET_SVEBFDOT
+#if NUMKONG_TARGET_SVEBFDOT
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_bf16_svebfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_bf16_svebfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                     nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_bf16_svebfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                  nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_bf16_svebfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                       nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_bf16_svebfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
-#endif // NK_TARGET_SVEBFDOT
+NUMKONG_API_COMPTIME void nk_angular_bf16_svebfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                   nk_f32_t *result);
+#endif // NUMKONG_TARGET_SVEBFDOT
 
 /*  SIMD-powered backends for AVX2 CPUs of Haswell generation and newer, using 32-bit arithmetic
  *  over 256-bit words. First demonstrated in 2011, at least one Haswell-based processor was
@@ -461,44 +494,50 @@ NK_API_COMPTIME void nk_angular_bf16_svebfdot(nk_bf16_t const *a, nk_bf16_t cons
  *  FMA, and F16C, making it a perfect baseline for SIMD algorithms. On other hand, there is no
  *  need to implement AVX2 versions of @c f32 and @c f64 functions, as those are properly
  *  vectorized by recent compilers. */
-#if NK_TARGET_HASWELL
+#if NUMKONG_TARGET_HASWELL
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_i8_haswell(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_i8_haswell(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_i8_haswell(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_i8_haswell(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_i8_haswell(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_i8_haswell(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                     nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                    nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                      nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                  nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
+                                                     nk_f64_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_angular_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
+                                                     nk_f64_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
-#endif // NK_TARGET_HASWELL
+NUMKONG_API_COMPTIME void nk_angular_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
+#endif // NUMKONG_TARGET_HASWELL
 
 /*  SIMD-powered backends for AVX512 CPUs of Skylake generation and newer, using 32-bit arithmetic
  *  over 512-bit words. Skylake was launched in 2015, and discontinued in 2019. Skylake had support
@@ -516,357 +555,419 @@ NK_API_COMPTIME void nk_angular_f64_haswell(nk_f64_t const *a, nk_f64_t const *b
  *  FMA instructions will not achieve higher IPC than executing 512-bit instructions alone."
  *
  *  Source: https://chipsandcheese.com/p/a-peek-at-sapphire-rapids */
-#if NK_TARGET_SKYLAKE
+#if NUMKONG_TARGET_SKYLAKE
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
+                                                     nk_f64_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_angular_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
+                                                     nk_f64_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_angular_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                     nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_e4m3_skylake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_e4m3_skylake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                    nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_e4m3_skylake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e4m3_skylake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                      nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_e4m3_skylake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_e4m3_skylake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                  nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_e5m2_skylake(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_e5m2_skylake(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                    nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_e5m2_skylake(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e5m2_skylake(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                      nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_e5m2_skylake(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
-#endif // NK_TARGET_SKYLAKE
+NUMKONG_API_COMPTIME void nk_angular_e5m2_skylake(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                  nk_f32_t *result);
+#endif // NUMKONG_TARGET_SKYLAKE
 
 /*  SIMD-powered backends for AVX512 CPUs of Ice Lake generation and newer, using mixed arithmetic
  *  over 512-bit words. Ice Lake added VNNI, VPOPCNTDQ, IFMA, VBMI, VAES, GFNI, VBMI2, BITALG,
  *  VPCLMULQDQ, and other extensions for integral operations. Sapphire Rapids added tiled matrix
  *  operations, but we are most interested in the new mixed-precision FMA instructions. */
-#if NK_TARGET_ICELAKE
+#if NUMKONG_TARGET_ICELAKE
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n,
+                                                  nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_u32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n,
+                                                    nk_u32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n,
+                                                  nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n,
+                                                    nk_u32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_i8_icelake(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_i8_icelake(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_i8_icelake(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_i8_icelake(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_i8_icelake(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_i8_icelake(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_e4m3_icelake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_e4m3_icelake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                    nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_e4m3_icelake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e4m3_icelake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                      nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_e4m3_icelake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_e4m3_icelake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                  nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_e2m3_icelake(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_e2m3_icelake(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                    nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_e2m3_icelake(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e2m3_icelake(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                      nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_e2m3_icelake(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_e2m3_icelake(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                  nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_e3m2_icelake(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_e3m2_icelake(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                    nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_e3m2_icelake(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e3m2_icelake(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                      nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_e3m2_icelake(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
-#endif // NK_TARGET_ICELAKE
+NUMKONG_API_COMPTIME void nk_angular_e3m2_icelake(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                  nk_f32_t *result);
+#endif // NUMKONG_TARGET_ICELAKE
 
-#if NK_TARGET_GENOA
+#if NUMKONG_TARGET_GENOA
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                  nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                    nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
-#endif // NK_TARGET_GENOA
+NUMKONG_API_COMPTIME void nk_angular_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+#endif // NUMKONG_TARGET_GENOA
 
-#if NK_TARGET_DIAMOND
+#if NUMKONG_TARGET_DIAMOND
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_f16_diamond(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_f16_diamond(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_f16_diamond(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f16_diamond(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                     nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_f16_diamond(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_f16_diamond(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_e4m3_diamond(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_e4m3_diamond(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                    nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_e4m3_diamond(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e4m3_diamond(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                      nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_e4m3_diamond(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_e4m3_diamond(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                  nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_e5m2_diamond(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_e5m2_diamond(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                    nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_e5m2_diamond(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e5m2_diamond(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                      nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_e5m2_diamond(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
-#endif // NK_TARGET_DIAMOND
+NUMKONG_API_COMPTIME void nk_angular_e5m2_diamond(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                  nk_f32_t *result);
+#endif // NUMKONG_TARGET_DIAMOND
 
 /*  SIMD-powered backends for AVX-INT8-VNNI extensions on Xeon 6 CPUs, including Sierra Forest and
  *  Granite Rapids. It packs many "efficiency" cores into a single socket, avoiding heavy 512-bit
  *  operations, and focusing on 256-bit ones. */
-#if NK_TARGET_SIERRA
+#if NUMKONG_TARGET_SIERRA
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_i8_sierra(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_i8_sierra(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_i8_sierra(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_i8_sierra(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_i8_sierra(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_i8_sierra(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_u8_sierra(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_u8_sierra(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_u8_sierra(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_u8_sierra(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_u8_sierra(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_u8_sierra(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_e2m3_sierra(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_e2m3_sierra(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_e2m3_sierra(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_e2m3_sierra(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                   nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_e2m3_sierra(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e2m3_sierra(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                     nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_e3m2_sierra(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_e3m2_sierra(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                   nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_e3m2_sierra(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e3m2_sierra(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                     nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_e3m2_sierra(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
-#endif // NK_TARGET_SIERRA
+NUMKONG_API_COMPTIME void nk_angular_e3m2_sierra(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
+#endif // NUMKONG_TARGET_SIERRA
 
-#if NK_TARGET_ALDER
+#if NUMKONG_TARGET_ALDER
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_i8_alder(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_i8_alder(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_i8_alder(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_i8_alder(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_i8_alder(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_i8_alder(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_u8_alder(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_u8_alder(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_u8_alder(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_u8_alder(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_u8_alder(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_u8_alder(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_e2m3_alder(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_e2m3_alder(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_e2m3_alder(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_e2m3_alder(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                  nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_e2m3_alder(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_e3m2_alder(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_e3m2_alder(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_e3m2_alder(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
-#endif // NK_TARGET_ALDER
-
-#if NK_TARGET_V128
-/** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
-/** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result);
-/** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
-#endif // NK_TARGET_V128
-
-#if NK_TARGET_V128RELAXED
-/** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
-                                                    nk_f64_t *result);
-/** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
-                                                    nk_f64_t *result);
-/** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
-/** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
-/** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
-/** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
-/** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_f16_v128relaxed(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e2m3_alder(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
                                                     nk_f32_t *result);
+/** @copydoc nk_angular_f64 */
+NUMKONG_API_COMPTIME void nk_angular_e3m2_alder(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_euclidean_f64 */
+NUMKONG_API_COMPTIME void nk_euclidean_e3m2_alder(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                  nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_bf16_v128relaxed(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                     nk_f32_t *result);
-/** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_f16_v128relaxed(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_bf16_v128relaxed(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e3m2_alder(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                    nk_f32_t *result);
+#endif // NUMKONG_TARGET_ALDER
+
+#if NUMKONG_TARGET_V128
+/** @copydoc nk_sqeuclidean_f64 */
+NUMKONG_API_COMPTIME void nk_sqeuclidean_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
                                                    nk_f32_t *result);
-/** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_f16_v128relaxed(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_bf16_v128relaxed(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_i8_v128relaxed(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_i8_v128relaxed(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_i8_v128relaxed(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_e4m3_v128relaxed(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+NUMKONG_API_COMPTIME void nk_sqeuclidean_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result);
+/** @copydoc nk_euclidean_f64 */
+NUMKONG_API_COMPTIME void nk_euclidean_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_angular_f64 */
+NUMKONG_API_COMPTIME void nk_angular_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
+#endif // NUMKONG_TARGET_V128
+
+#if NUMKONG_TARGET_V128RELAXED
+/** @copydoc nk_sqeuclidean_f64 */
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
+                                                         nk_f64_t *result);
+/** @copydoc nk_sqeuclidean_f64 */
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
+                                                         nk_f64_t *result);
+/** @copydoc nk_euclidean_f64 */
+NUMKONG_API_COMPTIME void nk_euclidean_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
+                                                       nk_f64_t *result);
+/** @copydoc nk_euclidean_f64 */
+NUMKONG_API_COMPTIME void nk_euclidean_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
+                                                       nk_f64_t *result);
+/** @copydoc nk_angular_f64 */
+NUMKONG_API_COMPTIME void nk_angular_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
+                                                     nk_f64_t *result);
+/** @copydoc nk_angular_f64 */
+NUMKONG_API_COMPTIME void nk_angular_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
+                                                     nk_f64_t *result);
+/** @copydoc nk_sqeuclidean_f64 */
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f16_v128relaxed(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                         nk_f32_t *result);
+/** @copydoc nk_sqeuclidean_f64 */
+NUMKONG_API_COMPTIME void nk_sqeuclidean_bf16_v128relaxed(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                          nk_f32_t *result);
+/** @copydoc nk_euclidean_f64 */
+NUMKONG_API_COMPTIME void nk_euclidean_f16_v128relaxed(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                       nk_f32_t *result);
+/** @copydoc nk_euclidean_f64 */
+NUMKONG_API_COMPTIME void nk_euclidean_bf16_v128relaxed(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                        nk_f32_t *result);
+/** @copydoc nk_angular_f64 */
+NUMKONG_API_COMPTIME void nk_angular_f16_v128relaxed(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
                                                      nk_f32_t *result);
-/** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_e4m3_v128relaxed(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
-                                                   nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_e4m3_v128relaxed(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_bf16_v128relaxed(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                      nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_e5m2_v128relaxed(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
-                                                     nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
+                                                        nk_u32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_e5m2_v128relaxed(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
-                                                   nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
+                                                      nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_e5m2_v128relaxed(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_e2m3_v128relaxed(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
-                                                     nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_i8_v128relaxed(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n,
+                                                        nk_u32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_e2m3_v128relaxed(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
-                                                   nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_i8_v128relaxed(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n,
+                                                      nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_e2m3_v128relaxed(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_i8_v128relaxed(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_e3m2_v128relaxed(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
-                                                     nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e4m3_v128relaxed(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                          nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_e3m2_v128relaxed(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
-                                                   nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_e4m3_v128relaxed(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                        nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_e3m2_v128relaxed(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result);
-#endif // NK_TARGET_V128RELAXED
+NUMKONG_API_COMPTIME void nk_angular_e4m3_v128relaxed(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                      nk_f32_t *result);
+/** @copydoc nk_sqeuclidean_f64 */
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e5m2_v128relaxed(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                          nk_f32_t *result);
+/** @copydoc nk_euclidean_f64 */
+NUMKONG_API_COMPTIME void nk_euclidean_e5m2_v128relaxed(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                        nk_f32_t *result);
+/** @copydoc nk_angular_f64 */
+NUMKONG_API_COMPTIME void nk_angular_e5m2_v128relaxed(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                      nk_f32_t *result);
+/** @copydoc nk_sqeuclidean_f64 */
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e2m3_v128relaxed(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                          nk_f32_t *result);
+/** @copydoc nk_euclidean_f64 */
+NUMKONG_API_COMPTIME void nk_euclidean_e2m3_v128relaxed(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                        nk_f32_t *result);
+/** @copydoc nk_angular_f64 */
+NUMKONG_API_COMPTIME void nk_angular_e2m3_v128relaxed(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                      nk_f32_t *result);
+/** @copydoc nk_sqeuclidean_f64 */
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e3m2_v128relaxed(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                          nk_f32_t *result);
+/** @copydoc nk_euclidean_f64 */
+NUMKONG_API_COMPTIME void nk_euclidean_e3m2_v128relaxed(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                        nk_f32_t *result);
+/** @copydoc nk_angular_f64 */
+NUMKONG_API_COMPTIME void nk_angular_e3m2_v128relaxed(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                      nk_f32_t *result);
+#endif // NUMKONG_TARGET_V128RELAXED
 
 /*  SIMD-powered backends for RISC-V Vector extension, using scalable vector arithmetic.
  *  Designed for SiFive, T-Head, and other RISC-V processors with the V extension. */
-#if NK_TARGET_RVV
+#if NUMKONG_TARGET_RVV
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_angular_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_COMPTIME void nk_angular_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                  nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_e4m3_rvv(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_e4m3_rvv(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_e4m3_rvv(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e4m3_rvv(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                  nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_e4m3_rvv(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_e4m3_rvv(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_e5m2_rvv(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_e5m2_rvv(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_e5m2_rvv(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e5m2_rvv(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                  nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_e5m2_rvv(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_e5m2_rvv(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_i8_rvv(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_i8_rvv(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_i8_rvv(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_i8_rvv(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_i8_rvv(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_i8_rvv(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_i4_rvv(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_i4_rvv(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_i4_rvv(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_u32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_i4_rvv(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_i4_rvv(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_angular_i4_rvv(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_u4_rvv(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_u4_rvv(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_u4_rvv(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_u4_rvv(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_u4_rvv(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result);
-#endif // NK_TARGET_RVV
+NUMKONG_API_COMPTIME void nk_angular_u4_rvv(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result);
+#endif // NUMKONG_TARGET_RVV
 
-#if NK_TARGET_RVVHALF
+#if NUMKONG_TARGET_RVVHALF
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_f16_rvvhalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_f16_rvvhalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_f16_rvvhalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f16_rvvhalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                     nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_f16_rvvhalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
-#endif // NK_TARGET_RVVHALF
+NUMKONG_API_COMPTIME void nk_angular_f16_rvvhalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+#endif // NUMKONG_TARGET_RVVHALF
 
-#if NK_TARGET_RVVBF16
+#if NUMKONG_TARGET_RVVBF16
 /** @copydoc nk_euclidean_f64 */
-NK_API_COMPTIME void nk_euclidean_bf16_rvvbf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_euclidean_bf16_rvvbf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                    nk_f32_t *result);
 /** @copydoc nk_sqeuclidean_f64 */
-NK_API_COMPTIME void nk_sqeuclidean_bf16_rvvbf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_COMPTIME void nk_sqeuclidean_bf16_rvvbf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                      nk_f32_t *result);
 /** @copydoc nk_angular_f64 */
-NK_API_COMPTIME void nk_angular_bf16_rvvbf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
-#endif // NK_TARGET_RVVBF16
+NUMKONG_API_COMPTIME void nk_angular_bf16_rvvbf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                  nk_f32_t *result);
+#endif // NUMKONG_TARGET_RVVBF16
 
 /** Returns the output dtype for L2 (Euclidean) distance. */
-NK_HELPER_INLINE nk_dtype_t nk_euclidean_output_dtype(nk_dtype_t dtype) {
+NUMKONG_HELPER_INLINE nk_dtype_t nk_euclidean_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k: return nk_f64_k;
     case nk_f32_k: return nk_f64_k;
@@ -886,7 +987,7 @@ NK_HELPER_INLINE nk_dtype_t nk_euclidean_output_dtype(nk_dtype_t dtype) {
 }
 
 /** Returns the output dtype for L2 squared distance. */
-NK_HELPER_INLINE nk_dtype_t nk_sqeuclidean_output_dtype(nk_dtype_t dtype) {
+NUMKONG_HELPER_INLINE nk_dtype_t nk_sqeuclidean_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k: return nk_f64_k;
     case nk_f32_k: return nk_f64_k;
@@ -905,7 +1006,7 @@ NK_HELPER_INLINE nk_dtype_t nk_sqeuclidean_output_dtype(nk_dtype_t dtype) {
 }
 
 /** Returns the output dtype for angular/cosine distance. */
-NK_HELPER_INLINE nk_dtype_t nk_angular_output_dtype(nk_dtype_t dtype) {
+NUMKONG_HELPER_INLINE nk_dtype_t nk_angular_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k: return nk_f64_k;
     case nk_f32_k: return nk_f64_k;
@@ -956,765 +1057,765 @@ NK_HELPER_INLINE nk_dtype_t nk_angular_output_dtype(nk_dtype_t dtype) {
 extern "C" {
 #endif
 
-#if !NK_RUNTIME_DISPATCH
+#if !NUMKONG_RUNTIME_DISPATCH
 
-NK_API_COMPTIME void nk_euclidean_f64(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
-#if NK_TARGET_V128RELAXED
+NUMKONG_API_COMPTIME void nk_euclidean_f64(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+#if NUMKONG_TARGET_V128RELAXED
     nk_euclidean_f64_v128relaxed(a, b, n, result);
-#elif NK_TARGET_POWERVSX
+#elif NUMKONG_TARGET_POWERVSX
     nk_euclidean_f64_powervsx(a, b, n, result);
-#elif NK_TARGET_LOONGSONASX
+#elif NUMKONG_TARGET_LOONGSONASX
     nk_euclidean_f64_loongsonasx(a, b, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_euclidean_f64_rvv(a, b, n, result);
-#elif NK_TARGET_SVE
+#elif NUMKONG_TARGET_SVE
     nk_euclidean_f64_sve(a, b, n, result);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_euclidean_f64_neon(a, b, n, result);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_euclidean_f64_skylake(a, b, n, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_euclidean_f64_haswell(a, b, n, result);
 #else
     nk_euclidean_f64_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_f64(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
-#if NK_TARGET_V128RELAXED
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f64(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+#if NUMKONG_TARGET_V128RELAXED
     nk_sqeuclidean_f64_v128relaxed(a, b, n, result);
-#elif NK_TARGET_POWERVSX
+#elif NUMKONG_TARGET_POWERVSX
     nk_sqeuclidean_f64_powervsx(a, b, n, result);
-#elif NK_TARGET_LOONGSONASX
+#elif NUMKONG_TARGET_LOONGSONASX
     nk_sqeuclidean_f64_loongsonasx(a, b, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_sqeuclidean_f64_rvv(a, b, n, result);
-#elif NK_TARGET_SVE
+#elif NUMKONG_TARGET_SVE
     nk_sqeuclidean_f64_sve(a, b, n, result);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_sqeuclidean_f64_neon(a, b, n, result);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_sqeuclidean_f64_skylake(a, b, n, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_sqeuclidean_f64_haswell(a, b, n, result);
 #else
     nk_sqeuclidean_f64_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_angular_f64(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
-#if NK_TARGET_V128RELAXED
+NUMKONG_API_COMPTIME void nk_angular_f64(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+#if NUMKONG_TARGET_V128RELAXED
     nk_angular_f64_v128relaxed(a, b, n, result);
-#elif NK_TARGET_POWERVSX
+#elif NUMKONG_TARGET_POWERVSX
     nk_angular_f64_powervsx(a, b, n, result);
-#elif NK_TARGET_LOONGSONASX
+#elif NUMKONG_TARGET_LOONGSONASX
     nk_angular_f64_loongsonasx(a, b, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_angular_f64_rvv(a, b, n, result);
-#elif NK_TARGET_SVE
+#elif NUMKONG_TARGET_SVE
     nk_angular_f64_sve(a, b, n, result);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_angular_f64_neon(a, b, n, result);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_angular_f64_skylake(a, b, n, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_angular_f64_haswell(a, b, n, result);
 #else
     nk_angular_f64_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_euclidean_f32(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
-#if NK_TARGET_V128RELAXED
+NUMKONG_API_COMPTIME void nk_euclidean_f32(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+#if NUMKONG_TARGET_V128RELAXED
     nk_euclidean_f32_v128relaxed(a, b, n, result);
-#elif NK_TARGET_POWERVSX
+#elif NUMKONG_TARGET_POWERVSX
     nk_euclidean_f32_powervsx(a, b, n, result);
-#elif NK_TARGET_LOONGSONASX
+#elif NUMKONG_TARGET_LOONGSONASX
     nk_euclidean_f32_loongsonasx(a, b, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_euclidean_f32_rvv(a, b, n, result);
-#elif NK_TARGET_SVE
+#elif NUMKONG_TARGET_SVE
     nk_euclidean_f32_sve(a, b, n, result);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_euclidean_f32_neon(a, b, n, result);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_euclidean_f32_skylake(a, b, n, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_euclidean_f32_haswell(a, b, n, result);
 #else
     nk_euclidean_f32_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_f32(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
-#if NK_TARGET_V128RELAXED
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f32(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+#if NUMKONG_TARGET_V128RELAXED
     nk_sqeuclidean_f32_v128relaxed(a, b, n, result);
-#elif NK_TARGET_POWERVSX
+#elif NUMKONG_TARGET_POWERVSX
     nk_sqeuclidean_f32_powervsx(a, b, n, result);
-#elif NK_TARGET_LOONGSONASX
+#elif NUMKONG_TARGET_LOONGSONASX
     nk_sqeuclidean_f32_loongsonasx(a, b, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_sqeuclidean_f32_rvv(a, b, n, result);
-#elif NK_TARGET_SVE
+#elif NUMKONG_TARGET_SVE
     nk_sqeuclidean_f32_sve(a, b, n, result);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_sqeuclidean_f32_neon(a, b, n, result);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_sqeuclidean_f32_skylake(a, b, n, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_sqeuclidean_f32_haswell(a, b, n, result);
 #else
     nk_sqeuclidean_f32_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_angular_f32(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
-#if NK_TARGET_V128RELAXED
+NUMKONG_API_COMPTIME void nk_angular_f32(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+#if NUMKONG_TARGET_V128RELAXED
     nk_angular_f32_v128relaxed(a, b, n, result);
-#elif NK_TARGET_POWERVSX
+#elif NUMKONG_TARGET_POWERVSX
     nk_angular_f32_powervsx(a, b, n, result);
-#elif NK_TARGET_LOONGSONASX
+#elif NUMKONG_TARGET_LOONGSONASX
     nk_angular_f32_loongsonasx(a, b, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_angular_f32_rvv(a, b, n, result);
-#elif NK_TARGET_SVE
+#elif NUMKONG_TARGET_SVE
     nk_angular_f32_sve(a, b, n, result);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_angular_f32_neon(a, b, n, result);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_angular_f32_skylake(a, b, n, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_angular_f32_haswell(a, b, n, result);
 #else
     nk_angular_f32_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_euclidean_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NK_TARGET_V128RELAXED
+NUMKONG_API_COMPTIME void nk_euclidean_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+#if NUMKONG_TARGET_V128RELAXED
     nk_euclidean_f16_v128relaxed(a, b, n, result);
-#elif NK_TARGET_POWERVSX
+#elif NUMKONG_TARGET_POWERVSX
     nk_euclidean_f16_powervsx(a, b, n, result);
-#elif NK_TARGET_RVVHALF
+#elif NUMKONG_TARGET_RVVHALF
     nk_euclidean_f16_rvvhalf(a, b, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_euclidean_f16_rvv(a, b, n, result);
-#elif NK_TARGET_SVEHALF
+#elif NUMKONG_TARGET_SVEHALF
     nk_euclidean_f16_svehalf(a, b, n, result);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_euclidean_f16_neon(a, b, n, result);
-#elif NK_TARGET_DIAMOND
+#elif NUMKONG_TARGET_DIAMOND
     nk_euclidean_f16_diamond(a, b, n, result);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_euclidean_f16_skylake(a, b, n, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_euclidean_f16_haswell(a, b, n, result);
 #else
     nk_euclidean_f16_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NK_TARGET_V128RELAXED
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+#if NUMKONG_TARGET_V128RELAXED
     nk_sqeuclidean_f16_v128relaxed(a, b, n, result);
-#elif NK_TARGET_POWERVSX
+#elif NUMKONG_TARGET_POWERVSX
     nk_sqeuclidean_f16_powervsx(a, b, n, result);
-#elif NK_TARGET_RVVHALF
+#elif NUMKONG_TARGET_RVVHALF
     nk_sqeuclidean_f16_rvvhalf(a, b, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_sqeuclidean_f16_rvv(a, b, n, result);
-#elif NK_TARGET_SVEHALF
+#elif NUMKONG_TARGET_SVEHALF
     nk_sqeuclidean_f16_svehalf(a, b, n, result);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_sqeuclidean_f16_neon(a, b, n, result);
-#elif NK_TARGET_DIAMOND
+#elif NUMKONG_TARGET_DIAMOND
     nk_sqeuclidean_f16_diamond(a, b, n, result);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_sqeuclidean_f16_skylake(a, b, n, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_sqeuclidean_f16_haswell(a, b, n, result);
 #else
     nk_sqeuclidean_f16_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_angular_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NK_TARGET_V128RELAXED
+NUMKONG_API_COMPTIME void nk_angular_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+#if NUMKONG_TARGET_V128RELAXED
     nk_angular_f16_v128relaxed(a, b, n, result);
-#elif NK_TARGET_POWERVSX
+#elif NUMKONG_TARGET_POWERVSX
     nk_angular_f16_powervsx(a, b, n, result);
-#elif NK_TARGET_RVVHALF
+#elif NUMKONG_TARGET_RVVHALF
     nk_angular_f16_rvvhalf(a, b, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_angular_f16_rvv(a, b, n, result);
-#elif NK_TARGET_SVEHALF
+#elif NUMKONG_TARGET_SVEHALF
     nk_angular_f16_svehalf(a, b, n, result);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_angular_f16_neon(a, b, n, result);
-#elif NK_TARGET_DIAMOND
+#elif NUMKONG_TARGET_DIAMOND
     nk_angular_f16_diamond(a, b, n, result);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_angular_f16_skylake(a, b, n, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_angular_f16_haswell(a, b, n, result);
 #else
     nk_angular_f16_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_euclidean_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NK_TARGET_V128RELAXED
+NUMKONG_API_COMPTIME void nk_euclidean_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
+#if NUMKONG_TARGET_V128RELAXED
     nk_euclidean_bf16_v128relaxed(a, b, n, result);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     nk_euclidean_bf16_v128(a, b, n, result);
-#elif NK_TARGET_POWERVSX
+#elif NUMKONG_TARGET_POWERVSX
     nk_euclidean_bf16_powervsx(a, b, n, result);
-#elif NK_TARGET_LOONGSONASX
+#elif NUMKONG_TARGET_LOONGSONASX
     nk_euclidean_bf16_loongsonasx(a, b, n, result);
-#elif NK_TARGET_RVVBF16
+#elif NUMKONG_TARGET_RVVBF16
     nk_euclidean_bf16_rvvbf16(a, b, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_euclidean_bf16_rvv(a, b, n, result);
-#elif NK_TARGET_SVEBFDOT
+#elif NUMKONG_TARGET_SVEBFDOT
     nk_euclidean_bf16_svebfdot(a, b, n, result);
-#elif NK_TARGET_NEONBFDOT
+#elif NUMKONG_TARGET_NEONBFDOT
     nk_euclidean_bf16_neonbfdot(a, b, n, result);
-#elif NK_TARGET_GENOA
+#elif NUMKONG_TARGET_GENOA
     nk_euclidean_bf16_genoa(a, b, n, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_euclidean_bf16_haswell(a, b, n, result);
 #else
     nk_euclidean_bf16_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NK_TARGET_V128RELAXED
+NUMKONG_API_COMPTIME void nk_sqeuclidean_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
+#if NUMKONG_TARGET_V128RELAXED
     nk_sqeuclidean_bf16_v128relaxed(a, b, n, result);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     nk_sqeuclidean_bf16_v128(a, b, n, result);
-#elif NK_TARGET_POWERVSX
+#elif NUMKONG_TARGET_POWERVSX
     nk_sqeuclidean_bf16_powervsx(a, b, n, result);
-#elif NK_TARGET_LOONGSONASX
+#elif NUMKONG_TARGET_LOONGSONASX
     nk_sqeuclidean_bf16_loongsonasx(a, b, n, result);
-#elif NK_TARGET_RVVBF16
+#elif NUMKONG_TARGET_RVVBF16
     nk_sqeuclidean_bf16_rvvbf16(a, b, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_sqeuclidean_bf16_rvv(a, b, n, result);
-#elif NK_TARGET_SVEBFDOT
+#elif NUMKONG_TARGET_SVEBFDOT
     nk_sqeuclidean_bf16_svebfdot(a, b, n, result);
-#elif NK_TARGET_NEONBFDOT
+#elif NUMKONG_TARGET_NEONBFDOT
     nk_sqeuclidean_bf16_neonbfdot(a, b, n, result);
-#elif NK_TARGET_GENOA
+#elif NUMKONG_TARGET_GENOA
     nk_sqeuclidean_bf16_genoa(a, b, n, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_sqeuclidean_bf16_haswell(a, b, n, result);
 #else
     nk_sqeuclidean_bf16_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_angular_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NK_TARGET_V128RELAXED
+NUMKONG_API_COMPTIME void nk_angular_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
+#if NUMKONG_TARGET_V128RELAXED
     nk_angular_bf16_v128relaxed(a, b, n, result);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     nk_angular_bf16_v128(a, b, n, result);
-#elif NK_TARGET_POWERVSX
+#elif NUMKONG_TARGET_POWERVSX
     nk_angular_bf16_powervsx(a, b, n, result);
-#elif NK_TARGET_LOONGSONASX
+#elif NUMKONG_TARGET_LOONGSONASX
     nk_angular_bf16_loongsonasx(a, b, n, result);
-#elif NK_TARGET_RVVBF16
+#elif NUMKONG_TARGET_RVVBF16
     nk_angular_bf16_rvvbf16(a, b, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_angular_bf16_rvv(a, b, n, result);
-#elif NK_TARGET_SVEBFDOT
+#elif NUMKONG_TARGET_SVEBFDOT
     nk_angular_bf16_svebfdot(a, b, n, result);
-#elif NK_TARGET_NEONBFDOT
+#elif NUMKONG_TARGET_NEONBFDOT
     nk_angular_bf16_neonbfdot(a, b, n, result);
-#elif NK_TARGET_GENOA
+#elif NUMKONG_TARGET_GENOA
     nk_angular_bf16_genoa(a, b, n, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_angular_bf16_haswell(a, b, n, result);
 #else
     nk_angular_bf16_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_euclidean_e4m3(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NK_TARGET_NEONFP8
+NUMKONG_API_COMPTIME void nk_euclidean_e4m3(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result) {
+#if NUMKONG_TARGET_NEONFP8
     nk_euclidean_e4m3_neonfp8(a, b, n, result);
-#elif NK_TARGET_DIAMOND
+#elif NUMKONG_TARGET_DIAMOND
     nk_euclidean_e4m3_diamond(a, b, n, result);
-#elif NK_TARGET_ICELAKE
+#elif NUMKONG_TARGET_ICELAKE
     nk_euclidean_e4m3_icelake(a, b, n, result);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_euclidean_e4m3_skylake(a, b, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_euclidean_e4m3_rvv(a, b, n, result);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_euclidean_e4m3_v128relaxed(a, b, n, result);
 #else
     nk_euclidean_e4m3_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_e4m3(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NK_TARGET_NEONFP8
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e4m3(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result) {
+#if NUMKONG_TARGET_NEONFP8
     nk_sqeuclidean_e4m3_neonfp8(a, b, n, result);
-#elif NK_TARGET_DIAMOND
+#elif NUMKONG_TARGET_DIAMOND
     nk_sqeuclidean_e4m3_diamond(a, b, n, result);
-#elif NK_TARGET_ICELAKE
+#elif NUMKONG_TARGET_ICELAKE
     nk_sqeuclidean_e4m3_icelake(a, b, n, result);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_sqeuclidean_e4m3_skylake(a, b, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_sqeuclidean_e4m3_rvv(a, b, n, result);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_sqeuclidean_e4m3_v128relaxed(a, b, n, result);
 #else
     nk_sqeuclidean_e4m3_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_angular_e4m3(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NK_TARGET_NEONFP8
+NUMKONG_API_COMPTIME void nk_angular_e4m3(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result) {
+#if NUMKONG_TARGET_NEONFP8
     nk_angular_e4m3_neonfp8(a, b, n, result);
-#elif NK_TARGET_DIAMOND
+#elif NUMKONG_TARGET_DIAMOND
     nk_angular_e4m3_diamond(a, b, n, result);
-#elif NK_TARGET_ICELAKE
+#elif NUMKONG_TARGET_ICELAKE
     nk_angular_e4m3_icelake(a, b, n, result);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_angular_e4m3_skylake(a, b, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_angular_e4m3_rvv(a, b, n, result);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_angular_e4m3_v128relaxed(a, b, n, result);
 #else
     nk_angular_e4m3_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_euclidean_e5m2(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NK_TARGET_NEONFP8
+NUMKONG_API_COMPTIME void nk_euclidean_e5m2(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result) {
+#if NUMKONG_TARGET_NEONFP8
     nk_euclidean_e5m2_neonfp8(a, b, n, result);
-#elif NK_TARGET_DIAMOND
+#elif NUMKONG_TARGET_DIAMOND
     nk_euclidean_e5m2_diamond(a, b, n, result);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_euclidean_e5m2_skylake(a, b, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_euclidean_e5m2_rvv(a, b, n, result);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_euclidean_e5m2_v128relaxed(a, b, n, result);
 #else
     nk_euclidean_e5m2_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_e5m2(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NK_TARGET_NEONFP8
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e5m2(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result) {
+#if NUMKONG_TARGET_NEONFP8
     nk_sqeuclidean_e5m2_neonfp8(a, b, n, result);
-#elif NK_TARGET_DIAMOND
+#elif NUMKONG_TARGET_DIAMOND
     nk_sqeuclidean_e5m2_diamond(a, b, n, result);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_sqeuclidean_e5m2_skylake(a, b, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_sqeuclidean_e5m2_rvv(a, b, n, result);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_sqeuclidean_e5m2_v128relaxed(a, b, n, result);
 #else
     nk_sqeuclidean_e5m2_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_angular_e5m2(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NK_TARGET_NEONFP8
+NUMKONG_API_COMPTIME void nk_angular_e5m2(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result) {
+#if NUMKONG_TARGET_NEONFP8
     nk_angular_e5m2_neonfp8(a, b, n, result);
-#elif NK_TARGET_DIAMOND
+#elif NUMKONG_TARGET_DIAMOND
     nk_angular_e5m2_diamond(a, b, n, result);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_angular_e5m2_skylake(a, b, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_angular_e5m2_rvv(a, b, n, result);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_angular_e5m2_v128relaxed(a, b, n, result);
 #else
     nk_angular_e5m2_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_euclidean_e2m3(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NK_TARGET_NEONFP8
+NUMKONG_API_COMPTIME void nk_euclidean_e2m3(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result) {
+#if NUMKONG_TARGET_NEONFP8
     nk_euclidean_e2m3_neonfp8(a, b, n, result);
-#elif NK_TARGET_ICELAKE
+#elif NUMKONG_TARGET_ICELAKE
     nk_euclidean_e2m3_icelake(a, b, n, result);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_euclidean_e2m3_skylake(a, b, n, result);
-#elif NK_TARGET_SIERRA
+#elif NUMKONG_TARGET_SIERRA
     nk_euclidean_e2m3_sierra(a, b, n, result);
-#elif NK_TARGET_ALDER
+#elif NUMKONG_TARGET_ALDER
     nk_euclidean_e2m3_alder(a, b, n, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_euclidean_e2m3_haswell(a, b, n, result);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_euclidean_e2m3_neon(a, b, n, result);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_euclidean_e2m3_v128relaxed(a, b, n, result);
 #else
     nk_euclidean_e2m3_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_e2m3(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NK_TARGET_NEONFP8
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e2m3(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result) {
+#if NUMKONG_TARGET_NEONFP8
     nk_sqeuclidean_e2m3_neonfp8(a, b, n, result);
-#elif NK_TARGET_ICELAKE
+#elif NUMKONG_TARGET_ICELAKE
     nk_sqeuclidean_e2m3_icelake(a, b, n, result);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_sqeuclidean_e2m3_skylake(a, b, n, result);
-#elif NK_TARGET_SIERRA
+#elif NUMKONG_TARGET_SIERRA
     nk_sqeuclidean_e2m3_sierra(a, b, n, result);
-#elif NK_TARGET_ALDER
+#elif NUMKONG_TARGET_ALDER
     nk_sqeuclidean_e2m3_alder(a, b, n, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_sqeuclidean_e2m3_haswell(a, b, n, result);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_sqeuclidean_e2m3_neon(a, b, n, result);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_sqeuclidean_e2m3_v128relaxed(a, b, n, result);
 #else
     nk_sqeuclidean_e2m3_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_angular_e2m3(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NK_TARGET_NEONFP8
+NUMKONG_API_COMPTIME void nk_angular_e2m3(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result) {
+#if NUMKONG_TARGET_NEONFP8
     nk_angular_e2m3_neonfp8(a, b, n, result);
-#elif NK_TARGET_ICELAKE
+#elif NUMKONG_TARGET_ICELAKE
     nk_angular_e2m3_icelake(a, b, n, result);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_angular_e2m3_skylake(a, b, n, result);
-#elif NK_TARGET_SIERRA
+#elif NUMKONG_TARGET_SIERRA
     nk_angular_e2m3_sierra(a, b, n, result);
-#elif NK_TARGET_ALDER
+#elif NUMKONG_TARGET_ALDER
     nk_angular_e2m3_alder(a, b, n, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_angular_e2m3_haswell(a, b, n, result);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_angular_e2m3_neon(a, b, n, result);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_angular_e2m3_v128relaxed(a, b, n, result);
 #else
     nk_angular_e2m3_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_euclidean_e3m2(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NK_TARGET_NEONFP8
+NUMKONG_API_COMPTIME void nk_euclidean_e3m2(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result) {
+#if NUMKONG_TARGET_NEONFP8
     nk_euclidean_e3m2_neonfp8(a, b, n, result);
-#elif NK_TARGET_ICELAKE
+#elif NUMKONG_TARGET_ICELAKE
     nk_euclidean_e3m2_icelake(a, b, n, result);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_euclidean_e3m2_skylake(a, b, n, result);
-#elif NK_TARGET_SIERRA
+#elif NUMKONG_TARGET_SIERRA
     nk_euclidean_e3m2_sierra(a, b, n, result);
-#elif NK_TARGET_ALDER
+#elif NUMKONG_TARGET_ALDER
     nk_euclidean_e3m2_alder(a, b, n, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_euclidean_e3m2_haswell(a, b, n, result);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_euclidean_e3m2_neon(a, b, n, result);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_euclidean_e3m2_v128relaxed(a, b, n, result);
 #else
     nk_euclidean_e3m2_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_e3m2(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NK_TARGET_NEONFP8
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e3m2(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result) {
+#if NUMKONG_TARGET_NEONFP8
     nk_sqeuclidean_e3m2_neonfp8(a, b, n, result);
-#elif NK_TARGET_ICELAKE
+#elif NUMKONG_TARGET_ICELAKE
     nk_sqeuclidean_e3m2_icelake(a, b, n, result);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_sqeuclidean_e3m2_skylake(a, b, n, result);
-#elif NK_TARGET_SIERRA
+#elif NUMKONG_TARGET_SIERRA
     nk_sqeuclidean_e3m2_sierra(a, b, n, result);
-#elif NK_TARGET_ALDER
+#elif NUMKONG_TARGET_ALDER
     nk_sqeuclidean_e3m2_alder(a, b, n, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_sqeuclidean_e3m2_haswell(a, b, n, result);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_sqeuclidean_e3m2_neon(a, b, n, result);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_sqeuclidean_e3m2_v128relaxed(a, b, n, result);
 #else
     nk_sqeuclidean_e3m2_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_angular_e3m2(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NK_TARGET_NEONFP8
+NUMKONG_API_COMPTIME void nk_angular_e3m2(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result) {
+#if NUMKONG_TARGET_NEONFP8
     nk_angular_e3m2_neonfp8(a, b, n, result);
-#elif NK_TARGET_ICELAKE
+#elif NUMKONG_TARGET_ICELAKE
     nk_angular_e3m2_icelake(a, b, n, result);
-#elif NK_TARGET_SKYLAKE
+#elif NUMKONG_TARGET_SKYLAKE
     nk_angular_e3m2_skylake(a, b, n, result);
-#elif NK_TARGET_SIERRA
+#elif NUMKONG_TARGET_SIERRA
     nk_angular_e3m2_sierra(a, b, n, result);
-#elif NK_TARGET_ALDER
+#elif NUMKONG_TARGET_ALDER
     nk_angular_e3m2_alder(a, b, n, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_angular_e3m2_haswell(a, b, n, result);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     nk_angular_e3m2_neon(a, b, n, result);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_angular_e3m2_v128relaxed(a, b, n, result);
 #else
     nk_angular_e3m2_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_euclidean_i8(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NK_TARGET_RVV
+NUMKONG_API_COMPTIME void nk_euclidean_i8(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
+#if NUMKONG_TARGET_RVV
     nk_euclidean_i8_rvv(a, b, n, result);
-#elif NK_TARGET_POWERVSX
+#elif NUMKONG_TARGET_POWERVSX
     nk_euclidean_i8_powervsx(a, b, n, result);
-#elif NK_TARGET_LOONGSONASX
+#elif NUMKONG_TARGET_LOONGSONASX
     nk_euclidean_i8_loongsonasx(a, b, n, result);
-#elif NK_TARGET_SVESDOT
+#elif NUMKONG_TARGET_SVESDOT
     nk_euclidean_i8_svesdot(a, b, n, result);
-#elif NK_TARGET_NEONSDOT
+#elif NUMKONG_TARGET_NEONSDOT
     nk_euclidean_i8_neonsdot(a, b, n, result);
-#elif NK_TARGET_ICELAKE
+#elif NUMKONG_TARGET_ICELAKE
     nk_euclidean_i8_icelake(a, b, n, result);
-#elif NK_TARGET_SIERRA
+#elif NUMKONG_TARGET_SIERRA
     nk_euclidean_i8_sierra(a, b, n, result);
-#elif NK_TARGET_ALDER
+#elif NUMKONG_TARGET_ALDER
     nk_euclidean_i8_alder(a, b, n, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_euclidean_i8_haswell(a, b, n, result);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_euclidean_i8_v128relaxed(a, b, n, result);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     nk_euclidean_i8_v128(a, b, n, result);
 #else
     nk_euclidean_i8_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_i8(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result) {
-#if NK_TARGET_RVV
+NUMKONG_API_COMPTIME void nk_sqeuclidean_i8(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result) {
+#if NUMKONG_TARGET_RVV
     nk_sqeuclidean_i8_rvv(a, b, n, result);
-#elif NK_TARGET_POWERVSX
+#elif NUMKONG_TARGET_POWERVSX
     nk_sqeuclidean_i8_powervsx(a, b, n, result);
-#elif NK_TARGET_LOONGSONASX
+#elif NUMKONG_TARGET_LOONGSONASX
     nk_sqeuclidean_i8_loongsonasx(a, b, n, result);
-#elif NK_TARGET_SVESDOT
+#elif NUMKONG_TARGET_SVESDOT
     nk_sqeuclidean_i8_svesdot(a, b, n, result);
-#elif NK_TARGET_NEONSDOT
+#elif NUMKONG_TARGET_NEONSDOT
     nk_sqeuclidean_i8_neonsdot(a, b, n, result);
-#elif NK_TARGET_ICELAKE
+#elif NUMKONG_TARGET_ICELAKE
     nk_sqeuclidean_i8_icelake(a, b, n, result);
-#elif NK_TARGET_SIERRA
+#elif NUMKONG_TARGET_SIERRA
     nk_sqeuclidean_i8_sierra(a, b, n, result);
-#elif NK_TARGET_ALDER
+#elif NUMKONG_TARGET_ALDER
     nk_sqeuclidean_i8_alder(a, b, n, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_sqeuclidean_i8_haswell(a, b, n, result);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_sqeuclidean_i8_v128relaxed(a, b, n, result);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     nk_sqeuclidean_i8_v128(a, b, n, result);
 #else
     nk_sqeuclidean_i8_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_angular_i8(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NK_TARGET_RVV
+NUMKONG_API_COMPTIME void nk_angular_i8(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
+#if NUMKONG_TARGET_RVV
     nk_angular_i8_rvv(a, b, n, result);
-#elif NK_TARGET_POWERVSX
+#elif NUMKONG_TARGET_POWERVSX
     nk_angular_i8_powervsx(a, b, n, result);
-#elif NK_TARGET_LOONGSONASX
+#elif NUMKONG_TARGET_LOONGSONASX
     nk_angular_i8_loongsonasx(a, b, n, result);
-#elif NK_TARGET_SVESDOT
+#elif NUMKONG_TARGET_SVESDOT
     nk_angular_i8_svesdot(a, b, n, result);
-#elif NK_TARGET_NEONSDOT
+#elif NUMKONG_TARGET_NEONSDOT
     nk_angular_i8_neonsdot(a, b, n, result);
-#elif NK_TARGET_ICELAKE
+#elif NUMKONG_TARGET_ICELAKE
     nk_angular_i8_icelake(a, b, n, result);
-#elif NK_TARGET_SIERRA
+#elif NUMKONG_TARGET_SIERRA
     nk_angular_i8_sierra(a, b, n, result);
-#elif NK_TARGET_ALDER
+#elif NUMKONG_TARGET_ALDER
     nk_angular_i8_alder(a, b, n, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_angular_i8_haswell(a, b, n, result);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_angular_i8_v128relaxed(a, b, n, result);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     nk_angular_i8_v128(a, b, n, result);
 #else
     nk_angular_i8_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_euclidean_u8(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NK_TARGET_RVV
+NUMKONG_API_COMPTIME void nk_euclidean_u8(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
+#if NUMKONG_TARGET_RVV
     nk_euclidean_u8_rvv(a, b, n, result);
-#elif NK_TARGET_POWERVSX
+#elif NUMKONG_TARGET_POWERVSX
     nk_euclidean_u8_powervsx(a, b, n, result);
-#elif NK_TARGET_LOONGSONASX
+#elif NUMKONG_TARGET_LOONGSONASX
     nk_euclidean_u8_loongsonasx(a, b, n, result);
-#elif NK_TARGET_SVESDOT
+#elif NUMKONG_TARGET_SVESDOT
     nk_euclidean_u8_svesdot(a, b, n, result);
-#elif NK_TARGET_NEONSDOT
+#elif NUMKONG_TARGET_NEONSDOT
     nk_euclidean_u8_neonsdot(a, b, n, result);
-#elif NK_TARGET_ICELAKE
+#elif NUMKONG_TARGET_ICELAKE
     nk_euclidean_u8_icelake(a, b, n, result);
-#elif NK_TARGET_SIERRA
+#elif NUMKONG_TARGET_SIERRA
     nk_euclidean_u8_sierra(a, b, n, result);
-#elif NK_TARGET_ALDER
+#elif NUMKONG_TARGET_ALDER
     nk_euclidean_u8_alder(a, b, n, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_euclidean_u8_haswell(a, b, n, result);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_euclidean_u8_v128relaxed(a, b, n, result);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     nk_euclidean_u8_v128(a, b, n, result);
 #else
     nk_euclidean_u8_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_u8(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
-#if NK_TARGET_RVV
+NUMKONG_API_COMPTIME void nk_sqeuclidean_u8(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+#if NUMKONG_TARGET_RVV
     nk_sqeuclidean_u8_rvv(a, b, n, result);
-#elif NK_TARGET_POWERVSX
+#elif NUMKONG_TARGET_POWERVSX
     nk_sqeuclidean_u8_powervsx(a, b, n, result);
-#elif NK_TARGET_LOONGSONASX
+#elif NUMKONG_TARGET_LOONGSONASX
     nk_sqeuclidean_u8_loongsonasx(a, b, n, result);
-#elif NK_TARGET_SVESDOT
+#elif NUMKONG_TARGET_SVESDOT
     nk_sqeuclidean_u8_svesdot(a, b, n, result);
-#elif NK_TARGET_NEONSDOT
+#elif NUMKONG_TARGET_NEONSDOT
     nk_sqeuclidean_u8_neonsdot(a, b, n, result);
-#elif NK_TARGET_ICELAKE
+#elif NUMKONG_TARGET_ICELAKE
     nk_sqeuclidean_u8_icelake(a, b, n, result);
-#elif NK_TARGET_SIERRA
+#elif NUMKONG_TARGET_SIERRA
     nk_sqeuclidean_u8_sierra(a, b, n, result);
-#elif NK_TARGET_ALDER
+#elif NUMKONG_TARGET_ALDER
     nk_sqeuclidean_u8_alder(a, b, n, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_sqeuclidean_u8_haswell(a, b, n, result);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_sqeuclidean_u8_v128relaxed(a, b, n, result);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     nk_sqeuclidean_u8_v128(a, b, n, result);
 #else
     nk_sqeuclidean_u8_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_angular_u8(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NK_TARGET_RVV
+NUMKONG_API_COMPTIME void nk_angular_u8(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
+#if NUMKONG_TARGET_RVV
     nk_angular_u8_rvv(a, b, n, result);
-#elif NK_TARGET_POWERVSX
+#elif NUMKONG_TARGET_POWERVSX
     nk_angular_u8_powervsx(a, b, n, result);
-#elif NK_TARGET_LOONGSONASX
+#elif NUMKONG_TARGET_LOONGSONASX
     nk_angular_u8_loongsonasx(a, b, n, result);
-#elif NK_TARGET_SVESDOT
+#elif NUMKONG_TARGET_SVESDOT
     nk_angular_u8_svesdot(a, b, n, result);
-#elif NK_TARGET_NEONSDOT
+#elif NUMKONG_TARGET_NEONSDOT
     nk_angular_u8_neonsdot(a, b, n, result);
-#elif NK_TARGET_ICELAKE
+#elif NUMKONG_TARGET_ICELAKE
     nk_angular_u8_icelake(a, b, n, result);
-#elif NK_TARGET_SIERRA
+#elif NUMKONG_TARGET_SIERRA
     nk_angular_u8_sierra(a, b, n, result);
-#elif NK_TARGET_ALDER
+#elif NUMKONG_TARGET_ALDER
     nk_angular_u8_alder(a, b, n, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_angular_u8_haswell(a, b, n, result);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_angular_u8_v128relaxed(a, b, n, result);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     nk_angular_u8_v128(a, b, n, result);
 #else
     nk_angular_u8_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_euclidean_i4(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NK_TARGET_ICELAKE
+NUMKONG_API_COMPTIME void nk_euclidean_i4(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result) {
+#if NUMKONG_TARGET_ICELAKE
     nk_euclidean_i4_icelake(a, b, n, result);
-#elif NK_TARGET_NEONSDOT
+#elif NUMKONG_TARGET_NEONSDOT
     nk_euclidean_i4_neonsdot(a, b, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_euclidean_i4_rvv(a, b, n, result);
 #else
     nk_euclidean_i4_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_i4(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_u32_t *result) {
-#if NK_TARGET_ICELAKE
+NUMKONG_API_COMPTIME void nk_sqeuclidean_i4(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_u32_t *result) {
+#if NUMKONG_TARGET_ICELAKE
     nk_sqeuclidean_i4_icelake(a, b, n, result);
-#elif NK_TARGET_NEONSDOT
+#elif NUMKONG_TARGET_NEONSDOT
     nk_sqeuclidean_i4_neonsdot(a, b, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_sqeuclidean_i4_rvv(a, b, n, result);
 #else
     nk_sqeuclidean_i4_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_angular_i4(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NK_TARGET_ICELAKE
+NUMKONG_API_COMPTIME void nk_angular_i4(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result) {
+#if NUMKONG_TARGET_ICELAKE
     nk_angular_i4_icelake(a, b, n, result);
-#elif NK_TARGET_NEONSDOT
+#elif NUMKONG_TARGET_NEONSDOT
     nk_angular_i4_neonsdot(a, b, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_angular_i4_rvv(a, b, n, result);
 #else
     nk_angular_i4_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_euclidean_u4(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NK_TARGET_ICELAKE
+NUMKONG_API_COMPTIME void nk_euclidean_u4(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result) {
+#if NUMKONG_TARGET_ICELAKE
     nk_euclidean_u4_icelake(a, b, n, result);
-#elif NK_TARGET_NEONSDOT
+#elif NUMKONG_TARGET_NEONSDOT
     nk_euclidean_u4_neonsdot(a, b, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_euclidean_u4_rvv(a, b, n, result);
 #else
     nk_euclidean_u4_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_u4(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result) {
-#if NK_TARGET_ICELAKE
+NUMKONG_API_COMPTIME void nk_sqeuclidean_u4(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result) {
+#if NUMKONG_TARGET_ICELAKE
     nk_sqeuclidean_u4_icelake(a, b, n, result);
-#elif NK_TARGET_NEONSDOT
+#elif NUMKONG_TARGET_NEONSDOT
     nk_sqeuclidean_u4_neonsdot(a, b, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_sqeuclidean_u4_rvv(a, b, n, result);
 #else
     nk_sqeuclidean_u4_serial(a, b, n, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_angular_u4(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NK_TARGET_ICELAKE
+NUMKONG_API_COMPTIME void nk_angular_u4(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result) {
+#if NUMKONG_TARGET_ICELAKE
     nk_angular_u4_icelake(a, b, n, result);
-#elif NK_TARGET_NEONSDOT
+#elif NUMKONG_TARGET_NEONSDOT
     nk_angular_u4_neonsdot(a, b, n, result);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     nk_angular_u4_rvv(a, b, n, result);
 #else
     nk_angular_u4_serial(a, b, n, result);
 #endif
 }
 
-#endif // !NK_RUNTIME_DISPATCH
+#endif // !NUMKONG_RUNTIME_DISPATCH
 
 #if defined(__cplusplus)
 } // extern "C"

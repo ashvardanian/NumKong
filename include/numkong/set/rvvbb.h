@@ -14,11 +14,11 @@
  *
  *  Requires RVV 1.0 with Zvbb, from GCC 14 or Clang 18.
  */
-#ifndef NK_SET_RVVBB_H
-#define NK_SET_RVVBB_H
+#ifndef NUMKONG_SET_RVVBB_H
+#define NUMKONG_SET_RVVBB_H
 
-#if NK_TARGET_RISCV64_
-#if NK_TARGET_RVVBB
+#if NUMKONG_ARCH_RISCV64_
+#if NUMKONG_TARGET_RVVBB
 
 #include "numkong/types.h"
 
@@ -38,14 +38,14 @@ extern "C" {
  *
  *  Replaces the 11-instruction SWAR approach in nk_popcount_u8m4_rvv_.
  */
-NK_HELPER_INLINE vuint8m4_t nk_popcount_u8m4_rvvbb_(vuint8m4_t v_u8m4) {
+NUMKONG_HELPER_INLINE vuint8m4_t nk_popcount_u8m4_rvvbb_(vuint8m4_t v_u8m4) {
     vuint8m4_t result_u8m4;
     __asm__ volatile("vcpop.v %0, %1" : "=vr"(result_u8m4) : "vr"(v_u8m4));
     return result_u8m4;
 }
 
-NK_API_COMPTIME void nk_hamming_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
-    nk_size_t count_bytes = n / NK_BITS_PER_BYTE;
+NUMKONG_API_COMPTIME void nk_hamming_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
+    nk_size_t count_bytes = n / NUMKONG_BITS_PER_BYTE;
 
     vuint32m1_t sum_u32m1 = __riscv_vmv_v_x_u32m1(0, 1);
 
@@ -68,8 +68,8 @@ NK_API_COMPTIME void nk_hamming_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b,
     *result = __riscv_vmv_x_s_u32m1_u32(sum_u32m1);
 }
 
-NK_API_COMPTIME void nk_jaccard_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
-    nk_size_t count_bytes = n / NK_BITS_PER_BYTE;
+NUMKONG_API_COMPTIME void nk_jaccard_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
+    nk_size_t count_bytes = n / NUMKONG_BITS_PER_BYTE;
 
     vuint32m1_t intersection_sum_u32m1 = __riscv_vmv_v_x_u32m1(0, 1);
     vuint32m1_t union_sum_u32m1 = __riscv_vmv_v_x_u32m1(0, 1);
@@ -111,6 +111,6 @@ NK_API_COMPTIME void nk_jaccard_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b,
 #pragma GCC pop_options
 #endif
 
-#endif // NK_TARGET_RVVBB
-#endif // NK_TARGET_RISCV64_
-#endif // NK_SET_RVVBB_H
+#endif // NUMKONG_TARGET_RVVBB
+#endif // NUMKONG_ARCH_RISCV64_
+#endif // NUMKONG_SET_RVVBB_H

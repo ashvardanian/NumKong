@@ -59,8 +59,8 @@ package numkong
 /*
 #cgo CFLAGS: -O3 -I../include
 #cgo LDFLAGS: -O3 -L. -lm
-#define NK_NATIVE_F16 (0)
-#define NK_NATIVE_BF16 (0)
+#define NUMKONG_NATIVE_F16 (0)
+#define NUMKONG_NATIVE_BF16 (0)
 #include "numkong/numkong.h"
 */
 import "C"

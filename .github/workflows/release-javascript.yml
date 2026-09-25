@@ -146,9 +146,9 @@ jobs:
           source ~/emsdk/emsdk_env.sh
           cmake -B build_wasm \
             -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-${{ matrix.width }}-emscripten.cmake \
-            -DNK_WASM_SIMD=${{ matrix.simd }} \
+            -DNUMKONG_WASM_SIMD=${{ matrix.simd }} \
             -DCMAKE_BUILD_TYPE=Release \
-            -DNK_BUILD_SHARED=ON
+            -DNUMKONG_BUILD_SHARED=ON
           cmake --build build_wasm --config Release
       - name: Upload WASM Module
         uses: actions/upload-artifact@v7

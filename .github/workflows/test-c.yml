@@ -35,18 +35,18 @@ jobs:
 
       - name: Build Locally
         run: |
-          cmake -D CMAKE_BUILD_TYPE=Release -D NK_BUILD_TEST=1 -D NK_BUILD_BENCH=1 -D NK_COMPARE_TO_BLAS=ON \
+          cmake -D CMAKE_BUILD_TYPE=Release -D NUMKONG_BUILD_TEST=1 -D NUMKONG_BUILD_BENCH=1 -D NUMKONG_COMPARE_TO_BLAS=ON \
             -D CMAKE_C_COMPILER=gcc-14 -D CMAKE_CXX_COMPILER=g++-14 -B build_release
           cmake --build build_release --config Release
 
       - name: Test
         run: build_release/numkong_test
         env:
-          NK_BUDGET_SECS: 0.2
+          NUMKONG_BUDGET_SECS: 0.2
 
       - name: Build Shared Library Test
         run: |
-          cmake -D CMAKE_BUILD_TYPE=Release -D NK_BUILD_SHARED=1 -D NK_BUILD_SHARED_TEST=1 \
+          cmake -D CMAKE_BUILD_TYPE=Release -D NUMKONG_BUILD_SHARED=1 -D NUMKONG_BUILD_SHARED_TEST=1 \
             -D CMAKE_C_COMPILER=gcc-14 -D CMAKE_CXX_COMPILER=g++-14 -B build_shared
           cmake --build build_shared --config Release --target numkong_shared_test
 
@@ -76,11 +76,11 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_COMPILER="${LLVM_PREFIX}/bin/clang" \
             -DCMAKE_CXX_COMPILER="${LLVM_PREFIX}/bin/clang++" \
-            -DNK_BUILD_TEST=1 \
-            -DNK_BUILD_SHARED=1
+            -DNUMKONG_BUILD_TEST=1 \
+            -DNUMKONG_BUILD_SHARED=1
           cmake --build build_brew_llvm --config Release
 
-      # Smoke test under lldb with an impossible NK_FILTER so no kernels run —
+      # Smoke test under lldb with an impossible NUMKONG_FILTER so no kernels run —
       # only `nk_capabilities_available()` / `nk_configure_thread()` and the suite's
       # argv/env setup. If a SIGILL fires during probing (as on Apple M1 with
       # Homebrew LLVM), lldb captures the backtrace, faulting PC symbol, and
@@ -96,13 +96,13 @@ jobs:
               -k 'quit' \
               -- build_brew_llvm/numkong_test
         env:
-          NK_FILTER: __nk_impossible_filter__
-          NK_BUDGET_SECS: 0.05
+          NUMKONG_FILTER: __nk_impossible_filter__
+          NUMKONG_BUDGET_SECS: 0.05
 
       - name: Test
         run: DYLD_LIBRARY_PATH=build_brew_llvm build_brew_llvm/numkong_test
         env:
-          NK_BUDGET_SECS: 0.2
+          NUMKONG_BUDGET_SECS: 0.2
 
   test_windows:
     name: Test C on Windows
@@ -130,22 +130,22 @@ jobs:
         run: |
           cmake -A x64 `
             -DCMAKE_BUILD_TYPE=Release `
-            -DNK_BUILD_TEST=ON `
-            -DNK_BUILD_BENCH=OFF `
+            -DNUMKONG_BUILD_TEST=ON `
+            -DNUMKONG_BUILD_BENCH=OFF `
             -B build_release
           cmake --build build_release --config Release
 
       - name: Test
         run: build_release\Release\numkong_test.exe
         env:
-          NK_BUDGET_SECS: 0.2
+          NUMKONG_BUDGET_SECS: 0.2
 
       - name: Build Shared Library Test
         run: |
           cmake -A x64 `
             -DCMAKE_BUILD_TYPE=Release `
-            -DNK_BUILD_SHARED=ON `
-            -DNK_BUILD_SHARED_TEST=ON `
+            -DNUMKONG_BUILD_SHARED=ON `
+            -DNUMKONG_BUILD_SHARED_TEST=ON `
             -B build_shared
           cmake --build build_shared --config Release --target numkong_shared_test
 
@@ -153,7 +153,7 @@ jobs:
         shell: cmd # PowerShell normalizes structured-exception exit codes to 1; cmd preserves the real code
         run: build_shared\Release\numkong_shared_test.exe
         env:
-          NK_BUDGET_SECS: 0.2
+          NUMKONG_BUDGET_SECS: 0.2
 
   test_android:
     name: Test C for Android ARM64
@@ -182,7 +182,7 @@ jobs:
         run: |
           cmake -B build_android \
             -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-android-arm64.cmake \
-            -DNK_BUILD_SHARED=ON
+            -DNUMKONG_BUILD_SHARED=ON
           cmake --build build_android
 
       - name: Verify Binary
@@ -222,7 +222,7 @@ jobs:
         run: |
           cmake -B build_android_armv7 \
             -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-android-armv7.cmake \
-            -DNK_BUILD_SHARED=ON
+            -DNUMKONG_BUILD_SHARED=ON
           cmake --build build_android_armv7
 
       - name: Verify Binary
@@ -264,7 +264,7 @@ jobs:
             -DCMAKE_C_COMPILER=arm-linux-gnueabihf-gcc-14 \
             -DCMAKE_CXX_COMPILER=arm-linux-gnueabihf-g++-14 \
             -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
-            -DNK_BUILD_SHARED=ON
+            -DNUMKONG_BUILD_SHARED=ON
           cmake --build build_armv7
 
       - name: Verify Binary
@@ -324,8 +324,8 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscv64-llvm.cmake \
             -DLLVM_ROOT=/usr/lib/llvm-23 \
             -DRISCV_MARCH=${{ matrix.march }} \
-            -DNK_BUILD_TEST=ON \
-            -DNK_BUILD_SHARED=ON
+            -DNUMKONG_BUILD_TEST=ON \
+            -DNUMKONG_BUILD_SHARED=ON
 
       - name: Build
         run: cmake --build build_riscv --parallel
@@ -334,8 +334,8 @@ jobs:
       - name: Test
         run: ctest --test-dir build_riscv -V --no-tests=error
         env:
-          NK_IN_QEMU: 1
-          NK_BUDGET_SECS: 0.1
+          NUMKONG_IN_QEMU: 1
+          NUMKONG_BUDGET_SECS: 0.1
 
   test_qemu_cross:
     name: Test C under QEMU, ${{ matrix.name }}
@@ -397,9 +397,9 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-${{ matrix.arch }}-gnu.cmake \
             -D${{ matrix.prefix }}_COMPILER_SUFFIX=-14 \
             -D${{ matrix.prefix }}_QEMU_CPU=${{ matrix.qemu_cpu }} \
-            -DNK_BUILD_TEST=ON \
-            -DNK_BUILD_SHARED_TEST=ON \
-            -DNK_BUILD_SHARED=ON
+            -DNUMKONG_BUILD_TEST=ON \
+            -DNUMKONG_BUILD_SHARED_TEST=ON \
+            -DNUMKONG_BUILD_SHARED=ON
 
       - name: Build
         run: cmake --build build_cross --parallel
@@ -408,8 +408,8 @@ jobs:
       - name: Test
         run: ctest --test-dir build_cross -V --no-tests=error
         env:
-          NK_IN_QEMU: 1
-          NK_BUDGET_SECS: 0.1
+          NUMKONG_IN_QEMU: 1
+          NUMKONG_BUDGET_SECS: 0.1
 
   test_x86_sde:
     name: Test x86 under Intel SDE
@@ -431,10 +431,10 @@ jobs:
         run: |
           cmake -B build_sde \
             -DCMAKE_BUILD_TYPE=Release \
-            -DNK_BUILD_TEST=ON
+            -DNUMKONG_BUILD_TEST=ON
           cmake --build build_sde --config Release --parallel
 
       - name: Test Under Granite Rapids Emulation
         run: "$SDE_PATH/sde64 -gnr -- build_sde/numkong_test"
         env:
-          NK_BUDGET_SECS: 0
+          NUMKONG_BUDGET_SECS: 0

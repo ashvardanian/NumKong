@@ -20,11 +20,11 @@
  *  dual FMA units achieve 0.5cy throughput, enabling 32 FLOPs/cycle for f32 or 16 FLOPs/cycle for
  *  f64. FP8 types, E4M3 and E5M2, convert to f32 first, costing ~5cy of extra latency each.
  */
-#ifndef NK_DOTS_SKYLAKE_H
-#define NK_DOTS_SKYLAKE_H
+#ifndef NUMKONG_DOTS_SKYLAKE_H
+#define NUMKONG_DOTS_SKYLAKE_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_SKYLAKE
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_SKYLAKE
 
 #include "numkong/dot/skylake.h"
 
@@ -240,6 +240,6 @@ nk_define_cross_packed_(dots, e3m2, skylake, e3m2, e3m2, f32, nk_b512_vec_t, nk_
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_SKYLAKE
-#endif // NK_TARGET_X8664_
-#endif // NK_DOTS_SKYLAKE_H
+#endif // NUMKONG_TARGET_SKYLAKE
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_DOTS_SKYLAKE_H

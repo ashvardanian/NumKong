@@ -37,8 +37,8 @@ except Exception:
     numpy_available = False
 
 from base import (
-    NK_ATOL,
-    NK_RTOL,
+    NUMKONG_ATOL,
+    NUMKONG_RTOL,
     assert_allclose,
     dense_dimensions,
     f32_downcast_to_bf16,
@@ -1541,7 +1541,7 @@ def test_gil_free_threading():
     end_time = time.time()
     multi_duration = end_time - start_time
 
-    assert np.allclose(baseline_sum, multi_sum, atol=NK_ATOL, rtol=NK_RTOL), (
+    assert np.allclose(baseline_sum, multi_sum, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL), (
         f"Results differ: baseline {baseline_sum} vs multi-threaded {multi_sum}"
     )
 

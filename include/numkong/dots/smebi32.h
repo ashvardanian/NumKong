@@ -13,11 +13,11 @@
  *  dot(a, b) = popcount(a AND b) = (pop_a + pop_b - depth + matching) / 2
  *  @endverbatim
  */
-#ifndef NK_DOTS_SMEBI32_H
-#define NK_DOTS_SMEBI32_H
+#ifndef NUMKONG_DOTS_SMEBI32_H
+#define NUMKONG_DOTS_SMEBI32_H
 
-#if NK_TARGET_ARM64_
-#if NK_TARGET_SMEBI32
+#if NUMKONG_ARCH_ARM64_
+#if NUMKONG_TARGET_SMEBI32
 
 #include "numkong/types.h"
 #include "numkong/dots/sme.h"     // nk_sme_zero_za32_* constants
@@ -47,7 +47,7 @@ extern "C" {
  */
 __arm_new("za") static void nk_dots_packed_u1_smebi32_streaming_( //
     nk_u1x8_t const *a, void const *b_packed, nk_u32_t *c, nk_size_t row_count_a, nk_size_t row_count_b,
-    nk_size_t depth_bits, nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) NK_STREAMING_ {
+    nk_size_t depth_bits, nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) NUMKONG_STREAMING_ {
 
     nk_sets_smebi32_packed_header_t const *header = (nk_sets_smebi32_packed_header_t const *)b_packed;
     nk_size_t const row_tile_count_b = header->row_tile_count;
@@ -59,7 +59,7 @@ __arm_new("za") static void nk_dots_packed_u1_smebi32_streaming_( //
     // BMOPA processes binary data in 32-bit words: each svbmopa_za32_u32_m step
     // handles one u32 (32 bits) across all row × column pairs simultaneously.
     nk_size_t const depth_words = nk_size_divide_round_up_(depth_bits, 32);
-    nk_size_t const depth_bytes = depth_bits / NK_BITS_PER_BYTE;
+    nk_size_t const depth_bytes = depth_bits / NUMKONG_BITS_PER_BYTE;
 
     nk_u32_t const *b_tiles = (nk_u32_t const *)((char const *)b_packed + sizeof(nk_sets_smebi32_packed_header_t));
     nk_u32_t const *b_norms = header->norms_offset ? (nk_u32_t const *)((char const *)b_packed + header->norms_offset)
@@ -211,7 +211,7 @@ __arm_new("za") static void nk_dots_packed_u1_smebi32_streaming_( //
     }
 }
 
-NK_API_COMPTIME void nk_dots_packed_u1_smebi32( //
+NUMKONG_API_COMPTIME void nk_dots_packed_u1_smebi32( //
     nk_u1x8_t const *a, void const *b_packed, nk_u32_t *c, nk_size_t row_count_a, nk_size_t row_count_b,
     nk_size_t depth_bits, nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
     nk_sme_start_streaming_();
@@ -224,14 +224,14 @@ NK_API_COMPTIME void nk_dots_packed_u1_smebi32( //
  *  pattern as hammings_symmetric, but with dot extraction. */
 __arm_new("za") static void nk_dots_symmetric_u1_smebi32_streaming_( //
     nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t depth_bits, nk_size_t stride_in_bytes,
-    nk_u32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
+    nk_u32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
 
     nk_size_t const tile_dim = svcntw();        // 16 for 512-bit SVL
     nk_size_t const depth_tile_size = svcntw(); // 16 u32 per depth tile
     // BMOPA processes binary data in 32-bit words: each svbmopa_za32_u32_m step
     // handles one u32 (32 bits) across all row × column pairs simultaneously.
     nk_size_t const depth_words = nk_size_divide_round_up_(depth_bits, 32);
-    nk_size_t const depth_bytes = depth_bits / NK_BITS_PER_BYTE;
+    nk_size_t const depth_bytes = depth_bits / NUMKONG_BITS_PER_BYTE;
     nk_size_t const depth_tile_count = nk_size_divide_round_up_(depth_words, depth_tile_size);
 
     svbool_t const predicate_all_b32x = svptrue_b32();
@@ -239,7 +239,7 @@ __arm_new("za") static void nk_dots_symmetric_u1_smebi32_streaming_( //
     // so the effective depth for the matching→intersection conversion is the rounded-up bit count.
     svuint32_t const depth_u32x = svdup_u32((nk_u32_t)(depth_words * 32));
 
-    NK_ALIGN64 nk_u32_t a_buffer[16][16]; // Stack buffer for A column save
+    NUMKONG_ALIGN64_ nk_u32_t a_buffer[16][16]; // Stack buffer for A column save
 
     nk_size_t const row_end = row_start + row_count;
     nk_size_t const column_tile_count = nk_size_divide_round_up_(vectors_count, tile_dim);
@@ -253,7 +253,7 @@ __arm_new("za") static void nk_dots_symmetric_u1_smebi32_streaming_( //
         svbool_t const row_predicate_b32x = svwhilelt_b32_u64(0u, rows_clamped);
 
         // Compute A tile popcounts
-        NK_ALIGN64 nk_u32_t a_tile_pops[16];
+        NUMKONG_ALIGN64_ nk_u32_t a_tile_pops[16];
         for (nk_size_t r = 0; r < rows_clamped; r++) {
             nk_u1x8_t const *a_row = (nk_u1x8_t const *)((char const *)vectors +
                                                          (row_tile_start + r) * stride_in_bytes);
@@ -342,7 +342,7 @@ __arm_new("za") static void nk_dots_symmetric_u1_smebi32_streaming_( //
 
             // Extract: dot = (pop_a + pop_b - depth + matching) / 2
             // Compute B tile popcounts
-            NK_ALIGN64 nk_u32_t b_pops[3][16];
+            NUMKONG_ALIGN64_ nk_u32_t b_pops[3][16];
             for (nk_size_t t = 0; t < 3; t++) {
                 for (nk_size_t col = 0; col < tile_dim; col++) {
                     nk_size_t const col_abs = (column_tile_index + t) * tile_dim + col;
@@ -448,7 +448,7 @@ __arm_new("za") static void nk_dots_symmetric_u1_smebi32_streaming_( //
             }
 
             // Compute B tile popcounts for remainder
-            NK_ALIGN64 nk_u32_t b_pops_r[16];
+            NUMKONG_ALIGN64_ nk_u32_t b_pops_r[16];
             for (nk_size_t col = 0; col < tile_dim; col++) {
                 nk_size_t const col_abs = col_tile_start + col;
                 if (col_abs < vectors_count) {
@@ -478,7 +478,7 @@ __arm_new("za") static void nk_dots_symmetric_u1_smebi32_streaming_( //
     }
 }
 
-NK_API_COMPTIME void nk_dots_symmetric_u1_smebi32( //
+NUMKONG_API_COMPTIME void nk_dots_symmetric_u1_smebi32( //
     nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t depth_bits, nk_size_t stride_in_bytes,
     nk_u32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
     nk_sme_start_streaming_();
@@ -497,6 +497,6 @@ NK_API_COMPTIME void nk_dots_symmetric_u1_smebi32( //
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_SMEBI32
-#endif // NK_TARGET_ARM64_
-#endif // NK_DOTS_SMEBI32_H
+#endif // NUMKONG_TARGET_SMEBI32
+#endif // NUMKONG_ARCH_ARM64_
+#endif // NUMKONG_DOTS_SMEBI32_H

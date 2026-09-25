@@ -4,8 +4,8 @@
  *  @date February 5, 2026
  *  @brief C++ wrappers for SIMD-accelerated spatial similarity measures.
  */
-#ifndef NK_SPATIAL_HPP
-#define NK_SPATIAL_HPP
+#ifndef NUMKONG_SPATIAL_HPP
+#define NUMKONG_SPATIAL_HPP
 
 #include <cstdint>
 #include <type_traits>
@@ -178,4 +178,4 @@ void angular(vector_view<in_type_> a, vector_view<in_type_> b, std::size_t d, re
 
 } // namespace ashvardanian::numkong
 
-#endif // NK_SPATIAL_HPP
+#endif // NUMKONG_SPATIAL_HPP

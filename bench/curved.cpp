@@ -10,11 +10,11 @@
 
 #include "numkong/curved.h"
 
-#include "bench.hpp"
+#include "harness.hpp"
 
 using namespace ashvardanian::numkong::bench;
 
-#if NK_COMPARE_TO_BLAS || NK_COMPARE_TO_MKL || NK_COMPARE_TO_ACCELERATE
+#if NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
 
 void bilinear_f32_with_blas(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n, nk_f64_t *result) {
     static thread_local std::vector<nk_f32_t> intermediate;
@@ -38,7 +38,7 @@ void bilinear_f32c_with_blas(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t c
     nk_f32c_t reduced_result_f32;
     if (intermediate.size() < n) intermediate.resize(n);
     int const ni = static_cast<int>(n);
-#if NK_COMPARE_TO_ACCELERATE
+#if NUMKONG_COMPARE_TO_ACCELERATE
     std::complex<float> alpha = {1.0f, 0.0f}, beta = {0.0f, 0.0f};
     cblas_cgemv(CblasRowMajor, CblasNoTrans, ni, ni, &alpha, reinterpret_cast<std::complex<float> const *>(c), ni,
                 reinterpret_cast<std::complex<float> const *>(b), 1, &beta,
@@ -62,7 +62,7 @@ void bilinear_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t c
     static thread_local std::vector<nk_f64c_t> intermediate;
     if (intermediate.size() < n) intermediate.resize(n);
     int const ni = static_cast<int>(n);
-#if NK_COMPARE_TO_ACCELERATE
+#if NUMKONG_COMPARE_TO_ACCELERATE
     std::complex<double> alpha = {1.0, 0.0}, beta = {0.0, 0.0};
     cblas_zgemv(CblasRowMajor, CblasNoTrans, ni, ni, &alpha, reinterpret_cast<std::complex<double> const *>(c), ni,
                 reinterpret_cast<std::complex<double> const *>(b), 1, &beta,
@@ -78,7 +78,7 @@ void bilinear_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t c
 #endif
 }
 
-#endif // NK_COMPARE_TO_BLAS || NK_COMPARE_TO_MKL || NK_COMPARE_TO_ACCELERATE
+#endif // NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
 
 /**
  *  @brief Measures a @b curved kernel, bilinear or Mahalanobis, using Google Benchmark.
@@ -141,14 +141,14 @@ void bench_curved() {
     constexpr nk_dtype_t f16c_k = nk_f16c_k;
     constexpr nk_dtype_t bf16c_k = nk_bf16c_k;
 
-#if NK_COMPARE_TO_BLAS || NK_COMPARE_TO_MKL || NK_COMPARE_TO_ACCELERATE
+#if NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
     run_curved<f64_k>("bilinear_f64_with_blas", bilinear_f64_with_blas);
     run_curved<f64c_k>("bilinear_f64c_with_blas", bilinear_f64c_with_blas);
     run_curved<f32_k>("bilinear_f32_with_blas", bilinear_f32_with_blas);
     run_curved<f32c_k>("bilinear_f32c_with_blas", bilinear_f32c_with_blas);
 #endif
 
-#if NK_TARGET_NEON
+#if NUMKONG_TARGET_NEON
     run_curved<f32_k>("bilinear_f32_neon", nk_bilinear_f32_neon);
     run_curved<f32_k>("mahalanobis_f32_neon", nk_mahalanobis_f32_neon);
     run_curved<f32c_k>("bilinear_f32c_neon", nk_bilinear_f32c_neon);
@@ -157,13 +157,13 @@ void bench_curved() {
     run_curved<f16c_k>("bilinear_f16c_neon", nk_bilinear_f16c_neon);
 #endif
 
-#if NK_TARGET_NEONBFDOT
+#if NUMKONG_TARGET_NEONBFDOT
     run_curved<bf16_k>("bilinear_bf16_neonbfdot", nk_bilinear_bf16_neonbfdot);
     run_curved<bf16_k>("mahalanobis_bf16_neonbfdot", nk_mahalanobis_bf16_neonbfdot);
     run_curved<bf16c_k>("bilinear_bf16c_neonbfdot", nk_bilinear_bf16c_neonbfdot);
 #endif
 
-#if NK_TARGET_SMEF64
+#if NUMKONG_TARGET_SMEF64
     run_curved<f32_k>("bilinear_f32_smef64", nk_bilinear_f32_smef64);
     run_curved<f32c_k>("bilinear_f32c_smef64", nk_bilinear_f32c_smef64);
     run_curved<f32_k>("mahalanobis_f32_smef64", nk_mahalanobis_f32_smef64);
@@ -172,7 +172,7 @@ void bench_curved() {
     run_curved<f64_k>("mahalanobis_f64_smef64", nk_mahalanobis_f64_smef64);
 #endif
 
-#if NK_TARGET_HASWELL
+#if NUMKONG_TARGET_HASWELL
     run_curved<f32_k>("bilinear_f32_haswell", nk_bilinear_f32_haswell);
     run_curved<f32_k>("mahalanobis_f32_haswell", nk_mahalanobis_f32_haswell);
     run_curved<f16_k>("bilinear_f16_haswell", nk_bilinear_f16_haswell);
@@ -181,7 +181,7 @@ void bench_curved() {
     run_curved<bf16_k>("mahalanobis_bf16_haswell", nk_mahalanobis_bf16_haswell);
 #endif
 
-#if NK_TARGET_SKYLAKE
+#if NUMKONG_TARGET_SKYLAKE
     run_curved<f32_k>("bilinear_f32_skylake", nk_bilinear_f32_skylake);
     run_curved<f32c_k>("bilinear_f32c_skylake", nk_bilinear_f32c_skylake);
     run_curved<f64_k>("bilinear_f64_skylake", nk_bilinear_f64_skylake);
@@ -190,7 +190,7 @@ void bench_curved() {
     run_curved<f64_k>("mahalanobis_f64_skylake", nk_mahalanobis_f64_skylake);
 #endif
 
-#if NK_TARGET_GENOA
+#if NUMKONG_TARGET_GENOA
     run_curved<bf16_k>("bilinear_bf16_genoa", nk_bilinear_bf16_genoa);
     run_curved<bf16_k>("mahalanobis_bf16_genoa", nk_mahalanobis_bf16_genoa);
     run_curved<bf16c_k>("bilinear_bf16c_genoa", nk_bilinear_bf16c_genoa);

@@ -1,5 +1,5 @@
 /**
- *  @file test/test.cu
+ *  @file test/main.cu
  *  @author Ash Vardanian
  *  @date April 15, 2026
  *  @brief CUDA test: tensor memcpy round-trips, fp6/fp8 cast conformance, and every CUDA
@@ -10,8 +10,8 @@
  *  while the second half compares @c nk_cast on the CPU bit for bit against CUDA's @c __nv_cvt_*
  *  intrinsics on the GPU, covering every fp32, fp16 and bf16 input against every e4m3, e5m2, e3m2
  *  and e2m3 variant. The cross sections run the dots, spatial and attention scenarios of
- *  `cross.cuh` through @c cuda_backend_t for every family the device runs, and `NK_FILTER=<regex>`
- *  keeps only the sections and kernels whose names match.
+ *  `cross.cuh` through @c cuda_backend_t for every family the device runs, and
+ *  `NUMKONG_FILTER=<regex>` keeps only the sections and kernels whose names match.
  *
  *  The test builds and runs on any Turing-or-newer GPU. CUDA's __nv_cvt_* converters fall back to
  *  software emulation below SM_89 for fp8 and below SM_100 for fp6, and PTX JIT forward-compiles to
@@ -19,18 +19,12 @@
  *  CMAKE_CUDA_ARCHITECTURES at configure time to target one compute capability, or build a single
  *  fat binary for all.
  */
-#include <cinttypes> // `PRIu64`, `PRIx64`
-#include <cstdint>   // `std::uint32_t`, `std::uint64_t`
-#include <cstdio>    // `std::printf`, `std::fprintf`
-#include <cstdlib>   // `std::getenv`
-#include <cstring>   // `std::memcpy`
+#include <cstdint> // `std::uint32_t`, `std::uint64_t`
+#include <cstdio>  // `stderr`
+#include <cstring> // `std::memcpy`
 
 #include <random> // `std::mt19937`
 #include <vector> // `std::vector`
-
-#if !defined(_WIN32)
-#include <unistd.h> // `isatty`
-#endif
 
 #include <cuda_bf16.h>
 #include <cuda_fp16.h>
@@ -38,44 +32,20 @@
 #include <cuda_fp8.h>
 #include <cuda_runtime.h>
 
-#include "test.cuh"       // `cuda_backend_t`
-#include "cross.cuh"      // `test_dots_packed`, `attention_weights_t`
+#include "harness.cuh" // `cuda_backend_t`
+#include "cross.cuh"   // `test_dots_packed`, `attention_weights_t`
 
 using namespace ashvardanian::numkong::test;
 
 test_config_t nk::test::global_config;
 char const *volatile nk::test::nk_test_current_kernel_ = nullptr;
 
-#pragma region Output Helpers
-
-/** Detect whether stdout supports ANSI colors, kept in sync with test/test.cpp:59-70. */
-static bool colors_enabled_() {
-    static bool const result = [] {
-        if (std::getenv("NO_COLOR")) return false;
-        if (std::getenv("FORCE_COLOR")) return true;
-#if !defined(_WIN32)
-        return isatty(fileno(stdout)) != 0;
-#else
-        return false;
-#endif
-    }();
-    return result;
-}
-
-/** Print a filled ● for pass, a hollow ○ for fail. Colored when stdout is a TTY. */
-static void print_indicator_(bool on) {
-    if (on) std::printf(colors_enabled_() ? "\033[32m\xe2\x97\x8f\033[0m" : "\xe2\x97\x8f");
-    else std::printf(colors_enabled_() ? "\033[31m\xe2\x97\x8b\033[0m" : "\xe2\x97\x8b");
-}
-
-#pragma endregion
-
 #pragma region CUDA Error Handling
 
 /** Return true on success; on failure, print a diagnostic and return false. */
 static bool cuda_check_(cudaError_t error, char const *expression, char const *file, int line) {
     if (error == cudaSuccess) return true;
-    std::fprintf(stderr, "CUDA error %s at %s:%d: %s\n", expression, file, line, cudaGetErrorString(error));
+    fmt::println(stderr, "CUDA error {} at {}:{}: {}", expression, file, line, cudaGetErrorString(error));
     return false;
 }
 
@@ -490,8 +460,8 @@ static bool bytes_equal_masked_(unsigned char left, unsigned char right, unsigne
 /** Print a single mismatch line to stderr for diagnostics. */
 static void report_mismatch_(char const *label, std::uint64_t source_bits, unsigned char cuda_output,
                              unsigned char numkong_output, std::uint64_t index) {
-    std::fprintf(stderr, "  [%s] input #%" PRIu64 " raw=0x%" PRIx64 " → CUDA=0x%02x NumKong=0x%02x\n", label, index,
-                 source_bits, cuda_output, numkong_output);
+    fmt::println(stderr, "  [{}] input #{} raw=0x{:x} → CUDA=0x{:02x} NumKong=0x{:02x}", label, index, source_bits,
+                 cuda_output, numkong_output);
 }
 
 #pragma endregion
@@ -561,7 +531,7 @@ static bool sweep_fp32_to_fp8_(char const *label, nk_dtype_t destination_dtype,
             }
         }
     }
-    if (mismatches > 0) std::fprintf(stderr, "  [%s] total mismatches: %zu\n", label, mismatches);
+    if (mismatches > 0) fmt::println(stderr, "  [{}] total mismatches: {}", label, mismatches);
     return mismatches == 0;
 }
 
@@ -594,7 +564,7 @@ static bool sweep_fp32_to_fp6_(char const *label, nk_dtype_t destination_dtype,
             }
         }
     }
-    if (mismatches > 0) std::fprintf(stderr, "  [%s] total mismatches: %zu\n", label, mismatches);
+    if (mismatches > 0) fmt::println(stderr, "  [{}] total mismatches: {}", label, mismatches);
     return mismatches == 0;
 }
 
@@ -622,7 +592,7 @@ static bool sweep_16bit_to_8bit_(char const *label, nk_dtype_t source_dtype, nk_
             ++mismatches;
         }
     }
-    if (mismatches > 0) std::fprintf(stderr, "  [%s] total mismatches: %zu\n", label, mismatches);
+    if (mismatches > 0) fmt::println(stderr, "  [{}] total mismatches: {}", label, mismatches);
     return mismatches == 0;
 }
 
@@ -640,11 +610,11 @@ static bool sweep_small_to_wide_(char const *label, nk_dtype_t source_dtype, nk_
     std::size_t mismatches = 0;
     for (std::size_t i = 0; i < domain_size; ++i) {
         if (!equals(host_cuda[i], host_numkong[i])) {
-            if (mismatches < 4) std::fprintf(stderr, "  [%s] input 0x%02zx mismatch\n", label, i);
+            if (mismatches < 4) fmt::println(stderr, "  [{}] input 0x{:02x} mismatch", label, i);
             ++mismatches;
         }
     }
-    if (mismatches > 0) std::fprintf(stderr, "  [%s] total mismatches: %zu\n", label, mismatches);
+    if (mismatches > 0) fmt::println(stderr, "  [{}] total mismatches: {}", label, mismatches);
     return mismatches == 0;
 }
 
@@ -665,9 +635,7 @@ static bool test_cuda_capabilities_(int device) {
     nk_capability_t const reported = nk_capabilities_cuda_detected(device),
                           absent = nk_capabilities_cuda_detected(devices_count);
     [[maybe_unused]] cudaError_t const cleared = cudaGetLastError(); // the probe past the last device leaves an error
-    if (reported != expected)
-        std::fprintf(stderr, "  capabilities 0x%llx, expected 0x%llx\n", static_cast<unsigned long long>(reported),
-                     static_cast<unsigned long long>(expected));
+    if (reported != expected) fmt::println(stderr, "  capabilities 0x{:x}, expected 0x{:x}", reported, expected);
     return reported == expected && absent == 0;
 }
 
@@ -677,7 +645,7 @@ static bool test_cuda_capabilities_(int device) {
 
 /** Every Ampere entry point, on devices whose families include it. */
 static void test_cross_ampere([[maybe_unused]] nk_capability_t available) {
-#if NK_TARGET_AMPERE
+#if NUMKONG_TARGET_AMPERE
     error_stats_section_t check(available);
     check.section("Cross Ampere", nk_cap_ampere_k);
     check("dots_packed_f64_ampere", test_dots_packed<f64_t, cuda_backend_t>, nk_dots_pack_size_f64_ampere,
@@ -904,12 +872,12 @@ static void test_cross_ampere([[maybe_unused]] nk_capability_t available) {
     check("attention_causal_packed_i8_ampere",
           test_attention_causal_packed<i8_t, cuda_backend_t, attention_weights_t::bits_8_k>,
           nk_attention_pack_size_i8_ampere, nk_attention_pack_i8_ampere, nk_attention_causal_packed_i8_ampere);
-#endif // NK_TARGET_AMPERE
+#endif // NUMKONG_TARGET_AMPERE
 }
 
 /** Every Blackwell RTX entry point, on devices whose families include it. */
 static void test_cross_blackwellrtx([[maybe_unused]] nk_capability_t available) {
-#if NK_TARGET_BLACKWELLRTX
+#if NUMKONG_TARGET_BLACKWELLRTX
     error_stats_section_t check(available);
     check.section("Cross Blackwell RTX", nk_cap_blackwellrtx_k);
     check("dots_packed_e5m2_blackwellrtx", test_dots_packed<e5m2_t, cuda_backend_t>,
@@ -1010,47 +978,41 @@ static void test_cross_blackwellrtx([[maybe_unused]] nk_capability_t available) 
           test_attention_causal_packed<e4m3_t, cuda_backend_t, attention_weights_t::bits_4_k>,
           nk_attention_pack_size_e4m3_blackwellrtx, nk_attention_pack_e4m3_blackwellrtx,
           nk_attention_causal_packed_e4m3_blackwellrtx);
-#endif // NK_TARGET_BLACKWELLRTX
+#endif // NUMKONG_TARGET_BLACKWELLRTX
 }
 
 #pragma endregion Cross Kernels
 
-int main() {
+int main(int, char **argv) {
     global_config.load_environment();
-    global_config.assert_on_failure = true;
+    global_config.program = argv[0];
+    log_environment();
+    fmt::println("- Seed: {}", global_config.seed);
+    fmt::println("- Rerun one test: NUMKONG_SEED={} NUMKONG_FILTER='^<name>$' {}", global_config.seed, argv[0]);
     int device = 0;
-    if (cudaSetDevice(device) != cudaSuccess) {
-        std::fprintf(stderr, "No CUDA device available\n");
-        return 1;
-    }
     cudaDeviceProp properties {};
-    cudaGetDeviceProperties(&properties, device);
+    if (cudaSetDevice(device) != cudaSuccess || cudaGetDeviceProperties(&properties, device) != cudaSuccess) {
+        fmt::println("- CUDA: no device");
+        return 0;
+    }
 
     // Hardware intrinsics: fp8 from SM_89 (Ada), fp6 from SM_100 (Blackwell).
     // Below those thresholds `__nv_cvt_*` falls back to software emulation;
     // the test still produces correct results either way.
     bool const fp8_native = properties.major > 8 || (properties.major == 8 && properties.minor >= 9);
     bool const fp6_native = properties.major >= 10;
-    std::printf("NumKong CUDA Interop Test\n");
-    std::printf("  GPU:        %s (SM %d.%d)\n", properties.name, properties.major, properties.minor);
-    std::printf("  FP8 path:   ");
-    print_indicator_(fp8_native);
-    std::printf("  %s\n", fp8_native ? "native (Ada+)" : "software emulation");
-    std::printf("  FP6 path:   ");
-    print_indicator_(fp6_native);
-    std::printf("  %s\n", fp6_native ? "native (Blackwell+)" : "software emulation");
-    std::printf("\n");
+    fmt::println("- CUDA: {} sm_{}{}", properties.name, properties.major, properties.minor);
+    fmt::println("  FP8 path: {}", fp8_native ? "native (Ada+)" : "software emulation");
+    fmt::println("  FP6 path: {}\n", fp6_native ? "native (Blackwell+)" : "software emulation");
 
     int passed = 0, failed = 0;
     auto run_ = [&](char const *label, bool ok) {
-        std::printf("  %-44s ", label);
-        print_indicator_(ok);
-        std::printf("\n");
+        fmt::println("  {:<44} {}", label, ok ? "ok" : "FAILED");
         (ok ? passed : failed) += 1;
     };
 
     if (global_config.should_run("Tensor memcpy round-trips")) {
-        std::printf("Tensor memcpy round-trips\n");
+        fmt::println("Tensor memcpy round-trips");
         run_("1D round-trip (cudaMemcpy)", test_memcpy_1d_roundtrip_());
         run_("2D round-trip, padded rows (cudaMemcpy2D)", test_memcpy_2d_padded_rows_());
         run_("2D sub-view extraction (cudaMemcpy2D)", test_memcpy_2d_subview_());
@@ -1060,7 +1022,7 @@ int main() {
     }
 
     if (global_config.should_run("FP8 conformance: nk_cast vs __nv_cvt_* (bit-exact)")) {
-        std::printf("\nFP8 conformance: nk_cast vs __nv_cvt_* (bit-exact)\n");
+        fmt::println("\nFP8 conformance: nk_cast vs __nv_cvt_* (bit-exact)");
         run_("fp32 → e4m3 (exhaustive 2^32)",
              sweep_fp32_to_fp8_( //
                  "fp32 → e4m3", nk_e4m3_k, __NV_E4M3,
@@ -1112,7 +1074,7 @@ int main() {
     }
 
     if (global_config.should_run("FP8 reverse: fp{32,16,bf16} ← e{4m3,5m2} (bit-exact)")) {
-        std::printf("\nFP8 reverse: fp{32,16,bf16} ← e{4m3,5m2} (bit-exact)\n");
+        fmt::println("\nFP8 reverse: fp{{32,16,bf16}} ← e{{4m3,5m2}} (bit-exact)");
         run_("e4m3 → fp32 (exhaustive 2^8)",
              sweep_small_to_wide_<float>( //
                  "e4m3 → fp32", nk_e4m3_k, nk_f32_k, 256u,
@@ -1164,7 +1126,7 @@ int main() {
     }
 
     if (global_config.should_run("FP6 conformance: nk_cast vs __nv_cvt_* (bit-exact)")) {
-        std::printf("\nFP6 conformance: nk_cast vs __nv_cvt_* (bit-exact)\n");
+        fmt::println("\nFP6 conformance: nk_cast vs __nv_cvt_* (bit-exact)");
         run_("fp32 → e3m2 (exhaustive 2^32)",
              sweep_fp32_to_fp6_( //
                  "fp32 → e3m2", nk_e3m2_k, __NV_E3M2,
@@ -1210,7 +1172,7 @@ int main() {
     }
 
     if (global_config.should_run("FP6 reverse: fp{32,16,bf16} ← e{3m2,2m3} (bit-exact)")) {
-        std::printf("\nFP6 reverse: fp{32,16,bf16} ← e{3m2,2m3} (bit-exact)\n");
+        fmt::println("\nFP6 reverse: fp{{32,16,bf16}} ← e{{3m2,2m3}} (bit-exact)");
         run_("e3m2 → fp32 (exhaustive 2^6)",
              sweep_small_to_wide_<float>( //
                  "e3m2 → fp32", nk_e3m2_k, nk_f32_k, 64u,
@@ -1262,7 +1224,7 @@ int main() {
     }
 
     if (global_config.should_run("CUDA capabilities")) {
-        std::printf("\nCUDA capabilities\n");
+        fmt::println("\nCUDA capabilities");
         run_("nk_capabilities_cuda_detected families", test_cuda_capabilities_(device));
     }
 
@@ -1272,6 +1234,6 @@ int main() {
 
     passed += static_cast<int>(global_config.kernel_count - global_config.failure_count);
     failed += static_cast<int>(global_config.failure_count);
-    std::printf("\n%d passed, %d failed\n", passed, failed);
+    fmt::println("\n{} passed, {} failed", passed, failed);
     return failed == 0 ? 0 : 1;
 }

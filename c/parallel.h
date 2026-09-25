@@ -17,8 +17,8 @@ extern "C" {
 #endif
 
 /** Row-tile sizes: 2 kernel tile blocks per chunk, packed blocking 2×2 rows of 16. */
-#define NK_PARALLEL_PACKED_TILE    64
-#define NK_PARALLEL_SYMMETRIC_TILE 32
+#define NUMKONG_PARALLEL_PACKED_TILE    64
+#define NUMKONG_PARALLEL_SYMMETRIC_TILE 32
 
 /**
  *  @brief Work for one tile. Must be reentrant and confine writes to its own tile.

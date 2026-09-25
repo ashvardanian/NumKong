@@ -12,11 +12,11 @@
  *  For f64, uses the s-series 14-term Horner log2 approximation, matching Skylake. For f16 and
  *  bf16, converts to f32 using the cast helpers from cast/rvv.h, then uses the f32 algorithm.
  */
-#ifndef NK_PROBABILITY_RVV_H
-#define NK_PROBABILITY_RVV_H
+#ifndef NUMKONG_PROBABILITY_RVV_H
+#define NUMKONG_PROBABILITY_RVV_H
 
-#if NK_TARGET_RISCV64_
-#if NK_TARGET_RVV
+#if NUMKONG_ARCH_RISCV64_
+#if NUMKONG_TARGET_RVV
 
 #include "numkong/types.h"
 #include "numkong/probability/serial.h" // `nk_kld_f64_serial`, `nk_jsd_f64_serial`
@@ -52,7 +52,7 @@ extern "C" {
  *  poly = poly * m + 3.1157899f
  *  @endverbatim
  */
-NK_HELPER_INLINE vfloat32m4_t nk_log2_f32m4_rvv_(vfloat32m4_t x, nk_size_t vector_length) {
+NUMKONG_HELPER_INLINE vfloat32m4_t nk_log2_f32m4_rvv_(vfloat32m4_t x, nk_size_t vector_length) {
     vuint32m4_t bits_u32m4 = __riscv_vreinterpret_v_f32m4_u32m4(x);
 
     // Extract exponent: (bits >> 23) - 127
@@ -86,7 +86,7 @@ NK_HELPER_INLINE vfloat32m4_t nk_log2_f32m4_rvv_(vfloat32m4_t x, nk_size_t vecto
     return __riscv_vfmacc_vv_f32m4(exponent_f32m4, poly_f32m4, m_minus_1_f32m4, vector_length);
 }
 
-NK_HELPER_INLINE vfloat32m2_t nk_log2_f32m2_rvv_(vfloat32m2_t x, nk_size_t vector_length) {
+NUMKONG_HELPER_INLINE vfloat32m2_t nk_log2_f32m2_rvv_(vfloat32m2_t x, nk_size_t vector_length) {
     vuint32m2_t bits_u32m2 = __riscv_vreinterpret_v_f32m2_u32m2(x);
     vuint32m2_t exponent_u32m2 = __riscv_vsrl_vx_u32m2(bits_u32m2, 23, vector_length);
     vint32m2_t exponent_i32m2 = __riscv_vsub_vx_i32m2(__riscv_vreinterpret_v_u32m2_i32m2(exponent_u32m2), 127,
@@ -116,7 +116,7 @@ NK_HELPER_INLINE vfloat32m2_t nk_log2_f32m2_rvv_(vfloat32m2_t x, nk_size_t vecto
  *  Uses s = (m-1)/(m+1), then evaluates ln(m) = 2 × s × P(s²) with 14-term Horner polynomial.
  *  Converts to log2 via multiplication by log2(e). Matches Skylake's f64 log2 algorithm.
  */
-NK_HELPER_INLINE vfloat64m4_t nk_log2_f64m4_rvv_(vfloat64m4_t x, nk_size_t vector_length) {
+NUMKONG_HELPER_INLINE vfloat64m4_t nk_log2_f64m4_rvv_(vfloat64m4_t x, nk_size_t vector_length) {
     // Extract exponent and mantissa via bit manipulation
     vuint64m4_t bits_u64m4 = __riscv_vreinterpret_v_f64m4_u64m4(x);
     vuint64m4_t exponent_u64m4 = __riscv_vsrl_vx_u64m4(bits_u64m4, 52, vector_length);
@@ -165,13 +165,13 @@ NK_HELPER_INLINE vfloat64m4_t nk_log2_f64m4_rvv_(vfloat64m4_t x, nk_size_t vecto
     // ln(m) = 2 × s × P(s²), log2(m) = ln(m) × log2(e), log2(x) = exp + log2(m)
     vfloat64m4_t two_s_f64m4 = __riscv_vfmul_vf_f64m4(s_f64m4, 2.0, vector_length);
     vfloat64m4_t ln_m_f64m4 = __riscv_vfmul_vv_f64m4(two_s_f64m4, poly_f64m4, vector_length);
-    vfloat64m4_t log2_f64m4 = __riscv_vfmul_vf_f64m4(ln_m_f64m4, NK_F64_LOG2E_, vector_length);
+    vfloat64m4_t log2_f64m4 = __riscv_vfmul_vf_f64m4(ln_m_f64m4, NUMKONG_F64_LOG2E_, vector_length);
     return __riscv_vfadd_vv_f64m4(exponent_f64m4, log2_f64m4, vector_length);
 }
 
 #pragma region Kullback Leibler Divergence
 
-NK_API_COMPTIME void nk_kld_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_kld_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
     nk_size_t vector_length_max = __riscv_vsetvlmax_e64m4();
     vfloat64m4_t sum_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, vector_length_max);
     for (nk_size_t vector_length; n > 0; n -= vector_length, a += vector_length, b += vector_length) {
@@ -179,8 +179,8 @@ NK_API_COMPTIME void nk_kld_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_siz
         vfloat32m2_t a_f32m2 = __riscv_vle32_v_f32m2(a, vector_length);
         vfloat32m2_t b_f32m2 = __riscv_vle32_v_f32m2(b, vector_length);
         // ratio = (a + ε) / (b + ε)
-        vfloat32m2_t a_eps_f32m2 = __riscv_vfadd_vf_f32m2(a_f32m2, NK_F32_DIVISION_EPSILON, vector_length);
-        vfloat32m2_t b_eps_f32m2 = __riscv_vfadd_vf_f32m2(b_f32m2, NK_F32_DIVISION_EPSILON, vector_length);
+        vfloat32m2_t a_eps_f32m2 = __riscv_vfadd_vf_f32m2(a_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
+        vfloat32m2_t b_eps_f32m2 = __riscv_vfadd_vf_f32m2(b_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
         vfloat32m2_t ratio_f32m2 = __riscv_vfmul_vv_f32m2(
             a_eps_f32m2, nk_f32m2_reciprocal_rvv_(b_eps_f32m2, vector_length), vector_length);
         // log2(ratio)
@@ -192,10 +192,10 @@ NK_API_COMPTIME void nk_kld_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_siz
     }
     vfloat64m1_t zero_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, 1);
     *result = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m4_f64m1(sum_f64m4, zero_f64m1, vector_length_max)) *
-              NK_F64_LN2_;
+              NUMKONG_F64_LN2_;
 }
 
-NK_API_COMPTIME void nk_kld_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_kld_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
     vfloat64m4_t sum_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
     for (nk_size_t vector_length; n > 0; n -= vector_length, a += vector_length, b += vector_length) {
@@ -203,8 +203,8 @@ NK_API_COMPTIME void nk_kld_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_siz
         vfloat64m4_t a_f64m4 = __riscv_vle64_v_f64m4(a, vector_length);
         vfloat64m4_t b_f64m4 = __riscv_vle64_v_f64m4(b, vector_length);
         // ratio = (a + ε) / (b + ε) — full precision division
-        vfloat64m4_t a_eps_f64m4 = __riscv_vfadd_vf_f64m4(a_f64m4, NK_F64_DIVISION_EPSILON, vector_length);
-        vfloat64m4_t b_eps_f64m4 = __riscv_vfadd_vf_f64m4(b_f64m4, NK_F64_DIVISION_EPSILON, vector_length);
+        vfloat64m4_t a_eps_f64m4 = __riscv_vfadd_vf_f64m4(a_f64m4, NUMKONG_F64_DIVISION_EPSILON, vector_length);
+        vfloat64m4_t b_eps_f64m4 = __riscv_vfadd_vf_f64m4(b_f64m4, NUMKONG_F64_DIVISION_EPSILON, vector_length);
         vfloat64m4_t ratio_f64m4 = __riscv_vfdiv_vv_f64m4(a_eps_f64m4, b_eps_f64m4, vector_length);
         // log2(ratio)
         vfloat64m4_t log_ratio_f64m4 = nk_log2_f64m4_rvv_(ratio_f64m4, vector_length);
@@ -217,10 +217,10 @@ NK_API_COMPTIME void nk_kld_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_siz
     vfloat64m1_t zero_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, 1);
     // Convert from log2 to ln by multiplying by ln(2)
     *result = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m4_f64m1(sum_f64m4, zero_f64m1, max_vector_length)) *
-              NK_F64_LN2_;
+              NUMKONG_F64_LN2_;
 }
 
-NK_API_COMPTIME void nk_kld_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_kld_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m2_t sum_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
     for (nk_size_t vector_length; n > 0; n -= vector_length, a += vector_length, b += vector_length) {
@@ -232,8 +232,8 @@ NK_API_COMPTIME void nk_kld_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_siz
         vfloat32m2_t a_f32m2 = nk_f16m1_to_f32m2_rvv_(a_u16m1, vector_length);
         vfloat32m2_t b_f32m2 = nk_f16m1_to_f32m2_rvv_(b_u16m1, vector_length);
         // ratio = (a + ε) / (b + ε)
-        vfloat32m2_t a_eps_f32m2 = __riscv_vfadd_vf_f32m2(a_f32m2, NK_F32_DIVISION_EPSILON, vector_length);
-        vfloat32m2_t b_eps_f32m2 = __riscv_vfadd_vf_f32m2(b_f32m2, NK_F32_DIVISION_EPSILON, vector_length);
+        vfloat32m2_t a_eps_f32m2 = __riscv_vfadd_vf_f32m2(a_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
+        vfloat32m2_t b_eps_f32m2 = __riscv_vfadd_vf_f32m2(b_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
         vfloat32m2_t ratio_f32m2 = __riscv_vfmul_vv_f32m2(
             a_eps_f32m2, nk_f32m2_reciprocal_rvv_(b_eps_f32m2, vector_length), vector_length);
         vfloat32m2_t log_ratio_f32m2 = nk_log2_f32m2_rvv_(ratio_f32m2, vector_length);
@@ -245,10 +245,10 @@ NK_API_COMPTIME void nk_kld_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_siz
     // Single horizontal reduction after loop
     vfloat32m1_t zero_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
     *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m2_f32m1(sum_f32m2, zero_f32m1, max_vector_length)) *
-              NK_F32_LN2_;
+              NUMKONG_F32_LN2_;
 }
 
-NK_API_COMPTIME void nk_kld_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_kld_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m2_t sum_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
     for (nk_size_t vector_length; n > 0; n -= vector_length, a += vector_length, b += vector_length) {
@@ -260,8 +260,8 @@ NK_API_COMPTIME void nk_kld_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_
         vfloat32m2_t a_f32m2 = nk_bf16m1_to_f32m2_rvv_(a_u16m1, vector_length);
         vfloat32m2_t b_f32m2 = nk_bf16m1_to_f32m2_rvv_(b_u16m1, vector_length);
         // ratio = (a + ε) / (b + ε)
-        vfloat32m2_t a_eps_f32m2 = __riscv_vfadd_vf_f32m2(a_f32m2, NK_F32_DIVISION_EPSILON, vector_length);
-        vfloat32m2_t b_eps_f32m2 = __riscv_vfadd_vf_f32m2(b_f32m2, NK_F32_DIVISION_EPSILON, vector_length);
+        vfloat32m2_t a_eps_f32m2 = __riscv_vfadd_vf_f32m2(a_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
+        vfloat32m2_t b_eps_f32m2 = __riscv_vfadd_vf_f32m2(b_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
         vfloat32m2_t ratio_f32m2 = __riscv_vfmul_vv_f32m2(
             a_eps_f32m2, nk_f32m2_reciprocal_rvv_(b_eps_f32m2, vector_length), vector_length);
         vfloat32m2_t log_ratio_f32m2 = nk_log2_f32m2_rvv_(ratio_f32m2, vector_length);
@@ -273,14 +273,14 @@ NK_API_COMPTIME void nk_kld_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_
     // Single horizontal reduction after loop
     vfloat32m1_t zero_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
     *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m2_f32m1(sum_f32m2, zero_f32m1, max_vector_length)) *
-              NK_F32_LN2_;
+              NUMKONG_F32_LN2_;
 }
 
 #pragma endregion Kullback Leibler Divergence
 
 #pragma region Jensen Shannon Divergence
 
-NK_API_COMPTIME void nk_jsd_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_jsd_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
     nk_size_t vector_length_max = __riscv_vsetvlmax_e64m4();
     vfloat64m4_t sum_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, vector_length_max);
     for (nk_size_t vector_length; n > 0; n -= vector_length, a += vector_length, b += vector_length) {
@@ -291,9 +291,9 @@ NK_API_COMPTIME void nk_jsd_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_siz
         vfloat32m2_t mean_f32m2 = __riscv_vfmul_vf_f32m2(__riscv_vfadd_vv_f32m2(va_f32m2, vb_f32m2, vector_length),
                                                          0.5f, vector_length);
         // ratio_a = (a + eps) / (M + eps)
-        vfloat32m2_t va_eps_f32m2 = __riscv_vfadd_vf_f32m2(va_f32m2, NK_F32_DIVISION_EPSILON, vector_length);
-        vfloat32m2_t vb_eps_f32m2 = __riscv_vfadd_vf_f32m2(vb_f32m2, NK_F32_DIVISION_EPSILON, vector_length);
-        vfloat32m2_t mean_eps_f32m2 = __riscv_vfadd_vf_f32m2(mean_f32m2, NK_F32_DIVISION_EPSILON, vector_length);
+        vfloat32m2_t va_eps_f32m2 = __riscv_vfadd_vf_f32m2(va_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
+        vfloat32m2_t vb_eps_f32m2 = __riscv_vfadd_vf_f32m2(vb_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
+        vfloat32m2_t mean_eps_f32m2 = __riscv_vfadd_vf_f32m2(mean_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
         vfloat32m2_t mean_reciprocal_f32m2 = nk_f32m2_reciprocal_rvv_(mean_eps_f32m2, vector_length);
         vfloat32m2_t ratio_a_f32m2 = __riscv_vfmul_vv_f32m2(va_eps_f32m2, mean_reciprocal_f32m2, vector_length);
         vfloat32m2_t ratio_b_f32m2 = __riscv_vfmul_vv_f32m2(vb_eps_f32m2, mean_reciprocal_f32m2, vector_length);
@@ -310,11 +310,11 @@ NK_API_COMPTIME void nk_jsd_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_siz
     vfloat64m1_t zero_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, 1);
     nk_f64_t sum = __riscv_vfmv_f_s_f64m1_f64(
                        __riscv_vfredusum_vs_f64m4_f64m1(sum_f64m4, zero_f64m1, vector_length_max)) *
-                   NK_F64_LN2_ / 2.0;
+                   NUMKONG_F64_LN2_ / 2.0;
     *result = sum > 0 ? nk_f64_sqrt_rvv(sum) : 0;
 }
 
-NK_API_COMPTIME void nk_jsd_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_jsd_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
     vfloat64m4_t sum_a_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
     vfloat64m4_t sum_b_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
@@ -326,9 +326,9 @@ NK_API_COMPTIME void nk_jsd_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_siz
         vfloat64m4_t mean_f64m4 = __riscv_vfmul_vf_f64m4(__riscv_vfadd_vv_f64m4(va_f64m4, vb_f64m4, vector_length), 0.5,
                                                          vector_length);
         // ratio_a = (a + eps) / (M + eps), ratio_b = (b + eps) / (M + eps)
-        vfloat64m4_t va_eps_f64m4 = __riscv_vfadd_vf_f64m4(va_f64m4, NK_F64_DIVISION_EPSILON, vector_length);
-        vfloat64m4_t vb_eps_f64m4 = __riscv_vfadd_vf_f64m4(vb_f64m4, NK_F64_DIVISION_EPSILON, vector_length);
-        vfloat64m4_t mean_eps_f64m4 = __riscv_vfadd_vf_f64m4(mean_f64m4, NK_F64_DIVISION_EPSILON, vector_length);
+        vfloat64m4_t va_eps_f64m4 = __riscv_vfadd_vf_f64m4(va_f64m4, NUMKONG_F64_DIVISION_EPSILON, vector_length);
+        vfloat64m4_t vb_eps_f64m4 = __riscv_vfadd_vf_f64m4(vb_f64m4, NUMKONG_F64_DIVISION_EPSILON, vector_length);
+        vfloat64m4_t mean_eps_f64m4 = __riscv_vfadd_vf_f64m4(mean_f64m4, NUMKONG_F64_DIVISION_EPSILON, vector_length);
         // Full precision division (not reciprocal approximation)
         vfloat64m4_t ratio_a_f64m4 = __riscv_vfdiv_vv_f64m4(va_eps_f64m4, mean_eps_f64m4, vector_length);
         vfloat64m4_t ratio_b_f64m4 = __riscv_vfdiv_vv_f64m4(vb_eps_f64m4, mean_eps_f64m4, vector_length);
@@ -345,11 +345,11 @@ NK_API_COMPTIME void nk_jsd_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_siz
     nk_f64_t sum = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m4_f64m1(
                        __riscv_vfadd_vv_f64m4(sum_a_f64m4, sum_b_f64m4, max_vector_length), zero_f64m1,
                        max_vector_length)) *
-                   NK_F64_LN2_ / 2;
+                   NUMKONG_F64_LN2_ / 2;
     *result = sum > 0 ? nk_f64_sqrt_rvv(sum) : 0;
 }
 
-NK_API_COMPTIME void nk_jsd_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_jsd_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m2_t sum_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
     for (nk_size_t vector_length; n > 0; n -= vector_length, a += vector_length, b += vector_length) {
@@ -364,9 +364,9 @@ NK_API_COMPTIME void nk_jsd_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_siz
         vfloat32m2_t mean_f32m2 = __riscv_vfmul_vf_f32m2(__riscv_vfadd_vv_f32m2(va_f32m2, vb_f32m2, vector_length),
                                                          0.5f, vector_length);
         // ratio_a = (a + eps) / (M + eps), ratio_b = (b + eps) / (M + eps)
-        vfloat32m2_t va_eps_f32m2 = __riscv_vfadd_vf_f32m2(va_f32m2, NK_F32_DIVISION_EPSILON, vector_length);
-        vfloat32m2_t vb_eps_f32m2 = __riscv_vfadd_vf_f32m2(vb_f32m2, NK_F32_DIVISION_EPSILON, vector_length);
-        vfloat32m2_t mean_eps_f32m2 = __riscv_vfadd_vf_f32m2(mean_f32m2, NK_F32_DIVISION_EPSILON, vector_length);
+        vfloat32m2_t va_eps_f32m2 = __riscv_vfadd_vf_f32m2(va_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
+        vfloat32m2_t vb_eps_f32m2 = __riscv_vfadd_vf_f32m2(vb_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
+        vfloat32m2_t mean_eps_f32m2 = __riscv_vfadd_vf_f32m2(mean_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
         vfloat32m2_t mean_reciprocal_f32m2 = nk_f32m2_reciprocal_rvv_(mean_eps_f32m2, vector_length);
         vfloat32m2_t ratio_a_f32m2 = __riscv_vfmul_vv_f32m2(va_eps_f32m2, mean_reciprocal_f32m2, vector_length);
         vfloat32m2_t ratio_b_f32m2 = __riscv_vfmul_vv_f32m2(vb_eps_f32m2, mean_reciprocal_f32m2, vector_length);
@@ -383,11 +383,11 @@ NK_API_COMPTIME void nk_jsd_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_siz
     vfloat32m1_t zero_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
     nk_f32_t sum = __riscv_vfmv_f_s_f32m1_f32(
                        __riscv_vfredusum_vs_f32m2_f32m1(sum_f32m2, zero_f32m1, max_vector_length)) *
-                   NK_F32_LN2_ / 2;
+                   NUMKONG_F32_LN2_ / 2;
     *result = sum > 0 ? nk_f32_sqrt_rvv(sum) : 0;
 }
 
-NK_API_COMPTIME void nk_jsd_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_jsd_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m2_t sum_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
     for (nk_size_t vector_length; n > 0; n -= vector_length, a += vector_length, b += vector_length) {
@@ -402,9 +402,9 @@ NK_API_COMPTIME void nk_jsd_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_
         vfloat32m2_t mean_f32m2 = __riscv_vfmul_vf_f32m2(__riscv_vfadd_vv_f32m2(va_f32m2, vb_f32m2, vector_length),
                                                          0.5f, vector_length);
         // ratio_a = (a + eps) / (M + eps), ratio_b = (b + eps) / (M + eps)
-        vfloat32m2_t va_eps_f32m2 = __riscv_vfadd_vf_f32m2(va_f32m2, NK_F32_DIVISION_EPSILON, vector_length);
-        vfloat32m2_t vb_eps_f32m2 = __riscv_vfadd_vf_f32m2(vb_f32m2, NK_F32_DIVISION_EPSILON, vector_length);
-        vfloat32m2_t mean_eps_f32m2 = __riscv_vfadd_vf_f32m2(mean_f32m2, NK_F32_DIVISION_EPSILON, vector_length);
+        vfloat32m2_t va_eps_f32m2 = __riscv_vfadd_vf_f32m2(va_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
+        vfloat32m2_t vb_eps_f32m2 = __riscv_vfadd_vf_f32m2(vb_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
+        vfloat32m2_t mean_eps_f32m2 = __riscv_vfadd_vf_f32m2(mean_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
         vfloat32m2_t mean_reciprocal_f32m2 = nk_f32m2_reciprocal_rvv_(mean_eps_f32m2, vector_length);
         vfloat32m2_t ratio_a_f32m2 = __riscv_vfmul_vv_f32m2(va_eps_f32m2, mean_reciprocal_f32m2, vector_length);
         vfloat32m2_t ratio_b_f32m2 = __riscv_vfmul_vv_f32m2(vb_eps_f32m2, mean_reciprocal_f32m2, vector_length);
@@ -421,7 +421,7 @@ NK_API_COMPTIME void nk_jsd_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_
     vfloat32m1_t zero_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
     nk_f32_t sum = __riscv_vfmv_f_s_f32m1_f32(
                        __riscv_vfredusum_vs_f32m2_f32m1(sum_f32m2, zero_f32m1, max_vector_length)) *
-                   NK_F32_LN2_ / 2;
+                   NUMKONG_F32_LN2_ / 2;
     *result = sum > 0 ? nk_f32_sqrt_rvv(sum) : 0;
 }
 
@@ -437,6 +437,6 @@ NK_API_COMPTIME void nk_jsd_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_
 #pragma GCC pop_options
 #endif
 
-#endif // NK_TARGET_RVV
-#endif // NK_TARGET_RISCV64_
-#endif // NK_PROBABILITY_RVV_H
+#endif // NUMKONG_TARGET_RVV
+#endif // NUMKONG_ARCH_RISCV64_
+#endif // NUMKONG_PROBABILITY_RVV_H

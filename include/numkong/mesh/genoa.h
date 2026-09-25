@@ -21,11 +21,11 @@
  *  single H-cell per lane-range. Three product accumulators (a*b, a*rot1(b), a*rot2(b)) cover the 9
  *  cross-covariance cells, matching the Skylake structure.
  */
-#ifndef NK_MESH_GENOA_H
-#define NK_MESH_GENOA_H
+#ifndef NUMKONG_MESH_GENOA_H
+#define NUMKONG_MESH_GENOA_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_GENOA
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_GENOA
 
 #include "numkong/types.h"
 #include "numkong/mesh/serial.h"
@@ -44,8 +44,9 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "avx512bf16", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NK_API_COMPTIME void nk_rmsd_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                        nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_rmsd_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                             nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                             nk_f32_t *result) {
     if (rotation)
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
         rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
@@ -103,24 +104,25 @@ NK_API_COMPTIME void nk_rmsd_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, 
 /** Channel-grouping permute: 10 xyz triplets and 2 padding bf16 → [x0..x9, y0..y9, z0..z9, _, _].
  *  After VPERMW, fp32 lanes 0..4 carry the x-channel, 2 bf16 each, while lanes 5..9 carry y and
  *  lanes 10..14 carry z. */
-#define NK_MESH_GENOA_CHANNEL_GROUP_INDICES_                                                                           \
+#define NUMKONG_MESH_GENOA_CHANNEL_GROUP_INDICES_                                                                      \
     _mm512_set_epi16(31, 30, 29, 26, 23, 20, 17, 14, 11, 8, 5, 2, 28, 25, 22, 19, 16, 13, 10, 7, 4, 1, 27, 24, 21, 18, \
                      15, 12, 9, 6, 3, 0)
 
 /** Rotation-1 applied during channel-grouping: each channel slot carries the next channel of b, so
  *  the x-slot gets b.y, the y-slot b.z, and the z-slot b.x, pairing covariance cells xy, yz, zx. */
-#define NK_MESH_GENOA_ROTATION_1_INDICES_                                                                             \
+#define NUMKONG_MESH_GENOA_ROTATION_1_INDICES_                                                                        \
     _mm512_set_epi16(31, 30, 27, 24, 21, 18, 15, 12, 9, 6, 3, 0, 29, 26, 23, 20, 17, 14, 11, 8, 5, 2, 28, 25, 22, 19, \
                      16, 13, 10, 7, 4, 1)
 
 /** Rotation-2: the x-slot gets b.z, the y-slot b.x, and the z-slot b.y, which pairs the covariance
  *  cells xz, yx and zy. */
-#define NK_MESH_GENOA_ROTATION_2_INDICES_                                                                             \
+#define NUMKONG_MESH_GENOA_ROTATION_2_INDICES_                                                                        \
     _mm512_set_epi16(31, 30, 28, 25, 22, 19, 16, 13, 10, 7, 4, 1, 27, 24, 21, 18, 15, 12, 9, 6, 3, 0, 29, 26, 23, 20, \
                      17, 14, 11, 8, 5, 2)
 
-NK_API_COMPTIME void nk_kabsch_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                          nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_kabsch_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                               nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
+                                               nk_f32_t *scale, nk_f32_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -132,9 +134,9 @@ NK_API_COMPTIME void nk_kabsch_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b
         return;
     }
 
-    __m512i const idx_channel_group_i16x32 = NK_MESH_GENOA_CHANNEL_GROUP_INDICES_;
-    __m512i const idx_rotation_1_i16x32 = NK_MESH_GENOA_ROTATION_1_INDICES_;
-    __m512i const idx_rotation_2_i16x32 = NK_MESH_GENOA_ROTATION_2_INDICES_;
+    __m512i const idx_channel_group_i16x32 = NUMKONG_MESH_GENOA_CHANNEL_GROUP_INDICES_;
+    __m512i const idx_rotation_1_i16x32 = NUMKONG_MESH_GENOA_ROTATION_1_INDICES_;
+    __m512i const idx_rotation_2_i16x32 = NUMKONG_MESH_GENOA_ROTATION_2_INDICES_;
     __m512i const ones_bf16x32 = _mm512_set1_epi16(0x3F80); // bf16 representation of 1.0
 
     __m512 const zeros_f32x16 = _mm512_setzero_ps();
@@ -294,9 +296,9 @@ NK_API_COMPTIME void nk_kabsch_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b
     *result = nk_f32_sqrt_haswell(sum_squared * inv_n);
 }
 
-NK_API_COMPTIME void nk_umeyama_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                           nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                           nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_umeyama_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
+                                                nk_f32_t *scale, nk_f32_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -308,9 +310,9 @@ NK_API_COMPTIME void nk_umeyama_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *
         return;
     }
 
-    __m512i const idx_channel_group_i16x32 = NK_MESH_GENOA_CHANNEL_GROUP_INDICES_;
-    __m512i const idx_rotation_1_i16x32 = NK_MESH_GENOA_ROTATION_1_INDICES_;
-    __m512i const idx_rotation_2_i16x32 = NK_MESH_GENOA_ROTATION_2_INDICES_;
+    __m512i const idx_channel_group_i16x32 = NUMKONG_MESH_GENOA_CHANNEL_GROUP_INDICES_;
+    __m512i const idx_rotation_1_i16x32 = NUMKONG_MESH_GENOA_ROTATION_1_INDICES_;
+    __m512i const idx_rotation_2_i16x32 = NUMKONG_MESH_GENOA_ROTATION_2_INDICES_;
     __m512i const ones_bf16x32 = _mm512_set1_epi16(0x3F80);
 
     __m512 const zeros_f32x16 = _mm512_setzero_ps();
@@ -489,6 +491,6 @@ NK_API_COMPTIME void nk_umeyama_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_GENOA
-#endif // NK_TARGET_X8664_
-#endif // NK_MESH_GENOA_H
+#endif // NUMKONG_TARGET_GENOA
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_MESH_GENOA_H

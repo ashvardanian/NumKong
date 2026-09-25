@@ -8,27 +8,27 @@
 
 void nk_dispatch_f32c_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punned_t *m, nk_capability_t *c) {
     typedef nk_kernel_punned_t m_t;
-#if NK_TARGET_V128RELAXED
+#if NUMKONG_TARGET_V128RELAXED
     if (v & nk_cap_v128relaxed_k) switch (k) {
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_f32c_v128relaxed, *c = nk_cap_v128relaxed_k; return;
         case nk_kernel_vdot_k: *m = (m_t)&nk_vdot_f32c_v128relaxed, *c = nk_cap_v128relaxed_k; return;
         default: break;
         }
 #endif
-#if NK_TARGET_SMEF64
+#if NUMKONG_TARGET_SMEF64
     if (v & nk_cap_smef64_k) switch (k) {
         case nk_kernel_bilinear_k: *m = (m_t)&nk_bilinear_f32c_smef64, *c = nk_cap_smef64_k; return;
         default: break;
         }
 #endif
-#if NK_TARGET_SVE
+#if NUMKONG_TARGET_SVE
     if (v & nk_cap_sve_k) switch (k) {
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_f32c_sve, *c = nk_cap_sve_k; return;
         case nk_kernel_vdot_k: *m = (m_t)&nk_vdot_f32c_sve, *c = nk_cap_sve_k; return;
         default: break;
         }
 #endif
-#if NK_TARGET_NEON
+#if NUMKONG_TARGET_NEON
     if (v & nk_cap_neon_k) switch (k) {
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_f32c_neon, *c = nk_cap_neon_k; return;
         case nk_kernel_vdot_k: *m = (m_t)&nk_vdot_f32c_neon, *c = nk_cap_neon_k; return;
@@ -39,7 +39,7 @@ void nk_dispatch_f32c_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
         default: break;
         }
 #endif
-#if NK_TARGET_RVV
+#if NUMKONG_TARGET_RVV
     if (v & nk_cap_rvv_k) switch (k) {
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_f32c_rvv, *c = nk_cap_rvv_k; return;
         case nk_kernel_vdot_k: *m = (m_t)&nk_vdot_f32c_rvv, *c = nk_cap_rvv_k; return;
@@ -49,7 +49,7 @@ void nk_dispatch_f32c_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
         default: break;
         }
 #endif
-#if NK_TARGET_SKYLAKE
+#if NUMKONG_TARGET_SKYLAKE
     if (v & nk_cap_skylake_k) switch (k) {
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_f32c_skylake, *c = nk_cap_skylake_k; return;
         case nk_kernel_vdot_k: *m = (m_t)&nk_vdot_f32c_skylake, *c = nk_cap_skylake_k; return;
@@ -60,7 +60,7 @@ void nk_dispatch_f32c_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
         default: break;
         }
 #endif
-#if NK_TARGET_HASWELL
+#if NUMKONG_TARGET_HASWELL
     if (v & nk_cap_haswell_k) switch (k) {
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_f32c_haswell, *c = nk_cap_haswell_k; return;
         case nk_kernel_vdot_k: *m = (m_t)&nk_vdot_f32c_haswell, *c = nk_cap_haswell_k; return;

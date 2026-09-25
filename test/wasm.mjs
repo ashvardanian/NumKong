@@ -4,12 +4,12 @@
  *  @date February 10, 2026
  *  @brief Multi-runtime WASM test suite for NumKong.
  *
- *  Supports Emscripten and WASI under Node.js, and browsers under Playwright, with `NK_RUNTIME`
- *  choosing the runtime:
+ *  Supports Emscripten and WASI under Node.js, and browsers under Playwright, with
+ *  `NUMKONG_RUNTIME` choosing the runtime:
  *
  *  ```sh
- *  NK_RUNTIME=emscripten node --test test/wasm.mjs
- *  NK_RUNTIME=wasi-node node --test test/wasm.mjs
+ *  NUMKONG_RUNTIME=emscripten node --test test/wasm.mjs
+ *  NUMKONG_RUNTIME=wasi-node node --test test/wasm.mjs
  *  ```
  */
 
@@ -102,11 +102,20 @@ async function loadNumKong(runtime) {
   }
 }
 
+/** `NUMKONG_SEED` as a number: 42 when unset, a fresh draw for `random`; anything else throws. */
+function readSeed() {
+  const text = process.env.NUMKONG_SEED || "42";
+  if (text === "random") return Math.floor(Math.random() * 0x100000000);
+  const seed = Number(text);
+  if (!Number.isSafeInteger(seed) || seed < 0) throw new Error(`NUMKONG_SEED="${text}" does not parse`);
+  return seed;
+}
+
 /** Runtime selected by the environment variable. */
-const runtime = process.env.NK_RUNTIME || "native";
-const seed = parseInt(process.env.NK_SEED || "42");
-const dims = process.env.NK_DENSE_DIMENSIONS
-  ? process.env.NK_DENSE_DIMENSIONS.split(",").map(Number)
+const runtime = process.env.NUMKONG_RUNTIME || "native";
+const seed = readSeed();
+const dims = process.env.NUMKONG_DENSE_DIMENSIONS
+  ? process.env.NUMKONG_DENSE_DIMENSIONS.split(",").map(Number)
   : [3, 16, 128, 1536];
 
 /** Simple PRNG for reproducible tests. */
@@ -160,7 +169,7 @@ function assertAlmostEqual(actual, expected, tolerance = 1e-6) {
   );
 }
 
-// Test suite shaped like test/test.mjs
+// Test suite shaped like test/main.mjs
 test(`[${runtime}] Distance from itself`, () => {
   const f32s = new Float32Array([1.0, 2.0, 3.0]);
   assertAlmostEqual(numkong.sqeuclidean(f32s, f32s), 0.0, 0.01);

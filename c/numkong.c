@@ -25,9 +25,9 @@ extern "C" {
 /*  WASM capability detection for standalone Emscripten builds.
  *  EM_JS embeds JavaScript probes for runtime SIMD detection. It only works in standalone builds —
  *  Pyodide side modules cannot use EM_JS (the linker fails with undefined ___em_js__* symbols).
- *  Pyodide builds define NK_PYODIDE_SIDE_MODULE and fall through to compile-time detection in
+ *  Pyodide builds define NUMKONG_PYODIDE_SIDE_MODULE_ and fall through to compile-time detection in
  *  capabilities.h instead. */
-#if defined(__EMSCRIPTEN__) && NK_RUNTIME_DISPATCH && !defined(NK_PYODIDE_SIDE_MODULE)
+#if defined(__EMSCRIPTEN__) && NUMKONG_RUNTIME_DISPATCH && !NUMKONG_PYODIDE_SIDE_MODULE_
 #include <emscripten.h>
 
 /*  EM_JS expands to an empty-parameter-list declaration `()` and a trailing `;`, which trigger
@@ -86,11 +86,11 @@ EM_JS(int, nk_has_relaxed, (), {
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #endif
-#endif // __EMSCRIPTEN__ && NK_RUNTIME_DISPATCH && !NK_PYODIDE_SIDE_MODULE
+#endif // __EMSCRIPTEN__ && NUMKONG_RUNTIME_DISPATCH && !NUMKONG_PYODIDE_SIDE_MODULE_
 
 /** Fills memory with 0xFF, producing NaN for floats, -1 for signed integers, and MAX for unsigned.
  *  Avoids a LibC dependency on memset. */
-NK_HELPER_INLINE void nk_fill_error_(void *ptr, nk_size_t bytes) {
+NUMKONG_HELPER_INLINE void nk_fill_error_(void *ptr, nk_size_t bytes) {
     nk_u8_t *p = (nk_u8_t *)ptr;
     while (bytes--) *p++ = 0xFF;
 }
@@ -312,26 +312,27 @@ void nk_error_attention_causal_packed_(void const *q, void const *key_value_pack
 
 /** Global dispatch table, 64-byte aligned for cache performance. The type is defined in dispatch.h,
  *  and the table is non-static for access from dtype files. */
-NK_ALIGN64 nk_implementations_t nk_dispatch_table;
+NUMKONG_ALIGN64_ nk_implementations_t nk_dispatch_table;
 
 /** Direct dispatch macros using the central dispatch table, with no lazy initialization. */
-#define nk_dispatch_dense_(name, extension, input_type, output_type)                                        \
-    NK_API_RUNTIME void nk_##name##_##extension(nk_##input_type##_t const *a, nk_##input_type##_t const *b, \
-                                                nk_size_t n, nk_##output_type##_t *results) {               \
-        nk_dispatch_table.name##_##extension(a, b, n, (void *)results);                                     \
-        nk_unpoison_((void *)results, sizeof(nk_##output_type##_t));                                        \
+#define nk_dispatch_dense_(name, extension, input_type, output_type)                                             \
+    NUMKONG_API_RUNTIME void nk_##name##_##extension(nk_##input_type##_t const *a, nk_##input_type##_t const *b, \
+                                                     nk_size_t n, nk_##output_type##_t *results) {               \
+        nk_dispatch_table.name##_##extension(a, b, n, (void *)results);                                          \
+        nk_unpoison_((void *)results, sizeof(nk_##output_type##_t));                                             \
     }
 
 #define nk_dispatch_sparse_(name, extension, type)                                                                  \
-    NK_API_RUNTIME void nk_##name##_##extension(nk_##type##_t const *a, nk_##type##_t const *b, nk_size_t a_length, \
-                                                nk_size_t b_length, nk_##type##_t *result, nk_size_t *count) {      \
+    NUMKONG_API_RUNTIME void nk_##name##_##extension(nk_##type##_t const *a, nk_##type##_t const *b,                \
+                                                     nk_size_t a_length, nk_size_t b_length, nk_##type##_t *result, \
+                                                     nk_size_t *count) {                                            \
         nk_dispatch_table.name##_##extension(a, b, a_length, b_length, (void *)result, count);                      \
         nk_unpoison_(count, sizeof(nk_size_t));                                                                     \
         nk_unpoison_((void *)result, (*count) * sizeof(nk_##type##_t));                                             \
     }
 
 #define nk_dispatch_sparse_dot_(name, index_type, weight_type, output_type)                                \
-    NK_API_RUNTIME void nk_##name##_##index_type##weight_type(                                             \
+    NUMKONG_API_RUNTIME void nk_##name##_##index_type##weight_type(                                        \
         nk_##index_type##_t const *a, nk_##index_type##_t const *b, nk_##weight_type##_t const *a_weights, \
         nk_##weight_type##_t const *b_weights, nk_size_t a_length, nk_size_t b_length,                     \
         nk_##output_type##_t *product) {                                                                   \
@@ -340,68 +341,68 @@ NK_ALIGN64 nk_implementations_t nk_dispatch_table;
         nk_unpoison_((void *)product, sizeof(nk_##output_type##_t));                                       \
     }
 
-#define nk_dispatch_curved_(name, extension, output_type)                                                 \
-    NK_API_RUNTIME void nk_##name##_##extension(nk_##extension##_t const *a, nk_##extension##_t const *b, \
-                                                nk_##extension##_t const *c, nk_size_t n,                 \
-                                                nk_##output_type##_t *result) {                           \
-        nk_dispatch_table.name##_##extension(a, b, c, n, (void *)result);                                 \
-        nk_unpoison_((void *)result, sizeof(nk_##output_type##_t));                                       \
+#define nk_dispatch_curved_(name, extension, output_type)                                                      \
+    NUMKONG_API_RUNTIME void nk_##name##_##extension(nk_##extension##_t const *a, nk_##extension##_t const *b, \
+                                                     nk_##extension##_t const *c, nk_size_t n,                 \
+                                                     nk_##output_type##_t *result) {                           \
+        nk_dispatch_table.name##_##extension(a, b, c, n, (void *)result);                                      \
+        nk_unpoison_((void *)result, sizeof(nk_##output_type##_t));                                            \
     }
 
-#define nk_dispatch_geospatial_(name, extension, output_type)                                                       \
-    NK_API_RUNTIME void nk_##name##_##extension(nk_##extension##_t const *a_lats, nk_##extension##_t const *a_lons, \
-                                                nk_##extension##_t const *b_lats, nk_##extension##_t const *b_lons, \
-                                                nk_size_t n, nk_##output_type##_t *results) {                       \
-        nk_dispatch_table.name##_##extension(a_lats, a_lons, b_lats, b_lons, n, (void *)results);                   \
-        nk_unpoison_((void *)results, sizeof(nk_##output_type##_t));                                                \
+#define nk_dispatch_geospatial_(name, extension, output_type)                                                 \
+    NUMKONG_API_RUNTIME void nk_##name##_##extension(                                                         \
+        nk_##extension##_t const *a_lats, nk_##extension##_t const *a_lons, nk_##extension##_t const *b_lats, \
+        nk_##extension##_t const *b_lons, nk_size_t n, nk_##output_type##_t *results) {                       \
+        nk_dispatch_table.name##_##extension(a_lats, a_lons, b_lats, b_lons, n, (void *)results);             \
+        nk_unpoison_((void *)results, sizeof(nk_##output_type##_t));                                          \
     }
 
 #define nk_dispatch_each_fma_(extension, scalar_type)                                                        \
-    NK_API_RUNTIME void nk_each_fma_##extension(                                                             \
+    NUMKONG_API_RUNTIME void nk_each_fma_##extension(                                                        \
         nk_##extension##_t const *a, nk_##extension##_t const *b, nk_##extension##_t const *c, nk_size_t n,  \
         nk_##scalar_type##_t const *alpha, nk_##scalar_type##_t const *beta, nk_##extension##_t *result) {   \
         nk_dispatch_table.each_fma_##extension(a, b, c, n, (void const *)alpha, (void const *)beta, result); \
         nk_unpoison_((void *)result, n * sizeof(nk_##extension##_t));                                        \
     }
 #define nk_dispatch_each_swiglu_(extension, data_type)                                                      \
-    NK_API_RUNTIME void nk_each_swiglu_##extension(                                                         \
+    NUMKONG_API_RUNTIME void nk_each_swiglu_##extension(                                                    \
         data_type const *gate, data_type const *up, data_type *y, nk_size_t rows, nk_size_t cols,           \
         nk_size_t gate_row_stride, nk_size_t up_row_stride, nk_size_t y_row_stride, nk_f32_t input_scale) { \
         ((nk_each_swiglu_punned_t)nk_dispatch_table.each_swiglu_##extension)(                               \
             gate, up, y, rows, cols, gate_row_stride, up_row_stride, y_row_stride, input_scale);            \
     }
 
-#define nk_dispatch_each_blend_(extension, scalar_type)                                                           \
-    NK_API_RUNTIME void nk_each_blend_##extension(nk_##extension##_t const *a, nk_##extension##_t const *b,       \
-                                                  nk_size_t n, nk_##scalar_type##_t const *alpha,                 \
-                                                  nk_##scalar_type##_t const *beta, nk_##extension##_t *result) { \
-        nk_dispatch_table.each_blend_##extension(a, b, n, (void const *)alpha, (void const *)beta, result);       \
-        nk_unpoison_((void *)result, n * sizeof(nk_##extension##_t));                                             \
+#define nk_dispatch_each_blend_(extension, scalar_type)                                                                \
+    NUMKONG_API_RUNTIME void nk_each_blend_##extension(nk_##extension##_t const *a, nk_##extension##_t const *b,       \
+                                                       nk_size_t n, nk_##scalar_type##_t const *alpha,                 \
+                                                       nk_##scalar_type##_t const *beta, nk_##extension##_t *result) { \
+        nk_dispatch_table.each_blend_##extension(a, b, n, (void const *)alpha, (void const *)beta, result);            \
+        nk_unpoison_((void *)result, n * sizeof(nk_##extension##_t));                                                  \
     }
 
 #define nk_dispatch_each_scale_(extension, scalar_type)                                                                \
-    NK_API_RUNTIME void nk_each_scale_##extension(nk_##extension##_t const *a, nk_size_t n,                            \
-                                                  nk_##scalar_type##_t const *alpha, nk_##scalar_type##_t const *beta, \
-                                                  nk_##extension##_t *result) {                                        \
+    NUMKONG_API_RUNTIME void nk_each_scale_##extension(nk_##extension##_t const *a, nk_size_t n,                       \
+                                                       nk_##scalar_type##_t const *alpha,                              \
+                                                       nk_##scalar_type##_t const *beta, nk_##extension##_t *result) { \
         nk_dispatch_table.each_scale_##extension(a, n, (void const *)alpha, (void const *)beta, result);               \
         nk_unpoison_((void *)result, n * sizeof(nk_##extension##_t));                                                  \
     }
 
-#define nk_dispatch_each_sum_(extension)                                                                               \
-    NK_API_RUNTIME void nk_each_sum_##extension(nk_##extension##_t const *a, nk_##extension##_t const *b, nk_size_t n, \
-                                                nk_##extension##_t *result) {                                          \
-        nk_dispatch_table.each_sum_##extension(a, b, n, result);                                                       \
-        nk_unpoison_((void *)result, n * sizeof(nk_##extension##_t));                                                  \
+#define nk_dispatch_each_sum_(extension)                                                                       \
+    NUMKONG_API_RUNTIME void nk_each_sum_##extension(nk_##extension##_t const *a, nk_##extension##_t const *b, \
+                                                     nk_size_t n, nk_##extension##_t *result) {                \
+        nk_dispatch_table.each_sum_##extension(a, b, n, result);                                               \
+        nk_unpoison_((void *)result, n * sizeof(nk_##extension##_t));                                          \
     }
 
-#define nk_dispatch_trig_(name, extension)                                                          \
-    NK_API_RUNTIME void nk_trig_##name##_##extension(nk_##extension##_t const *inputs, nk_size_t n, \
-                                                     nk_##extension##_t *outputs) {                 \
-        nk_dispatch_table.trig_##name##_##extension(inputs, n, outputs);                            \
-        nk_unpoison_((void *)outputs, n * sizeof(nk_##extension##_t));                              \
+#define nk_dispatch_trig_(name, extension)                                                               \
+    NUMKONG_API_RUNTIME void nk_trig_##name##_##extension(nk_##extension##_t const *inputs, nk_size_t n, \
+                                                          nk_##extension##_t *outputs) {                 \
+        nk_dispatch_table.trig_##name##_##extension(inputs, n, outputs);                                 \
+        nk_unpoison_((void *)outputs, n * sizeof(nk_##extension##_t));                                   \
     }
 #define nk_dispatch_trig_rope_(extension, data_type)                                                                 \
-    NK_API_RUNTIME void nk_trig_rope_##extension(                                                                    \
+    NUMKONG_API_RUNTIME void nk_trig_rope_##extension(                                                               \
         data_type const *x, data_type *y, nk_f32_t const *cos, nk_f32_t const *sin, nk_size_t rows, nk_size_t heads, \
         nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t input_scale) {                  \
         ((nk_kernel_trig_rope_punned_t)nk_dispatch_table.trig_rope_##extension)(                                     \
@@ -409,7 +410,7 @@ NK_ALIGN64 nk_implementations_t nk_dispatch_table;
     }
 
 #define nk_dispatch_mesh_(name, extension, transform_type, metric_type)                                             \
-    NK_API_RUNTIME void nk_##name##_##extension(                                                                    \
+    NUMKONG_API_RUNTIME void nk_##name##_##extension(                                                               \
         nk_##extension##_t const *a, nk_##extension##_t const *b, nk_size_t n, nk_##transform_type##_t *a_centroid, \
         nk_##transform_type##_t *b_centroid, nk_##transform_type##_t *rotation, nk_##transform_type##_t *scale,     \
         nk_##metric_type##_t *result) {                                                                             \
@@ -423,8 +424,8 @@ NK_ALIGN64 nk_implementations_t nk_dispatch_table;
     }
 
 #define nk_dispatch_reduce_moments_(extension, data_type, sum_type, sumsq_type)                                        \
-    NK_API_RUNTIME void nk_reduce_moments_##extension(data_type const *data, nk_size_t count, nk_size_t stride_bytes,  \
-                                                      sum_type *sum_ptr, sumsq_type *sumsq_ptr) {                      \
+    NUMKONG_API_RUNTIME void nk_reduce_moments_##extension(                                                            \
+        data_type const *data, nk_size_t count, nk_size_t stride_bytes, sum_type *sum_ptr, sumsq_type *sumsq_ptr) {    \
         ((nk_reduce_moments_punned_t)nk_dispatch_table.reduce_moments_##extension)(data, count, stride_bytes, sum_ptr, \
                                                                                    sumsq_ptr);                         \
         nk_unpoison_((void *)sum_ptr, sizeof(sum_type));                                                               \
@@ -432,9 +433,9 @@ NK_ALIGN64 nk_implementations_t nk_dispatch_table;
     }
 
 #define nk_dispatch_reduce_minmax_(extension, data_type, minmax_type)                                                  \
-    NK_API_RUNTIME void nk_reduce_minmax_##extension(data_type const *data, nk_size_t count, nk_size_t stride_bytes,   \
-                                                     minmax_type *min_value, nk_size_t *min_index,                     \
-                                                     minmax_type *max_value, nk_size_t *max_index) {                   \
+    NUMKONG_API_RUNTIME void nk_reduce_minmax_##extension(                                                             \
+        data_type const *data, nk_size_t count, nk_size_t stride_bytes, minmax_type *min_value, nk_size_t *min_index,  \
+        minmax_type *max_value, nk_size_t *max_index) {                                                                \
         ((nk_reduce_minmax_punned_t)nk_dispatch_table.reduce_minmax_##extension)(data, count, stride_bytes, min_value, \
                                                                                  min_index, max_value, max_index);     \
         nk_unpoison_((void *)min_value, sizeof(minmax_type));                                                          \
@@ -443,46 +444,46 @@ NK_ALIGN64 nk_implementations_t nk_dispatch_table;
         nk_unpoison_(max_index, sizeof(nk_size_t));                                                                    \
     }
 #define nk_dispatch_reduce_rmsnorm_(extension, data_type)                                                          \
-    NK_API_RUNTIME void nk_reduce_rmsnorm_##extension(                                                             \
+    NUMKONG_API_RUNTIME void nk_reduce_rmsnorm_##extension(                                                        \
         data_type const *x, nk_f32_t const *gamma, data_type *y, nk_size_t rows, nk_size_t groups, nk_size_t cols, \
         nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t eps, nk_f32_t input_scale) {                      \
         ((nk_reduce_rmsnorm_punned_t)nk_dispatch_table.reduce_rmsnorm_##extension)(                                \
             x, gamma, y, rows, groups, cols, x_row_stride, y_row_stride, eps, input_scale);                        \
     }
 
-#define nk_dispatch_cross_pack_size_(api_name, name, input_type, accum_type)              \
-    NK_API_RUNTIME nk_size_t nk_##api_name##_pack_size_##name(nk_size_t n, nk_size_t k) { \
-        return nk_dispatch_table.api_name##_pack_size_##name(n, k);                       \
+#define nk_dispatch_cross_pack_size_(api_name, name, input_type, accum_type)                   \
+    NUMKONG_API_RUNTIME nk_size_t nk_##api_name##_pack_size_##name(nk_size_t n, nk_size_t k) { \
+        return nk_dispatch_table.api_name##_pack_size_##name(n, k);                            \
     }
 
-#define nk_dispatch_cross_packed_shape_(api_name, name, input_type, accum_type)                               \
-    NK_API_RUNTIME void nk_##api_name##_packed_shape_##name(void const *packed, nk_size_t *n, nk_size_t *k) { \
-        nk_dispatch_table.api_name##_packed_shape_##name(packed, n, k);                                       \
+#define nk_dispatch_cross_packed_shape_(api_name, name, input_type, accum_type)                                    \
+    NUMKONG_API_RUNTIME void nk_##api_name##_packed_shape_##name(void const *packed, nk_size_t *n, nk_size_t *k) { \
+        nk_dispatch_table.api_name##_packed_shape_##name(packed, n, k);                                            \
     }
 
-#define nk_dispatch_cross_pack_(api_name, name, input_type, accum_type)                                     \
-    NK_API_RUNTIME void nk_##api_name##_pack_##name(nk_##input_type##_t const *b, nk_size_t n, nk_size_t k, \
-                                                    nk_size_t b_stride, void *b_packed) {                   \
-        nk_dispatch_table.api_name##_pack_##name(b, n, k, b_stride, b_packed);                              \
+#define nk_dispatch_cross_pack_(api_name, name, input_type, accum_type)                                          \
+    NUMKONG_API_RUNTIME void nk_##api_name##_pack_##name(nk_##input_type##_t const *b, nk_size_t n, nk_size_t k, \
+                                                         nk_size_t b_stride, void *b_packed) {                   \
+        nk_dispatch_table.api_name##_pack_##name(b, n, k, b_stride, b_packed);                                   \
     }
 
-#define nk_dispatch_dots_pack_(name, input_type)                                                         \
-    NK_API_RUNTIME void nk_dots_pack_##name(nk_##input_type##_t const *b, nk_size_t n, nk_size_t k,      \
-                                            nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, \
-                                            nk_size_t columns_end) {                                     \
-        nk_dispatch_table.dots_pack_##name(b, n, k, b_stride, b_packed, columns_begin, columns_end);     \
+#define nk_dispatch_dots_pack_(name, input_type)                                                              \
+    NUMKONG_API_RUNTIME void nk_dots_pack_##name(nk_##input_type##_t const *b, nk_size_t n, nk_size_t k,      \
+                                                 nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, \
+                                                 nk_size_t columns_end) {                                     \
+        nk_dispatch_table.dots_pack_##name(b, n, k, b_stride, b_packed, columns_begin, columns_end);          \
     }
 
-#define nk_dispatch_cross_packed_(api_name, name, input_type, accum_type, output_type)                                \
-    NK_API_RUNTIME void nk_##api_name##_packed_##name(nk_##input_type##_t const *a, void const *b_packed,             \
-                                                      nk_##output_type##_t *c, nk_size_t m, nk_size_t n, nk_size_t k, \
-                                                      nk_size_t a_stride, nk_size_t c_stride) {                       \
-        nk_dispatch_table.api_name##_packed_##name(a, b_packed, c, m, n, k, a_stride, c_stride);                      \
-        nk_unpoison_((void *)c, m * c_stride);                                                                        \
+#define nk_dispatch_cross_packed_(api_name, name, input_type, accum_type, output_type)                            \
+    NUMKONG_API_RUNTIME void nk_##api_name##_packed_##name(nk_##input_type##_t const *a, void const *b_packed,    \
+                                                           nk_##output_type##_t *c, nk_size_t m, nk_size_t n,     \
+                                                           nk_size_t k, nk_size_t a_stride, nk_size_t c_stride) { \
+        nk_dispatch_table.api_name##_packed_##name(a, b_packed, c, m, n, k, a_stride, c_stride);                  \
+        nk_unpoison_((void *)c, m * c_stride);                                                                    \
     }
 
 #define nk_dispatch_cross_symmetric_(api_name, name, input_type, output_type)                                   \
-    NK_API_RUNTIME void nk_##api_name##_symmetric_##name(                                                       \
+    NUMKONG_API_RUNTIME void nk_##api_name##_symmetric_##name(                                                  \
         nk_##input_type##_t const *vectors, nk_size_t n_vectors, nk_size_t depth, nk_size_t stride,             \
         nk_##output_type##_t *result, nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count) {      \
         nk_dispatch_table.api_name##_symmetric_##name(vectors, n_vectors, depth, stride, result, result_stride, \
@@ -490,27 +491,27 @@ NK_ALIGN64 nk_implementations_t nk_dispatch_table;
         nk_unpoison_((void *)result, row_count * result_stride);                                                \
     }
 
-#define nk_dispatch_maxsim_packed_(name, output_type)                                                           \
-    NK_API_RUNTIME void nk_maxsim_packed_##name(void const *q_packed, void const *d_packed, nk_size_t n_q,      \
-                                                nk_size_t n_d, nk_size_t depth, nk_##output_type##_t *result) { \
-        nk_dispatch_table.maxsim_packed_##name(q_packed, d_packed, n_q, n_d, depth, (void *)result);            \
-        nk_unpoison_((void *)result, sizeof(nk_##output_type##_t));                                             \
+#define nk_dispatch_maxsim_packed_(name, output_type)                                                                \
+    NUMKONG_API_RUNTIME void nk_maxsim_packed_##name(void const *q_packed, void const *d_packed, nk_size_t n_q,      \
+                                                     nk_size_t n_d, nk_size_t depth, nk_##output_type##_t *result) { \
+        nk_dispatch_table.maxsim_packed_##name(q_packed, d_packed, n_q, n_d, depth, (void *)result);                 \
+        nk_unpoison_((void *)result, sizeof(nk_##output_type##_t));                                                  \
     }
 
-#define nk_dispatch_attention_pack_size_(name)                                                                         \
-    NK_API_RUNTIME nk_size_t nk_attention_pack_size_##name(nk_size_t num_kv_heads, nk_size_t head_dim,                 \
-                                                           nk_u32_t const *segment_lengths, nk_size_t segment_count) { \
-        return nk_dispatch_table.attention_pack_size_##name(num_kv_heads, head_dim, segment_lengths, segment_count);   \
+#define nk_dispatch_attention_pack_size_(name)                                                                       \
+    NUMKONG_API_RUNTIME nk_size_t nk_attention_pack_size_##name(                                                     \
+        nk_size_t num_kv_heads, nk_size_t head_dim, nk_u32_t const *segment_lengths, nk_size_t segment_count) {      \
+        return nk_dispatch_table.attention_pack_size_##name(num_kv_heads, head_dim, segment_lengths, segment_count); \
     }
 
-#define nk_dispatch_attention_packed_shape_(name)                                                                \
-    NK_API_RUNTIME void nk_attention_packed_shape_##name(void const *packed, nk_size_t *heads, nk_size_t *depth, \
-                                                         nk_size_t *segments) {                                  \
-        nk_dispatch_table.attention_packed_shape_##name(packed, heads, depth, segments);                         \
+#define nk_dispatch_attention_packed_shape_(name)                                                                     \
+    NUMKONG_API_RUNTIME void nk_attention_packed_shape_##name(void const *packed, nk_size_t *heads, nk_size_t *depth, \
+                                                              nk_size_t *segments) {                                  \
+        nk_dispatch_table.attention_packed_shape_##name(packed, heads, depth, segments);                              \
     }
 
 #define nk_dispatch_attention_pack_(name)                                                                              \
-    NK_API_RUNTIME void nk_attention_pack_##name(                                                                      \
+    NUMKONG_API_RUNTIME void nk_attention_pack_##name(                                                                 \
         nk_##name##_t const *k, nk_##name##_t const *v, nk_size_t num_kv_heads, nk_size_t head_dim,                    \
         nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t k_stride, \
         nk_size_t v_stride, void *key_value_packed, nk_size_t task_begin, nk_size_t task_end) {                        \
@@ -520,7 +521,7 @@ NK_ALIGN64 nk_implementations_t nk_dispatch_table;
     }
 
 #define nk_dispatch_attention_bidirectional_packed_(name)                                                           \
-    NK_API_RUNTIME void nk_attention_bidirectional_packed_##name(                                                   \
+    NUMKONG_API_RUNTIME void nk_attention_bidirectional_packed_##name(                                              \
         nk_##name##_t const *q, void const *key_value_packed, nk_f32_t *output, nk_size_t num_heads,                \
         nk_size_t num_kv_heads, nk_size_t head_dim, nk_u32_t const *query_offsets, nk_size_t q_stride,              \
         nk_size_t o_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count) {                           \
@@ -530,7 +531,7 @@ NK_ALIGN64 nk_implementations_t nk_dispatch_table;
     }
 
 #define nk_dispatch_attention_causal_packed_(name)                                                                     \
-    NK_API_RUNTIME void nk_attention_causal_packed_##name(                                                             \
+    NUMKONG_API_RUNTIME void nk_attention_causal_packed_##name(                                                        \
         nk_##name##_t const *q, void const *key_value_packed, nk_f32_t *output, nk_size_t num_heads,                   \
         nk_size_t num_kv_heads, nk_size_t head_dim, nk_u32_t const *query_offsets, nk_size_t q_stride,                 \
         nk_size_t o_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,          \
@@ -990,14 +991,14 @@ nk_dispatch_attention_causal_packed_(bf16)
 nk_dispatch_attention_causal_packed_(e4m3)
 nk_dispatch_attention_causal_packed_(i8)
 
-NK_API_RUNTIME int nk_uses_runtime_dispatch(void) { return 1; }
-NK_API_RUNTIME int nk_configure_thread(nk_capability_t c) { return nk_configure_thread_(c); }
+NUMKONG_API_RUNTIME int nk_uses_runtime_dispatch(void) { return 1; }
+NUMKONG_API_RUNTIME int nk_configure_thread(nk_capability_t c) { return nk_configure_thread_(c); }
 
-NK_API_RUNTIME void nk_cast(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type) {
+NUMKONG_API_RUNTIME void nk_cast(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type) {
     nk_dispatch_table.cast(from, from_type, n, to, to_type);
 }
 
-NK_API_RUNTIME void nk_cast_block_scaled(                                                     //
+NUMKONG_API_RUNTIME void nk_cast_block_scaled(                                                //
     void const *from, void const *from_scales,                                                //
     nk_scalar_buffer_t const *from_tensor_scale, nk_block_scaled_format_t const *from_format, //
     void *to, void *to_scales,                                                                //
@@ -1035,7 +1036,7 @@ void nk_dispatch_u1_init_(nk_capability_t caps);
 void nk_dispatch_cast_init_(nk_capability_t caps);
 void nk_dispatch_math_init_(nk_capability_t caps);
 
-NK_HELPER_INLINE void nk_dispatch_table_build_(nk_capability_t caps) {
+NUMKONG_HELPER_INLINE void nk_dispatch_table_build_(nk_capability_t caps) {
     nk_dispatch_table.enabled = caps;
     nk_dispatch_f64c_init_(caps);
     nk_dispatch_f32c_init_(caps);
@@ -1073,43 +1074,46 @@ NK_HELPER_INLINE void nk_dispatch_table_build_(nk_capability_t caps) {
  *  @b nk_cap_serial_k, so a zero @b enabled on the zero-initialized global means "not built yet"
  *  and no separate sentinel is needed.
  */
-NK_HELPER_INLINE void nk_initialize_(void) {
+NUMKONG_HELPER_INLINE void nk_initialize_(void) {
     if (nk_dispatch_table.enabled != 0) return;
     nk_dispatch_table_build_(nk_capabilities_available());
 }
 
 /** The capabilities this CPU can execute, probed once, as the answer cannot change mid-process. */
-NK_API_RUNTIME nk_capability_t nk_capabilities_detected(void) {
+NUMKONG_API_RUNTIME nk_capability_t nk_capabilities_detected(void) {
     static nk_capability_t cached = nk_cap_any_k;
     if (cached == nk_cap_any_k) cached = nk_capabilities_detected_();
     return cached;
 }
-NK_API_RUNTIME nk_capability_t nk_capabilities_compiled(void) { return nk_capabilities_compiled_(); }
-NK_API_RUNTIME nk_capability_t nk_capabilities_available(void) {
+NUMKONG_API_RUNTIME nk_capability_t nk_capabilities_compiled(void) { return nk_capabilities_compiled_(); }
+NUMKONG_API_RUNTIME nk_capability_t nk_capabilities_available(void) {
     return nk_capabilities_detected() & nk_capabilities_compiled_();
 }
-NK_API_RUNTIME nk_capability_t nk_capabilities_enabled(void) {
+NUMKONG_API_RUNTIME nk_capability_t nk_capabilities_enabled(void) {
     nk_initialize_();
     return nk_dispatch_table.enabled;
 }
 
-NK_API_RUNTIME void nk_capabilities_restrict(nk_capability_t caps) {
+NUMKONG_API_RUNTIME void nk_capabilities_restrict(nk_capability_t caps) {
     nk_initialize_();
     // Clamped to `available`, and the serial fallback is never dropped, so dispatch can never be
     // pointed at a kernel that was not compiled in or that this CPU cannot execute.
     nk_dispatch_table_build_((caps & nk_capabilities_available()) | nk_cap_serial_k);
 }
-NK_API_RUNTIME void nk_capabilities_enable(nk_capability_t caps) {
+NUMKONG_API_RUNTIME void nk_capabilities_enable(nk_capability_t caps) {
     nk_capabilities_restrict(nk_capabilities_enabled() | caps);
 }
-NK_API_RUNTIME void nk_capabilities_disable(nk_capability_t caps) {
+NUMKONG_API_RUNTIME void nk_capabilities_disable(nk_capability_t caps) {
     nk_capabilities_restrict(nk_capabilities_enabled() & ~caps);
 }
+NUMKONG_API_RUNTIME nk_size_t nk_name_capabilities(nk_capability_t capabilities, char *buffer, nk_size_t capacity) {
+    return nk_name_capabilities_(capabilities, buffer, capacity);
+}
 
-NK_API_RUNTIME void nk_find_kernel_punned( //
-    nk_kernel_kind_t kind,                 //
-    nk_dtype_t dtype,                      //
-    nk_kernel_punned_t *kernel_output,     //
+NUMKONG_API_RUNTIME void nk_find_kernel_punned( //
+    nk_kernel_kind_t kind,                      //
+    nk_dtype_t dtype,                           //
+    nk_kernel_punned_t *kernel_output,          //
     nk_capability_t *capability_output) {
 
     // The enabled mask is the one the table was built from, so the kernel found here and the one

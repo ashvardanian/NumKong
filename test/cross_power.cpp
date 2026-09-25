@@ -4,14 +4,14 @@
  *  @date March 24, 2026
  *  @brief Batch operation tests - Power ISA family, VSX.
  */
-#include "test.hpp"
+#include "harness.hpp"
 #include "cross.cuh"
 
 using namespace ashvardanian::numkong::test;
 
 void test_cross_power() {
     [[maybe_unused]] error_stats_section_t check;
-#if NK_TARGET_POWERVSX
+#if NUMKONG_TARGET_POWERVSX
     check.section("Cross Power VSX", nk_cap_powervsx_k);
     check("dots_packed_f64_powervsx", test_dots_packed<f64_t>, nk_dots_pack_size_f64_powervsx,
           nk_dots_pack_f64_powervsx, nk_dots_packed_f64_powervsx);
@@ -90,5 +90,5 @@ void test_cross_power() {
     check("jaccards_packed_u1_powervsx", test_jaccards_packed<u1x8_t>, nk_dots_pack_size_u1_powervsx,
           nk_dots_pack_u1_powervsx, nk_jaccards_packed_u1_powervsx);
     check("jaccards_symmetric_u1_powervsx", test_jaccards_symmetric<u1x8_t>, nk_jaccards_symmetric_u1_powervsx);
-#endif // NK_TARGET_POWERVSX
+#endif // NUMKONG_TARGET_POWERVSX
 }

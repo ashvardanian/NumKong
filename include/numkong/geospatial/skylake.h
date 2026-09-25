@@ -19,11 +19,11 @@
  *  _mm512_cmp_ps_mask  VCMPPS (K, ZMM, ZMM, I8)     4cy @ p5          5cy @ p01
  *  @endverbatim
  */
-#ifndef NK_GEOSPATIAL_SKYLAKE_H
-#define NK_GEOSPATIAL_SKYLAKE_H
+#ifndef NUMKONG_GEOSPATIAL_SKYLAKE_H
+#define NUMKONG_GEOSPATIAL_SKYLAKE_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_SKYLAKE
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_SKYLAKE
 
 #include "numkong/types.h"
 #include "numkong/trigonometry/skylake.h" // `nk_sin_f64x8_skylake_`, `nk_cos_f64x8_skylake_`, `nk_atan2_f64x8_skylake_`
@@ -40,11 +40,11 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NK_HELPER_INLINE __m512d nk_haversine_f64x8_skylake_(              //
+NUMKONG_HELPER_INLINE __m512d nk_haversine_f64x8_skylake_(         //
     __m512d first_latitudes_f64x8, __m512d first_longitudes_f64x8, //
     __m512d second_latitudes_f64x8, __m512d second_longitudes_f64x8) {
 
-    __m512d const earth_radius_f64x8 = _mm512_set1_pd(NK_EARTH_MEDIATORIAL_RADIUS);
+    __m512d const earth_radius_f64x8 = _mm512_set1_pd(NUMKONG_EARTH_MEDIATORIAL_RADIUS);
     __m512d const half_f64x8 = _mm512_set1_pd(0.5);
     __m512d const one_f64x8 = _mm512_set1_pd(1.0);
     __m512d const two_f64x8 = _mm512_set1_pd(2.0);
@@ -83,7 +83,7 @@ NK_HELPER_INLINE __m512d nk_haversine_f64x8_skylake_(              //
     return _mm512_mul_pd(earth_radius_f64x8, central_angle_f64x8);
 }
 
-NK_API_COMPTIME void nk_haversine_f64_skylake(      //
+NUMKONG_API_COMPTIME void nk_haversine_f64_skylake( //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results) {
@@ -119,14 +119,14 @@ NK_API_COMPTIME void nk_haversine_f64_skylake(      //
  *  @brief  AVX-512 helper for Vincenty's geodesic distance on 8 f64 point pairs.
  *  @note   This is a true SIMD implementation using masked convergence tracking.
  */
-NK_HELPER_INLINE __m512d nk_vincenty_f64x8_skylake_(               //
+NUMKONG_HELPER_INLINE __m512d nk_vincenty_f64x8_skylake_(          //
     __m512d first_latitudes_f64x8, __m512d first_longitudes_f64x8, //
     __m512d second_latitudes_f64x8, __m512d second_longitudes_f64x8) {
 
-    __m512d const equatorial_radius_f64x8 = _mm512_set1_pd(NK_EARTH_ELLIPSOID_EQUATORIAL_RADIUS);
-    __m512d const polar_radius_f64x8 = _mm512_set1_pd(NK_EARTH_ELLIPSOID_POLAR_RADIUS);
-    __m512d const flattening_f64x8 = _mm512_set1_pd(1.0 / NK_EARTH_ELLIPSOID_INVERSE_FLATTENING);
-    __m512d const convergence_threshold_f64x8 = _mm512_set1_pd(NK_VINCENTY_CONVERGENCE_THRESHOLD_F64);
+    __m512d const equatorial_radius_f64x8 = _mm512_set1_pd(NUMKONG_EARTH_ELLIPSOID_EQUATORIAL_RADIUS);
+    __m512d const polar_radius_f64x8 = _mm512_set1_pd(NUMKONG_EARTH_ELLIPSOID_POLAR_RADIUS);
+    __m512d const flattening_f64x8 = _mm512_set1_pd(1.0 / NUMKONG_EARTH_ELLIPSOID_INVERSE_FLATTENING);
+    __m512d const convergence_threshold_f64x8 = _mm512_set1_pd(NUMKONG_VINCENTY_CONVERGENCE_THRESHOLD_F64);
     __m512d const one_f64x8 = _mm512_set1_pd(1.0);
     __m512d const two_f64x8 = _mm512_set1_pd(2.0);
     __m512d const three_f64x8 = _mm512_set1_pd(3.0);
@@ -163,7 +163,7 @@ NK_HELPER_INLINE __m512d nk_vincenty_f64x8_skylake_(               //
     __mmask8 converged_m8 = 0;
     __mmask8 coincident_m8 = 0;
 
-    for (nk_u32_t iteration = 0; iteration < NK_VINCENTY_MAX_ITERATIONS && converged_m8 != 0xFF; ++iteration) {
+    for (nk_u32_t iteration = 0; iteration < NUMKONG_VINCENTY_MAX_ITERATIONS && converged_m8 != 0xFF; ++iteration) {
         __m512d sin_lambda_f64x8 = nk_sin_f64x8_skylake_(lambda_f64x8);
         __m512d cos_lambda_f64x8 = nk_cos_f64x8_skylake_(lambda_f64x8);
 
@@ -284,7 +284,7 @@ NK_HELPER_INLINE __m512d nk_vincenty_f64x8_skylake_(               //
     return distances_f64x8;
 }
 
-NK_API_COMPTIME void nk_vincenty_f64_skylake(       //
+NUMKONG_API_COMPTIME void nk_vincenty_f64_skylake(  //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results) {
@@ -316,11 +316,11 @@ NK_API_COMPTIME void nk_vincenty_f64_skylake(       //
     }
 }
 
-NK_HELPER_INLINE __m512 nk_haversine_f32x16_skylake_(              //
+NUMKONG_HELPER_INLINE __m512 nk_haversine_f32x16_skylake_(         //
     __m512 first_latitudes_f32x16, __m512 first_longitudes_f32x16, //
     __m512 second_latitudes_f32x16, __m512 second_longitudes_f32x16) {
 
-    __m512 const earth_radius_f32x16 = _mm512_set1_ps((float)NK_EARTH_MEDIATORIAL_RADIUS);
+    __m512 const earth_radius_f32x16 = _mm512_set1_ps((float)NUMKONG_EARTH_MEDIATORIAL_RADIUS);
     __m512 const half_f32x16 = _mm512_set1_ps(0.5f);
     __m512 const one_f32x16 = _mm512_set1_ps(1.0f);
     __m512 const two_f32x16 = _mm512_set1_ps(2.0f);
@@ -361,7 +361,7 @@ NK_HELPER_INLINE __m512 nk_haversine_f32x16_skylake_(              //
     return _mm512_mul_ps(earth_radius_f32x16, central_angle_f32x16);
 }
 
-NK_API_COMPTIME void nk_haversine_f32_skylake(      //
+NUMKONG_API_COMPTIME void nk_haversine_f32_skylake( //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results) {
@@ -397,14 +397,14 @@ NK_API_COMPTIME void nk_haversine_f32_skylake(      //
  *  @brief  AVX-512 helper for Vincenty's geodesic distance on 16 f32 point pairs.
  *  @note   This is a true SIMD implementation using masked convergence tracking.
  */
-NK_HELPER_INLINE __m512 nk_vincenty_f32x16_skylake_(               //
+NUMKONG_HELPER_INLINE __m512 nk_vincenty_f32x16_skylake_(          //
     __m512 first_latitudes_f32x16, __m512 first_longitudes_f32x16, //
     __m512 second_latitudes_f32x16, __m512 second_longitudes_f32x16) {
 
-    __m512 const equatorial_radius_f32x16 = _mm512_set1_ps((float)NK_EARTH_ELLIPSOID_EQUATORIAL_RADIUS);
-    __m512 const polar_radius_f32x16 = _mm512_set1_ps((float)NK_EARTH_ELLIPSOID_POLAR_RADIUS);
-    __m512 const flattening_f32x16 = _mm512_set1_ps(1.0f / (float)NK_EARTH_ELLIPSOID_INVERSE_FLATTENING);
-    __m512 const convergence_threshold_f32x16 = _mm512_set1_ps(NK_VINCENTY_CONVERGENCE_THRESHOLD_F32);
+    __m512 const equatorial_radius_f32x16 = _mm512_set1_ps((float)NUMKONG_EARTH_ELLIPSOID_EQUATORIAL_RADIUS);
+    __m512 const polar_radius_f32x16 = _mm512_set1_ps((float)NUMKONG_EARTH_ELLIPSOID_POLAR_RADIUS);
+    __m512 const flattening_f32x16 = _mm512_set1_ps(1.0f / (float)NUMKONG_EARTH_ELLIPSOID_INVERSE_FLATTENING);
+    __m512 const convergence_threshold_f32x16 = _mm512_set1_ps(NUMKONG_VINCENTY_CONVERGENCE_THRESHOLD_F32);
     __m512 const one_f32x16 = _mm512_set1_ps(1.0f);
     __m512 const two_f32x16 = _mm512_set1_ps(2.0f);
     __m512 const three_f32x16 = _mm512_set1_ps(3.0f);
@@ -441,7 +441,7 @@ NK_HELPER_INLINE __m512 nk_vincenty_f32x16_skylake_(               //
     __mmask16 converged_m16 = 0;
     __mmask16 coincident_m16 = 0;
 
-    for (nk_u32_t iteration = 0; iteration < NK_VINCENTY_MAX_ITERATIONS && converged_m16 != 0xFFFF; ++iteration) {
+    for (nk_u32_t iteration = 0; iteration < NUMKONG_VINCENTY_MAX_ITERATIONS && converged_m16 != 0xFFFF; ++iteration) {
         __m512 sin_lambda_f32x16 = nk_sin_f32x16_skylake_(lambda_f32x16);
         __m512 cos_lambda_f32x16 = nk_cos_f32x16_skylake_(lambda_f32x16);
 
@@ -565,7 +565,7 @@ NK_HELPER_INLINE __m512 nk_vincenty_f32x16_skylake_(               //
     return distances_f32x16;
 }
 
-NK_API_COMPTIME void nk_vincenty_f32_skylake(       //
+NUMKONG_API_COMPTIME void nk_vincenty_f32_skylake(  //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results) {
@@ -607,6 +607,6 @@ NK_API_COMPTIME void nk_vincenty_f32_skylake(       //
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_SKYLAKE
-#endif // NK_TARGET_X8664_
-#endif // NK_GEOSPATIAL_SKYLAKE_H
+#endif // NUMKONG_TARGET_SKYLAKE
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_GEOSPATIAL_SKYLAKE_H

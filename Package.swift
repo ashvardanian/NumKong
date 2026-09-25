@@ -24,9 +24,9 @@ let package = Package(
             dependencies: ["NumKong"],
             path: "test/swift",
             cSettings: [
-                .define("NK_RUNTIME_DISPATCH", to: "1"),
-                .define("NK_NATIVE_F16", to: "0"),
-                .define("NK_NATIVE_BF16", to: "0"),
+                .define("NUMKONG_RUNTIME_DISPATCH", to: "1"),
+                .define("NUMKONG_NATIVE_F16", to: "0"),
+                .define("NUMKONG_NATIVE_BF16", to: "0"),
             ]
         ),
         .testTarget(
@@ -40,9 +40,9 @@ let package = Package(
             path: "swift",
             exclude: ["README.md"],
             cSettings: [
-                .define("NK_RUNTIME_DISPATCH", to: "1"),
-                .define("NK_NATIVE_F16", to: "0"),
-                .define("NK_NATIVE_BF16", to: "0"),
+                .define("NUMKONG_RUNTIME_DISPATCH", to: "1"),
+                .define("NUMKONG_NATIVE_F16", to: "0"),
+                .define("NUMKONG_NATIVE_BF16", to: "0"),
             ]
         ),
         // `path` must contain every entry in `sources` — SPM silently resolves zero sources for
@@ -80,9 +80,9 @@ let package = Package(
             ],
             publicHeadersPath: "include",
             cSettings: [
-                .define("NK_RUNTIME_DISPATCH", to: "1"),
-                .define("NK_NATIVE_F16", to: "0"),
-                .define("NK_NATIVE_BF16", to: "0"),
+                .define("NUMKONG_RUNTIME_DISPATCH", to: "1"),
+                .define("NUMKONG_NATIVE_F16", to: "0"),
+                .define("NUMKONG_NATIVE_BF16", to: "0"),
             ]
         ),
     ]

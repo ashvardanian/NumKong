@@ -54,8 +54,8 @@
  *  - NEONSDOT: ARM SDOT, vdotq_s32, coarse, no bias correction, bf16/f32/f16
  *  - SME: ARM fused BFMOPA, existing and unchanged
  */
-#ifndef NK_MAXSIM_H
-#define NK_MAXSIM_H
+#ifndef NUMKONG_MAXSIM_H
+#define NUMKONG_MAXSIM_H
 
 #include "numkong/types.h"
 
@@ -69,11 +69,11 @@ extern "C" {
  *  @param[in] depth The number of dimensions per vector.
  *  @note The packed layout is backend-specific and must be produced by the matching pack function.
  */
-NK_API_RUNTIME nk_size_t nk_maxsim_pack_size_bf16(nk_size_t vector_count, nk_size_t depth);
+NUMKONG_API_RUNTIME nk_size_t nk_maxsim_pack_size_bf16(nk_size_t vector_count, nk_size_t depth);
 /** @copydoc nk_maxsim_pack_size_bf16 */
-NK_API_RUNTIME nk_size_t nk_maxsim_pack_size_f32(nk_size_t vector_count, nk_size_t depth);
+NUMKONG_API_RUNTIME nk_size_t nk_maxsim_pack_size_f32(nk_size_t vector_count, nk_size_t depth);
 /** @copydoc nk_maxsim_pack_size_bf16 */
-NK_API_RUNTIME nk_size_t nk_maxsim_pack_size_f16(nk_size_t vector_count, nk_size_t depth);
+NUMKONG_API_RUNTIME nk_size_t nk_maxsim_pack_size_f16(nk_size_t vector_count, nk_size_t depth);
 
 /**
  *  @brief Reads a packed MaxSim buffer's shape from its header.
@@ -81,11 +81,11 @@ NK_API_RUNTIME nk_size_t nk_maxsim_pack_size_f16(nk_size_t vector_count, nk_size
  *  @param[out] vectors Receives the vector count.
  *  @param[out] depth Receives the inner dimension.
  */
-NK_API_RUNTIME void nk_maxsim_packed_shape_bf16(void const *packed, nk_size_t *vectors, nk_size_t *depth);
+NUMKONG_API_RUNTIME void nk_maxsim_packed_shape_bf16(void const *packed, nk_size_t *vectors, nk_size_t *depth);
 /** @copydoc nk_maxsim_packed_shape_bf16 */
-NK_API_RUNTIME void nk_maxsim_packed_shape_f32(void const *packed, nk_size_t *vectors, nk_size_t *depth);
+NUMKONG_API_RUNTIME void nk_maxsim_packed_shape_f32(void const *packed, nk_size_t *vectors, nk_size_t *depth);
 /** @copydoc nk_maxsim_packed_shape_bf16 */
-NK_API_RUNTIME void nk_maxsim_packed_shape_f16(void const *packed, nk_size_t *vectors, nk_size_t *depth);
+NUMKONG_API_RUNTIME void nk_maxsim_packed_shape_f16(void const *packed, nk_size_t *vectors, nk_size_t *depth);
 
 /**
  *  @brief Packs vectors into a backend-specific layout for maxsim computation.
@@ -95,14 +95,14 @@ NK_API_RUNTIME void nk_maxsim_packed_shape_f16(void const *packed, nk_size_t *ve
  *  @param[in] stride The row stride in bytes for the input vectors.
  *  @param[out] packed The output packed buffer from nk_maxsim_pack_size_bf16.
  */
-NK_API_RUNTIME void nk_maxsim_pack_bf16(nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                        nk_size_t stride, void *packed);
+NUMKONG_API_RUNTIME void nk_maxsim_pack_bf16(nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                             nk_size_t stride, void *packed);
 /** @copydoc nk_maxsim_pack_bf16 */
-NK_API_RUNTIME void nk_maxsim_pack_f32(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                       nk_size_t stride, void *packed);
+NUMKONG_API_RUNTIME void nk_maxsim_pack_f32(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                            nk_size_t stride, void *packed);
 /** @copydoc nk_maxsim_pack_bf16 */
-NK_API_RUNTIME void nk_maxsim_pack_f16(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                       nk_size_t stride, void *packed);
+NUMKONG_API_RUNTIME void nk_maxsim_pack_f16(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                            nk_size_t stride, void *packed);
 
 /**
  *  @brief Computes angular distance late-interaction on pre-packed vectors. Returns Σᵢ minⱼ
@@ -115,319 +115,326 @@ NK_API_RUNTIME void nk_maxsim_pack_f16(nk_f16_t const *vectors, nk_size_t vector
  *  @param[in] depth Number of dimensions per vector.
  *  @param[out] result Pointer to store the sum of per-query minimum angular distances.
  */
-NK_API_RUNTIME void nk_maxsim_packed_bf16(void const *query_packed, void const *document_packed, nk_size_t query_count,
-                                          nk_size_t document_count, nk_size_t depth, nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_maxsim_packed_bf16(void const *query_packed, void const *document_packed,
+                                               nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
+                                               nk_f32_t *result);
 /** @copydoc nk_maxsim_packed_bf16 */
-NK_API_RUNTIME void nk_maxsim_packed_f32(void const *query_packed, void const *document_packed, nk_size_t query_count,
-                                         nk_size_t document_count, nk_size_t depth, nk_f64_t *result);
+NUMKONG_API_RUNTIME void nk_maxsim_packed_f32(void const *query_packed, void const *document_packed,
+                                              nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
+                                              nk_f64_t *result);
 /** @copydoc nk_maxsim_packed_bf16 */
-NK_API_RUNTIME void nk_maxsim_packed_f16(void const *query_packed, void const *document_packed, nk_size_t query_count,
-                                         nk_size_t document_count, nk_size_t depth, nk_f32_t *result);
+NUMKONG_API_RUNTIME void nk_maxsim_packed_f16(void const *query_packed, void const *document_packed,
+                                              nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
+                                              nk_f32_t *result);
 
 /** @copydoc nk_maxsim_pack_size_bf16 */
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_serial(nk_size_t vector_count, nk_size_t depth);
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_serial(nk_size_t vector_count, nk_size_t depth);
 /** @copydoc nk_maxsim_packed_shape_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_shape_bf16_serial(void const *packed, nk_size_t *vectors, nk_size_t *depth);
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_bf16_serial(void const *packed, nk_size_t *vectors, nk_size_t *depth);
 /** @copydoc nk_maxsim_pack_size_bf16 */
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_serial(nk_size_t vector_count, nk_size_t depth);
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_serial(nk_size_t vector_count, nk_size_t depth);
 /** @copydoc nk_maxsim_packed_shape_f32 */
-NK_API_COMPTIME void nk_maxsim_packed_shape_f32_serial(void const *packed, nk_size_t *vectors, nk_size_t *depth);
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f32_serial(void const *packed, nk_size_t *vectors, nk_size_t *depth);
 /** @copydoc nk_maxsim_pack_size_bf16 */
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_serial(nk_size_t vector_count, nk_size_t depth);
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_serial(nk_size_t vector_count, nk_size_t depth);
 /** @copydoc nk_maxsim_packed_shape_f16 */
-NK_API_COMPTIME void nk_maxsim_packed_shape_f16_serial(void const *packed, nk_size_t *vectors, nk_size_t *depth);
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f16_serial(void const *packed, nk_size_t *vectors, nk_size_t *depth);
 /** @copydoc nk_maxsim_pack_bf16 */
-NK_API_COMPTIME void nk_maxsim_pack_bf16_serial(nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                nk_size_t stride, void *packed);
-/** @copydoc nk_maxsim_pack_bf16 */
-NK_API_COMPTIME void nk_maxsim_pack_f32_serial(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                               nk_size_t stride, void *packed);
-/** @copydoc nk_maxsim_pack_bf16 */
-NK_API_COMPTIME void nk_maxsim_pack_f16_serial(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                               nk_size_t stride, void *packed);
-/** @copydoc nk_maxsim_packed_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_bf16_serial(void const *query_packed, void const *document_packed,
-                                                  nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                  nk_f32_t *result);
-/** @copydoc nk_maxsim_packed_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_f32_serial(void const *query_packed, void const *document_packed,
-                                                 nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                 nk_f64_t *result);
-/** @copydoc nk_maxsim_packed_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_f16_serial(void const *query_packed, void const *document_packed,
-                                                 nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                 nk_f32_t *result);
-
-#if NK_TARGET_ICELAKE
-/** @copydoc nk_maxsim_pack_size_bf16 */
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_icelake(nk_size_t vector_count, nk_size_t depth);
-/** @copydoc nk_maxsim_packed_shape_f32 */
-NK_API_COMPTIME void nk_maxsim_packed_shape_f32_icelake(void const *packed, nk_size_t *vectors, nk_size_t *depth);
-/** @copydoc nk_maxsim_pack_size_bf16 */
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_icelake(nk_size_t vector_count, nk_size_t depth);
-/** @copydoc nk_maxsim_packed_shape_f16 */
-NK_API_COMPTIME void nk_maxsim_packed_shape_f16_icelake(void const *packed, nk_size_t *vectors, nk_size_t *depth);
-/** @copydoc nk_maxsim_pack_bf16 */
-NK_API_COMPTIME void nk_maxsim_pack_f32_icelake(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                nk_size_t stride, void *packed);
-/** @copydoc nk_maxsim_pack_bf16 */
-NK_API_COMPTIME void nk_maxsim_pack_f16_icelake(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                nk_size_t stride, void *packed);
-/** @copydoc nk_maxsim_packed_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_f32_icelake(void const *query_packed, void const *document_packed,
-                                                  nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                  nk_f64_t *result);
-/** @copydoc nk_maxsim_packed_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_f16_icelake(void const *query_packed, void const *document_packed,
-                                                  nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                  nk_f32_t *result);
-#endif // NK_TARGET_ICELAKE
-
-#if NK_TARGET_GENOA
-/** @copydoc nk_maxsim_pack_size_bf16 */
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_genoa(nk_size_t vector_count, nk_size_t depth);
-/** @copydoc nk_maxsim_packed_shape_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_shape_bf16_genoa(void const *packed, nk_size_t *vectors, nk_size_t *depth);
-/** @copydoc nk_maxsim_pack_bf16 */
-NK_API_COMPTIME void nk_maxsim_pack_bf16_genoa(nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                               nk_size_t stride, void *packed);
-/** @copydoc nk_maxsim_packed_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_bf16_genoa(void const *query_packed, void const *document_packed,
-                                                 nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                 nk_f32_t *result);
-#endif // NK_TARGET_GENOA
-
-#if NK_TARGET_SAPPHIREAMX
-/** @copydoc nk_maxsim_pack_size_bf16 */
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_sapphireamx(nk_size_t vector_count, nk_size_t depth);
-/** @copydoc nk_maxsim_packed_shape_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_shape_bf16_sapphireamx(void const *packed, nk_size_t *vectors, nk_size_t *depth);
-/** @copydoc nk_maxsim_pack_size_bf16 */
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_sapphireamx(nk_size_t vector_count, nk_size_t depth);
-/** @copydoc nk_maxsim_packed_shape_f32 */
-NK_API_COMPTIME void nk_maxsim_packed_shape_f32_sapphireamx(void const *packed, nk_size_t *vectors, nk_size_t *depth);
-/** @copydoc nk_maxsim_pack_size_bf16 */
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_sapphireamx(nk_size_t vector_count, nk_size_t depth);
-/** @copydoc nk_maxsim_packed_shape_f16 */
-NK_API_COMPTIME void nk_maxsim_packed_shape_f16_sapphireamx(void const *packed, nk_size_t *vectors, nk_size_t *depth);
-/** @copydoc nk_maxsim_pack_bf16 */
-NK_API_COMPTIME void nk_maxsim_pack_bf16_sapphireamx(nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+NUMKONG_API_COMPTIME void nk_maxsim_pack_bf16_serial(nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                      nk_size_t stride, void *packed);
 /** @copydoc nk_maxsim_pack_bf16 */
-NK_API_COMPTIME void nk_maxsim_pack_f32_sapphireamx(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f32_serial(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                     nk_size_t stride, void *packed);
 /** @copydoc nk_maxsim_pack_bf16 */
-NK_API_COMPTIME void nk_maxsim_pack_f16_sapphireamx(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_serial(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                     nk_size_t stride, void *packed);
+/** @copydoc nk_maxsim_packed_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_bf16_serial(void const *query_packed, void const *document_packed,
+                                                       nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
+                                                       nk_f32_t *result);
+/** @copydoc nk_maxsim_packed_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f32_serial(void const *query_packed, void const *document_packed,
+                                                      nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
+                                                      nk_f64_t *result);
+/** @copydoc nk_maxsim_packed_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f16_serial(void const *query_packed, void const *document_packed,
+                                                      nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
+                                                      nk_f32_t *result);
+
+#if NUMKONG_TARGET_ICELAKE
+/** @copydoc nk_maxsim_pack_size_bf16 */
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_icelake(nk_size_t vector_count, nk_size_t depth);
+/** @copydoc nk_maxsim_packed_shape_f32 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f32_icelake(void const *packed, nk_size_t *vectors, nk_size_t *depth);
+/** @copydoc nk_maxsim_pack_size_bf16 */
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_icelake(nk_size_t vector_count, nk_size_t depth);
+/** @copydoc nk_maxsim_packed_shape_f16 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f16_icelake(void const *packed, nk_size_t *vectors, nk_size_t *depth);
+/** @copydoc nk_maxsim_pack_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f32_icelake(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                     nk_size_t stride, void *packed);
+/** @copydoc nk_maxsim_pack_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_icelake(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                     nk_size_t stride, void *packed);
+/** @copydoc nk_maxsim_packed_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f32_icelake(void const *query_packed, void const *document_packed,
+                                                       nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
+                                                       nk_f64_t *result);
+/** @copydoc nk_maxsim_packed_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f16_icelake(void const *query_packed, void const *document_packed,
+                                                       nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
+                                                       nk_f32_t *result);
+#endif // NUMKONG_TARGET_ICELAKE
+
+#if NUMKONG_TARGET_GENOA
+/** @copydoc nk_maxsim_pack_size_bf16 */
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_genoa(nk_size_t vector_count, nk_size_t depth);
+/** @copydoc nk_maxsim_packed_shape_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_bf16_genoa(void const *packed, nk_size_t *vectors, nk_size_t *depth);
+/** @copydoc nk_maxsim_pack_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_pack_bf16_genoa(nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                    nk_size_t stride, void *packed);
+/** @copydoc nk_maxsim_packed_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_bf16_genoa(void const *query_packed, void const *document_packed,
+                                                      nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
+                                                      nk_f32_t *result);
+#endif // NUMKONG_TARGET_GENOA
+
+#if NUMKONG_TARGET_SAPPHIREAMX
+/** @copydoc nk_maxsim_pack_size_bf16 */
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_sapphireamx(nk_size_t vector_count, nk_size_t depth);
+/** @copydoc nk_maxsim_packed_shape_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_bf16_sapphireamx(void const *packed, nk_size_t *vectors,
+                                                                  nk_size_t *depth);
+/** @copydoc nk_maxsim_pack_size_bf16 */
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_sapphireamx(nk_size_t vector_count, nk_size_t depth);
+/** @copydoc nk_maxsim_packed_shape_f32 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f32_sapphireamx(void const *packed, nk_size_t *vectors,
+                                                                 nk_size_t *depth);
+/** @copydoc nk_maxsim_pack_size_bf16 */
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_sapphireamx(nk_size_t vector_count, nk_size_t depth);
+/** @copydoc nk_maxsim_packed_shape_f16 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f16_sapphireamx(void const *packed, nk_size_t *vectors,
+                                                                 nk_size_t *depth);
+/** @copydoc nk_maxsim_pack_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_pack_bf16_sapphireamx(nk_bf16_t const *vectors, nk_size_t vector_count,
+                                                          nk_size_t depth, nk_size_t stride, void *packed);
+/** @copydoc nk_maxsim_pack_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f32_sapphireamx(nk_f32_t const *vectors, nk_size_t vector_count,
+                                                         nk_size_t depth, nk_size_t stride, void *packed);
+/** @copydoc nk_maxsim_pack_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_sapphireamx(nk_f16_t const *vectors, nk_size_t vector_count,
+                                                         nk_size_t depth, nk_size_t stride, void *packed);
 
 /**
  *  @copydoc nk_maxsim_packed_bf16
  *  @note Pipelines 4 document tiles through TMM4-7 with TDPBF16PS, gathering columns of the 16×16
  *      f32 accumulators into per-document dot products with AVX-512.
  */
-NK_API_COMPTIME void nk_maxsim_packed_bf16_sapphireamx(void const *query_packed, void const *document_packed,
+NUMKONG_API_COMPTIME void nk_maxsim_packed_bf16_sapphireamx(void const *query_packed, void const *document_packed,
+                                                            nk_size_t query_count, nk_size_t document_count,
+                                                            nk_size_t depth, nk_f32_t *result);
+/** @copydoc nk_maxsim_packed_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f32_sapphireamx(void const *query_packed, void const *document_packed,
+                                                           nk_size_t query_count, nk_size_t document_count,
+                                                           nk_size_t depth, nk_f64_t *result);
+/** @copydoc nk_maxsim_packed_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f16_sapphireamx(void const *query_packed, void const *document_packed,
+                                                           nk_size_t query_count, nk_size_t document_count,
+                                                           nk_size_t depth, nk_f32_t *result);
+#endif // NUMKONG_TARGET_SAPPHIREAMX
+
+#if NUMKONG_TARGET_HASWELL
+/** @copydoc nk_maxsim_pack_size_bf16 */
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_haswell(nk_size_t vector_count, nk_size_t depth);
+/** @copydoc nk_maxsim_packed_shape_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_bf16_haswell(void const *packed, nk_size_t *vectors, nk_size_t *depth);
+/** @copydoc nk_maxsim_pack_size_bf16 */
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_haswell(nk_size_t vector_count, nk_size_t depth);
+/** @copydoc nk_maxsim_packed_shape_f32 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f32_haswell(void const *packed, nk_size_t *vectors, nk_size_t *depth);
+/** @copydoc nk_maxsim_pack_size_bf16 */
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_haswell(nk_size_t vector_count, nk_size_t depth);
+/** @copydoc nk_maxsim_packed_shape_f16 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f16_haswell(void const *packed, nk_size_t *vectors, nk_size_t *depth);
+/** @copydoc nk_maxsim_pack_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_pack_bf16_haswell(nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                      nk_size_t stride, void *packed);
+/** @copydoc nk_maxsim_pack_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f32_haswell(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                     nk_size_t stride, void *packed);
+/** @copydoc nk_maxsim_pack_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_haswell(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                     nk_size_t stride, void *packed);
+/** @copydoc nk_maxsim_packed_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_bf16_haswell(void const *query_packed, void const *document_packed,
+                                                        nk_size_t query_count, nk_size_t document_count,
+                                                        nk_size_t depth, nk_f32_t *result);
+/** @copydoc nk_maxsim_packed_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f32_haswell(void const *query_packed, void const *document_packed,
+                                                       nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
+                                                       nk_f64_t *result);
+/** @copydoc nk_maxsim_packed_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f16_haswell(void const *query_packed, void const *document_packed,
                                                        nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
                                                        nk_f32_t *result);
-/** @copydoc nk_maxsim_packed_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_f32_sapphireamx(void const *query_packed, void const *document_packed,
-                                                      nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                      nk_f64_t *result);
-/** @copydoc nk_maxsim_packed_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_f16_sapphireamx(void const *query_packed, void const *document_packed,
-                                                      nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                      nk_f32_t *result);
-#endif // NK_TARGET_SAPPHIREAMX
+#endif // NUMKONG_TARGET_HASWELL
 
-#if NK_TARGET_HASWELL
+#if NUMKONG_TARGET_ALDER
 /** @copydoc nk_maxsim_pack_size_bf16 */
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_haswell(nk_size_t vector_count, nk_size_t depth);
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_alder(nk_size_t vector_count, nk_size_t depth);
 /** @copydoc nk_maxsim_packed_shape_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_shape_bf16_haswell(void const *packed, nk_size_t *vectors, nk_size_t *depth);
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_bf16_alder(void const *packed, nk_size_t *vectors, nk_size_t *depth);
 /** @copydoc nk_maxsim_pack_size_bf16 */
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_haswell(nk_size_t vector_count, nk_size_t depth);
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_alder(nk_size_t vector_count, nk_size_t depth);
 /** @copydoc nk_maxsim_packed_shape_f32 */
-NK_API_COMPTIME void nk_maxsim_packed_shape_f32_haswell(void const *packed, nk_size_t *vectors, nk_size_t *depth);
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f32_alder(void const *packed, nk_size_t *vectors, nk_size_t *depth);
 /** @copydoc nk_maxsim_pack_size_bf16 */
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_haswell(nk_size_t vector_count, nk_size_t depth);
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_alder(nk_size_t vector_count, nk_size_t depth);
 /** @copydoc nk_maxsim_packed_shape_f16 */
-NK_API_COMPTIME void nk_maxsim_packed_shape_f16_haswell(void const *packed, nk_size_t *vectors, nk_size_t *depth);
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f16_alder(void const *packed, nk_size_t *vectors, nk_size_t *depth);
 /** @copydoc nk_maxsim_pack_bf16 */
-NK_API_COMPTIME void nk_maxsim_pack_bf16_haswell(nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                 nk_size_t stride, void *packed);
+NUMKONG_API_COMPTIME void nk_maxsim_pack_bf16_alder(nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                    nk_size_t stride, void *packed);
 /** @copydoc nk_maxsim_pack_bf16 */
-NK_API_COMPTIME void nk_maxsim_pack_f32_haswell(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                nk_size_t stride, void *packed);
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f32_alder(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                   nk_size_t stride, void *packed);
 /** @copydoc nk_maxsim_pack_bf16 */
-NK_API_COMPTIME void nk_maxsim_pack_f16_haswell(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                nk_size_t stride, void *packed);
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_alder(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                   nk_size_t stride, void *packed);
 /** @copydoc nk_maxsim_packed_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_bf16_haswell(void const *query_packed, void const *document_packed,
-                                                   nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                   nk_f32_t *result);
-/** @copydoc nk_maxsim_packed_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_f32_haswell(void const *query_packed, void const *document_packed,
-                                                  nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                  nk_f64_t *result);
-/** @copydoc nk_maxsim_packed_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_f16_haswell(void const *query_packed, void const *document_packed,
-                                                  nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                  nk_f32_t *result);
-#endif // NK_TARGET_HASWELL
-
-#if NK_TARGET_ALDER
-/** @copydoc nk_maxsim_pack_size_bf16 */
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_alder(nk_size_t vector_count, nk_size_t depth);
-/** @copydoc nk_maxsim_packed_shape_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_shape_bf16_alder(void const *packed, nk_size_t *vectors, nk_size_t *depth);
-/** @copydoc nk_maxsim_pack_size_bf16 */
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_alder(nk_size_t vector_count, nk_size_t depth);
-/** @copydoc nk_maxsim_packed_shape_f32 */
-NK_API_COMPTIME void nk_maxsim_packed_shape_f32_alder(void const *packed, nk_size_t *vectors, nk_size_t *depth);
-/** @copydoc nk_maxsim_pack_size_bf16 */
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_alder(nk_size_t vector_count, nk_size_t depth);
-/** @copydoc nk_maxsim_packed_shape_f16 */
-NK_API_COMPTIME void nk_maxsim_packed_shape_f16_alder(void const *packed, nk_size_t *vectors, nk_size_t *depth);
-/** @copydoc nk_maxsim_pack_bf16 */
-NK_API_COMPTIME void nk_maxsim_pack_bf16_alder(nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                               nk_size_t stride, void *packed);
-/** @copydoc nk_maxsim_pack_bf16 */
-NK_API_COMPTIME void nk_maxsim_pack_f32_alder(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                              nk_size_t stride, void *packed);
-/** @copydoc nk_maxsim_pack_bf16 */
-NK_API_COMPTIME void nk_maxsim_pack_f16_alder(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                              nk_size_t stride, void *packed);
-/** @copydoc nk_maxsim_packed_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_bf16_alder(void const *query_packed, void const *document_packed,
-                                                 nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                 nk_f32_t *result);
-/** @copydoc nk_maxsim_packed_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_f32_alder(void const *query_packed, void const *document_packed,
-                                                nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                nk_f64_t *result);
-/** @copydoc nk_maxsim_packed_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_f16_alder(void const *query_packed, void const *document_packed,
-                                                nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                nk_f32_t *result);
-#endif // NK_TARGET_ALDER
-
-#if NK_TARGET_V128
-/** @copydoc nk_maxsim_pack_size_bf16 */
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_v128(nk_size_t vector_count, nk_size_t depth);
-/** @copydoc nk_maxsim_packed_shape_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_shape_bf16_v128(void const *packed, nk_size_t *vectors, nk_size_t *depth);
-/** @copydoc nk_maxsim_pack_size_bf16 */
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_v128(nk_size_t vector_count, nk_size_t depth);
-/** @copydoc nk_maxsim_packed_shape_f32 */
-NK_API_COMPTIME void nk_maxsim_packed_shape_f32_v128(void const *packed, nk_size_t *vectors, nk_size_t *depth);
-/** @copydoc nk_maxsim_pack_size_bf16 */
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_v128(nk_size_t vector_count, nk_size_t depth);
-/** @copydoc nk_maxsim_packed_shape_f16 */
-NK_API_COMPTIME void nk_maxsim_packed_shape_f16_v128(void const *packed, nk_size_t *vectors, nk_size_t *depth);
-/** @copydoc nk_maxsim_pack_bf16 */
-NK_API_COMPTIME void nk_maxsim_pack_bf16_v128(nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                              nk_size_t stride, void *packed);
-/** @copydoc nk_maxsim_pack_bf16 */
-NK_API_COMPTIME void nk_maxsim_pack_f32_v128(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                             nk_size_t stride, void *packed);
-/** @copydoc nk_maxsim_pack_bf16 */
-NK_API_COMPTIME void nk_maxsim_pack_f16_v128(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                             nk_size_t stride, void *packed);
-#endif // NK_TARGET_V128
-
-#if NK_TARGET_V128RELAXED
-/** @copydoc nk_maxsim_packed_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_bf16_v128relaxed(void const *query_packed, void const *document_packed,
-                                                       nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                       nk_f32_t *result);
-/** @copydoc nk_maxsim_packed_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_f32_v128relaxed(void const *query_packed, void const *document_packed,
-                                                      nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                      nk_f64_t *result);
-/** @copydoc nk_maxsim_packed_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_f16_v128relaxed(void const *query_packed, void const *document_packed,
+NUMKONG_API_COMPTIME void nk_maxsim_packed_bf16_alder(void const *query_packed, void const *document_packed,
                                                       nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
                                                       nk_f32_t *result);
-#endif // NK_TARGET_V128RELAXED
+/** @copydoc nk_maxsim_packed_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f32_alder(void const *query_packed, void const *document_packed,
+                                                     nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
+                                                     nk_f64_t *result);
+/** @copydoc nk_maxsim_packed_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f16_alder(void const *query_packed, void const *document_packed,
+                                                     nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
+                                                     nk_f32_t *result);
+#endif // NUMKONG_TARGET_ALDER
 
-#if NK_TARGET_NEONSDOT
+#if NUMKONG_TARGET_V128
 /** @copydoc nk_maxsim_pack_size_bf16 */
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_neonsdot(nk_size_t vector_count, nk_size_t depth);
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_v128(nk_size_t vector_count, nk_size_t depth);
 /** @copydoc nk_maxsim_packed_shape_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_shape_bf16_neonsdot(void const *packed, nk_size_t *vectors, nk_size_t *depth);
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_bf16_v128(void const *packed, nk_size_t *vectors, nk_size_t *depth);
 /** @copydoc nk_maxsim_pack_size_bf16 */
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_neonsdot(nk_size_t vector_count, nk_size_t depth);
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_v128(nk_size_t vector_count, nk_size_t depth);
 /** @copydoc nk_maxsim_packed_shape_f32 */
-NK_API_COMPTIME void nk_maxsim_packed_shape_f32_neonsdot(void const *packed, nk_size_t *vectors, nk_size_t *depth);
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f32_v128(void const *packed, nk_size_t *vectors, nk_size_t *depth);
 /** @copydoc nk_maxsim_pack_size_bf16 */
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_neonsdot(nk_size_t vector_count, nk_size_t depth);
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_v128(nk_size_t vector_count, nk_size_t depth);
 /** @copydoc nk_maxsim_packed_shape_f16 */
-NK_API_COMPTIME void nk_maxsim_packed_shape_f16_neonsdot(void const *packed, nk_size_t *vectors, nk_size_t *depth);
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f16_v128(void const *packed, nk_size_t *vectors, nk_size_t *depth);
 /** @copydoc nk_maxsim_pack_bf16 */
-NK_API_COMPTIME void nk_maxsim_pack_bf16_neonsdot(nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+NUMKONG_API_COMPTIME void nk_maxsim_pack_bf16_v128(nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                   nk_size_t stride, void *packed);
+/** @copydoc nk_maxsim_pack_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f32_v128(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                   nk_size_t stride, void *packed);
 /** @copydoc nk_maxsim_pack_bf16 */
-NK_API_COMPTIME void nk_maxsim_pack_f32_neonsdot(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_v128(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                  nk_size_t stride, void *packed);
+#endif // NUMKONG_TARGET_V128
+
+#if NUMKONG_TARGET_V128RELAXED
+/** @copydoc nk_maxsim_packed_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_bf16_v128relaxed(void const *query_packed, void const *document_packed,
+                                                            nk_size_t query_count, nk_size_t document_count,
+                                                            nk_size_t depth, nk_f32_t *result);
+/** @copydoc nk_maxsim_packed_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f32_v128relaxed(void const *query_packed, void const *document_packed,
+                                                           nk_size_t query_count, nk_size_t document_count,
+                                                           nk_size_t depth, nk_f64_t *result);
+/** @copydoc nk_maxsim_packed_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f16_v128relaxed(void const *query_packed, void const *document_packed,
+                                                           nk_size_t query_count, nk_size_t document_count,
+                                                           nk_size_t depth, nk_f32_t *result);
+#endif // NUMKONG_TARGET_V128RELAXED
+
+#if NUMKONG_TARGET_NEONSDOT
+/** @copydoc nk_maxsim_pack_size_bf16 */
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_neonsdot(nk_size_t vector_count, nk_size_t depth);
+/** @copydoc nk_maxsim_packed_shape_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_bf16_neonsdot(void const *packed, nk_size_t *vectors,
+                                                               nk_size_t *depth);
+/** @copydoc nk_maxsim_pack_size_bf16 */
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_neonsdot(nk_size_t vector_count, nk_size_t depth);
+/** @copydoc nk_maxsim_packed_shape_f32 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f32_neonsdot(void const *packed, nk_size_t *vectors, nk_size_t *depth);
+/** @copydoc nk_maxsim_pack_size_bf16 */
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_neonsdot(nk_size_t vector_count, nk_size_t depth);
+/** @copydoc nk_maxsim_packed_shape_f16 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f16_neonsdot(void const *packed, nk_size_t *vectors, nk_size_t *depth);
+/** @copydoc nk_maxsim_pack_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_pack_bf16_neonsdot(nk_bf16_t const *vectors, nk_size_t vector_count,
+                                                       nk_size_t depth, nk_size_t stride, void *packed);
+/** @copydoc nk_maxsim_pack_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f32_neonsdot(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                      nk_size_t stride, void *packed);
+/** @copydoc nk_maxsim_pack_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_neonsdot(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                      nk_size_t stride, void *packed);
+/** @copydoc nk_maxsim_packed_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_bf16_neonsdot(void const *query_packed, void const *document_packed,
+                                                         nk_size_t query_count, nk_size_t document_count,
+                                                         nk_size_t depth, nk_f32_t *result);
+/** @copydoc nk_maxsim_packed_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f32_neonsdot(void const *query_packed, void const *document_packed,
+                                                        nk_size_t query_count, nk_size_t document_count,
+                                                        nk_size_t depth, nk_f64_t *result);
+/** @copydoc nk_maxsim_packed_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f16_neonsdot(void const *query_packed, void const *document_packed,
+                                                        nk_size_t query_count, nk_size_t document_count,
+                                                        nk_size_t depth, nk_f32_t *result);
+#endif // NUMKONG_TARGET_NEONSDOT
+
+#if NUMKONG_TARGET_SME
+/** @copydoc nk_maxsim_pack_size_bf16 */
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_sme(nk_size_t vector_count, nk_size_t depth);
+/** @copydoc nk_maxsim_packed_shape_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_bf16_sme(void const *packed, nk_size_t *vectors, nk_size_t *depth);
+/** @copydoc nk_maxsim_pack_size_bf16 */
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_sme(nk_size_t vector_count, nk_size_t depth);
+/** @copydoc nk_maxsim_packed_shape_f16 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f16_sme(void const *packed, nk_size_t *vectors, nk_size_t *depth);
+/** @copydoc nk_maxsim_pack_size_bf16 */
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_sme(nk_size_t vector_count, nk_size_t depth);
+/** @copydoc nk_maxsim_packed_shape_f32 */
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f32_sme(void const *packed, nk_size_t *vectors, nk_size_t *depth);
+/** @copydoc nk_maxsim_pack_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_pack_bf16_sme(nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                  nk_size_t stride, void *packed);
+/** @copydoc nk_maxsim_pack_bf16 */
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_sme(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                  nk_size_t stride, void *packed);
 /** @copydoc nk_maxsim_pack_bf16 */
-NK_API_COMPTIME void nk_maxsim_pack_f16_neonsdot(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f32_sme(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                  nk_size_t stride, void *packed);
 /** @copydoc nk_maxsim_packed_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_bf16_neonsdot(void const *query_packed, void const *document_packed,
+NUMKONG_API_COMPTIME void nk_maxsim_packed_bf16_sme(void const *query_packed, void const *document_packed,
                                                     nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
                                                     nk_f32_t *result);
 /** @copydoc nk_maxsim_packed_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_f32_neonsdot(void const *query_packed, void const *document_packed,
-                                                   nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                   nk_f64_t *result);
-/** @copydoc nk_maxsim_packed_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_f16_neonsdot(void const *query_packed, void const *document_packed,
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f16_sme(void const *query_packed, void const *document_packed,
                                                    nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
                                                    nk_f32_t *result);
-#endif // NK_TARGET_NEONSDOT
-
-#if NK_TARGET_SME
-/** @copydoc nk_maxsim_pack_size_bf16 */
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_sme(nk_size_t vector_count, nk_size_t depth);
-/** @copydoc nk_maxsim_packed_shape_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_shape_bf16_sme(void const *packed, nk_size_t *vectors, nk_size_t *depth);
-/** @copydoc nk_maxsim_pack_size_bf16 */
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_sme(nk_size_t vector_count, nk_size_t depth);
-/** @copydoc nk_maxsim_packed_shape_f16 */
-NK_API_COMPTIME void nk_maxsim_packed_shape_f16_sme(void const *packed, nk_size_t *vectors, nk_size_t *depth);
-/** @copydoc nk_maxsim_pack_size_bf16 */
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_sme(nk_size_t vector_count, nk_size_t depth);
-/** @copydoc nk_maxsim_packed_shape_f32 */
-NK_API_COMPTIME void nk_maxsim_packed_shape_f32_sme(void const *packed, nk_size_t *vectors, nk_size_t *depth);
-/** @copydoc nk_maxsim_pack_bf16 */
-NK_API_COMPTIME void nk_maxsim_pack_bf16_sme(nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                             nk_size_t stride, void *packed);
-/** @copydoc nk_maxsim_pack_bf16 */
-NK_API_COMPTIME void nk_maxsim_pack_f16_sme(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                            nk_size_t stride, void *packed);
-/** @copydoc nk_maxsim_pack_bf16 */
-NK_API_COMPTIME void nk_maxsim_pack_f32_sme(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                            nk_size_t stride, void *packed);
-/** @copydoc nk_maxsim_packed_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_bf16_sme(void const *query_packed, void const *document_packed,
-                                               nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                               nk_f32_t *result);
-/** @copydoc nk_maxsim_packed_bf16 */
-NK_API_COMPTIME void nk_maxsim_packed_f16_sme(void const *query_packed, void const *document_packed,
-                                              nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                              nk_f32_t *result);
 
 /**
  *  @copydoc nk_maxsim_packed_bf16
  *  @note Screens with i8 SMOPA, 4× the depth per instruction of f32 FMOPA, then refines the winning
  *      pairs in f64 into the angular distance 1 − dot / √(‖q‖² × ‖d‖²).
  */
-NK_API_COMPTIME void nk_maxsim_packed_f32_sme(void const *query_packed, void const *document_packed,
-                                              nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                              nk_f64_t *result);
-#endif // NK_TARGET_SME
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f32_sme(void const *query_packed, void const *document_packed,
+                                                   nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
+                                                   nk_f64_t *result);
+#endif // NUMKONG_TARGET_SME
 
 /** Returns the output dtype for MaxSim late-interaction. */
-NK_HELPER_INLINE nk_dtype_t nk_maxsim_output_dtype(nk_dtype_t dtype) {
+NUMKONG_HELPER_INLINE nk_dtype_t nk_maxsim_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f32_k: return nk_f64_k;
     case nk_f16_k: return nk_f32_k;
@@ -455,258 +462,261 @@ NK_HELPER_INLINE nk_dtype_t nk_maxsim_output_dtype(nk_dtype_t dtype) {
 extern "C" {
 #endif
 
-#if !NK_RUNTIME_DISPATCH
+#if !NUMKONG_RUNTIME_DISPATCH
 
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16(nk_size_t vector_count, nk_size_t depth) {
-#if NK_TARGET_SME
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16(nk_size_t vector_count, nk_size_t depth) {
+#if NUMKONG_TARGET_SME
     return nk_maxsim_pack_size_bf16_sme(vector_count, depth);
-#elif NK_TARGET_SAPPHIREAMX
+#elif NUMKONG_TARGET_SAPPHIREAMX
     return nk_maxsim_pack_size_bf16_sapphireamx(vector_count, depth);
-#elif NK_TARGET_GENOA
+#elif NUMKONG_TARGET_GENOA
     return nk_maxsim_pack_size_bf16_genoa(vector_count, depth);
-#elif NK_TARGET_ALDER
+#elif NUMKONG_TARGET_ALDER
     return nk_maxsim_pack_size_bf16_alder(vector_count, depth);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     return nk_maxsim_pack_size_bf16_haswell(vector_count, depth);
-#elif NK_TARGET_NEONSDOT
+#elif NUMKONG_TARGET_NEONSDOT
     return nk_maxsim_pack_size_bf16_neonsdot(vector_count, depth);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     return nk_maxsim_pack_size_bf16_v128(vector_count, depth);
 #else
     return nk_maxsim_pack_size_bf16_serial(vector_count, depth);
 #endif
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_shape_bf16(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
-#if NK_TARGET_SME
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_bf16(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+#if NUMKONG_TARGET_SME
     nk_maxsim_packed_shape_bf16_sme(packed, vectors, depth);
-#elif NK_TARGET_SAPPHIREAMX
+#elif NUMKONG_TARGET_SAPPHIREAMX
     nk_maxsim_packed_shape_bf16_sapphireamx(packed, vectors, depth);
-#elif NK_TARGET_GENOA
+#elif NUMKONG_TARGET_GENOA
     nk_maxsim_packed_shape_bf16_genoa(packed, vectors, depth);
-#elif NK_TARGET_ALDER
+#elif NUMKONG_TARGET_ALDER
     nk_maxsim_packed_shape_bf16_alder(packed, vectors, depth);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_maxsim_packed_shape_bf16_haswell(packed, vectors, depth);
-#elif NK_TARGET_NEONSDOT
+#elif NUMKONG_TARGET_NEONSDOT
     nk_maxsim_packed_shape_bf16_neonsdot(packed, vectors, depth);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     nk_maxsim_packed_shape_bf16_v128(packed, vectors, depth);
 #else
     nk_maxsim_packed_shape_bf16_serial(packed, vectors, depth);
 #endif
 }
 
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32(nk_size_t vector_count, nk_size_t depth) {
-#if NK_TARGET_SME
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32(nk_size_t vector_count, nk_size_t depth) {
+#if NUMKONG_TARGET_SME
     return nk_maxsim_pack_size_f32_sme(vector_count, depth);
-#elif NK_TARGET_SAPPHIREAMX
+#elif NUMKONG_TARGET_SAPPHIREAMX
     return nk_maxsim_pack_size_f32_sapphireamx(vector_count, depth);
-#elif NK_TARGET_ICELAKE
+#elif NUMKONG_TARGET_ICELAKE
     return nk_maxsim_pack_size_f32_icelake(vector_count, depth);
-#elif NK_TARGET_ALDER
+#elif NUMKONG_TARGET_ALDER
     return nk_maxsim_pack_size_f32_alder(vector_count, depth);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     return nk_maxsim_pack_size_f32_haswell(vector_count, depth);
-#elif NK_TARGET_NEONSDOT
+#elif NUMKONG_TARGET_NEONSDOT
     return nk_maxsim_pack_size_f32_neonsdot(vector_count, depth);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     return nk_maxsim_pack_size_f32_v128(vector_count, depth);
 #else
     return nk_maxsim_pack_size_f32_serial(vector_count, depth);
 #endif
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_shape_f32(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
-#if NK_TARGET_SME
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f32(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+#if NUMKONG_TARGET_SME
     nk_maxsim_packed_shape_f32_sme(packed, vectors, depth);
-#elif NK_TARGET_SAPPHIREAMX
+#elif NUMKONG_TARGET_SAPPHIREAMX
     nk_maxsim_packed_shape_f32_sapphireamx(packed, vectors, depth);
-#elif NK_TARGET_ICELAKE
+#elif NUMKONG_TARGET_ICELAKE
     nk_maxsim_packed_shape_f32_icelake(packed, vectors, depth);
-#elif NK_TARGET_ALDER
+#elif NUMKONG_TARGET_ALDER
     nk_maxsim_packed_shape_f32_alder(packed, vectors, depth);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_maxsim_packed_shape_f32_haswell(packed, vectors, depth);
-#elif NK_TARGET_NEONSDOT
+#elif NUMKONG_TARGET_NEONSDOT
     nk_maxsim_packed_shape_f32_neonsdot(packed, vectors, depth);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     nk_maxsim_packed_shape_f32_v128(packed, vectors, depth);
 #else
     nk_maxsim_packed_shape_f32_serial(packed, vectors, depth);
 #endif
 }
 
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16(nk_size_t vector_count, nk_size_t depth) {
-#if NK_TARGET_SME
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16(nk_size_t vector_count, nk_size_t depth) {
+#if NUMKONG_TARGET_SME
     return nk_maxsim_pack_size_f16_sme(vector_count, depth);
-#elif NK_TARGET_SAPPHIREAMX
+#elif NUMKONG_TARGET_SAPPHIREAMX
     return nk_maxsim_pack_size_f16_sapphireamx(vector_count, depth);
-#elif NK_TARGET_ICELAKE
+#elif NUMKONG_TARGET_ICELAKE
     return nk_maxsim_pack_size_f16_icelake(vector_count, depth);
-#elif NK_TARGET_ALDER
+#elif NUMKONG_TARGET_ALDER
     return nk_maxsim_pack_size_f16_alder(vector_count, depth);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     return nk_maxsim_pack_size_f16_haswell(vector_count, depth);
-#elif NK_TARGET_NEONSDOT
+#elif NUMKONG_TARGET_NEONSDOT
     return nk_maxsim_pack_size_f16_neonsdot(vector_count, depth);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     return nk_maxsim_pack_size_f16_v128(vector_count, depth);
 #else
     return nk_maxsim_pack_size_f16_serial(vector_count, depth);
 #endif
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_shape_f16(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
-#if NK_TARGET_SME
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f16(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+#if NUMKONG_TARGET_SME
     nk_maxsim_packed_shape_f16_sme(packed, vectors, depth);
-#elif NK_TARGET_SAPPHIREAMX
+#elif NUMKONG_TARGET_SAPPHIREAMX
     nk_maxsim_packed_shape_f16_sapphireamx(packed, vectors, depth);
-#elif NK_TARGET_ICELAKE
+#elif NUMKONG_TARGET_ICELAKE
     nk_maxsim_packed_shape_f16_icelake(packed, vectors, depth);
-#elif NK_TARGET_ALDER
+#elif NUMKONG_TARGET_ALDER
     nk_maxsim_packed_shape_f16_alder(packed, vectors, depth);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_maxsim_packed_shape_f16_haswell(packed, vectors, depth);
-#elif NK_TARGET_NEONSDOT
+#elif NUMKONG_TARGET_NEONSDOT
     nk_maxsim_packed_shape_f16_neonsdot(packed, vectors, depth);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     nk_maxsim_packed_shape_f16_v128(packed, vectors, depth);
 #else
     nk_maxsim_packed_shape_f16_serial(packed, vectors, depth);
 #endif
 }
 
-NK_API_COMPTIME void nk_maxsim_pack_bf16(nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                         nk_size_t stride, void *packed) {
-#if NK_TARGET_SME
+NUMKONG_API_COMPTIME void nk_maxsim_pack_bf16(nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                              nk_size_t stride, void *packed) {
+#if NUMKONG_TARGET_SME
     nk_maxsim_pack_bf16_sme(vectors, vector_count, depth, stride, packed);
-#elif NK_TARGET_SAPPHIREAMX
+#elif NUMKONG_TARGET_SAPPHIREAMX
     nk_maxsim_pack_bf16_sapphireamx(vectors, vector_count, depth, stride, packed);
-#elif NK_TARGET_GENOA
+#elif NUMKONG_TARGET_GENOA
     nk_maxsim_pack_bf16_genoa(vectors, vector_count, depth, stride, packed);
-#elif NK_TARGET_ALDER
+#elif NUMKONG_TARGET_ALDER
     nk_maxsim_pack_bf16_alder(vectors, vector_count, depth, stride, packed);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_maxsim_pack_bf16_haswell(vectors, vector_count, depth, stride, packed);
-#elif NK_TARGET_NEONSDOT
+#elif NUMKONG_TARGET_NEONSDOT
     nk_maxsim_pack_bf16_neonsdot(vectors, vector_count, depth, stride, packed);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     nk_maxsim_pack_bf16_v128(vectors, vector_count, depth, stride, packed);
 #else
     nk_maxsim_pack_bf16_serial(vectors, vector_count, depth, stride, packed);
 #endif
 }
 
-NK_API_COMPTIME void nk_maxsim_pack_f32(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                        nk_size_t stride, void *packed) {
-#if NK_TARGET_SME
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f32(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                             nk_size_t stride, void *packed) {
+#if NUMKONG_TARGET_SME
     nk_maxsim_pack_f32_sme(vectors, vector_count, depth, stride, packed);
-#elif NK_TARGET_SAPPHIREAMX
+#elif NUMKONG_TARGET_SAPPHIREAMX
     nk_maxsim_pack_f32_sapphireamx(vectors, vector_count, depth, stride, packed);
-#elif NK_TARGET_ICELAKE
+#elif NUMKONG_TARGET_ICELAKE
     nk_maxsim_pack_f32_icelake(vectors, vector_count, depth, stride, packed);
-#elif NK_TARGET_ALDER
+#elif NUMKONG_TARGET_ALDER
     nk_maxsim_pack_f32_alder(vectors, vector_count, depth, stride, packed);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_maxsim_pack_f32_haswell(vectors, vector_count, depth, stride, packed);
-#elif NK_TARGET_NEONSDOT
+#elif NUMKONG_TARGET_NEONSDOT
     nk_maxsim_pack_f32_neonsdot(vectors, vector_count, depth, stride, packed);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     nk_maxsim_pack_f32_v128(vectors, vector_count, depth, stride, packed);
 #else
     nk_maxsim_pack_f32_serial(vectors, vector_count, depth, stride, packed);
 #endif
 }
 
-NK_API_COMPTIME void nk_maxsim_pack_f16(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                        nk_size_t stride, void *packed) {
-#if NK_TARGET_SME
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f16(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                             nk_size_t stride, void *packed) {
+#if NUMKONG_TARGET_SME
     nk_maxsim_pack_f16_sme(vectors, vector_count, depth, stride, packed);
-#elif NK_TARGET_SAPPHIREAMX
+#elif NUMKONG_TARGET_SAPPHIREAMX
     nk_maxsim_pack_f16_sapphireamx(vectors, vector_count, depth, stride, packed);
-#elif NK_TARGET_ICELAKE
+#elif NUMKONG_TARGET_ICELAKE
     nk_maxsim_pack_f16_icelake(vectors, vector_count, depth, stride, packed);
-#elif NK_TARGET_ALDER
+#elif NUMKONG_TARGET_ALDER
     nk_maxsim_pack_f16_alder(vectors, vector_count, depth, stride, packed);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_maxsim_pack_f16_haswell(vectors, vector_count, depth, stride, packed);
-#elif NK_TARGET_NEONSDOT
+#elif NUMKONG_TARGET_NEONSDOT
     nk_maxsim_pack_f16_neonsdot(vectors, vector_count, depth, stride, packed);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     nk_maxsim_pack_f16_v128(vectors, vector_count, depth, stride, packed);
 #else
     nk_maxsim_pack_f16_serial(vectors, vector_count, depth, stride, packed);
 #endif
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_bf16(void const *query_packed, void const *document_packed, nk_size_t query_count,
-                                           nk_size_t document_count, nk_size_t depth, nk_f32_t *result) {
-#if NK_TARGET_SME
+NUMKONG_API_COMPTIME void nk_maxsim_packed_bf16(void const *query_packed, void const *document_packed,
+                                                nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
+                                                nk_f32_t *result) {
+#if NUMKONG_TARGET_SME
     nk_maxsim_packed_bf16_sme(query_packed, document_packed, query_count, document_count, depth, result);
-#elif NK_TARGET_SAPPHIREAMX
+#elif NUMKONG_TARGET_SAPPHIREAMX
     nk_maxsim_packed_bf16_sapphireamx(query_packed, document_packed, query_count, document_count, depth, result);
-#elif NK_TARGET_GENOA
+#elif NUMKONG_TARGET_GENOA
     nk_maxsim_packed_bf16_genoa(query_packed, document_packed, query_count, document_count, depth, result);
-#elif NK_TARGET_ALDER
+#elif NUMKONG_TARGET_ALDER
     nk_maxsim_packed_bf16_alder(query_packed, document_packed, query_count, document_count, depth, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_maxsim_packed_bf16_haswell(query_packed, document_packed, query_count, document_count, depth, result);
-#elif NK_TARGET_NEONSDOT
+#elif NUMKONG_TARGET_NEONSDOT
     nk_maxsim_packed_bf16_neonsdot(query_packed, document_packed, query_count, document_count, depth, result);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_maxsim_packed_bf16_v128relaxed(query_packed, document_packed, query_count, document_count, depth, result);
 #else
     nk_maxsim_packed_bf16_serial(query_packed, document_packed, query_count, document_count, depth, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_f32(void const *query_packed, void const *document_packed, nk_size_t query_count,
-                                          nk_size_t document_count, nk_size_t depth, nk_f64_t *result) {
-#if NK_TARGET_SME
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f32(void const *query_packed, void const *document_packed,
+                                               nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
+                                               nk_f64_t *result) {
+#if NUMKONG_TARGET_SME
     nk_maxsim_packed_f32_sme(query_packed, document_packed, query_count, document_count, depth, result);
-#elif NK_TARGET_SAPPHIREAMX
+#elif NUMKONG_TARGET_SAPPHIREAMX
     nk_maxsim_packed_f32_sapphireamx(query_packed, document_packed, query_count, document_count, depth, result);
-#elif NK_TARGET_ICELAKE
+#elif NUMKONG_TARGET_ICELAKE
     nk_maxsim_packed_f32_icelake(query_packed, document_packed, query_count, document_count, depth, result);
-#elif NK_TARGET_ALDER
+#elif NUMKONG_TARGET_ALDER
     nk_maxsim_packed_f32_alder(query_packed, document_packed, query_count, document_count, depth, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_maxsim_packed_f32_haswell(query_packed, document_packed, query_count, document_count, depth, result);
-#elif NK_TARGET_NEONSDOT
+#elif NUMKONG_TARGET_NEONSDOT
     nk_maxsim_packed_f32_neonsdot(query_packed, document_packed, query_count, document_count, depth, result);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_maxsim_packed_f32_v128relaxed(query_packed, document_packed, query_count, document_count, depth, result);
 #else
     nk_maxsim_packed_f32_serial(query_packed, document_packed, query_count, document_count, depth, result);
 #endif
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_f16(void const *query_packed, void const *document_packed, nk_size_t query_count,
-                                          nk_size_t document_count, nk_size_t depth, nk_f32_t *result) {
-#if NK_TARGET_SME
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f16(void const *query_packed, void const *document_packed,
+                                               nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
+                                               nk_f32_t *result) {
+#if NUMKONG_TARGET_SME
     nk_maxsim_packed_f16_sme(query_packed, document_packed, query_count, document_count, depth, result);
-#elif NK_TARGET_SAPPHIREAMX
+#elif NUMKONG_TARGET_SAPPHIREAMX
     nk_maxsim_packed_f16_sapphireamx(query_packed, document_packed, query_count, document_count, depth, result);
-#elif NK_TARGET_ICELAKE
+#elif NUMKONG_TARGET_ICELAKE
     nk_maxsim_packed_f16_icelake(query_packed, document_packed, query_count, document_count, depth, result);
-#elif NK_TARGET_ALDER
+#elif NUMKONG_TARGET_ALDER
     nk_maxsim_packed_f16_alder(query_packed, document_packed, query_count, document_count, depth, result);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     nk_maxsim_packed_f16_haswell(query_packed, document_packed, query_count, document_count, depth, result);
-#elif NK_TARGET_NEONSDOT
+#elif NUMKONG_TARGET_NEONSDOT
     nk_maxsim_packed_f16_neonsdot(query_packed, document_packed, query_count, document_count, depth, result);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     nk_maxsim_packed_f16_v128relaxed(query_packed, document_packed, query_count, document_count, depth, result);
 #else
     nk_maxsim_packed_f16_serial(query_packed, document_packed, query_count, document_count, depth, result);
 #endif
 }
 
-#endif // !NK_RUNTIME_DISPATCH
+#endif // !NUMKONG_RUNTIME_DISPATCH
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NK_MAXSIM_H
+#endif // NUMKONG_MAXSIM_H

@@ -6,11 +6,11 @@
  *
  *  @sa include/numkong/spatials.h
  */
-#ifndef NK_SPATIALS_HASWELL_H
-#define NK_SPATIALS_HASWELL_H
+#ifndef NUMKONG_SPATIALS_HASWELL_H
+#define NUMKONG_SPATIALS_HASWELL_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_HASWELL
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_HASWELL
 
 #include "numkong/spatial/haswell.h"
 #include "numkong/spatial/serial.h"
@@ -233,6 +233,6 @@ nk_define_cross_normalized_symmetric_(euclidean, u8, haswell, u8, u32, /*norm_va
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_HASWELL
-#endif // NK_TARGET_X8664_
-#endif // NK_SPATIALS_HASWELL_H
+#endif // NUMKONG_TARGET_HASWELL
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_SPATIALS_HASWELL_H

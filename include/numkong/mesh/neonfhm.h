@@ -34,11 +34,11 @@
  *  no widening-add intrinsic for FP16 inputs. RMSD widens before subtracting as well, since an FP16
  *  difference would round where the serial FP32 one does not.
  */
-#ifndef NK_MESH_NEONFHM_H
-#define NK_MESH_NEONFHM_H
+#ifndef NUMKONG_MESH_NEONFHM_H
+#define NUMKONG_MESH_NEONFHM_H
 
-#if NK_TARGET_ARM64_
-#if NK_TARGET_NEONFHM
+#if NUMKONG_ARCH_ARM64_
+#if NUMKONG_TARGET_NEONFHM
 
 #include "numkong/types.h"
 #include "numkong/spatial/neon.h" // `nk_f32_sqrt_neon`
@@ -61,18 +61,18 @@ extern "C" {
  *
  *  Input: 24 contiguous fp16 [x0,y0,z0, ..., x7,y7,z7]
  *  Output: x_f16x8, y_f16x8, z_f16x8 channel vectors (8 lanes each) */
-NK_HELPER_INLINE void nk_deinterleave_f16x8_to_f16x8x3_neonfhm_(nk_f16_t const *ptr, //
-                                                                float16x8_t *x_out, float16x8_t *y_out,
-                                                                float16x8_t *z_out) {
+NUMKONG_HELPER_INLINE void nk_deinterleave_f16x8_to_f16x8x3_neonfhm_(nk_f16_t const *ptr, //
+                                                                     float16x8_t *x_out, float16x8_t *y_out,
+                                                                     float16x8_t *z_out) {
     uint16x8x3_t xyz_u16x8x3 = vld3q_u16((nk_u16_t const *)ptr);
     *x_out = vreinterpretq_f16_u16(xyz_u16x8x3.val[0]);
     *y_out = vreinterpretq_f16_u16(xyz_u16x8x3.val[1]);
     *z_out = vreinterpretq_f16_u16(xyz_u16x8x3.val[2]);
 }
 
-NK_HELPER_INLINE void nk_partial_deinterleave_f16_to_f16x8x3_neonfhm_(nk_f16_t const *ptr, nk_size_t n_points, //
-                                                                      float16x8_t *x_out, float16x8_t *y_out,
-                                                                      float16x8_t *z_out) {
+NUMKONG_HELPER_INLINE void nk_partial_deinterleave_f16_to_f16x8x3_neonfhm_(nk_f16_t const *ptr, nk_size_t n_points, //
+                                                                           float16x8_t *x_out, float16x8_t *y_out,
+                                                                           float16x8_t *z_out) {
     nk_u16_t buf[24] = {0};
     nk_u16_t const *src = (nk_u16_t const *)ptr;
     for (nk_size_t k = 0; k < n_points * 3; ++k) buf[k] = src[k];
@@ -80,16 +80,17 @@ NK_HELPER_INLINE void nk_partial_deinterleave_f16_to_f16x8x3_neonfhm_(nk_f16_t c
 }
 
 /*  Widens before subtracting, like serial, as an F16 difference rounds and overflows past 65504. */
-NK_HELPER_INLINE void nk_accumulate_squared_delta_f16x8_neonfhm_(float16x8_t a_f16x8, float16x8_t b_f16x8,
-                                                                 float32x4_t *low_f32x4, float32x4_t *high_f32x4) {
+NUMKONG_HELPER_INLINE void nk_accumulate_squared_delta_f16x8_neonfhm_(float16x8_t a_f16x8, float16x8_t b_f16x8,
+                                                                      float32x4_t *low_f32x4, float32x4_t *high_f32x4) {
     float32x4_t delta_low_f32x4 = vsubq_f32(vcvt_f32_f16(vget_low_f16(a_f16x8)), vcvt_f32_f16(vget_low_f16(b_f16x8)));
     float32x4_t delta_high_f32x4 = vsubq_f32(vcvt_high_f32_f16(a_f16x8), vcvt_high_f32_f16(b_f16x8));
     *low_f32x4 = vfmaq_f32(*low_f32x4, delta_low_f32x4, delta_low_f32x4);
     *high_f32x4 = vfmaq_f32(*high_f32x4, delta_high_f32x4, delta_high_f32x4);
 }
 
-NK_API_COMPTIME void nk_rmsd_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                         nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_rmsd_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                              nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                              nk_f32_t *result) {
     if (rotation)
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
         rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
@@ -142,9 +143,9 @@ NK_API_COMPTIME void nk_rmsd_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, n
     *result = nk_f32_sqrt_neon(sum_squared / (nk_f32_t)n);
 }
 
-NK_API_COMPTIME void nk_kabsch_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                           nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                           nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_kabsch_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                                nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                                nk_f32_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -414,9 +415,9 @@ NK_API_COMPTIME void nk_kabsch_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b,
     *result = nk_f32_sqrt_neon(sum_squared * inv_n);
 }
 
-NK_API_COMPTIME void nk_umeyama_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                            nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                            nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_umeyama_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                 nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
+                                                 nk_f32_t *scale, nk_f32_t *result) {
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -694,6 +695,6 @@ NK_API_COMPTIME void nk_umeyama_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_NEONFHM
-#endif // NK_TARGET_ARM64_
-#endif // NK_MESH_NEONFHM_H
+#endif // NUMKONG_TARGET_NEONFHM
+#endif // NUMKONG_ARCH_ARM64_
+#endif // NUMKONG_MESH_NEONFHM_H

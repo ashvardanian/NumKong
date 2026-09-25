@@ -6,7 +6,7 @@
  */
 #include "numkong/maxsim.h"
 
-#include "bench.hpp"
+#include "harness.hpp"
 
 namespace nk = ashvardanian::numkong;
 namespace bm = benchmark;
@@ -88,7 +88,7 @@ void bench_maxsim() {
     run_maxsim_packed<f16_k>("maxsim_f16_serial", nk_maxsim_pack_size_f16_serial, nk_maxsim_pack_f16_serial,
                              nk_maxsim_packed_f16_serial);
 
-#if NK_TARGET_HASWELL
+#if NUMKONG_TARGET_HASWELL
     run_maxsim_packed<bf16_k>("maxsim_bf16_haswell", nk_maxsim_pack_size_bf16_haswell, nk_maxsim_pack_bf16_haswell,
                               nk_maxsim_packed_bf16_haswell);
     run_maxsim_packed<f32_k>("maxsim_f32_haswell", nk_maxsim_pack_size_f32_haswell, nk_maxsim_pack_f32_haswell,
@@ -97,7 +97,7 @@ void bench_maxsim() {
                              nk_maxsim_packed_f16_haswell);
 #endif
 
-#if NK_TARGET_ALDER
+#if NUMKONG_TARGET_ALDER
     run_maxsim_packed<bf16_k>("maxsim_bf16_alder", nk_maxsim_pack_size_bf16_alder, nk_maxsim_pack_bf16_alder,
                               nk_maxsim_packed_bf16_alder);
     run_maxsim_packed<f32_k>("maxsim_f32_alder", nk_maxsim_pack_size_f32_alder, nk_maxsim_pack_f32_alder,
@@ -106,19 +106,19 @@ void bench_maxsim() {
                              nk_maxsim_packed_f16_alder);
 #endif
 
-#if NK_TARGET_ICELAKE
+#if NUMKONG_TARGET_ICELAKE
     run_maxsim_packed<f32_k>("maxsim_f32_icelake", nk_maxsim_pack_size_f32_icelake, nk_maxsim_pack_f32_icelake,
                              nk_maxsim_packed_f32_icelake);
     run_maxsim_packed<f16_k>("maxsim_f16_icelake", nk_maxsim_pack_size_f16_icelake, nk_maxsim_pack_f16_icelake,
                              nk_maxsim_packed_f16_icelake);
 #endif
 
-#if NK_TARGET_GENOA
+#if NUMKONG_TARGET_GENOA
     run_maxsim_packed<bf16_k>("maxsim_bf16_genoa", nk_maxsim_pack_size_bf16_genoa, nk_maxsim_pack_bf16_genoa,
                               nk_maxsim_packed_bf16_genoa);
 #endif
 
-#if NK_TARGET_SAPPHIREAMX
+#if NUMKONG_TARGET_SAPPHIREAMX
     run_maxsim_packed<bf16_k>("maxsim_bf16_sapphireamx", nk_maxsim_pack_size_bf16_sapphireamx,
                               nk_maxsim_pack_bf16_sapphireamx, nk_maxsim_packed_bf16_sapphireamx);
     run_maxsim_packed<f32_k>("maxsim_f32_sapphireamx", nk_maxsim_pack_size_f32_sapphireamx,
@@ -127,7 +127,7 @@ void bench_maxsim() {
                              nk_maxsim_pack_f16_sapphireamx, nk_maxsim_packed_f16_sapphireamx);
 #endif
 
-#if NK_TARGET_NEONSDOT
+#if NUMKONG_TARGET_NEONSDOT
     run_maxsim_packed<bf16_k>("maxsim_bf16_neonsdot", nk_maxsim_pack_size_bf16_neonsdot, nk_maxsim_pack_bf16_neonsdot,
                               nk_maxsim_packed_bf16_neonsdot);
     run_maxsim_packed<f32_k>("maxsim_f32_neonsdot", nk_maxsim_pack_size_f32_neonsdot, nk_maxsim_pack_f32_neonsdot,
@@ -136,7 +136,7 @@ void bench_maxsim() {
                              nk_maxsim_packed_f16_neonsdot);
 #endif
 
-#if NK_TARGET_V128RELAXED
+#if NUMKONG_TARGET_V128RELAXED
     run_maxsim_packed<bf16_k>("maxsim_bf16_v128relaxed", nk_maxsim_pack_size_bf16_v128, nk_maxsim_pack_bf16_v128,
                               nk_maxsim_packed_bf16_v128relaxed);
     run_maxsim_packed<f32_k>("maxsim_f32_v128relaxed", nk_maxsim_pack_size_f32_v128, nk_maxsim_pack_f32_v128,
@@ -145,7 +145,7 @@ void bench_maxsim() {
                              nk_maxsim_packed_f16_v128relaxed);
 #endif
 
-#if NK_TARGET_V128
+#if NUMKONG_TARGET_V128
     run_maxsim_packed<bf16_k>("maxsim_bf16_v128", nk_maxsim_pack_size_bf16_v128, nk_maxsim_pack_bf16_v128,
                               nk_maxsim_packed_bf16_serial);
     run_maxsim_packed<f32_k>("maxsim_f32_v128", nk_maxsim_pack_size_f32_v128, nk_maxsim_pack_f32_v128,
@@ -154,7 +154,7 @@ void bench_maxsim() {
                              nk_maxsim_packed_f16_serial);
 #endif
 
-#if NK_TARGET_SME
+#if NUMKONG_TARGET_SME
     run_maxsim_packed<bf16_k>("maxsim_bf16_sme", nk_maxsim_pack_size_bf16_sme, nk_maxsim_pack_bf16_sme,
                               nk_maxsim_packed_bf16_sme);
     run_maxsim_packed<f32_k>("maxsim_f32_sme", nk_maxsim_pack_size_f32_sme, nk_maxsim_pack_f32_sme,

@@ -23,12 +23,12 @@
 
 /** OpenMP schedules tiles itself, so the counter below is for the other pools. */
 #if !defined(__APPLE__) && !defined(_WIN32) && defined(_OPENMP)
-#define NK_PARALLEL_VIA_OPENMP 1
+#define NUMKONG_PARALLEL_VIA_OPENMP 1
 #else
-#define NK_PARALLEL_VIA_OPENMP 0
+#define NUMKONG_PARALLEL_VIA_OPENMP 0
 #endif
 
-#if !NK_PARALLEL_VIA_OPENMP
+#if !NUMKONG_PARALLEL_VIA_OPENMP
 
 #pragma region Tile Queue
 
@@ -59,7 +59,7 @@ static void nk_tile_queue_drain_(nk_tile_queue_t *queue) {
 
 #pragma endregion Tile Queue
 
-#endif // !NK_PARALLEL_VIA_OPENMP
+#endif // !NUMKONG_PARALLEL_VIA_OPENMP
 
 #pragma region Platform Pools
 
@@ -104,7 +104,7 @@ void nk_parallel_for_tiles(nk_size_t tile_count, nk_size_t threads, nk_tile_body
         return;
     }
 
-#if NK_PARALLEL_VIA_OPENMP
+#if NUMKONG_PARALLEL_VIA_OPENMP
     // OpenMP's own dynamic queue beats draining a shared counter.
     long long const tile_limit = (long long)tile_count;
 #pragma omp parallel for schedule(dynamic, 1) num_threads((int)threads)
@@ -133,7 +133,7 @@ void nk_parallel_for_tiles(nk_size_t tile_count, nk_size_t threads, nk_tile_body
 #else
     nk_tile_queue_drain_(&queue);
 #endif
-#endif // NK_PARALLEL_VIA_OPENMP
+#endif // NUMKONG_PARALLEL_VIA_OPENMP
 }
 
 #pragma endregion Platform Pools

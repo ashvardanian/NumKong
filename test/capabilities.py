@@ -94,11 +94,11 @@ def test_compiled_covers_the_baseline_this_machine_detects():
     """A build whose ISA probes failed is scalar, and only `compiled` can see it.
 
     Skips where there is no SIMD to expect, so genuinely serial targets stay green: a 32-bit
-    or exotic arch, or a CPU too old for the baseline. Set `NK_EXPECT_SIMD=0` to skip a
+    or exotic arch, or a CPU too old for the baseline. Set `NUMKONG_EXPECT_SIMD=0` to skip a
     deliberately scalar build on a SIMD-capable machine.
     """
-    if os.environ.get("NK_EXPECT_SIMD") == "0":
-        pytest.skip("NK_EXPECT_SIMD=0: this build is deliberately scalar")
+    if os.environ.get("NUMKONG_EXPECT_SIMD") == "0":
+        pytest.skip("NUMKONG_EXPECT_SIMD=0: this build is deliberately scalar")
 
     baseline = baseline_for_this_machine()
     if baseline is None:

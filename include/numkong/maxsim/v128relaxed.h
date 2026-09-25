@@ -13,10 +13,10 @@
  *  1Q × 1D tiling, simpler than x86 4x4, with scalar running argmax. Depth steps at 16 bytes, the
  *  v128 width in bytes.
  */
-#ifndef NK_MAXSIM_V128RELAXED_H
-#define NK_MAXSIM_V128RELAXED_H
+#ifndef NUMKONG_MAXSIM_V128RELAXED_H
+#define NUMKONG_MAXSIM_V128RELAXED_H
 
-#if NK_TARGET_V128RELAXED
+#if NUMKONG_TARGET_V128RELAXED
 
 #include "numkong/types.h"
 #include "numkong/maxsim/serial.h"   // `nk_maxsim_packed_regions_t`
@@ -34,17 +34,17 @@ extern "C" {
 /** Coarse i8 argmax kernel for WASM Relaxed SIMD. Uses relaxed_dot_i8x16_i7x16_add with both
  *  operands in [-63, 63], so native signed × signed arithmetic needs no bias correction. Simple
  *  1Q × 1D tiling with scalar running argmax. */
-NK_HELPER_INLINE void nk_maxsim_coarse_argmax_v128relaxed_( //
-    nk_i8_t const *query_i8, nk_i8_t const *document_i8,    //
-    nk_maxsim_vector_metadata_t const *document_metadata,   //
-    nk_size_t query_count, nk_size_t document_count,        //
+NUMKONG_HELPER_INLINE void nk_maxsim_coarse_argmax_v128relaxed_( //
+    nk_i8_t const *query_i8, nk_i8_t const *document_i8,         //
+    nk_maxsim_vector_metadata_t const *document_metadata,        //
+    nk_size_t query_count, nk_size_t document_count,             //
     nk_size_t depth_i8_padded, nk_u32_t *best_document_indices) {
 
     nk_unused_(document_metadata);
 
     for (nk_size_t query_index = 0; query_index < query_count; query_index++) {
         nk_i8_t const *query_i8_row = query_i8 + query_index * depth_i8_padded;
-        nk_i32_t running_max_i32 = NK_I32_MIN;
+        nk_i32_t running_max_i32 = NUMKONG_I32_MIN;
         nk_u32_t running_argmax_u32 = 0;
 
         for (nk_size_t document_index = 0; document_index < document_count; document_index++) {
@@ -71,7 +71,7 @@ NK_HELPER_INLINE void nk_maxsim_coarse_argmax_v128relaxed_( //
     }
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_bf16_v128relaxed( //
+NUMKONG_API_COMPTIME void nk_maxsim_packed_bf16_v128relaxed( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {
 
@@ -105,7 +105,7 @@ NK_API_COMPTIME void nk_maxsim_packed_bf16_v128relaxed( //
     *result = (nk_f32_t)total_angular_distance;
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_f32_v128relaxed( //
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f32_v128relaxed( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f64_t *result) {
 
@@ -140,7 +140,7 @@ NK_API_COMPTIME void nk_maxsim_packed_f32_v128relaxed( //
     *result = total_angular_distance;
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_f16_v128relaxed( //
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f16_v128relaxed( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {
 
@@ -182,5 +182,5 @@ NK_API_COMPTIME void nk_maxsim_packed_f16_v128relaxed( //
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_V128RELAXED
-#endif // NK_MAXSIM_V128RELAXED_H
+#endif // NUMKONG_TARGET_V128RELAXED
+#endif // NUMKONG_MAXSIM_V128RELAXED_H

@@ -5,7 +5,7 @@
  *  @brief Sparse operations tests.
  */
 
-#include "test.hpp"
+#include "harness.hpp"
 #include "numkong/sparse.hpp"
 
 using namespace ashvardanian::numkong::test;
@@ -91,7 +91,7 @@ void test_sparse() {
     check("sparse_dot_u32f32_serial", test_sparse_dot<f32_t>, nk_sparse_dot_u32f32_serial);
     check("sparse_dot_u16bf16_serial", test_sparse_dot<bf16_t>, nk_sparse_dot_u16bf16_serial);
 
-#if NK_RUNTIME_DISPATCH
+#if NUMKONG_RUNTIME_DISPATCH
     check.section("Sparse Operations Runtime Dispatch", nk_cap_serial_k);
     check("sparse_intersect_u16", test_intersect<u16_t>, nk_sparse_intersect_u16);
     check("sparse_intersect_u32", test_intersect<u32_t>, nk_sparse_intersect_u32);
@@ -100,41 +100,41 @@ void test_sparse() {
     check("sparse_dot_u16bf16", test_sparse_dot<bf16_t>, nk_sparse_dot_u16bf16);
 #endif
 
-#if NK_TARGET_NEON
+#if NUMKONG_TARGET_NEON
     check.section("Sparse Operations NEON", nk_cap_neon_k);
     check("sparse_intersect_u16_neon", test_intersect<u16_t>, nk_sparse_intersect_u16_neon);
     check("sparse_intersect_u32_neon", test_intersect<u32_t>, nk_sparse_intersect_u32_neon);
     check("sparse_intersect_u64_neon", test_intersect<u64_t>, nk_sparse_intersect_u64_neon);
-#endif // NK_TARGET_NEON
+#endif // NUMKONG_TARGET_NEON
 
-#if NK_TARGET_SVE2
+#if NUMKONG_TARGET_SVE2
     check.section("Sparse Operations SVE2", nk_cap_sve2_k);
     check("sparse_intersect_u16_sve2", test_intersect<u16_t>, nk_sparse_intersect_u16_sve2);
     check("sparse_intersect_u32_sve2", test_intersect<u32_t>, nk_sparse_intersect_u32_sve2);
     check("sparse_intersect_u64_sve2", test_intersect<u64_t>, nk_sparse_intersect_u64_sve2);
     check("sparse_dot_u32f32_sve2", test_sparse_dot<f32_t>, nk_sparse_dot_u32f32_sve2);
     check("sparse_dot_u16bf16_sve2", test_sparse_dot<bf16_t>, nk_sparse_dot_u16bf16_sve2);
-#endif // NK_TARGET_SVE2
+#endif // NUMKONG_TARGET_SVE2
 
-#if NK_TARGET_ICELAKE
+#if NUMKONG_TARGET_ICELAKE
     check.section("Sparse Operations Ice Lake", nk_cap_icelake_k);
     check("sparse_intersect_u16_icelake", test_intersect<u16_t>, nk_sparse_intersect_u16_icelake);
     check("sparse_intersect_u32_icelake", test_intersect<u32_t>, nk_sparse_intersect_u32_icelake);
     check("sparse_intersect_u64_icelake", test_intersect<u64_t>, nk_sparse_intersect_u64_icelake);
     check("sparse_dot_u32f32_icelake", test_sparse_dot<f32_t>, nk_sparse_dot_u32f32_icelake);
-#endif // NK_TARGET_ICELAKE
+#endif // NUMKONG_TARGET_ICELAKE
 
-#if NK_TARGET_HASWELL
+#if NUMKONG_TARGET_HASWELL
     check.section("Sparse Operations Haswell", nk_cap_haswell_k);
     check("sparse_dot_u32f32_haswell", test_sparse_dot<f32_t>, nk_sparse_dot_u32f32_haswell);
-#endif // NK_TARGET_HASWELL
+#endif // NUMKONG_TARGET_HASWELL
 
-#if NK_TARGET_TURIN
+#if NUMKONG_TARGET_TURIN
     check.section("Sparse Operations Turin", nk_cap_turin_k);
     check("sparse_intersect_u16_turin", test_intersect<u16_t>, nk_sparse_intersect_u16_turin);
     check("sparse_intersect_u32_turin", test_intersect<u32_t>, nk_sparse_intersect_u32_turin);
     check("sparse_intersect_u64_turin", test_intersect<u64_t>, nk_sparse_intersect_u64_turin);
     check("sparse_dot_u32f32_turin", test_sparse_dot<f32_t>, nk_sparse_dot_u32f32_turin);
     check("sparse_dot_u16bf16_turin", test_sparse_dot<bf16_t>, nk_sparse_dot_u16bf16_turin);
-#endif // NK_TARGET_TURIN
+#endif // NUMKONG_TARGET_TURIN
 }

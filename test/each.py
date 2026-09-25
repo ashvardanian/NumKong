@@ -29,8 +29,8 @@ except Exception:
     numpy_available = False
 
 from base import (
-    NK_ATOL,
-    NK_RTOL,
+    NUMKONG_ATOL,
+    NUMKONG_RTOL,
     assert_allclose,
     collect_errors,
     collect_warnings,
@@ -449,12 +449,12 @@ def test_add_multiply_noncontiguous(dtype: str, kernel, capability: str):
             f"Result dtypes differ: {result_numkong.dtype} vs {result_numpy.dtype} for ({a.dtype} {operator} {b.dtype})"
         )
 
-        if not np.allclose(result_numkong, result_numpy, atol=NK_ATOL, rtol=NK_RTOL):
+        if not np.allclose(result_numkong, result_numpy, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL):
             assert_allclose(
                 result_numkong,
                 result_numpy,
-                atol=NK_ATOL,
-                rtol=NK_RTOL,
+                atol=NUMKONG_ATOL,
+                rtol=NUMKONG_RTOL,
                 err_msg=f"""
                 Result mismatch for ({a.dtype} {operator} {b.dtype})
                 First descriptor: {a.__array_interface__}
@@ -474,7 +474,7 @@ def test_add_multiply_noncontiguous(dtype: str, kernel, capability: str):
         assert inplace_numkong.shape == inplace_numpy.shape
         assert inplace_numkong.dtype == inplace_numpy.dtype
 
-        mismatch_count = np.sum(~np.isclose(inplace_numkong, inplace_numpy, atol=NK_ATOL, rtol=NK_RTOL))
+        mismatch_count = np.sum(~np.isclose(inplace_numkong, inplace_numpy, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL))
         if mismatch_count:
             collect_warnings(f"NumPy overflow in ({a.dtype} {operator} {b.dtype} -> {output_dtype})", stats)
 
@@ -483,7 +483,7 @@ def test_add_multiply_noncontiguous(dtype: str, kernel, capability: str):
             out_nk = nk.zeros(inplace_numkong.shape, dtype=output_dtype)
             ret = simd_kernel(a, b, out=out_nk)
             assert ret is None
-            assert_allclose(np.asarray(out_nk), inplace_numkong, atol=NK_ATOL, rtol=NK_RTOL)
+            assert_allclose(np.asarray(out_nk), inplace_numkong, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
         return result_numkong
 
@@ -588,28 +588,28 @@ def test_add_multiply_broadcast(ndim: int, dtype: str, kernel, capability: str):
     b = np.random.randn(ndim).astype(second_dtype)
     expected = baseline_kernel(a, b)
     result = np.array(simd_kernel(a, b))
-    assert_allclose(result, expected, atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
     # Scalar-Vector
     a = np.random.randn(1).astype(first_dtype)[0]
     b = np.random.randn(ndim).astype(second_dtype)
     expected = baseline_kernel(a, b)
     result = np.array(simd_kernel(a, b))
-    assert_allclose(result, expected, atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
     # Vector-Scalar
     a = np.random.randn(ndim).astype(first_dtype)
     b = np.random.randn(1).astype(second_dtype)[0]
     expected = baseline_kernel(a, b)
     result = np.array(simd_kernel(a, b))
-    assert_allclose(result, expected, atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
     # Matrix-Matrix
     a = np.random.randn(10, ndim // 10 if ndim >= 10 else ndim).astype(first_dtype)
     b = np.random.randn(10, ndim // 10 if ndim >= 10 else ndim).astype(second_dtype)
     expected = baseline_kernel(a, b)
     result = np.array(simd_kernel(a, b))
-    assert_allclose(result, expected, atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
     # In-place operation
     a = np.random.randn(ndim).astype(first_dtype)
@@ -618,7 +618,7 @@ def test_add_multiply_broadcast(ndim: int, dtype: str, kernel, capability: str):
     out_result = np.zeros(ndim).astype(output_dtype)
     baseline_kernel(a, b, out=out_expected)
     simd_kernel(a, b, out=out_result)
-    assert_allclose(out_result, out_expected, atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(out_result, out_expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -637,35 +637,40 @@ def test_scale_edge_cases(ndim: int, dtype: str, capability: str):
     beta = np.random.randn(1).astype(np.float64).item()
     expected = baseline_kernel(a, alpha=alpha, beta=beta)
     result = np.array(simd_kernel(a, alpha=alpha, beta=beta))
-    assert_allclose(result, expected.astype(np.float64), atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result, expected.astype(np.float64), atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
     # Zero alpha
     expected = baseline_kernel(a, alpha=0.0, beta=1.5)
     result = np.array(simd_kernel(a, alpha=0.0, beta=1.5))
-    assert_allclose(result, expected.astype(np.float64), atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result, expected.astype(np.float64), atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
     # Zero beta
     expected = baseline_kernel(a, alpha=2.0, beta=0.0)
     result = np.array(simd_kernel(a, alpha=2.0, beta=0.0))
-    assert_allclose(result, expected.astype(np.float64), atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result, expected.astype(np.float64), atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
     # Negative alpha and beta
     expected = baseline_kernel(a, alpha=-1.5, beta=-2.0)
     result = np.array(simd_kernel(a, alpha=-1.5, beta=-2.0))
-    assert_allclose(result, expected.astype(np.float64), atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result, expected.astype(np.float64), atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
     # out= with NumPy buffer
     out_np = np.zeros(ndim, dtype=dtype)
     ret = simd_kernel(a, alpha=alpha, beta=beta, out=out_np)
     assert ret is None
-    assert_allclose(out_np, baseline_kernel(a, alpha=alpha, beta=beta).astype(np.float64), atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(
+        out_np, baseline_kernel(a, alpha=alpha, beta=beta).astype(np.float64), atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL
+    )
 
     # out= with nk.Tensor buffer
     out_nk = nk.zeros((ndim,), dtype=dtype)
     ret = simd_kernel(a, alpha=alpha, beta=beta, out=out_nk)
     assert ret is None
     assert_allclose(
-        np.asarray(out_nk), baseline_kernel(a, alpha=alpha, beta=beta).astype(np.float64), atol=NK_ATOL, rtol=NK_RTOL
+        np.asarray(out_nk),
+        baseline_kernel(a, alpha=alpha, beta=beta).astype(np.float64),
+        atol=NUMKONG_ATOL,
+        rtol=NUMKONG_RTOL,
     )
 
     # out= shape mismatch raises
@@ -678,7 +683,10 @@ def test_scale_edge_cases(ndim: int, dtype: str, capability: str):
         strided_out = np.zeros(ndim * 2, dtype=dtype)[::2]
         assert simd_kernel(a, alpha=alpha, beta=beta, out=strided_out) is None
         assert_allclose(
-            strided_out, baseline_kernel(a, alpha=alpha, beta=beta).astype(np.float64), atol=NK_ATOL, rtol=NK_RTOL
+            strided_out,
+            baseline_kernel(a, alpha=alpha, beta=beta).astype(np.float64),
+            atol=NUMKONG_ATOL,
+            rtol=NUMKONG_RTOL,
         )
 
 
@@ -696,25 +704,25 @@ def test_add_edge_cases(ndim: int, dtype: str, capability: str):
     b = np.random.randn(ndim).astype(dtype)
     expected = baseline_kernel(a, b)
     result = np.array(simd_kernel(a, b))
-    assert_allclose(result, expected.astype(np.float64), atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result, expected.astype(np.float64), atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
     # One vector is zeros
     b = np.zeros(ndim).astype(dtype)
     expected = baseline_kernel(a, b)
     result = np.array(simd_kernel(a, b))
-    assert_allclose(result, expected.astype(np.float64), atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result, expected.astype(np.float64), atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
     # Both vectors the same
     expected = baseline_kernel(a, a)
     result = np.array(simd_kernel(a, a))
-    assert_allclose(result, expected.astype(np.float64), atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result, expected.astype(np.float64), atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
     # Negative values
     a = -np.abs(np.random.randn(ndim).astype(dtype))
     b = -np.abs(np.random.randn(ndim).astype(dtype))
     expected = baseline_kernel(a, b)
     result = np.array(simd_kernel(a, b))
-    assert_allclose(result, expected.astype(np.float64), atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result, expected.astype(np.float64), atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -791,7 +799,7 @@ def test_add_known(ndim: int, dtype: str, capability: str):
     b = nk.full((ndim,), 3.0, dtype=dtype)
     result = list(nk.add(a, b))
     for i in range(ndim):
-        assert abs(result[i] - 5.0) < NK_ATOL, f"add(2,3)[{i}] = {result[i]}"
+        assert abs(result[i] - 5.0) < NUMKONG_ATOL, f"add(2,3)[{i}] = {result[i]}"
 
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
@@ -804,7 +812,7 @@ def test_multiply_known(ndim: int, dtype: str, capability: str):
     b = nk.full((ndim,), 3.0, dtype=dtype)
     result = list(nk.multiply(a, b))
     for i in range(ndim):
-        assert abs(result[i] - 6.0) < NK_ATOL, f"multiply(2,3)[{i}] = {result[i]}"
+        assert abs(result[i] - 6.0) < NUMKONG_ATOL, f"multiply(2,3)[{i}] = {result[i]}"
 
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
@@ -816,7 +824,7 @@ def test_scale_identity(ndim: int, dtype: str, capability: str):
     input_vector = nk.full((ndim,), 7.5, dtype=dtype)
     result = list(nk.scale(input_vector, alpha=1.0, beta=0.0))
     for i in range(ndim):
-        assert abs(result[i] - 7.5) < NK_ATOL, f"scale(7.5, 1, 0)[{i}] = {result[i]}"
+        assert abs(result[i] - 7.5) < NUMKONG_ATOL, f"scale(7.5, 1, 0)[{i}] = {result[i]}"
 
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
@@ -831,7 +839,7 @@ def test_blend_known(ndim: int, dtype: str, capability: str):
     expected = 2.0 * a_val + 3.0 * b_val  # 23.0
     result = list(nk.blend(a, b, alpha=2.0, beta=3.0))
     for i in range(ndim):
-        assert abs(result[i] - expected) < NK_ATOL, f"blend[{i}] = {result[i]}, expected {expected}"
+        assert abs(result[i] - expected) < NUMKONG_ATOL, f"blend[{i}] = {result[i]}, expected {expected}"
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -884,18 +892,18 @@ def test_strided_out_with_dtype_change(kernel: str, second_is_scalar: bool, capa
     # Column 0 of a 2-column array: same shape as the input, stride of two float64s.
     surrounding = np.zeros((6, 2), dtype=np.float64)
     simd_kernel(first, second, out=surrounding[:, 0])
-    assert_allclose(surrounding[:, 0], expected.astype(np.float64), atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(surrounding[:, 0], expected.astype(np.float64), atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
     assert not surrounding[:, 1].any(), "writeback spilled into the neighbouring column"
 
     # Reversed view exercises the negative-stride path.
     reversed_out = np.zeros(6, dtype=np.float64)[::-1]
     simd_kernel(first, second, out=reversed_out)
-    assert_allclose(reversed_out, expected.astype(np.float64), atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(reversed_out, expected.astype(np.float64), atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
     # A packed `out` must still take the single bulk-cast path.
     contiguous_out = np.zeros(6, dtype=np.float64)
     simd_kernel(first, second, out=contiguous_out)
-    assert_allclose(contiguous_out, expected.astype(np.float64), atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(contiguous_out, expected.astype(np.float64), atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -909,7 +917,7 @@ def test_strided_out_multidimensional(kernel: str):
     expected = first + 2 if kernel == "add" else first * 2
     surrounding = np.zeros((3, 4, 2), dtype=np.float64)
     simd_kernel(first, 2, out=surrounding[:, :, 0])
-    assert_allclose(surrounding[:, :, 0], expected.astype(np.float64), atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(surrounding[:, :, 0], expected.astype(np.float64), atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
     assert not surrounding[:, :, 1].any(), "writeback spilled into the neighbouring column"
 
     # Rank 3 with a packed innermost pair: recursion plus a bulk slice per row.
@@ -917,7 +925,7 @@ def test_strided_out_multidimensional(kernel: str):
     expected = first + 3 if kernel == "add" else first * 3
     surrounding = np.zeros((2, 6, 4), dtype=np.float64)
     simd_kernel(first, 3, out=surrounding[:, :, 0:2])
-    assert_allclose(surrounding[:, :, 0:2], expected.astype(np.float64), atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(surrounding[:, :, 0:2], expected.astype(np.float64), atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
     assert not surrounding[:, :, 2:].any(), "writeback spilled past the requested columns"
 
 
@@ -932,7 +940,7 @@ def test_packed_out_requires_contiguity(dtype: str, distinct_values: int):
 
     packed_out = nk.zeros(first.shape, dtype=dtype)
     nk.add(first, 0, out=packed_out)
-    assert_allclose(np.asarray(nk.astype(packed_out, "uint8")), first, atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(np.asarray(nk.astype(packed_out, "uint8")), first, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
     rows = np.stack([first, first])
     with pytest.raises(ValueError, match="C-contiguous"):

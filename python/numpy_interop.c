@@ -26,32 +26,32 @@ typedef Py_hash_t npy_hash_t;
 
 /** NumPy type-number constants. */
 enum {
-    NK_NPY_BOOL = 0,
-    NK_NPY_BYTE = 1,
-    NK_NPY_UBYTE = 2,
-    NK_NPY_SHORT = 3,
-    NK_NPY_USHORT = 4,
-    NK_NPY_INT = 5,
-    NK_NPY_UINT = 6,
-    NK_NPY_LONG = 7,
-    NK_NPY_ULONG = 8,
-    NK_NPY_LONGLONG = 9,
-    NK_NPY_ULONGLONG = 10,
-    NK_NPY_FLOAT = 11,
-    NK_NPY_DOUBLE = 12,
-    NK_NPY_LONGDOUBLE = 13,
-    NK_NPY_CFLOAT = 14,
-    NK_NPY_CDOUBLE = 15,
-    NK_NPY_CLONGDOUBLE = 16,
-    NK_NPY_OBJECT = 17,
-    NK_NPY_STRING = 18,
-    NK_NPY_UNICODE = 19,
-    NK_NPY_VOID = 20,
-    NK_NPY_NTYPES_ABI_COMPATIBLE = 21,
-    NK_NPY_USERDEF = 256,
-    NK_NPY_NOTYPE = -1,
-    NK_NPY_SAFE_CASTING = 2,
-    NK_NPY_NSORTS = 3,
+    NUMKONG_NPY_BOOL = 0,
+    NUMKONG_NPY_BYTE = 1,
+    NUMKONG_NPY_UBYTE = 2,
+    NUMKONG_NPY_SHORT = 3,
+    NUMKONG_NPY_USHORT = 4,
+    NUMKONG_NPY_INT = 5,
+    NUMKONG_NPY_UINT = 6,
+    NUMKONG_NPY_LONG = 7,
+    NUMKONG_NPY_ULONG = 8,
+    NUMKONG_NPY_LONGLONG = 9,
+    NUMKONG_NPY_ULONGLONG = 10,
+    NUMKONG_NPY_FLOAT = 11,
+    NUMKONG_NPY_DOUBLE = 12,
+    NUMKONG_NPY_LONGDOUBLE = 13,
+    NUMKONG_NPY_CFLOAT = 14,
+    NUMKONG_NPY_CDOUBLE = 15,
+    NUMKONG_NPY_CLONGDOUBLE = 16,
+    NUMKONG_NPY_OBJECT = 17,
+    NUMKONG_NPY_STRING = 18,
+    NUMKONG_NPY_UNICODE = 19,
+    NUMKONG_NPY_VOID = 20,
+    NUMKONG_NPY_NTYPES_ABI_COMPATIBLE = 21,
+    NUMKONG_NPY_USERDEF = 256,
+    NUMKONG_NPY_NOTYPE = -1,
+    NUMKONG_NPY_SAFE_CASTING = 2,
+    NUMKONG_NPY_NSORTS = 3,
 };
 
 /**
@@ -61,7 +61,7 @@ enum {
  *  Omitting this shifts every subsequent field by 168 bytes on 64-bit, causing memory corruption.
  */
 typedef struct {
-    void (*cast[NK_NPY_NTYPES_ABI_COMPATIBLE])(void *, void *, npy_intp, void *, void *);
+    void (*cast[NUMKONG_NPY_NTYPES_ABI_COMPATIBLE])(void *, void *, npy_intp, void *, void *);
     PyObject *(*getitem)(void *, void *);
     int (*setitem)(PyObject *, void *, void *);
     void (*copyswapn)(void *, npy_intp, void *, npy_intp, npy_intp, int, void *);
@@ -74,8 +74,8 @@ typedef struct {
     int (*nonzero)(void *, void *);
     int (*fill)(void *, npy_intp, void *);
     int (*fillwithscalar)(void *, npy_intp, void *, void *);
-    int (*sort[NK_NPY_NSORTS])(void *, npy_intp, void *);
-    int (*argsort[NK_NPY_NSORTS])(void *, npy_intp *, npy_intp, void *);
+    int (*sort[NUMKONG_NPY_NSORTS])(void *, npy_intp, void *);
+    int (*argsort[NUMKONG_NPY_NSORTS])(void *, npy_intp *, npy_intp, void *);
     PyObject *castdict;
     void *scalarkind;
     int **cancastscalarkindto;
@@ -132,10 +132,10 @@ typedef int (*nk_RegisterCastFunc_t)(nk_PyArray_Descr *descr, int totype,
 typedef int (*nk_RegisterCanCast_t)(nk_PyArray_Descr *descr, int totype, int scalar);
 
 enum {
-    NK_NPY_API_DescrFromType = 45,
-    NK_NPY_API_RegisterDataType = 192,
-    NK_NPY_API_RegisterCastFunc = 193,
-    NK_NPY_API_RegisterCanCast = 194,
+    NUMKONG_NPY_API_DescrFromType = 45,
+    NUMKONG_NPY_API_RegisterDataType = 192,
+    NUMKONG_NPY_API_RegisterCastFunc = 193,
+    NUMKONG_NPY_API_RegisterCanCast = 194,
 };
 
 static void **nk_numpy_api = NULL;
@@ -166,17 +166,17 @@ static int nk_load_numpy_api(void) {
 }
 
 static inline nk_PyArray_Descr *nk_descr_from_type(int typenum) {
-    return ((nk_DescrFromType_t)nk_numpy_api[NK_NPY_API_DescrFromType])(typenum);
+    return ((nk_DescrFromType_t)nk_numpy_api[NUMKONG_NPY_API_DescrFromType])(typenum);
 }
 static inline int nk_register_data_type(nk_PyArray_DescrProto *descr) {
-    return ((nk_RegisterDataType_t)nk_numpy_api[NK_NPY_API_RegisterDataType])(descr);
+    return ((nk_RegisterDataType_t)nk_numpy_api[NUMKONG_NPY_API_RegisterDataType])(descr);
 }
 static inline int nk_register_cast_func(nk_PyArray_Descr *descr, int totype,
                                         void (*castfunc)(void *, void *, npy_intp, void *, void *)) {
-    return ((nk_RegisterCastFunc_t)nk_numpy_api[NK_NPY_API_RegisterCastFunc])(descr, totype, castfunc);
+    return ((nk_RegisterCastFunc_t)nk_numpy_api[NUMKONG_NPY_API_RegisterCastFunc])(descr, totype, castfunc);
 }
 static inline int nk_register_can_cast(nk_PyArray_Descr *descr, int totype, int scalar) {
-    return ((nk_RegisterCanCast_t)nk_numpy_api[NK_NPY_API_RegisterCanCast])(descr, totype, scalar);
+    return ((nk_RegisterCanCast_t)nk_numpy_api[NUMKONG_NPY_API_RegisterCanCast])(descr, totype, scalar);
 }
 
 /** DType conversion ops — one per custom dtype. */
@@ -335,7 +335,7 @@ static void nk_init_proto(nk_PyArray_DescrProto *proto, nk_PyArray_ArrFuncs *af,
                           char type_char, int elsize) {
     memset(proto, 0, sizeof(nk_PyArray_DescrProto));
 
-    nk_PyArray_Descr *f32_descr = nk_descr_from_type(NK_NPY_FLOAT);
+    nk_PyArray_Descr *f32_descr = nk_descr_from_type(NUMKONG_NPY_FLOAT);
     if (f32_descr) Py_SET_TYPE((PyObject *)proto, Py_TYPE((PyObject *)f32_descr));
 
     Py_SET_REFCNT((PyObject *)proto, 1);
@@ -360,14 +360,14 @@ static int nk_register_casts(nk_PyArray_DescrProto *proto,                      
                              void (*cast_from_f64)(void *, void *, npy_intp, void *, void *)) {
     nk_PyArray_Descr *descr2x = nk_descr_from_type(proto->type_num);
     if (!descr2x) return -1;
-    if (nk_register_cast_func(descr2x, NK_NPY_FLOAT, cast_to_f32) < 0) return -1;
-    if (nk_register_cast_func(descr2x, NK_NPY_DOUBLE, cast_to_f64) < 0) return -1;
-    nk_PyArray_Descr *f32d = nk_descr_from_type(NK_NPY_FLOAT);
+    if (nk_register_cast_func(descr2x, NUMKONG_NPY_FLOAT, cast_to_f32) < 0) return -1;
+    if (nk_register_cast_func(descr2x, NUMKONG_NPY_DOUBLE, cast_to_f64) < 0) return -1;
+    nk_PyArray_Descr *f32d = nk_descr_from_type(NUMKONG_NPY_FLOAT);
     if (f32d && nk_register_cast_func(f32d, proto->type_num, cast_from_f32) < 0) return -1;
-    nk_PyArray_Descr *f64d = nk_descr_from_type(NK_NPY_DOUBLE);
+    nk_PyArray_Descr *f64d = nk_descr_from_type(NUMKONG_NPY_DOUBLE);
     if (f64d && nk_register_cast_func(f64d, proto->type_num, cast_from_f64) < 0) return -1;
-    if (nk_register_can_cast(descr2x, NK_NPY_FLOAT, NK_NPY_SAFE_CASTING) < 0) return -1;
-    if (nk_register_can_cast(descr2x, NK_NPY_DOUBLE, NK_NPY_SAFE_CASTING) < 0) return -1;
+    if (nk_register_can_cast(descr2x, NUMKONG_NPY_FLOAT, NUMKONG_NPY_SAFE_CASTING) < 0) return -1;
+    if (nk_register_can_cast(descr2x, NUMKONG_NPY_DOUBLE, NUMKONG_NPY_SAFE_CASTING) < 0) return -1;
     return 0;
 }
 

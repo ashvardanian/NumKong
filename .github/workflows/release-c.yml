@@ -55,9 +55,9 @@ jobs:
             -DCMAKE_SHARED_LINKER_FLAGS="-fuse-ld=lld-20" \
             -DCMAKE_SYSTEM_NAME=Linux \
             -DCMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }} \
-            -DNK_BUILD_SHARED=ON \
-            -DNK_BUILD_TEST=OFF \
-            -DNK_BUILD_BENCH=OFF
+            -DNUMKONG_BUILD_SHARED=ON \
+            -DNUMKONG_BUILD_TEST=OFF \
+            -DNUMKONG_BUILD_BENCH=OFF
           cmake --build build_release --config Release
           cp build_release/libnumkong.so \
             "numkong_linux_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.so"
@@ -115,9 +115,9 @@ jobs:
         run: |
           cmake -A ${{ matrix.cmake_arch }} `
             -DCMAKE_BUILD_TYPE=Release `
-            -DNK_BUILD_SHARED=ON `
-            -DNK_BUILD_TEST=OFF `
-            -DNK_BUILD_BENCH=OFF `
+            -DNUMKONG_BUILD_SHARED=ON `
+            -DNUMKONG_BUILD_TEST=OFF `
+            -DNUMKONG_BUILD_BENCH=OFF `
             -B build_release
           cmake --build build_release --config Release
       - name: Package Archive
@@ -153,9 +153,9 @@ jobs:
           cmake -B build_release \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }} \
-            -DNK_BUILD_SHARED=ON \
-            -DNK_BUILD_TEST=OFF \
-            -DNK_BUILD_BENCH=OFF
+            -DNUMKONG_BUILD_SHARED=ON \
+            -DNUMKONG_BUILD_TEST=OFF \
+            -DNUMKONG_BUILD_BENCH=OFF
           cmake --build build_release --config Release
           cp build_release/libnumkong.dylib \
             "numkong_macos_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.dylib"
@@ -193,9 +193,9 @@ jobs:
             -DCMAKE_ANDROID_STL_TYPE=c++_static \
             -DANDROID_PLATFORM=28 \
             -DANDROID_ABI=${{ matrix.abi }} \
-            -DNK_BUILD_SHARED=ON \
-            -DNK_BUILD_TEST=OFF \
-            -DNK_BUILD_BENCH=OFF
+            -DNUMKONG_BUILD_SHARED=ON \
+            -DNUMKONG_BUILD_TEST=OFF \
+            -DNUMKONG_BUILD_BENCH=OFF
           cmake --build build_android --config Release
       - name: Package Archive
         run: |
@@ -244,9 +244,9 @@ jobs:
           source ~/emsdk/emsdk_env.sh
           cmake -B build_wasm \
             -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-${{ matrix.width }}-emscripten.cmake \
-            -DNK_WASM_SIMD=${{ matrix.simd }} \
+            -DNUMKONG_WASM_SIMD=${{ matrix.simd }} \
             -DCMAKE_BUILD_TYPE=Release \
-            -DNK_BUILD_SHARED=ON
+            -DNUMKONG_BUILD_SHARED=ON
           cmake --build build_wasm --config Release
       # The wasm64 linker flags can produce a module that links but fails to instantiate.
       - name: Smoke Test WASM64 Module
@@ -361,9 +361,9 @@ jobs:
             -DCMAKE_C_COMPILER_TARGET=${{ matrix.processor }}-unknown-freebsd${{ env.FREEBSD_RELEASE }} \
             -DCMAKE_CXX_COMPILER_TARGET=${{ matrix.processor }}-unknown-freebsd${{ env.FREEBSD_RELEASE }} \
             -DCMAKE_SHARED_LINKER_FLAGS="-fuse-ld=lld-20" \
-            -DNK_BUILD_SHARED=ON \
-            -DNK_BUILD_TEST=OFF \
-            -DNK_BUILD_BENCH=OFF
+            -DNUMKONG_BUILD_SHARED=ON \
+            -DNUMKONG_BUILD_TEST=OFF \
+            -DNUMKONG_BUILD_BENCH=OFF
           cmake --build build_freebsd --config Release
           cp build_freebsd/libnumkong.so \
             "numkong_freebsd_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.so"
@@ -424,9 +424,9 @@ jobs:
             -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} \
             -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
             -DCMAKE_BUILD_TYPE=Release \
-            -DNK_BUILD_SHARED=ON \
-            -DNK_BUILD_TEST=OFF \
-            -DNK_BUILD_BENCH=OFF
+            -DNUMKONG_BUILD_SHARED=ON \
+            -DNUMKONG_BUILD_TEST=OFF \
+            -DNUMKONG_BUILD_BENCH=OFF
           cmake --build build_release --config Release
           cp build_release/libnumkong.so \
             "numkong_linux_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.so"
@@ -462,9 +462,9 @@ jobs:
             -DLLVM_ROOT=/usr/lib/llvm-23 \
             -DRISCV_MARCH=rv64gcv_zvfh_zvfbfwma_zvbb \
             -DCMAKE_BUILD_TYPE=Release \
-            -DNK_BUILD_SHARED=ON \
-            -DNK_BUILD_TEST=OFF \
-            -DNK_BUILD_BENCH=OFF
+            -DNUMKONG_BUILD_SHARED=ON \
+            -DNUMKONG_BUILD_TEST=OFF \
+            -DNUMKONG_BUILD_BENCH=OFF
           cmake --build build_riscv --config Release
           cp build_riscv/libnumkong.so \
             "numkong_linux_riscv64_${{ steps.set_version.outputs.version }}.so"

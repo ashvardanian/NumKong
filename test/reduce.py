@@ -29,8 +29,8 @@ except Exception:
     numpy_available = False
 
 from base import (
-    NK_ATOL,
-    NK_RTOL,
+    NUMKONG_ATOL,
+    NUMKONG_RTOL,
     assert_allclose,
     create_stats,
     dense_dimensions,
@@ -286,7 +286,7 @@ def test_module_level_reductions(ndim: int, dtype: str, capability: str, metric:
     if metric in ("argmin", "argmax"):
         assert result == accurate
     else:
-        assert_allclose(result, accurate, atol=NK_ATOL, rtol=NK_RTOL)
+        assert_allclose(result, accurate, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")

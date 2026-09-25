@@ -10,11 +10,11 @@
  *  correction. 4x4 register tiling: 4 queries × 4 documents = 16 int32x4_t accumulators per depth
  *  loop. Depth steps at 16 bytes, the 128-bit NEON width of 16 i8 lanes.
  */
-#ifndef NK_MAXSIM_NEONSDOT_H
-#define NK_MAXSIM_NEONSDOT_H
+#ifndef NUMKONG_MAXSIM_NEONSDOT_H
+#define NUMKONG_MAXSIM_NEONSDOT_H
 
-#if NK_TARGET_ARM64_
-#if NK_TARGET_NEONSDOT
+#if NUMKONG_ARCH_ARM64_
+#if NUMKONG_TARGET_NEONSDOT
 
 #include "numkong/types.h"
 #include "numkong/maxsim/serial.h" // `nk_maxsim_packed_header_t`
@@ -33,31 +33,34 @@ extern "C" {
 #pragma GCC target("+dotprod")
 #endif
 
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_neonsdot(nk_size_t vector_count, nk_size_t depth) {
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_neonsdot(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_bf16_t), 16);
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_shape_bf16_neonsdot(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_bf16_neonsdot(void const *packed, nk_size_t *vectors,
+                                                               nk_size_t *depth) {
     nk_maxsim_packed_shape_(packed, vectors, depth);
 }
 
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_neonsdot(nk_size_t vector_count, nk_size_t depth) {
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_neonsdot(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f32_t), 16);
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_shape_f32_neonsdot(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f32_neonsdot(void const *packed, nk_size_t *vectors,
+                                                              nk_size_t *depth) {
     nk_maxsim_packed_shape_(packed, vectors, depth);
 }
 
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_neonsdot(nk_size_t vector_count, nk_size_t depth) {
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_neonsdot(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f16_t), 16);
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_shape_f16_neonsdot(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f16_neonsdot(void const *packed, nk_size_t *vectors,
+                                                              nk_size_t *depth) {
     nk_maxsim_packed_shape_(packed, vectors, depth);
 }
 
-NK_API_COMPTIME void nk_maxsim_pack_bf16_neonsdot( //
+NUMKONG_API_COMPTIME void nk_maxsim_pack_bf16_neonsdot( //
     nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const element_bytes = sizeof(nk_bf16_t);
@@ -83,7 +86,7 @@ NK_API_COMPTIME void nk_maxsim_pack_bf16_neonsdot( //
     }
 }
 
-NK_API_COMPTIME void nk_maxsim_pack_f32_neonsdot( //
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f32_neonsdot( //
     nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const element_bytes = sizeof(nk_f32_t);
@@ -108,7 +111,7 @@ NK_API_COMPTIME void nk_maxsim_pack_f32_neonsdot( //
     }
 }
 
-NK_API_COMPTIME void nk_maxsim_pack_f16_neonsdot( //
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_neonsdot( //
     nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const element_bytes = sizeof(nk_f16_t);
@@ -136,14 +139,14 @@ NK_API_COMPTIME void nk_maxsim_pack_f16_neonsdot( //
 
 /** Factored coarse i8 argmax kernel for NEONSDOT. Uses vdotq_s32 (signed × signed) — no XOR bias,
  *  no metadata parameter. 4Q × 4D register tiling with 16 int32x4_t accumulators. */
-NK_HELPER_INLINE void nk_maxsim_coarse_argmax_neonsdot_(                                                  //
+NUMKONG_HELPER_INLINE void nk_maxsim_coarse_argmax_neonsdot_(                                             //
     nk_i8_t const *query_i8, nk_i8_t const *document_i8, nk_size_t query_count, nk_size_t document_count, //
     nk_size_t depth_i8_padded, nk_u32_t *best_document_indices) {
 
     // Primary path: 4-query grouping
     nk_size_t query_block_start_index = 0;
     for (; query_block_start_index + 4 <= query_count; query_block_start_index += 4) {
-        nk_i32_t running_max_i32[4] = {NK_I32_MIN, NK_I32_MIN, NK_I32_MIN, NK_I32_MIN};
+        nk_i32_t running_max_i32[4] = {NUMKONG_I32_MIN, NUMKONG_I32_MIN, NUMKONG_I32_MIN, NUMKONG_I32_MIN};
         nk_u32_t running_argmax_u32[4] = {0, 0, 0, 0};
 
         // 4Q × 4D document blocking
@@ -261,7 +264,7 @@ NK_HELPER_INLINE void nk_maxsim_coarse_argmax_neonsdot_(                        
     // Query tail: 1Q × 1D
     for (nk_size_t query_index = query_block_start_index; query_index < query_count; query_index++) {
         nk_i8_t const *query_i8_row = query_i8 + query_index * depth_i8_padded;
-        nk_i32_t running_max_i32 = NK_I32_MIN;
+        nk_i32_t running_max_i32 = NUMKONG_I32_MIN;
         nk_u32_t running_argmax_u32 = 0;
 
         for (nk_size_t document_index = 0; document_index < document_count; document_index++) {
@@ -285,7 +288,7 @@ NK_HELPER_INLINE void nk_maxsim_coarse_argmax_neonsdot_(                        
     }
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_bf16_neonsdot( //
+NUMKONG_API_COMPTIME void nk_maxsim_packed_bf16_neonsdot( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {
 
@@ -319,7 +322,7 @@ NK_API_COMPTIME void nk_maxsim_packed_bf16_neonsdot( //
     *result = (nk_f32_t)total_angular_distance;
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_f32_neonsdot( //
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f32_neonsdot( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f64_t *result) {
 
@@ -354,7 +357,7 @@ NK_API_COMPTIME void nk_maxsim_packed_f32_neonsdot( //
     *result = total_angular_distance;
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_f16_neonsdot( //
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f16_neonsdot( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {
 
@@ -398,6 +401,6 @@ NK_API_COMPTIME void nk_maxsim_packed_f16_neonsdot( //
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_NEONSDOT
-#endif // NK_TARGET_ARM64_
-#endif // NK_MAXSIM_NEONSDOT_H
+#endif // NUMKONG_TARGET_NEONSDOT
+#endif // NUMKONG_ARCH_ARM64_
+#endif // NUMKONG_MAXSIM_NEONSDOT_H

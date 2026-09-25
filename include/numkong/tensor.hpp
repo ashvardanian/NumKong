@@ -25,8 +25,8 @@
  *  - Conversion to vector_view/vector_span for rank-1 tensors
  */
 
-#ifndef NK_TENSOR_HPP
-#define NK_TENSOR_HPP
+#ifndef NUMKONG_TENSOR_HPP
+#define NUMKONG_TENSOR_HPP
 
 #include <array>   // `std::array`
 #include <cstdio>  // `std::fprintf`, `stderr`
@@ -41,9 +41,9 @@
 /** True when the compiler supports C++23 P2128 multi-arg `operator[]`. Under this gate we expose
  *  `t[a, b, c]` as sugar that delegates to `operator()`. */
 #if defined(__cpp_multidimensional_subscript) && __cpp_multidimensional_subscript >= 202110L
-#define NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_ 1
+#define NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_ 1
 #else
-#define NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_ 0
+#define NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_ 0
 #endif
 
 namespace ashvardanian::numkong {
@@ -377,7 +377,7 @@ struct tensor_view {
         return tensor_lookup_resolved_(*this, std::span<std::size_t const, sizeof...(index_types_)>(coords));
     }
 
-#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+#if NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
 
     /** C++23 sugar: `t[i, j, k]` scalar lookup, delegates to `operator()`. */
     template <std::integral... index_types_>
@@ -397,7 +397,7 @@ struct tensor_view {
         return tensor_slice_suffix_(*this, first, second, rest...);
     }
 
-#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+#if NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
 
     /** C++23 sugar: `t[i, nk::slice]` slicing, delegates to `operator()`. */
     template <typename first_type_, typename second_type_, typename... rest_types_>
@@ -655,7 +655,7 @@ struct tensor_span {
         return tensor_lookup_resolved_(*this, std::span<std::size_t const, sizeof...(index_types_)>(coords));
     }
 
-#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+#if NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
 
     /** C++23 sugar: multi-arg `[]` scalar lookup, delegates to `operator()`. */
     template <std::integral... index_types_>
@@ -675,7 +675,7 @@ struct tensor_span {
         return tensor_slice_suffix_(*this, first, second, rest...);
     }
 
-#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+#if NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
 
     /** C++23 sugar: multi-arg `[]` slicing, delegates to `operator()`. */
     template <typename first_type_, typename second_type_, typename... rest_types_>
@@ -1794,7 +1794,7 @@ struct tensor {
         return view()(idxs...);
     }
 
-#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+#if NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
 
     /** C++23 sugar: multi-arg `[]` scalar lookup, delegates to `operator()`. */
     template <std::integral... index_types_>
@@ -1827,7 +1827,7 @@ struct tensor {
         return tensor_slice_suffix_(view(), first, second, rest...);
     }
 
-#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+#if NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
 
     /** C++23 sugar: multi-arg `[]` slicing, delegates to `operator()`. */
     template <typename first_type_, typename second_type_, typename... rest_types_>
@@ -2764,4 +2764,4 @@ bool tensor_span<value_type_, max_rank_>::copy_from(tensor_view<value_type_, max
 
 } // namespace ashvardanian::numkong
 
-#endif // NK_TENSOR_HPP
+#endif // NUMKONG_TENSOR_HPP

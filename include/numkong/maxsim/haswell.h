@@ -14,11 +14,11 @@
  *  4x4 register tiling: 4 queries × 4 documents = 16 YMM accumulators per depth loop. Depth steps
  *  at 32 bytes, the YMM width in bytes.
  */
-#ifndef NK_MAXSIM_HASWELL_H
-#define NK_MAXSIM_HASWELL_H
+#ifndef NUMKONG_MAXSIM_HASWELL_H
+#define NUMKONG_MAXSIM_HASWELL_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_HASWELL
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_HASWELL
 
 #include "numkong/types.h"
 #include "numkong/maxsim/serial.h"   // `nk_maxsim_packed_header_t`
@@ -37,31 +37,32 @@ extern "C" {
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_haswell(nk_size_t vector_count, nk_size_t depth) {
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_haswell(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_bf16_t), 32);
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_shape_bf16_haswell(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_bf16_haswell(void const *packed, nk_size_t *vectors,
+                                                              nk_size_t *depth) {
     nk_maxsim_packed_shape_(packed, vectors, depth);
 }
 
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_haswell(nk_size_t vector_count, nk_size_t depth) {
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_haswell(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f32_t), 32);
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_shape_f32_haswell(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f32_haswell(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
     nk_maxsim_packed_shape_(packed, vectors, depth);
 }
 
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_haswell(nk_size_t vector_count, nk_size_t depth) {
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_haswell(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f16_t), 32);
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_shape_f16_haswell(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f16_haswell(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
     nk_maxsim_packed_shape_(packed, vectors, depth);
 }
 
-NK_API_COMPTIME void nk_maxsim_pack_bf16_haswell( //
+NUMKONG_API_COMPTIME void nk_maxsim_pack_bf16_haswell( //
     nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const element_bytes = sizeof(nk_bf16_t);
@@ -87,7 +88,7 @@ NK_API_COMPTIME void nk_maxsim_pack_bf16_haswell( //
     }
 }
 
-NK_API_COMPTIME void nk_maxsim_pack_f32_haswell( //
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f32_haswell( //
     nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const element_bytes = sizeof(nk_f32_t);
@@ -112,7 +113,7 @@ NK_API_COMPTIME void nk_maxsim_pack_f32_haswell( //
     }
 }
 
-NK_API_COMPTIME void nk_maxsim_pack_f16_haswell( //
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_haswell( //
     nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const element_bytes = sizeof(nk_f16_t);
@@ -139,8 +140,8 @@ NK_API_COMPTIME void nk_maxsim_pack_f16_haswell( //
 }
 
 /** Reduces 4 YMM i32x8 accumulators to a single __m128i with 4 horizontal sums. */
-NK_HELPER_INLINE __m128i nk_maxsim_reduce_i32x8x4_haswell_(   //
-    __m256i accumulator_a_i32x8, __m256i accumulator_b_i32x8, //
+NUMKONG_HELPER_INLINE __m128i nk_maxsim_reduce_i32x8x4_haswell_( //
+    __m256i accumulator_a_i32x8, __m256i accumulator_b_i32x8,    //
     __m256i accumulator_c_i32x8, __m256i accumulator_d_i32x8) {
     // 8 -> 4 (extract high 128-bit half and add to low half)
     __m128i sum_a_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(accumulator_a_i32x8),
@@ -166,10 +167,10 @@ NK_HELPER_INLINE __m128i nk_maxsim_reduce_i32x8x4_haswell_(   //
 
 /** Factored coarse i8 argmax kernel for Haswell. Uses AVX2 VPMADDUBSW (u8 × i8 → i16) + VPMADDWD
  *  (i16×1 → i32) with XOR-0x80 bias. 4Q × 4D register tiling with 16 YMM accumulators. */
-NK_HELPER_INLINE void nk_maxsim_coarse_argmax_haswell_(   //
-    nk_i8_t const *query_i8, nk_i8_t const *document_i8,  //
-    nk_maxsim_vector_metadata_t const *document_metadata, //
-    nk_size_t query_count, nk_size_t document_count,      //
+NUMKONG_HELPER_INLINE void nk_maxsim_coarse_argmax_haswell_( //
+    nk_i8_t const *query_i8, nk_i8_t const *document_i8,     //
+    nk_maxsim_vector_metadata_t const *document_metadata,    //
+    nk_size_t query_count, nk_size_t document_count,         //
     nk_size_t depth_i8_padded, nk_u32_t *best_document_indices) {
 
     __m256i const xor_mask_u8x32 = _mm256_set1_epi8((char)0x80);
@@ -178,7 +179,7 @@ NK_HELPER_INLINE void nk_maxsim_coarse_argmax_haswell_(   //
     // Primary path: 4-query grouping
     nk_size_t query_block_start_index = 0;
     for (; query_block_start_index + 4 <= query_count; query_block_start_index += 4) {
-        __m128i running_max_i32x4 = _mm_set1_epi32(NK_I32_MIN);
+        __m128i running_max_i32x4 = _mm_set1_epi32(NUMKONG_I32_MIN);
         __m128i running_argmax_i32x4 = _mm_setzero_si128();
 
         // 4Q × 4D document blocking
@@ -411,7 +412,7 @@ NK_HELPER_INLINE void nk_maxsim_coarse_argmax_haswell_(   //
     // Query tail: 1Q × 1D
     for (nk_size_t query_index = query_block_start_index; query_index < query_count; query_index++) {
         nk_i8_t const *query_i8_row = query_i8 + query_index * depth_i8_padded;
-        nk_i32_t running_max_i32 = NK_I32_MIN;
+        nk_i32_t running_max_i32 = NUMKONG_I32_MIN;
         nk_u32_t running_argmax_u32 = 0;
 
         for (nk_size_t document_index = 0; document_index < document_count; document_index++) {
@@ -445,7 +446,7 @@ NK_HELPER_INLINE void nk_maxsim_coarse_argmax_haswell_(   //
     }
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_bf16_haswell( //
+NUMKONG_API_COMPTIME void nk_maxsim_packed_bf16_haswell( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {
 
@@ -479,7 +480,7 @@ NK_API_COMPTIME void nk_maxsim_packed_bf16_haswell( //
     *result = (nk_f32_t)total_angular_distance;
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_f32_haswell( //
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f32_haswell( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f64_t *result) {
 
@@ -514,7 +515,7 @@ NK_API_COMPTIME void nk_maxsim_packed_f32_haswell( //
     *result = total_angular_distance;
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_f16_haswell( //
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f16_haswell( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {
 
@@ -558,6 +559,6 @@ NK_API_COMPTIME void nk_maxsim_packed_f16_haswell( //
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_HASWELL
-#endif // NK_TARGET_X8664_
-#endif // NK_MAXSIM_HASWELL_H
+#endif // NUMKONG_TARGET_HASWELL
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_MAXSIM_HASWELL_H

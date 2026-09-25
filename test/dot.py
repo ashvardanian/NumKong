@@ -29,8 +29,8 @@ except Exception:
 
 from base import (
     NATIVE_COMPUTE_DTYPE,
-    NK_ATOL,
-    NK_RTOL,
+    NUMKONG_ATOL,
+    NUMKONG_RTOL,
     LazyFormat,
     assert_allclose,
     collect_errors,
@@ -179,12 +179,12 @@ def test_dot_vdot_complex_explicit_dtype(ndim: int, capability: str, nk_seed: in
     expected = np.dot(a_real_parts.view(np.complex64), b_real_parts.view(np.complex64))
     result = nk.dot(a_real_parts, b_real_parts, "complex64")
 
-    assert_allclose(result, expected, atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
     expected = np.vdot(a_real_parts.view(np.complex64), b_real_parts.view(np.complex64))
     result = nk.vdot(a_real_parts, b_real_parts, "complex64")
 
-    assert_allclose(result, expected, atol=NK_ATOL, rtol=NK_RTOL)
+    assert_allclose(result, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
 
 @pytest.mark.skip(reason="Lacks overflow protection: https://github.com/ashvardanian/NumKong/issues/206")
@@ -228,7 +228,7 @@ def test_inner_known(ndim: int, dtype: str, capability: str):
     keep_one_capability(capability)
     ones_vector = nk.ones((ndim,), dtype=dtype)
     result = nk.inner(ones_vector, ones_vector)
-    assert abs(result - ndim) < NK_ATOL + NK_RTOL * ndim
+    assert abs(result - ndim) < NUMKONG_ATOL + NUMKONG_RTOL * ndim
 
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
@@ -240,7 +240,7 @@ def test_inner_orthogonal(ndim: int, dtype: str, capability: str):
     ones_vector = nk.ones((ndim,), dtype=dtype)
     zeros_vector = nk.zeros((ndim,), dtype=dtype)
     result = nk.inner(ones_vector, zeros_vector)
-    assert abs(result) < NK_ATOL
+    assert abs(result) < NUMKONG_ATOL
 
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
@@ -253,7 +253,7 @@ def test_inner_symmetry(ndim: int, dtype: str, capability: str):
     b = make_random_buffer(ndim, dtype)
     ab = nk.inner(a, b)
     ba = nk.inner(b, a)
-    assert abs(ab - ba) < NK_ATOL, f"inner(a,b)={ab} != inner(b,a)={ba}"
+    assert abs(ab - ba) < NUMKONG_ATOL, f"inner(a,b)={ab} != inner(b,a)={ba}"
 
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
@@ -267,7 +267,7 @@ def test_inner_cauchy_schwarz(ndim: int, dtype: str, capability: str):
     ab = nk.inner(a, b)
     aa = nk.inner(a, a)
     bb = nk.inner(b, b)
-    assert ab * ab <= aa * bb + NK_ATOL, (
+    assert ab * ab <= aa * bb + NUMKONG_ATOL, (
         f"Cauchy-Schwarz violated: |inner(a,b)|²={ab * ab} > inner(a,a)*inner(b,b)={aa * bb}"
     )
 

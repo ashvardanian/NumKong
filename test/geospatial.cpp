@@ -5,7 +5,7 @@
  *  @brief Haversine and Vincenty distance tests.
  */
 
-#include "test.hpp"
+#include "harness.hpp"
 #include "numkong/geospatial.hpp" // `nk::haversine`
 
 using namespace ashvardanian::numkong::test;
@@ -107,7 +107,7 @@ void test_geospatial() {
     check("vincenty_f64_serial", test_vincenty<f64_t>, nk_vincenty_f64_serial);
     check("vincenty_f32_serial", test_vincenty<f32_t>, nk_vincenty_f32_serial);
 
-#if NK_RUNTIME_DISPATCH
+#if NUMKONG_RUNTIME_DISPATCH
     check.section("Geospatial Functions Runtime Dispatch", nk_cap_serial_k);
     check("haversine_f64", test_haversine<f64_t>, nk_haversine_f64);
     check("haversine_f32", test_haversine<f32_t>, nk_haversine_f32);
@@ -115,43 +115,43 @@ void test_geospatial() {
     check("vincenty_f32", test_vincenty<f32_t>, nk_vincenty_f32);
 #endif
 
-#if NK_TARGET_NEON
+#if NUMKONG_TARGET_NEON
     check.section("Geospatial Functions NEON", nk_cap_neon_k);
     check("haversine_f64_neon", test_haversine<f64_t>, nk_haversine_f64_neon);
     check("haversine_f32_neon", test_haversine<f32_t>, nk_haversine_f32_neon);
     check("vincenty_f64_neon", test_vincenty<f64_t>, nk_vincenty_f64_neon);
     check("vincenty_f32_neon", test_vincenty<f32_t>, nk_vincenty_f32_neon);
-#endif // NK_TARGET_NEON
+#endif // NUMKONG_TARGET_NEON
 
-#if NK_TARGET_HASWELL
+#if NUMKONG_TARGET_HASWELL
     check.section("Geospatial Functions Haswell", nk_cap_haswell_k);
     check("haversine_f64_haswell", test_haversine<f64_t>, nk_haversine_f64_haswell);
     check("haversine_f32_haswell", test_haversine<f32_t>, nk_haversine_f32_haswell);
     check("vincenty_f64_haswell", test_vincenty<f64_t>, nk_vincenty_f64_haswell);
     check("vincenty_f32_haswell", test_vincenty<f32_t>, nk_vincenty_f32_haswell);
-#endif // NK_TARGET_HASWELL
+#endif // NUMKONG_TARGET_HASWELL
 
-#if NK_TARGET_SKYLAKE
+#if NUMKONG_TARGET_SKYLAKE
     check.section("Geospatial Functions Skylake", nk_cap_skylake_k);
     check("haversine_f64_skylake", test_haversine<f64_t>, nk_haversine_f64_skylake);
     check("haversine_f32_skylake", test_haversine<f32_t>, nk_haversine_f32_skylake);
     check("vincenty_f64_skylake", test_vincenty<f64_t>, nk_vincenty_f64_skylake);
     check("vincenty_f32_skylake", test_vincenty<f32_t>, nk_vincenty_f32_skylake);
-#endif // NK_TARGET_SKYLAKE
+#endif // NUMKONG_TARGET_SKYLAKE
 
-#if NK_TARGET_RVV
+#if NUMKONG_TARGET_RVV
     check.section("Geospatial Functions RVV", nk_cap_rvv_k);
     check("haversine_f64_rvv", test_haversine<f64_t>, nk_haversine_f64_rvv);
     check("haversine_f32_rvv", test_haversine<f32_t>, nk_haversine_f32_rvv);
     check("vincenty_f64_rvv", test_vincenty<f64_t>, nk_vincenty_f64_rvv);
     check("vincenty_f32_rvv", test_vincenty<f32_t>, nk_vincenty_f32_rvv);
-#endif // NK_TARGET_RVV
+#endif // NUMKONG_TARGET_RVV
 
-#if NK_TARGET_V128RELAXED
+#if NUMKONG_TARGET_V128RELAXED
     check.section("Geospatial Functions V128 Relaxed", nk_cap_v128relaxed_k);
     check("haversine_f64_v128relaxed", test_haversine<f64_t>, nk_haversine_f64_v128relaxed);
     check("haversine_f32_v128relaxed", test_haversine<f32_t>, nk_haversine_f32_v128relaxed);
     check("vincenty_f64_v128relaxed", test_vincenty<f64_t>, nk_vincenty_f64_v128relaxed);
     check("vincenty_f32_v128relaxed", test_vincenty<f32_t>, nk_vincenty_f32_v128relaxed);
-#endif // NK_TARGET_V128RELAXED
+#endif // NUMKONG_TARGET_V128RELAXED
 }

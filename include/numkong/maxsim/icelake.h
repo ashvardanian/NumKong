@@ -21,11 +21,11 @@
  *  _mm512_dpbusd_epi32  VPDPBUSD     5cy @ p0  4cy @ p01
  *  @endverbatim
  */
-#ifndef NK_MAXSIM_ICELAKE_H
-#define NK_MAXSIM_ICELAKE_H
+#ifndef NUMKONG_MAXSIM_ICELAKE_H
+#define NUMKONG_MAXSIM_ICELAKE_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_ICELAKE
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_ICELAKE
 
 #include "numkong/types.h"
 #include "numkong/maxsim/serial.h"   // `nk_maxsim_packed_header_t`
@@ -49,15 +49,15 @@ extern "C" {
 
 #pragma region F32 Floats
 
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_icelake(nk_size_t vector_count, nk_size_t depth) {
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_icelake(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f32_t), 64);
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_shape_f32_icelake(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f32_icelake(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
     nk_maxsim_packed_shape_(packed, vectors, depth);
 }
 
-NK_API_COMPTIME void nk_maxsim_pack_f32_icelake( //
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f32_icelake( //
     nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const element_bytes = sizeof(nk_f32_t);
@@ -86,15 +86,15 @@ NK_API_COMPTIME void nk_maxsim_pack_f32_icelake( //
 
 #pragma region F16 Floats
 
-NK_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_icelake(nk_size_t vector_count, nk_size_t depth) {
+NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_icelake(nk_size_t vector_count, nk_size_t depth) {
     return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f16_t), 64);
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_shape_f16_icelake(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f16_icelake(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
     nk_maxsim_packed_shape_(packed, vectors, depth);
 }
 
-NK_API_COMPTIME void nk_maxsim_pack_f16_icelake( //
+NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_icelake( //
     nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
 
     nk_size_t const element_bytes = sizeof(nk_f16_t);
@@ -125,8 +125,8 @@ NK_API_COMPTIME void nk_maxsim_pack_f16_icelake( //
 #pragma region Coarse Argmax
 
 /** Reduces 4 ZMM i32x16 accumulators to a single __m128i with 4 horizontal sums. */
-NK_HELPER_INLINE __m128i nk_maxsim_reduce_i32x16x4_icelake_(    //
-    __m512i accumulator_a_i32x16, __m512i accumulator_b_i32x16, //
+NUMKONG_HELPER_INLINE __m128i nk_maxsim_reduce_i32x16x4_icelake_( //
+    __m512i accumulator_a_i32x16, __m512i accumulator_b_i32x16,   //
     __m512i accumulator_c_i32x16, __m512i accumulator_d_i32x16) {
     // 16 → 8 (extract high 256-bit half and add to low half)
     __m256i sum_a_i32x8 = _mm256_add_epi32(_mm512_castsi512_si256(accumulator_a_i32x16),
@@ -157,10 +157,10 @@ NK_HELPER_INLINE __m128i nk_maxsim_reduce_i32x16x4_icelake_(    //
 
 /** Factored coarse i8 argmax kernel for Ice Lake / Genoa. Uses AVX-512 VNNI VPDPBUSD with XOR-0x80
  *  bias and 128*sum_quantized correction. */
-NK_HELPER_INLINE void nk_maxsim_coarse_argmax_icelake_(   //
-    nk_i8_t const *query_i8, nk_i8_t const *document_i8,  //
-    nk_maxsim_vector_metadata_t const *document_metadata, //
-    nk_size_t query_count, nk_size_t document_count,      //
+NUMKONG_HELPER_INLINE void nk_maxsim_coarse_argmax_icelake_( //
+    nk_i8_t const *query_i8, nk_i8_t const *document_i8,     //
+    nk_maxsim_vector_metadata_t const *document_metadata,    //
+    nk_size_t query_count, nk_size_t document_count,         //
     nk_size_t depth_i8_padded, nk_u32_t *best_document_indices) {
 
     __m512i const xor_mask_u8x64 = _mm512_set1_epi8((char)0x80);
@@ -168,7 +168,7 @@ NK_HELPER_INLINE void nk_maxsim_coarse_argmax_icelake_(   //
     // Primary path: 4-query grouping
     nk_size_t query_block_start_index = 0;
     for (; query_block_start_index + 4 <= query_count; query_block_start_index += 4) {
-        __m128i running_max_i32x4 = _mm_set1_epi32(NK_I32_MIN);
+        __m128i running_max_i32x4 = _mm_set1_epi32(NUMKONG_I32_MIN);
         __m128i running_argmax_i32x4 = _mm_setzero_si128();
 
         // 4x4 document blocking
@@ -372,7 +372,7 @@ NK_HELPER_INLINE void nk_maxsim_coarse_argmax_icelake_(   //
     // Query tail: 1Q × 1D
     for (nk_size_t query_index = query_block_start_index; query_index < query_count; query_index++) {
         nk_i8_t const *query_i8_row = query_i8 + query_index * depth_i8_padded;
-        nk_i32_t running_max_i32 = NK_I32_MIN;
+        nk_i32_t running_max_i32 = NUMKONG_I32_MIN;
         nk_u32_t running_argmax_u32 = 0;
 
         for (nk_size_t document_index = 0; document_index < document_count; document_index++) {
@@ -403,7 +403,7 @@ NK_HELPER_INLINE void nk_maxsim_coarse_argmax_icelake_(   //
 
 #pragma region Compute Functions
 
-NK_API_COMPTIME void nk_maxsim_packed_f32_icelake( //
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f32_icelake( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f64_t *result) {
 
@@ -438,7 +438,7 @@ NK_API_COMPTIME void nk_maxsim_packed_f32_icelake( //
     *result = total_angular_distance;
 }
 
-NK_API_COMPTIME void nk_maxsim_packed_f16_icelake( //
+NUMKONG_API_COMPTIME void nk_maxsim_packed_f16_icelake( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result) {
 
@@ -484,6 +484,6 @@ NK_API_COMPTIME void nk_maxsim_packed_f16_icelake( //
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_ICELAKE
-#endif // NK_TARGET_X8664_
-#endif // NK_MAXSIM_ICELAKE_H
+#endif // NUMKONG_TARGET_ICELAKE
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_MAXSIM_ICELAKE_H

@@ -9,7 +9,7 @@
 #include <complex>
 #include <limits>
 
-#include "test.hpp"
+#include "harness.hpp"
 
 #include "numkong/cast.hpp"
 #include "numkong/dot.hpp"
@@ -21,16 +21,16 @@
 #if __has_include(<format>)
 #include <format>
 #if defined(__cpp_lib_format) && __cpp_lib_format >= 202110L
-#define NK_TEST_FORMAT_ 1
+#define NUMKONG_TEST_FORMAT_ 1
 #endif
 #endif
-#ifndef NK_TEST_FORMAT_
-#define NK_TEST_FORMAT_ 0
+#ifndef NUMKONG_TEST_FORMAT_
+#define NUMKONG_TEST_FORMAT_ 0
 #endif
 
 using namespace ashvardanian::numkong::test;
 
-#if NK_TEST_FORMAT_
+#if NUMKONG_TEST_FORMAT_
 error_stats_t test_format_scalars();
 #endif
 
@@ -110,7 +110,7 @@ error_stats_t test_tensor_operator_indexing() {
     stats.expect(t[-1] == 6.0f, "negative flat tensor lookup failed");
     stats.expect((t(0, 0) == 1.0f), "exact tensor lookup failed");
     stats.expect((t(1, -1) == 6.0f), "negative exact tensor lookup failed");
-#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+#if NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
     stats.expect((t[0, 0] == 1.0f), "exact tensor lookup via operator[] failed");
     stats.expect((t[1, -1] == 6.0f), "negative exact tensor lookup via operator[] failed");
 #endif
@@ -125,7 +125,7 @@ error_stats_t test_tensor_operator_indexing() {
     stats.expect(row1[0] == 4.0f && row1[-1] == 6.0f, "row slice values mismatch");
     row1[1] = 42.0f;
     stats.expect((t(1, 1) == 42.0f), "row slice write-through failed");
-#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+#if NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
     stats.expect((t[1, 1] == 42.0f), "operator[] row slice write-through failed");
     auto row1_subscript = t[1, nk::slice];
     stats.expect(row1_subscript.extent(0) == row1.extent(0), "operator[] row slice mismatch");
@@ -136,7 +136,7 @@ error_stats_t test_tensor_operator_indexing() {
     stats.expect(cell.scalar() == 42.0f, "scalar slice value mismatch");
     cell.scalar_ref() = 24.0f;
     stats.expect((t(1, 1) == 24.0f), "scalar slice write-through failed");
-#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+#if NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
     stats.expect((t[1, 1] == 24.0f), "operator[] scalar slice write-through failed");
     auto cell_subscript = t[1, 1, nk::slice];
     stats.expect(cell_subscript.rank() == 0, "operator[] scalar slice rank mismatch");
@@ -146,7 +146,7 @@ error_stats_t test_tensor_operator_indexing() {
     auto const last_row = ct(-1, nk::slice);
     stats.expect(last_row.rank() == 1, "const row slice rank mismatch");
     stats.expect(last_row[0] == 4.0f, "const row slice mismatch");
-#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+#if NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
     auto const last_row_subscript = ct[-1, nk::slice];
     stats.expect(last_row_subscript.rank() == 1, "operator[] const row slice mismatch");
 #endif
@@ -162,7 +162,7 @@ error_stats_t test_tensor_operator_indexing() {
     stats.expect((line[3] == cube(1, 2, 3)), "line slice element mismatch");
     auto point = cube(1, 2, 3, nk::slice);
     stats.expect((point.rank() == 0 && point.scalar() == cube(1, 2, 3)), "point slice mismatch");
-#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+#if NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
     auto plane_subscript = cube[1, nk::slice];
     auto line_subscript = cube[1, 2, nk::slice];
     auto point_subscript = cube[1, 2, 3, nk::slice];
@@ -184,7 +184,7 @@ error_stats_t test_tensor_operator_indexing() {
     // combined: range + all_t + slice on a 3D tensor
     auto sub = cube(nk::range(0, 2), nk::all, nk::slice);
     stats.expect(sub.rank() == 3 && sub.extent(0) == 2 && sub.extent(1) == 3, "range+all slice mismatch");
-#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+#if NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
     auto second_column_subscript = t[nk::all, 1, nk::slice];
     auto first_two_planes_subscript = cube[nk::range(0, 2), nk::slice];
     auto sub_subscript = cube[nk::range(0, 2), nk::all, nk::slice];
@@ -198,7 +198,7 @@ error_stats_t test_tensor_operator_indexing() {
     stats.expect(row0.rank() == 1 && row0.extent(0) == 3, "row() rank/extent mismatch");
     auto row0_via_slice = t(0, nk::slice);
     stats.expect(row0[0] == row0_via_slice[0], "row() should match t(0, slice)");
-#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+#if NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
     auto row0_via_subscript = t[0, nk::slice];
     stats.expect(row0[0] == row0_via_subscript[0], "row() should match t[0, slice]");
 #endif
@@ -216,7 +216,7 @@ error_stats_t test_packed_tensor_operator_indexing() {
     stats.expect(int(t4[-1]) == 8, "packed negative flat lookup failed");
     stats.expect((int(t4(0, 3)) == 4), "packed exact lookup failed");
     stats.expect((int(t4(1, -1)) == 8), "packed negative exact lookup failed");
-#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+#if NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
     stats.expect((int(t4[0, 3]) == 4), "packed operator[] exact lookup failed");
     stats.expect((int(t4[1, -1]) == 8), "packed operator[] negative exact lookup failed");
 #endif
@@ -226,7 +226,7 @@ error_stats_t test_packed_tensor_operator_indexing() {
     stats.expect(int(second_row[0]) == 5 && int(second_row[-1]) == 8, "packed row slice values mismatch");
     second_row[1] = 14;
     stats.expect((int(t4(1, 1)) == 14), "packed row slice write-through failed");
-#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+#if NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
     auto second_row_subscript = t4[1, nk::slice];
     stats.expect(second_row_subscript.extent(0) == 4, "packed operator[] row slice rank mismatch");
     stats.expect((int(t4[1, 1]) == 14), "packed operator[] row slice write-through failed");
@@ -243,7 +243,7 @@ error_stats_t test_packed_tensor_operator_indexing() {
     stats.expect((bool(t1(0, 7))), "packed bit exact lookup failed");
     stats.expect((bool(t1(1, 3))), "packed bit second-row lookup failed");
     stats.expect(bool(t1[-1]), "packed bit negative flat lookup failed");
-#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+#if NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
     stats.expect((bool(t1[0, 7])), "packed bit operator[] exact lookup failed");
     stats.expect((bool(t1[1, 3])), "packed bit operator[] second-row lookup failed");
 #endif
@@ -252,7 +252,7 @@ error_stats_t test_packed_tensor_operator_indexing() {
     stats.expect(bits.rank() == 1 && bits.extent(0) == 8, "packed bit slice rank mismatch");
     bits[4] = true;
     stats.expect((bool(t1(1, 4))), "packed bit slice write-through failed");
-#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+#if NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
     auto bits_subscript = t1[1, nk::slice];
     stats.expect(bits_subscript.extent(0) == 8, "packed bit operator[] slice rank mismatch");
     stats.expect((bool(t1[1, 4])), "packed bit operator[] slice write-through failed");
@@ -897,7 +897,7 @@ error_stats_t test_packed_tensor_fail_closed_views() {
     stats.expect(packed.view().transpose().empty(), "packed transpose should fail closed");
     stats.expect((!packed(1, nk::slice).empty()), "packed row slice should remain supported");
     stats.expect((packed(1, 2, nk::slice).empty()), "packed scalar trailing slice should fail closed");
-#if NK_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
+#if NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
     stats.expect((!packed[1, nk::slice].empty()), "packed operator[] row slice should remain supported");
     stats.expect((packed[1, 2, nk::slice].empty()), "packed operator[] scalar trailing slice should fail closed");
 #endif
@@ -972,7 +972,7 @@ void test_vector_types() {
 
     check("vector_custom_allocator", test_custom_allocator);
 
-#if NK_TEST_FORMAT_
+#if NUMKONG_TEST_FORMAT_
     check("vector_format_scalars", test_format_scalars);
 #endif
 }
@@ -1183,7 +1183,7 @@ error_stats_t test_cast_for_types() {
     return stats;
 }
 
-#if NK_TEST_FORMAT_
+#if NUMKONG_TEST_FORMAT_
 error_stats_t test_format_scalars() {
     error_stats_t stats(comparison_family_t::exact_k);
     // Float scalar formatters
@@ -1226,7 +1226,7 @@ error_stats_t test_format_scalars() {
     stats.expect(std::format("{}", bref) == "1", "u1 sub_byte_ref format");
     return stats;
 }
-#endif // NK_TEST_FORMAT_
+#endif // NUMKONG_TEST_FORMAT_
 
 /** Typed-pointer ctors — count, initializer_list, @c std::array — with an out-of-range guard. */
 error_stats_t test_typed_pointer_ctors() {

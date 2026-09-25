@@ -7,7 +7,7 @@
 
 #include "numkong/geospatial.h"
 
-#include "bench.hpp"
+#include "harness.hpp"
 
 using namespace ashvardanian::numkong::bench;
 
@@ -71,35 +71,35 @@ void bench_geospatial() {
     constexpr nk_dtype_t f64_k = nk_f64_k;
     constexpr nk_dtype_t f32_k = nk_f32_k;
 
-#if NK_TARGET_NEON
+#if NUMKONG_TARGET_NEON
     run_geospatial<f32_k>("haversine_f32_neon", nk_haversine_f32_neon);
     run_geospatial<f64_k>("haversine_f64_neon", nk_haversine_f64_neon);
     run_geospatial<f32_k>("vincenty_f32_neon", nk_vincenty_f32_neon);
     run_geospatial<f64_k>("vincenty_f64_neon", nk_vincenty_f64_neon);
 #endif
 
-#if NK_TARGET_HASWELL
+#if NUMKONG_TARGET_HASWELL
     run_geospatial<f32_k>("haversine_f32_haswell", nk_haversine_f32_haswell);
     run_geospatial<f64_k>("haversine_f64_haswell", nk_haversine_f64_haswell);
     run_geospatial<f32_k>("vincenty_f32_haswell", nk_vincenty_f32_haswell);
     run_geospatial<f64_k>("vincenty_f64_haswell", nk_vincenty_f64_haswell);
 #endif
 
-#if NK_TARGET_SKYLAKE
+#if NUMKONG_TARGET_SKYLAKE
     run_geospatial<f32_k>("haversine_f32_skylake", nk_haversine_f32_skylake);
     run_geospatial<f64_k>("haversine_f64_skylake", nk_haversine_f64_skylake);
     run_geospatial<f32_k>("vincenty_f32_skylake", nk_vincenty_f32_skylake);
     run_geospatial<f64_k>("vincenty_f64_skylake", nk_vincenty_f64_skylake);
 #endif
 
-#if NK_TARGET_RVV
+#if NUMKONG_TARGET_RVV
     run_geospatial<f32_k>("haversine_f32_rvv", nk_haversine_f32_rvv);
     run_geospatial<f64_k>("haversine_f64_rvv", nk_haversine_f64_rvv);
     run_geospatial<f32_k>("vincenty_f32_rvv", nk_vincenty_f32_rvv);
     run_geospatial<f64_k>("vincenty_f64_rvv", nk_vincenty_f64_rvv);
 #endif
 
-#if NK_TARGET_V128RELAXED
+#if NUMKONG_TARGET_V128RELAXED
     run_geospatial<f32_k>("haversine_f32_v128relaxed", nk_haversine_f32_v128relaxed);
     run_geospatial<f64_k>("haversine_f64_v128relaxed", nk_haversine_f64_v128relaxed);
     run_geospatial<f32_k>("vincenty_f32_v128relaxed", nk_vincenty_f32_v128relaxed);

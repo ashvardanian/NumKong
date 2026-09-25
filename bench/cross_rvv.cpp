@@ -27,7 +27,7 @@ void bench_cross_rvv() {
     constexpr nk_dtype_t i8_k = nk_i8_k;
     constexpr nk_dtype_t u8_k = nk_u8_k;
 
-#if NK_TARGET_RVV
+#if NUMKONG_TARGET_RVV
     run_dots_packed<f64_k>("dots_packed_f64_rvv", nk_dots_pack_size_f64_rvv, nk_dots_pack_f64_rvv,
                            nk_dots_packed_f64_rvv);
     run_dots_packed<f32_k>("dots_packed_f32_rvv", nk_dots_pack_size_f32_rvv, nk_dots_pack_f32_rvv,

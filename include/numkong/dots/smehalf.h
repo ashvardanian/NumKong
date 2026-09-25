@@ -24,11 +24,11 @@
  *
  *  @sa include/numkong/dots.h
  */
-#ifndef NK_DOTS_SMEHALF_H
-#define NK_DOTS_SMEHALF_H
+#ifndef NUMKONG_DOTS_SMEHALF_H
+#define NUMKONG_DOTS_SMEHALF_H
 
-#if NK_TARGET_ARM64_
-#if NK_TARGET_SMEHALF
+#if NUMKONG_ARCH_ARM64_
+#if NUMKONG_TARGET_SMEHALF
 
 #if defined(__cplusplus)
 extern "C" {
@@ -42,7 +42,7 @@ extern "C" {
 }
 #endif
 
-#endif // NK_TARGET_SMEHALF
-#endif // NK_TARGET_ARM64_
+#endif // NUMKONG_TARGET_SMEHALF
+#endif // NUMKONG_ARCH_ARM64_
 
-#endif // NK_DOTS_SMEHALF_H
+#endif // NUMKONG_DOTS_SMEHALF_H

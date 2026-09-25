@@ -8,7 +8,7 @@
       "name": "Debug Benchmark",
       "type": "cppdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/build_debug/nk_bench",
+      "program": "${workspaceFolder}/build_debug/numkong_bench",
       "cwd": "${workspaceFolder}",
       "args": [
         // "--benchmark_filter=\"intersect_u16_sve_128d\\^8192d\""
@@ -37,14 +37,14 @@
       },
       "windows": {
         "type": "cppvsdbg",
-        "program": "${workspaceFolder}/build_debug/nk_bench.exe"
+        "program": "${workspaceFolder}/build_debug/numkong_bench.exe"
       },
     },
     {
       "name": "Debug Test",
       "type": "cppdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/build_debug/nk_test",
+      "program": "${workspaceFolder}/build_debug/numkong_test",
       "cwd": "${workspaceFolder}",
       "environment": [
         {
@@ -52,7 +52,7 @@
           "value": "detect_leaks=0:atexit=1:strict_init_order=1:strict_string_checks=1"
         },
         {
-          "name": "NK_FILTER",
+          "name": "NUMKONG_FILTER",
           "value": "i4"
         }
       ],

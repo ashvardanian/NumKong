@@ -11,11 +11,11 @@
  *
  *  Requires RVV 1.0 with Zvfh, from GCC 14 or Clang 18.
  */
-#ifndef NK_SPATIAL_RVVHALF_H
-#define NK_SPATIAL_RVVHALF_H
+#ifndef NUMKONG_SPATIAL_RVVHALF_H
+#define NUMKONG_SPATIAL_RVVHALF_H
 
-#if NK_TARGET_RISCV64_
-#if NK_TARGET_RVVHALF
+#if NUMKONG_ARCH_RISCV64_
+#if NUMKONG_TARGET_RVVHALF
 
 #include "numkong/types.h"
 #include "numkong/spatial/rvv.h" // `nk_f32_sqrt_rvv`
@@ -31,8 +31,8 @@
 extern "C" {
 #endif
 
-NK_API_COMPTIME void nk_sqeuclidean_f16_rvvhalf(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
-                                                nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f16_rvvhalf(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
+                                                     nk_size_t count_scalars, nk_f32_t *result) {
     // Per-lane accumulator — deferred horizontal reduction
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m2_t sum_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
@@ -57,14 +57,14 @@ NK_API_COMPTIME void nk_sqeuclidean_f16_rvvhalf(nk_f16_t const *a_scalars, nk_f1
     *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m2_f32m1(sum_f32m2, zero_f32m1, max_vector_length));
 }
 
-NK_API_COMPTIME void nk_euclidean_f16_rvvhalf(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
-                                              nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_euclidean_f16_rvvhalf(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
+                                                   nk_size_t count_scalars, nk_f32_t *result) {
     nk_sqeuclidean_f16_rvvhalf(a_scalars, b_scalars, count_scalars, result);
     *result = nk_f32_sqrt_rvv(*result);
 }
 
-NK_API_COMPTIME void nk_angular_f16_rvvhalf(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
-                                            nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_angular_f16_rvvhalf(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
+                                                 nk_size_t count_scalars, nk_f32_t *result) {
     // Per-lane accumulators — deferred horizontal reduction
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m2_t dot_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
@@ -115,6 +115,6 @@ NK_API_COMPTIME void nk_angular_f16_rvvhalf(nk_f16_t const *a_scalars, nk_f16_t 
 #pragma GCC pop_options
 #endif
 
-#endif // NK_TARGET_RVVHALF
-#endif // NK_TARGET_RISCV64_
-#endif // NK_SPATIAL_RVVHALF_H
+#endif // NUMKONG_TARGET_RVVHALF
+#endif // NUMKONG_ARCH_RISCV64_
+#endif // NUMKONG_SPATIAL_RVVHALF_H

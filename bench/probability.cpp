@@ -7,7 +7,7 @@
 
 #include "numkong/probability.h"
 
-#include "bench.hpp"
+#include "harness.hpp"
 
 using namespace ashvardanian::numkong::bench;
 
@@ -17,21 +17,21 @@ void bench_probability() {
     constexpr nk_dtype_t bf16_k = nk_bf16_k;
     constexpr nk_dtype_t f64_k = nk_f64_k;
 
-#if NK_TARGET_NEON
+#if NUMKONG_TARGET_NEON
     run_dense<f32_k, f64_k>("kld_f32_neon", nk_kld_f32_neon);
     run_dense<f32_k, f64_k>("jsd_f32_neon", nk_jsd_f32_neon);
     run_dense<f16_k, f32_k>("kld_f16_neon", nk_kld_f16_neon);
     run_dense<f16_k, f32_k>("jsd_f16_neon", nk_jsd_f16_neon);
 #endif
 
-#if NK_TARGET_HASWELL
+#if NUMKONG_TARGET_HASWELL
     run_dense<f16_k, f32_k>("kld_f16_haswell", nk_kld_f16_haswell);
     run_dense<f16_k, f32_k>("jsd_f16_haswell", nk_jsd_f16_haswell);
     run_dense<f64_k, f64_k>("kld_f64_haswell", nk_kld_f64_haswell);
     run_dense<f64_k, f64_k>("jsd_f64_haswell", nk_jsd_f64_haswell);
 #endif
 
-#if NK_TARGET_SKYLAKE
+#if NUMKONG_TARGET_SKYLAKE
     run_dense<f32_k, f64_k>("kld_f32_skylake", nk_kld_f32_skylake);
     run_dense<f32_k, f64_k>("jsd_f32_skylake", nk_jsd_f32_skylake);
     run_dense<f64_k, f64_k>("kld_f64_skylake", nk_kld_f64_skylake);
@@ -40,7 +40,7 @@ void bench_probability() {
     run_dense<f16_k, f32_k>("jsd_f16_skylake", nk_jsd_f16_skylake);
 #endif
 
-#if NK_TARGET_RVV
+#if NUMKONG_TARGET_RVV
     run_dense<f32_k, f64_k>("kld_f32_rvv", nk_kld_f32_rvv);
     run_dense<f32_k, f64_k>("jsd_f32_rvv", nk_jsd_f32_rvv);
     run_dense<f64_k, f64_k>("kld_f64_rvv", nk_kld_f64_rvv);

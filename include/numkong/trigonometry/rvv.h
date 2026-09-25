@@ -36,11 +36,11 @@
  *  __riscv_vfdiv_vv_f32m4                  Vector / vector division
  *  @endverbatim
  */
-#ifndef NK_TRIGONOMETRY_RVV_H
-#define NK_TRIGONOMETRY_RVV_H
+#ifndef NUMKONG_TRIGONOMETRY_RVV_H
+#define NUMKONG_TRIGONOMETRY_RVV_H
 
-#if NK_TARGET_RISCV64_
-#if NK_TARGET_RVV
+#if NUMKONG_ARCH_RISCV64_
+#if NUMKONG_TARGET_RVV
 
 #include "numkong/types.h"
 #include "numkong/cast/rvv.h"
@@ -60,7 +60,7 @@ extern "C" {
 /*  RVV trigonometry kernels using LMUL=4 for f32 and f64.
  *  Internal helpers return vector register groups for use by geospatial/rvv.h. */
 
-NK_HELPER_INLINE vfloat32m4_t nk_f32m4_sin_rvv_(vfloat32m4_t angles_f32m4, nk_size_t vector_length) {
+NUMKONG_HELPER_INLINE vfloat32m4_t nk_f32m4_sin_rvv_(vfloat32m4_t angles_f32m4, nk_size_t vector_length) {
     nk_f32_t const pi = 3.14159265358979323846f;
     nk_f32_t const pi_recip = 0.31830988618379067154f;
 
@@ -92,7 +92,7 @@ NK_HELPER_INLINE vfloat32m4_t nk_f32m4_sin_rvv_(vfloat32m4_t angles_f32m4, nk_si
     return __riscv_vreinterpret_v_u32m4_f32m4(result_u32m4);
 }
 
-NK_HELPER_INLINE vfloat32m4_t nk_f32m4_cos_rvv_(vfloat32m4_t angles_f32m4, nk_size_t vector_length) {
+NUMKONG_HELPER_INLINE vfloat32m4_t nk_f32m4_cos_rvv_(vfloat32m4_t angles_f32m4, nk_size_t vector_length) {
     nk_f32_t const pi = 3.14159265358979323846f;
     nk_f32_t const pi_half = 1.57079632679489661923f;
     nk_f32_t const pi_recip = 0.31830988618379067154f;
@@ -127,7 +127,7 @@ NK_HELPER_INLINE vfloat32m4_t nk_f32m4_cos_rvv_(vfloat32m4_t angles_f32m4, nk_si
     return result_f32m4;
 }
 
-NK_HELPER_INLINE vfloat32m4_t nk_f32m4_atan_rvv_(vfloat32m4_t inputs_f32m4, nk_size_t vector_length) {
+NUMKONG_HELPER_INLINE vfloat32m4_t nk_f32m4_atan_rvv_(vfloat32m4_t inputs_f32m4, nk_size_t vector_length) {
     // 8-term polynomial coefficients for atan approximation
     nk_f32_t const c8 = -0.333331018686294555664062f;
     nk_f32_t const c7 = +0.199926957488059997558594f;
@@ -180,8 +180,8 @@ NK_HELPER_INLINE vfloat32m4_t nk_f32m4_atan_rvv_(vfloat32m4_t inputs_f32m4, nk_s
     return result_f32m4;
 }
 
-NK_HELPER_INLINE vfloat32m4_t nk_f32m4_atan2_rvv_(vfloat32m4_t ys_inputs_f32m4, vfloat32m4_t xs_inputs_f32m4,
-                                                  nk_size_t vector_length) {
+NUMKONG_HELPER_INLINE vfloat32m4_t nk_f32m4_atan2_rvv_(vfloat32m4_t ys_inputs_f32m4, vfloat32m4_t xs_inputs_f32m4,
+                                                       nk_size_t vector_length) {
     // 8-term polynomial coefficients (same as atan)
     nk_f32_t const c8 = -0.333331018686294555664062f;
     nk_f32_t const c7 = +0.199926957488059997558594f;
@@ -255,7 +255,7 @@ NK_HELPER_INLINE vfloat32m4_t nk_f32m4_atan2_rvv_(vfloat32m4_t ys_inputs_f32m4, 
     return __riscv_vreinterpret_v_u32m4_f32m4(result_u32m4);
 }
 
-NK_HELPER_INLINE vfloat64m4_t nk_f64m4_sin_rvv_(vfloat64m4_t angles_radians_f64m4, nk_size_t vector_length) {
+NUMKONG_HELPER_INLINE vfloat64m4_t nk_f64m4_sin_rvv_(vfloat64m4_t angles_radians_f64m4, nk_size_t vector_length) {
     // Constants for two-step Cody-Waite range reduction
     nk_f64_t const pi_high = 3.141592653589793116;
     nk_f64_t const pi_low = 1.2246467991473532072e-16;
@@ -327,7 +327,7 @@ NK_HELPER_INLINE vfloat64m4_t nk_f64m4_sin_rvv_(vfloat64m4_t angles_radians_f64m
     return results_f64m4;
 }
 
-NK_HELPER_INLINE vfloat64m4_t nk_f64m4_cos_rvv_(vfloat64m4_t angles_radians_f64m4, nk_size_t vector_length) {
+NUMKONG_HELPER_INLINE vfloat64m4_t nk_f64m4_cos_rvv_(vfloat64m4_t angles_radians_f64m4, nk_size_t vector_length) {
     // Constants for two-step Cody-Waite range reduction
     nk_f64_t const pi_high_half = 3.141592653589793116 * 0.5;
     nk_f64_t const pi_low_half = 1.2246467991473532072e-16 * 0.5;
@@ -391,7 +391,7 @@ NK_HELPER_INLINE vfloat64m4_t nk_f64m4_cos_rvv_(vfloat64m4_t angles_radians_f64m
     return results_f64m4;
 }
 
-NK_HELPER_INLINE vfloat64m4_t nk_f64m4_atan_rvv_(vfloat64m4_t inputs_f64m4, nk_size_t vector_length) {
+NUMKONG_HELPER_INLINE vfloat64m4_t nk_f64m4_atan_rvv_(vfloat64m4_t inputs_f64m4, nk_size_t vector_length) {
     // 19-term polynomial coefficients
     nk_f64_t const c19 = -1.88796008463073496563746e-05;
     nk_f64_t const c18 = +0.000209850076645816976906797;
@@ -477,8 +477,8 @@ NK_HELPER_INLINE vfloat64m4_t nk_f64m4_atan_rvv_(vfloat64m4_t inputs_f64m4, nk_s
     return result_f64m4;
 }
 
-NK_HELPER_INLINE vfloat64m4_t nk_f64m4_atan2_rvv_(vfloat64m4_t ys_inputs_f64m4, vfloat64m4_t xs_inputs_f64m4,
-                                                  nk_size_t vector_length) {
+NUMKONG_HELPER_INLINE vfloat64m4_t nk_f64m4_atan2_rvv_(vfloat64m4_t ys_inputs_f64m4, vfloat64m4_t xs_inputs_f64m4,
+                                                       nk_size_t vector_length) {
     // 19-term polynomial coefficients (same as atan)
     nk_f64_t const c19 = -1.88796008463073496563746e-05;
     nk_f64_t const c18 = +0.000209850076645816976906797;
@@ -588,7 +588,7 @@ NK_HELPER_INLINE vfloat64m4_t nk_f64m4_atan2_rvv_(vfloat64m4_t ys_inputs_f64m4, 
 /*  m2-width versions of sin/cos/atan for the f16 conversion path.
  *  f16 data is loaded as m1 (16-bit), widened to f32 m2, computed, then narrowed back. */
 
-NK_HELPER_INLINE vfloat32m2_t nk_f32m2_sin_rvv_(vfloat32m2_t angles_f32m2, nk_size_t vector_length) {
+NUMKONG_HELPER_INLINE vfloat32m2_t nk_f32m2_sin_rvv_(vfloat32m2_t angles_f32m2, nk_size_t vector_length) {
     nk_f32_t const pi = 3.14159265358979323846f;
     nk_f32_t const pi_recip = 0.31830988618379067154f;
 
@@ -614,7 +614,7 @@ NK_HELPER_INLINE vfloat32m2_t nk_f32m2_sin_rvv_(vfloat32m2_t angles_f32m2, nk_si
     return __riscv_vreinterpret_v_u32m2_f32m2(result_u32m2);
 }
 
-NK_HELPER_INLINE vfloat32m2_t nk_f32m2_cos_rvv_(vfloat32m2_t angles_f32m2, nk_size_t vector_length) {
+NUMKONG_HELPER_INLINE vfloat32m2_t nk_f32m2_cos_rvv_(vfloat32m2_t angles_f32m2, nk_size_t vector_length) {
     nk_f32_t const pi = 3.14159265358979323846f;
     nk_f32_t const pi_half = 1.57079632679489661923f;
     nk_f32_t const pi_recip = 0.31830988618379067154f;
@@ -645,7 +645,7 @@ NK_HELPER_INLINE vfloat32m2_t nk_f32m2_cos_rvv_(vfloat32m2_t angles_f32m2, nk_si
     return result_f32m2;
 }
 
-NK_HELPER_INLINE vfloat32m2_t nk_f32m2_atan_rvv_(vfloat32m2_t inputs_f32m2, nk_size_t vector_length) {
+NUMKONG_HELPER_INLINE vfloat32m2_t nk_f32m2_atan_rvv_(vfloat32m2_t inputs_f32m2, nk_size_t vector_length) {
     nk_f32_t const c8 = -0.333331018686294555664062f;
     nk_f32_t const c7 = +0.199926957488059997558594f;
     nk_f32_t const c6 = -0.142027363181114196777344f;
@@ -690,7 +690,7 @@ NK_HELPER_INLINE vfloat32m2_t nk_f32m2_atan_rvv_(vfloat32m2_t inputs_f32m2, nk_s
     return result_f32m2;
 }
 
-NK_API_COMPTIME void nk_trig_sin_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NUMKONG_API_COMPTIME void nk_trig_sin_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
     for (nk_size_t vector_length; n > 0; n -= vector_length, ins += vector_length, outs += vector_length) {
         vector_length = __riscv_vsetvl_e32m4(n);
         vfloat32m4_t angles_f32m4 = __riscv_vle32_v_f32m4(ins, vector_length);
@@ -699,7 +699,7 @@ NK_API_COMPTIME void nk_trig_sin_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f3
     }
 }
 
-NK_API_COMPTIME void nk_trig_cos_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NUMKONG_API_COMPTIME void nk_trig_cos_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
     for (nk_size_t vector_length; n > 0; n -= vector_length, ins += vector_length, outs += vector_length) {
         vector_length = __riscv_vsetvl_e32m4(n);
         vfloat32m4_t angles_f32m4 = __riscv_vle32_v_f32m4(ins, vector_length);
@@ -708,7 +708,7 @@ NK_API_COMPTIME void nk_trig_cos_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f3
     }
 }
 
-NK_API_COMPTIME void nk_trig_atan_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NUMKONG_API_COMPTIME void nk_trig_atan_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
     for (nk_size_t vector_length; n > 0; n -= vector_length, ins += vector_length, outs += vector_length) {
         vector_length = __riscv_vsetvl_e32m4(n);
         vfloat32m4_t values_f32m4 = __riscv_vle32_v_f32m4(ins, vector_length);
@@ -717,7 +717,7 @@ NK_API_COMPTIME void nk_trig_atan_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f
     }
 }
 
-NK_API_COMPTIME void nk_trig_sin_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NUMKONG_API_COMPTIME void nk_trig_sin_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
     for (nk_size_t vector_length; n > 0; n -= vector_length, ins += vector_length, outs += vector_length) {
         vector_length = __riscv_vsetvl_e64m4(n);
         vfloat64m4_t angles_f64m4 = __riscv_vle64_v_f64m4(ins, vector_length);
@@ -726,7 +726,7 @@ NK_API_COMPTIME void nk_trig_sin_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f6
     }
 }
 
-NK_API_COMPTIME void nk_trig_cos_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NUMKONG_API_COMPTIME void nk_trig_cos_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
     for (nk_size_t vector_length; n > 0; n -= vector_length, ins += vector_length, outs += vector_length) {
         vector_length = __riscv_vsetvl_e64m4(n);
         vfloat64m4_t angles_f64m4 = __riscv_vle64_v_f64m4(ins, vector_length);
@@ -735,7 +735,7 @@ NK_API_COMPTIME void nk_trig_cos_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f6
     }
 }
 
-NK_API_COMPTIME void nk_trig_atan_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NUMKONG_API_COMPTIME void nk_trig_atan_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
     for (nk_size_t vector_length; n > 0; n -= vector_length, ins += vector_length, outs += vector_length) {
         vector_length = __riscv_vsetvl_e64m4(n);
         vfloat64m4_t values_f64m4 = __riscv_vle64_v_f64m4(ins, vector_length);
@@ -744,7 +744,7 @@ NK_API_COMPTIME void nk_trig_atan_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f
     }
 }
 
-NK_API_COMPTIME void nk_trig_sin_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
+NUMKONG_API_COMPTIME void nk_trig_sin_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
     for (nk_size_t vector_length; n > 0; n -= vector_length, ins += vector_length, outs += vector_length) {
         vector_length = __riscv_vsetvl_e16m1(n);
         vuint16m1_t f16_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)ins, vector_length);
@@ -755,7 +755,7 @@ NK_API_COMPTIME void nk_trig_sin_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f1
     }
 }
 
-NK_API_COMPTIME void nk_trig_cos_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
+NUMKONG_API_COMPTIME void nk_trig_cos_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
     for (nk_size_t vector_length; n > 0; n -= vector_length, ins += vector_length, outs += vector_length) {
         vector_length = __riscv_vsetvl_e16m1(n);
         vuint16m1_t f16_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)ins, vector_length);
@@ -766,7 +766,7 @@ NK_API_COMPTIME void nk_trig_cos_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f1
     }
 }
 
-NK_API_COMPTIME void nk_trig_atan_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
+NUMKONG_API_COMPTIME void nk_trig_atan_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
     for (nk_size_t vector_length; n > 0; n -= vector_length, ins += vector_length, outs += vector_length) {
         vector_length = __riscv_vsetvl_e16m1(n);
         vuint16m1_t f16_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)ins, vector_length);
@@ -787,6 +787,6 @@ NK_API_COMPTIME void nk_trig_atan_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f
 #pragma GCC pop_options
 #endif
 
-#endif // NK_TARGET_RVV
-#endif // NK_TARGET_RISCV64_
-#endif // NK_TRIGONOMETRY_RVV_H
+#endif // NUMKONG_TARGET_RVV
+#endif // NUMKONG_ARCH_RISCV64_
+#endif // NUMKONG_TRIGONOMETRY_RVV_H

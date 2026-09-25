@@ -19,11 +19,11 @@
  *  _mm256_cmp_ps    VCMPPS (YMM, YMM, YMM, I8)   3cy @ p01  3cy @ p01
  *  @endverbatim
  */
-#ifndef NK_GEOSPATIAL_HASWELL_H
-#define NK_GEOSPATIAL_HASWELL_H
+#ifndef NUMKONG_GEOSPATIAL_HASWELL_H
+#define NUMKONG_GEOSPATIAL_HASWELL_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_HASWELL
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_HASWELL
 
 #include "numkong/types.h"
 #include "numkong/trigonometry/haswell.h" // `nk_sin_f64x4_haswell_`, `nk_cos_f64x4_haswell_`, `nk_atan2_f64x4_haswell_`
@@ -42,11 +42,11 @@ extern "C" {
 /*  Haswell AVX2 implementations using 4-wide f64 and 8-wide f32 SIMD.
  *  These require AVX2 trigonometric kernels from trigonometry.h. */
 
-NK_HELPER_INLINE __m256d nk_haversine_f64x4_haswell_(              //
+NUMKONG_HELPER_INLINE __m256d nk_haversine_f64x4_haswell_(         //
     __m256d first_latitudes_f64x4, __m256d first_longitudes_f64x4, //
     __m256d second_latitudes_f64x4, __m256d second_longitudes_f64x4) {
 
-    __m256d const earth_radius_f64x4 = _mm256_set1_pd(NK_EARTH_MEDIATORIAL_RADIUS);
+    __m256d const earth_radius_f64x4 = _mm256_set1_pd(NUMKONG_EARTH_MEDIATORIAL_RADIUS);
     __m256d const half_f64x4 = _mm256_set1_pd(0.5);
     __m256d const one_f64x4 = _mm256_set1_pd(1.0);
     __m256d const two_f64x4 = _mm256_set1_pd(2.0);
@@ -85,7 +85,7 @@ NK_HELPER_INLINE __m256d nk_haversine_f64x4_haswell_(              //
     return _mm256_mul_pd(earth_radius_f64x4, central_angle_f64x4);
 }
 
-NK_API_COMPTIME void nk_haversine_f64_haswell(      //
+NUMKONG_API_COMPTIME void nk_haversine_f64_haswell( //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results) {
@@ -117,11 +117,11 @@ NK_API_COMPTIME void nk_haversine_f64_haswell(      //
     }
 }
 
-NK_HELPER_INLINE __m256 nk_haversine_f32x8_haswell_(             //
+NUMKONG_HELPER_INLINE __m256 nk_haversine_f32x8_haswell_(        //
     __m256 first_latitudes_f32x8, __m256 first_longitudes_f32x8, //
     __m256 second_latitudes_f32x8, __m256 second_longitudes_f32x8) {
 
-    __m256 const earth_radius_f32x8 = _mm256_set1_ps((float)NK_EARTH_MEDIATORIAL_RADIUS);
+    __m256 const earth_radius_f32x8 = _mm256_set1_ps((float)NUMKONG_EARTH_MEDIATORIAL_RADIUS);
     __m256 const half_f32x8 = _mm256_set1_ps(0.5f);
     __m256 const one_f32x8 = _mm256_set1_ps(1.0f);
     __m256 const two_f32x8 = _mm256_set1_ps(2.0f);
@@ -161,7 +161,7 @@ NK_HELPER_INLINE __m256 nk_haversine_f32x8_haswell_(             //
     return _mm256_mul_ps(earth_radius_f32x8, central_angle_f32x8);
 }
 
-NK_API_COMPTIME void nk_haversine_f32_haswell(      //
+NUMKONG_API_COMPTIME void nk_haversine_f32_haswell( //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results) {
@@ -197,14 +197,14 @@ NK_API_COMPTIME void nk_haversine_f32_haswell(      //
  *  @brief  AVX2 helper for Vincenty's geodesic distance on 4 f64 point pairs.
  *  @note   This is a true SIMD implementation using masked convergence tracking via blending.
  */
-NK_HELPER_INLINE __m256d nk_vincenty_f64x4_haswell_(               //
+NUMKONG_HELPER_INLINE __m256d nk_vincenty_f64x4_haswell_(          //
     __m256d first_latitudes_f64x4, __m256d first_longitudes_f64x4, //
     __m256d second_latitudes_f64x4, __m256d second_longitudes_f64x4) {
 
-    __m256d const equatorial_radius_f64x4 = _mm256_set1_pd(NK_EARTH_ELLIPSOID_EQUATORIAL_RADIUS);
-    __m256d const polar_radius_f64x4 = _mm256_set1_pd(NK_EARTH_ELLIPSOID_POLAR_RADIUS);
-    __m256d const flattening_f64x4 = _mm256_set1_pd(1.0 / NK_EARTH_ELLIPSOID_INVERSE_FLATTENING);
-    __m256d const convergence_threshold_f64x4 = _mm256_set1_pd(NK_VINCENTY_CONVERGENCE_THRESHOLD_F64);
+    __m256d const equatorial_radius_f64x4 = _mm256_set1_pd(NUMKONG_EARTH_ELLIPSOID_EQUATORIAL_RADIUS);
+    __m256d const polar_radius_f64x4 = _mm256_set1_pd(NUMKONG_EARTH_ELLIPSOID_POLAR_RADIUS);
+    __m256d const flattening_f64x4 = _mm256_set1_pd(1.0 / NUMKONG_EARTH_ELLIPSOID_INVERSE_FLATTENING);
+    __m256d const convergence_threshold_f64x4 = _mm256_set1_pd(NUMKONG_VINCENTY_CONVERGENCE_THRESHOLD_F64);
     __m256d const one_f64x4 = _mm256_set1_pd(1.0);
     __m256d const two_f64x4 = _mm256_set1_pd(2.0);
     __m256d const three_f64x4 = _mm256_set1_pd(3.0);
@@ -242,7 +242,7 @@ NK_HELPER_INLINE __m256d nk_vincenty_f64x4_haswell_(               //
     __m256d converged_mask_f64x4 = _mm256_setzero_pd();
     __m256d coincident_mask_f64x4 = _mm256_setzero_pd();
 
-    for (nk_u32_t iteration = 0; iteration < NK_VINCENTY_MAX_ITERATIONS; ++iteration) {
+    for (nk_u32_t iteration = 0; iteration < NUMKONG_VINCENTY_MAX_ITERATIONS; ++iteration) {
         // Check if all lanes converged
         int converged_bits = _mm256_movemask_pd(converged_mask_f64x4);
         if (converged_bits == 0xF) break;
@@ -371,7 +371,7 @@ NK_HELPER_INLINE __m256d nk_vincenty_f64x4_haswell_(               //
     return distances_f64x4;
 }
 
-NK_API_COMPTIME void nk_vincenty_f64_haswell(       //
+NUMKONG_API_COMPTIME void nk_vincenty_f64_haswell(  //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results) {
@@ -407,14 +407,14 @@ NK_API_COMPTIME void nk_vincenty_f64_haswell(       //
  *  @brief  AVX2 helper for Vincenty's geodesic distance on 8 f32 point pairs.
  *  @note   This is a true SIMD implementation using masked convergence tracking via blending.
  */
-NK_HELPER_INLINE __m256 nk_vincenty_f32x8_haswell_(              //
+NUMKONG_HELPER_INLINE __m256 nk_vincenty_f32x8_haswell_(         //
     __m256 first_latitudes_f32x8, __m256 first_longitudes_f32x8, //
     __m256 second_latitudes_f32x8, __m256 second_longitudes_f32x8) {
 
-    __m256 const equatorial_radius_f32x8 = _mm256_set1_ps((float)NK_EARTH_ELLIPSOID_EQUATORIAL_RADIUS);
-    __m256 const polar_radius_f32x8 = _mm256_set1_ps((float)NK_EARTH_ELLIPSOID_POLAR_RADIUS);
-    __m256 const flattening_f32x8 = _mm256_set1_ps(1.0f / (float)NK_EARTH_ELLIPSOID_INVERSE_FLATTENING);
-    __m256 const convergence_threshold_f32x8 = _mm256_set1_ps(NK_VINCENTY_CONVERGENCE_THRESHOLD_F32);
+    __m256 const equatorial_radius_f32x8 = _mm256_set1_ps((float)NUMKONG_EARTH_ELLIPSOID_EQUATORIAL_RADIUS);
+    __m256 const polar_radius_f32x8 = _mm256_set1_ps((float)NUMKONG_EARTH_ELLIPSOID_POLAR_RADIUS);
+    __m256 const flattening_f32x8 = _mm256_set1_ps(1.0f / (float)NUMKONG_EARTH_ELLIPSOID_INVERSE_FLATTENING);
+    __m256 const convergence_threshold_f32x8 = _mm256_set1_ps(NUMKONG_VINCENTY_CONVERGENCE_THRESHOLD_F32);
     __m256 const one_f32x8 = _mm256_set1_ps(1.0f);
     __m256 const two_f32x8 = _mm256_set1_ps(2.0f);
     __m256 const three_f32x8 = _mm256_set1_ps(3.0f);
@@ -452,7 +452,7 @@ NK_HELPER_INLINE __m256 nk_vincenty_f32x8_haswell_(              //
     __m256 converged_mask_f32x8 = _mm256_setzero_ps();
     __m256 coincident_mask_f32x8 = _mm256_setzero_ps();
 
-    for (nk_u32_t iteration = 0; iteration < NK_VINCENTY_MAX_ITERATIONS; ++iteration) {
+    for (nk_u32_t iteration = 0; iteration < NUMKONG_VINCENTY_MAX_ITERATIONS; ++iteration) {
         // Check if all lanes converged
         int converged_bits = _mm256_movemask_ps(converged_mask_f32x8);
         if (converged_bits == 0xFF) break;
@@ -581,7 +581,7 @@ NK_HELPER_INLINE __m256 nk_vincenty_f32x8_haswell_(              //
     return distances_f32x8;
 }
 
-NK_API_COMPTIME void nk_vincenty_f32_haswell(       //
+NUMKONG_API_COMPTIME void nk_vincenty_f32_haswell(  //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results) {
@@ -623,6 +623,6 @@ NK_API_COMPTIME void nk_vincenty_f32_haswell(       //
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_HASWELL
-#endif // NK_TARGET_X8664_
-#endif // NK_GEOSPATIAL_HASWELL_H
+#endif // NUMKONG_TARGET_HASWELL
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_GEOSPATIAL_HASWELL_H

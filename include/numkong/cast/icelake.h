@@ -18,11 +18,11 @@
  *  FP8-to-BF16/F16 conversions use 4 ZMM LUT registers with VPTESTMW for range selection, achieving
  *  ~6 cycles for 32 FP8 conversions. E5M2-to-F16 simplifies to VPSLLW, matching exponent bias.
  */
-#ifndef NK_CAST_ICELAKE_H
-#define NK_CAST_ICELAKE_H
+#ifndef NUMKONG_CAST_ICELAKE_H
+#define NUMKONG_CAST_ICELAKE_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_ICELAKE
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_ICELAKE
 
 #include "numkong/types.h"
 #include "numkong/cast/skylake.h"
@@ -49,7 +49,7 @@ extern "C" {
  *  Subnormals (exp == 0, 8 values): looked up from 8-entry LUT via permutexvar.
  *  Memory: 16 bytes (8 × 16-bit entries) vs 256 bytes (128-entry LUT). OCP FP8 v1.0.
  */
-NK_HELPER_INLINE __m512i nk_e4m3x32_to_bf16x32_icelake_(__m256i e4m3x32) {
+NUMKONG_HELPER_INLINE __m512i nk_e4m3x32_to_bf16x32_icelake_(__m256i e4m3x32) {
     __m512i e4m3_i16x32 = _mm512_cvtepu8_epi16(e4m3x32);
     __m512i sign_i16x32 = _mm512_and_si512(e4m3_i16x32, _mm512_set1_epi16((short)0x80));
     __m512i lower7_i16x32 = _mm512_and_si512(e4m3_i16x32, _mm512_set1_epi16(0x7F));
@@ -93,7 +93,7 @@ NK_HELPER_INLINE __m512i nk_e4m3x32_to_bf16x32_icelake_(__m256i e4m3x32) {
  *  Subnormals (exp == 0, 4 values): looked up from 4-entry LUT via permutexvar.
  *  Memory: 8 bytes (4 × 16-bit entries) vs 256 bytes (128-entry LUT). OCP FP8 v1.0.
  */
-NK_HELPER_INLINE __m512i nk_e5m2x32_to_bf16x32_icelake_(__m256i e5m2x32) {
+NUMKONG_HELPER_INLINE __m512i nk_e5m2x32_to_bf16x32_icelake_(__m256i e5m2x32) {
     __m512i e5m2_i16x32 = _mm512_cvtepu8_epi16(e5m2x32);
     __m512i sign_i16x32 = _mm512_and_si512(e5m2_i16x32, _mm512_set1_epi16((short)0x80));
     __m512i lower7_i16x32 = _mm512_and_si512(e5m2_i16x32, _mm512_set1_epi16(0x7F));
@@ -128,7 +128,7 @@ NK_HELPER_INLINE __m512i nk_e5m2x32_to_bf16x32_icelake_(__m256i e5m2x32) {
  *  6 bits total: sign at bit 5, magnitude bits 4-0). BF16: S EEEEEEEE MMMMMMM (bias=127). Uses
  *  single permutexvar; sign handled separately. Subnormals (exp=0): value = mant/8. OCP
  *  Microscaling Formats v1.0. */
-NK_HELPER_INLINE __m512i nk_e2m3x32_to_bf16x32_icelake_(__m256i e2m3x32) {
+NUMKONG_HELPER_INLINE __m512i nk_e2m3x32_to_bf16x32_icelake_(__m256i e2m3x32) {
     __m512i e2m3_i16x32 = _mm512_cvtepu8_epi16(e2m3x32);
     __m512i sign_i16x32 = _mm512_and_si512(e2m3_i16x32, _mm512_set1_epi16(0x20)); // E2M3 sign at bit 5
     __m512i index_i16x32 = _mm512_and_si512(e2m3_i16x32, _mm512_set1_epi16(0x1F));
@@ -153,7 +153,7 @@ NK_HELPER_INLINE __m512i nk_e2m3x32_to_bf16x32_icelake_(__m256i e2m3x32) {
 /** Convert 32x e3m2 → 32x bf16 via 32-entry LUT lookup (AVX-512BW). E3M2 format: S EEE MM (bias=3,
  *  6 bits total: sign at bit 7, magnitude bits 4-0). BF16: S EEEEEEEE MMMMMMM (bias=127). Uses
  *  single permutexvar; sign handled separately. */
-NK_HELPER_INLINE __m512i nk_e3m2x32_to_bf16x32_icelake_(__m256i e3m2x32) {
+NUMKONG_HELPER_INLINE __m512i nk_e3m2x32_to_bf16x32_icelake_(__m256i e3m2x32) {
     __m512i e3m2_i16x32 = _mm512_cvtepu8_epi16(e3m2x32);
     __m512i sign_i16x32 = _mm512_and_si512(e3m2_i16x32, _mm512_set1_epi16(0x20)); // E3M2 sign at bit 5
     __m512i index_i16x32 = _mm512_and_si512(e3m2_i16x32, _mm512_set1_epi16(0x1F));
@@ -182,7 +182,7 @@ NK_HELPER_INLINE __m512i nk_e3m2x32_to_bf16x32_icelake_(__m256i e3m2x32) {
 /** Convert 32x e4m3 → 32x f16 via 128-entry LUT lookup (AVX-512BW). E4M3 format: S EEEE MMM
  *  (bias=7). F16: S EEEEE MMMMMMMMMM (bias=15). Uses permutex2var for fast LUT lookup; sign handled
  *  separately via shift+OR. Handles all corner cases: zero, subnormals, normals, and NaN. */
-NK_HELPER_INLINE __m512i nk_e4m3x32_to_f16x32_icelake_(__m256i e4m3x32) {
+NUMKONG_HELPER_INLINE __m512i nk_e4m3x32_to_f16x32_icelake_(__m256i e4m3x32) {
     __m512i e4m3_i16x32 = _mm512_cvtepu8_epi16(e4m3x32);
     __m512i sign_i16x32 = _mm512_and_si512(e4m3_i16x32, _mm512_set1_epi16((short)0x80));
     __m512i index_i16x32 = _mm512_and_si512(e4m3_i16x32, _mm512_set1_epi16(0x7F));
@@ -228,7 +228,7 @@ NK_HELPER_INLINE __m512i nk_e4m3x32_to_f16x32_icelake_(__m256i e4m3x32) {
 /** Convert 32x e5m2 → 32x f16 via simple bit shift (AVX-512BW). E5M2 format: S EEEEE MM (bias=15).
  *  F16: S EEEEE MMMMMMMMMM (bias=15). Same exponent bias means F16 = (lower7 << 8) | (sign << 15).
  *  Handles all corner cases: zero, subnormals, normals, infinity, and NaN. */
-NK_HELPER_INLINE __m512i nk_e5m2x32_to_f16x32_icelake_(__m256i e5m2x32) {
+NUMKONG_HELPER_INLINE __m512i nk_e5m2x32_to_f16x32_icelake_(__m256i e5m2x32) {
     __m512i e5m2_i16x32 = _mm512_cvtepu8_epi16(e5m2x32);
     __m512i sign_i16x32 = _mm512_and_si512(e5m2_i16x32, _mm512_set1_epi16((short)0x80));
     __m512i lower7_i16x32 = _mm512_and_si512(e5m2_i16x32, _mm512_set1_epi16(0x7F));
@@ -244,7 +244,7 @@ NK_HELPER_INLINE __m512i nk_e5m2x32_to_f16x32_icelake_(__m256i e5m2x32) {
  *  for any value whose f32 round-trips through bf16 losslessly, which holds for all FP4 and FP6
  *  magnitudes, as their mantissas fit in BF16's 7 bits, so callers stay byte-identical to the
  *  serial f32 decode. */
-NK_HELPER_INLINE void nk_bf16x32_to_f32x32_icelake_(__m512i bf16x32, __m512 *low_f32x16, __m512 *high_f32x16) {
+NUMKONG_HELPER_INLINE void nk_bf16x32_to_f32x32_icelake_(__m512i bf16x32, __m512 *low_f32x16, __m512 *high_f32x16) {
     __m512i lo_i32x16 = _mm512_slli_epi32(_mm512_cvtepu16_epi32(_mm512_castsi512_si256(bf16x32)), 16);
     __m512i hi_i32x16 = _mm512_slli_epi32(_mm512_cvtepu16_epi32(_mm512_extracti64x4_epi64(bf16x32, 1)), 16);
     *low_f32x16 = _mm512_castsi512_ps(lo_i32x16);
@@ -256,7 +256,7 @@ NK_HELPER_INLINE void nk_bf16x32_to_f32x32_icelake_(__m512i bf16x32, __m512 *low
  *  2i+1 in the low nibble. The LUT bakes both magnitude and sign into BF16 half-words
  *  {0,0.5,1,1.5,2,3,4,6} × {+,−}; widening to f32 is exact because every FP4 magnitude round-trips
  *  through BF16. Faster than Skylake's per-32-bit permute: one VPERMW covers all 32 elements. */
-NK_HELPER_INLINE void nk_e2m1x32_to_f32x32_icelake_(__m128i packed, __m512 *low_f32x16, __m512 *high_f32x16) {
+NUMKONG_HELPER_INLINE void nk_e2m1x32_to_f32x32_icelake_(__m128i packed, __m512 *low_f32x16, __m512 *high_f32x16) {
     // Expand 16 packed bytes to 32 nibble bytes via shift + mask + unpack interleave.
     __m128i low_nibbles_b8x16 = _mm_and_si128(packed, _mm_set1_epi8(0x0F));
     __m128i high_nibbles_b8x16 = _mm_and_si128(_mm_srli_epi16(packed, 4), _mm_set1_epi8(0x0F));
@@ -280,7 +280,7 @@ NK_HELPER_INLINE void nk_e2m1x32_to_f32x32_icelake_(__m128i packed, __m512 *low_
 
 /** Compute 16x e2m1 nibbles (each in the low 4 bits of an i32 lane) from 16x f32 via the Skylake
  *  RNE bit-manipulation. Shared by the x32 packer; identical arithmetic to the Skylake codec. */
-NK_HELPER_INLINE __m512i nk_f32x16_to_e2m1_nibbles_icelake_(__m512 f32x16) {
+NUMKONG_HELPER_INLINE __m512i nk_f32x16_to_e2m1_nibbles_icelake_(__m512 f32x16) {
     __m512i bits_i32x16 = _mm512_castps_si512(f32x16);
     __m512i sign_i32x16 = _mm512_srli_epi32(bits_i32x16, 31);
     __m512i f32_exponent_i32x16 = _mm512_and_si512(_mm512_srli_epi32(bits_i32x16, 23), _mm512_set1_epi32(0xFF));
@@ -324,7 +324,7 @@ NK_HELPER_INLINE __m512i nk_f32x16_to_e2m1_nibbles_icelake_(__m512 f32x16) {
 /** Convert 32x f32 → 32x e2m1 packed into 16 bytes via the Skylake RNE bit-manipulation widened to
  *  x32, then a byte pack. Lane ordering matches @c nk_f32x2_to_e2m1x2_serial: element 2i → high
  *  nibble of byte i, element 2i+1 → low nibble. Byte-identical to serial. */
-NK_HELPER_INLINE __m128i nk_f32x32_to_e2m1x32_icelake_(__m512 low_f32x16, __m512 high_f32x16) {
+NUMKONG_HELPER_INLINE __m128i nk_f32x32_to_e2m1x32_icelake_(__m512 low_f32x16, __m512 high_f32x16) {
     __m128i nibble_low_b8x16 = _mm512_cvtepi32_epi8(nk_f32x16_to_e2m1_nibbles_icelake_(low_f32x16));
     __m128i nibble_high_b8x16 = _mm512_cvtepi32_epi8(nk_f32x16_to_e2m1_nibbles_icelake_(high_f32x16));
     __m256i nibbles_b8x32 = _mm256_set_m128i(nibble_high_b8x16, nibble_low_b8x16);
@@ -339,7 +339,7 @@ NK_HELPER_INLINE __m128i nk_f32x32_to_e2m1x32_icelake_(__m512 low_f32x16, __m512
  *
  *  Exact: every E2M3 magnitude (≤ 3 mantissa bits) round-trips through BF16, so f32 = bf16 << 16.
  */
-NK_HELPER_INLINE void nk_e2m3x32_to_f32x32_icelake_(__m256i e2m3x32, __m512 *low_f32x16, __m512 *high_f32x16) {
+NUMKONG_HELPER_INLINE void nk_e2m3x32_to_f32x32_icelake_(__m256i e2m3x32, __m512 *low_f32x16, __m512 *high_f32x16) {
     nk_bf16x32_to_f32x32_icelake_(nk_e2m3x32_to_bf16x32_icelake_(e2m3x32), low_f32x16, high_f32x16);
 }
 
@@ -348,14 +348,14 @@ NK_HELPER_INLINE void nk_e2m3x32_to_f32x32_icelake_(__m256i e2m3x32, __m512 *low
  *
  *  Exact: every E3M2 magnitude (≤ 2 mantissa bits) round-trips through BF16, so f32 = bf16 << 16.
  */
-NK_HELPER_INLINE void nk_e3m2x32_to_f32x32_icelake_(__m256i e3m2x32, __m512 *low_f32x16, __m512 *high_f32x16) {
+NUMKONG_HELPER_INLINE void nk_e3m2x32_to_f32x32_icelake_(__m256i e3m2x32, __m512 *low_f32x16, __m512 *high_f32x16) {
     nk_bf16x32_to_f32x32_icelake_(nk_e3m2x32_to_bf16x32_icelake_(e3m2x32), low_f32x16, high_f32x16);
 }
 
 /** Convert 32x bf16 → 32x e4m3 via bit manipulation (AVX-512BW). BF16: S EEEEEEEE MMMMMMM
  *  (bias=127). E4M3: S EEEE MMM (bias=7). Handles normal, subnormal, and overflow cases, and
  *  rounds to nearest even. */
-NK_HELPER_INLINE __m256i nk_bf16x32_to_e4m3x32_icelake_(__m512i bf16x32) {
+NUMKONG_HELPER_INLINE __m256i nk_bf16x32_to_e4m3x32_icelake_(__m512i bf16x32) {
     __m512i sign_i16x32 = _mm512_srli_epi16(bf16x32, 15);
     __m512i bf16_exponent_i16x32 = _mm512_and_si512(_mm512_srli_epi16(bf16x32, 7), _mm512_set1_epi16(0xFF));
 
@@ -423,7 +423,7 @@ NK_HELPER_INLINE __m256i nk_bf16x32_to_e4m3x32_icelake_(__m512i bf16x32) {
 /** Convert 32x bf16 → 32x e5m2 via bit manipulation (AVX-512BW). BF16: S EEEEEEEE MMMMMMM
  *  (bias=127). E5M2: S EEEEE MM (bias=15). Handles normal, subnormal, and overflow cases, and
  *  rounds to nearest even. */
-NK_HELPER_INLINE __m256i nk_bf16x32_to_e5m2x32_icelake_(__m512i bf16x32) {
+NUMKONG_HELPER_INLINE __m256i nk_bf16x32_to_e5m2x32_icelake_(__m512i bf16x32) {
     __m512i sign_i16x32 = _mm512_srli_epi16(bf16x32, 15);
     __m512i bf16_exponent_i16x32 = _mm512_and_si512(_mm512_srli_epi16(bf16x32, 7), _mm512_set1_epi16(0xFF));
 
@@ -484,48 +484,52 @@ NK_HELPER_INLINE __m256i nk_bf16x32_to_e5m2x32_icelake_(__m512i bf16x32) {
 }
 
 /** Load 32x e4m3 from memory and convert to 32x bf16 (Ice Lake AVX-512BW). */
-NK_HELPER_INLINE void nk_load_e4m3x32_to_bf16x32_icelake_(void const *src, nk_b512_vec_t *dst) {
+NUMKONG_HELPER_INLINE void nk_load_e4m3x32_to_bf16x32_icelake_(void const *src, nk_b512_vec_t *dst) {
     dst->zmm = nk_e4m3x32_to_bf16x32_icelake_(_mm256_loadu_si256((__m256i const *)src));
 }
 
 /** Partial load n e4m3 elements from memory and convert to bf16 (Ice Lake AVX-512BW). */
-NK_HELPER_INLINE void nk_partial_load_e4m3x32_to_bf16x32_icelake_(void const *src, nk_b512_vec_t *dst, nk_size_t n) {
+NUMKONG_HELPER_INLINE void nk_partial_load_e4m3x32_to_bf16x32_icelake_(void const *src, nk_b512_vec_t *dst,
+                                                                       nk_size_t n) {
     __mmask32 mask_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)n);
     __m256i e4m3_partial_i8x32 = _mm256_maskz_loadu_epi8(mask_m32, src);
     dst->zmm = nk_e4m3x32_to_bf16x32_icelake_(e4m3_partial_i8x32);
 }
 
 /** Load 32x e5m2 from memory and convert to 32x bf16 (Ice Lake AVX-512BW). */
-NK_HELPER_INLINE void nk_load_e5m2x32_to_bf16x32_icelake_(void const *src, nk_b512_vec_t *dst) {
+NUMKONG_HELPER_INLINE void nk_load_e5m2x32_to_bf16x32_icelake_(void const *src, nk_b512_vec_t *dst) {
     dst->zmm = nk_e5m2x32_to_bf16x32_icelake_(_mm256_loadu_si256((__m256i const *)src));
 }
 
 /** Partial load n e5m2 elements from memory and convert to bf16 (Ice Lake AVX-512BW). */
-NK_HELPER_INLINE void nk_partial_load_e5m2x32_to_bf16x32_icelake_(void const *src, nk_b512_vec_t *dst, nk_size_t n) {
+NUMKONG_HELPER_INLINE void nk_partial_load_e5m2x32_to_bf16x32_icelake_(void const *src, nk_b512_vec_t *dst,
+                                                                       nk_size_t n) {
     __mmask32 mask_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)n);
     __m256i e5m2_partial_i8x32 = _mm256_maskz_loadu_epi8(mask_m32, src);
     dst->zmm = nk_e5m2x32_to_bf16x32_icelake_(e5m2_partial_i8x32);
 }
 
 /** Load 32x e2m3 from memory and convert to 32x bf16 (Ice Lake AVX-512BW). */
-NK_HELPER_INLINE void nk_load_e2m3x32_to_bf16x32_icelake_(void const *src, nk_b512_vec_t *dst) {
+NUMKONG_HELPER_INLINE void nk_load_e2m3x32_to_bf16x32_icelake_(void const *src, nk_b512_vec_t *dst) {
     dst->zmm = nk_e2m3x32_to_bf16x32_icelake_(_mm256_loadu_si256((__m256i const *)src));
 }
 
 /** Partial load n e2m3 elements from memory and convert to bf16 (Ice Lake AVX-512BW). */
-NK_HELPER_INLINE void nk_partial_load_e2m3x32_to_bf16x32_icelake_(void const *src, nk_b512_vec_t *dst, nk_size_t n) {
+NUMKONG_HELPER_INLINE void nk_partial_load_e2m3x32_to_bf16x32_icelake_(void const *src, nk_b512_vec_t *dst,
+                                                                       nk_size_t n) {
     __mmask32 mask_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)n);
     __m256i e2m3_partial_i8x32 = _mm256_maskz_loadu_epi8(mask_m32, src);
     dst->zmm = nk_e2m3x32_to_bf16x32_icelake_(e2m3_partial_i8x32);
 }
 
 /** Load 32x e3m2 from memory and convert to 32x bf16 (Ice Lake AVX-512BW). */
-NK_HELPER_INLINE void nk_load_e3m2x32_to_bf16x32_icelake_(void const *src, nk_b512_vec_t *dst) {
+NUMKONG_HELPER_INLINE void nk_load_e3m2x32_to_bf16x32_icelake_(void const *src, nk_b512_vec_t *dst) {
     dst->zmm = nk_e3m2x32_to_bf16x32_icelake_(_mm256_loadu_si256((__m256i const *)src));
 }
 
 /** Partial load n e3m2 elements from memory and convert to bf16 (Ice Lake AVX-512BW). */
-NK_HELPER_INLINE void nk_partial_load_e3m2x32_to_bf16x32_icelake_(void const *src, nk_b512_vec_t *dst, nk_size_t n) {
+NUMKONG_HELPER_INLINE void nk_partial_load_e3m2x32_to_bf16x32_icelake_(void const *src, nk_b512_vec_t *dst,
+                                                                       nk_size_t n) {
     __mmask32 mask_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)n);
     __m256i e3m2_partial_i8x32 = _mm256_maskz_loadu_epi8(mask_m32, src);
     dst->zmm = nk_e3m2x32_to_bf16x32_icelake_(e3m2_partial_i8x32);
@@ -535,8 +539,8 @@ NK_HELPER_INLINE void nk_partial_load_e3m2x32_to_bf16x32_icelake_(void const *sr
 
 #pragma region Public API
 
-NK_API_COMPTIME void nk_cast_icelake(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                     nk_dtype_t to_type) {
+NUMKONG_API_COMPTIME void nk_cast_icelake(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
+                                          nk_dtype_t to_type) {
     // Group 1: Conversions to bf16 (e4m3 → bf16, e5m2 → bf16)
     if (to_type == nk_bf16_k && (from_type == nk_e4m3_k || from_type == nk_e5m2_k)) {
         nk_e4m3_t const *from_ptr = (nk_e4m3_t const *)from;
@@ -585,8 +589,8 @@ NK_API_COMPTIME void nk_cast_icelake(void const *from, nk_dtype_t from_type, nk_
         // 32 e2m1 = 16 bytes; f32 steps 128 bytes. Process whole groups of 32 with SIMD.
         nk_u8_t const *from_ptr = (nk_u8_t const *)from;
         nk_u8_t *to_ptr = (nk_u8_t *)to;
-        nk_size_t from_step = nk_size_divide_round_up_(32 * nk_dtype_bits(from_type), NK_BITS_PER_BYTE);
-        nk_size_t to_step = nk_size_divide_round_up_(32 * nk_dtype_bits(to_type), NK_BITS_PER_BYTE);
+        nk_size_t from_step = nk_size_divide_round_up_(32 * nk_dtype_bits(from_type), NUMKONG_BITS_PER_BYTE);
+        nk_size_t to_step = nk_size_divide_round_up_(32 * nk_dtype_bits(to_type), NUMKONG_BITS_PER_BYTE);
         nk_size_t batches = n / 32;
         for (nk_size_t i = 0; i < batches; ++i, from_ptr += from_step, to_ptr += to_step) {
             __m512 low_f32x16, high_f32x16;
@@ -629,11 +633,11 @@ NK_API_COMPTIME void nk_cast_icelake(void const *from, nk_dtype_t from_type, nk_
 
 /** Reduce a block of @p block_count f32s to `amax = max(|x|)`. @p block_count ≤ 32. Reuses the
  *  Skylake AVX-512 reduction (already 16-wide with NaN → sentinel propagation). */
-NK_HELPER_INLINE nk_f32_t nk_block_amax_f32_icelake_(nk_f32_t const *block, nk_size_t block_count) {
+NUMKONG_HELPER_INLINE nk_f32_t nk_block_amax_f32_icelake_(nk_f32_t const *block, nk_size_t block_count) {
     return nk_block_amax_f32_skylake_(block, block_count);
 }
 
-NK_API_COMPTIME void nk_cast_block_scaled_icelake(                                                             //
+NUMKONG_API_COMPTIME void nk_cast_block_scaled_icelake(                                                        //
     void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
     nk_block_scaled_format_t const *from_format,                                                               //
     void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
@@ -652,11 +656,12 @@ NK_API_COMPTIME void nk_cast_block_scaled_icelake(                              
     nk_size_t chunk = from_block > to_block ? from_block : to_block;
 
     nk_f32_t from_tensor_scale_f32 = 1.0f;
-    if (from_tensor_scale != NK_NULL && !from_plain && from_format->tensor_scale_dtype == nk_f32_k)
+    if (from_tensor_scale != NUMKONG_NULL && !from_plain && from_format->tensor_scale_dtype == nk_f32_k)
         from_tensor_scale_f32 = from_tensor_scale->f32;
 
     nk_f32_t to_tensor_scale_f32 = 1.0f;
-    int to_has_tensor_scale = (!to_plain && to_tensor_scale != NK_NULL && to_format->tensor_scale_dtype == nk_f32_k);
+    int to_has_tensor_scale = (!to_plain && to_tensor_scale != NUMKONG_NULL &&
+                               to_format->tensor_scale_dtype == nk_f32_k);
     if (to_has_tensor_scale) {
         to_tensor_scale_f32 = to_tensor_scale->f32;
         if (to_tensor_scale_f32 == 0.0f) {
@@ -678,7 +683,7 @@ NK_API_COMPTIME void nk_cast_block_scaled_icelake(                              
 
         // Decode source chunk into f32 scratch.
         if (from_plain) {
-            void const *src = (nk_u8_t const *)from + (chunk_start * from_bits_per_element / NK_BITS_PER_BYTE);
+            void const *src = (nk_u8_t const *)from + (chunk_start * from_bits_per_element / NUMKONG_BITS_PER_BYTE);
             nk_cast_icelake(src, from_format->element_dtype, chunk_count, scratch, nk_f32_k);
         }
         else {
@@ -689,7 +694,7 @@ NK_API_COMPTIME void nk_cast_block_scaled_icelake(                              
                 nk_f32_t scale_f32 = nk_block_scaled_decode_scale_serial_(raw, from_format->scale_dtype) *
                                      from_tensor_scale_f32;
                 void const *src = (nk_u8_t const *)from +
-                                  ((chunk_start + b) * from_bits_per_element / NK_BITS_PER_BYTE);
+                                  ((chunk_start + b) * from_bits_per_element / NUMKONG_BITS_PER_BYTE);
                 nk_cast_icelake(src, from_format->element_dtype, valid, scratch + b, nk_f32_k);
                 __m512 scale_bcast_f32x16 = _mm512_set1_ps(scale_f32);
                 __m512 v_low_f32x16 = _mm512_maskz_loadu_ps(valid >= 16 ? 0xFFFF : (1u << valid) - 1u, scratch + b);
@@ -705,7 +710,7 @@ NK_API_COMPTIME void nk_cast_block_scaled_icelake(                              
 
         // Encode f32 scratch into destination chunk.
         if (to_plain) {
-            void *dst = (nk_u8_t *)to + (chunk_start * to_bits_per_element / NK_BITS_PER_BYTE);
+            void *dst = (nk_u8_t *)to + (chunk_start * to_bits_per_element / NUMKONG_BITS_PER_BYTE);
             nk_cast_icelake(scratch, nk_f32_k, chunk_count, dst, to_format->element_dtype);
         }
         else {
@@ -730,7 +735,7 @@ NK_API_COMPTIME void nk_cast_block_scaled_icelake(                              
                     _mm512_mask_storeu_ps(encoded_scratch + 16, (1u << (valid - 16)) - 1u,
                                           _mm512_mul_ps(v_high_f32x16, reciprocal_bcast_f32x16));
                 }
-                void *dst = (nk_u8_t *)to + ((chunk_start + b) * to_bits_per_element / NK_BITS_PER_BYTE);
+                void *dst = (nk_u8_t *)to + ((chunk_start + b) * to_bits_per_element / NUMKONG_BITS_PER_BYTE);
                 // Write only valid elements: dst is sized for `count` (bytes), not whole blocks.
                 /* Saturate to element_max: finite inputs must not overflow to +/-inf (E5M2 has inf; OCP SAT). */
                 for (nk_size_t saturate_index = 0; saturate_index < valid; ++saturate_index) {
@@ -756,6 +761,6 @@ NK_API_COMPTIME void nk_cast_block_scaled_icelake(                              
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_ICELAKE
-#endif // NK_TARGET_X8664_
-#endif // NK_CAST_ICELAKE_H
+#endif // NUMKONG_TARGET_ICELAKE
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_CAST_ICELAKE_H

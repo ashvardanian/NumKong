@@ -8,8 +8,8 @@
  *  NumPy headers. Uses runtime capsule extraction from numpy._core._multiarray_umath, requiring
  *  NumPy 2.0 or a newer release.
  */
-#ifndef NK_PYTHON_NUMPY_INTEROP_H
-#define NK_PYTHON_NUMPY_INTEROP_H
+#ifndef NUMKONG_PYTHON_NUMPY_INTEROP_H
+#define NUMKONG_PYTHON_NUMPY_INTEROP_H
 
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
@@ -40,4 +40,4 @@ int nk_register_numpy_dtypes(PyObject *module);
 }
 #endif
 
-#endif /* NK_PYTHON_NUMPY_INTEROP_H */
+#endif /* NUMKONG_PYTHON_NUMPY_INTEROP_H */

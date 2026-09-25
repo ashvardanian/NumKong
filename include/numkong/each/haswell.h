@@ -21,11 +21,11 @@
  *  mixed-precision operations, type conversion chains, e.g. i8 → i32 → f32, add ~7-10 cycles of
  *  overhead. The FMA unit handles both multiply-add fusion and standalone multiply/add operations.
  */
-#ifndef NK_EACH_HASWELL_H
-#define NK_EACH_HASWELL_H
+#ifndef NUMKONG_EACH_HASWELL_H
+#define NUMKONG_EACH_HASWELL_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_HASWELL
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_HASWELL
 
 #include "numkong/types.h"
 #include "numkong/cast/serial.h"    // `nk_f32_to_i8_serial`
@@ -43,7 +43,7 @@ extern "C" {
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NK_API_COMPTIME void nk_each_sum_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_each_sum_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result) {
     // The main loop:
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
@@ -57,8 +57,8 @@ NK_API_COMPTIME void nk_each_sum_f32_haswell(nk_f32_t const *a, nk_f32_t const *
     for (; i < n; ++i) result[i] = a[i] + b[i];
 }
 
-NK_API_COMPTIME void nk_each_scale_f32_haswell(nk_f32_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                               nk_f32_t const *beta, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_each_scale_f32_haswell(nk_f32_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                    nk_f32_t const *beta, nk_f32_t *result) {
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
     __m256 alpha_f32x8 = _mm256_set1_ps(alpha_val);
@@ -76,7 +76,7 @@ NK_API_COMPTIME void nk_each_scale_f32_haswell(nk_f32_t const *a, nk_size_t n, n
     for (; i < n; ++i) result[i] = alpha_val * a[i] + beta_val;
 }
 
-NK_API_COMPTIME void nk_each_blend_f32_haswell(        //
+NUMKONG_API_COMPTIME void nk_each_blend_f32_haswell(   //
     nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, //
     nk_f32_t const *alpha, nk_f32_t const *beta, nk_f32_t *result) {
     nk_f32_t alpha_val = *alpha;
@@ -116,7 +116,7 @@ NK_API_COMPTIME void nk_each_blend_f32_haswell(        //
     for (; i < n; ++i) result[i] = alpha_val * a[i] + beta_val * b[i];
 }
 
-NK_API_COMPTIME void nk_each_sum_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_each_sum_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     // The main loop:
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
@@ -130,8 +130,8 @@ NK_API_COMPTIME void nk_each_sum_f64_haswell(nk_f64_t const *a, nk_f64_t const *
     for (; i < n; ++i) result[i] = a[i] + b[i];
 }
 
-NK_API_COMPTIME void nk_each_scale_f64_haswell(nk_f64_t const *a, nk_size_t n, nk_f64_t const *alpha,
-                                               nk_f64_t const *beta, nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_each_scale_f64_haswell(nk_f64_t const *a, nk_size_t n, nk_f64_t const *alpha,
+                                                    nk_f64_t const *beta, nk_f64_t *result) {
     nk_f64_t alpha_val = *alpha;
     nk_f64_t beta_val = *beta;
     __m256d alpha_f64x4 = _mm256_set1_pd(alpha_val);
@@ -149,7 +149,7 @@ NK_API_COMPTIME void nk_each_scale_f64_haswell(nk_f64_t const *a, nk_size_t n, n
     for (; i < n; ++i) result[i] = alpha_val * a[i] + beta_val;
 }
 
-NK_API_COMPTIME void nk_each_blend_f64_haswell(        //
+NUMKONG_API_COMPTIME void nk_each_blend_f64_haswell(   //
     nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, //
     nk_f64_t const *alpha, nk_f64_t const *beta, nk_f64_t *result) {
     nk_f64_t alpha_val = *alpha;
@@ -189,7 +189,7 @@ NK_API_COMPTIME void nk_each_blend_f64_haswell(        //
     for (; i < n; ++i) result[i] = alpha_val * a[i] + beta_val * b[i];
 }
 
-NK_API_COMPTIME void nk_each_sum_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f16_t *result) {
+NUMKONG_API_COMPTIME void nk_each_sum_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f16_t *result) {
 
     // The main loop:
     nk_size_t i = 0;
@@ -213,8 +213,8 @@ NK_API_COMPTIME void nk_each_sum_f16_haswell(nk_f16_t const *a, nk_f16_t const *
     }
 }
 
-NK_API_COMPTIME void nk_each_scale_f16_haswell(nk_f16_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                               nk_f32_t const *beta, nk_f16_t *result) {
+NUMKONG_API_COMPTIME void nk_each_scale_f16_haswell(nk_f16_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                    nk_f32_t const *beta, nk_f16_t *result) {
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
     __m256 alpha_f32x8 = _mm256_set1_ps(alpha_val);
@@ -239,7 +239,7 @@ NK_API_COMPTIME void nk_each_scale_f16_haswell(nk_f16_t const *a, nk_size_t n, n
     }
 }
 
-NK_API_COMPTIME void nk_each_blend_f16_haswell(        //
+NUMKONG_API_COMPTIME void nk_each_blend_f16_haswell(   //
     nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, //
     nk_f32_t const *alpha, nk_f32_t const *beta, nk_f16_t *result) {
     nk_f32_t alpha_val = *alpha;
@@ -288,7 +288,8 @@ NK_API_COMPTIME void nk_each_blend_f16_haswell(        //
     }
 }
 
-NK_API_COMPTIME void nk_each_sum_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_bf16_t *result) {
+NUMKONG_API_COMPTIME void nk_each_sum_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                   nk_bf16_t *result) {
     // The main loop:
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
@@ -311,8 +312,8 @@ NK_API_COMPTIME void nk_each_sum_bf16_haswell(nk_bf16_t const *a, nk_bf16_t cons
     }
 }
 
-NK_API_COMPTIME void nk_each_scale_bf16_haswell(nk_bf16_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                nk_f32_t const *beta, nk_bf16_t *result) {
+NUMKONG_API_COMPTIME void nk_each_scale_bf16_haswell(nk_bf16_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                     nk_f32_t const *beta, nk_bf16_t *result) {
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
     __m256 alpha_f32x8 = _mm256_set1_ps(alpha_val);
@@ -337,7 +338,7 @@ NK_API_COMPTIME void nk_each_scale_bf16_haswell(nk_bf16_t const *a, nk_size_t n,
     }
 }
 
-NK_API_COMPTIME void nk_each_blend_bf16_haswell(         //
+NUMKONG_API_COMPTIME void nk_each_blend_bf16_haswell(    //
     nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, //
     nk_f32_t const *alpha, nk_f32_t const *beta, nk_bf16_t *result) {
     nk_f32_t alpha_val = *alpha;
@@ -386,7 +387,7 @@ NK_API_COMPTIME void nk_each_blend_bf16_haswell(         //
     }
 }
 
-NK_API_COMPTIME void nk_each_fma_f32_haswell(                //
+NUMKONG_API_COMPTIME void nk_each_fma_f32_haswell(           //
     nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, //
     nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta, nk_f32_t *result) {
     nk_f32_t alpha_val = *alpha;
@@ -410,7 +411,7 @@ NK_API_COMPTIME void nk_each_fma_f32_haswell(                //
     for (; i < n; ++i) result[i] = alpha_val * a[i] * b[i] + beta_val * c[i];
 }
 
-NK_API_COMPTIME void nk_each_fma_f64_haswell(                //
+NUMKONG_API_COMPTIME void nk_each_fma_f64_haswell(           //
     nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, //
     nk_size_t n, nk_f64_t const *alpha, nk_f64_t const *beta, nk_f64_t *result) {
     nk_f64_t alpha_val = *alpha;
@@ -434,7 +435,7 @@ NK_API_COMPTIME void nk_each_fma_f64_haswell(                //
     for (; i < n; ++i) result[i] = alpha_val * a[i] * b[i] + beta_val * c[i];
 }
 
-NK_API_COMPTIME void nk_each_fma_f16_haswell(                //
+NUMKONG_API_COMPTIME void nk_each_fma_f16_haswell(           //
     nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, //
     nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta, nk_f16_t *result) {
     nk_f32_t alpha_val = *alpha;
@@ -469,7 +470,7 @@ NK_API_COMPTIME void nk_each_fma_f16_haswell(                //
     }
 }
 
-NK_API_COMPTIME void nk_each_fma_bf16_haswell(                  //
+NUMKONG_API_COMPTIME void nk_each_fma_bf16_haswell(             //
     nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, //
     nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta, nk_bf16_t *result) {
     nk_f32_t alpha_val = *alpha;
@@ -504,7 +505,7 @@ NK_API_COMPTIME void nk_each_fma_bf16_haswell(                  //
     }
 }
 
-NK_API_COMPTIME void nk_each_sum_i8_haswell(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i8_t *result) {
+NUMKONG_API_COMPTIME void nk_each_sum_i8_haswell(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i8_t *result) {
     // The main loop:
     nk_size_t i = 0;
     for (; i + 32 <= n; i += 32) {
@@ -522,8 +523,8 @@ NK_API_COMPTIME void nk_each_sum_i8_haswell(nk_i8_t const *a, nk_i8_t const *b, 
     }
 }
 
-NK_API_COMPTIME void nk_each_scale_i8_haswell(nk_i8_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                              nk_f32_t const *beta, nk_i8_t *result) {
+NUMKONG_API_COMPTIME void nk_each_scale_i8_haswell(nk_i8_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                   nk_f32_t const *beta, nk_i8_t *result) {
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
     __m256 alpha_f32x8 = _mm256_set1_ps(alpha_val);
@@ -567,7 +568,7 @@ NK_API_COMPTIME void nk_each_scale_i8_haswell(nk_i8_t const *a, nk_size_t n, nk_
     }
 }
 
-NK_API_COMPTIME void nk_each_blend_i8_haswell(       //
+NUMKONG_API_COMPTIME void nk_each_blend_i8_haswell(  //
     nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, //
     nk_f32_t const *alpha, nk_f32_t const *beta, nk_i8_t *result) {
     nk_f32_t alpha_val = *alpha;
@@ -635,7 +636,7 @@ NK_API_COMPTIME void nk_each_blend_i8_haswell(       //
     }
 }
 
-NK_API_COMPTIME void nk_each_sum_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u8_t *result) {
+NUMKONG_API_COMPTIME void nk_each_sum_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u8_t *result) {
     // The main loop:
     nk_size_t i = 0;
     for (; i + 32 <= n; i += 32) {
@@ -653,8 +654,8 @@ NK_API_COMPTIME void nk_each_sum_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, 
     }
 }
 
-NK_API_COMPTIME void nk_each_scale_u8_haswell(nk_u8_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                              nk_f32_t const *beta, nk_u8_t *result) {
+NUMKONG_API_COMPTIME void nk_each_scale_u8_haswell(nk_u8_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                   nk_f32_t const *beta, nk_u8_t *result) {
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
     __m256 alpha_f32x8 = _mm256_set1_ps(alpha_val);
@@ -697,7 +698,7 @@ NK_API_COMPTIME void nk_each_scale_u8_haswell(nk_u8_t const *a, nk_size_t n, nk_
     }
 }
 
-NK_API_COMPTIME void nk_each_blend_u8_haswell(       //
+NUMKONG_API_COMPTIME void nk_each_blend_u8_haswell(  //
     nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, //
     nk_f32_t const *alpha, nk_f32_t const *beta, nk_u8_t *result) {
     nk_f32_t alpha_val = *alpha;
@@ -764,7 +765,7 @@ NK_API_COMPTIME void nk_each_blend_u8_haswell(       //
     }
 }
 
-NK_API_COMPTIME void nk_each_fma_i8_haswell(                           //
+NUMKONG_API_COMPTIME void nk_each_fma_i8_haswell(                      //
     nk_i8_t const *a, nk_i8_t const *b, nk_i8_t const *c, nk_size_t n, //
     nk_f32_t const *alpha, nk_f32_t const *beta, nk_i8_t *result) {
     nk_f32_t alpha_val = *alpha;
@@ -818,7 +819,7 @@ NK_API_COMPTIME void nk_each_fma_i8_haswell(                           //
     }
 }
 
-NK_API_COMPTIME void nk_each_fma_u8_haswell(                           //
+NUMKONG_API_COMPTIME void nk_each_fma_u8_haswell(                      //
     nk_u8_t const *a, nk_u8_t const *b, nk_u8_t const *c, nk_size_t n, //
     nk_f32_t const *alpha, nk_f32_t const *beta, nk_u8_t *result) {
     nk_f32_t alpha_val = *alpha;
@@ -871,7 +872,7 @@ NK_API_COMPTIME void nk_each_fma_u8_haswell(                           //
     }
 }
 
-NK_API_COMPTIME void nk_each_sum_i16_haswell(nk_i16_t const *a, nk_i16_t const *b, nk_size_t n, nk_i16_t *result) {
+NUMKONG_API_COMPTIME void nk_each_sum_i16_haswell(nk_i16_t const *a, nk_i16_t const *b, nk_size_t n, nk_i16_t *result) {
     // The main loop:
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
@@ -889,8 +890,8 @@ NK_API_COMPTIME void nk_each_sum_i16_haswell(nk_i16_t const *a, nk_i16_t const *
     }
 }
 
-NK_API_COMPTIME void nk_each_scale_i16_haswell(nk_i16_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                               nk_f32_t const *beta, nk_i16_t *result) {
+NUMKONG_API_COMPTIME void nk_each_scale_i16_haswell(nk_i16_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                    nk_f32_t const *beta, nk_i16_t *result) {
     nk_f32_t alpha_f32 = *alpha;
     nk_f32_t beta_f32 = *beta;
     __m256 alpha_f32x8 = _mm256_set1_ps(alpha_f32);
@@ -920,7 +921,7 @@ NK_API_COMPTIME void nk_each_scale_i16_haswell(nk_i16_t const *a, nk_size_t n, n
     }
 }
 
-NK_API_COMPTIME void nk_each_fma_i16_haswell(                             //
+NUMKONG_API_COMPTIME void nk_each_fma_i16_haswell(                        //
     nk_i16_t const *a, nk_i16_t const *b, nk_i16_t const *c, nk_size_t n, //
     nk_f32_t const *alpha, nk_f32_t const *beta, nk_i16_t *result) {
     nk_f32_t alpha_f32 = *alpha;
@@ -956,7 +957,7 @@ NK_API_COMPTIME void nk_each_fma_i16_haswell(                             //
     }
 }
 
-NK_API_COMPTIME void nk_each_sum_u16_haswell(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_u16_t *result) {
+NUMKONG_API_COMPTIME void nk_each_sum_u16_haswell(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_u16_t *result) {
     // The main loop:
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
@@ -974,8 +975,8 @@ NK_API_COMPTIME void nk_each_sum_u16_haswell(nk_u16_t const *a, nk_u16_t const *
     }
 }
 
-NK_API_COMPTIME void nk_each_scale_u16_haswell(nk_u16_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                               nk_f32_t const *beta, nk_u16_t *result) {
+NUMKONG_API_COMPTIME void nk_each_scale_u16_haswell(nk_u16_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                    nk_f32_t const *beta, nk_u16_t *result) {
     nk_f32_t alpha_f32 = *alpha;
     nk_f32_t beta_f32 = *beta;
     __m256 alpha_f32x8 = _mm256_set1_ps(alpha_f32);
@@ -1005,7 +1006,7 @@ NK_API_COMPTIME void nk_each_scale_u16_haswell(nk_u16_t const *a, nk_size_t n, n
     }
 }
 
-NK_API_COMPTIME void nk_each_fma_u16_haswell(                             //
+NUMKONG_API_COMPTIME void nk_each_fma_u16_haswell(                        //
     nk_u16_t const *a, nk_u16_t const *b, nk_u16_t const *c, nk_size_t n, //
     nk_f32_t const *alpha, nk_f32_t const *beta, nk_u16_t *result) {
     nk_f32_t alpha_f32 = *alpha;
@@ -1041,7 +1042,7 @@ NK_API_COMPTIME void nk_each_fma_u16_haswell(                             //
     }
 }
 
-NK_HELPER_INLINE __m256i _mm256_adds_epi32_haswell(__m256i a, __m256i b) {
+NUMKONG_HELPER_INLINE __m256i _mm256_adds_epi32_haswell(__m256i a, __m256i b) {
     __m256i sum_i32x8 = _mm256_add_epi32(a, b);
     __m256i a_xor_b_i32x8 = _mm256_xor_si256(a, b);
     __m256i sum_xor_a_i32x8 = _mm256_xor_si256(sum_i32x8, a);
@@ -1054,7 +1055,7 @@ NK_HELPER_INLINE __m256i _mm256_adds_epi32_haswell(__m256i a, __m256i b) {
     return _mm256_blendv_epi8(sum_i32x8, saturated_i32x8, overflow_i32x8);
 }
 
-NK_API_COMPTIME void nk_each_sum_i32_haswell(nk_i32_t const *a, nk_i32_t const *b, nk_size_t n, nk_i32_t *result) {
+NUMKONG_API_COMPTIME void nk_each_sum_i32_haswell(nk_i32_t const *a, nk_i32_t const *b, nk_size_t n, nk_i32_t *result) {
     // The main loop:
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
@@ -1072,8 +1073,8 @@ NK_API_COMPTIME void nk_each_sum_i32_haswell(nk_i32_t const *a, nk_i32_t const *
     }
 }
 
-NK_API_COMPTIME void nk_each_scale_i32_haswell(nk_i32_t const *a, nk_size_t n, nk_f64_t const *alpha,
-                                               nk_f64_t const *beta, nk_i32_t *result) {
+NUMKONG_API_COMPTIME void nk_each_scale_i32_haswell(nk_i32_t const *a, nk_size_t n, nk_f64_t const *alpha,
+                                                    nk_f64_t const *beta, nk_i32_t *result) {
     nk_f64_t alpha_val = *alpha;
     nk_f64_t beta_val = *beta;
     __m256d alpha_f64x4 = _mm256_set1_pd(alpha_val);
@@ -1101,7 +1102,7 @@ NK_API_COMPTIME void nk_each_scale_i32_haswell(nk_i32_t const *a, nk_size_t n, n
     }
 }
 
-NK_API_COMPTIME void nk_each_fma_i32_haswell(                             //
+NUMKONG_API_COMPTIME void nk_each_fma_i32_haswell(                        //
     nk_i32_t const *a, nk_i32_t const *b, nk_i32_t const *c, nk_size_t n, //
     nk_f64_t const *alpha, nk_f64_t const *beta, nk_i32_t *result) {
     nk_f64_t alpha_val = *alpha;
@@ -1135,7 +1136,7 @@ NK_API_COMPTIME void nk_each_fma_i32_haswell(                             //
     }
 }
 
-NK_HELPER_INLINE __m256i _mm256_adds_epu32_haswell(__m256i a, __m256i b) {
+NUMKONG_HELPER_INLINE __m256i _mm256_adds_epu32_haswell(__m256i a, __m256i b) {
     __m256i sum_u32x8 = _mm256_add_epi32(a, b);
     __m256i max_u32x8 = _mm256_set1_epi32((int)0xFFFFFFFF);
     // Overflow iff sum < a (unsigned wrapping). max_epu32(sum, a) != sum means overflow.
@@ -1143,7 +1144,7 @@ NK_HELPER_INLINE __m256i _mm256_adds_epu32_haswell(__m256i a, __m256i b) {
     return _mm256_blendv_epi8(max_u32x8, sum_u32x8, no_overflow_u32x8);
 }
 
-NK_HELPER_INLINE __m256d _mm256_cvtepu32_pd_haswell(__m128i a) {
+NUMKONG_HELPER_INLINE __m256d _mm256_cvtepu32_pd_haswell(__m128i a) {
     // TODO: Converting unsigned 32-bit integers to double-precision floats isn't trivial in AVX2.
     // Let's convert the lower 31 bits to a double-precision float.
     // And then conditionally add 2³¹ to the result if the MSB is set.
@@ -1163,7 +1164,7 @@ NK_HELPER_INLINE __m256d _mm256_cvtepu32_pd_haswell(__m128i a) {
     return _mm256_loadu_pd(to);
 }
 
-NK_HELPER_INLINE __m128i _mm256_cvtpd_epu32_haswell(__m256d a) {
+NUMKONG_HELPER_INLINE __m128i _mm256_cvtpd_epu32_haswell(__m256d a) {
     //? For now let's avoid SIMD and just use serial conversion.
     nk_f64_t from[4];
     nk_u32_t to[4];
@@ -1175,7 +1176,7 @@ NK_HELPER_INLINE __m128i _mm256_cvtpd_epu32_haswell(__m256d a) {
     return _mm_loadu_si128((__m128i *)to);
 }
 
-NK_API_COMPTIME void nk_each_sum_u32_haswell(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME void nk_each_sum_u32_haswell(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_u32_t *result) {
     // The main loop:
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
@@ -1193,8 +1194,8 @@ NK_API_COMPTIME void nk_each_sum_u32_haswell(nk_u32_t const *a, nk_u32_t const *
     }
 }
 
-NK_API_COMPTIME void nk_each_scale_u32_haswell(nk_u32_t const *a, nk_size_t n, nk_f64_t const *alpha,
-                                               nk_f64_t const *beta, nk_u32_t *result) {
+NUMKONG_API_COMPTIME void nk_each_scale_u32_haswell(nk_u32_t const *a, nk_size_t n, nk_f64_t const *alpha,
+                                                    nk_f64_t const *beta, nk_u32_t *result) {
     nk_f64_t alpha_val = *alpha;
     nk_f64_t beta_val = *beta;
     __m256d alpha_f64x4 = _mm256_set1_pd(alpha_val);
@@ -1222,7 +1223,7 @@ NK_API_COMPTIME void nk_each_scale_u32_haswell(nk_u32_t const *a, nk_size_t n, n
     }
 }
 
-NK_API_COMPTIME void nk_each_fma_u32_haswell(                             //
+NUMKONG_API_COMPTIME void nk_each_fma_u32_haswell(                        //
     nk_u32_t const *a, nk_u32_t const *b, nk_u32_t const *c, nk_size_t n, //
     nk_f64_t const *alpha, nk_f64_t const *beta, nk_u32_t *result) {
     nk_f64_t alpha_val = *alpha;
@@ -1256,7 +1257,8 @@ NK_API_COMPTIME void nk_each_fma_u32_haswell(                             //
     }
 }
 
-NK_API_COMPTIME void nk_each_sum_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_e4m3_t *result) {
+NUMKONG_API_COMPTIME void nk_each_sum_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                   nk_e4m3_t *result) {
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
         __m128i a_e4m3x8 = _mm_loadl_epi64((__m128i const *)(a + i));
@@ -1276,7 +1278,8 @@ NK_API_COMPTIME void nk_each_sum_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t cons
     }
 }
 
-NK_API_COMPTIME void nk_each_sum_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_e5m2_t *result) {
+NUMKONG_API_COMPTIME void nk_each_sum_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                   nk_e5m2_t *result) {
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
         __m128i a_e5m2x8 = _mm_loadl_epi64((__m128i const *)(a + i));
@@ -1296,8 +1299,8 @@ NK_API_COMPTIME void nk_each_sum_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t cons
     }
 }
 
-NK_API_COMPTIME void nk_each_scale_e4m3_haswell(nk_e4m3_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                nk_f32_t const *beta, nk_e4m3_t *result) {
+NUMKONG_API_COMPTIME void nk_each_scale_e4m3_haswell(nk_e4m3_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                     nk_f32_t const *beta, nk_e4m3_t *result) {
     __m256 alpha_f32x8 = _mm256_set1_ps(*alpha);
     __m256 beta_f32x8 = _mm256_set1_ps(*beta);
     nk_size_t i = 0;
@@ -1318,8 +1321,8 @@ NK_API_COMPTIME void nk_each_scale_e4m3_haswell(nk_e4m3_t const *a, nk_size_t n,
     }
 }
 
-NK_API_COMPTIME void nk_each_scale_e5m2_haswell(nk_e5m2_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                nk_f32_t const *beta, nk_e5m2_t *result) {
+NUMKONG_API_COMPTIME void nk_each_scale_e5m2_haswell(nk_e5m2_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                     nk_f32_t const *beta, nk_e5m2_t *result) {
     __m256 alpha_f32x8 = _mm256_set1_ps(*alpha);
     __m256 beta_f32x8 = _mm256_set1_ps(*beta);
     nk_size_t i = 0;
@@ -1340,8 +1343,8 @@ NK_API_COMPTIME void nk_each_scale_e5m2_haswell(nk_e5m2_t const *a, nk_size_t n,
     }
 }
 
-NK_API_COMPTIME void nk_each_blend_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
-                                                nk_f32_t const *alpha, nk_f32_t const *beta, nk_e4m3_t *result) {
+NUMKONG_API_COMPTIME void nk_each_blend_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                     nk_f32_t const *alpha, nk_f32_t const *beta, nk_e4m3_t *result) {
     __m256 alpha_f32x8 = _mm256_set1_ps(*alpha);
     __m256 beta_f32x8 = _mm256_set1_ps(*beta);
     nk_size_t i = 0;
@@ -1364,8 +1367,8 @@ NK_API_COMPTIME void nk_each_blend_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t co
     }
 }
 
-NK_API_COMPTIME void nk_each_blend_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
-                                                nk_f32_t const *alpha, nk_f32_t const *beta, nk_e5m2_t *result) {
+NUMKONG_API_COMPTIME void nk_each_blend_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                     nk_f32_t const *alpha, nk_f32_t const *beta, nk_e5m2_t *result) {
     __m256 alpha_f32x8 = _mm256_set1_ps(*alpha);
     __m256 beta_f32x8 = _mm256_set1_ps(*beta);
     nk_size_t i = 0;
@@ -1388,8 +1391,9 @@ NK_API_COMPTIME void nk_each_blend_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t co
     }
 }
 
-NK_API_COMPTIME void nk_each_fma_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_e4m3_t const *c, nk_size_t n,
-                                              nk_f32_t const *alpha, nk_f32_t const *beta, nk_e4m3_t *result) {
+NUMKONG_API_COMPTIME void nk_each_fma_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_e4m3_t const *c,
+                                                   nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
+                                                   nk_e4m3_t *result) {
     __m256 alpha_f32x8 = _mm256_set1_ps(*alpha);
     __m256 beta_f32x8 = _mm256_set1_ps(*beta);
     nk_size_t i = 0;
@@ -1419,8 +1423,9 @@ NK_API_COMPTIME void nk_each_fma_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t cons
     }
 }
 
-NK_API_COMPTIME void nk_each_fma_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_e5m2_t const *c, nk_size_t n,
-                                              nk_f32_t const *alpha, nk_f32_t const *beta, nk_e5m2_t *result) {
+NUMKONG_API_COMPTIME void nk_each_fma_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_e5m2_t const *c,
+                                                   nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
+                                                   nk_e5m2_t *result) {
     __m256 alpha_f32x8 = _mm256_set1_ps(*alpha);
     __m256 beta_f32x8 = _mm256_set1_ps(*beta);
     nk_size_t i = 0;
@@ -1450,8 +1455,8 @@ NK_API_COMPTIME void nk_each_fma_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t cons
     }
 }
 
-NK_API_COMPTIME void nk_each_scale_f32c_haswell(nk_f32c_t const *a, nk_size_t n, nk_f32c_t const *alpha,
-                                                nk_f32c_t const *beta, nk_f32c_t *result) {
+NUMKONG_API_COMPTIME void nk_each_scale_f32c_haswell(nk_f32c_t const *a, nk_size_t n, nk_f32c_t const *alpha,
+                                                     nk_f32c_t const *beta, nk_f32c_t *result) {
     nk_f32_t const *a_f32 = (nk_f32_t const *)a;
     nk_f32_t *result_f32 = (nk_f32_t *)result;
     __m256 alpha_real_f32x8 = _mm256_set1_ps(alpha->real);
@@ -1474,8 +1479,8 @@ NK_API_COMPTIME void nk_each_scale_f32c_haswell(nk_f32c_t const *a, nk_size_t n,
     }
 }
 
-NK_API_COMPTIME void nk_each_scale_f64c_haswell(nk_f64c_t const *a, nk_size_t n, nk_f64c_t const *alpha,
-                                                nk_f64c_t const *beta, nk_f64c_t *result) {
+NUMKONG_API_COMPTIME void nk_each_scale_f64c_haswell(nk_f64c_t const *a, nk_size_t n, nk_f64c_t const *alpha,
+                                                     nk_f64c_t const *beta, nk_f64c_t *result) {
     nk_f64_t const *a_f64 = (nk_f64_t const *)a;
     nk_f64_t *result_f64 = (nk_f64_t *)result;
     __m256d alpha_real_f64x4 = _mm256_set1_pd(alpha->real);
@@ -1497,8 +1502,8 @@ NK_API_COMPTIME void nk_each_scale_f64c_haswell(nk_f64c_t const *a, nk_size_t n,
     }
 }
 
-NK_API_COMPTIME void nk_each_blend_f32c_haswell(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n,
-                                                nk_f32c_t const *alpha, nk_f32c_t const *beta, nk_f32c_t *result) {
+NUMKONG_API_COMPTIME void nk_each_blend_f32c_haswell(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n,
+                                                     nk_f32c_t const *alpha, nk_f32c_t const *beta, nk_f32c_t *result) {
     nk_f32_t const *a_f32 = (nk_f32_t const *)a;
     nk_f32_t const *b_f32 = (nk_f32_t const *)b;
     nk_f32_t *result_f32 = (nk_f32_t *)result;
@@ -1530,8 +1535,8 @@ NK_API_COMPTIME void nk_each_blend_f32c_haswell(nk_f32c_t const *a, nk_f32c_t co
     }
 }
 
-NK_API_COMPTIME void nk_each_blend_f64c_haswell(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n,
-                                                nk_f64c_t const *alpha, nk_f64c_t const *beta, nk_f64c_t *result) {
+NUMKONG_API_COMPTIME void nk_each_blend_f64c_haswell(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n,
+                                                     nk_f64c_t const *alpha, nk_f64c_t const *beta, nk_f64c_t *result) {
     nk_f64_t const *a_f64 = (nk_f64_t const *)a;
     nk_f64_t const *b_f64 = (nk_f64_t const *)b;
     nk_f64_t *result_f64 = (nk_f64_t *)result;
@@ -1563,8 +1568,9 @@ NK_API_COMPTIME void nk_each_blend_f64c_haswell(nk_f64c_t const *a, nk_f64c_t co
     }
 }
 
-NK_API_COMPTIME void nk_each_fma_f32c_haswell(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c, nk_size_t n,
-                                              nk_f32c_t const *alpha, nk_f32c_t const *beta, nk_f32c_t *result) {
+NUMKONG_API_COMPTIME void nk_each_fma_f32c_haswell(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c,
+                                                   nk_size_t n, nk_f32c_t const *alpha, nk_f32c_t const *beta,
+                                                   nk_f32c_t *result) {
     nk_f32_t const *a_f32 = (nk_f32_t const *)a;
     nk_f32_t const *b_f32 = (nk_f32_t const *)b;
     nk_f32_t const *c_f32 = (nk_f32_t const *)c;
@@ -1606,8 +1612,9 @@ NK_API_COMPTIME void nk_each_fma_f32c_haswell(nk_f32c_t const *a, nk_f32c_t cons
     }
 }
 
-NK_API_COMPTIME void nk_each_fma_f64c_haswell(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c, nk_size_t n,
-                                              nk_f64c_t const *alpha, nk_f64c_t const *beta, nk_f64c_t *result) {
+NUMKONG_API_COMPTIME void nk_each_fma_f64c_haswell(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c,
+                                                   nk_size_t n, nk_f64c_t const *alpha, nk_f64c_t const *beta,
+                                                   nk_f64c_t *result) {
     nk_f64_t const *a_f64 = (nk_f64_t const *)a;
     nk_f64_t const *b_f64 = (nk_f64_t const *)b;
     nk_f64_t const *c_f64 = (nk_f64_t const *)c;
@@ -1650,7 +1657,7 @@ NK_API_COMPTIME void nk_each_fma_f64c_haswell(nk_f64c_t const *a, nk_f64c_t cons
 }
 
 /** Vectorized `2^x` (Haswell AVX2); matches @c nk_f32_exp2_serial_ to polynomial precision. */
-NK_HELPER_INLINE __m256 nk_exp2_f32x8_haswell_(__m256 x_f32x8) {
+NUMKONG_HELPER_INLINE __m256 nk_exp2_f32x8_haswell_(__m256 x_f32x8) {
     x_f32x8 = _mm256_max_ps(_mm256_min_ps(x_f32x8, _mm256_set1_ps(127.0f)), _mm256_set1_ps(-125.0f));
     __m256 n_f32x8 = _mm256_round_ps(x_f32x8, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
     __m256 r_f32x8 = _mm256_sub_ps(x_f32x8, n_f32x8);
@@ -1667,7 +1674,7 @@ NK_HELPER_INLINE __m256 nk_exp2_f32x8_haswell_(__m256 x_f32x8) {
 /** I-BERT-style integer 2ᵗ without floats: takes a Q15 exponent in [−10 × 2¹⁵, 0] and returns
  *  round(2ᵗ × 255) as a U8 weight in each I32 lane, through a degree-3 Q14 polynomial and a
  *  lane-variable shift. */
-NK_HELPER_INLINE __m256i nk_exp2_u8_i32x8_haswell_(__m256i t_q15_i32x8) {
+NUMKONG_HELPER_INLINE __m256i nk_exp2_u8_i32x8_haswell_(__m256i t_q15_i32x8) {
     __m256i const whole_i32x8 = _mm256_srai_epi32(t_q15_i32x8, 15); // floor, in [-10, 0]
     __m256i const fraction_i32x8 = _mm256_and_si256(t_q15_i32x8, _mm256_set1_epi32(0x7FFF));
     __m256i poly_i32x8 = _mm256_set1_epi32(1296); // Chebyshev-fit 2^r coefficients in Q14, degree 3
@@ -1685,18 +1692,20 @@ NK_HELPER_INLINE __m256i nk_exp2_u8_i32x8_haswell_(__m256i t_q15_i32x8) {
 }
 
 /** Vectorized SiLU, x / (1 + 2^(−x × log₂e)), on Haswell AVX2. */
-NK_HELPER_INLINE __m256 nk_silu_f32x8_haswell_(__m256 x_f32x8) {
-    __m256 e_f32x8 = nk_exp2_f32x8_haswell_(_mm256_mul_ps(x_f32x8, _mm256_set1_ps(-NK_F32_LOG2E_)));
+NUMKONG_HELPER_INLINE __m256 nk_silu_f32x8_haswell_(__m256 x_f32x8) {
+    __m256 e_f32x8 = nk_exp2_f32x8_haswell_(_mm256_mul_ps(x_f32x8, _mm256_set1_ps(-NUMKONG_F32_LOG2E_)));
     return _mm256_div_ps(x_f32x8, _mm256_add_ps(_mm256_set1_ps(1.0f), e_f32x8));
 }
 
-NK_API_COMPTIME void nk_each_swiglu_f32_haswell(nk_f32_t const *gate, nk_f32_t const *up, nk_f32_t *y, nk_size_t rows,
-                                                nk_size_t cols, nk_size_t gate_row_stride, nk_size_t up_row_stride,
-                                                nk_size_t y_row_stride, nk_f32_t input_scale) {
+NUMKONG_API_COMPTIME void nk_each_swiglu_f32_haswell(nk_f32_t const *gate, nk_f32_t const *up, nk_f32_t *y,
+                                                     nk_size_t rows, nk_size_t cols, nk_size_t gate_row_stride,
+                                                     nk_size_t up_row_stride, nk_size_t y_row_stride,
+                                                     nk_f32_t input_scale) {
     __m256 scale_f32x8 = _mm256_set1_ps(input_scale);
     for (nk_size_t row = 0; row != rows; ++row) {
         nk_f32_t const *gate_row = (nk_f32_t const *)((unsigned char const *)gate + row * gate_row_stride);
-        nk_f32_t const *up_row = up ? (nk_f32_t const *)((unsigned char const *)up + row * up_row_stride) : NK_NULL;
+        nk_f32_t const *up_row = up ? (nk_f32_t const *)((unsigned char const *)up + row * up_row_stride)
+                                    : NUMKONG_NULL;
         nk_f32_t *y_row = (nk_f32_t *)((unsigned char *)y + row * y_row_stride);
         nk_size_t col = 0;
         for (; col + 8 <= cols; col += 8) {
@@ -1713,14 +1722,15 @@ NK_API_COMPTIME void nk_each_swiglu_f32_haswell(nk_f32_t const *gate, nk_f32_t c
     }
 }
 
-NK_API_COMPTIME void nk_each_swiglu_bf16_haswell(nk_bf16_t const *gate, nk_bf16_t const *up, nk_bf16_t *y,
-                                                 nk_size_t rows, nk_size_t cols, nk_size_t gate_row_stride,
-                                                 nk_size_t up_row_stride, nk_size_t y_row_stride,
-                                                 nk_f32_t input_scale) {
+NUMKONG_API_COMPTIME void nk_each_swiglu_bf16_haswell(nk_bf16_t const *gate, nk_bf16_t const *up, nk_bf16_t *y,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t gate_row_stride,
+                                                      nk_size_t up_row_stride, nk_size_t y_row_stride,
+                                                      nk_f32_t input_scale) {
     __m256 scale_f32x8 = _mm256_set1_ps(input_scale);
     for (nk_size_t row = 0; row != rows; ++row) {
         nk_bf16_t const *gate_row = (nk_bf16_t const *)((unsigned char const *)gate + row * gate_row_stride);
-        nk_bf16_t const *up_row = up ? (nk_bf16_t const *)((unsigned char const *)up + row * up_row_stride) : NK_NULL;
+        nk_bf16_t const *up_row = up ? (nk_bf16_t const *)((unsigned char const *)up + row * up_row_stride)
+                                     : NUMKONG_NULL;
         nk_bf16_t *y_row = (nk_bf16_t *)((unsigned char *)y + row * y_row_stride);
         nk_size_t col = 0;
         for (; col + 8 <= cols; col += 8) {
@@ -1748,14 +1758,15 @@ NK_API_COMPTIME void nk_each_swiglu_bf16_haswell(nk_bf16_t const *gate, nk_bf16_
     }
 }
 
-NK_API_COMPTIME void nk_each_swiglu_e4m3_haswell(nk_e4m3_t const *gate, nk_e4m3_t const *up, nk_e4m3_t *y,
-                                                 nk_size_t rows, nk_size_t cols, nk_size_t gate_row_stride,
-                                                 nk_size_t up_row_stride, nk_size_t y_row_stride,
-                                                 nk_f32_t input_scale) {
+NUMKONG_API_COMPTIME void nk_each_swiglu_e4m3_haswell(nk_e4m3_t const *gate, nk_e4m3_t const *up, nk_e4m3_t *y,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t gate_row_stride,
+                                                      nk_size_t up_row_stride, nk_size_t y_row_stride,
+                                                      nk_f32_t input_scale) {
     __m256 scale_f32x8 = _mm256_set1_ps(input_scale);
     for (nk_size_t row = 0; row != rows; ++row) {
         nk_e4m3_t const *gate_row = (nk_e4m3_t const *)((unsigned char const *)gate + row * gate_row_stride);
-        nk_e4m3_t const *up_row = up ? (nk_e4m3_t const *)((unsigned char const *)up + row * up_row_stride) : NK_NULL;
+        nk_e4m3_t const *up_row = up ? (nk_e4m3_t const *)((unsigned char const *)up + row * up_row_stride)
+                                     : NUMKONG_NULL;
         nk_e4m3_t *y_row = (nk_e4m3_t *)((unsigned char *)y + row * y_row_stride);
         nk_size_t col = 0;
         for (; col + 8 <= cols; col += 8) {
@@ -1793,6 +1804,6 @@ NK_API_COMPTIME void nk_each_swiglu_e4m3_haswell(nk_e4m3_t const *gate, nk_e4m3_
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_HASWELL
-#endif // NK_TARGET_X8664_
-#endif // NK_EACH_HASWELL_H
+#endif // NUMKONG_TARGET_HASWELL
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_EACH_HASWELL_H

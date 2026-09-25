@@ -19,24 +19,24 @@ archs = ["all"]
 build-verbosity = 0
 # https://cibuildwheel.readthedocs.io/en/stable/options/#enable
 enable = []  # no PyPy and no free-threading 3.13; 3.14t is on by default
-# Forwarded from the job environment; `NK_IN_QEMU` shrinks the fuzzing dimensions on emulated runners.
+# Forwarded from the job environment; `NUMKONG_IN_QEMU` shrinks the fuzzing dimensions on emulated runners.
 environment-pass = [
-    "NK_BUDGET_SECS",
-    "NK_CURVED_DIMENSIONS",
-    "NK_DENSE_DIMENSIONS",
-    "NK_FILTER",
-    "NK_IN_QEMU",
-    "NK_MATRIX_DEPTH",
-    "NK_MATRIX_HEIGHT",
-    "NK_MATRIX_WIDTH",
-    "NK_MAX_COORD_ANGLE",
-    "NK_MESH_POINTS",
-    "NK_RANDOM_DISTRIBUTION",
-    "NK_REPETITIONS",
-    "NK_SEED",
-    "NK_SPARSE_DIMENSIONS",
-    "NK_TEST_ASSERT",
-    "NK_TEST_VERBOSE",
+    "NUMKONG_ASSERT",
+    "NUMKONG_BUDGET_SECS",
+    "NUMKONG_CURVED_DIMENSIONS",
+    "NUMKONG_DENSE_DIMENSIONS",
+    "NUMKONG_FILTER",
+    "NUMKONG_IN_QEMU",
+    "NUMKONG_MATRIX_DEPTH",
+    "NUMKONG_MATRIX_HEIGHT",
+    "NUMKONG_MATRIX_WIDTH",
+    "NUMKONG_MAX_COORD_ANGLE",
+    "NUMKONG_MESH_POINTS",
+    "NUMKONG_RANDOM_DISTRIBUTION",
+    "NUMKONG_REPETITIONS",
+    "NUMKONG_SEED",
+    "NUMKONG_SPARSE_DIMENSIONS",
+    "NUMKONG_VERBOSE",
 ]
 # Lock the glibc floor for the popular architectures. These match cibuildwheel's current defaults,
 # so a future default bump moves neither the floor nor the wheel tags without an edit here.
@@ -75,7 +75,7 @@ test-requires = ["pytest", "pytest-randomly", "pytest-repeat", "tabulate"]
 test-skip = "*_i686 *_ppc64le *_s390x"
 
 [tool.cibuildwheel.environment]
-NK_BUILD_PARALLEL = "2"
+NUMKONG_BUILD_PARALLEL = "2"
 
 [tool.cibuildwheel.linux]
 # On CentOS we have to use `yum`, and `extras` fails to download on Arm instances.
@@ -120,51 +120,51 @@ test-command = """
 # x86-64 builds
 [[tool.cibuildwheel.overrides]]
 select = "*-win_amd64"
-environment.NK_TARGET_ARM64_ = "0"
-environment.NK_TARGET_X8664_ = "1"
+environment.NUMKONG_ARCH_ARM64_ = "0"
+environment.NUMKONG_ARCH_X86_64_ = "1"
 inherit.environment = "append"
 
 [[tool.cibuildwheel.overrides]]
 select = "*-manylinux*_x86_64"
-environment.NK_TARGET_ARM64_ = "0"
-environment.NK_TARGET_X8664_ = "1"
+environment.NUMKONG_ARCH_ARM64_ = "0"
+environment.NUMKONG_ARCH_X86_64_ = "1"
 inherit.environment = "append"
 
 [[tool.cibuildwheel.overrides]]
 select = "*-musllinux*_x86_64"
-environment.NK_TARGET_ARM64_ = "0"
-environment.NK_TARGET_X8664_ = "1"
+environment.NUMKONG_ARCH_ARM64_ = "0"
+environment.NUMKONG_ARCH_X86_64_ = "1"
 inherit.environment = "append"
 
 [[tool.cibuildwheel.overrides]]
 select = "*-macos*_x86_64"
-environment.NK_TARGET_ARM64_ = "0"
-environment.NK_TARGET_X8664_ = "1"
+environment.NUMKONG_ARCH_ARM64_ = "0"
+environment.NUMKONG_ARCH_X86_64_ = "1"
 inherit.environment = "append"
 
 # ARM64 builds
 [[tool.cibuildwheel.overrides]]
 select = "*-win_arm64"
-environment.NK_TARGET_ARM64_ = "1"
-environment.NK_TARGET_X8664_ = "0"
+environment.NUMKONG_ARCH_ARM64_ = "1"
+environment.NUMKONG_ARCH_X86_64_ = "0"
 inherit.environment = "append"
 
 [[tool.cibuildwheel.overrides]]
 select = "*-manylinux*_aarch64"
-environment.NK_TARGET_ARM64_ = "1"
-environment.NK_TARGET_X8664_ = "0"
+environment.NUMKONG_ARCH_ARM64_ = "1"
+environment.NUMKONG_ARCH_X86_64_ = "0"
 inherit.environment = "append"
 
 [[tool.cibuildwheel.overrides]]
 select = "*-musllinux*_aarch64"
-environment.NK_TARGET_ARM64_ = "1"
-environment.NK_TARGET_X8664_ = "0"
+environment.NUMKONG_ARCH_ARM64_ = "1"
+environment.NUMKONG_ARCH_X86_64_ = "0"
 inherit.environment = "append"
 
 [[tool.cibuildwheel.overrides]]
 select = "*-macos*_arm64"
-environment.NK_TARGET_ARM64_ = "1"
-environment.NK_TARGET_X8664_ = "0"
+environment.NUMKONG_ARCH_ARM64_ = "1"
+environment.NUMKONG_ARCH_X86_64_ = "0"
 inherit.environment = "append"
 
 # RISC-V builds: the images' GCC 14 ignores `#pragma GCC target`, which is how the RVV kernels
@@ -175,9 +175,9 @@ select = "*-manylinux*_riscv64"
 environment.CC = "clang"
 environment.CXX = "clang++"
 environment.LDFLAGS = "-fuse-ld=lld"
-environment.NK_TARGET_ARM64_ = "0"
-environment.NK_TARGET_RISCV64_ = "1"
-environment.NK_TARGET_X8664_ = "0"
+environment.NUMKONG_ARCH_ARM64_ = "0"
+environment.NUMKONG_ARCH_RISCV64_ = "1"
+environment.NUMKONG_ARCH_X86_64_ = "0"
 inherit.environment = "append"
 
 # Pyodide / Emscripten WASM builds

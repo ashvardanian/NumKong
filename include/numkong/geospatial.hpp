@@ -4,8 +4,8 @@
  *  @date February 5, 2026
  *  @brief Geospatial kernels: haversine, vincenty.
  */
-#ifndef NK_GEOSPATIAL_HPP
-#define NK_GEOSPATIAL_HPP
+#ifndef NUMKONG_GEOSPATIAL_HPP
+#define NUMKONG_GEOSPATIAL_HPP
 
 #include <cstdint>     // `std::uint32_t`
 #include <type_traits> // `std::is_same_v`
@@ -236,4 +236,4 @@ void vincenty(vector_view<in_type_> a_lats, vector_view<in_type_> a_lons, vector
 
 } // namespace ashvardanian::numkong
 
-#endif // NK_GEOSPATIAL_HPP
+#endif // NUMKONG_GEOSPATIAL_HPP

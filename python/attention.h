@@ -4,8 +4,8 @@
  *  @date July 6, 2026
  *  @brief Ragged attention API declarations for NumKong Python bindings.
  */
-#ifndef NK_PYTHON_ATTENTION_H
-#define NK_PYTHON_ATTENTION_H
+#ifndef NUMKONG_PYTHON_ATTENTION_H
+#define NUMKONG_PYTHON_ATTENTION_H
 
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
@@ -61,4 +61,4 @@ extern char const doc_attention_pack[];
 extern char const doc_attention_bidirectional_packed[];
 extern char const doc_attention_causal_packed[];
 
-#endif // NK_PYTHON_ATTENTION_H
+#endif // NUMKONG_PYTHON_ATTENTION_H

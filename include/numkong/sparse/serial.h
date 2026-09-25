@@ -6,8 +6,8 @@
  *
  *  @sa include/numkong/sparse.h
  */
-#ifndef NK_SPARSE_SERIAL_H
-#define NK_SPARSE_SERIAL_H
+#ifndef NUMKONG_SPARSE_SERIAL_H
+#define NUMKONG_SPARSE_SERIAL_H
 
 #include "numkong/types.h"
 #include "numkong/cast/serial.h" // `nk_bf16_to_f32_serial`, `nk_assign_from_to_`
@@ -17,7 +17,7 @@ extern "C" {
 #endif
 
 #define nk_define_sparse_intersect_helpers_(input_type)                                                     \
-    NK_HELPER_INLINE nk_size_t nk_sparse_intersect_##input_type##_galloping_search_(                        \
+    NUMKONG_HELPER_INLINE nk_size_t nk_sparse_intersect_##input_type##_galloping_search_(                   \
         nk_##input_type##_t const *array, nk_size_t start, nk_size_t length, nk_##input_type##_t val) {     \
         nk_size_t low = start;                                                                              \
         nk_size_t high = start + 1 < length ? start + 1 : length;                                           \
@@ -33,7 +33,7 @@ extern "C" {
         }                                                                                                   \
         return low;                                                                                         \
     }                                                                                                       \
-    NK_HELPER_INLINE nk_size_t nk_sparse_intersect_##input_type##_linear_scan_(                             \
+    NUMKONG_HELPER_INLINE nk_size_t nk_sparse_intersect_##input_type##_linear_scan_(                        \
         nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_size_t a_length, nk_size_t b_length, \
         nk_##input_type##_t *result) {                                                                      \
         nk_size_t intersection_size = 0;                                                                    \
@@ -52,7 +52,7 @@ extern "C" {
     }
 
 #define nk_define_sparse_intersect_(input_type)                                                                      \
-    NK_API_COMPTIME void nk_sparse_intersect_##input_type##_serial(                                                  \
+    NUMKONG_API_COMPTIME void nk_sparse_intersect_##input_type##_serial(                                             \
         nk_##input_type##_t const *shorter, nk_##input_type##_t const *longer, nk_size_t shorter_length,             \
         nk_size_t longer_length, nk_##input_type##_t *result, nk_size_t *count) {                                    \
         /* Swap arrays if necessary, as we want "longer" to be larger than "shorter" */                              \
@@ -87,7 +87,7 @@ extern "C" {
     }
 
 #define nk_define_sparse_dot_(input_type, weight_type, accumulator_type, load_and_convert)                 \
-    NK_API_COMPTIME void nk_sparse_dot_##input_type##weight_type##_serial(                                 \
+    NUMKONG_API_COMPTIME void nk_sparse_dot_##input_type##weight_type##_serial(                            \
         nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_##weight_type##_t const *a_weights, \
         nk_##weight_type##_t const *b_weights, nk_size_t a_length, nk_size_t b_length,                     \
         nk_##accumulator_type##_t *product) {                                                              \
@@ -137,4 +137,4 @@ nk_define_sparse_dot_(u32, f32, f64, nk_assign_from_to_)     // nk_sparse_dot_u3
 } // extern "C"
 #endif
 
-#endif // NK_SPARSE_SERIAL_H
+#endif // NUMKONG_SPARSE_SERIAL_H

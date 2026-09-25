@@ -8,7 +8,7 @@
 
 void nk_dispatch_bf16c_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punned_t *m, nk_capability_t *c) {
     typedef nk_kernel_punned_t m_t;
-#if NK_TARGET_NEONBFDOT
+#if NUMKONG_TARGET_NEONBFDOT
     if (v & nk_cap_neonbfdot_k) switch (k) {
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_bf16c_neonbfdot, *c = nk_cap_neonbfdot_k; return;
         case nk_kernel_vdot_k: *m = (m_t)&nk_vdot_bf16c_neonbfdot, *c = nk_cap_neonbfdot_k; return;
@@ -16,7 +16,7 @@ void nk_dispatch_bf16c_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pu
         default: break;
         }
 #endif
-#if NK_TARGET_GENOA
+#if NUMKONG_TARGET_GENOA
     if (v & nk_cap_genoa_k) switch (k) {
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_bf16c_genoa, *c = nk_cap_genoa_k; return;
         case nk_kernel_vdot_k: *m = (m_t)&nk_vdot_bf16c_genoa, *c = nk_cap_genoa_k; return;
@@ -24,7 +24,7 @@ void nk_dispatch_bf16c_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pu
         default: break;
         }
 #endif
-#if NK_TARGET_HASWELL
+#if NUMKONG_TARGET_HASWELL
     if (v & nk_cap_haswell_k) switch (k) {
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_bf16c_haswell, *c = nk_cap_haswell_k; return;
         case nk_kernel_vdot_k: *m = (m_t)&nk_vdot_bf16c_haswell, *c = nk_cap_haswell_k; return;

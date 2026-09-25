@@ -13,11 +13,11 @@
  *  @c FMLAL2 pairs into F32 accumulators, and the weighted V accumulation shares the F16
  *  weight-broadcast path.
  */
-#ifndef NK_ATTENTION_NEONFHM_H
-#define NK_ATTENTION_NEONFHM_H
+#ifndef NUMKONG_ATTENTION_NEONFHM_H
+#define NUMKONG_ATTENTION_NEONFHM_H
 
-#if NK_TARGET_ARM64_
-#if NK_TARGET_NEONFHM
+#if NUMKONG_ARCH_ARM64_
+#if NUMKONG_TARGET_NEONFHM
 
 #include <arm_neon.h>
 
@@ -48,8 +48,8 @@ enum {
 };
 
 /** Converts one E4M3 row to a zero-padded F16 destination, 8 lanes per step. */
-NK_HELPER_INLINE void nk_attention_e4m3_row_to_f16_neonfhm_(nk_e4m3_t const *source, nk_u16_t *destination,
-                                                            nk_size_t depth, nk_size_t depth_padded) {
+NUMKONG_HELPER_INLINE void nk_attention_e4m3_row_to_f16_neonfhm_(nk_e4m3_t const *source, nk_u16_t *destination,
+                                                                 nk_size_t depth, nk_size_t depth_padded) {
     nk_size_t channel_idx = 0;
     for (; channel_idx + 8 <= depth; channel_idx += 8)
         vst1q_u16(destination + channel_idx,
@@ -59,9 +59,9 @@ NK_HELPER_INLINE void nk_attention_e4m3_row_to_f16_neonfhm_(nk_e4m3_t const *sou
     for (; channel_idx < depth_padded; channel_idx++) destination[channel_idx] = 0;
 }
 
-NK_API_COMPTIME nk_size_t nk_attention_pack_size_e4m3_neonfhm(nk_size_t key_value_head_count, nk_size_t depth,
-                                                              nk_u32_t const *segment_lengths,
-                                                              nk_size_t segment_count) {
+NUMKONG_API_COMPTIME nk_size_t nk_attention_pack_size_e4m3_neonfhm(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                   nk_u32_t const *segment_lengths,
+                                                                   nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_neonfhm_k_)
         return nk_attention_pack_size_e4m3_serial(key_value_head_count, depth, segment_lengths, segment_count);
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
@@ -72,12 +72,12 @@ NK_API_COMPTIME nk_size_t nk_attention_pack_size_e4m3_neonfhm(nk_size_t key_valu
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
 }
 
-NK_API_COMPTIME void nk_attention_packed_shape_e4m3_neonfhm(void const *key_value_packed, nk_size_t *heads,
-                                                            nk_size_t *depth, nk_size_t *segments) {
+NUMKONG_API_COMPTIME void nk_attention_packed_shape_e4m3_neonfhm(void const *key_value_packed, nk_size_t *heads,
+                                                                 nk_size_t *depth, nk_size_t *segments) {
     nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
 }
 
-NK_API_COMPTIME void nk_attention_pack_e4m3_neonfhm(                                   //
+NUMKONG_API_COMPTIME void nk_attention_pack_e4m3_neonfhm(                              //
     nk_e4m3_t const *keys, nk_e4m3_t const *values,                                    //
     nk_size_t key_value_head_count, nk_size_t depth,                                   //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                  //
@@ -126,7 +126,7 @@ NK_API_COMPTIME void nk_attention_pack_e4m3_neonfhm(                            
     }
 }
 
-NK_HELPER_INLINE void nk_attention_packed_e4m3_neonfhm_(                         //
+NUMKONG_HELPER_INLINE void nk_attention_packed_e4m3_neonfhm_(                    //
     nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,    //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //
@@ -150,14 +150,14 @@ NK_HELPER_INLINE void nk_attention_packed_e4m3_neonfhm_(                        
     nk_size_t const head_group_size = head_count / key_value_head_count;
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
     nk_size_t const plane_row_bytes = depth_padded * sizeof(nk_f16_t);
-    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x · log₂e)
+    nk_f32_t const scale2 = scale * NUMKONG_F32_LOG2E_; // softmax(x) = softmax₂(x · log₂e)
     nk_size_t const panel_width = nk_attention_panel_neonfhm_k_;
 
     nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);
 
-    NK_ALIGN64 nk_u16_t query_row[nk_attention_max_depth_neonfhm_k_];
-    NK_ALIGN64 nk_f32_t output_row[nk_attention_max_depth_neonfhm_k_];
-    NK_ALIGN64 nk_f32_t scores[nk_attention_panel_neonfhm_k_];
+    NUMKONG_ALIGN64_ nk_u16_t query_row[nk_attention_max_depth_neonfhm_k_];
+    NUMKONG_ALIGN64_ nk_f32_t output_row[nk_attention_max_depth_neonfhm_k_];
+    NUMKONG_ALIGN64_ nk_f32_t scores[nk_attention_panel_neonfhm_k_];
 
     for (nk_size_t task_idx = task_start; task_idx < task_end; task_idx++) {
         nk_size_t const segment_idx = task_idx / head_count, head_idx = task_idx % head_count;
@@ -180,7 +180,7 @@ NK_HELPER_INLINE void nk_attention_packed_e4m3_neonfhm_(                        
             nk_size_t channel_idx;
             for (channel_idx = 0; channel_idx < depth_padded; channel_idx += 4)
                 vst1q_f32(output_row + channel_idx, vdupq_n_f32(0.0f));
-            nk_f32_t running_max2 = NK_F32_MIN, running_sum = 0;
+            nk_f32_t running_max2 = NUMKONG_F32_MIN, running_sum = 0;
 
             for (nk_size_t panel_start = key_begin; panel_start < key_end; panel_start += panel_width) {
                 nk_size_t const panel_length = (panel_start + panel_width <= key_end) ? panel_width
@@ -234,7 +234,7 @@ NK_HELPER_INLINE void nk_attention_packed_e4m3_neonfhm_(                        
                 }
 
                 float32x4_t const scale2_f32x4 = vdupq_n_f32(scale2);
-                float32x4_t max_f32x4 = vdupq_n_f32(NK_F32_MIN);
+                float32x4_t max_f32x4 = vdupq_n_f32(NUMKONG_F32_MIN);
                 for (position_idx = 0; position_idx + 4 <= panel_length; position_idx += 4)
                     max_f32x4 = vmaxq_f32(max_f32x4, vmulq_f32(vld1q_f32(scores + position_idx), scale2_f32x4));
                 nk_f32_t panel_max2 = vmaxvq_f32(max_f32x4);
@@ -295,17 +295,17 @@ NK_HELPER_INLINE void nk_attention_packed_e4m3_neonfhm_(                        
     }
 }
 
-NK_API_COMPTIME void nk_attention_bidirectional_packed_e4m3_neonfhm(                                            //
+NUMKONG_API_COMPTIME void nk_attention_bidirectional_packed_e4m3_neonfhm(                                       //
     nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,                                   //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
     nk_size_t task_start, nk_size_t task_count) {
     nk_attention_packed_e4m3_neonfhm_(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                      query_offsets, query_stride_bytes, output_stride_bytes, scale, NK_I64_MAX / 2,
-                                      NK_SIZE_MAX, task_start, task_count);
+                                      query_offsets, query_stride_bytes, output_stride_bytes, scale,
+                                      NUMKONG_I64_MAX / 2, NUMKONG_SIZE_MAX, task_start, task_count);
 }
 
-NK_API_COMPTIME void nk_attention_causal_packed_e4m3_neonfhm(                                                   //
+NUMKONG_API_COMPTIME void nk_attention_causal_packed_e4m3_neonfhm(                                              //
     nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,                                   //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
@@ -325,7 +325,7 @@ NK_API_COMPTIME void nk_attention_causal_packed_e4m3_neonfhm(                   
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_NEONFHM
-#endif // NK_TARGET_ARM64_
+#endif // NUMKONG_TARGET_NEONFHM
+#endif // NUMKONG_ARCH_ARM64_
 
-#endif // NK_ATTENTION_NEONFHM_H
+#endif // NUMKONG_ATTENTION_NEONFHM_H

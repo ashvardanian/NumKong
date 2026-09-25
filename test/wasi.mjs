@@ -5,9 +5,9 @@
  *  @brief Minimal WASI command runner: `node wasi.mjs <module.wasm> [args...]`.
  *
  *  Lets CTest use node as a cross-runtime engine for the portable WASI tests, next to wasmtime and
- *  wasmer, via `NK_WASM_RUNTIME=node` in cmake/toolchain-wasm32-wasi.cmake. Node cannot execute a
- *  bare `.wasm` from the CLI, so this thin wrapper instantiates it with a WASI import object and
- *  forwards the process exit code.
+ *  wasmer, via `NUMKONG_WASM_RUNTIME=node` in cmake/toolchain-wasm32-wasi.cmake. Node cannot
+ *  execute a bare `.wasm` from the CLI, so this thin wrapper instantiates it with a WASI import
+ *  object and forwards the process exit code.
  */
 import { readFileSync } from 'node:fs';
 import { WASI } from 'node:wasi';

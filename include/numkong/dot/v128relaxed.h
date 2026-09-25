@@ -21,10 +21,10 @@
  *  @sa include/numkong/dot/v128.h for the SIMD128 twins of the bf16, i8, u8, and u1 dot kernels.
  */
 
-#ifndef NK_DOT_V128RELAXED_H
-#define NK_DOT_V128RELAXED_H
+#ifndef NUMKONG_DOT_V128RELAXED_H
+#define NUMKONG_DOT_V128RELAXED_H
 
-#if NK_TARGET_V128RELAXED
+#if NUMKONG_TARGET_V128RELAXED
 
 #include "numkong/types.h"
 #include "numkong/dot/v128.h" // `nk_dot_stable_sum_f64x2_v128_`, `nk_load_e5m2x4_to_f32x4_v128_`
@@ -42,7 +42,7 @@ extern "C" {
 #pragma clang attribute push(__attribute__((target("relaxed-simd"))), apply_to = function)
 #endif
 
-NK_API_COMPTIME void nk_dot_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_dot_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
     v128_t sum_f64x2 = wasm_f64x2_splat(0.0);
     nk_f32_t const *a_scalars = a, *b_scalars = b;
     nk_size_t count_scalars = n;
@@ -69,7 +69,7 @@ nk_dot_f32_v128relaxed_cycle:
     *result = nk_reduce_add_f64x2_v128_(sum_f64x2);
 }
 
-NK_API_COMPTIME void nk_dot_f16_v128relaxed(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_dot_f16_v128relaxed(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
     v128_t sum_f32x4 = wasm_f32x4_splat(0.0f);
     nk_f16_t const *a_scalars = a, *b_scalars = b;
     nk_size_t count_scalars = n;
@@ -94,7 +94,8 @@ nk_dot_f16_v128relaxed_cycle:
     *result = nk_reduce_add_f32x4_v128_(sum_f32x4);
 }
 
-NK_API_COMPTIME void nk_dot_bf16_v128relaxed(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_dot_bf16_v128relaxed(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                  nk_f32_t *result) {
     v128_t sum_f32x4 = wasm_f32x4_splat(0.0f);
     v128_t mask_high_u32x4 = wasm_i32x4_splat((int)0xFFFF0000);
     nk_bf16_t const *a_scalars = a, *b_scalars = b;
@@ -123,7 +124,7 @@ nk_dot_bf16_v128relaxed_cycle:
     *result = nk_reduce_add_f32x4_v128_(sum_f32x4);
 }
 
-NK_API_COMPTIME void nk_dot_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_dot_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     v128_t sum_f64x2 = wasm_f64x2_splat(0.0);
     v128_t compensation_f64x2 = wasm_f64x2_splat(0.0);
     nk_f64_t const *a_scalars = a, *b_scalars = b;
@@ -156,7 +157,7 @@ nk_dot_f64_v128relaxed_cycle:
     *result = nk_dot_stable_sum_f64x2_v128_(sum_f64x2, compensation_f64x2);
 }
 
-NK_API_COMPTIME void nk_dot_i8_v128relaxed(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i32_t *result) {
+NUMKONG_API_COMPTIME void nk_dot_i8_v128relaxed(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i32_t *result) {
     nk_i64_t sum_total = 0;
     nk_size_t i = 0;
 
@@ -203,7 +204,7 @@ NK_API_COMPTIME void nk_dot_i8_v128relaxed(nk_i8_t const *a, nk_i8_t const *b, n
     *result = (nk_i32_t)sum_total;
 }
 
-NK_API_COMPTIME void nk_dot_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME void nk_dot_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
     nk_i64_t biased_sum_total = 0;
     nk_i64_t sum_a_total = 0;
     nk_i64_t sum_b_total = 0;
@@ -256,8 +257,8 @@ NK_API_COMPTIME void nk_dot_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, n
     *result = (nk_u32_t)biased_sum_total;
 }
 
-NK_API_COMPTIME void nk_dot_e2m3_v128relaxed(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
-                                             nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_dot_e2m3_v128relaxed(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
+                                                  nk_size_t count_scalars, nk_f32_t *result) {
     // Integer dot product for e2m3 using relaxed SIMD: wasm_i32x4_relaxed_dot_i8x16_i7x16_add.
     // Every e2m3 value × 16 is an exact integer in [-120, +120].
     // The relaxed dot takes i8 × u7 (first signed, second unsigned [0,127]). Our magnitudes [0,120] fit.
@@ -320,8 +321,8 @@ nk_dot_e2m3_v128relaxed_cycle:
     *result = (nk_f32_t)nk_reduce_add_i32x4_v128_(sum_i32x4) / 256.0f;
 }
 
-NK_API_COMPTIME void nk_dot_e3m2_v128relaxed(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
-                                             nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_dot_e3m2_v128relaxed(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
+                                                  nk_size_t count_scalars, nk_f32_t *result) {
     // Integer dot product for e3m2 using i16 arithmetic with widening multiply.
     // Every e3m2 value × 16 is an exact integer, but magnitudes reach 448, requiring i16.
     // Result = i32_dot / 256.0f (exact, no rounding error).
@@ -424,19 +425,20 @@ typedef struct nk_dot_through_f32x4_state_v128relaxed_t_ {
     v128_t sum_f32x4;
 } nk_dot_through_f32x4_state_v128relaxed_t_;
 
-NK_HELPER_INLINE void nk_dot_through_f32x4_init_v128relaxed_(nk_dot_through_f32x4_state_v128relaxed_t_ *state) {
+NUMKONG_HELPER_INLINE void nk_dot_through_f32x4_init_v128relaxed_(nk_dot_through_f32x4_state_v128relaxed_t_ *state) {
     state->sum_f32x4 = wasm_f32x4_splat(0.0f);
 }
 
-NK_HELPER_INLINE void nk_dot_through_f32x4_update_v128relaxed_(nk_dot_through_f32x4_state_v128relaxed_t_ *state,
-                                                               nk_b128_vec_t a, nk_b128_vec_t b, nk_size_t depth_offset,
-                                                               nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_through_f32x4_update_v128relaxed_(nk_dot_through_f32x4_state_v128relaxed_t_ *state,
+                                                                    nk_b128_vec_t a, nk_b128_vec_t b,
+                                                                    nk_size_t depth_offset,
+                                                                    nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     state->sum_f32x4 = wasm_f32x4_relaxed_madd(a.v128, b.v128, state->sum_f32x4);
 }
 
-NK_HELPER_INLINE void nk_dot_through_f32x4_finalize_v128relaxed_( //
+NUMKONG_HELPER_INLINE void nk_dot_through_f32x4_finalize_v128relaxed_( //
     nk_dot_through_f32x4_state_v128relaxed_t_ const *state_a, nk_dot_through_f32x4_state_v128relaxed_t_ const *state_b,
     nk_dot_through_f32x4_state_v128relaxed_t_ const *state_c, nk_dot_through_f32x4_state_v128relaxed_t_ const *state_d,
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -449,13 +451,13 @@ NK_HELPER_INLINE void nk_dot_through_f32x4_finalize_v128relaxed_( //
 
 typedef struct nk_dot_through_f32x4_state_v128relaxed_t_ nk_dot_bf16x8_state_v128relaxed_t;
 
-NK_HELPER_INLINE void nk_dot_bf16x8_init_v128relaxed(nk_dot_bf16x8_state_v128relaxed_t *state) {
+NUMKONG_HELPER_INLINE void nk_dot_bf16x8_init_v128relaxed(nk_dot_bf16x8_state_v128relaxed_t *state) {
     nk_dot_through_f32x4_init_v128relaxed_(state);
 }
 
-NK_HELPER_INLINE void nk_dot_bf16x8_update_v128relaxed(nk_dot_bf16x8_state_v128relaxed_t *state, nk_b128_vec_t a,
-                                                       nk_b128_vec_t b, nk_size_t depth_offset,
-                                                       nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_bf16x8_update_v128relaxed(nk_dot_bf16x8_state_v128relaxed_t *state, nk_b128_vec_t a,
+                                                            nk_b128_vec_t b, nk_size_t depth_offset,
+                                                            nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     v128_t mask_high_u32x4 = wasm_i32x4_splat((int)0xFFFF0000);
@@ -467,7 +469,7 @@ NK_HELPER_INLINE void nk_dot_bf16x8_update_v128relaxed(nk_dot_bf16x8_state_v128r
     state->sum_f32x4 = wasm_f32x4_relaxed_madd(a_odd_f32x4, b_odd_f32x4, state->sum_f32x4);
 }
 
-NK_HELPER_INLINE void nk_dot_bf16x8_finalize_v128relaxed(                                               //
+NUMKONG_HELPER_INLINE void nk_dot_bf16x8_finalize_v128relaxed(                                          //
     nk_dot_bf16x8_state_v128relaxed_t const *state_a, nk_dot_bf16x8_state_v128relaxed_t const *state_b, //
     nk_dot_bf16x8_state_v128relaxed_t const *state_c, nk_dot_bf16x8_state_v128relaxed_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -478,13 +480,13 @@ typedef struct nk_dot_f32x2_state_v128relaxed_t {
     v128_t sum_f64x2;
 } nk_dot_f32x2_state_v128relaxed_t;
 
-NK_HELPER_INLINE void nk_dot_f32x2_init_v128relaxed(nk_dot_f32x2_state_v128relaxed_t *state) {
+NUMKONG_HELPER_INLINE void nk_dot_f32x2_init_v128relaxed(nk_dot_f32x2_state_v128relaxed_t *state) {
     state->sum_f64x2 = wasm_f64x2_splat(0.0);
 }
 
-NK_HELPER_INLINE void nk_dot_f32x2_update_v128relaxed(nk_dot_f32x2_state_v128relaxed_t *state, nk_b64_vec_t a,
-                                                      nk_b64_vec_t b, nk_size_t depth_offset,
-                                                      nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_f32x2_update_v128relaxed(nk_dot_f32x2_state_v128relaxed_t *state, nk_b64_vec_t a,
+                                                           nk_b64_vec_t b, nk_size_t depth_offset,
+                                                           nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     v128_t a_f32x2 = wasm_i64x2_splat(a.u64);
@@ -494,7 +496,7 @@ NK_HELPER_INLINE void nk_dot_f32x2_update_v128relaxed(nk_dot_f32x2_state_v128rel
     state->sum_f64x2 = wasm_f64x2_relaxed_madd(a_f64x2, b_f64x2, state->sum_f64x2);
 }
 
-NK_HELPER_INLINE void nk_dot_f32x2_finalize_v128relaxed(                                              //
+NUMKONG_HELPER_INLINE void nk_dot_f32x2_finalize_v128relaxed(                                         //
     nk_dot_f32x2_state_v128relaxed_t const *state_a, nk_dot_f32x2_state_v128relaxed_t const *state_b, //
     nk_dot_f32x2_state_v128relaxed_t const *state_c, nk_dot_f32x2_state_v128relaxed_t const *state_d, //
     nk_size_t total_dimensions, nk_b256_vec_t *result) {
@@ -510,14 +512,14 @@ typedef struct nk_dot_f64x2_state_v128relaxed_t {
     v128_t compensation_f64x2;
 } nk_dot_f64x2_state_v128relaxed_t;
 
-NK_HELPER_INLINE void nk_dot_f64x2_init_v128relaxed(nk_dot_f64x2_state_v128relaxed_t *state) {
+NUMKONG_HELPER_INLINE void nk_dot_f64x2_init_v128relaxed(nk_dot_f64x2_state_v128relaxed_t *state) {
     state->sum_f64x2 = wasm_f64x2_splat(0.0);
     state->compensation_f64x2 = wasm_f64x2_splat(0.0);
 }
 
-NK_HELPER_INLINE void nk_dot_f64x2_update_v128relaxed(nk_dot_f64x2_state_v128relaxed_t *state, nk_b128_vec_t a,
-                                                      nk_b128_vec_t b, nk_size_t depth_offset,
-                                                      nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_f64x2_update_v128relaxed(nk_dot_f64x2_state_v128relaxed_t *state, nk_b128_vec_t a,
+                                                           nk_b128_vec_t b, nk_size_t depth_offset,
+                                                           nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     v128_t product_f64x2 = wasm_f64x2_mul(a.v128, b.v128);
@@ -533,7 +535,7 @@ NK_HELPER_INLINE void nk_dot_f64x2_update_v128relaxed(nk_dot_f64x2_state_v128rel
                                                wasm_f64x2_add(sum_error_f64x2, product_error_f64x2));
 }
 
-NK_HELPER_INLINE void nk_dot_f64x2_finalize_v128relaxed(                                              //
+NUMKONG_HELPER_INLINE void nk_dot_f64x2_finalize_v128relaxed(                                         //
     nk_dot_f64x2_state_v128relaxed_t const *state_a, nk_dot_f64x2_state_v128relaxed_t const *state_b, //
     nk_dot_f64x2_state_v128relaxed_t const *state_c, nk_dot_f64x2_state_v128relaxed_t const *state_d, //
     nk_size_t total_dimensions, nk_b256_vec_t *result) {
@@ -544,13 +546,14 @@ NK_HELPER_INLINE void nk_dot_f64x2_finalize_v128relaxed(                        
     result->f64s[3] = nk_dot_stable_sum_f64x2_v128_(state_d->sum_f64x2, state_d->compensation_f64x2);
 }
 
-NK_HELPER_INLINE void nk_load_f16x4_to_f32x4_v128relaxed_(void const *src, nk_b128_vec_t *dst) {
+NUMKONG_HELPER_INLINE void nk_load_f16x4_to_f32x4_v128relaxed_(void const *src, nk_b128_vec_t *dst) {
     nk_b64_vec_t raw;
     nk_copy_bytes_(&raw, src, 8);
     *dst = nk_f16x4_to_f32x4_v128relaxed_(raw);
 }
 
-NK_HELPER_INLINE void nk_partial_load_f16x4_to_f32x4_v128relaxed_(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
+NUMKONG_HELPER_INLINE void nk_partial_load_f16x4_to_f32x4_v128relaxed_(void const *src, nk_b128_vec_t *dst,
+                                                                       nk_size_t n) {
     nk_b64_vec_t raw = {0};
     nk_copy_bytes_(&raw, src, n * sizeof(nk_f16_t));
     *dst = nk_f16x4_to_f32x4_v128relaxed_(raw);
@@ -561,14 +564,14 @@ typedef struct nk_dot_i8x16_state_v128relaxed_t {
     v128_t negative_sum_a_i32x4; // Σ(a[i] where b[i]<0), widened to i32
 } nk_dot_i8x16_state_v128relaxed_t;
 
-NK_HELPER_INLINE void nk_dot_i8x16_init_v128relaxed(nk_dot_i8x16_state_v128relaxed_t *state) {
+NUMKONG_HELPER_INLINE void nk_dot_i8x16_init_v128relaxed(nk_dot_i8x16_state_v128relaxed_t *state) {
     state->product_sum_i32x4 = wasm_i32x4_splat(0);
     state->negative_sum_a_i32x4 = wasm_i32x4_splat(0);
 }
 
-NK_HELPER_INLINE void nk_dot_i8x16_update_v128relaxed(nk_dot_i8x16_state_v128relaxed_t *state, nk_b128_vec_t a,
-                                                      nk_b128_vec_t b, nk_size_t depth_offset,
-                                                      nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_i8x16_update_v128relaxed(nk_dot_i8x16_state_v128relaxed_t *state, nk_b128_vec_t a,
+                                                           nk_b128_vec_t b, nk_size_t depth_offset,
+                                                           nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     // Split b = b_low − 128 · b_high, with b_low = b & 0x7F ∈ [0,127] and b_high = b >> 7 ∈ {0,1}.
@@ -580,7 +583,7 @@ NK_HELPER_INLINE void nk_dot_i8x16_update_v128relaxed(nk_dot_i8x16_state_v128rel
                                                                          state->negative_sum_a_i32x4);
 }
 
-NK_HELPER_INLINE void nk_dot_i8x16_finalize_v128relaxed(                                              //
+NUMKONG_HELPER_INLINE void nk_dot_i8x16_finalize_v128relaxed(                                         //
     nk_dot_i8x16_state_v128relaxed_t const *state_a, nk_dot_i8x16_state_v128relaxed_t const *state_b, //
     nk_dot_i8x16_state_v128relaxed_t const *state_c, nk_dot_i8x16_state_v128relaxed_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -601,14 +604,14 @@ typedef struct nk_dot_u8x16_state_v128relaxed_t {
     v128_t product_high_i32x4; // relaxed_dot(a_signed, b_high) accumulator
 } nk_dot_u8x16_state_v128relaxed_t;
 
-NK_HELPER_INLINE void nk_dot_u8x16_init_v128relaxed(nk_dot_u8x16_state_v128relaxed_t *state) {
+NUMKONG_HELPER_INLINE void nk_dot_u8x16_init_v128relaxed(nk_dot_u8x16_state_v128relaxed_t *state) {
     state->product_low_i32x4 = wasm_i32x4_splat(0);
     state->product_high_i32x4 = wasm_i32x4_splat(0);
 }
 
-NK_HELPER_INLINE void nk_dot_u8x16_update_v128relaxed(nk_dot_u8x16_state_v128relaxed_t *state, nk_b128_vec_t a,
-                                                      nk_b128_vec_t b, nk_size_t depth_offset,
-                                                      nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_u8x16_update_v128relaxed(nk_dot_u8x16_state_v128relaxed_t *state, nk_b128_vec_t a,
+                                                           nk_b128_vec_t b, nk_size_t depth_offset,
+                                                           nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     // Bit-split b: b = b_low + 128 · b_high, with a_signed = a ^ 0x80 = a - 128 (u8 read as i8)
@@ -623,7 +626,7 @@ NK_HELPER_INLINE void nk_dot_u8x16_update_v128relaxed(nk_dot_u8x16_state_v128rel
                                                                        state->product_high_i32x4);
 }
 
-NK_HELPER_INLINE void nk_dot_u8x16_finalize_v128relaxed(                                              //
+NUMKONG_HELPER_INLINE void nk_dot_u8x16_finalize_v128relaxed(                                         //
     nk_dot_u8x16_state_v128relaxed_t const *state_a, nk_dot_u8x16_state_v128relaxed_t const *state_b, //
     nk_dot_u8x16_state_v128relaxed_t const *state_c, nk_dot_u8x16_state_v128relaxed_t const *state_d, //
     nk_size_t total_dimensions, nk_u32_t a_sum, nk_b128_vec_t const *b_sums_vec, nk_b128_vec_t *result_vec) {
@@ -648,13 +651,13 @@ typedef struct nk_dot_e2m3x16_state_v128relaxed_t {
     v128_t sum_i32x4; // relaxed_dot accumulator (a_signed × b_unsigned)
 } nk_dot_e2m3x16_state_v128relaxed_t;
 
-NK_HELPER_INLINE void nk_dot_e2m3x16_init_v128relaxed(nk_dot_e2m3x16_state_v128relaxed_t *state) {
+NUMKONG_HELPER_INLINE void nk_dot_e2m3x16_init_v128relaxed(nk_dot_e2m3x16_state_v128relaxed_t *state) {
     state->sum_i32x4 = wasm_i32x4_splat(0);
 }
 
-NK_HELPER_INLINE void nk_dot_e2m3x16_update_v128relaxed(nk_dot_e2m3x16_state_v128relaxed_t *state, nk_b128_vec_t a,
-                                                        nk_b128_vec_t b, nk_size_t depth_offset,
-                                                        nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_e2m3x16_update_v128relaxed(nk_dot_e2m3x16_state_v128relaxed_t *state, nk_b128_vec_t a,
+                                                             nk_b128_vec_t b, nk_size_t depth_offset,
+                                                             nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     // Same LUT-based approach as 1:1 dot, accumulating into state
@@ -693,7 +696,7 @@ NK_HELPER_INLINE void nk_dot_e2m3x16_update_v128relaxed(nk_dot_e2m3x16_state_v12
     state->sum_i32x4 = wasm_i32x4_relaxed_dot_i8x16_i7x16_add(a_signed_i8x16, b_unsigned_u8x16, state->sum_i32x4);
 }
 
-NK_HELPER_INLINE void nk_dot_e2m3x16_finalize_v128relaxed(                                                //
+NUMKONG_HELPER_INLINE void nk_dot_e2m3x16_finalize_v128relaxed(                                           //
     nk_dot_e2m3x16_state_v128relaxed_t const *state_a, nk_dot_e2m3x16_state_v128relaxed_t const *state_b, //
     nk_dot_e2m3x16_state_v128relaxed_t const *state_c, nk_dot_e2m3x16_state_v128relaxed_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -713,14 +716,14 @@ typedef struct nk_dot_e2m1x32_state_v128relaxed_t {
     v128_t sum_i32x4;
 } nk_dot_e2m1x32_state_v128relaxed_t;
 
-NK_HELPER_INLINE void nk_dot_e2m1x32_init_v128relaxed(nk_dot_e2m1x32_state_v128relaxed_t *state) {
+NUMKONG_HELPER_INLINE void nk_dot_e2m1x32_init_v128relaxed(nk_dot_e2m1x32_state_v128relaxed_t *state) {
     state->sum_i32x4 = wasm_i32x4_splat(0);
 }
 
 /** Flipping A's sign bit by B's sign moves the product sign onto A, since LUT[x ^ 8] = -LUT[x]. */
-NK_HELPER_INLINE void nk_dot_e2m1x32_update_v128relaxed(nk_dot_e2m1x32_state_v128relaxed_t *state, nk_b128_vec_t a,
-                                                        nk_b128_vec_t b, nk_size_t depth_offset,
-                                                        nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_e2m1x32_update_v128relaxed(nk_dot_e2m1x32_state_v128relaxed_t *state, nk_b128_vec_t a,
+                                                             nk_b128_vec_t b, nk_size_t depth_offset,
+                                                             nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     v128_t const signed_lut_i8x16 = wasm_i8x16_const(0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12);
@@ -744,7 +747,7 @@ NK_HELPER_INLINE void nk_dot_e2m1x32_update_v128relaxed(nk_dot_e2m1x32_state_v12
     state->sum_i32x4 = wasm_i32x4_relaxed_dot_i8x16_i7x16_add(a_high_i8x16, b_high_magnitude_u8x16, sum_i32x4);
 }
 
-NK_HELPER_INLINE void nk_dot_e2m1x32_finalize_v128relaxed(                                                //
+NUMKONG_HELPER_INLINE void nk_dot_e2m1x32_finalize_v128relaxed(                                           //
     nk_dot_e2m1x32_state_v128relaxed_t const *state_a, nk_dot_e2m1x32_state_v128relaxed_t const *state_b, //
     nk_dot_e2m1x32_state_v128relaxed_t const *state_c, nk_dot_e2m1x32_state_v128relaxed_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -755,8 +758,8 @@ NK_HELPER_INLINE void nk_dot_e2m1x32_finalize_v128relaxed(                      
     result->f32s[3] = (nk_f32_t)nk_reduce_add_i32x4_v128_(state_d->sum_i32x4) * 0.25f;
 }
 
-NK_API_COMPTIME void nk_dot_e2m1_v128relaxed(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n,
-                                             nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_dot_e2m1_v128relaxed(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n,
+                                                  nk_f32_t *result) {
     nk_dot_e2m1x32_state_v128relaxed_t state;
     nk_dot_e2m1x32_init_v128relaxed(&state);
     nk_b128_vec_t a_vec, b_vec;
@@ -778,13 +781,13 @@ typedef struct nk_dot_e3m2x16_state_v128relaxed_t {
     v128_t sum_i32x4;
 } nk_dot_e3m2x16_state_v128relaxed_t;
 
-NK_HELPER_INLINE void nk_dot_e3m2x16_init_v128relaxed(nk_dot_e3m2x16_state_v128relaxed_t *state) {
+NUMKONG_HELPER_INLINE void nk_dot_e3m2x16_init_v128relaxed(nk_dot_e3m2x16_state_v128relaxed_t *state) {
     state->sum_i32x4 = wasm_i32x4_splat(0);
 }
 
-NK_HELPER_INLINE void nk_dot_e3m2x16_update_v128relaxed(nk_dot_e3m2x16_state_v128relaxed_t *state, nk_b128_vec_t a,
-                                                        nk_b128_vec_t b, nk_size_t depth_offset,
-                                                        nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_e3m2x16_update_v128relaxed(nk_dot_e3m2x16_state_v128relaxed_t *state, nk_b128_vec_t a,
+                                                             nk_b128_vec_t b, nk_size_t depth_offset,
+                                                             nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     // 4× scaled LUT — all values ≤ 112, fits u7 for relaxed_dot.
@@ -823,7 +826,7 @@ NK_HELPER_INLINE void nk_dot_e3m2x16_update_v128relaxed(nk_dot_e3m2x16_state_v12
     state->sum_i32x4 = wasm_i32x4_relaxed_dot_i8x16_i7x16_add(a_signed_i8x16, b_unsigned_u8x16, state->sum_i32x4);
 }
 
-NK_HELPER_INLINE void nk_dot_e3m2x16_finalize_v128relaxed(                                                //
+NUMKONG_HELPER_INLINE void nk_dot_e3m2x16_finalize_v128relaxed(                                           //
     nk_dot_e3m2x16_state_v128relaxed_t const *state_a, nk_dot_e3m2x16_state_v128relaxed_t const *state_b, //
     nk_dot_e3m2x16_state_v128relaxed_t const *state_c, nk_dot_e3m2x16_state_v128relaxed_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -839,20 +842,21 @@ NK_HELPER_INLINE void nk_dot_e3m2x16_finalize_v128relaxed(                      
 typedef struct nk_dot_through_f32x4_state_v128relaxed_t_ nk_dot_e4m3x4_state_v128relaxed_t;
 typedef struct nk_dot_through_f32x4_state_v128relaxed_t_ nk_dot_e5m2x4_state_v128relaxed_t;
 
-NK_HELPER_INLINE void nk_load_e4m3x4_to_f32x4_v128relaxed_(void const *src, nk_b128_vec_t *dst) {
+NUMKONG_HELPER_INLINE void nk_load_e4m3x4_to_f32x4_v128relaxed_(void const *src, nk_b128_vec_t *dst) {
     nk_b32_vec_t raw;
     nk_copy_bytes_(&raw, src, 4);
     *dst = nk_e4m3x4_to_f32x4_v128relaxed_(raw);
 }
 
-NK_HELPER_INLINE void nk_partial_load_e4m3x4_to_f32x4_v128relaxed_(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
+NUMKONG_HELPER_INLINE void nk_partial_load_e4m3x4_to_f32x4_v128relaxed_(void const *src, nk_b128_vec_t *dst,
+                                                                        nk_size_t n) {
     nk_b32_vec_t raw = {0};
     nk_copy_bytes_(&raw, src, n * sizeof(nk_e4m3_t));
     *dst = nk_e4m3x4_to_f32x4_v128relaxed_(raw);
 }
 
-NK_API_COMPTIME void nk_dot_e4m3_v128relaxed(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
-                                             nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_dot_e4m3_v128relaxed(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
+                                                  nk_size_t count_scalars, nk_f32_t *result) {
     v128_t sum_f32x4 = wasm_f32x4_splat(0.0f);
 
 nk_dot_e4m3_v128relaxed_cycle:
@@ -875,8 +879,8 @@ nk_dot_e4m3_v128relaxed_cycle:
     *result = nk_reduce_add_f32x4_v128_(sum_f32x4);
 }
 
-NK_API_COMPTIME void nk_dot_e5m2_v128relaxed(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
-                                             nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_dot_e5m2_v128relaxed(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
+                                                  nk_size_t count_scalars, nk_f32_t *result) {
     v128_t sum_f32x4 = wasm_f32x4_splat(0.0f);
 
 nk_dot_e5m2_v128relaxed_cycle:
@@ -899,8 +903,8 @@ nk_dot_e5m2_v128relaxed_cycle:
     *result = nk_reduce_add_f32x4_v128_(sum_f32x4);
 }
 
-NK_API_COMPTIME void nk_dot_u4_v128relaxed(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result) {
-    nk_size_t n_bytes = n / NK_NIBBLES_PER_BYTE;
+NUMKONG_API_COMPTIME void nk_dot_u4_v128relaxed(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result) {
+    nk_size_t n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
     v128_t nibble_mask_u8x16 = wasm_u8x16_splat(0x0F);
     v128_t sum_i32x4 = wasm_i32x4_splat(0);
     v128_t a_u4x32, b_u4x32;
@@ -940,13 +944,13 @@ typedef struct nk_dot_u4x32_state_v128relaxed_t {
     v128_t sum_i32x4;
 } nk_dot_u4x32_state_v128relaxed_t;
 
-NK_HELPER_INLINE void nk_dot_u4x32_init_v128relaxed(nk_dot_u4x32_state_v128relaxed_t *state) {
+NUMKONG_HELPER_INLINE void nk_dot_u4x32_init_v128relaxed(nk_dot_u4x32_state_v128relaxed_t *state) {
     state->sum_i32x4 = wasm_i32x4_splat(0);
 }
 
-NK_HELPER_INLINE void nk_dot_u4x32_update_v128relaxed(nk_dot_u4x32_state_v128relaxed_t *state, nk_b128_vec_t a,
-                                                      nk_b128_vec_t b, nk_size_t depth_offset,
-                                                      nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_u4x32_update_v128relaxed(nk_dot_u4x32_state_v128relaxed_t *state, nk_b128_vec_t a,
+                                                           nk_b128_vec_t b, nk_size_t depth_offset,
+                                                           nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     v128_t nibble_mask_u8x16 = wasm_u8x16_splat(0x0F);
@@ -958,7 +962,7 @@ NK_HELPER_INLINE void nk_dot_u4x32_update_v128relaxed(nk_dot_u4x32_state_v128rel
     state->sum_i32x4 = wasm_i32x4_relaxed_dot_i8x16_i7x16_add(a_high_u8x16, b_high_u8x16, state->sum_i32x4);
 }
 
-NK_HELPER_INLINE void nk_dot_u4x32_finalize_v128relaxed(                                              //
+NUMKONG_HELPER_INLINE void nk_dot_u4x32_finalize_v128relaxed(                                         //
     nk_dot_u4x32_state_v128relaxed_t const *state_a, nk_dot_u4x32_state_v128relaxed_t const *state_b, //
     nk_dot_u4x32_state_v128relaxed_t const *state_c, nk_dot_u4x32_state_v128relaxed_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -969,8 +973,8 @@ NK_HELPER_INLINE void nk_dot_u4x32_finalize_v128relaxed(                        
     result->u32s[3] = (nk_u32_t)nk_reduce_add_i32x4_v128_(state_d->sum_i32x4);
 }
 
-NK_API_COMPTIME void nk_dot_i4_v128relaxed(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_i32_t *result) {
-    nk_size_t const n_bytes = n / NK_NIBBLES_PER_BYTE;
+NUMKONG_API_COMPTIME void nk_dot_i4_v128relaxed(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_i32_t *result) {
+    nk_size_t const n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
     nk_u8_t const *a_bytes = (nk_u8_t const *)a;
     nk_u8_t const *b_bytes = (nk_u8_t const *)b;
     v128_t nibble_mask_u8x16 = wasm_u8x16_splat(0x0F);
@@ -1046,13 +1050,13 @@ typedef struct nk_dot_i4x32_state_v128relaxed_t {
     v128_t biased_product_sum_i32x4;
 } nk_dot_i4x32_state_v128relaxed_t;
 
-NK_HELPER_INLINE void nk_dot_i4x32_init_v128relaxed(nk_dot_i4x32_state_v128relaxed_t *state) {
+NUMKONG_HELPER_INLINE void nk_dot_i4x32_init_v128relaxed(nk_dot_i4x32_state_v128relaxed_t *state) {
     state->biased_product_sum_i32x4 = wasm_i32x4_splat(0);
 }
 
-NK_HELPER_INLINE void nk_dot_i4x32_update_v128relaxed(nk_dot_i4x32_state_v128relaxed_t *state, nk_b128_vec_t a,
-                                                      nk_b128_vec_t b, nk_size_t depth_offset,
-                                                      nk_size_t active_dimensions) {
+NUMKONG_HELPER_INLINE void nk_dot_i4x32_update_v128relaxed(nk_dot_i4x32_state_v128relaxed_t *state, nk_b128_vec_t a,
+                                                           nk_b128_vec_t b, nk_size_t depth_offset,
+                                                           nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     v128_t nibble_mask_u8x16 = wasm_u8x16_splat(0x0F);
@@ -1067,7 +1071,7 @@ NK_HELPER_INLINE void nk_dot_i4x32_update_v128relaxed(nk_dot_i4x32_state_v128rel
                                                                              state->biased_product_sum_i32x4);
 }
 
-NK_HELPER_INLINE void nk_dot_i4x32_finalize_v128relaxed(                                              //
+NUMKONG_HELPER_INLINE void nk_dot_i4x32_finalize_v128relaxed(                                         //
     nk_dot_i4x32_state_v128relaxed_t const *state_a, nk_dot_i4x32_state_v128relaxed_t const *state_b, //
     nk_dot_i4x32_state_v128relaxed_t const *state_c, nk_dot_i4x32_state_v128relaxed_t const *state_d, //
     nk_size_t total_dimensions,                                                                       //
@@ -1086,8 +1090,8 @@ NK_HELPER_INLINE void nk_dot_i4x32_finalize_v128relaxed(                        
                           8 * ((nk_i64_t)a_sum + (nk_i64_t)b_sums_vec->i32s[3]) - 64 * depth_padded;
 }
 
-NK_API_COMPTIME void nk_dot_f32c_v128relaxed(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_size_t count_pairs,
-                                             nk_f64c_t *result) {
+NUMKONG_API_COMPTIME void nk_dot_f32c_v128relaxed(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs,
+                                                  nk_size_t count_pairs, nk_f64c_t *result) {
     v128_t sum_real_f64x2 = wasm_f64x2_splat(0.0);
     v128_t sum_imag_f64x2 = wasm_f64x2_splat(0.0);
     v128_t sign_flip_i64x2 = wasm_i64x2_const(0, 0x8000000000000000ULL);
@@ -1118,8 +1122,8 @@ NK_API_COMPTIME void nk_dot_f32c_v128relaxed(nk_f32c_t const *a_pairs, nk_f32c_t
     result->imag = imag_part;
 }
 
-NK_API_COMPTIME void nk_vdot_f32c_v128relaxed(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_size_t count_pairs,
-                                              nk_f64c_t *result) {
+NUMKONG_API_COMPTIME void nk_vdot_f32c_v128relaxed(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs,
+                                                   nk_size_t count_pairs, nk_f64c_t *result) {
     v128_t sum_real_f64x2 = wasm_f64x2_splat(0.0);
     v128_t sum_imag_f64x2 = wasm_f64x2_splat(0.0);
     v128_t sign_flip_i64x2 = wasm_i64x2_const(0, 0x8000000000000000ULL);
@@ -1145,8 +1149,8 @@ NK_API_COMPTIME void nk_vdot_f32c_v128relaxed(nk_f32c_t const *a_pairs, nk_f32c_
     result->imag = imag_part;
 }
 
-NK_API_COMPTIME void nk_dot_f64c_v128relaxed(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
-                                             nk_f64c_t *result) {
+NUMKONG_API_COMPTIME void nk_dot_f64c_v128relaxed(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs,
+                                                  nk_size_t count_pairs, nk_f64c_t *result) {
     v128_t sum_real_f64x2 = wasm_f64x2_splat(0.0);
     v128_t sum_imag_f64x2 = wasm_f64x2_splat(0.0);
     v128_t sign_flip_i64x2 = wasm_i64x2_const(0, 0x8000000000000000ULL);
@@ -1167,8 +1171,8 @@ NK_API_COMPTIME void nk_dot_f64c_v128relaxed(nk_f64c_t const *a_pairs, nk_f64c_t
     result->imag = wasm_f64x2_extract_lane(sum_imag_f64x2, 0) + wasm_f64x2_extract_lane(sum_imag_f64x2, 1);
 }
 
-NK_API_COMPTIME void nk_vdot_f64c_v128relaxed(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
-                                              nk_f64c_t *result) {
+NUMKONG_API_COMPTIME void nk_vdot_f64c_v128relaxed(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs,
+                                                   nk_size_t count_pairs, nk_f64c_t *result) {
     v128_t sum_real_f64x2 = wasm_f64x2_splat(0.0);
     v128_t sum_imag_f64x2 = wasm_f64x2_splat(0.0);
     v128_t sign_flip_i64x2 = wasm_i64x2_const(0, 0x8000000000000000ULL);
@@ -1197,5 +1201,5 @@ NK_API_COMPTIME void nk_vdot_f64c_v128relaxed(nk_f64c_t const *a_pairs, nk_f64c_
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_V128RELAXED
-#endif // NK_DOT_V128RELAXED_H
+#endif // NUMKONG_TARGET_V128RELAXED
+#endif // NUMKONG_DOT_V128RELAXED_H

@@ -4,8 +4,8 @@
  *  @date March 20, 2026
  *  @brief C++ wrappers for SIMD-accelerated type casting.
  */
-#ifndef NK_CAST_HPP
-#define NK_CAST_HPP
+#ifndef NUMKONG_CAST_HPP
+#define NUMKONG_CAST_HPP
 
 #include <cstddef> // `std::size_t`
 
@@ -183,4 +183,4 @@ void cast(scaled_tensor_view<from_format_, max_rank_> from, scaled_tensor_span<t
 
 } // namespace ashvardanian::numkong
 
-#endif // NK_CAST_HPP
+#endif // NUMKONG_CAST_HPP

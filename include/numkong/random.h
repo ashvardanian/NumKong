@@ -31,8 +31,8 @@
  *  @see Arm intrinsics: https://developer.arm.com/architectures/instruction-sets/intrinsics/
  *
  */
-#ifndef NK_RANDOM_H
-#define NK_RANDOM_H
+#ifndef NUMKONG_RANDOM_H
+#define NUMKONG_RANDOM_H
 
 #include "numkong/types.h"
 #include "numkong/cast.h"
@@ -45,4 +45,4 @@ extern "C" {
 } // extern "C"
 #endif // defined(__cplusplus)
 
-#endif // NK_RANDOM_H
+#endif // NUMKONG_RANDOM_H

@@ -6,11 +6,11 @@
  *
  *  @sa include/numkong/sets.h
  */
-#ifndef NK_SETS_LOONGSONASX_H
-#define NK_SETS_LOONGSONASX_H
+#ifndef NUMKONG_SETS_LOONGSONASX_H
+#define NUMKONG_SETS_LOONGSONASX_H
 
-#if NK_TARGET_LOONGARCH64_
-#if NK_TARGET_LOONGSONASX
+#if NUMKONG_ARCH_LOONGARCH64_
+#if NUMKONG_TARGET_LOONGSONASX
 
 #include "numkong/set/loongsonasx.h"
 #include "numkong/dots/loongsonasx.h"
@@ -47,6 +47,6 @@ nk_define_cross_normalized_symmetric_(jaccard, u1, loongsonasx, u1x8, u32, /*nor
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_LOONGSONASX
-#endif // NK_TARGET_LOONGARCH64_
-#endif // NK_SETS_LOONGSONASX_H
+#endif // NUMKONG_TARGET_LOONGSONASX
+#endif // NUMKONG_ARCH_LOONGARCH64_
+#endif // NUMKONG_SETS_LOONGSONASX_H

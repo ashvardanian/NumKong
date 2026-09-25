@@ -31,7 +31,7 @@ void bench_cross_sme() {
     constexpr nk_dtype_t u4_k = nk_u4_k;
     constexpr nk_dtype_t u1_k = nk_u1_k;
 
-#if NK_TARGET_SME
+#if NUMKONG_TARGET_SME
     run_attention_bidirectional<bf16_k>("attention_bidirectional_packed_bf16_sme", nk_attention_pack_size_bf16_sme,
                                         nk_attention_pack_bf16_sme, nk_attention_bidirectional_packed_bf16_sme);
     run_attention_causal<bf16_k>("attention_causal_packed_bf16_sme", nk_attention_pack_size_bf16_sme,
@@ -147,7 +147,7 @@ void bench_cross_sme() {
     run_euclideans_symmetric<u4_k>("euclideans_symmetric_u4_sme", nk_euclideans_symmetric_u4_sme);
 #endif
 
-#if NK_TARGET_SMEBI32
+#if NUMKONG_TARGET_SMEBI32
     run_dots_packed<u1_k>("dots_packed_u1_smebi32", nk_dots_pack_size_u1_smebi32, nk_dots_pack_u1_smebi32,
                           nk_dots_packed_u1_smebi32);
     run_dots_symmetric<u1_k>("dots_symmetric_u1_smebi32", nk_dots_symmetric_u1_smebi32);
@@ -161,7 +161,7 @@ void bench_cross_sme() {
     run_jaccards_symmetric<u1_k>("jaccards_symmetric_u1_smebi32", nk_jaccards_symmetric_u1_smebi32);
 #endif
 
-#if NK_TARGET_SMEF64
+#if NUMKONG_TARGET_SMEF64
     run_dots_packed<f64_k>("dots_packed_f64_smef64", nk_dots_pack_size_f64_smef64, nk_dots_pack_f64_smef64,
                            nk_dots_packed_f64_smef64);
     run_dots_packed<f32_k>("dots_packed_f32_smef64", nk_dots_pack_size_f32_smef64, nk_dots_pack_f32_smef64,

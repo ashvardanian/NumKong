@@ -6,10 +6,10 @@
  *
  *  @sa include/numkong/sparse.h
  */
-#ifndef NK_SPARSE_SVE2_H
-#define NK_SPARSE_SVE2_H
+#ifndef NUMKONG_SPARSE_SVE2_H
+#define NUMKONG_SPARSE_SVE2_H
 
-#if NK_TARGET_ARM64_
+#if NUMKONG_ARCH_ARM64_
 
 #include "numkong/types.h"
 #include "numkong/reduce/sve.h" // `nk_svaddv_f64_`
@@ -40,7 +40,7 @@ extern "C" {
  *
  *  > ARM's Scalable Vector Extensions: A Critical Look at SVE2 For Integer Workloads
  *    https://gist.github.com/zingaburga/805669eb891c820bd220418ee3f0d6bd */
-#if NK_TARGET_SVE2
+#if NUMKONG_TARGET_SVE2
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=armv8.2-a+sve+sve2"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -48,9 +48,9 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+sve+sve2")
 #endif
 
-NK_API_COMPTIME void nk_sparse_intersect_u16_sve2( //
-    nk_u16_t const *a, nk_u16_t const *b,          //
-    nk_size_t a_length, nk_size_t b_length,        //
+NUMKONG_API_COMPTIME void nk_sparse_intersect_u16_sve2( //
+    nk_u16_t const *a, nk_u16_t const *b,               //
+    nk_size_t a_length, nk_size_t b_length,             //
     nk_u16_t *result, nk_size_t *count) {
 
     // A single SVE lane is 128 bits wide, so one lane fits 8 values.
@@ -132,9 +132,9 @@ NK_API_COMPTIME void nk_sparse_intersect_u16_sve2( //
     *count = c;
 }
 
-NK_API_COMPTIME void nk_sparse_intersect_u32_sve2( //
-    nk_u32_t const *a, nk_u32_t const *b,          //
-    nk_size_t a_length, nk_size_t b_length,        //
+NUMKONG_API_COMPTIME void nk_sparse_intersect_u32_sve2( //
+    nk_u32_t const *a, nk_u32_t const *b,               //
+    nk_size_t a_length, nk_size_t b_length,             //
     nk_u32_t *result, nk_size_t *count) {
 
     // A single SVE lane is 128 bits wide, so one lane fits 4 values.
@@ -239,9 +239,9 @@ NK_API_COMPTIME void nk_sparse_intersect_u32_sve2( //
     *count = c;
 }
 
-NK_API_COMPTIME void nk_sparse_intersect_u64_sve2( //
-    nk_u64_t const *a, nk_u64_t const *b,          //
-    nk_size_t a_length, nk_size_t b_length,        //
+NUMKONG_API_COMPTIME void nk_sparse_intersect_u64_sve2( //
+    nk_u64_t const *a, nk_u64_t const *b,               //
+    nk_size_t a_length, nk_size_t b_length,             //
     nk_u64_t *result, nk_size_t *count) {
 
     // A single SVE lane is 128 bits wide, so one lane fits 2 values.
@@ -315,7 +315,7 @@ NK_API_COMPTIME void nk_sparse_intersect_u64_sve2( //
     *count = c;
 }
 
-NK_API_COMPTIME void nk_sparse_dot_u32f32_sve2(           //
+NUMKONG_API_COMPTIME void nk_sparse_dot_u32f32_sve2(      //
     nk_u32_t const *a, nk_u32_t const *b,                 //
     nk_f32_t const *a_weights, nk_f32_t const *b_weights, //
     nk_size_t a_length, nk_size_t b_length,               //
@@ -412,7 +412,7 @@ NK_API_COMPTIME void nk_sparse_dot_u32f32_sve2(           //
     *product = nk_svaddv_f64_(predicate_all_b64x, product_f64x);
 }
 
-NK_API_COMPTIME void nk_sparse_dot_u16bf16_sve2(            //
+NUMKONG_API_COMPTIME void nk_sparse_dot_u16bf16_sve2(       //
     nk_u16_t const *a, nk_u16_t const *b,                   //
     nk_bf16_t const *a_weights, nk_bf16_t const *b_weights, //
     nk_size_t a_length, nk_size_t b_length,                 //
@@ -502,11 +502,11 @@ NK_API_COMPTIME void nk_sparse_dot_u16bf16_sve2(            //
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
-#endif // NK_TARGET_SVE2
+#endif // NUMKONG_TARGET_SVE2
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_ARM64_
-#endif // NK_SPARSE_SVE2_H
+#endif // NUMKONG_ARCH_ARM64_
+#endif // NUMKONG_SPARSE_SVE2_H

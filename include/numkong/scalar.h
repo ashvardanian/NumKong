@@ -4,9 +4,10 @@
  *  @date November 20, 2024
  *  @brief SIMD-accelerated scalar math helpers.
  *
- *  Provides dispatchable scalar helpers: sqrt, rsqrt, fma, saturating arithmetic, and ordering.
- *  Each ISA file is header-only with `NK_API_COMPTIME static inline` implementations; compile-time
- *  dispatch selects the best available backend when @c NK_RUNTIME_DISPATCH is off.
+ *  Provides dispatchable scalar helpers: sqrt, rsqrt, fma, saturating arithmetic, and
+ *  ordering. Each ISA file is header-only with `NUMKONG_API_COMPTIME static inline`
+ *  implementations; compile-time dispatch selects the best available backend when
+ *  @c NUMKONG_RUNTIME_DISPATCH is off.
  *
  *  For hardware architectures:
  *
@@ -16,8 +17,8 @@
  *  - RISC-V: RVV (sqrt, rsqrt, fma, saturating_add via vfrsqrt7 + Newton-Raphson)
  *  - WASM: V128 (sqrt, rsqrt), V128Relaxed (fma)
  */
-#ifndef NK_SCALAR_H
-#define NK_SCALAR_H
+#ifndef NUMKONG_SCALAR_H
+#define NUMKONG_SCALAR_H
 
 #include "numkong/types.h"
 
@@ -31,9 +32,9 @@ extern "C" {
  *  @param[in] x The input value.
  *  @return The square root of @p x.
  */
-NK_API_RUNTIME nk_f32_t nk_f32_sqrt(nk_f32_t x);
+NUMKONG_API_RUNTIME nk_f32_t nk_f32_sqrt(nk_f32_t x);
 /** @copydoc nk_f32_sqrt */
-NK_API_RUNTIME nk_f64_t nk_f64_sqrt(nk_f64_t x);
+NUMKONG_API_RUNTIME nk_f64_t nk_f64_sqrt(nk_f64_t x);
 
 /**
  *  @brief Scalar reciprocal square root, 1 / √x.
@@ -43,9 +44,9 @@ NK_API_RUNTIME nk_f64_t nk_f64_sqrt(nk_f64_t x);
  *  @param[in] x The input value.
  *  @return The reciprocal square root of @p x.
  */
-NK_API_RUNTIME nk_f32_t nk_f32_rsqrt(nk_f32_t x);
+NUMKONG_API_RUNTIME nk_f32_t nk_f32_rsqrt(nk_f32_t x);
 /** @copydoc nk_f32_rsqrt */
-NK_API_RUNTIME nk_f64_t nk_f64_rsqrt(nk_f64_t x);
+NUMKONG_API_RUNTIME nk_f64_t nk_f64_rsqrt(nk_f64_t x);
 
 /**
  *  @brief Scalar fused multiply-add, a × b + c.
@@ -57,16 +58,16 @@ NK_API_RUNTIME nk_f64_t nk_f64_rsqrt(nk_f64_t x);
  *  @param[in] c Addend.
  *  @return a × b + c computed without intermediate rounding.
  */
-NK_API_RUNTIME nk_f32_t nk_f32_fma(nk_f32_t a, nk_f32_t b, nk_f32_t c);
+NUMKONG_API_RUNTIME nk_f32_t nk_f32_fma(nk_f32_t a, nk_f32_t b, nk_f32_t c);
 /** @copydoc nk_f32_fma */
-NK_API_RUNTIME nk_f64_t nk_f64_fma(nk_f64_t a, nk_f64_t b, nk_f64_t c);
+NUMKONG_API_RUNTIME nk_f64_t nk_f64_fma(nk_f64_t a, nk_f64_t b, nk_f64_t c);
 
 /** @copydoc nk_f32_sqrt */
-NK_API_RUNTIME nk_f16_t nk_f16_sqrt(nk_f16_t x);
+NUMKONG_API_RUNTIME nk_f16_t nk_f16_sqrt(nk_f16_t x);
 /** @copydoc nk_f32_rsqrt */
-NK_API_RUNTIME nk_f16_t nk_f16_rsqrt(nk_f16_t x);
+NUMKONG_API_RUNTIME nk_f16_t nk_f16_rsqrt(nk_f16_t x);
 /** @copydoc nk_f32_fma */
-NK_API_RUNTIME nk_f16_t nk_f16_fma(nk_f16_t a, nk_f16_t b, nk_f16_t c);
+NUMKONG_API_RUNTIME nk_f16_t nk_f16_fma(nk_f16_t a, nk_f16_t b, nk_f16_t c);
 
 /**
  *  @brief Saturating addition clamped to the representable range of the type.
@@ -75,25 +76,25 @@ NK_API_RUNTIME nk_f16_t nk_f16_fma(nk_f16_t a, nk_f16_t b, nk_f16_t c);
  *  @param[in] b Second operand.
  *  @return `clamp(a + b, MIN, MAX)`.
  */
-NK_API_RUNTIME nk_u8_t nk_u8_saturating_add(nk_u8_t a, nk_u8_t b);
+NUMKONG_API_RUNTIME nk_u8_t nk_u8_saturating_add(nk_u8_t a, nk_u8_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_RUNTIME nk_i8_t nk_i8_saturating_add(nk_i8_t a, nk_i8_t b);
+NUMKONG_API_RUNTIME nk_i8_t nk_i8_saturating_add(nk_i8_t a, nk_i8_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_RUNTIME nk_u16_t nk_u16_saturating_add(nk_u16_t a, nk_u16_t b);
+NUMKONG_API_RUNTIME nk_u16_t nk_u16_saturating_add(nk_u16_t a, nk_u16_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_RUNTIME nk_i16_t nk_i16_saturating_add(nk_i16_t a, nk_i16_t b);
+NUMKONG_API_RUNTIME nk_i16_t nk_i16_saturating_add(nk_i16_t a, nk_i16_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_RUNTIME nk_u32_t nk_u32_saturating_add(nk_u32_t a, nk_u32_t b);
+NUMKONG_API_RUNTIME nk_u32_t nk_u32_saturating_add(nk_u32_t a, nk_u32_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_RUNTIME nk_i32_t nk_i32_saturating_add(nk_i32_t a, nk_i32_t b);
+NUMKONG_API_RUNTIME nk_i32_t nk_i32_saturating_add(nk_i32_t a, nk_i32_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_RUNTIME nk_u64_t nk_u64_saturating_add(nk_u64_t a, nk_u64_t b);
+NUMKONG_API_RUNTIME nk_u64_t nk_u64_saturating_add(nk_u64_t a, nk_u64_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_RUNTIME nk_i64_t nk_i64_saturating_add(nk_i64_t a, nk_i64_t b);
+NUMKONG_API_RUNTIME nk_i64_t nk_i64_saturating_add(nk_i64_t a, nk_i64_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_RUNTIME nk_i4x2_t nk_i4x2_saturating_add(nk_i4x2_t a, nk_i4x2_t b);
+NUMKONG_API_RUNTIME nk_i4x2_t nk_i4x2_saturating_add(nk_i4x2_t a, nk_i4x2_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_RUNTIME nk_u4x2_t nk_u4x2_saturating_add(nk_u4x2_t a, nk_u4x2_t b);
+NUMKONG_API_RUNTIME nk_u4x2_t nk_u4x2_saturating_add(nk_u4x2_t a, nk_u4x2_t b);
 
 /**
  *  @brief Saturating multiplication clamped to the representable range of the type.
@@ -102,25 +103,25 @@ NK_API_RUNTIME nk_u4x2_t nk_u4x2_saturating_add(nk_u4x2_t a, nk_u4x2_t b);
  *  @param[in] b Second operand.
  *  @return `clamp(a * b, MIN, MAX)`.
  */
-NK_API_RUNTIME nk_u8_t nk_u8_saturating_mul(nk_u8_t a, nk_u8_t b);
+NUMKONG_API_RUNTIME nk_u8_t nk_u8_saturating_mul(nk_u8_t a, nk_u8_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_RUNTIME nk_i8_t nk_i8_saturating_mul(nk_i8_t a, nk_i8_t b);
+NUMKONG_API_RUNTIME nk_i8_t nk_i8_saturating_mul(nk_i8_t a, nk_i8_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_RUNTIME nk_u16_t nk_u16_saturating_mul(nk_u16_t a, nk_u16_t b);
+NUMKONG_API_RUNTIME nk_u16_t nk_u16_saturating_mul(nk_u16_t a, nk_u16_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_RUNTIME nk_i16_t nk_i16_saturating_mul(nk_i16_t a, nk_i16_t b);
+NUMKONG_API_RUNTIME nk_i16_t nk_i16_saturating_mul(nk_i16_t a, nk_i16_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_RUNTIME nk_u32_t nk_u32_saturating_mul(nk_u32_t a, nk_u32_t b);
+NUMKONG_API_RUNTIME nk_u32_t nk_u32_saturating_mul(nk_u32_t a, nk_u32_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_RUNTIME nk_i32_t nk_i32_saturating_mul(nk_i32_t a, nk_i32_t b);
+NUMKONG_API_RUNTIME nk_i32_t nk_i32_saturating_mul(nk_i32_t a, nk_i32_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_RUNTIME nk_u64_t nk_u64_saturating_mul(nk_u64_t a, nk_u64_t b);
+NUMKONG_API_RUNTIME nk_u64_t nk_u64_saturating_mul(nk_u64_t a, nk_u64_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_RUNTIME nk_i64_t nk_i64_saturating_mul(nk_i64_t a, nk_i64_t b);
+NUMKONG_API_RUNTIME nk_i64_t nk_i64_saturating_mul(nk_i64_t a, nk_i64_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_RUNTIME nk_i4x2_t nk_i4x2_saturating_mul(nk_i4x2_t a, nk_i4x2_t b);
+NUMKONG_API_RUNTIME nk_i4x2_t nk_i4x2_saturating_mul(nk_i4x2_t a, nk_i4x2_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_RUNTIME nk_u4x2_t nk_u4x2_saturating_mul(nk_u4x2_t a, nk_u4x2_t b);
+NUMKONG_API_RUNTIME nk_u4x2_t nk_u4x2_saturating_mul(nk_u4x2_t a, nk_u4x2_t b);
 
 /**
  *  @brief Branchless sign-magnitude ordering for non-native floating-point scalars.
@@ -136,253 +137,253 @@ NK_API_RUNTIME nk_u4x2_t nk_u4x2_saturating_mul(nk_u4x2_t a, nk_u4x2_t b);
  *  @note NaN values are ordered at the extremes per IEEE 754 totalOrder (negative NaN < all finite
  *      < positive NaN). Callers requiring NaN-exclusion semantics must filter NaN before calling.
  */
-NK_API_RUNTIME int nk_f16_order(nk_f16_t a, nk_f16_t b);
+NUMKONG_API_RUNTIME int nk_f16_order(nk_f16_t a, nk_f16_t b);
 /** @copydoc nk_f16_order */
-NK_API_RUNTIME int nk_bf16_order(nk_bf16_t a, nk_bf16_t b);
+NUMKONG_API_RUNTIME int nk_bf16_order(nk_bf16_t a, nk_bf16_t b);
 /** @copydoc nk_f16_order */
-NK_API_RUNTIME int nk_e4m3_order(nk_e4m3_t a, nk_e4m3_t b);
+NUMKONG_API_RUNTIME int nk_e4m3_order(nk_e4m3_t a, nk_e4m3_t b);
 /** @copydoc nk_f16_order */
-NK_API_RUNTIME int nk_e5m2_order(nk_e5m2_t a, nk_e5m2_t b);
+NUMKONG_API_RUNTIME int nk_e5m2_order(nk_e5m2_t a, nk_e5m2_t b);
 /** @copydoc nk_f16_order */
-NK_API_RUNTIME int nk_e2m3_order(nk_e2m3_t a, nk_e2m3_t b);
+NUMKONG_API_RUNTIME int nk_e2m3_order(nk_e2m3_t a, nk_e2m3_t b);
 /** @copydoc nk_f16_order */
-NK_API_RUNTIME int nk_e3m2_order(nk_e3m2_t a, nk_e3m2_t b);
+NUMKONG_API_RUNTIME int nk_e3m2_order(nk_e3m2_t a, nk_e3m2_t b);
 
 /** @copydoc nk_f32_sqrt */
-NK_API_COMPTIME nk_f32_t nk_f32_sqrt_serial(nk_f32_t x);
+NUMKONG_API_COMPTIME nk_f32_t nk_f32_sqrt_serial(nk_f32_t x);
 /** @copydoc nk_f64_sqrt */
-NK_API_COMPTIME nk_f64_t nk_f64_sqrt_serial(nk_f64_t x);
+NUMKONG_API_COMPTIME nk_f64_t nk_f64_sqrt_serial(nk_f64_t x);
 /** @copydoc nk_f32_rsqrt */
-NK_API_COMPTIME nk_f32_t nk_f32_rsqrt_serial(nk_f32_t x);
+NUMKONG_API_COMPTIME nk_f32_t nk_f32_rsqrt_serial(nk_f32_t x);
 /** @copydoc nk_f64_rsqrt */
-NK_API_COMPTIME nk_f64_t nk_f64_rsqrt_serial(nk_f64_t x);
+NUMKONG_API_COMPTIME nk_f64_t nk_f64_rsqrt_serial(nk_f64_t x);
 
 /**
  *  @copydoc nk_f32_fma
  *  @note Emulates the fused rounding with Dekker's error-free product and Knuth's TwoSum.
  */
-NK_API_COMPTIME nk_f32_t nk_f32_fma_serial(nk_f32_t a, nk_f32_t b, nk_f32_t c);
+NUMKONG_API_COMPTIME nk_f32_t nk_f32_fma_serial(nk_f32_t a, nk_f32_t b, nk_f32_t c);
 
 /**
  *  @copydoc nk_f64_fma
  *  @note Emulates the fused rounding with Dekker's error-free product and Knuth's TwoSum.
  */
-NK_API_COMPTIME nk_f64_t nk_f64_fma_serial(nk_f64_t a, nk_f64_t b, nk_f64_t c);
+NUMKONG_API_COMPTIME nk_f64_t nk_f64_fma_serial(nk_f64_t a, nk_f64_t b, nk_f64_t c);
 
 /** @copydoc nk_f16_sqrt */
-NK_API_COMPTIME nk_f16_t nk_f16_sqrt_serial(nk_f16_t x);
+NUMKONG_API_COMPTIME nk_f16_t nk_f16_sqrt_serial(nk_f16_t x);
 /** @copydoc nk_f16_rsqrt */
-NK_API_COMPTIME nk_f16_t nk_f16_rsqrt_serial(nk_f16_t x);
+NUMKONG_API_COMPTIME nk_f16_t nk_f16_rsqrt_serial(nk_f16_t x);
 /** @copydoc nk_f16_fma */
-NK_API_COMPTIME nk_f16_t nk_f16_fma_serial(nk_f16_t a, nk_f16_t b, nk_f16_t c);
+NUMKONG_API_COMPTIME nk_f16_t nk_f16_fma_serial(nk_f16_t a, nk_f16_t b, nk_f16_t c);
 
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_u8_t nk_u8_saturating_add_serial(nk_u8_t a, nk_u8_t b);
+NUMKONG_API_COMPTIME nk_u8_t nk_u8_saturating_add_serial(nk_u8_t a, nk_u8_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_i8_t nk_i8_saturating_add_serial(nk_i8_t a, nk_i8_t b);
+NUMKONG_API_COMPTIME nk_i8_t nk_i8_saturating_add_serial(nk_i8_t a, nk_i8_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_u16_t nk_u16_saturating_add_serial(nk_u16_t a, nk_u16_t b);
+NUMKONG_API_COMPTIME nk_u16_t nk_u16_saturating_add_serial(nk_u16_t a, nk_u16_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_i16_t nk_i16_saturating_add_serial(nk_i16_t a, nk_i16_t b);
+NUMKONG_API_COMPTIME nk_i16_t nk_i16_saturating_add_serial(nk_i16_t a, nk_i16_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_u32_t nk_u32_saturating_add_serial(nk_u32_t a, nk_u32_t b);
+NUMKONG_API_COMPTIME nk_u32_t nk_u32_saturating_add_serial(nk_u32_t a, nk_u32_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_i32_t nk_i32_saturating_add_serial(nk_i32_t a, nk_i32_t b);
+NUMKONG_API_COMPTIME nk_i32_t nk_i32_saturating_add_serial(nk_i32_t a, nk_i32_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_u64_t nk_u64_saturating_add_serial(nk_u64_t a, nk_u64_t b);
+NUMKONG_API_COMPTIME nk_u64_t nk_u64_saturating_add_serial(nk_u64_t a, nk_u64_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_i64_t nk_i64_saturating_add_serial(nk_i64_t a, nk_i64_t b);
+NUMKONG_API_COMPTIME nk_i64_t nk_i64_saturating_add_serial(nk_i64_t a, nk_i64_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_i4x2_t nk_i4x2_saturating_add_serial(nk_i4x2_t a, nk_i4x2_t b);
+NUMKONG_API_COMPTIME nk_i4x2_t nk_i4x2_saturating_add_serial(nk_i4x2_t a, nk_i4x2_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_u4x2_t nk_u4x2_saturating_add_serial(nk_u4x2_t a, nk_u4x2_t b);
+NUMKONG_API_COMPTIME nk_u4x2_t nk_u4x2_saturating_add_serial(nk_u4x2_t a, nk_u4x2_t b);
 
 /** @copydoc nk_u8_saturating_mul */
-NK_API_COMPTIME nk_u8_t nk_u8_saturating_mul_serial(nk_u8_t a, nk_u8_t b);
+NUMKONG_API_COMPTIME nk_u8_t nk_u8_saturating_mul_serial(nk_u8_t a, nk_u8_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_COMPTIME nk_i8_t nk_i8_saturating_mul_serial(nk_i8_t a, nk_i8_t b);
+NUMKONG_API_COMPTIME nk_i8_t nk_i8_saturating_mul_serial(nk_i8_t a, nk_i8_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_COMPTIME nk_u16_t nk_u16_saturating_mul_serial(nk_u16_t a, nk_u16_t b);
+NUMKONG_API_COMPTIME nk_u16_t nk_u16_saturating_mul_serial(nk_u16_t a, nk_u16_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_COMPTIME nk_i16_t nk_i16_saturating_mul_serial(nk_i16_t a, nk_i16_t b);
+NUMKONG_API_COMPTIME nk_i16_t nk_i16_saturating_mul_serial(nk_i16_t a, nk_i16_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_COMPTIME nk_u32_t nk_u32_saturating_mul_serial(nk_u32_t a, nk_u32_t b);
+NUMKONG_API_COMPTIME nk_u32_t nk_u32_saturating_mul_serial(nk_u32_t a, nk_u32_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_COMPTIME nk_i32_t nk_i32_saturating_mul_serial(nk_i32_t a, nk_i32_t b);
+NUMKONG_API_COMPTIME nk_i32_t nk_i32_saturating_mul_serial(nk_i32_t a, nk_i32_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_COMPTIME nk_u64_t nk_u64_saturating_mul_serial(nk_u64_t a, nk_u64_t b);
+NUMKONG_API_COMPTIME nk_u64_t nk_u64_saturating_mul_serial(nk_u64_t a, nk_u64_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_COMPTIME nk_i64_t nk_i64_saturating_mul_serial(nk_i64_t a, nk_i64_t b);
+NUMKONG_API_COMPTIME nk_i64_t nk_i64_saturating_mul_serial(nk_i64_t a, nk_i64_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_COMPTIME nk_i4x2_t nk_i4x2_saturating_mul_serial(nk_i4x2_t a, nk_i4x2_t b);
+NUMKONG_API_COMPTIME nk_i4x2_t nk_i4x2_saturating_mul_serial(nk_i4x2_t a, nk_i4x2_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_COMPTIME nk_u4x2_t nk_u4x2_saturating_mul_serial(nk_u4x2_t a, nk_u4x2_t b);
+NUMKONG_API_COMPTIME nk_u4x2_t nk_u4x2_saturating_mul_serial(nk_u4x2_t a, nk_u4x2_t b);
 
 /** @copydoc nk_f16_order */
-NK_API_COMPTIME int nk_f16_order_serial(nk_f16_t a, nk_f16_t b);
+NUMKONG_API_COMPTIME int nk_f16_order_serial(nk_f16_t a, nk_f16_t b);
 /** @copydoc nk_f16_order */
-NK_API_COMPTIME int nk_bf16_order_serial(nk_bf16_t a, nk_bf16_t b);
+NUMKONG_API_COMPTIME int nk_bf16_order_serial(nk_bf16_t a, nk_bf16_t b);
 /** @copydoc nk_f16_order */
-NK_API_COMPTIME int nk_e4m3_order_serial(nk_e4m3_t a, nk_e4m3_t b);
+NUMKONG_API_COMPTIME int nk_e4m3_order_serial(nk_e4m3_t a, nk_e4m3_t b);
 /** @copydoc nk_f16_order */
-NK_API_COMPTIME int nk_e5m2_order_serial(nk_e5m2_t a, nk_e5m2_t b);
+NUMKONG_API_COMPTIME int nk_e5m2_order_serial(nk_e5m2_t a, nk_e5m2_t b);
 /** @copydoc nk_f16_order */
-NK_API_COMPTIME int nk_e2m3_order_serial(nk_e2m3_t a, nk_e2m3_t b);
+NUMKONG_API_COMPTIME int nk_e2m3_order_serial(nk_e2m3_t a, nk_e2m3_t b);
 /** @copydoc nk_f16_order */
-NK_API_COMPTIME int nk_e3m2_order_serial(nk_e3m2_t a, nk_e3m2_t b);
+NUMKONG_API_COMPTIME int nk_e3m2_order_serial(nk_e3m2_t a, nk_e3m2_t b);
 
-#if NK_TARGET_NEON
+#if NUMKONG_TARGET_NEON
 /** @copydoc nk_f32_sqrt */
-NK_API_COMPTIME nk_f32_t nk_f32_sqrt_neon(nk_f32_t x);
+NUMKONG_API_COMPTIME nk_f32_t nk_f32_sqrt_neon(nk_f32_t x);
 /** @copydoc nk_f64_sqrt */
-NK_API_COMPTIME nk_f64_t nk_f64_sqrt_neon(nk_f64_t x);
+NUMKONG_API_COMPTIME nk_f64_t nk_f64_sqrt_neon(nk_f64_t x);
 /** @copydoc nk_f32_rsqrt */
-NK_API_COMPTIME nk_f32_t nk_f32_rsqrt_neon(nk_f32_t x);
+NUMKONG_API_COMPTIME nk_f32_t nk_f32_rsqrt_neon(nk_f32_t x);
 /** @copydoc nk_f64_rsqrt */
-NK_API_COMPTIME nk_f64_t nk_f64_rsqrt_neon(nk_f64_t x);
+NUMKONG_API_COMPTIME nk_f64_t nk_f64_rsqrt_neon(nk_f64_t x);
 /** @copydoc nk_f32_fma */
-NK_API_COMPTIME nk_f32_t nk_f32_fma_neon(nk_f32_t a, nk_f32_t b, nk_f32_t c);
+NUMKONG_API_COMPTIME nk_f32_t nk_f32_fma_neon(nk_f32_t a, nk_f32_t b, nk_f32_t c);
 /** @copydoc nk_f64_fma */
-NK_API_COMPTIME nk_f64_t nk_f64_fma_neon(nk_f64_t a, nk_f64_t b, nk_f64_t c);
+NUMKONG_API_COMPTIME nk_f64_t nk_f64_fma_neon(nk_f64_t a, nk_f64_t b, nk_f64_t c);
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_u8_t nk_u8_saturating_add_neon(nk_u8_t a, nk_u8_t b);
+NUMKONG_API_COMPTIME nk_u8_t nk_u8_saturating_add_neon(nk_u8_t a, nk_u8_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_i8_t nk_i8_saturating_add_neon(nk_i8_t a, nk_i8_t b);
+NUMKONG_API_COMPTIME nk_i8_t nk_i8_saturating_add_neon(nk_i8_t a, nk_i8_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_u16_t nk_u16_saturating_add_neon(nk_u16_t a, nk_u16_t b);
+NUMKONG_API_COMPTIME nk_u16_t nk_u16_saturating_add_neon(nk_u16_t a, nk_u16_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_i16_t nk_i16_saturating_add_neon(nk_i16_t a, nk_i16_t b);
+NUMKONG_API_COMPTIME nk_i16_t nk_i16_saturating_add_neon(nk_i16_t a, nk_i16_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_u32_t nk_u32_saturating_add_neon(nk_u32_t a, nk_u32_t b);
+NUMKONG_API_COMPTIME nk_u32_t nk_u32_saturating_add_neon(nk_u32_t a, nk_u32_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_i32_t nk_i32_saturating_add_neon(nk_i32_t a, nk_i32_t b);
+NUMKONG_API_COMPTIME nk_i32_t nk_i32_saturating_add_neon(nk_i32_t a, nk_i32_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_u64_t nk_u64_saturating_add_neon(nk_u64_t a, nk_u64_t b);
+NUMKONG_API_COMPTIME nk_u64_t nk_u64_saturating_add_neon(nk_u64_t a, nk_u64_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_i64_t nk_i64_saturating_add_neon(nk_i64_t a, nk_i64_t b);
+NUMKONG_API_COMPTIME nk_i64_t nk_i64_saturating_add_neon(nk_i64_t a, nk_i64_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_COMPTIME nk_u64_t nk_u64_saturating_mul_neon(nk_u64_t a, nk_u64_t b);
+NUMKONG_API_COMPTIME nk_u64_t nk_u64_saturating_mul_neon(nk_u64_t a, nk_u64_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_COMPTIME nk_i64_t nk_i64_saturating_mul_neon(nk_i64_t a, nk_i64_t b);
-#endif // NK_TARGET_NEON
+NUMKONG_API_COMPTIME nk_i64_t nk_i64_saturating_mul_neon(nk_i64_t a, nk_i64_t b);
+#endif // NUMKONG_TARGET_NEON
 
-#if NK_TARGET_NEONHALF
+#if NUMKONG_TARGET_NEONHALF
 /** @copydoc nk_f16_sqrt */
-NK_API_COMPTIME nk_f16_t nk_f16_sqrt_neonhalf(nk_f16_t x);
+NUMKONG_API_COMPTIME nk_f16_t nk_f16_sqrt_neonhalf(nk_f16_t x);
 /** @copydoc nk_f16_rsqrt */
-NK_API_COMPTIME nk_f16_t nk_f16_rsqrt_neonhalf(nk_f16_t x);
+NUMKONG_API_COMPTIME nk_f16_t nk_f16_rsqrt_neonhalf(nk_f16_t x);
 /** @copydoc nk_f16_fma */
-NK_API_COMPTIME nk_f16_t nk_f16_fma_neonhalf(nk_f16_t a, nk_f16_t b, nk_f16_t c);
-#endif // NK_TARGET_NEONHALF
+NUMKONG_API_COMPTIME nk_f16_t nk_f16_fma_neonhalf(nk_f16_t a, nk_f16_t b, nk_f16_t c);
+#endif // NUMKONG_TARGET_NEONHALF
 
-#if NK_TARGET_HASWELL
+#if NUMKONG_TARGET_HASWELL
 /** @copydoc nk_f32_sqrt */
-NK_API_COMPTIME nk_f32_t nk_f32_sqrt_haswell(nk_f32_t x);
+NUMKONG_API_COMPTIME nk_f32_t nk_f32_sqrt_haswell(nk_f32_t x);
 /** @copydoc nk_f64_sqrt */
-NK_API_COMPTIME nk_f64_t nk_f64_sqrt_haswell(nk_f64_t x);
+NUMKONG_API_COMPTIME nk_f64_t nk_f64_sqrt_haswell(nk_f64_t x);
 /** @copydoc nk_f32_rsqrt */
-NK_API_COMPTIME nk_f32_t nk_f32_rsqrt_haswell(nk_f32_t x);
+NUMKONG_API_COMPTIME nk_f32_t nk_f32_rsqrt_haswell(nk_f32_t x);
 /** @copydoc nk_f64_rsqrt */
-NK_API_COMPTIME nk_f64_t nk_f64_rsqrt_haswell(nk_f64_t x);
+NUMKONG_API_COMPTIME nk_f64_t nk_f64_rsqrt_haswell(nk_f64_t x);
 /** @copydoc nk_f32_fma */
-NK_API_COMPTIME nk_f32_t nk_f32_fma_haswell(nk_f32_t a, nk_f32_t b, nk_f32_t c);
+NUMKONG_API_COMPTIME nk_f32_t nk_f32_fma_haswell(nk_f32_t a, nk_f32_t b, nk_f32_t c);
 /** @copydoc nk_f64_fma */
-NK_API_COMPTIME nk_f64_t nk_f64_fma_haswell(nk_f64_t a, nk_f64_t b, nk_f64_t c);
+NUMKONG_API_COMPTIME nk_f64_t nk_f64_fma_haswell(nk_f64_t a, nk_f64_t b, nk_f64_t c);
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_u8_t nk_u8_saturating_add_haswell(nk_u8_t a, nk_u8_t b);
+NUMKONG_API_COMPTIME nk_u8_t nk_u8_saturating_add_haswell(nk_u8_t a, nk_u8_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_i8_t nk_i8_saturating_add_haswell(nk_i8_t a, nk_i8_t b);
+NUMKONG_API_COMPTIME nk_i8_t nk_i8_saturating_add_haswell(nk_i8_t a, nk_i8_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_u16_t nk_u16_saturating_add_haswell(nk_u16_t a, nk_u16_t b);
+NUMKONG_API_COMPTIME nk_u16_t nk_u16_saturating_add_haswell(nk_u16_t a, nk_u16_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_i16_t nk_i16_saturating_add_haswell(nk_i16_t a, nk_i16_t b);
+NUMKONG_API_COMPTIME nk_i16_t nk_i16_saturating_add_haswell(nk_i16_t a, nk_i16_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_COMPTIME nk_u64_t nk_u64_saturating_mul_haswell(nk_u64_t a, nk_u64_t b);
+NUMKONG_API_COMPTIME nk_u64_t nk_u64_saturating_mul_haswell(nk_u64_t a, nk_u64_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_COMPTIME nk_i64_t nk_i64_saturating_mul_haswell(nk_i64_t a, nk_i64_t b);
+NUMKONG_API_COMPTIME nk_i64_t nk_i64_saturating_mul_haswell(nk_i64_t a, nk_i64_t b);
 /** @copydoc nk_f16_sqrt */
-NK_API_COMPTIME nk_f16_t nk_f16_sqrt_haswell(nk_f16_t x);
+NUMKONG_API_COMPTIME nk_f16_t nk_f16_sqrt_haswell(nk_f16_t x);
 /** @copydoc nk_f16_rsqrt */
-NK_API_COMPTIME nk_f16_t nk_f16_rsqrt_haswell(nk_f16_t x);
+NUMKONG_API_COMPTIME nk_f16_t nk_f16_rsqrt_haswell(nk_f16_t x);
 /** @copydoc nk_f16_fma */
-NK_API_COMPTIME nk_f16_t nk_f16_fma_haswell(nk_f16_t a, nk_f16_t b, nk_f16_t c);
-#endif // NK_TARGET_HASWELL
+NUMKONG_API_COMPTIME nk_f16_t nk_f16_fma_haswell(nk_f16_t a, nk_f16_t b, nk_f16_t c);
+#endif // NUMKONG_TARGET_HASWELL
 
-#if NK_TARGET_SAPPHIRE
+#if NUMKONG_TARGET_SAPPHIRE
 /** @copydoc nk_f16_order */
-NK_API_COMPTIME int nk_f16_order_sapphire(nk_f16_t a, nk_f16_t b);
+NUMKONG_API_COMPTIME int nk_f16_order_sapphire(nk_f16_t a, nk_f16_t b);
 /** @copydoc nk_f16_sqrt */
-NK_API_COMPTIME nk_f16_t nk_f16_sqrt_sapphire(nk_f16_t x);
+NUMKONG_API_COMPTIME nk_f16_t nk_f16_sqrt_sapphire(nk_f16_t x);
 /** @copydoc nk_f16_rsqrt */
-NK_API_COMPTIME nk_f16_t nk_f16_rsqrt_sapphire(nk_f16_t x);
+NUMKONG_API_COMPTIME nk_f16_t nk_f16_rsqrt_sapphire(nk_f16_t x);
 /** @copydoc nk_f16_fma */
-NK_API_COMPTIME nk_f16_t nk_f16_fma_sapphire(nk_f16_t a, nk_f16_t b, nk_f16_t c);
-#endif // NK_TARGET_SAPPHIRE
+NUMKONG_API_COMPTIME nk_f16_t nk_f16_fma_sapphire(nk_f16_t a, nk_f16_t b, nk_f16_t c);
+#endif // NUMKONG_TARGET_SAPPHIRE
 
-#if NK_TARGET_RVV
+#if NUMKONG_TARGET_RVV
 /** @copydoc nk_f32_sqrt */
-NK_API_COMPTIME nk_f32_t nk_f32_sqrt_rvv(nk_f32_t x);
+NUMKONG_API_COMPTIME nk_f32_t nk_f32_sqrt_rvv(nk_f32_t x);
 /** @copydoc nk_f64_sqrt */
-NK_API_COMPTIME nk_f64_t nk_f64_sqrt_rvv(nk_f64_t x);
+NUMKONG_API_COMPTIME nk_f64_t nk_f64_sqrt_rvv(nk_f64_t x);
 /** @copydoc nk_f32_rsqrt */
-NK_API_COMPTIME nk_f32_t nk_f32_rsqrt_rvv(nk_f32_t x);
+NUMKONG_API_COMPTIME nk_f32_t nk_f32_rsqrt_rvv(nk_f32_t x);
 /** @copydoc nk_f64_rsqrt */
-NK_API_COMPTIME nk_f64_t nk_f64_rsqrt_rvv(nk_f64_t x);
+NUMKONG_API_COMPTIME nk_f64_t nk_f64_rsqrt_rvv(nk_f64_t x);
 /** @copydoc nk_f32_fma */
-NK_API_COMPTIME nk_f32_t nk_f32_fma_rvv(nk_f32_t a, nk_f32_t b, nk_f32_t c);
+NUMKONG_API_COMPTIME nk_f32_t nk_f32_fma_rvv(nk_f32_t a, nk_f32_t b, nk_f32_t c);
 /** @copydoc nk_f64_fma */
-NK_API_COMPTIME nk_f64_t nk_f64_fma_rvv(nk_f64_t a, nk_f64_t b, nk_f64_t c);
+NUMKONG_API_COMPTIME nk_f64_t nk_f64_fma_rvv(nk_f64_t a, nk_f64_t b, nk_f64_t c);
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_u8_t nk_u8_saturating_add_rvv(nk_u8_t a, nk_u8_t b);
+NUMKONG_API_COMPTIME nk_u8_t nk_u8_saturating_add_rvv(nk_u8_t a, nk_u8_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_i8_t nk_i8_saturating_add_rvv(nk_i8_t a, nk_i8_t b);
+NUMKONG_API_COMPTIME nk_i8_t nk_i8_saturating_add_rvv(nk_i8_t a, nk_i8_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_u16_t nk_u16_saturating_add_rvv(nk_u16_t a, nk_u16_t b);
+NUMKONG_API_COMPTIME nk_u16_t nk_u16_saturating_add_rvv(nk_u16_t a, nk_u16_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_i16_t nk_i16_saturating_add_rvv(nk_i16_t a, nk_i16_t b);
+NUMKONG_API_COMPTIME nk_i16_t nk_i16_saturating_add_rvv(nk_i16_t a, nk_i16_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_u32_t nk_u32_saturating_add_rvv(nk_u32_t a, nk_u32_t b);
+NUMKONG_API_COMPTIME nk_u32_t nk_u32_saturating_add_rvv(nk_u32_t a, nk_u32_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_i32_t nk_i32_saturating_add_rvv(nk_i32_t a, nk_i32_t b);
+NUMKONG_API_COMPTIME nk_i32_t nk_i32_saturating_add_rvv(nk_i32_t a, nk_i32_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_u64_t nk_u64_saturating_add_rvv(nk_u64_t a, nk_u64_t b);
+NUMKONG_API_COMPTIME nk_u64_t nk_u64_saturating_add_rvv(nk_u64_t a, nk_u64_t b);
 /** @copydoc nk_u8_saturating_add */
-NK_API_COMPTIME nk_i64_t nk_i64_saturating_add_rvv(nk_i64_t a, nk_i64_t b);
+NUMKONG_API_COMPTIME nk_i64_t nk_i64_saturating_add_rvv(nk_i64_t a, nk_i64_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_COMPTIME nk_u8_t nk_u8_saturating_mul_rvv(nk_u8_t a, nk_u8_t b);
+NUMKONG_API_COMPTIME nk_u8_t nk_u8_saturating_mul_rvv(nk_u8_t a, nk_u8_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_COMPTIME nk_i8_t nk_i8_saturating_mul_rvv(nk_i8_t a, nk_i8_t b);
+NUMKONG_API_COMPTIME nk_i8_t nk_i8_saturating_mul_rvv(nk_i8_t a, nk_i8_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_COMPTIME nk_u16_t nk_u16_saturating_mul_rvv(nk_u16_t a, nk_u16_t b);
+NUMKONG_API_COMPTIME nk_u16_t nk_u16_saturating_mul_rvv(nk_u16_t a, nk_u16_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_COMPTIME nk_i16_t nk_i16_saturating_mul_rvv(nk_i16_t a, nk_i16_t b);
+NUMKONG_API_COMPTIME nk_i16_t nk_i16_saturating_mul_rvv(nk_i16_t a, nk_i16_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_COMPTIME nk_u32_t nk_u32_saturating_mul_rvv(nk_u32_t a, nk_u32_t b);
+NUMKONG_API_COMPTIME nk_u32_t nk_u32_saturating_mul_rvv(nk_u32_t a, nk_u32_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_COMPTIME nk_i32_t nk_i32_saturating_mul_rvv(nk_i32_t a, nk_i32_t b);
+NUMKONG_API_COMPTIME nk_i32_t nk_i32_saturating_mul_rvv(nk_i32_t a, nk_i32_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_COMPTIME nk_u64_t nk_u64_saturating_mul_rvv(nk_u64_t a, nk_u64_t b);
+NUMKONG_API_COMPTIME nk_u64_t nk_u64_saturating_mul_rvv(nk_u64_t a, nk_u64_t b);
 /** @copydoc nk_u8_saturating_mul */
-NK_API_COMPTIME nk_i64_t nk_i64_saturating_mul_rvv(nk_i64_t a, nk_i64_t b);
-#endif // NK_TARGET_RVV
+NUMKONG_API_COMPTIME nk_i64_t nk_i64_saturating_mul_rvv(nk_i64_t a, nk_i64_t b);
+#endif // NUMKONG_TARGET_RVV
 
-#if NK_TARGET_V128
+#if NUMKONG_TARGET_V128
 /** @copydoc nk_f32_sqrt */
-NK_API_COMPTIME nk_f32_t nk_f32_sqrt_v128(nk_f32_t x);
+NUMKONG_API_COMPTIME nk_f32_t nk_f32_sqrt_v128(nk_f32_t x);
 /** @copydoc nk_f64_sqrt */
-NK_API_COMPTIME nk_f64_t nk_f64_sqrt_v128(nk_f64_t x);
+NUMKONG_API_COMPTIME nk_f64_t nk_f64_sqrt_v128(nk_f64_t x);
 /** @copydoc nk_f32_rsqrt */
-NK_API_COMPTIME nk_f32_t nk_f32_rsqrt_v128(nk_f32_t x);
+NUMKONG_API_COMPTIME nk_f32_t nk_f32_rsqrt_v128(nk_f32_t x);
 /** @copydoc nk_f64_rsqrt */
-NK_API_COMPTIME nk_f64_t nk_f64_rsqrt_v128(nk_f64_t x);
-#endif // NK_TARGET_V128
+NUMKONG_API_COMPTIME nk_f64_t nk_f64_rsqrt_v128(nk_f64_t x);
+#endif // NUMKONG_TARGET_V128
 
-#if NK_TARGET_V128RELAXED
+#if NUMKONG_TARGET_V128RELAXED
 /** @copydoc nk_f32_fma */
-NK_API_COMPTIME nk_f32_t nk_f32_fma_v128relaxed(nk_f32_t a, nk_f32_t b, nk_f32_t c);
+NUMKONG_API_COMPTIME nk_f32_t nk_f32_fma_v128relaxed(nk_f32_t a, nk_f32_t b, nk_f32_t c);
 /** @copydoc nk_f64_fma */
-NK_API_COMPTIME nk_f64_t nk_f64_fma_v128relaxed(nk_f64_t a, nk_f64_t b, nk_f64_t c);
-#endif // NK_TARGET_V128RELAXED
+NUMKONG_API_COMPTIME nk_f64_t nk_f64_fma_v128relaxed(nk_f64_t a, nk_f64_t b, nk_f64_t c);
+#endif // NUMKONG_TARGET_V128RELAXED
 
 #if defined(__cplusplus)
 } // extern "C"
@@ -402,315 +403,315 @@ NK_API_COMPTIME nk_f64_t nk_f64_fma_v128relaxed(nk_f64_t a, nk_f64_t b, nk_f64_t
 extern "C" {
 #endif
 
-#if !NK_RUNTIME_DISPATCH
+#if !NUMKONG_RUNTIME_DISPATCH
 
-NK_API_COMPTIME nk_f32_t nk_f32_sqrt(nk_f32_t x) {
-#if NK_TARGET_HASWELL
+NUMKONG_API_COMPTIME nk_f32_t nk_f32_sqrt(nk_f32_t x) {
+#if NUMKONG_TARGET_HASWELL
     return nk_f32_sqrt_haswell(x);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     return nk_f32_sqrt_neon(x);
-#elif NK_TARGET_POWERVSX
+#elif NUMKONG_TARGET_POWERVSX
     return nk_f32_sqrt_powervsx(x);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     return nk_f32_sqrt_rvv(x);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     return nk_f32_sqrt_v128(x);
 #else
     return nk_f32_sqrt_serial(x);
 #endif
 }
 
-NK_API_COMPTIME nk_f64_t nk_f64_sqrt(nk_f64_t x) {
-#if NK_TARGET_HASWELL
+NUMKONG_API_COMPTIME nk_f64_t nk_f64_sqrt(nk_f64_t x) {
+#if NUMKONG_TARGET_HASWELL
     return nk_f64_sqrt_haswell(x);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     return nk_f64_sqrt_neon(x);
-#elif NK_TARGET_POWERVSX
+#elif NUMKONG_TARGET_POWERVSX
     return nk_f64_sqrt_powervsx(x);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     return nk_f64_sqrt_rvv(x);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     return nk_f64_sqrt_v128(x);
 #else
     return nk_f64_sqrt_serial(x);
 #endif
 }
 
-NK_API_COMPTIME nk_f32_t nk_f32_rsqrt(nk_f32_t x) {
-#if NK_TARGET_HASWELL
+NUMKONG_API_COMPTIME nk_f32_t nk_f32_rsqrt(nk_f32_t x) {
+#if NUMKONG_TARGET_HASWELL
     return nk_f32_rsqrt_haswell(x);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     return nk_f32_rsqrt_neon(x);
-#elif NK_TARGET_POWERVSX
+#elif NUMKONG_TARGET_POWERVSX
     return nk_f32_rsqrt_powervsx(x);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     return nk_f32_rsqrt_rvv(x);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     return nk_f32_rsqrt_v128(x);
 #else
     return nk_f32_rsqrt_serial(x);
 #endif
 }
 
-NK_API_COMPTIME nk_f64_t nk_f64_rsqrt(nk_f64_t x) {
-#if NK_TARGET_HASWELL
+NUMKONG_API_COMPTIME nk_f64_t nk_f64_rsqrt(nk_f64_t x) {
+#if NUMKONG_TARGET_HASWELL
     return nk_f64_rsqrt_haswell(x);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     return nk_f64_rsqrt_neon(x);
-#elif NK_TARGET_POWERVSX
+#elif NUMKONG_TARGET_POWERVSX
     return nk_f64_rsqrt_powervsx(x);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     return nk_f64_rsqrt_rvv(x);
-#elif NK_TARGET_V128
+#elif NUMKONG_TARGET_V128
     return nk_f64_rsqrt_v128(x);
 #else
     return nk_f64_rsqrt_serial(x);
 #endif
 }
 
-NK_API_COMPTIME nk_f32_t nk_f32_fma(nk_f32_t a, nk_f32_t b, nk_f32_t c) {
-#if NK_TARGET_HASWELL
+NUMKONG_API_COMPTIME nk_f32_t nk_f32_fma(nk_f32_t a, nk_f32_t b, nk_f32_t c) {
+#if NUMKONG_TARGET_HASWELL
     return nk_f32_fma_haswell(a, b, c);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     return nk_f32_fma_neon(a, b, c);
-#elif NK_TARGET_POWERVSX
+#elif NUMKONG_TARGET_POWERVSX
     return nk_f32_fma_powervsx(a, b, c);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     return nk_f32_fma_rvv(a, b, c);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     return nk_f32_fma_v128relaxed(a, b, c);
 #else
     return nk_f32_fma_serial(a, b, c);
 #endif
 }
 
-NK_API_COMPTIME nk_f64_t nk_f64_fma(nk_f64_t a, nk_f64_t b, nk_f64_t c) {
-#if NK_TARGET_HASWELL
+NUMKONG_API_COMPTIME nk_f64_t nk_f64_fma(nk_f64_t a, nk_f64_t b, nk_f64_t c) {
+#if NUMKONG_TARGET_HASWELL
     return nk_f64_fma_haswell(a, b, c);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     return nk_f64_fma_neon(a, b, c);
-#elif NK_TARGET_POWERVSX
+#elif NUMKONG_TARGET_POWERVSX
     return nk_f64_fma_powervsx(a, b, c);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     return nk_f64_fma_rvv(a, b, c);
-#elif NK_TARGET_V128RELAXED
+#elif NUMKONG_TARGET_V128RELAXED
     return nk_f64_fma_v128relaxed(a, b, c);
 #else
     return nk_f64_fma_serial(a, b, c);
 #endif
 }
 
-NK_API_COMPTIME nk_f16_t nk_f16_sqrt(nk_f16_t x) {
-#if NK_TARGET_SAPPHIRE
+NUMKONG_API_COMPTIME nk_f16_t nk_f16_sqrt(nk_f16_t x) {
+#if NUMKONG_TARGET_SAPPHIRE
     return nk_f16_sqrt_sapphire(x);
-#elif NK_TARGET_NEONHALF
+#elif NUMKONG_TARGET_NEONHALF
     return nk_f16_sqrt_neonhalf(x);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     return nk_f16_sqrt_haswell(x);
 #else
     return nk_f16_sqrt_serial(x);
 #endif
 }
 
-NK_API_COMPTIME nk_f16_t nk_f16_rsqrt(nk_f16_t x) {
-#if NK_TARGET_SAPPHIRE
+NUMKONG_API_COMPTIME nk_f16_t nk_f16_rsqrt(nk_f16_t x) {
+#if NUMKONG_TARGET_SAPPHIRE
     return nk_f16_rsqrt_sapphire(x);
-#elif NK_TARGET_NEONHALF
+#elif NUMKONG_TARGET_NEONHALF
     return nk_f16_rsqrt_neonhalf(x);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     return nk_f16_rsqrt_haswell(x);
 #else
     return nk_f16_rsqrt_serial(x);
 #endif
 }
 
-NK_API_COMPTIME nk_f16_t nk_f16_fma(nk_f16_t a, nk_f16_t b, nk_f16_t c) {
-#if NK_TARGET_SAPPHIRE
+NUMKONG_API_COMPTIME nk_f16_t nk_f16_fma(nk_f16_t a, nk_f16_t b, nk_f16_t c) {
+#if NUMKONG_TARGET_SAPPHIRE
     return nk_f16_fma_sapphire(a, b, c);
-#elif NK_TARGET_NEONHALF
+#elif NUMKONG_TARGET_NEONHALF
     return nk_f16_fma_neonhalf(a, b, c);
-#elif NK_TARGET_HASWELL
+#elif NUMKONG_TARGET_HASWELL
     return nk_f16_fma_haswell(a, b, c);
 #else
     return nk_f16_fma_serial(a, b, c);
 #endif
 }
 
-NK_API_COMPTIME nk_u8_t nk_u8_saturating_add(nk_u8_t a, nk_u8_t b) {
-#if NK_TARGET_HASWELL
+NUMKONG_API_COMPTIME nk_u8_t nk_u8_saturating_add(nk_u8_t a, nk_u8_t b) {
+#if NUMKONG_TARGET_HASWELL
     return nk_u8_saturating_add_haswell(a, b);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     return nk_u8_saturating_add_neon(a, b);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     return nk_u8_saturating_add_rvv(a, b);
 #else
     return nk_u8_saturating_add_serial(a, b);
 #endif
 }
-NK_API_COMPTIME nk_i8_t nk_i8_saturating_add(nk_i8_t a, nk_i8_t b) {
-#if NK_TARGET_HASWELL
+NUMKONG_API_COMPTIME nk_i8_t nk_i8_saturating_add(nk_i8_t a, nk_i8_t b) {
+#if NUMKONG_TARGET_HASWELL
     return nk_i8_saturating_add_haswell(a, b);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     return nk_i8_saturating_add_neon(a, b);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     return nk_i8_saturating_add_rvv(a, b);
 #else
     return nk_i8_saturating_add_serial(a, b);
 #endif
 }
-NK_API_COMPTIME nk_u16_t nk_u16_saturating_add(nk_u16_t a, nk_u16_t b) {
-#if NK_TARGET_HASWELL
+NUMKONG_API_COMPTIME nk_u16_t nk_u16_saturating_add(nk_u16_t a, nk_u16_t b) {
+#if NUMKONG_TARGET_HASWELL
     return nk_u16_saturating_add_haswell(a, b);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     return nk_u16_saturating_add_neon(a, b);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     return nk_u16_saturating_add_rvv(a, b);
 #else
     return nk_u16_saturating_add_serial(a, b);
 #endif
 }
-NK_API_COMPTIME nk_i16_t nk_i16_saturating_add(nk_i16_t a, nk_i16_t b) {
-#if NK_TARGET_HASWELL
+NUMKONG_API_COMPTIME nk_i16_t nk_i16_saturating_add(nk_i16_t a, nk_i16_t b) {
+#if NUMKONG_TARGET_HASWELL
     return nk_i16_saturating_add_haswell(a, b);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     return nk_i16_saturating_add_neon(a, b);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     return nk_i16_saturating_add_rvv(a, b);
 #else
     return nk_i16_saturating_add_serial(a, b);
 #endif
 }
-NK_API_COMPTIME nk_u32_t nk_u32_saturating_add(nk_u32_t a, nk_u32_t b) {
-#if NK_TARGET_NEON
+NUMKONG_API_COMPTIME nk_u32_t nk_u32_saturating_add(nk_u32_t a, nk_u32_t b) {
+#if NUMKONG_TARGET_NEON
     return nk_u32_saturating_add_neon(a, b);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     return nk_u32_saturating_add_rvv(a, b);
 #else
     return nk_u32_saturating_add_serial(a, b);
 #endif
 }
-NK_API_COMPTIME nk_i32_t nk_i32_saturating_add(nk_i32_t a, nk_i32_t b) {
-#if NK_TARGET_NEON
+NUMKONG_API_COMPTIME nk_i32_t nk_i32_saturating_add(nk_i32_t a, nk_i32_t b) {
+#if NUMKONG_TARGET_NEON
     return nk_i32_saturating_add_neon(a, b);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     return nk_i32_saturating_add_rvv(a, b);
 #else
     return nk_i32_saturating_add_serial(a, b);
 #endif
 }
-NK_API_COMPTIME nk_u64_t nk_u64_saturating_add(nk_u64_t a, nk_u64_t b) {
-#if NK_TARGET_NEON
+NUMKONG_API_COMPTIME nk_u64_t nk_u64_saturating_add(nk_u64_t a, nk_u64_t b) {
+#if NUMKONG_TARGET_NEON
     return nk_u64_saturating_add_neon(a, b);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     return nk_u64_saturating_add_rvv(a, b);
 #else
     return nk_u64_saturating_add_serial(a, b);
 #endif
 }
-NK_API_COMPTIME nk_i64_t nk_i64_saturating_add(nk_i64_t a, nk_i64_t b) {
-#if NK_TARGET_NEON
+NUMKONG_API_COMPTIME nk_i64_t nk_i64_saturating_add(nk_i64_t a, nk_i64_t b) {
+#if NUMKONG_TARGET_NEON
     return nk_i64_saturating_add_neon(a, b);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     return nk_i64_saturating_add_rvv(a, b);
 #else
     return nk_i64_saturating_add_serial(a, b);
 #endif
 }
-NK_API_COMPTIME nk_i4x2_t nk_i4x2_saturating_add(nk_i4x2_t a, nk_i4x2_t b) {
+NUMKONG_API_COMPTIME nk_i4x2_t nk_i4x2_saturating_add(nk_i4x2_t a, nk_i4x2_t b) {
     return nk_i4x2_saturating_add_serial(a, b);
 }
-NK_API_COMPTIME nk_u4x2_t nk_u4x2_saturating_add(nk_u4x2_t a, nk_u4x2_t b) {
+NUMKONG_API_COMPTIME nk_u4x2_t nk_u4x2_saturating_add(nk_u4x2_t a, nk_u4x2_t b) {
     return nk_u4x2_saturating_add_serial(a, b);
 }
 
-NK_API_COMPTIME nk_u8_t nk_u8_saturating_mul(nk_u8_t a, nk_u8_t b) {
-#if NK_TARGET_RVV
+NUMKONG_API_COMPTIME nk_u8_t nk_u8_saturating_mul(nk_u8_t a, nk_u8_t b) {
+#if NUMKONG_TARGET_RVV
     return nk_u8_saturating_mul_rvv(a, b);
 #else
     return nk_u8_saturating_mul_serial(a, b);
 #endif
 }
-NK_API_COMPTIME nk_i8_t nk_i8_saturating_mul(nk_i8_t a, nk_i8_t b) {
-#if NK_TARGET_RVV
+NUMKONG_API_COMPTIME nk_i8_t nk_i8_saturating_mul(nk_i8_t a, nk_i8_t b) {
+#if NUMKONG_TARGET_RVV
     return nk_i8_saturating_mul_rvv(a, b);
 #else
     return nk_i8_saturating_mul_serial(a, b);
 #endif
 }
-NK_API_COMPTIME nk_u16_t nk_u16_saturating_mul(nk_u16_t a, nk_u16_t b) {
-#if NK_TARGET_RVV
+NUMKONG_API_COMPTIME nk_u16_t nk_u16_saturating_mul(nk_u16_t a, nk_u16_t b) {
+#if NUMKONG_TARGET_RVV
     return nk_u16_saturating_mul_rvv(a, b);
 #else
     return nk_u16_saturating_mul_serial(a, b);
 #endif
 }
-NK_API_COMPTIME nk_i16_t nk_i16_saturating_mul(nk_i16_t a, nk_i16_t b) {
-#if NK_TARGET_RVV
+NUMKONG_API_COMPTIME nk_i16_t nk_i16_saturating_mul(nk_i16_t a, nk_i16_t b) {
+#if NUMKONG_TARGET_RVV
     return nk_i16_saturating_mul_rvv(a, b);
 #else
     return nk_i16_saturating_mul_serial(a, b);
 #endif
 }
-NK_API_COMPTIME nk_u32_t nk_u32_saturating_mul(nk_u32_t a, nk_u32_t b) {
-#if NK_TARGET_RVV
+NUMKONG_API_COMPTIME nk_u32_t nk_u32_saturating_mul(nk_u32_t a, nk_u32_t b) {
+#if NUMKONG_TARGET_RVV
     return nk_u32_saturating_mul_rvv(a, b);
 #else
     return nk_u32_saturating_mul_serial(a, b);
 #endif
 }
-NK_API_COMPTIME nk_i32_t nk_i32_saturating_mul(nk_i32_t a, nk_i32_t b) {
-#if NK_TARGET_RVV
+NUMKONG_API_COMPTIME nk_i32_t nk_i32_saturating_mul(nk_i32_t a, nk_i32_t b) {
+#if NUMKONG_TARGET_RVV
     return nk_i32_saturating_mul_rvv(a, b);
 #else
     return nk_i32_saturating_mul_serial(a, b);
 #endif
 }
-NK_API_COMPTIME nk_u64_t nk_u64_saturating_mul(nk_u64_t a, nk_u64_t b) {
-#if NK_TARGET_HASWELL
+NUMKONG_API_COMPTIME nk_u64_t nk_u64_saturating_mul(nk_u64_t a, nk_u64_t b) {
+#if NUMKONG_TARGET_HASWELL
     return nk_u64_saturating_mul_haswell(a, b);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     return nk_u64_saturating_mul_neon(a, b);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     return nk_u64_saturating_mul_rvv(a, b);
 #else
     return nk_u64_saturating_mul_serial(a, b);
 #endif
 }
-NK_API_COMPTIME nk_i64_t nk_i64_saturating_mul(nk_i64_t a, nk_i64_t b) {
-#if NK_TARGET_HASWELL
+NUMKONG_API_COMPTIME nk_i64_t nk_i64_saturating_mul(nk_i64_t a, nk_i64_t b) {
+#if NUMKONG_TARGET_HASWELL
     return nk_i64_saturating_mul_haswell(a, b);
-#elif NK_TARGET_NEON
+#elif NUMKONG_TARGET_NEON
     return nk_i64_saturating_mul_neon(a, b);
-#elif NK_TARGET_RVV
+#elif NUMKONG_TARGET_RVV
     return nk_i64_saturating_mul_rvv(a, b);
 #else
     return nk_i64_saturating_mul_serial(a, b);
 #endif
 }
-NK_API_COMPTIME nk_i4x2_t nk_i4x2_saturating_mul(nk_i4x2_t a, nk_i4x2_t b) {
+NUMKONG_API_COMPTIME nk_i4x2_t nk_i4x2_saturating_mul(nk_i4x2_t a, nk_i4x2_t b) {
     return nk_i4x2_saturating_mul_serial(a, b);
 }
-NK_API_COMPTIME nk_u4x2_t nk_u4x2_saturating_mul(nk_u4x2_t a, nk_u4x2_t b) {
+NUMKONG_API_COMPTIME nk_u4x2_t nk_u4x2_saturating_mul(nk_u4x2_t a, nk_u4x2_t b) {
     return nk_u4x2_saturating_mul_serial(a, b);
 }
 
-NK_API_COMPTIME int nk_f16_order(nk_f16_t a, nk_f16_t b) {
-#if NK_TARGET_SAPPHIRE
+NUMKONG_API_COMPTIME int nk_f16_order(nk_f16_t a, nk_f16_t b) {
+#if NUMKONG_TARGET_SAPPHIRE
     return nk_f16_order_sapphire(a, b);
 #else
     return nk_f16_order_serial(a, b);
 #endif
 }
-NK_API_COMPTIME int nk_bf16_order(nk_bf16_t a, nk_bf16_t b) { return nk_bf16_order_serial(a, b); }
-NK_API_COMPTIME int nk_e4m3_order(nk_e4m3_t a, nk_e4m3_t b) { return nk_e4m3_order_serial(a, b); }
-NK_API_COMPTIME int nk_e5m2_order(nk_e5m2_t a, nk_e5m2_t b) { return nk_e5m2_order_serial(a, b); }
-NK_API_COMPTIME int nk_e2m3_order(nk_e2m3_t a, nk_e2m3_t b) { return nk_e2m3_order_serial(a, b); }
-NK_API_COMPTIME int nk_e3m2_order(nk_e3m2_t a, nk_e3m2_t b) { return nk_e3m2_order_serial(a, b); }
+NUMKONG_API_COMPTIME int nk_bf16_order(nk_bf16_t a, nk_bf16_t b) { return nk_bf16_order_serial(a, b); }
+NUMKONG_API_COMPTIME int nk_e4m3_order(nk_e4m3_t a, nk_e4m3_t b) { return nk_e4m3_order_serial(a, b); }
+NUMKONG_API_COMPTIME int nk_e5m2_order(nk_e5m2_t a, nk_e5m2_t b) { return nk_e5m2_order_serial(a, b); }
+NUMKONG_API_COMPTIME int nk_e2m3_order(nk_e2m3_t a, nk_e2m3_t b) { return nk_e2m3_order_serial(a, b); }
+NUMKONG_API_COMPTIME int nk_e3m2_order(nk_e3m2_t a, nk_e3m2_t b) { return nk_e3m2_order_serial(a, b); }
 
-#endif // !NK_RUNTIME_DISPATCH
+#endif // !NUMKONG_RUNTIME_DISPATCH
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NK_SCALAR_H
+#endif // NUMKONG_SCALAR_H

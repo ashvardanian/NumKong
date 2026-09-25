@@ -7,7 +7,7 @@
 
 #include "numkong/cast.h"
 
-#include "bench.hpp"
+#include "harness.hpp"
 
 using namespace ashvardanian::numkong::bench;
 
@@ -54,7 +54,7 @@ void run_cast(std::string name, cast_kernel_t kernel) {
 
 void bench_cast() {
 
-#if NK_TARGET_HASWELL
+#if NUMKONG_TARGET_HASWELL
     run_cast<nk_f32_k, nk_f16_k>("cast_f32_to_f16_haswell", nk_cast_haswell);
     run_cast<nk_f16_k, nk_f32_k>("cast_f16_to_f32_haswell", nk_cast_haswell);
     run_cast<nk_f32_k, nk_bf16_k>("cast_f32_to_bf16_haswell", nk_cast_haswell);
@@ -77,7 +77,7 @@ void bench_cast() {
     run_cast<nk_f32_k, nk_u8_k>("cast_f32_to_u8_haswell", nk_cast_haswell);
 #endif
 
-#if NK_TARGET_SKYLAKE
+#if NUMKONG_TARGET_SKYLAKE
     // float ↔ half/brain/MX
     run_cast<nk_f32_k, nk_f16_k>("cast_f32_to_f16_skylake", nk_cast_skylake);
     run_cast<nk_f16_k, nk_f32_k>("cast_f16_to_f32_skylake", nk_cast_skylake);
@@ -112,7 +112,7 @@ void bench_cast() {
     run_cast<nk_f64_k, nk_u32_k>("cast_f64_to_u32_skylake", nk_cast_skylake);
 #endif
 
-#if NK_TARGET_ICELAKE
+#if NUMKONG_TARGET_ICELAKE
     // float ↔ half/brain/MX
     run_cast<nk_f32_k, nk_f16_k>("cast_f32_to_f16_icelake", nk_cast_icelake);
     run_cast<nk_f16_k, nk_f32_k>("cast_f16_to_f32_icelake", nk_cast_icelake);
@@ -131,7 +131,7 @@ void bench_cast() {
     run_cast<nk_f32_k, nk_i8_k>("cast_f32_to_i8_icelake", nk_cast_icelake);
 #endif
 
-#if NK_TARGET_SAPPHIRE
+#if NUMKONG_TARGET_SAPPHIRE
     // float ↔ half/brain/MX
     run_cast<nk_f32_k, nk_f16_k>("cast_f32_to_f16_sapphire", nk_cast_sapphire);
     run_cast<nk_f16_k, nk_f32_k>("cast_f16_to_f32_sapphire", nk_cast_sapphire);
@@ -150,7 +150,7 @@ void bench_cast() {
     run_cast<nk_f32_k, nk_i8_k>("cast_f32_to_i8_sapphire", nk_cast_sapphire);
 #endif
 
-#if NK_TARGET_NEON
+#if NUMKONG_TARGET_NEON
     // NEON — float ↔ half/brain/MX
     run_cast<nk_f32_k, nk_f16_k>("cast_f32_to_f16_neon", nk_cast_neon);
     run_cast<nk_f16_k, nk_f32_k>("cast_f16_to_f32_neon", nk_cast_neon);
@@ -187,7 +187,7 @@ void bench_cast() {
     run_cast<nk_f64_k, nk_u64_k>("cast_f64_to_u64_neon", nk_cast_neon);
 #endif
 
-#if NK_TARGET_POWERVSX
+#if NUMKONG_TARGET_POWERVSX
     run_cast<nk_f32_k, nk_f16_k>("cast_f32_to_f16_powervsx", nk_cast_powervsx);
     run_cast<nk_f16_k, nk_f32_k>("cast_f16_to_f32_powervsx", nk_cast_powervsx);
     run_cast<nk_f32_k, nk_bf16_k>("cast_f32_to_bf16_powervsx", nk_cast_powervsx);
@@ -202,7 +202,7 @@ void bench_cast() {
     run_cast<nk_f32_k, nk_u16_k>("cast_f32_to_u16_powervsx", nk_cast_powervsx);
 #endif
 
-#if NK_TARGET_V128RELAXED
+#if NUMKONG_TARGET_V128RELAXED
     run_cast<nk_f32_k, nk_f16_k>("cast_f32_to_f16_v128relaxed", nk_cast_v128relaxed);
     run_cast<nk_f16_k, nk_f32_k>("cast_f16_to_f32_v128relaxed", nk_cast_v128relaxed);
     run_cast<nk_f32_k, nk_bf16_k>("cast_f32_to_bf16_v128relaxed", nk_cast_v128relaxed);

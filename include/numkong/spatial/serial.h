@@ -6,8 +6,8 @@
  *
  *  @sa include/numkong/spatial.h
  */
-#ifndef NK_SPATIAL_SERIAL_H
-#define NK_SPATIAL_SERIAL_H
+#ifndef NUMKONG_SPATIAL_SERIAL_H
+#define NUMKONG_SPATIAL_SERIAL_H
 
 #include "numkong/types.h"
 #include "numkong/scalar/serial.h" // `nk_f32_rsqrt_serial`
@@ -39,7 +39,7 @@ extern "C" {
  *  A. Neumaier, 1974.
  */
 #define nk_define_sqeuclidean_(input_type, accumulator_type, output_type, load_and_convert)                      \
-    NK_API_COMPTIME void nk_sqeuclidean_##input_type##_serial(                                                   \
+    NUMKONG_API_COMPTIME void nk_sqeuclidean_##input_type##_serial(                                              \
         nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_size_t n, nk_##output_type##_t *result) { \
         nk_##accumulator_type##_t sum = 0, compensation = 0, a_value, b_value;                                   \
         for (nk_size_t i = 0; i != n; ++i) {                                                                     \
@@ -57,7 +57,7 @@ extern "C" {
 
 #define nk_define_euclidean_(input_type, accumulator_type, l2sq_output_type, output_type, load_and_convert,      \
                              compute_sqrt)                                                                       \
-    NK_API_COMPTIME void nk_euclidean_##input_type##_serial(                                                     \
+    NUMKONG_API_COMPTIME void nk_euclidean_##input_type##_serial(                                                \
         nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_size_t n, nk_##output_type##_t *result) { \
         nk_##l2sq_output_type##_t distance_sq;                                                                   \
         nk_sqeuclidean_##input_type##_serial(a, b, n, &distance_sq);                                             \
@@ -72,46 +72,46 @@ extern "C" {
  *
  *  @sa nk_define_sqeuclidean_ for detailed documentation on Neumaier summation.
  */
-#define nk_define_angular_(input_type, accumulator_type, output_type, load_and_convert, compute_rsqrt)                \
-    NK_API_COMPTIME void nk_angular_##input_type##_serial(nk_##input_type##_t const *a, nk_##input_type##_t const *b, \
-                                                          nk_size_t n, nk_##output_type##_t *result) {                \
-        nk_##accumulator_type##_t dot_sum = 0, a_sum = 0, b_sum = 0, a_value, b_value;                                \
-        nk_##accumulator_type##_t compensation_dot = 0, compensation_a = 0, compensation_b = 0;                       \
-        for (nk_size_t i = 0; i != n; ++i) {                                                                          \
-            load_and_convert(a + i, &a_value);                                                                        \
-            load_and_convert(b + i, &b_value);                                                                        \
-            nk_##accumulator_type##_t term_dot = a_value * b_value, t_dot = dot_sum + term_dot;                       \
-            nk_##accumulator_type##_t term_a = a_value * a_value, t_a = a_sum + term_a;                               \
-            nk_##accumulator_type##_t term_b = b_value * b_value, t_b = b_sum + term_b;                               \
-            compensation_dot += (nk_##accumulator_type##_abs_(dot_sum) >= nk_##accumulator_type##_abs_(term_dot))     \
-                                    ? ((dot_sum - t_dot) + term_dot)                                                  \
-                                    : ((term_dot - t_dot) + dot_sum);                                                 \
-            compensation_a += (nk_##accumulator_type##_abs_(a_sum) >= nk_##accumulator_type##_abs_(term_a))           \
-                                  ? ((a_sum - t_a) + term_a)                                                          \
-                                  : ((term_a - t_a) + a_sum);                                                         \
-            compensation_b += (nk_##accumulator_type##_abs_(b_sum) >= nk_##accumulator_type##_abs_(term_b))           \
-                                  ? ((b_sum - t_b) + term_b)                                                          \
-                                  : ((term_b - t_b) + b_sum);                                                         \
-            dot_sum = t_dot;                                                                                          \
-            a_sum = t_a;                                                                                              \
-            b_sum = t_b;                                                                                              \
-        }                                                                                                             \
-        nk_##accumulator_type##_t dot_product = dot_sum + compensation_dot;                                           \
-        nk_##accumulator_type##_t a_norm_sq = a_sum + compensation_a;                                                 \
-        nk_##accumulator_type##_t b_norm_sq = b_sum + compensation_b;                                                 \
-        if (a_norm_sq == 0 && b_norm_sq == 0) { *result = 0; }                                                        \
-        else if (dot_product == 0) { *result = 1; }                                                                   \
-        else {                                                                                                        \
-            nk_##output_type##_t unclipped_distance = (nk_##output_type##_t)(                                         \
-                1 - (nk_##output_type##_t)dot_product * compute_rsqrt((nk_##output_type##_t)a_norm_sq) *              \
-                        compute_rsqrt((nk_##output_type##_t)b_norm_sq));                                              \
-            *result = unclipped_distance > 0 ? unclipped_distance : 0;                                                \
-        }                                                                                                             \
+#define nk_define_angular_(input_type, accumulator_type, output_type, load_and_convert, compute_rsqrt)            \
+    NUMKONG_API_COMPTIME void nk_angular_##input_type##_serial(                                                   \
+        nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_size_t n, nk_##output_type##_t *result) {  \
+        nk_##accumulator_type##_t dot_sum = 0, a_sum = 0, b_sum = 0, a_value, b_value;                            \
+        nk_##accumulator_type##_t compensation_dot = 0, compensation_a = 0, compensation_b = 0;                   \
+        for (nk_size_t i = 0; i != n; ++i) {                                                                      \
+            load_and_convert(a + i, &a_value);                                                                    \
+            load_and_convert(b + i, &b_value);                                                                    \
+            nk_##accumulator_type##_t term_dot = a_value * b_value, t_dot = dot_sum + term_dot;                   \
+            nk_##accumulator_type##_t term_a = a_value * a_value, t_a = a_sum + term_a;                           \
+            nk_##accumulator_type##_t term_b = b_value * b_value, t_b = b_sum + term_b;                           \
+            compensation_dot += (nk_##accumulator_type##_abs_(dot_sum) >= nk_##accumulator_type##_abs_(term_dot)) \
+                                    ? ((dot_sum - t_dot) + term_dot)                                              \
+                                    : ((term_dot - t_dot) + dot_sum);                                             \
+            compensation_a += (nk_##accumulator_type##_abs_(a_sum) >= nk_##accumulator_type##_abs_(term_a))       \
+                                  ? ((a_sum - t_a) + term_a)                                                      \
+                                  : ((term_a - t_a) + a_sum);                                                     \
+            compensation_b += (nk_##accumulator_type##_abs_(b_sum) >= nk_##accumulator_type##_abs_(term_b))       \
+                                  ? ((b_sum - t_b) + term_b)                                                      \
+                                  : ((term_b - t_b) + b_sum);                                                     \
+            dot_sum = t_dot;                                                                                      \
+            a_sum = t_a;                                                                                          \
+            b_sum = t_b;                                                                                          \
+        }                                                                                                         \
+        nk_##accumulator_type##_t dot_product = dot_sum + compensation_dot;                                       \
+        nk_##accumulator_type##_t a_norm_sq = a_sum + compensation_a;                                             \
+        nk_##accumulator_type##_t b_norm_sq = b_sum + compensation_b;                                             \
+        if (a_norm_sq == 0 && b_norm_sq == 0) { *result = 0; }                                                    \
+        else if (dot_product == 0) { *result = 1; }                                                               \
+        else {                                                                                                    \
+            nk_##output_type##_t unclipped_distance = (nk_##output_type##_t)(                                     \
+                1 - (nk_##output_type##_t)dot_product * compute_rsqrt((nk_##output_type##_t)a_norm_sq) *          \
+                        compute_rsqrt((nk_##output_type##_t)b_norm_sq));                                          \
+            *result = unclipped_distance > 0 ? unclipped_distance : 0;                                            \
+        }                                                                                                         \
     }
 
 /*  GCC inlines a helper only into callers whose targets include its own, so serial code builds at
  *  the Armv8-A floor. */
-#if defined(__GNUC__) && !defined(__clang__) && NK_TARGET_ARM64_
+#if defined(__GNUC__) && !defined(__clang__) && NUMKONG_ARCH_ARM64_
 #pragma GCC push_options
 #pragma GCC target("arch=armv8-a")
 #endif
@@ -169,10 +169,11 @@ nk_define_euclidean_(u8, u32, u32, f32, nk_assign_from_to_, nk_f32_sqrt_serial) 
 #undef nk_define_euclidean_
 #undef nk_define_angular_
 
-NK_API_COMPTIME void nk_sqeuclidean_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME void nk_sqeuclidean_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n,
+                                                   nk_u32_t *result) {
     // i4 values are packed as nibbles: two 4-bit signed values per byte.
     // Sign extension: (nibble ^ 8) - 8 maps [0,15] to [-8,7]
-    nk_size_t const n_bytes = n / NK_NIBBLES_PER_BYTE;
+    nk_size_t const n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
     nk_i32_t sum = 0;
     for (nk_size_t i = 0; i < n_bytes; ++i) {
         nk_i32_t a_low = (nk_i32_t)nk_i4x2_low_(a[i]);
@@ -185,14 +186,15 @@ NK_API_COMPTIME void nk_sqeuclidean_i4_serial(nk_i4x2_t const *a, nk_i4x2_t cons
     *result = (nk_u32_t)sum;
 }
 
-NK_API_COMPTIME void nk_euclidean_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_euclidean_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n,
+                                                 nk_f32_t *result) {
     nk_u32_t distance_sq;
     nk_sqeuclidean_i4_serial(a, b, n, &distance_sq);
     *result = nk_f32_sqrt_serial((nk_f32_t)distance_sq);
 }
 
-NK_API_COMPTIME void nk_angular_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result) {
-    nk_size_t const n_bytes = n / NK_NIBBLES_PER_BYTE;
+NUMKONG_API_COMPTIME void nk_angular_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result) {
+    nk_size_t const n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
     nk_i32_t dot_sum = 0, a_norm_sq = 0, b_norm_sq = 0;
     for (nk_size_t i = 0; i < n_bytes; ++i) {
         nk_i32_t a_low = (nk_i32_t)nk_i4x2_low_(a[i]);
@@ -212,10 +214,11 @@ NK_API_COMPTIME void nk_angular_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b
     }
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME void nk_sqeuclidean_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n,
+                                                   nk_u32_t *result) {
     // u4 values are packed as nibbles: two 4-bit unsigned values per byte.
     // No sign extension needed - values are in [0,15].
-    nk_size_t const n_bytes = n / NK_NIBBLES_PER_BYTE;
+    nk_size_t const n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
     nk_u32_t sum = 0;
     for (nk_size_t i = 0; i < n_bytes; ++i) {
         nk_i32_t a_low = (nk_i32_t)nk_u4x2_low_(a[i]);
@@ -228,14 +231,15 @@ NK_API_COMPTIME void nk_sqeuclidean_u4_serial(nk_u4x2_t const *a, nk_u4x2_t cons
     *result = sum;
 }
 
-NK_API_COMPTIME void nk_euclidean_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_euclidean_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n,
+                                                 nk_f32_t *result) {
     nk_u32_t distance_sq;
     nk_sqeuclidean_u4_serial(a, b, n, &distance_sq);
     *result = nk_f32_sqrt_serial((nk_f32_t)distance_sq);
 }
 
-NK_API_COMPTIME void nk_angular_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result) {
-    nk_size_t const n_bytes = n / NK_NIBBLES_PER_BYTE;
+NUMKONG_API_COMPTIME void nk_angular_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result) {
+    nk_size_t const n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
     nk_u32_t dot_sum = 0, a_norm_sq = 0, b_norm_sq = 0;
     for (nk_size_t i = 0; i < n_bytes; ++i) {
         nk_u32_t a_low = (nk_u32_t)nk_u4x2_low_(a[i]);
@@ -264,9 +268,9 @@ NK_API_COMPTIME void nk_angular_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b
 /** Angular from_dot: computes 1 − dot × rsqrt(q) × rsqrt(t) for 4 pairs (serial), where q is
  *  @p query_sumsq and t each target's sum of squares. Separate reciprocal square roots avoid
  *  overflowing the product of two finite-but-large norms. */
-NK_HELPER_INLINE void nk_angular_through_f32_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
-                                                              nk_b128_vec_t const *target_sumsqs_vec,
-                                                              nk_b128_vec_t *result_vec) {
+NUMKONG_HELPER_INLINE void nk_angular_through_f32_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
+                                                                   nk_b128_vec_t const *target_sumsqs_vec,
+                                                                   nk_b128_vec_t *result_vec) {
     nk_f32_t query_rsqrt = query_sumsq > 0 ? nk_f32_rsqrt_serial(query_sumsq) : 0.0f;
     for (int i = 0; i < 4; ++i) {
         nk_f32_t target_sumsq = target_sumsqs_vec->f32s[i];
@@ -282,9 +286,10 @@ NK_HELPER_INLINE void nk_angular_through_f32_from_dot_serial_(nk_b128_vec_t cons
 
 /** Euclidean from_dot: computes √(q + t − 2 × dot) for 4 pairs (serial), where q is @p query_sumsq
  *  and t each target's sum of squares. */
-NK_HELPER_INLINE void nk_euclidean_through_f32_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
-                                                                nk_b128_vec_t const *target_sumsqs_vec,
-                                                                nk_b128_vec_t *result_vec) {
+NUMKONG_HELPER_INLINE void nk_euclidean_through_f32_from_dot_serial_(nk_b128_vec_t const *dots_vec,
+                                                                     nk_f32_t query_sumsq,
+                                                                     nk_b128_vec_t const *target_sumsqs_vec,
+                                                                     nk_b128_vec_t *result_vec) {
     for (int i = 0; i < 4; ++i) {
         nk_f32_t dist_sq = query_sumsq + target_sumsqs_vec->f32s[i] - 2.0f * dots_vec->f32s[i];
         result_vec->f32s[i] = dist_sq > 0 ? nk_f32_sqrt_serial(dist_sq) : 0.0f;
@@ -292,9 +297,9 @@ NK_HELPER_INLINE void nk_euclidean_through_f32_from_dot_serial_(nk_b128_vec_t co
 }
 
 /** Angular from_dot for f64 precision. Separate rsqrts avoid the product overflowing. */
-NK_HELPER_INLINE void nk_angular_through_f64_from_dot_serial_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
-                                                              nk_b256_vec_t const *target_sumsqs_vec,
-                                                              nk_b256_vec_t *result_vec) {
+NUMKONG_HELPER_INLINE void nk_angular_through_f64_from_dot_serial_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
+                                                                   nk_b256_vec_t const *target_sumsqs_vec,
+                                                                   nk_b256_vec_t *result_vec) {
     nk_f64_t query_rsqrt = query_sumsq > 0 ? nk_f64_rsqrt_serial(query_sumsq) : 0.0;
     for (int i = 0; i < 4; ++i) {
         nk_f64_t target_sumsq = target_sumsqs_vec->f64s[i];
@@ -309,9 +314,10 @@ NK_HELPER_INLINE void nk_angular_through_f64_from_dot_serial_(nk_b256_vec_t cons
 }
 
 /** Euclidean from_dot for f64 precision. */
-NK_HELPER_INLINE void nk_euclidean_through_f64_from_dot_serial_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
-                                                                nk_b256_vec_t const *target_sumsqs_vec,
-                                                                nk_b256_vec_t *result_vec) {
+NUMKONG_HELPER_INLINE void nk_euclidean_through_f64_from_dot_serial_(nk_b256_vec_t const *dots_vec,
+                                                                     nk_f64_t query_sumsq,
+                                                                     nk_b256_vec_t const *target_sumsqs_vec,
+                                                                     nk_b256_vec_t *result_vec) {
     for (int i = 0; i < 4; ++i) {
         nk_f64_t dist_sq = query_sumsq + target_sumsqs_vec->f64s[i] - 2.0 * dots_vec->f64s[i];
         result_vec->f64s[i] = dist_sq > 0 ? nk_f64_sqrt_serial(dist_sq) : 0.0;
@@ -319,9 +325,9 @@ NK_HELPER_INLINE void nk_euclidean_through_f64_from_dot_serial_(nk_b256_vec_t co
 }
 
 /** Angular from_dot for i32 accumulators: cast to f32, then same math as f32 variant. */
-NK_HELPER_INLINE void nk_angular_through_i32_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
-                                                              nk_b128_vec_t const *target_sumsqs_vec,
-                                                              nk_b128_vec_t *result_vec) {
+NUMKONG_HELPER_INLINE void nk_angular_through_i32_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
+                                                                   nk_b128_vec_t const *target_sumsqs_vec,
+                                                                   nk_b128_vec_t *result_vec) {
     nk_f32_t query_rsqrt = query_sumsq > 0 ? nk_f32_rsqrt_serial((nk_f32_t)query_sumsq) : 0.0f;
     for (int i = 0; i < 4; ++i) {
         nk_i32_t target_sumsq = target_sumsqs_vec->i32s[i];
@@ -336,9 +342,10 @@ NK_HELPER_INLINE void nk_angular_through_i32_from_dot_serial_(nk_b128_vec_t cons
 }
 
 /** Euclidean from_dot for i32 accumulators: cast to f32, then same math as f32 variant. */
-NK_HELPER_INLINE void nk_euclidean_through_i32_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
-                                                                nk_b128_vec_t const *target_sumsqs_vec,
-                                                                nk_b128_vec_t *result_vec) {
+NUMKONG_HELPER_INLINE void nk_euclidean_through_i32_from_dot_serial_(nk_b128_vec_t const *dots_vec,
+                                                                     nk_i32_t query_sumsq,
+                                                                     nk_b128_vec_t const *target_sumsqs_vec,
+                                                                     nk_b128_vec_t *result_vec) {
     for (int i = 0; i < 4; ++i) {
         nk_f32_t dist_sq = (nk_f32_t)query_sumsq + (nk_f32_t)target_sumsqs_vec->i32s[i] -
                            2.0f * (nk_f32_t)dots_vec->i32s[i];
@@ -347,9 +354,9 @@ NK_HELPER_INLINE void nk_euclidean_through_i32_from_dot_serial_(nk_b128_vec_t co
 }
 
 /** Angular from_dot for u32 accumulators: cast to f32, then same math as f32 variant. */
-NK_HELPER_INLINE void nk_angular_through_u32_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
-                                                              nk_b128_vec_t const *target_sumsqs_vec,
-                                                              nk_b128_vec_t *result_vec) {
+NUMKONG_HELPER_INLINE void nk_angular_through_u32_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
+                                                                   nk_b128_vec_t const *target_sumsqs_vec,
+                                                                   nk_b128_vec_t *result_vec) {
     nk_f32_t query_rsqrt = query_sumsq > 0 ? nk_f32_rsqrt_serial((nk_f32_t)query_sumsq) : 0.0f;
     for (int i = 0; i < 4; ++i) {
         nk_u32_t target_sumsq = target_sumsqs_vec->u32s[i];
@@ -364,9 +371,10 @@ NK_HELPER_INLINE void nk_angular_through_u32_from_dot_serial_(nk_b128_vec_t cons
 }
 
 /** Euclidean from_dot for u32 accumulators: cast to f32, then same math as f32 variant. */
-NK_HELPER_INLINE void nk_euclidean_through_u32_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
-                                                                nk_b128_vec_t const *target_sumsqs_vec,
-                                                                nk_b128_vec_t *result_vec) {
+NUMKONG_HELPER_INLINE void nk_euclidean_through_u32_from_dot_serial_(nk_b128_vec_t const *dots_vec,
+                                                                     nk_u32_t query_sumsq,
+                                                                     nk_b128_vec_t const *target_sumsqs_vec,
+                                                                     nk_b128_vec_t *result_vec) {
     for (int i = 0; i < 4; ++i) {
         nk_f32_t dist_sq = (nk_f32_t)query_sumsq + (nk_f32_t)target_sumsqs_vec->u32s[i] -
                            2.0f * (nk_f32_t)dots_vec->u32s[i];
@@ -374,7 +382,7 @@ NK_HELPER_INLINE void nk_euclidean_through_u32_from_dot_serial_(nk_b128_vec_t co
     }
 }
 
-#if defined(__GNUC__) && !defined(__clang__) && NK_TARGET_ARM64_
+#if defined(__GNUC__) && !defined(__clang__) && NUMKONG_ARCH_ARM64_
 #pragma GCC pop_options
 #endif
 
@@ -382,4 +390,4 @@ NK_HELPER_INLINE void nk_euclidean_through_u32_from_dot_serial_(nk_b128_vec_t co
 } // extern "C"
 #endif
 
-#endif // NK_SPATIAL_SERIAL_H
+#endif // NUMKONG_SPATIAL_SERIAL_H

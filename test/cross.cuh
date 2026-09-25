@@ -7,13 +7,13 @@
  *
  *  Every scenario is a template over the scalar type, its kernels, and a backend owning where
  *  kernel operands live, how a kernel is called, when its results become readable, and how its
- *  products accumulate: @c host_backend_t by default, @c cuda_backend_t from `test.cuh` for the
+ *  products accumulate: @c host_backend_t by default, @c cuda_backend_t from `harness.cuh` for the
  *  CUDA suite. Set distances run on the host only. References always run the serial `nk::`
  *  templates on the host. Outputs start filled with @c canary_k bytes, so a stray write shows.
  */
 #pragma once
-#ifndef NK_TEST_CROSS_CUH
-#define NK_TEST_CROSS_CUH
+#ifndef NUMKONG_TEST_CROSS_CUH
+#define NUMKONG_TEST_CROSS_CUH
 
 #include <cmath>   // `std::ldexp`, `std::nextafter`
 #include <cstdint> // `std::int64_t`, `std::uint64_t`
@@ -31,7 +31,7 @@
 #include "numkong/reduce.hpp"    // `nk::reduce_moments`
 #include "numkong/spatials.h"    // `nk_angulars_packed_*`, `nk_euclideans_packed_*`
 
-#include "test.hpp"
+#include "harness.hpp"
 
 namespace ashvardanian::numkong::test {
 
@@ -1446,4 +1446,4 @@ error_stats_t test_attention_causal_packed(pack_size_kernel_type_ packed_size_fn
 
 } // namespace ashvardanian::numkong::test
 
-#endif // NK_TEST_CROSS_CUH
+#endif // NUMKONG_TEST_CROSS_CUH

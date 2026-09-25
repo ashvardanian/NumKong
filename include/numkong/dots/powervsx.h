@@ -22,11 +22,11 @@
  *  Type-specific tile sizes: f32 uses depth_simd_dimensions=4, f64 uses depth_simd_dimensions=2,
  *  bf16/f16 use depth_simd_dimensions=8, u1 uses depth_simd_dimensions=128.
  */
-#ifndef NK_DOTS_POWERVSX_H
-#define NK_DOTS_POWERVSX_H
+#ifndef NUMKONG_DOTS_POWERVSX_H
+#define NUMKONG_DOTS_POWERVSX_H
 
-#if NK_TARGET_POWER64_
-#if NK_TARGET_POWERVSX
+#if NUMKONG_ARCH_PPC64_
+#if NUMKONG_TARGET_POWERVSX
 
 #include "numkong/cast/powervsx.h" // `nk_load_b128_powervsx_`, `nk_partial_load_b32x4_powervsx_`
 #include "numkong/dot/powervsx.h"
@@ -198,6 +198,6 @@ nk_define_cross_packed_(dots, f64, powervsx, f64, f64, f64, nk_b128_vec_t, nk_do
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_POWERVSX
-#endif // NK_TARGET_POWER64_
-#endif // NK_DOTS_POWERVSX_H
+#endif // NUMKONG_TARGET_POWERVSX
+#endif // NUMKONG_ARCH_PPC64_
+#endif // NUMKONG_DOTS_POWERVSX_H

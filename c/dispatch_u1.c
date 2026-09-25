@@ -8,7 +8,7 @@
 
 void nk_dispatch_u1_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punned_t *m, nk_capability_t *c) {
     typedef nk_kernel_punned_t m_t;
-#if NK_TARGET_V128
+#if NUMKONG_TARGET_V128
     if (v & nk_cap_v128_k) switch (k) {
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_u1_v128, *c = nk_cap_v128_k; return;
         case nk_kernel_hamming_k: *m = (m_t)&nk_hamming_u1_v128, *c = nk_cap_v128_k; return;
@@ -25,7 +25,7 @@ void nk_dispatch_u1_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punne
         default: break;
         }
 #endif
-#if NK_TARGET_SMEBI32
+#if NUMKONG_TARGET_SMEBI32
     if (v & nk_cap_smebi32_k) switch (k) {
         case nk_kernel_dots_pack_size_k: *m = (m_t)&nk_dots_pack_size_u1_smebi32, *c = nk_cap_smebi32_k; return;
         case nk_kernel_dots_packed_shape_k: *m = (m_t)&nk_dots_packed_shape_u1_smebi32, *c = nk_cap_smebi32_k; return;
@@ -39,14 +39,14 @@ void nk_dispatch_u1_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punne
         default: break;
         }
 #endif
-#if NK_TARGET_SVE
+#if NUMKONG_TARGET_SVE
     if (v & nk_cap_sve_k) switch (k) {
         case nk_kernel_hamming_k: *m = (m_t)&nk_hamming_u1_sve, *c = nk_cap_sve_k; return;
         case nk_kernel_jaccard_k: *m = (m_t)&nk_jaccard_u1_sve, *c = nk_cap_sve_k; return;
         default: break;
         }
 #endif
-#if NK_TARGET_NEON
+#if NUMKONG_TARGET_NEON
     if (v & nk_cap_neon_k) switch (k) {
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_u1_neon, *c = nk_cap_neon_k; return;
         case nk_kernel_hamming_k: *m = (m_t)&nk_hamming_u1_neon, *c = nk_cap_neon_k; return;
@@ -63,7 +63,7 @@ void nk_dispatch_u1_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punne
         default: break;
         }
 #endif
-#if NK_TARGET_ICELAKE
+#if NUMKONG_TARGET_ICELAKE
     if (v & nk_cap_icelake_k) switch (k) {
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_u1_icelake, *c = nk_cap_icelake_k; return;
         case nk_kernel_hamming_k: *m = (m_t)&nk_hamming_u1_icelake, *c = nk_cap_icelake_k; return;
@@ -80,13 +80,13 @@ void nk_dispatch_u1_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punne
         default: break;
         }
 #endif
-#if NK_TARGET_SKYLAKE
+#if NUMKONG_TARGET_SKYLAKE
     if (v & nk_cap_skylake_k) switch (k) {
         case nk_kernel_reduce_moments_k: *m = (m_t)&nk_reduce_moments_u1_skylake, *c = nk_cap_skylake_k; return;
         default: break;
         }
 #endif
-#if NK_TARGET_HASWELL
+#if NUMKONG_TARGET_HASWELL
     if (v & nk_cap_haswell_k) switch (k) {
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_u1_haswell, *c = nk_cap_haswell_k; return;
         case nk_kernel_hamming_k: *m = (m_t)&nk_hamming_u1_haswell, *c = nk_cap_haswell_k; return;
@@ -104,7 +104,7 @@ void nk_dispatch_u1_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punne
         default: break;
         }
 #endif
-#if NK_TARGET_POWERVSX
+#if NUMKONG_TARGET_POWERVSX
     if (v & nk_cap_powervsx_k) switch (k) {
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_u1_powervsx, *c = nk_cap_powervsx_k; return;
         case nk_kernel_hamming_k: *m = (m_t)&nk_hamming_u1_powervsx, *c = nk_cap_powervsx_k; return;
@@ -125,7 +125,7 @@ void nk_dispatch_u1_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punne
         default: break;
         }
 #endif
-#if NK_TARGET_LOONGSONASX
+#if NUMKONG_TARGET_LOONGSONASX
     if (v & nk_cap_loongsonasx_k) switch (k) {
         case nk_kernel_hamming_k: *m = (m_t)&nk_hamming_u1_loongsonasx, *c = nk_cap_loongsonasx_k; return;
         case nk_kernel_jaccard_k: *m = (m_t)&nk_jaccard_u1_loongsonasx, *c = nk_cap_loongsonasx_k; return;
@@ -151,7 +151,7 @@ void nk_dispatch_u1_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punne
         default: break;
         }
 #endif
-#if NK_TARGET_RVVBB
+#if NUMKONG_TARGET_RVVBB
     if (v & nk_cap_rvvbb_k) switch (k) {
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_u1_rvvbb, *c = nk_cap_rvvbb_k; return;
         case nk_kernel_hamming_k: *m = (m_t)&nk_hamming_u1_rvvbb, *c = nk_cap_rvvbb_k; return;
@@ -159,7 +159,7 @@ void nk_dispatch_u1_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punne
         default: break;
         }
 #endif
-#if NK_TARGET_RVV
+#if NUMKONG_TARGET_RVV
     if (v & nk_cap_rvv_k) switch (k) {
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_u1_rvv, *c = nk_cap_rvv_k; return;
         case nk_kernel_hamming_k: *m = (m_t)&nk_hamming_u1_rvv, *c = nk_cap_rvv_k; return;

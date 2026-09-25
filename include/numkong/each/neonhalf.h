@@ -20,11 +20,11 @@
  *  the serial F32 sum narrowed back. Scale, blend, and fma round more than once, so they widen to
  *  F32 in `each/neon.h` instead.
  */
-#ifndef NK_EACH_NEONHALF_H
-#define NK_EACH_NEONHALF_H
+#ifndef NUMKONG_EACH_NEONHALF_H
+#define NUMKONG_EACH_NEONHALF_H
 
-#if NK_TARGET_ARM64_
-#if NK_TARGET_NEONHALF
+#if NUMKONG_ARCH_ARM64_
+#if NUMKONG_TARGET_NEONHALF
 
 #include "numkong/types.h"
 
@@ -39,7 +39,8 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+simd+fp16")
 #endif
 
-NK_API_COMPTIME void nk_each_sum_f16_neonhalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f16_t *result) {
+NUMKONG_API_COMPTIME void nk_each_sum_f16_neonhalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                   nk_f16_t *result) {
     // The main loop:
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
@@ -63,6 +64,6 @@ NK_API_COMPTIME void nk_each_sum_f16_neonhalf(nk_f16_t const *a, nk_f16_t const 
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_NEONHALF
-#endif // NK_TARGET_ARM64_
-#endif // NK_EACH_NEONHALF_H
+#endif // NUMKONG_TARGET_NEONHALF
+#endif // NUMKONG_ARCH_ARM64_
+#endif // NUMKONG_EACH_NEONHALF_H

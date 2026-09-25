@@ -12,11 +12,11 @@
  *
  *  Requires RVV 1.0 with Zvbb, from GCC 14 or Clang 18.
  */
-#ifndef NK_DOT_RVVBB_H
-#define NK_DOT_RVVBB_H
+#ifndef NUMKONG_DOT_RVVBB_H
+#define NUMKONG_DOT_RVVBB_H
 
-#if NK_TARGET_RISCV64_
-#if NK_TARGET_RVVBB
+#if NUMKONG_ARCH_RISCV64_
+#if NUMKONG_TARGET_RVVBB
 
 #include "numkong/types.h"
 #include "numkong/set/rvvbb.h" // `nk_popcount_u8m4_rvvbb_`
@@ -32,8 +32,8 @@
 extern "C" {
 #endif
 
-NK_API_COMPTIME void nk_dot_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result) {
-    nk_size_t count_bytes = n_bits / NK_BITS_PER_BYTE;
+NUMKONG_API_COMPTIME void nk_dot_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result) {
+    nk_size_t count_bytes = n_bits / NUMKONG_BITS_PER_BYTE;
 
     vuint32m1_t sum_u32m1 = __riscv_vmv_v_x_u32m1(0, 1);
 
@@ -67,6 +67,6 @@ NK_API_COMPTIME void nk_dot_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_
 #pragma GCC pop_options
 #endif
 
-#endif // NK_TARGET_RVVBB
-#endif // NK_TARGET_RISCV64_
-#endif // NK_DOT_RVVBB_H
+#endif // NUMKONG_TARGET_RVVBB
+#endif // NUMKONG_ARCH_RISCV64_
+#endif // NUMKONG_DOT_RVVBB_H

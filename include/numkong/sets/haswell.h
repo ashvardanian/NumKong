@@ -6,11 +6,11 @@
  *
  *  @sa include/numkong/sets.h
  */
-#ifndef NK_SETS_HASWELL_H
-#define NK_SETS_HASWELL_H
+#ifndef NUMKONG_SETS_HASWELL_H
+#define NUMKONG_SETS_HASWELL_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_HASWELL
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_HASWELL
 
 #include "numkong/set/haswell.h"
 #include "numkong/dots/haswell.h"
@@ -58,6 +58,6 @@ nk_define_cross_normalized_symmetric_(jaccard, u1, haswell, u1x8, u32, /*norm_va
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_HASWELL
-#endif // NK_TARGET_X8664_
-#endif // NK_SETS_HASWELL_H
+#endif // NUMKONG_TARGET_HASWELL
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_SETS_HASWELL_H

@@ -33,7 +33,7 @@ void bench_cross_x86() {
     constexpr nk_dtype_t u4_k = nk_u4_k;
     constexpr nk_dtype_t u1_k = nk_u1_k;
 
-#if NK_TARGET_HASWELL
+#if NUMKONG_TARGET_HASWELL
 
     run_dots_packed<f64_k>("dots_packed_f64_haswell", nk_dots_pack_size_f64_haswell, nk_dots_pack_f64_haswell,
                            nk_dots_packed_f64_haswell);
@@ -167,7 +167,7 @@ void bench_cross_x86() {
 
 #endif
 
-#if NK_TARGET_SKYLAKE
+#if NUMKONG_TARGET_SKYLAKE
 
     run_dots_packed<f64_k>("dots_packed_f64_skylake", nk_dots_pack_size_f64_skylake, nk_dots_pack_f64_skylake,
                            nk_dots_packed_f64_skylake);
@@ -269,7 +269,7 @@ void bench_cross_x86() {
 
 #endif
 
-#if NK_TARGET_ICELAKE
+#if NUMKONG_TARGET_ICELAKE
 
     run_dots_packed<i8_k>("dots_packed_i8_icelake", nk_dots_pack_size_i8_icelake, nk_dots_pack_i8_icelake,
                           nk_dots_packed_i8_icelake);
@@ -330,7 +330,7 @@ void bench_cross_x86() {
 
 #endif
 
-#if NK_TARGET_GENOA
+#if NUMKONG_TARGET_GENOA
 
     run_dots_packed<bf16_k>("dots_packed_bf16_genoa", nk_dots_pack_size_bf16_genoa, nk_dots_pack_bf16_genoa,
                             nk_dots_packed_bf16_genoa);
@@ -371,7 +371,7 @@ void bench_cross_x86() {
 
 #endif
 
-#if NK_TARGET_DIAMOND
+#if NUMKONG_TARGET_DIAMOND
     run_dots_packed<e5m2_k>("dots_packed_e5m2_diamond", nk_dots_pack_size_e5m2_diamond, nk_dots_pack_e5m2_diamond,
                             nk_dots_packed_e5m2_diamond);
     run_dots_packed<e4m3_k>("dots_packed_e4m3_diamond", nk_dots_pack_size_e4m3_diamond, nk_dots_pack_e4m3_diamond,
@@ -392,7 +392,7 @@ void bench_cross_x86() {
     run_euclideans_symmetric<e4m3_k>("euclideans_symmetric_e4m3_diamond", nk_euclideans_symmetric_e4m3_diamond);
 #endif
 
-#if NK_TARGET_ALDER
+#if NUMKONG_TARGET_ALDER
 
     run_dots_packed<e2m3_k>("dots_packed_e2m3_alder", nk_dots_pack_size_e2m3_alder, nk_dots_pack_e2m3_alder,
                             nk_dots_packed_e2m3_alder);
@@ -438,7 +438,7 @@ void bench_cross_x86() {
 
 #endif
 
-#if NK_TARGET_SIERRA
+#if NUMKONG_TARGET_SIERRA
 
     run_dots_packed<e2m3_k>("dots_packed_e2m3_sierra", nk_dots_pack_size_e2m3_sierra, nk_dots_pack_e2m3_sierra,
                             nk_dots_packed_e2m3_sierra);
@@ -484,7 +484,7 @@ void bench_cross_x86() {
 
 #endif
 
-#if NK_TARGET_SAPPHIREAMX
+#if NUMKONG_TARGET_SAPPHIREAMX
 
     run_angulars_packed<bf16_k>("angulars_packed_bf16_sapphireamx", nk_dots_pack_size_bf16_sapphireamx,
                                 nk_dots_pack_bf16_sapphireamx, nk_angulars_packed_bf16_sapphireamx);

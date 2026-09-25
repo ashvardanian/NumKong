@@ -9,11 +9,11 @@
  *  Uses FMLAL, FEAT_FHM, for widening fp16 → f32 multiply-accumulate, which is 20-48% faster than
  *  the convert-then-FMA approach used in neonhalf.h.
  */
-#ifndef NK_DOTS_NEONFHM_H
-#define NK_DOTS_NEONFHM_H
+#ifndef NUMKONG_DOTS_NEONFHM_H
+#define NUMKONG_DOTS_NEONFHM_H
 
-#if NK_TARGET_ARM64_
-#if NK_TARGET_NEONFHM
+#if NUMKONG_ARCH_ARM64_
+#if NUMKONG_TARGET_NEONFHM
 
 #include "numkong/dot/neonfhm.h"
 
@@ -95,6 +95,6 @@ nk_define_cross_packed_(dots, e5m2, neonfhm, e5m2, e5m2, f32, nk_b128_vec_t, nk_
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_NEONFHM
-#endif // NK_TARGET_ARM64_
-#endif // NK_DOTS_NEONFHM_H
+#endif // NUMKONG_TARGET_NEONFHM
+#endif // NUMKONG_ARCH_ARM64_
+#endif // NUMKONG_DOTS_NEONFHM_H

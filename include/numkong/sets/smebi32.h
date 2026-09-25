@@ -27,11 +27,11 @@
  *  - Streaming mode overhead: ~50-100 cycles for SMSTART/SMSTOP
  */
 
-#ifndef NK_SETS_SMEBI32_H
-#define NK_SETS_SMEBI32_H
+#ifndef NUMKONG_SETS_SMEBI32_H
+#define NUMKONG_SETS_SMEBI32_H
 
-#if NK_TARGET_ARM64_
-#if NK_TARGET_SMEBI32
+#if NUMKONG_ARCH_ARM64_
+#if NUMKONG_TARGET_SMEBI32
 
 #include "numkong/types.h"
 #include "numkong/set/serial.h"
@@ -68,14 +68,14 @@ extern "C" {
 #endif
 
 /*  Read SVL in bytes from non-streaming context using RDSVL instruction. */
-NK_HELPER_INLINE nk_size_t nk_smebi32_svl_bytes_(void) {
+NUMKONG_HELPER_INLINE nk_size_t nk_smebi32_svl_bytes_(void) {
     nk_size_t svl_bytes;
     __asm__ volatile("rdsvl %0, #1" : "=r"(svl_bytes));
     return svl_bytes;
 }
 
 /*  Get ZA32 tile dimension (number of f32/u32 elements per row). */
-NK_HELPER_INLINE nk_size_t nk_smebi32_tile_dim_(void) { return nk_smebi32_svl_bytes_() / sizeof(nk_u32_t); }
+NUMKONG_HELPER_INLINE nk_size_t nk_smebi32_tile_dim_(void) { return nk_smebi32_svl_bytes_() / sizeof(nk_u32_t); }
 
 typedef struct {
     nk_u32_t row_tile_count;   // ceiling(rows / tile_dim)
@@ -89,7 +89,8 @@ typedef struct {
 
 /** Count total set bits across a byte vector using streaming SVE.
  *  Accumulates per-byte popcounts into u32 lanes via svdot; single horizontal reduction at end. */
-NK_HELPER_AUTO nk_u32_t nk_sets_reduce_sumsq_u1_streaming_(nk_u1x8_t const *data, nk_size_t n_bytes) NK_STREAMING_ {
+NUMKONG_HELPER_AUTO nk_u32_t nk_sets_reduce_sumsq_u1_streaming_(nk_u1x8_t const *data,
+                                                                nk_size_t n_bytes) NUMKONG_STREAMING_ {
     svuint32_t accumulator_u32x = svdup_u32(0);
     svuint8_t const ones_u8x = svdup_u8(1);
     for (nk_size_t offset = 0; offset < n_bytes; offset += svcntb()) {
@@ -102,7 +103,7 @@ NK_HELPER_AUTO nk_u32_t nk_sets_reduce_sumsq_u1_streaming_(nk_u1x8_t const *data
 
 #pragma region Hamming Distance
 
-NK_API_COMPTIME nk_size_t nk_dots_pack_size_u1_smebi32(nk_size_t row_count, nk_size_t depth_bits) {
+NUMKONG_API_COMPTIME nk_size_t nk_dots_pack_size_u1_smebi32(nk_size_t row_count, nk_size_t depth_bits) {
     nk_size_t const tile_dim = nk_smebi32_tile_dim_();        // 16 rows per tile
     nk_size_t const depth_tile_size = nk_smebi32_tile_dim_(); // 16 u32 per depth tile = 512 bits
 
@@ -118,20 +119,20 @@ NK_API_COMPTIME nk_size_t nk_dots_pack_size_u1_smebi32(nk_size_t row_count, nk_s
     return size;
 }
 
-NK_API_COMPTIME void nk_dots_packed_shape_u1_smebi32(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
+NUMKONG_API_COMPTIME void nk_dots_packed_shape_u1_smebi32(void const *b_packed, nk_size_t *width, nk_size_t *depth) {
     nk_sets_smebi32_packed_header_t const *header = (nk_sets_smebi32_packed_header_t const *)b_packed;
     *width = header->rows;
     *depth = header->depth_bits;
 }
 
-NK_API_COMPTIME void nk_dots_pack_u1_smebi32(nk_u1x8_t const *b, nk_size_t row_count, nk_size_t depth_bits,
-                                             nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
-                                             nk_size_t columns_end) {
+NUMKONG_API_COMPTIME void nk_dots_pack_u1_smebi32(nk_u1x8_t const *b, nk_size_t row_count, nk_size_t depth_bits,
+                                                  nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
+                                                  nk_size_t columns_end) {
     nk_size_t const svl_bytes = nk_smebi32_svl_bytes_();
     nk_size_t const tile_dim = nk_smebi32_tile_dim_();        // 16 rows per tile
     nk_size_t const depth_tile_size = nk_smebi32_tile_dim_(); // 16 u32 per depth tile
     nk_size_t const tile_elements = tile_dim * depth_tile_size;
-    nk_size_t const depth_bytes = depth_bits / NK_BITS_PER_BYTE;
+    nk_size_t const depth_bytes = depth_bits / NUMKONG_BITS_PER_BYTE;
 
     // BMOPA processes binary data in 32-bit words: each svbmopa_za32_u32_m step
     // handles one u32 (32 bits) across all row × column pairs simultaneously.
@@ -217,7 +218,7 @@ NK_API_COMPTIME void nk_dots_pack_u1_smebi32(nk_u1x8_t const *b, nk_size_t row_c
  */
 __arm_new("za") static void nk_hammings_packed_u1_smebi32_streaming_( //
     nk_u1x8_t const *a, void const *b_packed, nk_u32_t *c, nk_size_t row_count_a, nk_size_t row_count_b,
-    nk_size_t depth_bits, nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) NK_STREAMING_ {
+    nk_size_t depth_bits, nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) NUMKONG_STREAMING_ {
 
     nk_sets_smebi32_packed_header_t const *header = (nk_sets_smebi32_packed_header_t const *)b_packed;
     nk_size_t const row_tile_count_b = header->row_tile_count;
@@ -229,7 +230,7 @@ __arm_new("za") static void nk_hammings_packed_u1_smebi32_streaming_( //
     // BMOPA processes binary data in 32-bit words: each svbmopa_za32_u32_m step
     // handles one u32 (32 bits) across all row × column pairs simultaneously.
     nk_size_t const depth_words = nk_size_divide_round_up_(depth_bits, 32);
-    nk_size_t const depth_bytes = depth_bits / NK_BITS_PER_BYTE;
+    nk_size_t const depth_bytes = depth_bits / NUMKONG_BITS_PER_BYTE;
 
     nk_u32_t const *b_tiles = (nk_u32_t const *)((char const *)b_packed + sizeof(nk_sets_smebi32_packed_header_t));
 
@@ -357,7 +358,7 @@ __arm_new("za") static void nk_hammings_packed_u1_smebi32_streaming_( //
     }
 }
 
-NK_API_COMPTIME void nk_hammings_packed_u1_smebi32( //
+NUMKONG_API_COMPTIME void nk_hammings_packed_u1_smebi32( //
     nk_u1x8_t const *a, void const *b_packed, nk_u32_t *c, nk_size_t row_count_a, nk_size_t row_count_b,
     nk_size_t depth_bits, nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
     nk_sme_start_streaming_();
@@ -371,14 +372,14 @@ NK_API_COMPTIME void nk_hammings_packed_u1_smebi32( //
  *  column tiles, mirroring the unpacked @c nk_hammings_packed_u1_smebi32_streaming_ kernel. */
 __arm_new("za") static void nk_hammings_symmetric_u1_smebi32_streaming_( //
     nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t depth_bits, nk_size_t stride_in_bytes,
-    nk_u32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
+    nk_u32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
 
     nk_size_t const tile_dim = svcntw();        // 16 for 512-bit SVL
     nk_size_t const depth_tile_size = svcntw(); // 16 u32 per depth tile
     // BMOPA processes binary data in 32-bit words: each svbmopa_za32_u32_m step
     // handles one u32 (32 bits) across all row × column pairs simultaneously.
     nk_size_t const depth_words = nk_size_divide_round_up_(depth_bits, 32);
-    nk_size_t const depth_bytes = depth_bits / NK_BITS_PER_BYTE;
+    nk_size_t const depth_bytes = depth_bits / NUMKONG_BITS_PER_BYTE;
     nk_size_t const depth_tile_count = nk_size_divide_round_up_(depth_words, depth_tile_size);
 
     svbool_t const predicate_all_b32x = svptrue_b32();
@@ -386,7 +387,7 @@ __arm_new("za") static void nk_hammings_symmetric_u1_smebi32_streaming_( //
     // so the effective depth for the matching→hamming conversion is the rounded-up bit count.
     svuint32_t const depth_u32x = svdup_u32((nk_u32_t)(depth_words * 32));
 
-    NK_ALIGN64 nk_u32_t a_buffer[16][16]; // Stack buffer for A column save
+    NUMKONG_ALIGN64_ nk_u32_t a_buffer[16][16]; // Stack buffer for A column save
 
     nk_size_t const row_end = row_start + row_count;
     nk_size_t const column_tile_count = nk_size_divide_round_up_(vectors_count, tile_dim);
@@ -577,7 +578,7 @@ __arm_new("za") static void nk_hammings_symmetric_u1_smebi32_streaming_( //
     }
 }
 
-NK_API_COMPTIME void nk_hammings_symmetric_u1_smebi32( //
+NUMKONG_API_COMPTIME void nk_hammings_symmetric_u1_smebi32( //
     nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t depth_bits, nk_size_t stride_in_bytes,
     nk_u32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
     nk_sme_start_streaming_();
@@ -622,7 +623,7 @@ NK_API_COMPTIME void nk_hammings_symmetric_u1_smebi32( //
  */
 __arm_new("za") static void nk_jaccards_packed_u1_smebi32_streaming_( //
     nk_u1x8_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t row_count_a, nk_size_t row_count_b,
-    nk_size_t depth_bits, nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) NK_STREAMING_ {
+    nk_size_t depth_bits, nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) NUMKONG_STREAMING_ {
 
     nk_sets_smebi32_packed_header_t const *header = (nk_sets_smebi32_packed_header_t const *)b_packed;
     nk_size_t const row_tile_count_b = header->row_tile_count;
@@ -634,7 +635,7 @@ __arm_new("za") static void nk_jaccards_packed_u1_smebi32_streaming_( //
     // BMOPA processes binary data in 32-bit words: each svbmopa_za32_u32_m step
     // handles one u32 (32 bits) across all row × column pairs simultaneously.
     nk_size_t const depth_words = nk_size_divide_round_up_(depth_bits, 32);
-    nk_size_t const depth_bytes = depth_bits / NK_BITS_PER_BYTE;
+    nk_size_t const depth_bytes = depth_bits / NUMKONG_BITS_PER_BYTE;
 
     nk_u32_t const *b_tiles = (nk_u32_t const *)((char const *)b_packed + sizeof(nk_sets_smebi32_packed_header_t));
     nk_u32_t const *b_norms = header->norms_offset ? (nk_u32_t const *)((char const *)b_packed + header->norms_offset)
@@ -654,7 +655,7 @@ __arm_new("za") static void nk_jaccards_packed_u1_smebi32_streaming_( //
         svbool_t const row_predicate_b32x = svwhilelt_b32_u64(0u, rows_a_remaining);
 
         // Compute A tile norms using streaming SVE popcount
-        NK_ALIGN64 nk_f32_t a_tile_norms[16];
+        NUMKONG_ALIGN64_ nk_f32_t a_tile_norms[16];
         for (nk_size_t r = 0; r < rows_a_remaining; r++) {
             nk_u1x8_t const *a_row = (nk_u1x8_t const *)((char const *)a + (row_start_a + r) * a_stride_in_bytes);
             a_tile_norms[r] = (nk_f32_t)nk_sets_reduce_sumsq_u1_streaming_(a_row, depth_bytes);
@@ -836,7 +837,7 @@ __arm_new("za") static void nk_jaccards_packed_u1_smebi32_streaming_( //
     }
 }
 
-NK_API_COMPTIME void nk_jaccards_packed_u1_smebi32( //
+NUMKONG_API_COMPTIME void nk_jaccards_packed_u1_smebi32( //
     nk_u1x8_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t row_count_a, nk_size_t row_count_b,
     nk_size_t depth_bits, nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
     nk_sme_start_streaming_();
@@ -850,7 +851,7 @@ NK_API_COMPTIME void nk_jaccards_packed_u1_smebi32( //
  *  computed on the fly using streaming SVE popcount. */
 __arm_new("za") static void nk_jaccards_symmetric_u1_smebi32_streaming_( //
     nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t depth_bits, nk_size_t stride_in_bytes,
-    nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
+    nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
 
     nk_size_t const tile_dim = svcntw();        // 16 for 512-bit SVL
     nk_size_t const depth_tile_size = svcntw(); // 16 u32 per depth tile
@@ -858,7 +859,7 @@ __arm_new("za") static void nk_jaccards_symmetric_u1_smebi32_streaming_( //
     // handles one u32 (32 bits) across all row × column pairs simultaneously.
     nk_size_t const depth_words = nk_size_divide_round_up_(depth_bits, 32);
     nk_size_t const depth_tile_count = nk_size_divide_round_up_(depth_words, depth_tile_size);
-    nk_size_t const depth_bytes = depth_bits / NK_BITS_PER_BYTE;
+    nk_size_t const depth_bytes = depth_bits / NUMKONG_BITS_PER_BYTE;
 
     svbool_t const predicate_all_b32x = svptrue_b32();
     svfloat32_t const depth_f32x = svdup_f32((nk_f32_t)(depth_words * 32));
@@ -866,7 +867,7 @@ __arm_new("za") static void nk_jaccards_symmetric_u1_smebi32_streaming_( //
     svfloat32_t const one_f32x = svdup_f32(1.0f);
     svfloat32_t const zero_f32x = svdup_f32(0.0f);
 
-    NK_ALIGN64 nk_u32_t a_buffer[16][16]; // Stack buffer for A column save
+    NUMKONG_ALIGN64_ nk_u32_t a_buffer[16][16]; // Stack buffer for A column save
 
     nk_size_t const row_end = row_start + row_count;
     nk_size_t const column_tile_count = nk_size_divide_round_up_(vectors_count, tile_dim);
@@ -880,7 +881,7 @@ __arm_new("za") static void nk_jaccards_symmetric_u1_smebi32_streaming_( //
         svbool_t const row_predicate_b32x = svwhilelt_b32_u64(0u, rows_clamped);
 
         // Compute A tile norms
-        NK_ALIGN64 nk_f32_t a_tile_norms[16];
+        NUMKONG_ALIGN64_ nk_f32_t a_tile_norms[16];
         for (nk_size_t r = 0; r < rows_clamped; r++) {
             nk_u1x8_t const *a_row = (nk_u1x8_t const *)((char const *)vectors +
                                                          (row_tile_start + r) * stride_in_bytes);
@@ -969,9 +970,9 @@ __arm_new("za") static void nk_jaccards_symmetric_u1_smebi32_streaming_( //
             }
 
             // Compute B tile norms for 3 column tiles
-            NK_ALIGN64 nk_u32_t b_tile_norms_0[16];
-            NK_ALIGN64 nk_u32_t b_tile_norms_1[16];
-            NK_ALIGN64 nk_u32_t b_tile_norms_2[16];
+            NUMKONG_ALIGN64_ nk_u32_t b_tile_norms_0[16];
+            NUMKONG_ALIGN64_ nk_u32_t b_tile_norms_1[16];
+            NUMKONG_ALIGN64_ nk_u32_t b_tile_norms_2[16];
             for (nk_size_t col = 0; col < tile_dim; col++) {
                 nk_size_t const col_abs_0 = (column_tile_index + 0) * tile_dim + col;
                 nk_size_t const col_abs_1 = (column_tile_index + 1) * tile_dim + col;
@@ -1126,7 +1127,7 @@ __arm_new("za") static void nk_jaccards_symmetric_u1_smebi32_streaming_( //
             }
 
             // Compute B tile norms for remainder tile
-            NK_ALIGN64 nk_u32_t b_tile_norms[16];
+            NUMKONG_ALIGN64_ nk_u32_t b_tile_norms[16];
             for (nk_size_t col = 0; col < tile_dim; col++) {
                 nk_size_t const col_abs = col_tile_start + col;
                 b_tile_norms[col] = (col_abs < vectors_count)
@@ -1164,7 +1165,7 @@ __arm_new("za") static void nk_jaccards_symmetric_u1_smebi32_streaming_( //
     }
 }
 
-NK_API_COMPTIME void nk_jaccards_symmetric_u1_smebi32( //
+NUMKONG_API_COMPTIME void nk_jaccards_symmetric_u1_smebi32( //
     nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t depth_bits, nk_size_t stride_in_bytes,
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
     nk_sme_start_streaming_();
@@ -1185,7 +1186,7 @@ NK_API_COMPTIME void nk_jaccards_symmetric_u1_smebi32( //
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_SMEBI32
-#endif // NK_TARGET_ARM64_
+#endif // NUMKONG_TARGET_SMEBI32
+#endif // NUMKONG_ARCH_ARM64_
 
-#endif // NK_SETS_SMEBI32_H
+#endif // NUMKONG_SETS_SMEBI32_H

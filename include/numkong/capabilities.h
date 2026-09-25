@@ -103,14 +103,14 @@
  *  @see Detecting target CPU features at compile time: https://stackoverflow.com/a/28939692/2766161
  */
 
-#ifndef NK_CAPABILITIES_H
-#define NK_CAPABILITIES_H
+#ifndef NUMKONG_CAPABILITIES_H
+#define NUMKONG_CAPABILITIES_H
 
-#include "numkong/types.h" // `nk_u64_t`, `NK_DEFINED_LINUX_`
+#include "numkong/types.h" // `nk_u64_t`, `NUMKONG_OS_LINUX_`
 
-#define NK_VERSION_MAJOR 7
-#define NK_VERSION_MINOR 8
-#define NK_VERSION_PATCH 2
+#define NUMKONG_VERSION_MAJOR 7
+#define NUMKONG_VERSION_MINOR 8
+#define NUMKONG_VERSION_PATCH 2
 
 /**
  *  @brief  Removes compile-time dispatching in favor of runtime dispatching, so @c nk_dot_f32
@@ -119,57 +119,57 @@
  *  Without it, the function is pinned to the most advanced backend supported by the CPU used to
  *  compile the library or the downstream application.
  */
-#if !defined(NK_RUNTIME_DISPATCH)
-#define NK_RUNTIME_DISPATCH (0) // true or false
+#if !defined(NUMKONG_RUNTIME_DISPATCH)
+#define NUMKONG_RUNTIME_DISPATCH (0) // true or false
 #endif
 
 /* On Apple Silicon, @c mrs is not allowed in user-space, so we need to use the @c sysctl API. */
-#if defined(NK_DEFINED_APPLE_)
+#if NUMKONG_OS_APPLE_
 #include <fenv.h>       // `fesetenv` - part of C 99 standard
 #include <sys/sysctl.h> // `sysctlbyname`
 #endif
 
 /*  On Linux and FreeBSD Arm, the kernel reports through @c AT_HWCAP whether it emulates @c mrs
  *  reads of the ID registers, so nothing has to trap to find out. */
-#if (defined(NK_DEFINED_LINUX_) || defined(NK_DEFINED_FREEBSD_)) && NK_TARGET_ARM64_
+#if (NUMKONG_OS_LINUX_ || NUMKONG_OS_FREEBSD_) && NUMKONG_ARCH_ARM64_
 #include <sys/auxv.h> // `getauxval`, `elf_aux_info`, `AT_HWCAP`
 #endif
 
 /*  On Linux x86 and RISC-V, AMX permission and hwprobe need `syscall()`. With `-std=c11` glibc
  *  hides it behind @c _GNU_SOURCE, but a system header included before us already locks
  *  `<features.h>`, so we forward-declare @c syscall, which glibc always has. */
-#if defined(NK_DEFINED_LINUX_) && (NK_TARGET_X8664_ || NK_TARGET_RISCV64_)
+#if NUMKONG_OS_LINUX_ && (NUMKONG_ARCH_X86_64_ || NUMKONG_ARCH_RISCV64_)
 #include <sys/syscall.h> // `SYS_arch_prctl`, `SYS_riscv_hwprobe`
 #ifdef __cplusplus
 extern "C" long syscall(long, ...) noexcept;
 #else
 extern long syscall(long, ...);
 #endif
-#if NK_TARGET_RISCV64_
+#if NUMKONG_ARCH_RISCV64_
 #include <sys/auxv.h> // `getauxval`, `AT_HWCAP`
 #endif
 #endif
 
-#if defined(NK_DEFINED_LINUX_) && NK_TARGET_LOONGARCH64_
+#if NUMKONG_OS_LINUX_ && NUMKONG_ARCH_LOONGARCH64_
 #include <sys/auxv.h> // `getauxval`, `AT_HWCAP`
 #endif
 
-#if defined(NK_DEFINED_LINUX_) && NK_TARGET_POWER64_
+#if NUMKONG_OS_LINUX_ && NUMKONG_ARCH_PPC64_
 #include <sys/auxv.h> // `getauxval`, `AT_HWCAP`
 #endif
 
 /* On FreeBSD RISC-V, we use elf_aux_info for capability detection */
-#if defined(NK_DEFINED_FREEBSD_) && NK_TARGET_RISCV64_
+#if NUMKONG_OS_FREEBSD_ && NUMKONG_ARCH_RISCV64_
 #include <sys/auxv.h> // `elf_aux_info`, `AT_HWCAP`
 #endif
 
 /* On Windows ARM, we use IsProcessorFeaturePresent API for capability detection */
-#if defined(NK_DEFINED_WINDOWS_) && NK_TARGET_ARM64_
+#if NUMKONG_OS_WINDOWS_ && NUMKONG_ARCH_ARM64_
 #include <processthreadsapi.h> // `IsProcessorFeaturePresent`
 #endif
 
 /* On WASM with Emscripten, we use EM_JS for runtime capability detection */
-#if NK_TARGET_WASM_ && defined(__EMSCRIPTEN__)
+#if NUMKONG_ARCH_WASM_ && defined(__EMSCRIPTEN__)
 #include <emscripten.h> // `EM_JS`
 #endif
 
@@ -378,7 +378,7 @@ typedef enum {
 
 /** Canonical name of a kernel kind - the spelling bindings parse and interchange formats carry;
  *  "unknown" for unrecognized values. */
-NK_API_COMPTIME char const *nk_kernel_name(nk_kernel_kind_t kind) {
+NUMKONG_API_COMPTIME char const *nk_kernel_name(nk_kernel_kind_t kind) {
     switch (kind) {
     case nk_kernel_unknown_k: return "unknown";
     case nk_kernel_dot_k: return "dot";
@@ -441,7 +441,7 @@ NK_API_COMPTIME char const *nk_kernel_name(nk_kernel_kind_t kind) {
 
 /** Inverse of @c nk_kernel_name over an explicit-length string; @c nk_kernel_unknown_k for
  *  unrecognized names. */
-NK_API_COMPTIME nk_kernel_kind_t nk_kernel_named(char const *name, nk_size_t length) {
+NUMKONG_API_COMPTIME nk_kernel_kind_t nk_kernel_named(char const *name, nk_size_t length) {
     if (nk_same_literal_(name, length, "dot")) return nk_kernel_dot_k;
     if (nk_same_literal_(name, length, "vdot")) return nk_kernel_vdot_k;
     if (nk_same_literal_(name, length, "angular")) return nk_kernel_angular_k;
@@ -507,7 +507,7 @@ typedef nk_u64_t nk_capability_t;
 #define nk_cap_serial_k ((nk_capability_t)1)
 
 /** Mask representing any capability. */
-#define nk_cap_any_k ((nk_capability_t)NK_U64_MAX)
+#define nk_cap_any_k ((nk_capability_t)NUMKONG_U64_MAX)
 
 #define nk_cap_neon_k        ((nk_capability_t)1 << 1)
 #define nk_cap_haswell_k     ((nk_capability_t)1 << 2)
@@ -566,6 +566,88 @@ typedef nk_u64_t nk_capability_t;
  *  `nk_capabilities_metal_*` only. */
 #define nk_cap_apple9_k  ((nk_capability_t)1 << 48)
 #define nk_cap_apple10_k ((nk_capability_t)1 << 49)
+
+/** Every device family above, which the CPU dispatch never detects, compiles or enables. */
+#define nk_cap_devices_k                                                                               \
+    (nk_cap_ampere_k | nk_cap_hopper_k | nk_cap_blackwell_k | nk_cap_blackwellrtx_k | nk_cap_cdna4_k | \
+     nk_cap_cdna5_k | nk_cap_apple9_k | nk_cap_apple10_k)
+
+/** Buffer size @c nk_name_capabilities never overruns, including its null terminator. */
+#define NUMKONG_CAPABILITIES_NAME_CAPACITY 1024
+
+/** Every named capability, the CPU tiers grouped by family and then the device families, spelled
+ *  as the bindings parse them; a null name ends the table. */
+static struct {
+    char const *name;
+    nk_capability_t flag;
+} const nk_capability_names_[] = {
+    {"serial", nk_cap_serial_k},
+    {"neon", nk_cap_neon_k},
+    {"neonhalf", nk_cap_neonhalf_k},
+    {"neonfhm", nk_cap_neonfhm_k},
+    {"neonbfdot", nk_cap_neonbfdot_k},
+    {"neonsdot", nk_cap_neonsdot_k},
+    {"neonfp8", nk_cap_neonfp8_k},
+    {"sve", nk_cap_sve_k},
+    {"svehalf", nk_cap_svehalf_k},
+    {"svebfdot", nk_cap_svebfdot_k},
+    {"svesdot", nk_cap_svesdot_k},
+    {"sve2", nk_cap_sve2_k},
+    {"sve2p1", nk_cap_sve2p1_k},
+    {"sme", nk_cap_sme_k},
+    {"sme2", nk_cap_sme2_k},
+    {"sme2p1", nk_cap_sme2p1_k},
+    {"smef64", nk_cap_smef64_k},
+    {"smehalf", nk_cap_smehalf_k},
+    {"smebf16", nk_cap_smebf16_k},
+    {"smebi32", nk_cap_smebi32_k},
+    {"smelut2", nk_cap_smelut2_k},
+    {"smefa64", nk_cap_smefa64_k},
+    {"haswell", nk_cap_haswell_k},
+    {"alder", nk_cap_alder_k},
+    {"sierra", nk_cap_sierra_k},
+    {"skylake", nk_cap_skylake_k},
+    {"icelake", nk_cap_icelake_k},
+    {"genoa", nk_cap_genoa_k},
+    {"turin", nk_cap_turin_k},
+    {"sapphire", nk_cap_sapphire_k},
+    {"sapphireamx", nk_cap_sapphireamx_k},
+    {"graniteamx", nk_cap_graniteamx_k},
+    {"diamond", nk_cap_diamond_k},
+    {"diamondamx", nk_cap_diamondamx_k},
+    {"rvv", nk_cap_rvv_k},
+    {"rvvhalf", nk_cap_rvvhalf_k},
+    {"rvvbf16", nk_cap_rvvbf16_k},
+    {"rvvbb", nk_cap_rvvbb_k},
+    {"loongsonasx", nk_cap_loongsonasx_k},
+    {"powervsx", nk_cap_powervsx_k},
+    {"v128", nk_cap_v128_k},
+    {"v128relaxed", nk_cap_v128relaxed_k},
+    {"ampere", nk_cap_ampere_k},
+    {"hopper", nk_cap_hopper_k},
+    {"blackwell", nk_cap_blackwell_k},
+    {"blackwellrtx", nk_cap_blackwellrtx_k},
+    {"cdna4", nk_cap_cdna4_k},
+    {"cdna5", nk_cap_cdna5_k},
+    {"apple9", nk_cap_apple9_k},
+    {"apple10", nk_cap_apple10_k},
+    {0, 0},
+};
+
+/** Writes the names of @p capabilities into @p buffer, behind @c nk_name_capabilities. */
+NUMKONG_HELPER_AUTO nk_size_t nk_name_capabilities_(nk_capability_t capabilities, char *buffer, nk_size_t capacity) {
+    if (!capacity) return 0;
+    nk_size_t length = 0;
+    for (nk_size_t entry = 0; nk_capability_names_[entry].name; ++entry) {
+        if (!(capabilities & nk_capability_names_[entry].flag)) continue;
+        char const *character = length ? "," : "";
+        for (; *character && length + 1 < capacity; ++character) buffer[length++] = *character;
+        for (character = nk_capability_names_[entry].name; *character && length + 1 < capacity; ++character)
+            buffer[length++] = *character;
+    }
+    buffer[length] = '\0';
+    return length;
+}
 
 typedef void (*nk_metric_dense_punned_t)(void const *a, void const *b, nk_size_t dimensions, void *result);
 
@@ -695,12 +777,12 @@ typedef void (*nk_kernel_cast_block_scaled_punned_t)(                           
 
 typedef void (*nk_kernel_punned_t)(void *);
 
-#if NK_TARGET_X8664_
+#if NUMKONG_ARCH_X86_64_
 
-NK_HELPER_AUTO int nk_configure_thread_x86_(nk_capability_t capabilities) {
-#if NK_TARGET_SAPPHIREAMX
+NUMKONG_HELPER_AUTO int nk_configure_thread_x86_(nk_capability_t capabilities) {
+#if NUMKONG_TARGET_SAPPHIREAMX
     if (capabilities & nk_cap_sapphireamx_k) {
-#if defined(NK_DEFINED_LINUX_)
+#if NUMKONG_OS_LINUX_
         // Linux requires explicit permission for AMX tile state via arch_prctl syscall
         int const ARCH_REQ_XCOMP_PERM = 0x1023;
         unsigned long const XFEATURE_XTILEDATA = 18;
@@ -716,7 +798,7 @@ NK_HELPER_AUTO int nk_configure_thread_x86_(nk_capability_t capabilities) {
     return 1;
 }
 
-NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_x8664_(void) {
+NUMKONG_HELPER_AUTO nk_capability_t nk_capabilities_detected_x8664_(void) {
     union four_registers_t {
         int array[4];
         struct separate_t {
@@ -821,11 +903,11 @@ NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_x8664_(void) {
                              (nk_cap_serial_k));
 }
 
-#endif // NK_TARGET_X8664_
+#endif // NUMKONG_ARCH_X86_64_
 
-#if NK_TARGET_ARM64_
+#if NUMKONG_ARCH_ARM64_
 
-NK_HELPER_AUTO int nk_configure_thread_arm64_(nk_capability_t capabilities) {
+NUMKONG_HELPER_AUTO int nk_configure_thread_arm64_(nk_capability_t capabilities) {
 #if defined(_MSC_VER)
     nk_unused_(capabilities);
     return 1;
@@ -847,14 +929,14 @@ NK_HELPER_AUTO int nk_configure_thread_arm64_(nk_capability_t capabilities) {
     // is unsafe (it is RES0), so we gate on feature detection.
     unsigned long fpcr_desired = 0;
 
-#if defined(NK_DEFINED_APPLE_)
+#if NUMKONG_OS_APPLE_
     nk_unused_(capabilities);
     size_t sysctl_size = sizeof(unsigned);
     unsigned has_ebf16 = 0;
-    if (sysctlbyname("hw.optional.arm.FEAT_EBF16", &has_ebf16, &sysctl_size, NK_NULL, 0) != 0) has_ebf16 = 0;
+    if (sysctlbyname("hw.optional.arm.FEAT_EBF16", &has_ebf16, &sysctl_size, NUMKONG_NULL, 0) != 0) has_ebf16 = 0;
     if (has_ebf16) fpcr_desired |= (1UL << 13);
 
-#elif defined(NK_DEFINED_LINUX_) || defined(NK_DEFINED_FREEBSD_)
+#elif NUMKONG_OS_LINUX_ || NUMKONG_OS_FREEBSD_
     // Read ID registers via MRS, safe only once MRS is known to work: any capability beyond basic
     // NEON means nk_capabilities_detected_arm64_ saw the kernel emulate it.
     if (capabilities & ~(nk_cap_neon_k | nk_cap_serial_k)) {
@@ -880,25 +962,28 @@ NK_HELPER_AUTO int nk_configure_thread_arm64_(nk_capability_t capabilities) {
 #endif // _MSC_VER
 }
 
-NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_arm64_(void) {
-#if defined(NK_DEFINED_APPLE_)
+NUMKONG_HELPER_AUTO nk_capability_t nk_capabilities_detected_arm64_(void) {
+#if NUMKONG_OS_APPLE_
     size_t size = sizeof(unsigned);
     unsigned supports_neon = 0, supports_fp16 = 0, supports_fhm = 0, supports_bf16 = 0, supports_dotprod = 0;
     unsigned supports_sme = 0, supports_sme2 = 0, supports_smef64 = 0, supports_smehalf = 0, supports_sme2p1 = 0,
              supports_smebi32 = 0, supports_smebf16 = 0;
-    if (sysctlbyname("hw.optional.neon", &supports_neon, &size, NK_NULL, 0) != 0) supports_neon = 0;
-    if (sysctlbyname("hw.optional.arm.FEAT_FP16", &supports_fp16, &size, NK_NULL, 0) != 0) supports_fp16 = 0;
-    if (sysctlbyname("hw.optional.arm.FEAT_FHM", &supports_fhm, &size, NK_NULL, 0) != 0) supports_fhm = 0;
-    if (sysctlbyname("hw.optional.arm.FEAT_BF16", &supports_bf16, &size, NK_NULL, 0) != 0) supports_bf16 = 0;
-    if (sysctlbyname("hw.optional.arm.FEAT_DotProd", &supports_dotprod, &size, NK_NULL, 0) != 0) supports_dotprod = 0;
-    if (sysctlbyname("hw.optional.arm.FEAT_SME", &supports_sme, &size, NK_NULL, 0) != 0) supports_sme = 0;
-    if (sysctlbyname("hw.optional.arm.FEAT_SME2", &supports_sme2, &size, NK_NULL, 0) != 0) supports_sme2 = 0;
-    if (sysctlbyname("hw.optional.arm.FEAT_SME_F64F64", &supports_smef64, &size, NK_NULL, 0) != 0) supports_smef64 = 0;
-    if (sysctlbyname("hw.optional.arm.FEAT_SME_F16F16", &supports_smehalf, &size, NK_NULL, 0) != 0)
+    if (sysctlbyname("hw.optional.neon", &supports_neon, &size, NUMKONG_NULL, 0) != 0) supports_neon = 0;
+    if (sysctlbyname("hw.optional.arm.FEAT_FP16", &supports_fp16, &size, NUMKONG_NULL, 0) != 0) supports_fp16 = 0;
+    if (sysctlbyname("hw.optional.arm.FEAT_FHM", &supports_fhm, &size, NUMKONG_NULL, 0) != 0) supports_fhm = 0;
+    if (sysctlbyname("hw.optional.arm.FEAT_BF16", &supports_bf16, &size, NUMKONG_NULL, 0) != 0) supports_bf16 = 0;
+    if (sysctlbyname("hw.optional.arm.FEAT_DotProd", &supports_dotprod, &size, NUMKONG_NULL, 0) != 0)
+        supports_dotprod = 0;
+    if (sysctlbyname("hw.optional.arm.FEAT_SME", &supports_sme, &size, NUMKONG_NULL, 0) != 0) supports_sme = 0;
+    if (sysctlbyname("hw.optional.arm.FEAT_SME2", &supports_sme2, &size, NUMKONG_NULL, 0) != 0) supports_sme2 = 0;
+    if (sysctlbyname("hw.optional.arm.FEAT_SME_F64F64", &supports_smef64, &size, NUMKONG_NULL, 0) != 0)
+        supports_smef64 = 0;
+    if (sysctlbyname("hw.optional.arm.FEAT_SME_F16F16", &supports_smehalf, &size, NUMKONG_NULL, 0) != 0)
         supports_smehalf = 0;
-    if (sysctlbyname("hw.optional.arm.FEAT_SME2p1", &supports_sme2p1, &size, NK_NULL, 0) != 0) supports_sme2p1 = 0;
-    if (sysctlbyname("hw.optional.arm.SME_BI32I32", &supports_smebi32, &size, NK_NULL, 0) != 0) supports_smebi32 = 0;
-    if (sysctlbyname("hw.optional.arm.FEAT_SME_B16B16", &supports_smebf16, &size, NK_NULL, 0) != 0)
+    if (sysctlbyname("hw.optional.arm.FEAT_SME2p1", &supports_sme2p1, &size, NUMKONG_NULL, 0) != 0) supports_sme2p1 = 0;
+    if (sysctlbyname("hw.optional.arm.SME_BI32I32", &supports_smebi32, &size, NUMKONG_NULL, 0) != 0)
+        supports_smebi32 = 0;
+    if (sysctlbyname("hw.optional.arm.FEAT_SME_B16B16", &supports_smebf16, &size, NUMKONG_NULL, 0) != 0)
         supports_smebf16 = 0;
 
     // macOS exposes no sysctl for FEAT_SME_FA64, FEAT_SME_LUTv2 or FP8 dot-products, so
@@ -913,9 +998,9 @@ NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_arm64_(void) {
                              (nk_cap_smehalf_k * (supports_smehalf)) | (nk_cap_smebf16_k * (supports_smebf16)) |
                              (nk_cap_smebi32_k * (supports_smebi32)) | (nk_cap_serial_k));
 
-#elif defined(NK_DEFINED_LINUX_) || defined(NK_DEFINED_FREEBSD_)
+#elif NUMKONG_OS_LINUX_ || NUMKONG_OS_FREEBSD_
 
-#if defined(NK_DEFINED_LINUX_)
+#if NUMKONG_OS_LINUX_
     unsigned long hwcap = getauxval(AT_HWCAP);
 #else
     unsigned long hwcap = 0;
@@ -1001,7 +1086,7 @@ NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_arm64_(void) {
                              (nk_cap_smehalf_k * (supports_smehalf)) | (nk_cap_smebf16_k * (supports_smebf16)) |
                              (nk_cap_smebi32_k * (supports_smebi32)) | (nk_cap_smelut2_k * (supports_smelut2)) |
                              (nk_cap_smefa64_k * (supports_smefa64)) | (nk_cap_serial_k));
-#elif defined(NK_DEFINED_WINDOWS_)
+#elif NUMKONG_OS_WINDOWS_
 
     unsigned supports_neon = 0, supports_dp = 0;
 
@@ -1020,12 +1105,12 @@ NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_arm64_(void) {
 #endif
 }
 
-#endif // NK_TARGET_ARM64_
+#endif // NUMKONG_ARCH_ARM64_
 
-#if NK_TARGET_RISCV64_
+#if NUMKONG_ARCH_RISCV64_
 
-NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_riscv64_(void) {
-#if defined(NK_DEFINED_LINUX_)
+NUMKONG_HELPER_AUTO nk_capability_t nk_capabilities_detected_riscv64_(void) {
+#if NUMKONG_OS_LINUX_
     unsigned long hwcap = getauxval(AT_HWCAP);
     nk_capability_t caps = nk_cap_serial_k;
     if (hwcap & (1UL << 21)) {
@@ -1041,7 +1126,7 @@ NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_riscv64_(void) {
         }
     }
     return caps;
-#elif defined(NK_DEFINED_FREEBSD_)
+#elif NUMKONG_OS_FREEBSD_
     unsigned long hwcap = 0;
     elf_aux_info(AT_HWCAP, &hwcap, sizeof(hwcap));
     nk_capability_t caps = nk_cap_serial_k;
@@ -1056,12 +1141,12 @@ NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_riscv64_(void) {
 #endif
 }
 
-#endif // NK_TARGET_RISCV64_
+#endif // NUMKONG_ARCH_RISCV64_
 
-#if NK_TARGET_LOONGARCH64_
+#if NUMKONG_ARCH_LOONGARCH64_
 
-NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_loongarch64_(void) {
-#if defined(NK_DEFINED_LINUX_)
+NUMKONG_HELPER_AUTO nk_capability_t nk_capabilities_detected_loongarch64_(void) {
+#if NUMKONG_OS_LINUX_
     unsigned long hwcap = getauxval(AT_HWCAP);
     nk_capability_t caps = nk_cap_serial_k;
     // LoongArch HWCAP bit 5 = LASX (256-bit SIMD)
@@ -1072,12 +1157,12 @@ NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_loongarch64_(void) {
 #endif
 }
 
-#endif // NK_TARGET_LOONGARCH64_
+#endif // NUMKONG_ARCH_LOONGARCH64_
 
-#if NK_TARGET_POWER64_
+#if NUMKONG_ARCH_PPC64_
 
-NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_power64_(void) {
-#if defined(NK_DEFINED_LINUX_)
+NUMKONG_HELPER_AUTO nk_capability_t nk_capabilities_detected_power64_(void) {
+#if NUMKONG_OS_LINUX_
     unsigned long hwcap = getauxval(AT_HWCAP);
     unsigned long hwcap2 = getauxval(AT_HWCAP2);
     nk_capability_t caps = nk_cap_serial_k;
@@ -1090,27 +1175,27 @@ NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_power64_(void) {
 #endif
 }
 
-#endif // NK_TARGET_POWER64_
+#endif // NUMKONG_ARCH_PPC64_
 
-#if NK_TARGET_WASM_
+#if NUMKONG_ARCH_WASM_
 
-#if defined(__EMSCRIPTEN__) && NK_RUNTIME_DISPATCH && !defined(NK_PYODIDE_SIDE_MODULE)
+#if defined(__EMSCRIPTEN__) && NUMKONG_RUNTIME_DISPATCH && !NUMKONG_PYODIDE_SIDE_MODULE_
 
 /** Standalone Emscripten runtime dispatch: EM_JS probes defined in c/numkong.c. */
 extern int nk_has_v128(void);
 extern int nk_has_relaxed(void);
-#elif defined(__wasi__) && NK_DEFINED_WASI_
+#elif defined(__wasi__) && NUMKONG_WASI_HOSTED
 
-/** WASI hosted, with @c NK_WASI_HOSTED on: the host provides capability probes via imports. */
+/** WASI hosted, with @c NUMKONG_WASI_HOSTED on: the host provides capability probes via imports. */
 __attribute__((__import_module__("env"), __import_name__("nk_has_v128"))) extern int nk_has_v128(void);
 __attribute__((__import_module__("env"), __import_name__("nk_has_relaxed"))) extern int nk_has_relaxed(void);
 #endif
 
-NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_wasm_(void) {
+NUMKONG_HELPER_AUTO nk_capability_t nk_capabilities_detected_wasm_(void) {
     /*  A hosted module asks its engine to validate one probe module per tier, so `detected` describes the
      *  engine; a standalone module has already been validated whole, so it reports its own flags. */
-#if ((defined(__EMSCRIPTEN__) && NK_RUNTIME_DISPATCH) || (defined(__wasi__) && NK_DEFINED_WASI_)) && \
-    !defined(NK_PYODIDE_SIDE_MODULE)
+#if ((defined(__EMSCRIPTEN__) && NUMKONG_RUNTIME_DISPATCH) || (defined(__wasi__) && NUMKONG_WASI_HOSTED)) && \
+    !NUMKONG_PYODIDE_SIDE_MODULE_
     nk_capability_t caps = nk_cap_serial_k;
     if (nk_has_v128()) caps |= nk_cap_v128_k;
     if (nk_has_relaxed()) caps |= nk_cap_v128_k | nk_cap_v128relaxed_k;
@@ -1118,35 +1203,36 @@ NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_wasm_(void) {
 #else
     // Static WASM or Pyodide side module: the engine validated every opcode this module carries
     // before running it, so the compiled tiers are the detected ones.
-    return nk_cap_serial_k | (nk_cap_v128_k * NK_TARGET_V128) | (nk_cap_v128relaxed_k * NK_TARGET_V128RELAXED);
+    return nk_cap_serial_k | (nk_cap_v128_k * NUMKONG_TARGET_V128) |
+           (nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED);
 #endif
 }
 
-#endif // NK_TARGET_WASM_
+#endif // NUMKONG_ARCH_WASM_
 
-NK_HELPER_AUTO int nk_configure_thread_(nk_capability_t capabilities) {
-#if NK_TARGET_X8664_
+NUMKONG_HELPER_AUTO int nk_configure_thread_(nk_capability_t capabilities) {
+#if NUMKONG_ARCH_X86_64_
     return nk_configure_thread_x86_(capabilities);
 #endif
-#if NK_TARGET_ARM64_
+#if NUMKONG_ARCH_ARM64_
     return nk_configure_thread_arm64_(capabilities);
 #endif
     nk_unused_(capabilities);
     return 1; // success — no platform-specific thread configuration needed
 }
 
-NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_(void) {
-#if NK_TARGET_X8664_
+NUMKONG_HELPER_AUTO nk_capability_t nk_capabilities_detected_(void) {
+#if NUMKONG_ARCH_X86_64_
     return nk_capabilities_detected_x8664_();
-#elif NK_TARGET_ARM64_
+#elif NUMKONG_ARCH_ARM64_
     return nk_capabilities_detected_arm64_();
-#elif NK_TARGET_RISCV64_
+#elif NUMKONG_ARCH_RISCV64_
     return nk_capabilities_detected_riscv64_();
-#elif NK_TARGET_LOONGARCH64_
+#elif NUMKONG_ARCH_LOONGARCH64_
     return nk_capabilities_detected_loongarch64_();
-#elif NK_TARGET_POWER64_
+#elif NUMKONG_ARCH_PPC64_
     return nk_capabilities_detected_power64_();
-#elif NK_TARGET_WASM_
+#elif NUMKONG_ARCH_WASM_
     return nk_capabilities_detected_wasm_();
 #else
     return nk_cap_serial_k;
@@ -1154,62 +1240,62 @@ NK_HELPER_AUTO nk_capability_t nk_capabilities_detected_(void) {
 }
 
 /** Returns the capabilities whose kernels were compiled into this binary, as decided by the
- *  `NK_TARGET_*` macros the ISA probes set at build time. Says nothing about the current CPU — see
- *  @b nk_capabilities_detected_(). */
-NK_HELPER_AUTO nk_capability_t nk_capabilities_compiled_(void) {
+ *  `NUMKONG_TARGET_*` macros the ISA probes set at build time. Says nothing about the current CPU —
+ *  see @b nk_capabilities_detected_(). */
+NUMKONG_HELPER_AUTO nk_capability_t nk_capabilities_compiled_(void) {
     nk_capability_t caps = nk_cap_serial_k;
-#if NK_TARGET_X8664_
-    caps |= nk_cap_haswell_k * NK_TARGET_HASWELL;
-    caps |= nk_cap_skylake_k * NK_TARGET_SKYLAKE;
-    caps |= nk_cap_icelake_k * NK_TARGET_ICELAKE;
-    caps |= nk_cap_genoa_k * NK_TARGET_GENOA;
-    caps |= nk_cap_sapphire_k * NK_TARGET_SAPPHIRE;
-    caps |= nk_cap_sapphireamx_k * NK_TARGET_SAPPHIREAMX;
-    caps |= nk_cap_graniteamx_k * NK_TARGET_GRANITEAMX;
-    caps |= nk_cap_diamondamx_k * NK_TARGET_DIAMONDAMX;
-    caps |= nk_cap_diamond_k * NK_TARGET_DIAMOND;
-    caps |= nk_cap_turin_k * NK_TARGET_TURIN;
-    caps |= nk_cap_alder_k * NK_TARGET_ALDER;
-    caps |= nk_cap_sierra_k * NK_TARGET_SIERRA;
+#if NUMKONG_ARCH_X86_64_
+    caps |= nk_cap_haswell_k * NUMKONG_TARGET_HASWELL;
+    caps |= nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE;
+    caps |= nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE;
+    caps |= nk_cap_genoa_k * NUMKONG_TARGET_GENOA;
+    caps |= nk_cap_sapphire_k * NUMKONG_TARGET_SAPPHIRE;
+    caps |= nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX;
+    caps |= nk_cap_graniteamx_k * NUMKONG_TARGET_GRANITEAMX;
+    caps |= nk_cap_diamondamx_k * NUMKONG_TARGET_DIAMONDAMX;
+    caps |= nk_cap_diamond_k * NUMKONG_TARGET_DIAMOND;
+    caps |= nk_cap_turin_k * NUMKONG_TARGET_TURIN;
+    caps |= nk_cap_alder_k * NUMKONG_TARGET_ALDER;
+    caps |= nk_cap_sierra_k * NUMKONG_TARGET_SIERRA;
 #endif
-#if NK_TARGET_ARM64_
-    caps |= nk_cap_neon_k * NK_TARGET_NEON;
-    caps |= nk_cap_neonhalf_k * NK_TARGET_NEONHALF;
-    caps |= nk_cap_neonsdot_k * NK_TARGET_NEONSDOT;
-    caps |= nk_cap_neonbfdot_k * NK_TARGET_NEONBFDOT;
-    caps |= nk_cap_neonfhm_k * NK_TARGET_NEONFHM;
-    caps |= nk_cap_neonfp8_k * NK_TARGET_NEONFP8;
-    caps |= nk_cap_sve_k * NK_TARGET_SVE;
-    caps |= nk_cap_svehalf_k * NK_TARGET_SVEHALF;
-    caps |= nk_cap_svesdot_k * NK_TARGET_SVESDOT;
-    caps |= nk_cap_svebfdot_k * NK_TARGET_SVEBFDOT;
-    caps |= nk_cap_sve2_k * NK_TARGET_SVE2;
-    caps |= nk_cap_sve2p1_k * NK_TARGET_SVE2P1;
-    caps |= nk_cap_sme_k * NK_TARGET_SME;
-    caps |= nk_cap_sme2_k * NK_TARGET_SME2;
-    caps |= nk_cap_sme2p1_k * NK_TARGET_SME2P1;
-    caps |= nk_cap_smef64_k * NK_TARGET_SMEF64;
-    caps |= nk_cap_smehalf_k * NK_TARGET_SMEHALF;
-    caps |= nk_cap_smebf16_k * NK_TARGET_SMEBF16;
-    caps |= nk_cap_smebi32_k * NK_TARGET_SMEBI32;
-    caps |= nk_cap_smelut2_k * NK_TARGET_SMELUT2;
-    caps |= nk_cap_smefa64_k * NK_TARGET_SMEFA64;
+#if NUMKONG_ARCH_ARM64_
+    caps |= nk_cap_neon_k * NUMKONG_TARGET_NEON;
+    caps |= nk_cap_neonhalf_k * NUMKONG_TARGET_NEONHALF;
+    caps |= nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT;
+    caps |= nk_cap_neonbfdot_k * NUMKONG_TARGET_NEONBFDOT;
+    caps |= nk_cap_neonfhm_k * NUMKONG_TARGET_NEONFHM;
+    caps |= nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8;
+    caps |= nk_cap_sve_k * NUMKONG_TARGET_SVE;
+    caps |= nk_cap_svehalf_k * NUMKONG_TARGET_SVEHALF;
+    caps |= nk_cap_svesdot_k * NUMKONG_TARGET_SVESDOT;
+    caps |= nk_cap_svebfdot_k * NUMKONG_TARGET_SVEBFDOT;
+    caps |= nk_cap_sve2_k * NUMKONG_TARGET_SVE2;
+    caps |= nk_cap_sve2p1_k * NUMKONG_TARGET_SVE2P1;
+    caps |= nk_cap_sme_k * NUMKONG_TARGET_SME;
+    caps |= nk_cap_sme2_k * NUMKONG_TARGET_SME2;
+    caps |= nk_cap_sme2p1_k * NUMKONG_TARGET_SME2P1;
+    caps |= nk_cap_smef64_k * NUMKONG_TARGET_SMEF64;
+    caps |= nk_cap_smehalf_k * NUMKONG_TARGET_SMEHALF;
+    caps |= nk_cap_smebf16_k * NUMKONG_TARGET_SMEBF16;
+    caps |= nk_cap_smebi32_k * NUMKONG_TARGET_SMEBI32;
+    caps |= nk_cap_smelut2_k * NUMKONG_TARGET_SMELUT2;
+    caps |= nk_cap_smefa64_k * NUMKONG_TARGET_SMEFA64;
 #endif
-#if NK_TARGET_RISCV64_
-    caps |= nk_cap_rvv_k * NK_TARGET_RVV;
-    caps |= nk_cap_rvvhalf_k * NK_TARGET_RVVHALF;
-    caps |= nk_cap_rvvbf16_k * NK_TARGET_RVVBF16;
-    caps |= nk_cap_rvvbb_k * NK_TARGET_RVVBB;
+#if NUMKONG_ARCH_RISCV64_
+    caps |= nk_cap_rvv_k * NUMKONG_TARGET_RVV;
+    caps |= nk_cap_rvvhalf_k * NUMKONG_TARGET_RVVHALF;
+    caps |= nk_cap_rvvbf16_k * NUMKONG_TARGET_RVVBF16;
+    caps |= nk_cap_rvvbb_k * NUMKONG_TARGET_RVVBB;
 #endif
-#if NK_TARGET_LOONGARCH64_
-    caps |= nk_cap_loongsonasx_k * NK_TARGET_LOONGSONASX;
+#if NUMKONG_ARCH_LOONGARCH64_
+    caps |= nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX;
 #endif
-#if NK_TARGET_POWER64_
-    caps |= nk_cap_powervsx_k * NK_TARGET_POWERVSX;
+#if NUMKONG_ARCH_PPC64_
+    caps |= nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX;
 #endif
-#if NK_TARGET_WASM_
-    caps |= nk_cap_v128_k * NK_TARGET_V128;
-    caps |= nk_cap_v128relaxed_k * NK_TARGET_V128RELAXED;
+#if NUMKONG_ARCH_WASM_
+    caps |= nk_cap_v128_k * NUMKONG_TARGET_V128;
+    caps |= nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED;
 #endif
     return caps;
 }
@@ -1217,7 +1303,7 @@ NK_HELPER_AUTO nk_capability_t nk_capabilities_compiled_(void) {
 /*  SIMD capabilities, reported along two independent axes and the sets derived from them:
  *
  *  - @b nk_capabilities_detected() — what this CPU can execute, from CPUID or HWCAP.
- *  - @b nk_capabilities_compiled() — what this binary contains, from the `NK_TARGET_*` macros
+ *  - @b nk_capabilities_compiled() — what this binary contains, from the `NUMKONG_TARGET_*` macros
  *    the ISA probes set at build time.
  *  - @b nk_capabilities_available() — the intersection, i.e. what can actually run here.
  *  - @b nk_capabilities_enabled() — the subset dispatch is restricted to. Always a subset of
@@ -1228,49 +1314,64 @@ NK_HELPER_AUTO nk_capability_t nk_capabilities_compiled_(void) {
  *  mask while containing no SIMD kernels at all. Ask for @b available() unless you specifically
  *  mean one of the raw axes. */
 
-#if NK_RUNTIME_DISPATCH
+#if NUMKONG_RUNTIME_DISPATCH
 
-NK_API_RUNTIME nk_capability_t nk_capabilities_detected(void);
-NK_API_RUNTIME nk_capability_t nk_capabilities_compiled(void);
-NK_API_RUNTIME nk_capability_t nk_capabilities_available(void);
-NK_API_RUNTIME nk_capability_t nk_capabilities_enabled(void);
-NK_API_RUNTIME void nk_capabilities_restrict(nk_capability_t);
-NK_API_RUNTIME void nk_capabilities_enable(nk_capability_t);
-NK_API_RUNTIME void nk_capabilities_disable(nk_capability_t);
-NK_API_RUNTIME int nk_configure_thread(nk_capability_t);
-NK_API_RUNTIME int nk_uses_runtime_dispatch(void);
-NK_API_RUNTIME void nk_find_kernel_punned(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_kernel_punned_t *kernel_output,
-                                          nk_capability_t *capability_output);
+NUMKONG_API_RUNTIME nk_capability_t nk_capabilities_detected(void);
+NUMKONG_API_RUNTIME nk_capability_t nk_capabilities_compiled(void);
+NUMKONG_API_RUNTIME nk_capability_t nk_capabilities_available(void);
+NUMKONG_API_RUNTIME nk_capability_t nk_capabilities_enabled(void);
+NUMKONG_API_RUNTIME void nk_capabilities_restrict(nk_capability_t);
+NUMKONG_API_RUNTIME void nk_capabilities_enable(nk_capability_t);
+NUMKONG_API_RUNTIME void nk_capabilities_disable(nk_capability_t);
+NUMKONG_API_RUNTIME int nk_configure_thread(nk_capability_t);
+NUMKONG_API_RUNTIME int nk_uses_runtime_dispatch(void);
+NUMKONG_API_RUNTIME void nk_find_kernel_punned(nk_kernel_kind_t kind, nk_dtype_t dtype,
+                                               nk_kernel_punned_t *kernel_output, nk_capability_t *capability_output);
+
+/**
+ *  @brief Writes @p capabilities as a comma-separated name list such as "serial,haswell,skylake".
+ *  @param[in] capabilities The capabilities to name, like @c nk_capabilities_detected() returns.
+ *  @param[out] buffer Destination, always null-terminated; the list is truncated to fit.
+ *  @param[in] capacity Size of @p buffer, like @c NUMKONG_CAPABILITIES_NAME_CAPACITY; a zero
+ *      capacity writes nothing.
+ *  @return Bytes written, excluding the null terminator.
+ */
+NUMKONG_API_RUNTIME nk_size_t nk_name_capabilities(nk_capability_t capabilities, char *buffer, nk_size_t capacity);
 
 #else
 
-NK_API_COMPTIME int nk_uses_runtime_dispatch(void) { return 0; }
-NK_API_COMPTIME int nk_configure_thread(nk_capability_t c) { return nk_configure_thread_(c); }
-NK_API_COMPTIME nk_capability_t nk_capabilities_detected(void) { return nk_capabilities_detected_(); }
-NK_API_COMPTIME nk_capability_t nk_capabilities_compiled(void) { return nk_capabilities_compiled_(); }
-NK_API_COMPTIME nk_capability_t nk_capabilities_available(void) {
+NUMKONG_API_COMPTIME int nk_uses_runtime_dispatch(void) { return 0; }
+NUMKONG_API_COMPTIME int nk_configure_thread(nk_capability_t c) { return nk_configure_thread_(c); }
+NUMKONG_API_COMPTIME nk_capability_t nk_capabilities_detected(void) { return nk_capabilities_detected_(); }
+NUMKONG_API_COMPTIME nk_capability_t nk_capabilities_compiled(void) { return nk_capabilities_compiled_(); }
+NUMKONG_API_COMPTIME nk_capability_t nk_capabilities_available(void) {
     return nk_capabilities_detected_() & nk_capabilities_compiled_();
 }
 
 /** Without a dispatch table there is nothing to narrow: the ISA was fixed at compile time, so the
  *  enabled set is always the available one and the mutators are no-ops. */
-NK_API_COMPTIME nk_capability_t nk_capabilities_enabled(void) { return nk_capabilities_available(); }
+NUMKONG_API_COMPTIME nk_capability_t nk_capabilities_enabled(void) { return nk_capabilities_available(); }
 
 /** @copydoc nk_capabilities_enabled */
-NK_API_COMPTIME void nk_capabilities_restrict(nk_capability_t caps) { nk_unused_(caps); }
+NUMKONG_API_COMPTIME void nk_capabilities_restrict(nk_capability_t caps) { nk_unused_(caps); }
 
 /** @copydoc nk_capabilities_enabled */
-NK_API_COMPTIME void nk_capabilities_enable(nk_capability_t caps) { nk_unused_(caps); }
+NUMKONG_API_COMPTIME void nk_capabilities_enable(nk_capability_t caps) { nk_unused_(caps); }
 
 /** @copydoc nk_capabilities_enabled */
-NK_API_COMPTIME void nk_capabilities_disable(nk_capability_t caps) { nk_unused_(caps); }
+NUMKONG_API_COMPTIME void nk_capabilities_disable(nk_capability_t caps) { nk_unused_(caps); }
+
+/** @copydoc nk_name_capabilities */
+NUMKONG_API_COMPTIME nk_size_t nk_name_capabilities(nk_capability_t capabilities, char *buffer, nk_size_t capacity) {
+    return nk_name_capabilities_(capabilities, buffer, capacity);
+}
 
 #endif
 
 /** CUDA families @p device can run from its compute capability, where every 8.0+ device runs
  *  Ampere, else zero. */
-#if NK_TARGET_CUDA_
-NK_API_COMPTIME nk_capability_t nk_capabilities_cuda_detected(int device) {
+#if NUMKONG_TARGET_CUDA
+NUMKONG_API_COMPTIME nk_capability_t nk_capabilities_cuda_detected(int device) {
     int major = 0;
     if (cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, device) != cudaSuccess) return 0;
     if (major < 8) return 0;
@@ -1281,20 +1382,20 @@ NK_API_COMPTIME nk_capability_t nk_capabilities_cuda_detected(int device) {
     return capabilities;
 }
 #else
-NK_API_COMPTIME nk_capability_t nk_capabilities_cuda_detected(int device) {
+NUMKONG_API_COMPTIME nk_capability_t nk_capabilities_cuda_detected(int device) {
     nk_unused_(device);
     return 0;
 }
 #endif
 
-/** CUDA families whose kernels this translation unit declares, from the `NK_TARGET_*` macros. */
-NK_API_COMPTIME nk_capability_t nk_capabilities_cuda_compiled(void) {
-    return nk_cap_ampere_k * NK_TARGET_AMPERE | nk_cap_hopper_k * NK_TARGET_HOPPER |
-           nk_cap_blackwell_k * NK_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NK_TARGET_BLACKWELLRTX;
+/** CUDA families this translation unit has kernels for, per the `NUMKONG_TARGET_*` macros. */
+NUMKONG_API_COMPTIME nk_capability_t nk_capabilities_cuda_compiled(void) {
+    return nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
+           nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX;
 }
 
 /** CUDA families @p device can run and this translation unit declares. */
-NK_API_COMPTIME nk_capability_t nk_capabilities_cuda_available(int device) {
+NUMKONG_API_COMPTIME nk_capability_t nk_capabilities_cuda_available(int device) {
     return nk_capabilities_cuda_detected(device) & nk_capabilities_cuda_compiled();
 }
 
@@ -1302,4 +1403,4 @@ NK_API_COMPTIME nk_capability_t nk_capabilities_cuda_available(int device) {
 }
 
 #endif
-#endif // NK_CAPABILITIES_H
+#endif // NUMKONG_CAPABILITIES_H

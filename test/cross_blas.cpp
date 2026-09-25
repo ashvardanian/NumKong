@@ -6,12 +6,12 @@
  */
 #include "numkong/dot.hpp" // `nk::dot` for BLAS comparison
 
-#include "test.hpp"
+#include "harness.hpp"
 #include "cross.cuh"
 
 using namespace ashvardanian::numkong::test;
 
-#if NK_COMPARE_TO_BLAS || NK_COMPARE_TO_MKL || NK_COMPARE_TO_ACCELERATE
+#if NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
 
 /**
  *  @brief Unified template to test unpacked GEMM against high-precision reference.
@@ -102,7 +102,7 @@ void dot_f64_with_blas(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64
 
 void dot_f32c_with_blas(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n, nk_f64c_t *result) {
     nk_f32c_t reduced_result_f32;
-#if NK_COMPARE_TO_ACCELERATE
+#if NUMKONG_COMPARE_TO_ACCELERATE
     cblas_cdotu_sub(static_cast<int>(n), reinterpret_cast<__LAPACK_float_complex const *>(a), 1,
                     reinterpret_cast<__LAPACK_float_complex const *>(b), 1,
                     reinterpret_cast<__LAPACK_float_complex *>(&reduced_result_f32));
@@ -114,7 +114,7 @@ void dot_f32c_with_blas(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n, nk_
 
 void vdot_f32c_with_blas(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n, nk_f64c_t *result) {
     nk_f32c_t reduced_result_f32;
-#if NK_COMPARE_TO_ACCELERATE
+#if NUMKONG_COMPARE_TO_ACCELERATE
     cblas_cdotc_sub(static_cast<int>(n), reinterpret_cast<__LAPACK_float_complex const *>(a), 1,
                     reinterpret_cast<__LAPACK_float_complex const *>(b), 1,
                     reinterpret_cast<__LAPACK_float_complex *>(&reduced_result_f32)); // conjugated
@@ -125,7 +125,7 @@ void vdot_f32c_with_blas(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n, nk
 }
 
 void dot_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n, nk_f64c_t *result) {
-#if NK_COMPARE_TO_ACCELERATE
+#if NUMKONG_COMPARE_TO_ACCELERATE
     cblas_zdotu_sub(static_cast<int>(n), reinterpret_cast<__LAPACK_double_complex const *>(a), 1,
                     reinterpret_cast<__LAPACK_double_complex const *>(b), 1,
                     reinterpret_cast<__LAPACK_double_complex *>(result));
@@ -135,7 +135,7 @@ void dot_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n, nk_
 }
 
 void vdot_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n, nk_f64c_t *result) {
-#if NK_COMPARE_TO_ACCELERATE
+#if NUMKONG_COMPARE_TO_ACCELERATE
     cblas_zdotc_sub(static_cast<int>(n), reinterpret_cast<__LAPACK_double_complex const *>(a), 1,
                     reinterpret_cast<__LAPACK_double_complex const *>(b), 1,
                     reinterpret_cast<__LAPACK_double_complex *>(result)); // conjugated
@@ -171,7 +171,7 @@ void dots_f32c_with_blas(f32c_t const *a, f32c_t const *b, f32c_t *c, nk_size_t 
     nk_unused_(a_stride);
     nk_unused_(c_stride);
     nk_f32c_t alpha = {1.0f, 0.0f}, beta = {0.0f, 0.0f};
-#if NK_COMPARE_TO_ACCELERATE
+#if NUMKONG_COMPARE_TO_ACCELERATE
     cblas_cgemm(CblasRowMajor, CblasNoTrans, CblasConjTrans, static_cast<int>(m), static_cast<int>(n),
                 static_cast<int>(k), reinterpret_cast<__LAPACK_float_complex const *>(&alpha),
                 reinterpret_cast<__LAPACK_float_complex const *>(&a->raw_), static_cast<int>(k),
@@ -190,7 +190,7 @@ void dots_f64c_with_blas(f64c_t const *a, f64c_t const *b, f64c_t *c, nk_size_t 
     nk_unused_(a_stride);
     nk_unused_(c_stride);
     nk_f64c_t alpha = {1.0, 0.0}, beta = {0.0, 0.0};
-#if NK_COMPARE_TO_ACCELERATE
+#if NUMKONG_COMPARE_TO_ACCELERATE
     cblas_zgemm(CblasRowMajor, CblasNoTrans, CblasConjTrans, static_cast<int>(m), static_cast<int>(n),
                 static_cast<int>(k), reinterpret_cast<__LAPACK_double_complex const *>(&alpha),
                 reinterpret_cast<__LAPACK_double_complex const *>(&a->raw_), static_cast<int>(k),
@@ -229,9 +229,9 @@ void dots_symmetric_f64_with_blas(nk_f64_t const *a, nk_size_t n, nk_size_t k, n
                 static_cast<int>(a_stride / sizeof(nk_f64_t)), 0.0, c, static_cast<int>(c_stride / sizeof(nk_f64_t)));
 }
 
-#endif // NK_COMPARE_TO_BLAS || NK_COMPARE_TO_MKL || NK_COMPARE_TO_ACCELERATE
+#endif // NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
 
-#if NK_COMPARE_TO_MKL
+#if NUMKONG_COMPARE_TO_MKL
 void dots_bf16_with_mkl(bf16_t const *a, bf16_t const *b, f32_t *c, nk_size_t m, nk_size_t n, nk_size_t k,
                         nk_size_t a_stride, nk_size_t c_stride) {
     nk_unused_(a_stride);
@@ -261,7 +261,7 @@ void dots_i16_with_mkl(i16_t const *a, i16_t const *b, i32_t *c, nk_size_t m, nk
                          &b->raw_, static_cast<MKL_INT>(k), 0, 0.0f, &c->raw_, static_cast<MKL_INT>(n), &c_offset);
 }
 
-#endif // NK_COMPARE_TO_MKL
+#endif // NUMKONG_COMPARE_TO_MKL
 
 /** Single dot product test for BLAS. */
 template <typename scalar_type_>
@@ -320,7 +320,7 @@ error_stats_t test_vdot_blas(typename scalar_type_::vdot_kernel_t kernel) {
 }
 
 void test_cross_blas() {
-#if NK_COMPARE_TO_BLAS || NK_COMPARE_TO_MKL || NK_COMPARE_TO_ACCELERATE
+#if NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
     error_stats_section_t check;
     check.section("Cross External Baselines", nk_cap_serial_k);
 
@@ -345,7 +345,7 @@ void test_cross_blas() {
     check("dots_symmetric_with_blas_f32", test_dots_symmetric<f32_t>, dots_symmetric_f32_with_blas);
 #endif
 
-#if NK_COMPARE_TO_MKL
+#if NUMKONG_COMPARE_TO_MKL
     // MKL-specific GEMM with widening accumulation
     check("dots_with_mkl_bf16", test_dots_unpacked<bf16_t, f32_t, decltype(&dots_bf16_with_mkl)>, dots_bf16_with_mkl);
     check("dots_with_mkl_f16", test_dots_unpacked<f16_t, f32_t, decltype(&dots_f16_with_mkl)>, dots_f16_with_mkl);

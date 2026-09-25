@@ -4,8 +4,8 @@
  *  @date February 5, 2026
  *  @brief C++ bindings for multi-target dot-product kernels.
  */
-#ifndef NK_DOTS_HPP
-#define NK_DOTS_HPP
+#ifndef NUMKONG_DOTS_HPP
+#define NUMKONG_DOTS_HPP
 
 #include <bit>
 #include <cstdint>
@@ -639,4 +639,4 @@ matrix<typename value_type_::jaccard_result_t, allocator_type_> try_jaccards_pac
 
 } // namespace ashvardanian::numkong
 
-#endif // NK_DOTS_HPP
+#endif // NUMKONG_DOTS_HPP

@@ -20,11 +20,11 @@
  *  - f32: Widen to f64 for accumulation, downcast result to f32
  *  - f64: Direct f64 accumulation
  */
-#ifndef NK_SPATIAL_RVV_H
-#define NK_SPATIAL_RVV_H
+#ifndef NUMKONG_SPATIAL_RVV_H
+#define NUMKONG_SPATIAL_RVV_H
 
-#if NK_TARGET_RISCV64_
-#if NK_TARGET_RVV
+#if NUMKONG_ARCH_RISCV64_
+#if NUMKONG_TARGET_RVV
 
 #include "numkong/types.h"
 #include "numkong/scalar/rvv.h" // `nk_f32_rsqrt_rvv`
@@ -48,7 +48,7 @@ extern "C" {
  *  Achieves ~28 bits of precision, sufficient for f32's 23-bit mantissa.
  *  Formula per iteration: y' = y × (3 − x × y²) × 0.5
  */
-NK_HELPER_INLINE vfloat32m1_t nk_rsqrt_f32m1_rvv_(vfloat32m1_t values_f32m1, size_t vector_length) {
+NUMKONG_HELPER_INLINE vfloat32m1_t nk_rsqrt_f32m1_rvv_(vfloat32m1_t values_f32m1, size_t vector_length) {
     vfloat32m1_t rsqrt_f32m1 = __riscv_vfrsqrt7_v_f32m1(values_f32m1, vector_length);
     for (int step = 0; step < 2; step++) {
         vfloat32m1_t rsqrt_sq_f32m1 = __riscv_vfmul_vv_f32m1(rsqrt_f32m1, rsqrt_f32m1, vector_length);
@@ -66,7 +66,7 @@ NK_HELPER_INLINE vfloat32m1_t nk_rsqrt_f32m1_rvv_(vfloat32m1_t values_f32m1, siz
  *  Achieves ~56 bits of precision, sufficient for f64's 52-bit mantissa.
  *  Formula per iteration: y' = y × (3 − x × y²) × 0.5
  */
-NK_HELPER_INLINE vfloat64m1_t nk_rsqrt_f64m1_rvv_(vfloat64m1_t values_f64m1, size_t vector_length) {
+NUMKONG_HELPER_INLINE vfloat64m1_t nk_rsqrt_f64m1_rvv_(vfloat64m1_t values_f64m1, size_t vector_length) {
     vfloat64m1_t rsqrt_f64m1 = __riscv_vfrsqrt7_v_f64m1(values_f64m1, vector_length);
     for (int step = 0; step < 3; step++) {
         vfloat64m1_t rsqrt_sq_f64m1 = __riscv_vfmul_vv_f64m1(rsqrt_f64m1, rsqrt_f64m1, vector_length);
@@ -80,7 +80,7 @@ NK_HELPER_INLINE vfloat64m1_t nk_rsqrt_f64m1_rvv_(vfloat64m1_t values_f64m1, siz
 
 /** Approximate reciprocal of f32 vector (m4) using vfrec7 + 2 Newton-Raphson steps. Achieves
  *  ~28-bit precision, sufficient for f32 (24-bit mantissa). */
-NK_HELPER_INLINE vfloat32m4_t nk_f32m4_reciprocal_rvv_(vfloat32m4_t x_f32m4, nk_size_t vector_length) {
+NUMKONG_HELPER_INLINE vfloat32m4_t nk_f32m4_reciprocal_rvv_(vfloat32m4_t x_f32m4, nk_size_t vector_length) {
     vfloat32m4_t est_f32m4 = __riscv_vfrec7_v_f32m4(x_f32m4, vector_length);
     vfloat32m4_t two_f32m4 = __riscv_vfmv_v_f_f32m4(2.0f, vector_length);
     // NR step 1: est = est * (2 - x * est)
@@ -95,7 +95,7 @@ NK_HELPER_INLINE vfloat32m4_t nk_f32m4_reciprocal_rvv_(vfloat32m4_t x_f32m4, nk_
 
 /** Approximate reciprocal of f32 vector (m2) using vfrec7 + 2 Newton-Raphson steps. Achieves
  *  ~28-bit precision, sufficient for f32 (24-bit mantissa). */
-NK_HELPER_INLINE vfloat32m2_t nk_f32m2_reciprocal_rvv_(vfloat32m2_t x_f32m2, nk_size_t vector_length) {
+NUMKONG_HELPER_INLINE vfloat32m2_t nk_f32m2_reciprocal_rvv_(vfloat32m2_t x_f32m2, nk_size_t vector_length) {
     vfloat32m2_t est_f32m2 = __riscv_vfrec7_v_f32m2(x_f32m2, vector_length);
     vfloat32m2_t two_f32m2 = __riscv_vfmv_v_f_f32m2(2.0f, vector_length);
     // NR step 1: est = est * (2 - x * est)
@@ -110,7 +110,7 @@ NK_HELPER_INLINE vfloat32m2_t nk_f32m2_reciprocal_rvv_(vfloat32m2_t x_f32m2, nk_
 
 /** Approximate reciprocal of f64 vector (m4) using vfrec7 + 3 Newton-Raphson steps. Achieves
  *  ~56-bit precision, sufficient for f64 (52-bit mantissa). */
-NK_HELPER_INLINE vfloat64m4_t nk_f64m4_reciprocal_rvv_(vfloat64m4_t x_f64m4, nk_size_t vector_length) {
+NUMKONG_HELPER_INLINE vfloat64m4_t nk_f64m4_reciprocal_rvv_(vfloat64m4_t x_f64m4, nk_size_t vector_length) {
     vfloat64m4_t est_f64m4 = __riscv_vfrec7_v_f64m4(x_f64m4, vector_length);
     vfloat64m4_t two_f64m4 = __riscv_vfmv_v_f_f64m4(2.0, vector_length);
     // NR step 1
@@ -129,8 +129,8 @@ NK_HELPER_INLINE vfloat64m4_t nk_f64m4_reciprocal_rvv_(vfloat64m4_t x_f64m4, nk_
 
 #pragma region I8 and U8 Integers
 
-NK_API_COMPTIME void nk_sqeuclidean_i8_rvv(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
-                                           nk_u32_t *result) {
+NUMKONG_API_COMPTIME void nk_sqeuclidean_i8_rvv(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars,
+                                                nk_size_t count_scalars, nk_u32_t *result) {
     vint32m1_t sum_i32m1 = __riscv_vmv_v_x_i32m1(0, 1);
     for (nk_size_t vector_length; count_scalars > 0;
          count_scalars -= vector_length, a_scalars += vector_length, b_scalars += vector_length) {
@@ -147,15 +147,15 @@ NK_API_COMPTIME void nk_sqeuclidean_i8_rvv(nk_i8_t const *a_scalars, nk_i8_t con
     *result = (nk_u32_t)__riscv_vmv_x_s_i32m1_i32(sum_i32m1);
 }
 
-NK_API_COMPTIME void nk_euclidean_i8_rvv(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
-                                         nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_euclidean_i8_rvv(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars,
+                                              nk_size_t count_scalars, nk_f32_t *result) {
     nk_u32_t d2;
     nk_sqeuclidean_i8_rvv(a_scalars, b_scalars, count_scalars, &d2);
     *result = nk_f32_sqrt_rvv((nk_f32_t)d2);
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_u8_rvv(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
-                                           nk_u32_t *result) {
+NUMKONG_API_COMPTIME void nk_sqeuclidean_u8_rvv(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars,
+                                                nk_size_t count_scalars, nk_u32_t *result) {
     vuint32m1_t sum_u32m1 = __riscv_vmv_v_x_u32m1(0, 1);
     for (nk_size_t vector_length; count_scalars > 0;
          count_scalars -= vector_length, a_scalars += vector_length, b_scalars += vector_length) {
@@ -174,8 +174,8 @@ NK_API_COMPTIME void nk_sqeuclidean_u8_rvv(nk_u8_t const *a_scalars, nk_u8_t con
     *result = __riscv_vmv_x_s_u32m1_u32(sum_u32m1);
 }
 
-NK_API_COMPTIME void nk_euclidean_u8_rvv(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
-                                         nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_euclidean_u8_rvv(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars,
+                                              nk_size_t count_scalars, nk_f32_t *result) {
     nk_u32_t d2;
     nk_sqeuclidean_u8_rvv(a_scalars, b_scalars, count_scalars, &d2);
     *result = nk_f32_sqrt_rvv((nk_f32_t)d2);
@@ -184,8 +184,8 @@ NK_API_COMPTIME void nk_euclidean_u8_rvv(nk_u8_t const *a_scalars, nk_u8_t const
 #pragma endregion I8 and U8 Integers
 #pragma region F32 and F64 Floats
 
-NK_API_COMPTIME void nk_sqeuclidean_f32_rvv(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,
-                                            nk_size_t count_scalars, nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f32_rvv(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,
+                                                 nk_size_t count_scalars, nk_f64_t *result) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m2();
     vfloat64m2_t sum_f64m2 = __riscv_vfmv_v_f_f64m2(0.0, max_vector_length);
     for (nk_size_t vector_length; count_scalars > 0;
@@ -203,14 +203,14 @@ NK_API_COMPTIME void nk_sqeuclidean_f32_rvv(nk_f32_t const *a_scalars, nk_f32_t 
     *result = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m2_f64m1(sum_f64m2, zero_f64m1, max_vector_length));
 }
 
-NK_API_COMPTIME void nk_euclidean_f32_rvv(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars, nk_size_t count_scalars,
-                                          nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_euclidean_f32_rvv(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,
+                                               nk_size_t count_scalars, nk_f64_t *result) {
     nk_sqeuclidean_f32_rvv(a_scalars, b_scalars, count_scalars, result);
     *result = nk_f64_sqrt_rvv(*result);
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_f64_rvv(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars,
-                                            nk_size_t count_scalars, nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f64_rvv(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars,
+                                                 nk_size_t count_scalars, nk_f64_t *result) {
     nk_size_t vector_length_max = __riscv_vsetvlmax_e64m1();
     vfloat64m1_t sum_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, vector_length_max);
     for (nk_size_t vector_length; count_scalars > 0;
@@ -227,8 +227,8 @@ NK_API_COMPTIME void nk_sqeuclidean_f64_rvv(nk_f64_t const *a_scalars, nk_f64_t 
     *result = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m1_f64m1(sum_f64m1, zero_f64m1, vector_length_max));
 }
 
-NK_API_COMPTIME void nk_euclidean_f64_rvv(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars, nk_size_t count_scalars,
-                                          nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_euclidean_f64_rvv(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars,
+                                               nk_size_t count_scalars, nk_f64_t *result) {
     nk_sqeuclidean_f64_rvv(a_scalars, b_scalars, count_scalars, result);
     *result = nk_f64_sqrt_rvv(*result);
 }
@@ -236,8 +236,8 @@ NK_API_COMPTIME void nk_euclidean_f64_rvv(nk_f64_t const *a_scalars, nk_f64_t co
 #pragma endregion F32 and F64 Floats
 #pragma region I8 and U8 Integers
 
-NK_API_COMPTIME void nk_angular_i8_rvv(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
-                                       nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_angular_i8_rvv(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
+                                            nk_f32_t *result) {
     vint32m1_t dot_i32m1 = __riscv_vmv_v_x_i32m1(0, 1);
     vint32m1_t a_norm_sq_i32m1 = __riscv_vmv_v_x_i32m1(0, 1);
     vint32m1_t b_norm_sq_i32m1 = __riscv_vmv_v_x_i32m1(0, 1);
@@ -275,8 +275,8 @@ NK_API_COMPTIME void nk_angular_i8_rvv(nk_i8_t const *a_scalars, nk_i8_t const *
     }
 }
 
-NK_API_COMPTIME void nk_angular_u8_rvv(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
-                                       nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_angular_u8_rvv(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
+                                            nk_f32_t *result) {
     vuint32m1_t dot_u32m1 = __riscv_vmv_v_x_u32m1(0, 1);
     vuint32m1_t a_norm_sq_u32m1 = __riscv_vmv_v_x_u32m1(0, 1);
     vuint32m1_t b_norm_sq_u32m1 = __riscv_vmv_v_x_u32m1(0, 1);
@@ -317,8 +317,8 @@ NK_API_COMPTIME void nk_angular_u8_rvv(nk_u8_t const *a_scalars, nk_u8_t const *
 #pragma endregion I8 and U8 Integers
 #pragma region F32 and F64 Floats
 
-NK_API_COMPTIME void nk_angular_f32_rvv(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars, nk_size_t count_scalars,
-                                        nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_angular_f32_rvv(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,
+                                             nk_size_t count_scalars, nk_f64_t *result) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m2();
     vfloat64m2_t dot_f64m2 = __riscv_vfmv_v_f_f64m2(0.0, max_vector_length);
     vfloat64m2_t a_norm_sq_f64m2 = __riscv_vfmv_v_f_f64m2(0.0, max_vector_length);
@@ -354,8 +354,8 @@ NK_API_COMPTIME void nk_angular_f32_rvv(nk_f32_t const *a_scalars, nk_f32_t cons
     }
 }
 
-NK_API_COMPTIME void nk_angular_f64_rvv(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars, nk_size_t count_scalars,
-                                        nk_f64_t *result) {
+NUMKONG_API_COMPTIME void nk_angular_f64_rvv(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars,
+                                             nk_size_t count_scalars, nk_f64_t *result) {
     // Dot2 (Ogita-Rump-Oishi) for cross-product (may have cancellation),
     // simple FMA for self-products a²/b² (all positive, no cancellation)
     nk_size_t vector_length_max = __riscv_vsetvlmax_e64m1();
@@ -411,8 +411,8 @@ NK_API_COMPTIME void nk_angular_f64_rvv(nk_f64_t const *a_scalars, nk_f64_t cons
 #pragma endregion F32 and F64 Floats
 #pragma region F16 and BF16 Floats
 
-NK_API_COMPTIME void nk_sqeuclidean_f16_rvv(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
-                                            nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_sqeuclidean_f16_rvv(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
+                                                 nk_size_t count_scalars, nk_f32_t *result) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m2_t sum_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
     for (nk_size_t vector_length; count_scalars > 0;
@@ -434,14 +434,14 @@ NK_API_COMPTIME void nk_sqeuclidean_f16_rvv(nk_f16_t const *a_scalars, nk_f16_t 
     *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m2_f32m1(sum_f32m2, zero_f32m1, max_vector_length));
 }
 
-NK_API_COMPTIME void nk_euclidean_f16_rvv(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars, nk_size_t count_scalars,
-                                          nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_euclidean_f16_rvv(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
+                                               nk_size_t count_scalars, nk_f32_t *result) {
     nk_sqeuclidean_f16_rvv(a_scalars, b_scalars, count_scalars, result);
     *result = nk_f32_sqrt_rvv(*result);
 }
 
-NK_API_COMPTIME void nk_angular_f16_rvv(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars, nk_size_t count_scalars,
-                                        nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_angular_f16_rvv(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
+                                             nk_size_t count_scalars, nk_f32_t *result) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m2_t dot_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
     vfloat32m2_t a_norm_sq_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
@@ -480,8 +480,8 @@ NK_API_COMPTIME void nk_angular_f16_rvv(nk_f16_t const *a_scalars, nk_f16_t cons
     }
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_bf16_rvv(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                             nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_sqeuclidean_bf16_rvv(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
+                                                  nk_size_t count_scalars, nk_f32_t *result) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m2_t sum_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
     for (nk_size_t vector_length; count_scalars > 0;
@@ -503,14 +503,14 @@ NK_API_COMPTIME void nk_sqeuclidean_bf16_rvv(nk_bf16_t const *a_scalars, nk_bf16
     *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m2_f32m1(sum_f32m2, zero_f32m1, max_vector_length));
 }
 
-NK_API_COMPTIME void nk_euclidean_bf16_rvv(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                           nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_euclidean_bf16_rvv(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
+                                                nk_size_t count_scalars, nk_f32_t *result) {
     nk_sqeuclidean_bf16_rvv(a_scalars, b_scalars, count_scalars, result);
     *result = nk_f32_sqrt_rvv(*result);
 }
 
-NK_API_COMPTIME void nk_angular_bf16_rvv(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                         nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_angular_bf16_rvv(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
+                                              nk_size_t count_scalars, nk_f32_t *result) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m2_t dot_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
     vfloat32m2_t a_norm_sq_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
@@ -549,8 +549,8 @@ NK_API_COMPTIME void nk_angular_bf16_rvv(nk_bf16_t const *a_scalars, nk_bf16_t c
     }
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_e4m3_rvv(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
-                                             nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e4m3_rvv(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
+                                                  nk_size_t count_scalars, nk_f32_t *result) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
     vfloat32m4_t sum_f32m4 = __riscv_vfmv_v_f_f32m4(0.0f, max_vector_length);
     for (nk_size_t vector_length; count_scalars > 0;
@@ -572,14 +572,14 @@ NK_API_COMPTIME void nk_sqeuclidean_e4m3_rvv(nk_e4m3_t const *a_scalars, nk_e4m3
     *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m4_f32m1(sum_f32m4, zero_f32m1, max_vector_length));
 }
 
-NK_API_COMPTIME void nk_euclidean_e4m3_rvv(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
-                                           nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_euclidean_e4m3_rvv(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
+                                                nk_size_t count_scalars, nk_f32_t *result) {
     nk_sqeuclidean_e4m3_rvv(a_scalars, b_scalars, count_scalars, result);
     *result = nk_f32_sqrt_rvv(*result);
 }
 
-NK_API_COMPTIME void nk_angular_e4m3_rvv(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
-                                         nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_angular_e4m3_rvv(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
+                                              nk_size_t count_scalars, nk_f32_t *result) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
     vfloat32m4_t dot_f32m4 = __riscv_vfmv_v_f_f32m4(0.0f, max_vector_length);
     vfloat32m4_t a_norm_sq_f32m4 = __riscv_vfmv_v_f_f32m4(0.0f, max_vector_length);
@@ -618,8 +618,8 @@ NK_API_COMPTIME void nk_angular_e4m3_rvv(nk_e4m3_t const *a_scalars, nk_e4m3_t c
     }
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_e5m2_rvv(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
-                                             nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_sqeuclidean_e5m2_rvv(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
+                                                  nk_size_t count_scalars, nk_f32_t *result) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
     vfloat32m4_t sum_f32m4 = __riscv_vfmv_v_f_f32m4(0.0f, max_vector_length);
     for (nk_size_t vector_length; count_scalars > 0;
@@ -641,14 +641,14 @@ NK_API_COMPTIME void nk_sqeuclidean_e5m2_rvv(nk_e5m2_t const *a_scalars, nk_e5m2
     *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m4_f32m1(sum_f32m4, zero_f32m1, max_vector_length));
 }
 
-NK_API_COMPTIME void nk_euclidean_e5m2_rvv(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
-                                           nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_euclidean_e5m2_rvv(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
+                                                nk_size_t count_scalars, nk_f32_t *result) {
     nk_sqeuclidean_e5m2_rvv(a_scalars, b_scalars, count_scalars, result);
     *result = nk_f32_sqrt_rvv(*result);
 }
 
-NK_API_COMPTIME void nk_angular_e5m2_rvv(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
-                                         nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_angular_e5m2_rvv(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
+                                              nk_size_t count_scalars, nk_f32_t *result) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
     vfloat32m4_t dot_f32m4 = __riscv_vfmv_v_f_f32m4(0.0f, max_vector_length);
     vfloat32m4_t a_norm_sq_f32m4 = __riscv_vfmv_v_f_f32m4(0.0f, max_vector_length);
@@ -690,8 +690,8 @@ NK_API_COMPTIME void nk_angular_e5m2_rvv(nk_e5m2_t const *a_scalars, nk_e5m2_t c
 #pragma endregion F16 and BF16 Floats
 #pragma region I8 and U8 Integers
 
-NK_API_COMPTIME void nk_sqeuclidean_i4_rvv(nk_i4x2_t const *a_scalars, nk_i4x2_t const *b_scalars,
-                                           nk_size_t count_scalars, nk_u32_t *result) {
+NUMKONG_API_COMPTIME void nk_sqeuclidean_i4_rvv(nk_i4x2_t const *a_scalars, nk_i4x2_t const *b_scalars,
+                                                nk_size_t count_scalars, nk_u32_t *result) {
     static nk_u8_t const nk_i4_sqd_lut_[256] = {
         0,  1,  4,   9,   16,  25,  36,  49,  64,  49,  36,  25,  16,  9,   4,  1,  //
         1,  0,  1,   4,   9,   16,  25,  36,  81,  64,  49,  36,  25,  16,  9,  4,  //
@@ -710,7 +710,7 @@ NK_API_COMPTIME void nk_sqeuclidean_i4_rvv(nk_i4x2_t const *a_scalars, nk_i4x2_t
         4,  9,  16,  25,  36,  49,  64,  81,  36,  25,  16,  9,   4,   1,   0,  1,  //
         1,  4,  9,   16,  25,  36,  49,  64,  49,  36,  25,  16,  9,   4,   1,  0,  //
     };
-    nk_size_t n_bytes = count_scalars / NK_NIBBLES_PER_BYTE;
+    nk_size_t n_bytes = count_scalars / NUMKONG_NIBBLES_PER_BYTE;
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
     vuint32m4_t sum_u32m4 = __riscv_vmv_v_x_u32m4(0, max_vector_length);
     for (nk_size_t vector_length; n_bytes > 0;
@@ -738,15 +738,15 @@ NK_API_COMPTIME void nk_sqeuclidean_i4_rvv(nk_i4x2_t const *a_scalars, nk_i4x2_t
     *result = __riscv_vmv_x_s_u32m1_u32(__riscv_vredsum_vs_u32m4_u32m1(sum_u32m4, zero_u32m1, max_vector_length));
 }
 
-NK_API_COMPTIME void nk_euclidean_i4_rvv(nk_i4x2_t const *a_scalars, nk_i4x2_t const *b_scalars,
-                                         nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_euclidean_i4_rvv(nk_i4x2_t const *a_scalars, nk_i4x2_t const *b_scalars,
+                                              nk_size_t count_scalars, nk_f32_t *result) {
     nk_u32_t d2;
     nk_sqeuclidean_i4_rvv(a_scalars, b_scalars, count_scalars, &d2);
     *result = nk_f32_sqrt_rvv((nk_f32_t)d2);
 }
 
-NK_API_COMPTIME void nk_angular_i4_rvv(nk_i4x2_t const *a_scalars, nk_i4x2_t const *b_scalars, nk_size_t count_scalars,
-                                       nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_angular_i4_rvv(nk_i4x2_t const *a_scalars, nk_i4x2_t const *b_scalars,
+                                            nk_size_t count_scalars, nk_f32_t *result) {
     static nk_i8_t const nk_i4_dot_lut_[256] = {
         0, 0,  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  //
         0, 1,  2,   3,   4,   5,   6,   7,   -8,  -7,  -6,  -5,  -4,  -3,  -2,  -1, //
@@ -766,7 +766,7 @@ NK_API_COMPTIME void nk_angular_i4_rvv(nk_i4x2_t const *a_scalars, nk_i4x2_t con
         0, -1, -2,  -3,  -4,  -5,  -6,  -7,  8,   7,   6,   5,   4,   3,   2,   1,  //
     };
     static nk_u8_t const nk_i4_sq_lut_[16] = {0, 1, 4, 9, 16, 25, 36, 49, 64, 49, 36, 25, 16, 9, 4, 1};
-    nk_size_t n_bytes = count_scalars / NK_NIBBLES_PER_BYTE;
+    nk_size_t n_bytes = count_scalars / NUMKONG_NIBBLES_PER_BYTE;
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
     vint32m4_t dot_i32m4 = __riscv_vmv_v_x_i32m4(0, max_vector_length);
     vuint32m4_t a_norm_sq_u32m4 = __riscv_vmv_v_x_u32m4(0, max_vector_length);
@@ -828,8 +828,8 @@ NK_API_COMPTIME void nk_angular_i4_rvv(nk_i4x2_t const *a_scalars, nk_i4x2_t con
     }
 }
 
-NK_API_COMPTIME void nk_sqeuclidean_u4_rvv(nk_u4x2_t const *a_scalars, nk_u4x2_t const *b_scalars,
-                                           nk_size_t count_scalars, nk_u32_t *result) {
+NUMKONG_API_COMPTIME void nk_sqeuclidean_u4_rvv(nk_u4x2_t const *a_scalars, nk_u4x2_t const *b_scalars,
+                                                nk_size_t count_scalars, nk_u32_t *result) {
     static nk_u8_t const nk_u4_sqd_lut_[256] = {
         0,   1,   4,   9,   16,  25,  36, 49, 64, 81, 100, 121, 144, 169, 196, 225, //
         1,   0,   1,   4,   9,   16,  25, 36, 49, 64, 81,  100, 121, 144, 169, 196, //
@@ -848,7 +848,7 @@ NK_API_COMPTIME void nk_sqeuclidean_u4_rvv(nk_u4x2_t const *a_scalars, nk_u4x2_t
         196, 169, 144, 121, 100, 81,  64, 49, 36, 25, 16,  9,   4,   1,   0,   1,   //
         225, 196, 169, 144, 121, 100, 81, 64, 49, 36, 25,  16,  9,   4,   1,   0,   //
     };
-    nk_size_t n_bytes = count_scalars / NK_NIBBLES_PER_BYTE;
+    nk_size_t n_bytes = count_scalars / NUMKONG_NIBBLES_PER_BYTE;
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
     vuint32m4_t sum_u32m4 = __riscv_vmv_v_x_u32m4(0, max_vector_length);
     for (nk_size_t vector_length; n_bytes > 0;
@@ -876,15 +876,15 @@ NK_API_COMPTIME void nk_sqeuclidean_u4_rvv(nk_u4x2_t const *a_scalars, nk_u4x2_t
     *result = __riscv_vmv_x_s_u32m1_u32(__riscv_vredsum_vs_u32m4_u32m1(sum_u32m4, zero_u32m1, max_vector_length));
 }
 
-NK_API_COMPTIME void nk_euclidean_u4_rvv(nk_u4x2_t const *a_scalars, nk_u4x2_t const *b_scalars,
-                                         nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_euclidean_u4_rvv(nk_u4x2_t const *a_scalars, nk_u4x2_t const *b_scalars,
+                                              nk_size_t count_scalars, nk_f32_t *result) {
     nk_u32_t d2;
     nk_sqeuclidean_u4_rvv(a_scalars, b_scalars, count_scalars, &d2);
     *result = nk_f32_sqrt_rvv((nk_f32_t)d2);
 }
 
-NK_API_COMPTIME void nk_angular_u4_rvv(nk_u4x2_t const *a_scalars, nk_u4x2_t const *b_scalars, nk_size_t count_scalars,
-                                       nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_angular_u4_rvv(nk_u4x2_t const *a_scalars, nk_u4x2_t const *b_scalars,
+                                            nk_size_t count_scalars, nk_f32_t *result) {
     static nk_u8_t const nk_u4_dot_lut_[256] = {
         0, 0,  0,  0,  0,  0,  0,  0,   0,   0,   0,   0,   0,   0,   0,   0,   //
         0, 1,  2,  3,  4,  5,  6,  7,   8,   9,   10,  11,  12,  13,  14,  15,  //
@@ -904,7 +904,7 @@ NK_API_COMPTIME void nk_angular_u4_rvv(nk_u4x2_t const *a_scalars, nk_u4x2_t con
         0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180, 195, 210, 225, //
     };
     static nk_u8_t const nk_u4_sq_lut_[16] = {0, 1, 4, 9, 16, 25, 36, 49, 64, 81, 100, 121, 144, 169, 196, 225};
-    nk_size_t n_bytes = count_scalars / NK_NIBBLES_PER_BYTE;
+    nk_size_t n_bytes = count_scalars / NUMKONG_NIBBLES_PER_BYTE;
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
     vuint32m4_t dot_u32m4 = __riscv_vmv_v_x_u32m4(0, max_vector_length);
     vuint32m4_t a_norm_sq_u32m4 = __riscv_vmv_v_x_u32m4(0, max_vector_length);
@@ -976,6 +976,6 @@ NK_API_COMPTIME void nk_angular_u4_rvv(nk_u4x2_t const *a_scalars, nk_u4x2_t con
 #endif
 
 #pragma endregion I8 and U8 Integers
-#endif // NK_TARGET_RVV
-#endif // NK_TARGET_RISCV64_
-#endif // NK_SPATIAL_RVV_H
+#endif // NUMKONG_TARGET_RVV
+#endif // NUMKONG_ARCH_RISCV64_
+#endif // NUMKONG_SPATIAL_RVV_H

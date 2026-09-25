@@ -38,7 +38,7 @@ if sys.platform == "darwin":
 
 def is_64bit_x86() -> bool:
     """Detect x86-64 architecture with environment override support."""
-    override = os.environ.get("NK_TARGET_X8664_")
+    override = os.environ.get("NUMKONG_ARCH_X86_64_")
     if override is not None:
         return override == "1"
     arch = platform.machine().lower()
@@ -47,7 +47,7 @@ def is_64bit_x86() -> bool:
 
 def is_64bit_arm() -> bool:
     """Detect ARM64 architecture with environment override support."""
-    override = os.environ.get("NK_TARGET_ARM64_")
+    override = os.environ.get("NUMKONG_ARCH_ARM64_")
     if override is not None:
         return override == "1"
     arch = platform.machine().lower()
@@ -56,7 +56,7 @@ def is_64bit_arm() -> bool:
 
 def is_64bit_riscv() -> bool:
     """Detect RISC-V 64-bit architecture with environment override support."""
-    override = os.environ.get("NK_TARGET_RISCV64_")
+    override = os.environ.get("NUMKONG_ARCH_RISCV64_")
     if override is not None:
         return override == "1"
     arch = platform.machine().lower()
@@ -65,7 +65,7 @@ def is_64bit_riscv() -> bool:
 
 def is_64bit_loongarch() -> bool:
     """Detect LoongArch 64-bit architecture with environment override support."""
-    override = os.environ.get("NK_TARGET_LOONGARCH64_")
+    override = os.environ.get("NUMKONG_ARCH_LOONGARCH64_")
     if override is not None:
         return override == "1"
     arch = platform.machine().lower()
@@ -74,7 +74,7 @@ def is_64bit_loongarch() -> bool:
 
 def is_64bit_power() -> bool:
     """Detect Power 64-bit architecture with environment override support."""
-    override = os.environ.get("NK_TARGET_POWER64_")
+    override = os.environ.get("NUMKONG_ARCH_PPC64_")
     if override is not None:
         return override == "1"
     arch = platform.machine().lower()
@@ -86,7 +86,7 @@ def march_baseline_args() -> list[str]:
 
     Keeps serial kernels serial — auto-vec would otherwise promote fallbacks to
     NEON/SSE2/VSX. SIMD kernels use explicit intrinsics; unaffected. MSVC has no
-    command-line vectorizer toggle. `NK_MARCH_NATIVE=1` opts out (non-MSVC).
+    command-line vectorizer toggle. `NUMKONG_MARCH_NATIVE=1` opts out (non-MSVC).
 
     Keep per-arch table in sync with CMakeLists.txt, build.rs, binding.gyp.
     """
@@ -96,8 +96,8 @@ def march_baseline_args() -> list[str]:
         if is_64bit_arm():
             return ["/arch:armv8.0"]
         return []
-    if os.environ.get("NK_MARCH_NATIVE") in ("1", "true", "TRUE") and not is_cross_compiling():
-        print("[NumKong] NK_MARCH_NATIVE=1: building host-tuned, result will not run on older CPUs")
+    if os.environ.get("NUMKONG_MARCH_NATIVE") in ("1", "true", "TRUE") and not is_cross_compiling():
+        print("[NumKong] NUMKONG_MARCH_NATIVE=1: building host-tuned, result will not run on older CPUs")
         # Apple Clang's `-march=native` advertises only a subset of host features
         # (no SME/SME2/FP16_FML); `-mcpu=native` is the complete knob on macOS.
         return ["-mcpu=native"] if sys.platform == "darwin" else ["-march=native"]
@@ -143,7 +143,7 @@ def is_cross_compiling() -> bool:
     """`-march=native` is meaningless when the build host is not the target."""
     if os.environ.get("_PYTHON_HOST_PLATFORM"):
         return True
-    return any(name.startswith("NK_TARGET_") and name.endswith("_") for name in os.environ)
+    return any(name.startswith("NUMKONG_ARCH_") for name in os.environ)
 
 
 def detect_cc() -> tuple[str, bool, dict[str, str] | None]:
@@ -224,7 +224,7 @@ PROBE_TABLE_X86: ProbeTable = [
     ("ALDER", "probes/x86_alder.c", ["-mavxvnni"], ["/arch:AVX2"]),
     ("SIERRA", "probes/x86_sierra.c", ["-mavxvnniint8"], ["/arch:AVX2"]),
 ]
-"""Probe table columns: NK_TARGET_NAME, probe_file, gcc_flags, msvc_flags. The probe files contain
+"""Probe table columns: NUMKONG_TARGET_NAME, probe_file, gcc_flags, msvc_flags. The probe files contain
 #error guards for unsupported OS/runtime combinations, so we do not need per-platform override
 logic. x86 probes: GCC flags are minimal — each implies its prerequisites.
 E.g., -mavx512vnni implies -mavx512f; -mavxvnni implies -mavx2.
@@ -323,23 +323,23 @@ def probe_all_isas() -> list[tuple[str, str]]:
     for arch_match, table in tables:
         for name, probe_file, gcc_flags, msvc_flags in table:
             if arch_match and os.path.isfile(probe_file):
-                # Allow env-var override: NK_TARGET_FOO=1/true forces on, =0/false forces off
-                env_val = os.environ.get(f"NK_TARGET_{name}", "").lower()
+                # Allow env-var override: NUMKONG_TARGET_FOO=1/true forces on, =0/false forces off
+                env_val = os.environ.get(f"NUMKONG_TARGET_{name}", "").lower()
                 if env_val in ("1", "true"):
-                    macros.append((f"NK_TARGET_{name}", "1"))
-                    print(f"[NumKong] NK_TARGET_{name}: force-enabled via environment")
+                    macros.append((f"NUMKONG_TARGET_{name}", "1"))
+                    print(f"[NumKong] NUMKONG_TARGET_{name}: force-enabled via environment")
                     continue
                 if env_val in ("0", "false"):
-                    macros.append((f"NK_TARGET_{name}", "0"))
-                    print(f"[NumKong] NK_TARGET_{name}: force-disabled via environment")
+                    macros.append((f"NUMKONG_TARGET_{name}", "0"))
+                    print(f"[NumKong] NUMKONG_TARGET_{name}: force-disabled via environment")
                     continue
                 flags = msvc_flags if is_msvc else gcc_flags
                 ok, diagnostics = probe_isa(cc, probe_file, flags, is_msvc, env)
-                macros.append((f"NK_TARGET_{name}", "1" if ok else "0"))
+                macros.append((f"NUMKONG_TARGET_{name}", "1" if ok else "0"))
                 if ok:
-                    print(f"[NumKong] Probe NK_TARGET_{name}: supported")
+                    print(f"[NumKong] Probe NUMKONG_TARGET_{name}: supported")
                 else:
-                    print(f"[NumKong] Probe NK_TARGET_{name}: not supported")
+                    print(f"[NumKong] Probe NUMKONG_TARGET_{name}: not supported")
                     # Only the first failure carries diagnostic value — an unusable toolchain
                     # fails every probe with the same message.
                     if diagnostics and not reported_diagnostics:
@@ -348,7 +348,7 @@ def probe_all_isas() -> list[tuple[str, str]]:
                         for line in diagnostics.splitlines()[:5]:
                             print(f"[NumKong]   {line}")
             else:
-                macros.append((f"NK_TARGET_{name}", "0"))
+                macros.append((f"NUMKONG_TARGET_{name}", "0"))
 
     return macros
 
@@ -371,9 +371,9 @@ def linux_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
         "-lm",  # Add vectorized `logf` implementation from the `glibc`
     ]
     macros: list[tuple[str, str]] = [
-        ("NK_RUNTIME_DISPATCH", "1"),
-        ("NK_NATIVE_F16", "0"),
-        ("NK_NATIVE_BF16", "0"),
+        ("NUMKONG_RUNTIME_DISPATCH", "1"),
+        ("NUMKONG_NATIVE_F16", "0"),
+        ("NUMKONG_NATIVE_BF16", "0"),
     ]
     macros.extend(probe_all_isas())
     return compile_args, link_args, macros
@@ -390,9 +390,9 @@ def darwin_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
     link_args: list[str] = []
     # No OpenMP: `libdispatch` in libSystem runs the tile pools.
     macros: list[tuple[str, str]] = [
-        ("NK_RUNTIME_DISPATCH", "1"),
-        ("NK_NATIVE_F16", "0"),
-        ("NK_NATIVE_BF16", "0"),
+        ("NUMKONG_RUNTIME_DISPATCH", "1"),
+        ("NUMKONG_NATIVE_F16", "0"),
+        ("NUMKONG_NATIVE_BF16", "0"),
     ]
     macros.extend(probe_all_isas())
     return compile_args, link_args, macros
@@ -416,9 +416,9 @@ def freebsd_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
         "-lm",  # Math library
     ]
     macros: list[tuple[str, str]] = [
-        ("NK_RUNTIME_DISPATCH", "1"),
-        ("NK_NATIVE_F16", "0"),
-        ("NK_NATIVE_BF16", "0"),
+        ("NUMKONG_RUNTIME_DISPATCH", "1"),
+        ("NUMKONG_NATIVE_F16", "0"),
+        ("NUMKONG_NATIVE_BF16", "0"),
     ]
     macros.extend(probe_all_isas())
     return compile_args, link_args, macros
@@ -438,9 +438,9 @@ def windows_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
     link_args: list[str] = []
     # No OpenMP: the kernel32 thread pool runs the tile pools.
     macros: list[tuple[str, str]] = [
-        ("NK_RUNTIME_DISPATCH", "1"),
-        ("NK_NATIVE_F16", "0"),
-        ("NK_NATIVE_BF16", "0"),
+        ("NUMKONG_RUNTIME_DISPATCH", "1"),
+        ("NUMKONG_NATIVE_F16", "0"),
+        ("NUMKONG_NATIVE_BF16", "0"),
     ]
     macros.extend(probe_all_isas())
     # MSVC requires architecture-specific macros for winnt.h
@@ -461,14 +461,14 @@ def emscripten_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
     ]
     link_args: list[str] = []
     # Runtime dispatch is needed for the Python bindings (nk_find_kernel_punned).
-    # The EM_JS runtime probes in c/numkong.c are guarded by NK_RUNTIME_DISPATCH
-    # and __EMSCRIPTEN__; when building as a Pyodide side module, we define
-    # NK_PYODIDE_SIDE_MODULE to replace them with conservative stubs (serial only).
+    # The EM_JS runtime probes in c/numkong.c are guarded by NUMKONG_RUNTIME_DISPATCH and
+    # __EMSCRIPTEN__; when building as a Pyodide side module, we define NUMKONG_PYODIDE_SIDE_MODULE_
+    # to replace them with conservative serial-only stubs.
     macros: list[tuple[str, str]] = [
-        ("NK_RUNTIME_DISPATCH", "1"),
-        ("NK_PYODIDE_SIDE_MODULE", "1"),
-        ("NK_NATIVE_F16", "0"),
-        ("NK_NATIVE_BF16", "0"),
+        ("NUMKONG_RUNTIME_DISPATCH", "1"),
+        ("NUMKONG_PYODIDE_SIDE_MODULE_", "1"),
+        ("NUMKONG_NATIVE_F16", "0"),
+        ("NUMKONG_NATIVE_BF16", "0"),
     ]
     # Probing handles everything: non-WASM probes fail (wrong headers),
     # WASM V128RELAXED probe succeeds if emcc supports relaxed SIMD.
@@ -542,7 +542,7 @@ class ParallelBuildExt(build_ext):
         # In Docker containers (e.g. cibuildwheel), `os.cpu_count()` returns the
         # *host* core count, not the container's allocated vCPUs.  Launching dozens
         # of heavy SIMD compilation jobs in parallel OOMs the container (exit 143).
-        self.parallel = int(os.environ.get("NK_BUILD_PARALLEL", min(os.cpu_count() or 1, 4)))
+        self.parallel = int(os.environ.get("NUMKONG_BUILD_PARALLEL", min(os.cpu_count() or 1, 4)))
 
 
 setup(

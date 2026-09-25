@@ -5,7 +5,7 @@
  *  @brief Spatial distance tests.
  */
 
-#include "test.hpp"
+#include "harness.hpp"
 #include "numkong/spatial.hpp"
 
 using namespace ashvardanian::numkong::test;
@@ -141,7 +141,7 @@ void test_spatial() {
     check("sqeuclidean_u8_serial", test_sqeuclidean<u8_t>, nk_sqeuclidean_u8_serial);
     check("euclidean_u8_serial", test_euclidean<u8_t>, nk_euclidean_u8_serial);
 
-#if NK_RUNTIME_DISPATCH
+#if NUMKONG_RUNTIME_DISPATCH
     check.section("Spatial Distances Runtime Dispatch", nk_cap_serial_k);
     check("sqeuclidean_f32", test_sqeuclidean<f32_t>, nk_sqeuclidean_f32);
     check("sqeuclidean_f64", test_sqeuclidean<f64_t>, nk_sqeuclidean_f64);
@@ -167,7 +167,7 @@ void test_spatial() {
     check("angular_u4", test_angular<u4x2_t>, nk_angular_u4);
 #endif
 
-#if NK_TARGET_NEON
+#if NUMKONG_TARGET_NEON
     check.section("Spatial Distances NEON", nk_cap_neon_k);
     check("sqeuclidean_f64_neon", test_sqeuclidean<f64_t>, nk_sqeuclidean_f64_neon);
     check("sqeuclidean_f32_neon", test_sqeuclidean<f32_t>, nk_sqeuclidean_f32_neon);
@@ -193,16 +193,16 @@ void test_spatial() {
     check("angular_e4m3_neon", test_angular<e4m3_t>, nk_angular_e4m3_neon);
     check("angular_e3m2_neon", test_angular<e3m2_t>, nk_angular_e3m2_neon);
     check("angular_e2m3_neon", test_angular<e2m3_t>, nk_angular_e2m3_neon);
-#endif // NK_TARGET_NEON
+#endif // NUMKONG_TARGET_NEON
 
-#if NK_TARGET_NEONBFDOT
+#if NUMKONG_TARGET_NEONBFDOT
     check.section("Spatial Distances NEON BF16", nk_cap_neonbfdot_k);
     check("sqeuclidean_bf16_neonbfdot", test_sqeuclidean<bf16_t>, nk_sqeuclidean_bf16_neonbfdot);
     check("euclidean_bf16_neonbfdot", test_euclidean<bf16_t>, nk_euclidean_bf16_neonbfdot);
     check("angular_bf16_neonbfdot", test_angular<bf16_t>, nk_angular_bf16_neonbfdot);
-#endif // NK_TARGET_NEONBFDOT
+#endif // NUMKONG_TARGET_NEONBFDOT
 
-#if NK_TARGET_NEONSDOT
+#if NUMKONG_TARGET_NEONSDOT
     check.section("Spatial Distances NEON I8", nk_cap_neonsdot_k);
     check("angular_i8_neonsdot", test_angular<i8_t>, nk_angular_i8_neonsdot);
     check("sqeuclidean_i8_neonsdot", test_sqeuclidean<i8_t>, nk_sqeuclidean_i8_neonsdot);
@@ -216,9 +216,9 @@ void test_spatial() {
     check("angular_u4_neonsdot", test_angular<u4x2_t>, nk_angular_u4_neonsdot);
     check("sqeuclidean_u4_neonsdot", test_sqeuclidean<u4x2_t>, nk_sqeuclidean_u4_neonsdot);
     check("euclidean_u4_neonsdot", test_euclidean<u4x2_t>, nk_euclidean_u4_neonsdot);
-#endif // NK_TARGET_NEONSDOT
+#endif // NUMKONG_TARGET_NEONSDOT
 
-#if NK_TARGET_NEONFP8
+#if NUMKONG_TARGET_NEONFP8
     check.section("Spatial Distances NEON FP8", nk_cap_neonfp8_k);
     check("angular_e4m3_neonfp8", test_angular<e4m3_t>, nk_angular_e4m3_neonfp8);
     check("sqeuclidean_e4m3_neonfp8", test_sqeuclidean<e4m3_t>, nk_sqeuclidean_e4m3_neonfp8);
@@ -232,9 +232,9 @@ void test_spatial() {
     check("angular_e3m2_neonfp8", test_angular<e3m2_t>, nk_angular_e3m2_neonfp8);
     check("sqeuclidean_e3m2_neonfp8", test_sqeuclidean<e3m2_t>, nk_sqeuclidean_e3m2_neonfp8);
     check("euclidean_e3m2_neonfp8", test_euclidean<e3m2_t>, nk_euclidean_e3m2_neonfp8);
-#endif // NK_TARGET_NEONFP8
+#endif // NUMKONG_TARGET_NEONFP8
 
-#if NK_TARGET_SVE
+#if NUMKONG_TARGET_SVE
     check.section("Spatial Distances SVE", nk_cap_sve_k);
     check("angular_f64_sve", test_angular<f64_t>, nk_angular_f64_sve);
     check("sqeuclidean_f64_sve", test_sqeuclidean<f64_t>, nk_sqeuclidean_f64_sve);
@@ -242,23 +242,23 @@ void test_spatial() {
     check("angular_f32_sve", test_angular<f32_t>, nk_angular_f32_sve);
     check("sqeuclidean_f32_sve", test_sqeuclidean<f32_t>, nk_sqeuclidean_f32_sve);
     check("euclidean_f32_sve", test_euclidean<f32_t>, nk_euclidean_f32_sve);
-#endif // NK_TARGET_SVE
+#endif // NUMKONG_TARGET_SVE
 
-#if NK_TARGET_SVEHALF
+#if NUMKONG_TARGET_SVEHALF
     check.section("Spatial Distances SVE HALF", nk_cap_svehalf_k);
     check("angular_f16_svehalf", test_angular<f16_t>, nk_angular_f16_svehalf);
     check("sqeuclidean_f16_svehalf", test_sqeuclidean<f16_t>, nk_sqeuclidean_f16_svehalf);
     check("euclidean_f16_svehalf", test_euclidean<f16_t>, nk_euclidean_f16_svehalf);
-#endif // NK_TARGET_SVEHALF
+#endif // NUMKONG_TARGET_SVEHALF
 
-#if NK_TARGET_SVEBFDOT
+#if NUMKONG_TARGET_SVEBFDOT
     check.section("Spatial Distances SVE BF16", nk_cap_svebfdot_k);
     check("angular_bf16_svebfdot", test_angular<bf16_t>, nk_angular_bf16_svebfdot);
     check("sqeuclidean_bf16_svebfdot", test_sqeuclidean<bf16_t>, nk_sqeuclidean_bf16_svebfdot);
     check("euclidean_bf16_svebfdot", test_euclidean<bf16_t>, nk_euclidean_bf16_svebfdot);
-#endif // NK_TARGET_SVEBFDOT
+#endif // NUMKONG_TARGET_SVEBFDOT
 
-#if NK_TARGET_SVESDOT
+#if NUMKONG_TARGET_SVESDOT
     check.section("Spatial Distances SVE I8", nk_cap_svesdot_k);
     check("angular_i8_svesdot", test_angular<i8_t>, nk_angular_i8_svesdot);
     check("sqeuclidean_i8_svesdot", test_sqeuclidean<i8_t>, nk_sqeuclidean_i8_svesdot);
@@ -266,9 +266,9 @@ void test_spatial() {
     check("angular_u8_svesdot", test_angular<u8_t>, nk_angular_u8_svesdot);
     check("sqeuclidean_u8_svesdot", test_sqeuclidean<u8_t>, nk_sqeuclidean_u8_svesdot);
     check("euclidean_u8_svesdot", test_euclidean<u8_t>, nk_euclidean_u8_svesdot);
-#endif // NK_TARGET_SVESDOT
+#endif // NUMKONG_TARGET_SVESDOT
 
-#if NK_TARGET_HASWELL
+#if NUMKONG_TARGET_HASWELL
     check.section("Spatial Distances Haswell", nk_cap_haswell_k);
     check("angular_f64_haswell", test_angular<f64_t>, nk_angular_f64_haswell);
     check("sqeuclidean_f64_haswell", test_sqeuclidean<f64_t>, nk_sqeuclidean_f64_haswell);
@@ -300,9 +300,9 @@ void test_spatial() {
     check("angular_u8_haswell", test_angular<u8_t>, nk_angular_u8_haswell);
     check("sqeuclidean_u8_haswell", test_sqeuclidean<u8_t>, nk_sqeuclidean_u8_haswell);
     check("euclidean_u8_haswell", test_euclidean<u8_t>, nk_euclidean_u8_haswell);
-#endif // NK_TARGET_HASWELL
+#endif // NUMKONG_TARGET_HASWELL
 
-#if NK_TARGET_SKYLAKE
+#if NUMKONG_TARGET_SKYLAKE
     check.section("Spatial Distances Skylake", nk_cap_skylake_k);
     check("angular_f64_skylake", test_angular<f64_t>, nk_angular_f64_skylake);
     check("sqeuclidean_f64_skylake", test_sqeuclidean<f64_t>, nk_sqeuclidean_f64_skylake);
@@ -325,9 +325,9 @@ void test_spatial() {
     check("angular_e2m3_skylake", test_angular<e2m3_t>, nk_angular_e2m3_skylake);
     check("sqeuclidean_e2m3_skylake", test_sqeuclidean<e2m3_t>, nk_sqeuclidean_e2m3_skylake);
     check("euclidean_e2m3_skylake", test_euclidean<e2m3_t>, nk_euclidean_e2m3_skylake);
-#endif // NK_TARGET_SKYLAKE
+#endif // NUMKONG_TARGET_SKYLAKE
 
-#if NK_TARGET_ICELAKE
+#if NUMKONG_TARGET_ICELAKE
     check.section("Spatial Distances Ice Lake", nk_cap_icelake_k);
     check("angular_i8_icelake", test_angular<i8_t>, nk_angular_i8_icelake);
     check("sqeuclidean_i8_icelake", test_sqeuclidean<i8_t>, nk_sqeuclidean_i8_icelake);
@@ -350,16 +350,16 @@ void test_spatial() {
     check("angular_e3m2_icelake", test_angular<e3m2_t>, nk_angular_e3m2_icelake);
     check("sqeuclidean_e3m2_icelake", test_sqeuclidean<e3m2_t>, nk_sqeuclidean_e3m2_icelake);
     check("euclidean_e3m2_icelake", test_euclidean<e3m2_t>, nk_euclidean_e3m2_icelake);
-#endif // NK_TARGET_ICELAKE
+#endif // NUMKONG_TARGET_ICELAKE
 
-#if NK_TARGET_GENOA
+#if NUMKONG_TARGET_GENOA
     check.section("Spatial Distances Genoa", nk_cap_genoa_k);
     check("angular_bf16_genoa", test_angular<bf16_t>, nk_angular_bf16_genoa);
     check("sqeuclidean_bf16_genoa", test_sqeuclidean<bf16_t>, nk_sqeuclidean_bf16_genoa);
     check("euclidean_bf16_genoa", test_euclidean<bf16_t>, nk_euclidean_bf16_genoa);
-#endif // NK_TARGET_GENOA
+#endif // NUMKONG_TARGET_GENOA
 
-#if NK_TARGET_DIAMOND
+#if NUMKONG_TARGET_DIAMOND
     check.section("Spatial Distances Diamond", nk_cap_diamond_k);
     check("angular_f16_diamond", test_angular<f16_t>, nk_angular_f16_diamond);
     check("sqeuclidean_f16_diamond", test_sqeuclidean<f16_t>, nk_sqeuclidean_f16_diamond);
@@ -370,9 +370,9 @@ void test_spatial() {
     check("angular_e5m2_diamond", test_angular<e5m2_t>, nk_angular_e5m2_diamond);
     check("sqeuclidean_e5m2_diamond", test_sqeuclidean<e5m2_t>, nk_sqeuclidean_e5m2_diamond);
     check("euclidean_e5m2_diamond", test_euclidean<e5m2_t>, nk_euclidean_e5m2_diamond);
-#endif // NK_TARGET_DIAMOND
+#endif // NUMKONG_TARGET_DIAMOND
 
-#if NK_TARGET_ALDER
+#if NUMKONG_TARGET_ALDER
     check.section("Spatial Distances Alder", nk_cap_alder_k);
     check("angular_e3m2_alder", test_angular<e3m2_t>, nk_angular_e3m2_alder);
     check("sqeuclidean_e3m2_alder", test_sqeuclidean<e3m2_t>, nk_sqeuclidean_e3m2_alder);
@@ -386,9 +386,9 @@ void test_spatial() {
     check("angular_u8_alder", test_angular<u8_t>, nk_angular_u8_alder);
     check("sqeuclidean_u8_alder", test_sqeuclidean<u8_t>, nk_sqeuclidean_u8_alder);
     check("euclidean_u8_alder", test_euclidean<u8_t>, nk_euclidean_u8_alder);
-#endif // NK_TARGET_ALDER
+#endif // NUMKONG_TARGET_ALDER
 
-#if NK_TARGET_SIERRA
+#if NUMKONG_TARGET_SIERRA
     check.section("Spatial Distances Sierra", nk_cap_sierra_k);
     check("angular_e2m3_sierra", test_angular<e2m3_t>, nk_angular_e2m3_sierra);
     check("sqeuclidean_e2m3_sierra", test_sqeuclidean<e2m3_t>, nk_sqeuclidean_e2m3_sierra);
@@ -402,9 +402,9 @@ void test_spatial() {
     check("angular_u8_sierra", test_angular<u8_t>, nk_angular_u8_sierra);
     check("sqeuclidean_u8_sierra", test_sqeuclidean<u8_t>, nk_sqeuclidean_u8_sierra);
     check("euclidean_u8_sierra", test_euclidean<u8_t>, nk_euclidean_u8_sierra);
-#endif // NK_TARGET_SIERRA
+#endif // NUMKONG_TARGET_SIERRA
 
-#if NK_TARGET_RVV
+#if NUMKONG_TARGET_RVV
     check.section("Spatial Distances RVV", nk_cap_rvv_k);
     check("angular_f64_rvv", test_angular<f64_t>, nk_angular_f64_rvv);
     check("sqeuclidean_f64_rvv", test_sqeuclidean<f64_t>, nk_sqeuclidean_f64_rvv);
@@ -436,9 +436,9 @@ void test_spatial() {
     check("angular_u4_rvv", test_angular<u4x2_t>, nk_angular_u4_rvv);
     check("sqeuclidean_u4_rvv", test_sqeuclidean<u4x2_t>, nk_sqeuclidean_u4_rvv);
     check("euclidean_u4_rvv", test_euclidean<u4x2_t>, nk_euclidean_u4_rvv);
-#endif // NK_TARGET_RVV
+#endif // NUMKONG_TARGET_RVV
 
-#if NK_TARGET_V128RELAXED
+#if NUMKONG_TARGET_V128RELAXED
     check.section("Spatial Distances V128 Relaxed", nk_cap_v128relaxed_k);
     check("sqeuclidean_f32_v128relaxed", test_sqeuclidean<f32_t>, nk_sqeuclidean_f32_v128relaxed);
     check("sqeuclidean_f64_v128relaxed", test_sqeuclidean<f64_t>, nk_sqeuclidean_f64_v128relaxed);
@@ -470,9 +470,9 @@ void test_spatial() {
     check("sqeuclidean_e3m2_v128relaxed", test_sqeuclidean<e3m2_t>, nk_sqeuclidean_e3m2_v128relaxed);
     check("euclidean_e3m2_v128relaxed", test_euclidean<e3m2_t>, nk_euclidean_e3m2_v128relaxed);
     check("angular_e3m2_v128relaxed", test_angular<e3m2_t>, nk_angular_e3m2_v128relaxed);
-#endif // NK_TARGET_V128RELAXED
+#endif // NUMKONG_TARGET_V128RELAXED
 
-#if NK_TARGET_V128
+#if NUMKONG_TARGET_V128
     check.section("Spatial Distances V128", nk_cap_v128_k);
     check("sqeuclidean_bf16_v128", test_sqeuclidean<bf16_t>, nk_sqeuclidean_bf16_v128);
     check("euclidean_bf16_v128", test_euclidean<bf16_t>, nk_euclidean_bf16_v128);
@@ -483,23 +483,23 @@ void test_spatial() {
     check("sqeuclidean_i8_v128", test_sqeuclidean<i8_t>, nk_sqeuclidean_i8_v128);
     check("euclidean_i8_v128", test_euclidean<i8_t>, nk_euclidean_i8_v128);
     check("angular_i8_v128", test_angular<i8_t>, nk_angular_i8_v128);
-#endif // NK_TARGET_V128
+#endif // NUMKONG_TARGET_V128
 
-#if NK_TARGET_RVVHALF
+#if NUMKONG_TARGET_RVVHALF
     check.section("Spatial Distances RVV HALF", nk_cap_rvvhalf_k);
     check("sqeuclidean_f16_rvvhalf", test_sqeuclidean<f16_t>, nk_sqeuclidean_f16_rvvhalf);
     check("euclidean_f16_rvvhalf", test_euclidean<f16_t>, nk_euclidean_f16_rvvhalf);
     check("angular_f16_rvvhalf", test_angular<f16_t>, nk_angular_f16_rvvhalf);
-#endif // NK_TARGET_RVVHALF
+#endif // NUMKONG_TARGET_RVVHALF
 
-#if NK_TARGET_RVVBF16
+#if NUMKONG_TARGET_RVVBF16
     check.section("Spatial Distances RVV BF16", nk_cap_rvvbf16_k);
     check("sqeuclidean_bf16_rvvbf16", test_sqeuclidean<bf16_t>, nk_sqeuclidean_bf16_rvvbf16);
     check("euclidean_bf16_rvvbf16", test_euclidean<bf16_t>, nk_euclidean_bf16_rvvbf16);
     check("angular_bf16_rvvbf16", test_angular<bf16_t>, nk_angular_bf16_rvvbf16);
-#endif // NK_TARGET_RVVBF16
+#endif // NUMKONG_TARGET_RVVBF16
 
-#if NK_TARGET_LOONGSONASX
+#if NUMKONG_TARGET_LOONGSONASX
     check.section("Spatial Distances LoongArch LASX", nk_cap_loongsonasx_k);
     check("angular_f64_loongsonasx", test_angular<f64_t>, nk_angular_f64_loongsonasx);
     check("sqeuclidean_f64_loongsonasx", test_sqeuclidean<f64_t>, nk_sqeuclidean_f64_loongsonasx);
@@ -516,9 +516,9 @@ void test_spatial() {
     check("angular_u8_loongsonasx", test_angular<u8_t>, nk_angular_u8_loongsonasx);
     check("sqeuclidean_u8_loongsonasx", test_sqeuclidean<u8_t>, nk_sqeuclidean_u8_loongsonasx);
     check("euclidean_u8_loongsonasx", test_euclidean<u8_t>, nk_euclidean_u8_loongsonasx);
-#endif // NK_TARGET_LOONGSONASX
+#endif // NUMKONG_TARGET_LOONGSONASX
 
-#if NK_TARGET_POWERVSX
+#if NUMKONG_TARGET_POWERVSX
     check.section("Spatial Distances Power VSX", nk_cap_powervsx_k);
     check("sqeuclidean_f32_powervsx", test_sqeuclidean<f32_t>, nk_sqeuclidean_f32_powervsx);
     check("euclidean_f32_powervsx", test_euclidean<f32_t>, nk_euclidean_f32_powervsx);
@@ -538,5 +538,5 @@ void test_spatial() {
     check("sqeuclidean_u8_powervsx", test_sqeuclidean<u8_t>, nk_sqeuclidean_u8_powervsx);
     check("euclidean_u8_powervsx", test_euclidean<u8_t>, nk_euclidean_u8_powervsx);
     check("angular_u8_powervsx", test_angular<u8_t>, nk_angular_u8_powervsx);
-#endif // NK_TARGET_POWERVSX
+#endif // NUMKONG_TARGET_POWERVSX
 }

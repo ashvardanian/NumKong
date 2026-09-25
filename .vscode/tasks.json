@@ -3,7 +3,7 @@
   "tasks": [
     {
       "label": "Build Benchmark: Debug",
-      "command": "cmake -D CMAKE_BUILD_TYPE=Debug -D NK_BUILD_BENCH=1 -B build_debug && cmake --build build_debug --config Debug",
+      "command": "cmake -D CMAKE_BUILD_TYPE=Debug -D NUMKONG_BUILD_BENCH=1 -B build_debug && cmake --build build_debug --config Debug",
       "args": [],
       "type": "shell",
       "osx": {
@@ -21,7 +21,7 @@
     },
     {
       "label": "Build Test: Debug",
-      "command": "cmake -D CMAKE_BUILD_TYPE=Debug -D NK_BUILD_TEST=1 -B build_debug && cmake --build build_debug --config Debug",
+      "command": "cmake -D CMAKE_BUILD_TYPE=Debug -D NUMKONG_BUILD_TEST=1 -B build_debug && cmake --build build_debug --config Debug",
       "args": [],
       "type": "shell",
       "osx": {
@@ -39,7 +39,7 @@
     },
     {
       "label": "Build Benchmark: Release",
-      "command": "cmake -D CMAKE_BUILD_TYPE=RelWithDebInfo -D NK_BUILD_BENCH=1 -B build_release && cmake --build build_release --config Release",
+      "command": "cmake -D CMAKE_BUILD_TYPE=RelWithDebInfo -D NUMKONG_BUILD_BENCH=1 -B build_release && cmake --build build_release --config Release",
       "args": [],
       "type": "shell",
       "osx": {

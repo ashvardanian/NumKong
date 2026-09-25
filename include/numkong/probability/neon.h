@@ -6,10 +6,10 @@
  *
  *  @sa include/numkong/probability.h
  */
-#ifndef NK_PROBABILITY_NEON_H
-#define NK_PROBABILITY_NEON_H
+#ifndef NUMKONG_PROBABILITY_NEON_H
+#define NUMKONG_PROBABILITY_NEON_H
 
-#if NK_TARGET_ARM64_
+#if NUMKONG_ARCH_ARM64_
 
 #include "numkong/types.h"
 #include "numkong/cast/serial.h"  // `nk_partial_load_b16x4_serial_`, `nk_partial_load_b32x4_serial_`
@@ -19,7 +19,7 @@
 extern "C" {
 #endif
 
-#if NK_TARGET_NEON
+#if NUMKONG_TARGET_NEON
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=armv8.2-a+simd"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -27,7 +27,7 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+simd")
 #endif
 
-NK_HELPER_AUTO float32x4_t nk_log2_f32x4_neon_(float32x4_t x) {
+NUMKONG_HELPER_AUTO float32x4_t nk_log2_f32x4_neon_(float32x4_t x) {
     // Extracting the exponent
     int32x4_t bits_i32x4 = vreinterpretq_s32_f32(x);
     int32x4_t exponent_i32x4 = vsubq_s32(vshrq_n_s32(vandq_s32(bits_i32x4, vdupq_n_s32(0x7F800000)), 23),
@@ -54,8 +54,8 @@ NK_HELPER_AUTO float32x4_t nk_log2_f32x4_neon_(float32x4_t x) {
     return result_f32x4;
 }
 
-NK_API_COMPTIME void nk_kld_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
-    nk_f32_t epsilon = NK_F32_DIVISION_EPSILON;
+NUMKONG_API_COMPTIME void nk_kld_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+    nk_f32_t epsilon = NUMKONG_F32_DIVISION_EPSILON;
     float32x4_t epsilon_f32x4 = vdupq_n_f32(epsilon);
     float64x2_t sum_low_f64x2 = vdupq_n_f64(0.0);
     float64x2_t sum_high_f64x2 = vdupq_n_f64(0.0);
@@ -83,13 +83,13 @@ nk_kld_f32_neon_cycle:
     sum_high_f64x2 = vaddq_f64(sum_high_f64x2, vcvt_high_f64_f32(contribution_f32x4));
     if (n != 0) goto nk_kld_f32_neon_cycle;
 
-    nk_f64_t log2_normalizer = NK_F64_LN2_;
+    nk_f64_t log2_normalizer = NUMKONG_F64_LN2_;
     nk_f64_t sum = vaddvq_f64(vaddq_f64(sum_low_f64x2, sum_high_f64x2)) * log2_normalizer;
     *result = sum;
 }
 
-NK_API_COMPTIME void nk_jsd_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
-    nk_f32_t epsilon = NK_F32_DIVISION_EPSILON;
+NUMKONG_API_COMPTIME void nk_jsd_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+    nk_f32_t epsilon = NUMKONG_F32_DIVISION_EPSILON;
     float32x4_t epsilon_f32x4 = vdupq_n_f32(epsilon);
     float64x2_t sum_low_f64x2 = vdupq_n_f64(0.0);
     float64x2_t sum_high_f64x2 = vdupq_n_f64(0.0);
@@ -122,7 +122,7 @@ nk_jsd_f32_neon_cycle:
     sum_high_f64x2 = vaddq_f64(sum_high_f64x2, vcvt_high_f64_f32(contribution_f32x4));
     if (n != 0) goto nk_jsd_f32_neon_cycle;
 
-    nk_f64_t log2_normalizer = NK_F64_LN2_;
+    nk_f64_t log2_normalizer = NUMKONG_F64_LN2_;
     nk_f64_t sum = vaddvq_f64(vaddq_f64(sum_low_f64x2, sum_high_f64x2)) * log2_normalizer / 2.0;
     *result = sum > 0 ? nk_f64_sqrt_neon(sum) : 0;
 }
@@ -132,9 +132,9 @@ nk_jsd_f32_neon_cycle:
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
-#endif // NK_TARGET_NEON
+#endif // NUMKONG_TARGET_NEON
 
-#if NK_TARGET_NEON
+#if NUMKONG_TARGET_NEON
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=armv8.2-a+simd"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -142,9 +142,9 @@ nk_jsd_f32_neon_cycle:
 #pragma GCC target("arch=armv8.2-a+simd")
 #endif
 
-NK_API_COMPTIME void nk_kld_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_kld_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
-    nk_f32_t epsilon = NK_F32_DIVISION_EPSILON;
+    nk_f32_t epsilon = NUMKONG_F32_DIVISION_EPSILON;
     float32x4_t epsilon_f32x4 = vdupq_n_f32(epsilon);
     float32x4_t a_low_f32x4, a_high_f32x4, b_low_f32x4, b_high_f32x4;
 
@@ -181,14 +181,14 @@ nk_kld_f16_neon_cycle:
     sum_f32x4 = vfmaq_f32(sum_f32x4, a_high_f32x4, log_ratio_high_f32x4);
     if (n) goto nk_kld_f16_neon_cycle;
 
-    nk_f32_t log2_normalizer = NK_F32_LN2_;
+    nk_f32_t log2_normalizer = NUMKONG_F32_LN2_;
     nk_f32_t sum = vaddvq_f32(sum_f32x4) * log2_normalizer;
     *result = sum;
 }
 
-NK_API_COMPTIME void nk_jsd_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_jsd_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
-    nk_f32_t epsilon = NK_F32_DIVISION_EPSILON;
+    nk_f32_t epsilon = NUMKONG_F32_DIVISION_EPSILON;
     float32x4_t epsilon_f32x4 = vdupq_n_f32(epsilon);
     float32x4_t a_low_f32x4, a_high_f32x4, b_low_f32x4, b_high_f32x4;
 
@@ -235,7 +235,7 @@ nk_jsd_f16_neon_cycle:
     sum_f32x4 = vfmaq_f32(sum_f32x4, b_high_f32x4, log_ratio_b_high_f32x4);
     if (n) goto nk_jsd_f16_neon_cycle;
 
-    nk_f32_t log2_normalizer = NK_F32_LN2_;
+    nk_f32_t log2_normalizer = NUMKONG_F32_LN2_;
     nk_f32_t sum = vaddvq_f32(sum_f32x4) * log2_normalizer / 2;
     *result = sum > 0 ? nk_f32_sqrt_neon(sum) : 0;
 }
@@ -245,11 +245,11 @@ nk_jsd_f16_neon_cycle:
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
-#endif // NK_TARGET_NEON
+#endif // NUMKONG_TARGET_NEON
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_ARM64_
-#endif // NK_PROBABILITY_NEON_H
+#endif // NUMKONG_ARCH_ARM64_
+#endif // NUMKONG_PROBABILITY_NEON_H

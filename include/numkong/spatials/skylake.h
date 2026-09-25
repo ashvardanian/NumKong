@@ -6,11 +6,11 @@
  *
  *  @sa include/numkong/spatials.h
  */
-#ifndef NK_SPATIALS_SKYLAKE_H
-#define NK_SPATIALS_SKYLAKE_H
+#ifndef NUMKONG_SPATIALS_SKYLAKE_H
+#define NUMKONG_SPATIALS_SKYLAKE_H
 
-#if NK_TARGET_X8664_
-#if NK_TARGET_SKYLAKE
+#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_TARGET_SKYLAKE
 
 #include "numkong/spatial/skylake.h"
 #include "numkong/spatial/haswell.h"
@@ -198,6 +198,6 @@ nk_define_cross_normalized_symmetric_(euclidean, e3m2, skylake, e3m2, f32, /*nor
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_SKYLAKE
-#endif // NK_TARGET_X8664_
-#endif // NK_SPATIALS_SKYLAKE_H
+#endif // NUMKONG_TARGET_SKYLAKE
+#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_SPATIALS_SKYLAKE_H

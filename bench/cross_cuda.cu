@@ -13,12 +13,11 @@
  *  The @c attention rows time prefill, 4096 queries on 4096 keys, and decode, 1 query on 4096 keys,
  *  with 32 query heads over 8 K and V heads of depth 128. Every baseline enters the same drivers as
  *  a kernel callable, so it shares their inputs, timing and counters, and compiles in only under
- *  its `NK_COMPARE_TO_*` CMake option.
+ *  its `NUMKONG_COMPARE_TO_*` CMake option.
  */
 
 #include <cmath>   // `std::sqrt`, `INFINITY`
 #include <cstdint> // `std::int32_t`, `std::int64_t`
-#include <cstdio>  // `std::printf`
 #include <cstring> // `std::memcpy`
 
 #include <algorithm>   // `std::clamp`, `std::max`
@@ -30,28 +29,26 @@
 #include <utility>     // `std::pair`
 #include <vector>      // `std::vector`
 
-#if NK_COMPARE_TO_CUBLAS
+#if NUMKONG_COMPARE_TO_CUBLAS
 #include <cublasLt.h>
 #include <cublas_v2.h>
 #endif
 #include <cuda_runtime.h>
-#if NK_COMPARE_TO_CUDNN
+#if NUMKONG_COMPARE_TO_CUDNN
 #include <cudnn.h>
 #endif
-#if NK_COMPARE_TO_CUVS
+#if NUMKONG_COMPARE_TO_CUVS
 #include <cuvs/core/c_api.h>
 #include <cuvs/distance/pairwise_distance.h>
 #endif
 
 #include "numkong/numkong.h"
 
-#include "../test/test.cuh" // `test::cuda_backend_t`, `device_vector`
+#include "../test/harness.cuh" // `test::cuda_backend_t`, `device_vector`
 #include "cross.cuh"
 
 using namespace ashvardanian::numkong::bench;
 using nk::test::device_vector;
-using nk::test::print_indicator;
-using nk::test::print_isa;
 
 #pragma region CUDA Backend
 
@@ -114,9 +111,7 @@ struct cuda_backend_t : nk::test::cuda_backend_t {
 };
 
 /** Prints once why a baseline row is missing. */
-void print_skipped(std::string const &name, char const *reason) {
-    std::printf("  Skipping %s: %s\n", name.c_str(), reason);
-}
+void print_skipped(std::string const &name, char const *reason) { fmt::println("  Skipping {}: {}", name, reason); }
 
 /** Registers a baseline @p kernel over dense B rows through @c register_packed, with a copy of B as
  *  its pack. */
@@ -139,7 +134,7 @@ void register_unpacked(std::string const &name, reference_metric_t metric, kerne
 
 /** Every Ampere entry point, compiled only when the architecture list includes the family. */
 void bench_cross_ampere([[maybe_unused]] nk_capability_t available) {
-#if NK_TARGET_AMPERE
+#if NUMKONG_TARGET_AMPERE
     if (!(available & nk_cap_ampere_k)) return;
     using backend_t = cuda_backend_t;
     run_dots_packed<nk_f64_k, backend_t>("dots_packed_f64_ampere", nk_dots_pack_size_f64_ampere,
@@ -291,12 +286,12 @@ void bench_cross_ampere([[maybe_unused]] nk_capability_t available) {
                                                     nk_attention_bidirectional_packed_i8_ampere);
     run_attention_causal<nk_i8_k, backend_t>("attention_causal_packed_i8_ampere", nk_attention_pack_size_i8_ampere,
                                              nk_attention_pack_i8_ampere, nk_attention_causal_packed_i8_ampere);
-#endif // NK_TARGET_AMPERE
+#endif // NUMKONG_TARGET_AMPERE
 }
 
 /** Every Blackwell RTX entry point, compiled only when the architecture list includes it. */
 void bench_cross_blackwellrtx([[maybe_unused]] nk_capability_t available) {
-#if NK_TARGET_BLACKWELLRTX
+#if NUMKONG_TARGET_BLACKWELLRTX
     if (!(available & nk_cap_blackwellrtx_k)) return;
     using backend_t = cuda_backend_t;
     run_dots_packed<nk_e5m2_k, backend_t>("dots_packed_e5m2_blackwellrtx", nk_dots_pack_size_e5m2_blackwellrtx,
@@ -371,13 +366,13 @@ void bench_cross_blackwellrtx([[maybe_unused]] nk_capability_t available) {
     run_attention_causal<nk_e4m3_k, backend_t>(
         "attention_causal_packed_e4m3_blackwellrtx", nk_attention_pack_size_e4m3_blackwellrtx,
         nk_attention_pack_e4m3_blackwellrtx, nk_attention_causal_packed_e4m3_blackwellrtx);
-#endif // NK_TARGET_BLACKWELLRTX
+#endif // NUMKONG_TARGET_BLACKWELLRTX
 }
 
 #pragma endregion Registrations
 
 #pragma region cuBLAS
-#if NK_COMPARE_TO_CUBLAS
+#if NUMKONG_COMPARE_TO_CUBLAS
 
 /** cuBLASLt's storage type for @p dtype. */
 cudaDataType_t cublaslt_input_type(nk_dtype_t dtype) noexcept {
@@ -554,11 +549,11 @@ void register_dots_f64_with_cublas(std::string const &name) {
         });
 }
 
-#endif // NK_COMPARE_TO_CUBLAS
+#endif // NUMKONG_COMPARE_TO_CUBLAS
 
 /** Every cuBLASLt row, one per dtype, and cuBLAS's emulated DGEMM. */
 void bench_cross_cublas() {
-#if NK_COMPARE_TO_CUBLAS
+#if NUMKONG_COMPARE_TO_CUBLAS
     register_dots_with_cublaslt<nk_f64_k>("dots_packed_f64_with_cublaslt");
     register_dots_f64_with_cublas("dots_packed_f64_with_cublas");
     register_dots_with_cublaslt<nk_f32_k, nk::f32_t>("dots_packed_f32_with_cublaslt");
@@ -573,12 +568,12 @@ void bench_cross_cublas() {
     register_dots_with_cublaslt<nk_i4_k>("dots_packed_i4_with_cublaslt");
     register_dots_with_cublaslt<nk_u8_k>("dots_packed_u8_with_cublaslt");
     register_dots_with_cublaslt<nk_u4_k>("dots_packed_u4_with_cublaslt");
-#endif // NK_COMPARE_TO_CUBLAS
+#endif // NUMKONG_COMPARE_TO_CUBLAS
 }
 #pragma endregion cuBLAS
 
 #pragma region cuDNN
-#if NK_COMPARE_TO_CUDNN
+#if NUMKONG_COMPARE_TO_CUDNN
 
 /** cuDNN's storage type for Q, K, V and O of @p dtype. */
 cudnnDataType_t cudnn_data_type(nk_dtype_t dtype) noexcept {
@@ -905,20 +900,20 @@ void run_attention_with_cudnn(std::string const &bidirectional_name, std::string
     }
 }
 
-#endif // NK_COMPARE_TO_CUDNN
+#endif // NUMKONG_COMPARE_TO_CUDNN
 
 /** Every cuDNN row: BF16 and E4M3 attention, bidirectional, causal, and windowed where the window
  *  clips. */
 void bench_cross_cudnn() {
-#if NK_COMPARE_TO_CUDNN
+#if NUMKONG_COMPARE_TO_CUDNN
     run_attention_with_cudnn<nk_bf16_k>("attention_bidirectional_bf16_with_cudnn", "attention_causal_bf16_with_cudnn");
     run_attention_with_cudnn<nk_e4m3_k>("attention_bidirectional_e4m3_with_cudnn", "attention_causal_e4m3_with_cudnn");
-#endif // NK_COMPARE_TO_CUDNN
+#endif // NUMKONG_COMPARE_TO_CUDNN
 }
 #pragma endregion cuDNN
 
 #pragma region cuVS
-#if NK_COMPARE_TO_CUVS
+#if NUMKONG_COMPARE_TO_CUVS
 
 /** A dense row-major floating-point device matrix of @p shape as a DLPack tensor. */
 DLManagedTensor dlpack_matrix(void const *data, std::int64_t *shape, std::uint8_t bits) noexcept {
@@ -959,43 +954,31 @@ void register_spatials_with_cuvs(std::string const &name, reference_metric_t met
         });
 }
 
-#endif // NK_COMPARE_TO_CUVS
+#endif // NUMKONG_COMPARE_TO_CUVS
 
 /** Every cuVS row: cosine and L2 distances over F32 and F16. */
 void bench_cross_cuvs() {
-#if NK_COMPARE_TO_CUVS
+#if NUMKONG_COMPARE_TO_CUVS
     register_spatials_with_cuvs<nk_f32_k>("angulars_packed_f32_with_cuvs", reference_metric_t::angular_k);
     register_spatials_with_cuvs<nk_f32_k>("euclideans_packed_f32_with_cuvs", reference_metric_t::euclidean_k);
     register_spatials_with_cuvs<nk_f16_k>("angulars_packed_f16_with_cuvs", reference_metric_t::angular_k);
     register_spatials_with_cuvs<nk_f16_k>("euclideans_packed_f16_with_cuvs", reference_metric_t::euclidean_k);
-#endif // NK_COMPARE_TO_CUVS
+#endif // NUMKONG_COMPARE_TO_CUVS
 }
 #pragma endregion cuVS
 
-/** Prints the device, the baselines compiled in, and the kernel families compiled in or runnable on
- *  it. */
+/** Prints the `- CUDA:` line, naming the device and its compute capability, then the baselines
+ *  compiled in. */
 void print_cuda_header() {
     cudaDeviceProp properties {};
     int device = 0;
     if (cudaGetDevice(&device) != cudaSuccess || cudaGetDeviceProperties(&properties, device) != cudaSuccess) {
-        std::printf("  CUDA: no usable device\n");
+        fmt::println("- CUDA: no device");
         return;
     }
-    nk_capability_t const capabilities = nk_capabilities_cuda_available(device);
-    std::printf("  CUDA: %s, compute capability %d.%d, %d SMs, %d MB L2\n", properties.name, properties.major,
-                properties.minor, properties.multiProcessorCount, properties.l2CacheSize >> 20);
-    std::printf("  CUDA baselines: cuBLAS ");
-    print_indicator(NK_COMPARE_TO_CUBLAS);
-    std::printf("  cuDNN ");
-    print_indicator(NK_COMPARE_TO_CUDNN);
-    std::printf("  cuVS ");
-    print_indicator(NK_COMPARE_TO_CUVS);
-    std::printf("\n  CUDA families:");
-    print_isa("Ampere", NK_TARGET_AMPERE, nk_cap_ampere_k, capabilities);
-    print_isa("Hopper", NK_TARGET_HOPPER, nk_cap_hopper_k, capabilities);
-    print_isa("Blackwell", NK_TARGET_BLACKWELL, nk_cap_blackwell_k, capabilities);
-    print_isa("Blackwell RTX", NK_TARGET_BLACKWELLRTX, nk_cap_blackwellrtx_k, capabilities);
-    std::printf("\n");
+    fmt::println("- CUDA: {} sm_{}{}", properties.name, properties.major, properties.minor);
+    fmt::println("  CUDA baselines: cuBLAS={}  cuDNN={}  cuVS={}", NUMKONG_COMPARE_TO_CUBLAS ? "on" : "off",
+                 NUMKONG_COMPARE_TO_CUDNN ? "on" : "off", NUMKONG_COMPARE_TO_CUVS ? "on" : "off");
 }
 
 /** Every CUDA row: the kernel families this device runs, then the baselines compiled in. */

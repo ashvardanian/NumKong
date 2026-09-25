@@ -76,7 +76,7 @@ numkong = { version = "7", features = ["parallel", "std"] }
 
 ## Compilation and Backend Selection
 
-The crate uses the `cc` build system to compile the C backend with `NK_RUNTIME_DISPATCH=1` automatically.
+The crate uses the `cc` build system to compile the C backend with `NUMKONG_RUNTIME_DISPATCH=1` automatically.
 All supported backends for the target architecture are compiled into a single binary and selected at runtime.
 
 The two Cargo features are `std`, which enables standard library support, and `parallel`, which adds host-side orchestration via ForkUnion and implies `std`.
@@ -88,12 +88,12 @@ RISC-V gets RVV backends on Linux and FreeBSD.
 WASM gets relaxed v128.
 
 Individual backends can be disabled through environment variables.
-Any `NK_TARGET_*` variable set to `0` or `false` disables that backend.
+Any `NUMKONG_TARGET_*` variable set to `0` or `false` disables that backend.
 Backends not explicitly disabled are enabled by default for the target platform.
 
 ```sh
-NK_TARGET_NEON=0 cargo build
-NK_TARGET_SVE=0 NK_TARGET_SME=0 cargo build
+NUMKONG_TARGET_NEON=0 cargo build
+NUMKONG_TARGET_SVE=0 NUMKONG_TARGET_SME=0 cargo build
 ```
 
 If a backend fails to compile, the build system automatically disables it and retries with the remaining backends.

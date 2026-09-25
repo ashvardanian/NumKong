@@ -32,11 +32,11 @@
  *  vwredsumu_vs_u16m2_u32m1        Widening reduction sum
  *  @endverbatim
  */
-#ifndef NK_SET_RVV_H
-#define NK_SET_RVV_H
+#ifndef NUMKONG_SET_RVV_H
+#define NUMKONG_SET_RVV_H
 
-#if NK_TARGET_RISCV64_
-#if NK_TARGET_RVV
+#if NUMKONG_ARCH_RISCV64_
+#if NUMKONG_TARGET_RVV
 
 #include "numkong/types.h"
 #include "numkong/set/serial.h" // `nk_u1x8_popcount_`
@@ -65,7 +65,7 @@ extern "C" {
  *  @param[in] vector_length Vector length
  *  @return Vector where each byte contains its popcount (0-8)
  */
-NK_HELPER_INLINE vuint8m4_t nk_popcount_u8m4_rvv_(vuint8m4_t v_u8m4, nk_size_t vector_length) {
+NUMKONG_HELPER_INLINE vuint8m4_t nk_popcount_u8m4_rvv_(vuint8m4_t v_u8m4, nk_size_t vector_length) {
     // count pairs — v = (v & 0x55) + ((v >> 1) & 0x55)
     vuint8m4_t t_u8m4 = __riscv_vsrl_vx_u8m4(v_u8m4, 1, vector_length);
     t_u8m4 = __riscv_vand_vx_u8m4(t_u8m4, 0x55, vector_length);
@@ -82,8 +82,8 @@ NK_HELPER_INLINE vuint8m4_t nk_popcount_u8m4_rvv_(vuint8m4_t v_u8m4, nk_size_t v
     return __riscv_vand_vx_u8m4(v_u8m4, 0x0F, vector_length);
 }
 
-NK_API_COMPTIME void nk_hamming_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
-    nk_size_t count_bytes = n / NK_BITS_PER_BYTE;
+NUMKONG_API_COMPTIME void nk_hamming_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
+    nk_size_t count_bytes = n / NUMKONG_BITS_PER_BYTE;
 
     // Accumulator for total differences
     vuint32m1_t sum_u32m1 = __riscv_vmv_v_x_u32m1(0, 1);
@@ -108,8 +108,8 @@ NK_API_COMPTIME void nk_hamming_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, n
     *result = __riscv_vmv_x_s_u32m1_u32(sum_u32m1);
 }
 
-NK_API_COMPTIME void nk_jaccard_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
-    nk_size_t count_bytes = n / NK_BITS_PER_BYTE;
+NUMKONG_API_COMPTIME void nk_jaccard_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
+    nk_size_t count_bytes = n / NUMKONG_BITS_PER_BYTE;
 
     // Accumulators for intersection and union counts
     vuint32m1_t intersection_sum_u32m1 = __riscv_vmv_v_x_u32m1(0, 1);
@@ -148,7 +148,7 @@ NK_API_COMPTIME void nk_jaccard_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, n
 
 #pragma region Integer Sets
 
-NK_API_COMPTIME void nk_hamming_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME void nk_hamming_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
     vuint32m1_t diff_count_u32m1 = __riscv_vmv_v_x_u32m1(0, 1);
 
     nk_size_t i = 0;
@@ -171,7 +171,7 @@ NK_API_COMPTIME void nk_hamming_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, nk_si
     *result = __riscv_vmv_x_s_u32m1_u32(diff_count_u32m1);
 }
 
-NK_API_COMPTIME void nk_jaccard_u32_rvv(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_jaccard_u32_rvv(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_u32_t match_count_u32 = 0;
 
     nk_size_t i = 0;
@@ -191,7 +191,7 @@ NK_API_COMPTIME void nk_jaccard_u32_rvv(nk_u32_t const *a, nk_u32_t const *b, nk
     *result = (n != 0) ? 1.0f - (nk_f32_t)match_count_u32 / (nk_f32_t)n : 0.0f;
 }
 
-NK_API_COMPTIME void nk_jaccard_u16_rvv(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_jaccard_u16_rvv(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result) {
     nk_u32_t match_count_u32 = 0;
 
     nk_size_t i = 0;
@@ -223,6 +223,6 @@ NK_API_COMPTIME void nk_jaccard_u16_rvv(nk_u16_t const *a, nk_u16_t const *b, nk
 #pragma GCC pop_options
 #endif
 
-#endif // NK_TARGET_RVV
-#endif // NK_TARGET_RISCV64_
-#endif // NK_SET_RVV_H
+#endif // NUMKONG_TARGET_RVV
+#endif // NUMKONG_ARCH_RISCV64_
+#endif // NUMKONG_SET_RVV_H

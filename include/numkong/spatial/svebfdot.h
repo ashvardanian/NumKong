@@ -31,11 +31,11 @@
  *  The BFDOT instruction fuses two BF16 multiplications with FP32 accumulation, providing efficient
  *  BF16 dot products without explicit conversion overhead.
  */
-#ifndef NK_SPATIAL_SVEBFDOT_H
-#define NK_SPATIAL_SVEBFDOT_H
+#ifndef NUMKONG_SPATIAL_SVEBFDOT_H
+#define NUMKONG_SPATIAL_SVEBFDOT_H
 
-#if NK_TARGET_ARM64_
-#if NK_TARGET_SVEBFDOT
+#if NUMKONG_ARCH_ARM64_
+#if NUMKONG_TARGET_SVEBFDOT
 
 #include "numkong/types.h"
 #include "numkong/reduce/sve.h"   // `nk_svaddv_f64_`
@@ -52,8 +52,8 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+sve+bf16")
 #endif
 
-NK_API_COMPTIME void nk_sqeuclidean_bf16_svebfdot(nk_bf16_t const *a_enum, nk_bf16_t const *b_enum, nk_size_t n,
-                                                  nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_sqeuclidean_bf16_svebfdot(nk_bf16_t const *a_enum, nk_bf16_t const *b_enum, nk_size_t n,
+                                                       nk_f32_t *result) {
     nk_size_t i = 0;
     svfloat32_t d2_low_f32x = svdupq_n_f32(0.f, 0.f, 0.f, 0.f);
     svfloat32_t d2_high_f32x = svdupq_n_f32(0.f, 0.f, 0.f, 0.f);
@@ -83,13 +83,14 @@ NK_API_COMPTIME void nk_sqeuclidean_bf16_svebfdot(nk_bf16_t const *a_enum, nk_bf
     nk_f32_t d2 = d2_low + d2_high;
     *result = d2;
 }
-NK_API_COMPTIME void nk_euclidean_bf16_svebfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_euclidean_bf16_svebfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                     nk_f32_t *result) {
     nk_sqeuclidean_bf16_svebfdot(a, b, n, result);
     *result = nk_f32_sqrt_neon(*result);
 }
 
-NK_API_COMPTIME void nk_angular_bf16_svebfdot(nk_bf16_t const *a_enum, nk_bf16_t const *b_enum, nk_size_t n,
-                                              nk_f32_t *result) {
+NUMKONG_API_COMPTIME void nk_angular_bf16_svebfdot(nk_bf16_t const *a_enum, nk_bf16_t const *b_enum, nk_size_t n,
+                                                   nk_f32_t *result) {
     nk_size_t i = 0;
     svfloat32_t ab_f32x = svdupq_n_f32(0.f, 0.f, 0.f, 0.f);
     svfloat32_t a2_f32x = svdupq_n_f32(0.f, 0.f, 0.f, 0.f);
@@ -122,6 +123,6 @@ NK_API_COMPTIME void nk_angular_bf16_svebfdot(nk_bf16_t const *a_enum, nk_bf16_t
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_SVEBFDOT
-#endif // NK_TARGET_ARM64_
-#endif // NK_SPATIAL_SVEBFDOT_H
+#endif // NUMKONG_TARGET_SVEBFDOT
+#endif // NUMKONG_ARCH_ARM64_
+#endif // NUMKONG_SPATIAL_SVEBFDOT_H

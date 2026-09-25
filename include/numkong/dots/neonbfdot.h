@@ -6,11 +6,11 @@
  *
  *  @sa include/numkong/dots.h
  */
-#ifndef NK_DOTS_NEONBFDOT_H
-#define NK_DOTS_NEONBFDOT_H
+#ifndef NUMKONG_DOTS_NEONBFDOT_H
+#define NUMKONG_DOTS_NEONBFDOT_H
 
-#if NK_TARGET_ARM64_
-#if NK_TARGET_NEONBFDOT
+#if NUMKONG_ARCH_ARM64_
+#if NUMKONG_TARGET_NEONBFDOT
 
 #include "numkong/dot/neonbfdot.h"
 
@@ -55,6 +55,6 @@ nk_define_cross_packed_(dots, bf16, neonbfdot, bf16, bf16, f32, nk_b128_vec_t, n
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_NEONBFDOT
-#endif // NK_TARGET_ARM64_
-#endif // NK_DOTS_NEONBFDOT_H
+#endif // NUMKONG_TARGET_NEONBFDOT
+#endif // NUMKONG_ARCH_ARM64_
+#endif // NUMKONG_DOTS_NEONBFDOT_H

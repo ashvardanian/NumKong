@@ -7,7 +7,7 @@
 
 #include "numkong/trigonometry.h"
 
-#include "bench.hpp"
+#include "harness.hpp"
 
 using namespace ashvardanian::numkong::bench;
 
@@ -114,7 +114,7 @@ void bench_trigonometry() {
     constexpr nk_dtype_t bf16_k = nk_bf16_k;
     constexpr nk_dtype_t e4m3_k = nk_e4m3_k;
 
-#if NK_TARGET_NEON
+#if NUMKONG_TARGET_NEON
     run_trigonometry<f32_k>("trig_sin_f32_neon", nk_trig_sin_f32_neon);
     run_trigonometry<f32_k>("trig_cos_f32_neon", nk_trig_cos_f32_neon);
     run_trigonometry<f32_k>("trig_atan_f32_neon", nk_trig_atan_f32_neon);
@@ -123,7 +123,7 @@ void bench_trigonometry() {
     run_trigonometry<f64_k>("trig_atan_f64_neon", nk_trig_atan_f64_neon);
 #endif
 
-#if NK_TARGET_HASWELL
+#if NUMKONG_TARGET_HASWELL
     run_trigonometry<f32_k>("trig_sin_f32_haswell", nk_trig_sin_f32_haswell);
     run_trigonometry<f32_k>("trig_cos_f32_haswell", nk_trig_cos_f32_haswell);
     run_trigonometry<f32_k>("trig_atan_f32_haswell", nk_trig_atan_f32_haswell);
@@ -135,7 +135,7 @@ void bench_trigonometry() {
     run_rope<e4m3_k>("trig_rope_e4m3_haswell", nk_trig_rope_e4m3_haswell);
 #endif
 
-#if NK_TARGET_SKYLAKE
+#if NUMKONG_TARGET_SKYLAKE
     run_trigonometry<f32_k>("trig_sin_f32_skylake", nk_trig_sin_f32_skylake);
     run_trigonometry<f32_k>("trig_cos_f32_skylake", nk_trig_cos_f32_skylake);
     run_trigonometry<f32_k>("trig_atan_f32_skylake", nk_trig_atan_f32_skylake);
@@ -150,7 +150,7 @@ void bench_trigonometry() {
     run_rope<e4m3_k>("trig_rope_e4m3_skylake", nk_trig_rope_e4m3_skylake);
 #endif
 
-#if NK_TARGET_V128RELAXED
+#if NUMKONG_TARGET_V128RELAXED
     run_trigonometry<f32_k>("trig_sin_f32_v128relaxed", nk_trig_sin_f32_v128relaxed);
     run_trigonometry<f32_k>("trig_cos_f32_v128relaxed", nk_trig_cos_f32_v128relaxed);
     run_trigonometry<f32_k>("trig_atan_f32_v128relaxed", nk_trig_atan_f32_v128relaxed);

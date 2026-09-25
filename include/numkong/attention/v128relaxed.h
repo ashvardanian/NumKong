@@ -29,10 +29,10 @@
  *  weight (≤ 255) times an I8 plane value (|v| ≤ 128) is at most 32640 < 2^24, so every product is
  *  exactly representable in F32, and fusing multiply into add cannot change one accumulated bit.
  */
-#ifndef NK_ATTENTION_V128RELAXED_H
-#define NK_ATTENTION_V128RELAXED_H
+#ifndef NUMKONG_ATTENTION_V128RELAXED_H
+#define NUMKONG_ATTENTION_V128RELAXED_H
 
-#if NK_TARGET_V128RELAXED
+#if NUMKONG_TARGET_V128RELAXED
 
 #include <wasm_simd128.h>
 
@@ -54,7 +54,7 @@ extern "C" {
 /** Widens 4 raw plane scalars (BF16 or E4M3 at rest) to F32 inside the hot loops. */
 typedef v128_t (*nk_attention_load_v128relaxed_t_)(void const *plane_chunk);
 
-NK_HELPER_INLINE v128_t nk_attention_load_e4m3x4_v128relaxed_(void const *plane_chunk) {
+NUMKONG_HELPER_INLINE v128_t nk_attention_load_e4m3x4_v128relaxed_(void const *plane_chunk) {
     nk_b32_vec_t raw_vec;
     raw_vec.u32 = *(nk_u32_t const *)plane_chunk;
     return nk_e4m3x4_to_f32x4_v128relaxed_(raw_vec).v128;
@@ -62,7 +62,7 @@ NK_HELPER_INLINE v128_t nk_attention_load_e4m3x4_v128relaxed_(void const *plane_
 
 /** Shared attention core over raw-encoded planes: per query row, panel-flash with an exact online
  *  correction; queries widen once per row, planes widen in-loop. */
-NK_HELPER_INLINE void nk_attention_packed_float_v128relaxed_(                    //
+NUMKONG_HELPER_INLINE void nk_attention_packed_float_v128relaxed_(               //
     void const *queries, nk_size_t element_bytes,                                //
     nk_attention_load_f32_serial_t_ load_f32,                                    //
     nk_attention_load_v128relaxed_t_ load,                                       //
@@ -83,14 +83,14 @@ NK_HELPER_INLINE void nk_attention_packed_float_v128relaxed_(                   
     nk_size_t const head_group_size = head_count / key_value_head_count;
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
     nk_size_t const plane_row_bytes = depth_padded * element_bytes;
-    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x · log₂e)
+    nk_f32_t const scale2 = scale * NUMKONG_F32_LOG2E_; // softmax(x) = softmax₂(x · log₂e)
     nk_size_t const panel_width = nk_attention_panel_v128_k_;
 
     nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);
 
-    NK_ALIGN64 nk_f32_t query_row[nk_attention_max_depth_v128_k_];
-    NK_ALIGN64 nk_f32_t output_row[nk_attention_max_depth_v128_k_];
-    NK_ALIGN64 nk_f32_t scores[nk_attention_panel_v128_k_];
+    NUMKONG_ALIGN64_ nk_f32_t query_row[nk_attention_max_depth_v128_k_];
+    NUMKONG_ALIGN64_ nk_f32_t output_row[nk_attention_max_depth_v128_k_];
+    NUMKONG_ALIGN64_ nk_f32_t scores[nk_attention_panel_v128_k_];
 
     for (nk_size_t task_idx = task_start; task_idx < task_end; task_idx++) {
         nk_size_t const segment_idx = task_idx / head_count, head_idx = task_idx % head_count;
@@ -114,7 +114,7 @@ NK_HELPER_INLINE void nk_attention_packed_float_v128relaxed_(                   
             for (; channel_idx < depth_padded; channel_idx++) query_row[channel_idx] = 0.0f;
             for (channel_idx = 0; channel_idx < depth_padded; channel_idx += 4)
                 wasm_v128_store(output_row + channel_idx, wasm_f32x4_splat(0.0f));
-            nk_f32_t running_max2 = NK_F32_MIN, running_sum = 0;
+            nk_f32_t running_max2 = NUMKONG_F32_MIN, running_sum = 0;
 
             for (nk_size_t panel_start = key_begin; panel_start < key_end; panel_start += panel_width) {
                 nk_size_t const panel_length = (panel_start + panel_width <= key_end) ? panel_width
@@ -135,7 +135,7 @@ NK_HELPER_INLINE void nk_attention_packed_float_v128relaxed_(                   
                 }
 
                 v128_t const scale2_f32x4 = wasm_f32x4_splat(scale2);
-                v128_t max_f32x4 = wasm_f32x4_splat(NK_F32_MIN);
+                v128_t max_f32x4 = wasm_f32x4_splat(NUMKONG_F32_MIN);
                 for (position_idx = 0; position_idx + 4 <= panel_length; position_idx += 4)
                     max_f32x4 = wasm_f32x4_max(max_f32x4,
                                                wasm_f32x4_mul(wasm_v128_load(scores + position_idx), scale2_f32x4));
@@ -198,7 +198,7 @@ NK_HELPER_INLINE void nk_attention_packed_float_v128relaxed_(                   
     }
 }
 
-NK_HELPER_INLINE void nk_attention_packed_bf16_v128relaxed_(                     //
+NUMKONG_HELPER_INLINE void nk_attention_packed_bf16_v128relaxed_(                //
     nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output,    //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //
@@ -216,17 +216,17 @@ NK_HELPER_INLINE void nk_attention_packed_bf16_v128relaxed_(                    
                                            output_stride_bytes, scale, diagonal_offset, window, task_start, task_count);
 }
 
-NK_API_COMPTIME void nk_attention_bidirectional_packed_bf16_v128relaxed(                                        //
+NUMKONG_API_COMPTIME void nk_attention_bidirectional_packed_bf16_v128relaxed(                                   //
     nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output,                                   //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
     nk_size_t task_start, nk_size_t task_count) {
     nk_attention_packed_bf16_v128relaxed_(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                          query_offsets, query_stride_bytes, output_stride_bytes, scale, NK_I64_MAX / 2,
-                                          NK_SIZE_MAX, task_start, task_count);
+                                          query_offsets, query_stride_bytes, output_stride_bytes, scale,
+                                          NUMKONG_I64_MAX / 2, NUMKONG_SIZE_MAX, task_start, task_count);
 }
 
-NK_API_COMPTIME void nk_attention_causal_packed_bf16_v128relaxed(                                               //
+NUMKONG_API_COMPTIME void nk_attention_causal_packed_bf16_v128relaxed(                                          //
     nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output,                                   //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
@@ -236,7 +236,7 @@ NK_API_COMPTIME void nk_attention_causal_packed_bf16_v128relaxed(               
                                           diagonal_offset, window, task_start, task_count);
 }
 
-NK_HELPER_INLINE void nk_attention_packed_e4m3_v128relaxed_(                     //
+NUMKONG_HELPER_INLINE void nk_attention_packed_e4m3_v128relaxed_(                //
     nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,    //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //
@@ -254,17 +254,17 @@ NK_HELPER_INLINE void nk_attention_packed_e4m3_v128relaxed_(                    
                                            output_stride_bytes, scale, diagonal_offset, window, task_start, task_count);
 }
 
-NK_API_COMPTIME void nk_attention_bidirectional_packed_e4m3_v128relaxed(                                        //
+NUMKONG_API_COMPTIME void nk_attention_bidirectional_packed_e4m3_v128relaxed(                                   //
     nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,                                   //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
     nk_size_t task_start, nk_size_t task_count) {
     nk_attention_packed_e4m3_v128relaxed_(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                          query_offsets, query_stride_bytes, output_stride_bytes, scale, NK_I64_MAX / 2,
-                                          NK_SIZE_MAX, task_start, task_count);
+                                          query_offsets, query_stride_bytes, output_stride_bytes, scale,
+                                          NUMKONG_I64_MAX / 2, NUMKONG_SIZE_MAX, task_start, task_count);
 }
 
-NK_API_COMPTIME void nk_attention_causal_packed_e4m3_v128relaxed(                                               //
+NUMKONG_API_COMPTIME void nk_attention_causal_packed_e4m3_v128relaxed(                                          //
     nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,                                   //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
@@ -274,7 +274,7 @@ NK_API_COMPTIME void nk_attention_causal_packed_e4m3_v128relaxed(               
                                           diagonal_offset, window, task_start, task_count);
 }
 
-NK_HELPER_INLINE void nk_attention_packed_i8_v128relaxed_(                       //
+NUMKONG_HELPER_INLINE void nk_attention_packed_i8_v128relaxed_(                  //
     nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,      //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //
@@ -299,16 +299,16 @@ NK_HELPER_INLINE void nk_attention_packed_i8_v128relaxed_(                      
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
     nk_size_t const depth_full16 = depth_padded & ~(nk_size_t)15;
     nk_size_t const depth_padded16 = nk_size_round_up_to_multiple_(depth_padded, 16);
-    nk_f32_t const scale2 = scale * NK_F32_LOG2E_; // softmax(x) = softmax₂(x · log₂e)
+    nk_f32_t const scale2 = scale * NUMKONG_F32_LOG2E_; // softmax(x) = softmax₂(x · log₂e)
     nk_size_t const panel_width = nk_attention_panel_v128_k_;
 
     nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);
 
-    NK_ALIGN64 nk_i8_t query_i8[nk_attention_max_depth_v128_k_];
-    NK_ALIGN64 nk_f32_t output_row[nk_attention_max_depth_v128_k_];
-    NK_ALIGN64 nk_i32_t scores[nk_attention_panel_v128_k_];
-    NK_ALIGN64 nk_u8_t weights[nk_attention_panel_v128_k_];
-    NK_ALIGN64 nk_i32_t panel_acc[nk_attention_max_depth_v128_k_]; // per-panel integer P × V accumulator
+    NUMKONG_ALIGN64_ nk_i8_t query_i8[nk_attention_max_depth_v128_k_];
+    NUMKONG_ALIGN64_ nk_f32_t output_row[nk_attention_max_depth_v128_k_];
+    NUMKONG_ALIGN64_ nk_i32_t scores[nk_attention_panel_v128_k_];
+    NUMKONG_ALIGN64_ nk_u8_t weights[nk_attention_panel_v128_k_];
+    NUMKONG_ALIGN64_ nk_i32_t panel_acc[nk_attention_max_depth_v128_k_]; // per-panel integer P × V accumulator
 
     for (nk_size_t task_idx = task_start; task_idx < task_end; task_idx++) {
         nk_size_t const segment_idx = task_idx / head_count, head_idx = task_idx % head_count;
@@ -333,7 +333,7 @@ NK_HELPER_INLINE void nk_attention_packed_i8_v128relaxed_(                      
             for (; channel_idx < depth_padded16; channel_idx++) query_i8[channel_idx] = 0;
             for (channel_idx = 0; channel_idx < depth_padded; channel_idx += 4)
                 wasm_v128_store(output_row + channel_idx, wasm_f32x4_splat(0.0f));
-            nk_i32_t running_max = NK_I32_MIN;
+            nk_i32_t running_max = NUMKONG_I32_MIN;
             nk_f32_t running_sum = 0;
             nk_i32_t const scale_fixed = (nk_i32_t)(scale2 * 32768.0f + 0.5f); // Q15 scale for the integer exp
             nk_i32_t const delta_floor = // score delta below which every weight quantizes to zero
@@ -373,7 +373,7 @@ NK_HELPER_INLINE void nk_attention_packed_i8_v128relaxed_(                      
                     scores[position_idx] = nk_reduce_add_i32x4_v128_(score_i32x4);
                 }
 
-                v128_t max_i32x4 = wasm_i32x4_splat(NK_I32_MIN);
+                v128_t max_i32x4 = wasm_i32x4_splat(NUMKONG_I32_MIN);
                 // exact integer panel max over the raw I32 scores
                 for (position_idx = 0; position_idx + 4 <= panel_length; position_idx += 4)
                     max_i32x4 = wasm_i32x4_max(max_i32x4, wasm_v128_load(scores + position_idx));
@@ -481,17 +481,17 @@ NK_HELPER_INLINE void nk_attention_packed_i8_v128relaxed_(                      
     }
 }
 
-NK_API_COMPTIME void nk_attention_bidirectional_packed_i8_v128relaxed(                                          //
+NUMKONG_API_COMPTIME void nk_attention_bidirectional_packed_i8_v128relaxed(                                     //
     nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,                                     //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
     nk_size_t task_start, nk_size_t task_count) {
     nk_attention_packed_i8_v128relaxed_(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                        query_offsets, query_stride_bytes, output_stride_bytes, scale, NK_I64_MAX / 2,
-                                        NK_SIZE_MAX, task_start, task_count);
+                                        query_offsets, query_stride_bytes, output_stride_bytes, scale,
+                                        NUMKONG_I64_MAX / 2, NUMKONG_SIZE_MAX, task_start, task_count);
 }
 
-NK_API_COMPTIME void nk_attention_causal_packed_i8_v128relaxed(                                                 //
+NUMKONG_API_COMPTIME void nk_attention_causal_packed_i8_v128relaxed(                                            //
     nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,                                     //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
@@ -509,5 +509,5 @@ NK_API_COMPTIME void nk_attention_causal_packed_i8_v128relaxed(                 
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_V128RELAXED
-#endif // NK_ATTENTION_V128RELAXED_H
+#endif // NUMKONG_TARGET_V128RELAXED
+#endif // NUMKONG_ATTENTION_V128RELAXED_H

@@ -6,11 +6,11 @@
  *
  *  @sa include/numkong/sets.h
  */
-#ifndef NK_SETS_NEON_H
-#define NK_SETS_NEON_H
+#ifndef NUMKONG_SETS_NEON_H
+#define NUMKONG_SETS_NEON_H
 
-#if NK_TARGET_ARM64_
-#if NK_TARGET_NEON
+#if NUMKONG_ARCH_ARM64_
+#if NUMKONG_TARGET_NEON
 
 #include "numkong/set/neon.h"
 #include "numkong/dots/neon.h"
@@ -56,6 +56,6 @@ nk_define_cross_normalized_symmetric_(jaccard, u1, neon, u1x8, u32, /*norm_value
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_NEON
-#endif // NK_TARGET_ARM64_
-#endif // NK_SETS_NEON_H
+#endif // NUMKONG_TARGET_NEON
+#endif // NUMKONG_ARCH_ARM64_
+#endif // NUMKONG_SETS_NEON_H

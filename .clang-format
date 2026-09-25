@@ -77,12 +77,12 @@ PenaltyBreakBeforeFirstCallParameter: 1
 AttributeMacros:
   - PyObject_HEAD
   - PyObject_VAR_HEAD
-  - NK_API_COMPTIME
-  - NK_API_RUNTIME
-  - NK_HELPER_AUTO
-  - NK_HELPER_INLINE
-  - NK_HELPER_NOINLINE
-  - NK_HELPER_DEVICE_INLINE
+  - NUMKONG_API_COMPTIME
+  - NUMKONG_API_RUNTIME
+  - NUMKONG_HELPER_AUTO
+  - NUMKONG_HELPER_INLINE
+  - NUMKONG_HELPER_NOINLINE
+  - NUMKONG_HELPER_DEVICE_INLINE
 StatementMacros:
   - nk_define_bilinear_
   - nk_define_bilinear_complex_
@@ -179,7 +179,7 @@ StatementMacros:
   - nk_dispatch_attention_bidirectional_packed_
   - nk_dispatch_attention_causal_packed_
 
-# Align consecutive macro definitions (useful for NK_TARGET_* flags)
+# Align consecutive macro definitions (useful for NUMKONG_TARGET_* flags)
 AlignConsecutiveMacros:
   Enabled: true
   AcrossEmptyLines: false

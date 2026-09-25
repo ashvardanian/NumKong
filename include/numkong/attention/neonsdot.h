@@ -17,11 +17,11 @@
  *  conversion, and every panel total stays under 2^24 — bit-exact with serial at a 6× faster inner
  *  loop, still on the baseline @c dotprod extension.
  */
-#ifndef NK_ATTENTION_NEONSDOT_H
-#define NK_ATTENTION_NEONSDOT_H
+#ifndef NUMKONG_ATTENTION_NEONSDOT_H
+#define NUMKONG_ATTENTION_NEONSDOT_H
 
-#if NK_TARGET_ARM64_
-#if NK_TARGET_NEONSDOT
+#if NUMKONG_ARCH_ARM64_
+#if NUMKONG_TARGET_NEONSDOT
 
 #include <arm_neon.h>
 
@@ -49,8 +49,9 @@ enum {
     nk_attention_max_depth_neonsdot_k_ = 256,
 };
 
-NK_API_COMPTIME nk_size_t nk_attention_pack_size_i8_neonsdot(nk_size_t key_value_head_count, nk_size_t depth,
-                                                             nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+NUMKONG_API_COMPTIME nk_size_t nk_attention_pack_size_i8_neonsdot(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                  nk_u32_t const *segment_lengths,
+                                                                  nk_size_t segment_count) {
     if (depth > nk_attention_max_depth_neonsdot_k_)
         return nk_attention_pack_size_i8_serial(key_value_head_count, depth, segment_lengths, segment_count);
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 16);
@@ -61,12 +62,12 @@ NK_API_COMPTIME nk_size_t nk_attention_pack_size_i8_neonsdot(nk_size_t key_value
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
 }
 
-NK_API_COMPTIME void nk_attention_packed_shape_i8_neonsdot(void const *key_value_packed, nk_size_t *heads,
-                                                           nk_size_t *depth, nk_size_t *segments) {
+NUMKONG_API_COMPTIME void nk_attention_packed_shape_i8_neonsdot(void const *key_value_packed, nk_size_t *heads,
+                                                                nk_size_t *depth, nk_size_t *segments) {
     nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
 }
 
-NK_API_COMPTIME void nk_attention_pack_i8_neonsdot(                                    //
+NUMKONG_API_COMPTIME void nk_attention_pack_i8_neonsdot(                               //
     nk_i8_t const *keys, nk_i8_t const *values,                                        //
     nk_size_t key_value_head_count, nk_size_t depth,                                   //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                  //
@@ -158,7 +159,7 @@ NK_API_COMPTIME void nk_attention_pack_i8_neonsdot(                             
 
 /** Shared I8 body: row @c r reads the keys that @c nk_attention_row_range_ admits for position
  *  r + @p diagonal_offset and @p window. */
-NK_HELPER_INLINE void nk_attention_packed_i8_neonsdot_(                          //
+NUMKONG_HELPER_INLINE void nk_attention_packed_i8_neonsdot_(                     //
     nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,      //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //
@@ -181,7 +182,7 @@ NK_HELPER_INLINE void nk_attention_packed_i8_neonsdot_(                         
     nk_size_t const output_stride_floats = output_stride_bytes / sizeof(nk_f32_t);
     nk_size_t const head_group_size = head_count / key_value_head_count;
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 16);
-    nk_f32_t const scale2 = scale * NK_F32_LOG2E_;                     // softmax(x) = softmax₂(x · log₂e)
+    nk_f32_t const scale2 = scale * NUMKONG_F32_LOG2E_;                // softmax(x) = softmax₂(x · log₂e)
     nk_i32_t const scale_fixed = (nk_i32_t)(scale2 * 32768.0f + 0.5f); // Q15 scale for the integer exponential
     nk_i32_t const delta_floor = // the score delta below which every weight quantizes to zero (2^t · 255 + 0.5 < 1)
         scale_fixed > 0 ? -(nk_i32_t)((10u << 15) / (nk_u32_t)scale_fixed) - 1 : 0;
@@ -189,12 +190,12 @@ NK_HELPER_INLINE void nk_attention_packed_i8_neonsdot_(                         
 
     nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);
 
-    NK_ALIGN64 nk_i8_t query_row[nk_attention_max_depth_neonsdot_k_];
-    NK_ALIGN64 nk_f32_t output_row[nk_attention_max_depth_neonsdot_k_];
-    NK_ALIGN64 nk_u32_t output_totals[nk_attention_max_depth_neonsdot_k_];
+    NUMKONG_ALIGN64_ nk_i8_t query_row[nk_attention_max_depth_neonsdot_k_];
+    NUMKONG_ALIGN64_ nk_f32_t output_row[nk_attention_max_depth_neonsdot_k_];
+    NUMKONG_ALIGN64_ nk_u32_t output_totals[nk_attention_max_depth_neonsdot_k_];
     // Raw I32 QK dots and U8 weights; 4 slack slots absorb the quad tail of a row starting mid-quad.
-    NK_ALIGN64 nk_i32_t scores[nk_attention_panel_neonsdot_k_ + 4];
-    NK_ALIGN64 nk_u8_t weights[nk_attention_panel_neonsdot_k_ + 4];
+    NUMKONG_ALIGN64_ nk_i32_t scores[nk_attention_panel_neonsdot_k_ + 4];
+    NUMKONG_ALIGN64_ nk_u8_t weights[nk_attention_panel_neonsdot_k_ + 4];
 
     for (nk_size_t task_idx = task_start; task_idx < task_end; task_idx++) {
         nk_size_t const segment_idx = task_idx / head_count, head_idx = task_idx % head_count;
@@ -215,7 +216,7 @@ NK_HELPER_INLINE void nk_attention_packed_i8_neonsdot_(                         
             for (; channel_idx < depth_padded; channel_idx++) query_row[channel_idx] = 0;
             for (channel_idx = 0; channel_idx < depth_padded; channel_idx += 4)
                 vst1q_f32(output_row + channel_idx, vdupq_n_f32(0.0f));
-            nk_i32_t running_max = NK_I32_MIN;
+            nk_i32_t running_max = NUMKONG_I32_MIN;
             nk_f32_t running_sum = 0;
             nk_size_t key_begin, key_end;
             nk_attention_row_range_((nk_i64_t)row_idx + diagonal_offset, window, position_count, &key_begin, &key_end);
@@ -228,7 +229,7 @@ NK_HELPER_INLINE void nk_attention_packed_i8_neonsdot_(                         
                 for (nk_size_t position_idx = 0; position_idx < range_begin; position_idx++) weights[position_idx] = 0;
 
                 nk_size_t position_idx = range_begin;
-                int32x4_t max_i32x4 = vdupq_n_s32(NK_I32_MIN); // exact integer row max over raw I32 scores
+                int32x4_t max_i32x4 = vdupq_n_s32(NUMKONG_I32_MIN); // exact integer row max over raw I32 scores
                 // Score sweep: exact I32 dots, four KV rows in flight per query-vector load.
                 for (; position_idx + 4 <= panel_length; position_idx += 4) {
                     char const *keys_row0 = keys_plane + (panel_start + position_idx + 0) * depth_padded;
@@ -351,18 +352,18 @@ NK_HELPER_INLINE void nk_attention_packed_i8_neonsdot_(                         
     }
 }
 
-NK_API_COMPTIME void nk_attention_bidirectional_packed_i8_neonsdot(              //
+NUMKONG_API_COMPTIME void nk_attention_bidirectional_packed_i8_neonsdot(         //
     nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,      //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //
     nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
     nk_size_t task_start, nk_size_t task_count) {
     nk_attention_packed_i8_neonsdot_(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                     query_offsets, query_stride_bytes, output_stride_bytes, scale, NK_I64_MAX / 2,
-                                     NK_SIZE_MAX, task_start, task_count);
+                                     query_offsets, query_stride_bytes, output_stride_bytes, scale, NUMKONG_I64_MAX / 2,
+                                     NUMKONG_SIZE_MAX, task_start, task_count);
 }
 
-NK_API_COMPTIME void nk_attention_causal_packed_i8_neonsdot(                     //
+NUMKONG_API_COMPTIME void nk_attention_causal_packed_i8_neonsdot(                //
     nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,      //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,       //
     nk_u32_t const *query_offsets,                                               //
@@ -383,7 +384,7 @@ NK_API_COMPTIME void nk_attention_causal_packed_i8_neonsdot(                    
 } // extern "C"
 #endif
 
-#endif // NK_TARGET_NEONSDOT
-#endif // NK_TARGET_ARM64_
+#endif // NUMKONG_TARGET_NEONSDOT
+#endif // NUMKONG_ARCH_ARM64_
 
-#endif // NK_ATTENTION_NEONSDOT_H
+#endif // NUMKONG_ATTENTION_NEONSDOT_H

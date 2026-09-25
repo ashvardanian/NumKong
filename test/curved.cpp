@@ -5,7 +5,7 @@
  *  @brief Bilinear and Mahalanobis tests.
  */
 
-#include "test.hpp"
+#include "harness.hpp"
 #include "numkong/curved.hpp" // `nk::bilinear`
 
 using namespace ashvardanian::numkong::test;
@@ -119,7 +119,7 @@ void test_curved() {
     check("bilinear_bf16c_serial", test_bilinear<bf16c_t>, nk_bilinear_bf16c_serial);
     check("mahalanobis_bf16_serial", test_mahalanobis<bf16_t>, nk_mahalanobis_bf16_serial);
 
-#if NK_RUNTIME_DISPATCH
+#if NUMKONG_RUNTIME_DISPATCH
     check.section("Curved Kernels Runtime Dispatch", nk_cap_serial_k);
     check("bilinear_f32", test_bilinear<f32_t>, nk_bilinear_f32);
     check("bilinear_f64", test_bilinear<f64_t>, nk_bilinear_f64);
@@ -129,7 +129,7 @@ void test_curved() {
     check("mahalanobis_f64", test_mahalanobis<f64_t>, nk_mahalanobis_f64);
 #endif
 
-#if NK_TARGET_NEON
+#if NUMKONG_TARGET_NEON
     check.section("Curved Kernels NEON", nk_cap_neon_k);
     check("bilinear_f32_neon", test_bilinear<f32_t>, nk_bilinear_f32_neon);
     check("bilinear_f32c_neon", test_bilinear<f32c_t>, nk_bilinear_f32c_neon);
@@ -137,16 +137,16 @@ void test_curved() {
     check("bilinear_f16_neon", test_bilinear<f16_t>, nk_bilinear_f16_neon);
     check("bilinear_f16c_neon", test_bilinear<f16c_t>, nk_bilinear_f16c_neon);
     check("mahalanobis_f16_neon", test_mahalanobis<f16_t>, nk_mahalanobis_f16_neon);
-#endif // NK_TARGET_NEON
+#endif // NUMKONG_TARGET_NEON
 
-#if NK_TARGET_NEONBFDOT
+#if NUMKONG_TARGET_NEONBFDOT
     check.section("Curved Kernels NEON BF16", nk_cap_neonbfdot_k);
     check("bilinear_bf16_neonbfdot", test_bilinear<bf16_t>, nk_bilinear_bf16_neonbfdot);
     check("bilinear_bf16c_neonbfdot", test_bilinear<bf16c_t>, nk_bilinear_bf16c_neonbfdot);
     check("mahalanobis_bf16_neonbfdot", test_mahalanobis<bf16_t>, nk_mahalanobis_bf16_neonbfdot);
-#endif // NK_TARGET_NEONBFDOT
+#endif // NUMKONG_TARGET_NEONBFDOT
 
-#if NK_TARGET_HASWELL
+#if NUMKONG_TARGET_HASWELL
     check.section("Curved Kernels Haswell", nk_cap_haswell_k);
     check("bilinear_f32_haswell", test_bilinear<f32_t>, nk_bilinear_f32_haswell);
     check("bilinear_f16_haswell", test_bilinear<f16_t>, nk_bilinear_f16_haswell);
@@ -154,9 +154,9 @@ void test_curved() {
     check("mahalanobis_f32_haswell", test_mahalanobis<f32_t>, nk_mahalanobis_f32_haswell);
     check("mahalanobis_f16_haswell", test_mahalanobis<f16_t>, nk_mahalanobis_f16_haswell);
     check("mahalanobis_bf16_haswell", test_mahalanobis<bf16_t>, nk_mahalanobis_bf16_haswell);
-#endif // NK_TARGET_HASWELL
+#endif // NUMKONG_TARGET_HASWELL
 
-#if NK_TARGET_SKYLAKE
+#if NUMKONG_TARGET_SKYLAKE
     check.section("Curved Kernels Skylake", nk_cap_skylake_k);
     check("bilinear_f32_skylake", test_bilinear<f32_t>, nk_bilinear_f32_skylake);
     check("bilinear_f64_skylake", test_bilinear<f64_t>, nk_bilinear_f64_skylake);
@@ -164,16 +164,16 @@ void test_curved() {
     check("bilinear_f64c_skylake", test_bilinear<f64c_t>, nk_bilinear_f64c_skylake);
     check("mahalanobis_f32_skylake", test_mahalanobis<f32_t>, nk_mahalanobis_f32_skylake);
     check("mahalanobis_f64_skylake", test_mahalanobis<f64_t>, nk_mahalanobis_f64_skylake);
-#endif // NK_TARGET_SKYLAKE
+#endif // NUMKONG_TARGET_SKYLAKE
 
-#if NK_TARGET_GENOA
+#if NUMKONG_TARGET_GENOA
     check.section("Curved Kernels Genoa", nk_cap_genoa_k);
     check("bilinear_bf16_genoa", test_bilinear<bf16_t>, nk_bilinear_bf16_genoa);
     check("bilinear_bf16c_genoa", test_bilinear<bf16c_t>, nk_bilinear_bf16c_genoa);
     check("mahalanobis_bf16_genoa", test_mahalanobis<bf16_t>, nk_mahalanobis_bf16_genoa);
-#endif // NK_TARGET_GENOA
+#endif // NUMKONG_TARGET_GENOA
 
-#if NK_TARGET_SMEF64
+#if NUMKONG_TARGET_SMEF64
     check.section("Curved Kernels SME F64", nk_cap_smef64_k);
     check("bilinear_f32_smef64", test_bilinear<f32_t>, nk_bilinear_f32_smef64);
     check("bilinear_f32c_smef64", test_bilinear<f32c_t>, nk_bilinear_f32c_smef64);
@@ -181,5 +181,5 @@ void test_curved() {
     check("bilinear_f64_smef64", test_bilinear<f64_t>, nk_bilinear_f64_smef64);
     check("bilinear_f64c_smef64", test_bilinear<f64c_t>, nk_bilinear_f64c_smef64);
     check("mahalanobis_f64_smef64", test_mahalanobis<f64_t>, nk_mahalanobis_f64_smef64);
-#endif // NK_TARGET_SMEF64
+#endif // NUMKONG_TARGET_SMEF64
 }
