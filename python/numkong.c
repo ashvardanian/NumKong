@@ -1155,7 +1155,7 @@ static PyObject *capabilities_to_dict(nk_capability_t caps) {
     if (!cap_dict) return NULL;
 
     for (size_t i = 0; cap_table[i].name; ++i) {
-        PyObject *val = PyBool_FromLong(caps & cap_table[i].flag);
+        PyObject *val = PyBool_FromLong((caps & cap_table[i].flag) != 0);
         if (PyDict_SetItemString(cap_dict, cap_table[i].name, val) < 0) {
             Py_DECREF(val);
             Py_DECREF(cap_dict);
