@@ -450,6 +450,7 @@ __arm_new("za") static void nk_dots_packed_f16_sme_streaming_( //
                 }
             }
 
+            svbool_t const third_bound_b32x = svwhilelt_b32_u64((column_tile_index + 2) * tile_dimension, columns);
             // Extract from ZA1, ZA2, ZA3 (accumulated across all batches)
             for (nk_size_t row = 0; row < rows_remaining; row++) {
                 nk_size_t const column_start_0 = (column_tile_index + 0) * tile_dimension;
@@ -457,7 +458,7 @@ __arm_new("za") static void nk_dots_packed_f16_sme_streaming_( //
                 nk_size_t const column_start_2 = (column_tile_index + 2) * tile_dimension;
                 svst1_hor_za32(1, row, predicate_all_b32x, c + (row_start + row) * c_stride_elements + column_start_0);
                 svst1_hor_za32(2, row, predicate_all_b32x, c + (row_start + row) * c_stride_elements + column_start_1);
-                svst1_hor_za32(3, row, predicate_all_b32x, c + (row_start + row) * c_stride_elements + column_start_2);
+                svst1_hor_za32(3, row, third_bound_b32x, c + (row_start + row) * c_stride_elements + column_start_2);
             }
         }
 
@@ -589,13 +590,14 @@ __arm_new("za") static void nk_dots_packed_bf16_sme_streaming_( //
                 }
             }
 
+            svbool_t const third_bound_b32x = svwhilelt_b32_u64((column_tile_index + 2) * tile_dimension, columns);
             for (nk_size_t row = 0; row < rows_remaining; row++) {
                 nk_size_t const column_start_0 = (column_tile_index + 0) * tile_dimension;
                 nk_size_t const column_start_1 = (column_tile_index + 1) * tile_dimension;
                 nk_size_t const column_start_2 = (column_tile_index + 2) * tile_dimension;
                 svst1_hor_za32(1, row, predicate_all_b32x, c + (row_start + row) * c_stride_elements + column_start_0);
                 svst1_hor_za32(2, row, predicate_all_b32x, c + (row_start + row) * c_stride_elements + column_start_1);
-                svst1_hor_za32(3, row, predicate_all_b32x, c + (row_start + row) * c_stride_elements + column_start_2);
+                svst1_hor_za32(3, row, third_bound_b32x, c + (row_start + row) * c_stride_elements + column_start_2);
             }
         }
 
@@ -1281,13 +1283,14 @@ __arm_new("za") static void nk_dots_packed_i8_sme_streaming_( //
                 }
             }
 
+            svbool_t const third_bound_b32x = svwhilelt_b32_u64((column_tile_index + 2) * tile_dimension, columns);
             for (nk_size_t row = 0; row < rows_remaining; row++) {
                 nk_size_t const column_start_0 = (column_tile_index + 0) * tile_dimension;
                 nk_size_t const column_start_1 = (column_tile_index + 1) * tile_dimension;
                 nk_size_t const column_start_2 = (column_tile_index + 2) * tile_dimension;
                 svst1_hor_za32(1, row, predicate_all_b32x, c + (row_start + row) * c_stride_elements + column_start_0);
                 svst1_hor_za32(2, row, predicate_all_b32x, c + (row_start + row) * c_stride_elements + column_start_1);
-                svst1_hor_za32(3, row, predicate_all_b32x, c + (row_start + row) * c_stride_elements + column_start_2);
+                svst1_hor_za32(3, row, third_bound_b32x, c + (row_start + row) * c_stride_elements + column_start_2);
             }
         }
 
@@ -1724,13 +1727,14 @@ __arm_new("za") static void nk_dots_packed_e4m3_sme_streaming_( //
                 }
             }
 
+            svbool_t const third_bound_b32x = svwhilelt_b32_u64((column_tile_index + 2) * tile_dimension, columns);
             for (nk_size_t row = 0; row < rows_remaining; row++) {
                 nk_size_t const column_start_0 = (column_tile_index + 0) * tile_dimension;
                 nk_size_t const column_start_1 = (column_tile_index + 1) * tile_dimension;
                 nk_size_t const column_start_2 = (column_tile_index + 2) * tile_dimension;
                 svst1_hor_za32(1, row, predicate_all_b32x, c + (row_start + row) * c_stride_elements + column_start_0);
                 svst1_hor_za32(2, row, predicate_all_b32x, c + (row_start + row) * c_stride_elements + column_start_1);
-                svst1_hor_za32(3, row, predicate_all_b32x, c + (row_start + row) * c_stride_elements + column_start_2);
+                svst1_hor_za32(3, row, third_bound_b32x, c + (row_start + row) * c_stride_elements + column_start_2);
             }
         }
 
@@ -2273,13 +2277,14 @@ __arm_new("za") static void nk_dots_packed_e5m2_sme_streaming_( //
                 }
             }
 
+            svbool_t const third_bound_b32x = svwhilelt_b32_u64((column_tile_index + 2) * tile_dimension, columns);
             for (nk_size_t row = 0; row < rows_remaining; row++) {
                 nk_size_t const column_start_0 = (column_tile_index + 0) * tile_dimension;
                 nk_size_t const column_start_1 = (column_tile_index + 1) * tile_dimension;
                 nk_size_t const column_start_2 = (column_tile_index + 2) * tile_dimension;
                 svst1_hor_za32(1, row, predicate_all_b32x, c + (row_start + row) * c_stride_elements + column_start_0);
                 svst1_hor_za32(2, row, predicate_all_b32x, c + (row_start + row) * c_stride_elements + column_start_1);
-                svst1_hor_za32(3, row, predicate_all_b32x, c + (row_start + row) * c_stride_elements + column_start_2);
+                svst1_hor_za32(3, row, third_bound_b32x, c + (row_start + row) * c_stride_elements + column_start_2);
             }
         }
 
@@ -2756,6 +2761,7 @@ __arm_new("za") static void nk_dots_packed_e2m3_sme_streaming_( //
                 }
             }
 
+            svbool_t const third_bound_b32x = svwhilelt_b32_u64((column_tile_index + 2) * tile_dimension, columns);
             // Store results: convert i32 → f32 with 1/256 scaling
             for (nk_size_t row = 0; row < rows_remaining; row++) {
                 nk_size_t const row_offset = (row_start + row) * c_stride_elements;
@@ -2774,7 +2780,7 @@ __arm_new("za") static void nk_dots_packed_e2m3_sme_streaming_( //
                                                        svcvt_f32_s32_x(predicate_all_b32x, row_3_i32x), 1.0f / 256.0f);
                 svst1_f32(predicate_all_b32x, c + row_offset + column_start_0, row_1_f32x);
                 svst1_f32(predicate_all_b32x, c + row_offset + column_start_1, row_2_f32x);
-                svst1_f32(predicate_all_b32x, c + row_offset + column_start_2, row_3_f32x);
+                svst1_f32(third_bound_b32x, c + row_offset + column_start_2, row_3_f32x);
             }
         }
 
@@ -3285,6 +3291,7 @@ __arm_new("za") static void nk_dots_packed_e2m1_sme_streaming_( //
                 }
             }
 
+            svbool_t const third_bound_b32x = svwhilelt_b32_u64((column_tile_index + 2) * tile_dimension, columns);
             // Store results: convert i32 → f32 with 1/4 scaling
             for (nk_size_t row = 0; row < rows_remaining; row++) {
                 nk_size_t const row_offset = (row_start + row) * c_stride_elements;
@@ -3303,7 +3310,7 @@ __arm_new("za") static void nk_dots_packed_e2m1_sme_streaming_( //
                                                        svcvt_f32_s32_x(predicate_all_b32x, row_3_i32x), 0.25f);
                 svst1_f32(predicate_all_b32x, c + row_offset + column_start_0, row_1_f32x);
                 svst1_f32(predicate_all_b32x, c + row_offset + column_start_1, row_2_f32x);
-                svst1_f32(predicate_all_b32x, c + row_offset + column_start_2, row_3_f32x);
+                svst1_f32(third_bound_b32x, c + row_offset + column_start_2, row_3_f32x);
             }
         }
 
@@ -3828,13 +3835,14 @@ __arm_new("za") static void nk_dots_packed_e3m2_sme_streaming_( //
                 }
             }
 
+            svbool_t const third_bound_b32x = svwhilelt_b32_u64((column_tile_index + 2) * tile_dimension, columns);
             for (nk_size_t row = 0; row < rows_remaining; row++) {
                 nk_size_t const column_start_0 = (column_tile_index + 0) * tile_dimension;
                 nk_size_t const column_start_1 = (column_tile_index + 1) * tile_dimension;
                 nk_size_t const column_start_2 = (column_tile_index + 2) * tile_dimension;
                 svst1_hor_za32(1, row, predicate_all_b32x, c + (row_start + row) * c_stride_elements + column_start_0);
                 svst1_hor_za32(2, row, predicate_all_b32x, c + (row_start + row) * c_stride_elements + column_start_1);
-                svst1_hor_za32(3, row, predicate_all_b32x, c + (row_start + row) * c_stride_elements + column_start_2);
+                svst1_hor_za32(3, row, third_bound_b32x, c + (row_start + row) * c_stride_elements + column_start_2);
             }
         }
 
@@ -4369,6 +4377,7 @@ __arm_new("za") static void nk_dots_packed_u8_sme_streaming_( //
                 }
             }
 
+            svbool_t const third_bound_b32x = svwhilelt_b32_u64((column_tile_index + 2) * tile_dimension, columns);
             for (nk_size_t row = 0; row < rows_remaining; row++) {
                 nk_size_t const column_start_0 = (column_tile_index + 0) * tile_dimension;
                 nk_size_t const column_start_1 = (column_tile_index + 1) * tile_dimension;
@@ -4377,7 +4386,7 @@ __arm_new("za") static void nk_dots_packed_u8_sme_streaming_( //
                                (nk_i32_t *)(c + (row_start + row) * c_stride_elements + column_start_0));
                 svst1_hor_za32(2, row, predicate_all_b32x,
                                (nk_i32_t *)(c + (row_start + row) * c_stride_elements + column_start_1));
-                svst1_hor_za32(3, row, predicate_all_b32x,
+                svst1_hor_za32(3, row, third_bound_b32x,
                                (nk_i32_t *)(c + (row_start + row) * c_stride_elements + column_start_2));
             }
         }
@@ -4861,6 +4870,7 @@ __arm_new("za") static void nk_dots_packed_u4_sme_streaming_( //
                 }
             }
 
+            svbool_t const third_bound_b32x = svwhilelt_b32_u64((column_tile_index + 2) * tile_dimension, columns);
             for (nk_size_t row = 0; row < rows_remaining; row++) {
                 nk_u32_t *c_row = c + (row_start + row) * c_stride_elements;
                 nk_size_t const column_start_0 = (column_tile_index + 0) * tile_dimension;
@@ -4868,7 +4878,7 @@ __arm_new("za") static void nk_dots_packed_u4_sme_streaming_( //
                 nk_size_t const column_start_2 = (column_tile_index + 2) * tile_dimension;
                 svst1_hor_za32(1, row, predicate_all_b32x, (nk_f32_t *)(c_row + column_start_0));
                 svst1_hor_za32(2, row, predicate_all_b32x, (nk_f32_t *)(c_row + column_start_1));
-                svst1_hor_za32(3, row, predicate_all_b32x, (nk_f32_t *)(c_row + column_start_2));
+                svst1_hor_za32(3, row, third_bound_b32x, (nk_f32_t *)(c_row + column_start_2));
             }
         }
 
@@ -5157,6 +5167,7 @@ __arm_new("za") static void nk_dots_packed_i4_sme_streaming_( //
                 }
             }
 
+            svbool_t const third_bound_b32x = svwhilelt_b32_u64((column_tile_index + 2) * tile_dimension, columns);
             for (nk_size_t row = 0; row < rows_remaining; row++) {
                 nk_i32_t *c_row = c + (row_start + row) * c_stride_elements;
                 nk_size_t const column_start_0 = (column_tile_index + 0) * tile_dimension;
@@ -5164,7 +5175,7 @@ __arm_new("za") static void nk_dots_packed_i4_sme_streaming_( //
                 nk_size_t const column_start_2 = (column_tile_index + 2) * tile_dimension;
                 svst1_hor_za32(1, row, predicate_all_b32x, (nk_f32_t *)(c_row + column_start_0));
                 svst1_hor_za32(2, row, predicate_all_b32x, (nk_f32_t *)(c_row + column_start_1));
-                svst1_hor_za32(3, row, predicate_all_b32x, (nk_f32_t *)(c_row + column_start_2));
+                svst1_hor_za32(3, row, third_bound_b32x, (nk_f32_t *)(c_row + column_start_2));
             }
         }
 

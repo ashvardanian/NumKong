@@ -290,6 +290,7 @@ __arm_new("za") static void nk_hammings_packed_u1_smebi32_streaming_( //
             }
 
             // Extract from ZA1-3: Hamming = depth_bits - matching_bits
+            svbool_t const third_bound_b32x = svwhilelt_b32_u64((row_tile_b + 2) * tile_dim, row_count_b);
             for (nk_size_t row = 0; row < rows_a_remaining; row++) {
                 nk_u32_t *c_row = (nk_u32_t *)((char *)c + (row_start_a + row) * c_stride_in_bytes);
 
@@ -301,7 +302,7 @@ __arm_new("za") static void nk_hammings_packed_u1_smebi32_streaming_( //
                           svsub_u32_x(predicate_all_b32x, depth_u32x, za1_u32x));
                 svst1_u32(predicate_all_b32x, c_row + (row_tile_b + 1) * tile_dim,
                           svsub_u32_x(predicate_all_b32x, depth_u32x, za2_u32x));
-                svst1_u32(predicate_all_b32x, c_row + (row_tile_b + 2) * tile_dim,
+                svst1_u32(third_bound_b32x, c_row + (row_tile_b + 2) * tile_dim,
                           svsub_u32_x(predicate_all_b32x, depth_u32x, za3_u32x));
             }
         }
@@ -705,12 +706,13 @@ __arm_new("za") static void nk_jaccards_packed_u1_smebi32_streaming_( //
 
             // Extract from ZA1-3: Jaccard normalization via streaming SVE
             // Hoist B norms outside row loop (same for all A rows in this tile-pair)
+            svbool_t const third_bound_b32x = svwhilelt_b32_u64((row_tile_b + 2) * tile_dim, row_count_b);
             svfloat32_t b_norms_0_f32x = svcvt_f32_u32_x(
                 predicate_all_b32x, svld1_u32(predicate_all_b32x, b_norms + (row_tile_b + 0) * tile_dim));
             svfloat32_t b_norms_1_f32x = svcvt_f32_u32_x(
                 predicate_all_b32x, svld1_u32(predicate_all_b32x, b_norms + (row_tile_b + 1) * tile_dim));
             svfloat32_t b_norms_2_f32x = svcvt_f32_u32_x(
-                predicate_all_b32x, svld1_u32(predicate_all_b32x, b_norms + (row_tile_b + 2) * tile_dim));
+                predicate_all_b32x, svld1_u32(third_bound_b32x, b_norms + (row_tile_b + 2) * tile_dim));
 
             for (nk_size_t row = 0; row < rows_a_remaining; row++) {
                 nk_f32_t *c_row = (nk_f32_t *)((char *)c + (row_start_a + row) * c_stride_in_bytes);
@@ -765,7 +767,7 @@ __arm_new("za") static void nk_jaccards_packed_u1_smebi32_streaming_( //
                     svfloat32_t ratio_f32x = svdiv_f32_x(predicate_all_b32x, intersection_f32x, union_val_f32x);
                     svfloat32_t jaccard_f32x = svsel_f32(
                         nonzero_b32x, svsub_f32_x(predicate_all_b32x, one_f32x, ratio_f32x), one_f32x);
-                    svst1_f32(predicate_all_b32x, c_row + (row_tile_b + 2) * tile_dim, jaccard_f32x);
+                    svst1_f32(third_bound_b32x, c_row + (row_tile_b + 2) * tile_dim, jaccard_f32x);
                 }
             }
         }
@@ -811,7 +813,7 @@ __arm_new("za") static void nk_jaccards_packed_u1_smebi32_streaming_( //
 
             // Extract from ZA1: Jaccard normalization
             svfloat32_t b_norms_f32x = svcvt_f32_u32_x(predicate_all_b32x,
-                                                       svld1_u32(predicate_all_b32x, b_norms + row_start_b));
+                                                       svld1_u32(column_predicate_b32x, b_norms + row_start_b));
             for (nk_size_t row = 0; row < rows_a_remaining; row++) {
                 svuint32_t za1_u32x = svread_hor_za32_u32_m(svdup_u32(0), predicate_all_b32x, 1, row);
                 svfloat32_t matching_f32x = svcvt_f32_u32_x(predicate_all_b32x, za1_u32x);

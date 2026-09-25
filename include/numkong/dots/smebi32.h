@@ -126,9 +126,10 @@ __arm_new("za") static void nk_dots_packed_u1_smebi32_streaming_( //
 
             // Extract: dot = (pop_a + pop_b - depth + matching) / 2
             // matching = ZA[i][j]
+            svbool_t const third_bound_b32x = svwhilelt_b32_u64((row_tile_b + 2) * tile_dim, row_count_b);
             svuint32_t b_pop0_u32x = svld1_u32(predicate_all_b32x, b_norms + (row_tile_b + 0) * tile_dim);
             svuint32_t b_pop1_u32x = svld1_u32(predicate_all_b32x, b_norms + (row_tile_b + 1) * tile_dim);
-            svuint32_t b_pop2_u32x = svld1_u32(predicate_all_b32x, b_norms + (row_tile_b + 2) * tile_dim);
+            svuint32_t b_pop2_u32x = svld1_u32(third_bound_b32x, b_norms + (row_tile_b + 2) * tile_dim);
 
             for (nk_size_t row = 0; row < rows_a_remaining; row++) {
                 nk_u32_t *c_row = (nk_u32_t *)((char *)c + (row_start_a + row) * c_stride_in_bytes);
@@ -152,7 +153,7 @@ __arm_new("za") static void nk_dots_packed_u1_smebi32_streaming_( //
                 svuint32_t sum_pops2_u32x = svadd_u32_x(predicate_all_b32x, pop_a_u32x, b_pop2_u32x);
                 svuint32_t numerator2_u32x = svadd_u32_x(
                     predicate_all_b32x, svsub_u32_x(predicate_all_b32x, sum_pops2_u32x, depth_u32x), za3_u32x);
-                svst1_u32(predicate_all_b32x, c_row + (row_tile_b + 2) * tile_dim,
+                svst1_u32(third_bound_b32x, c_row + (row_tile_b + 2) * tile_dim,
                           svlsr_n_u32_x(predicate_all_b32x, numerator2_u32x, 1));
             }
         }
@@ -195,7 +196,7 @@ __arm_new("za") static void nk_dots_packed_u1_smebi32_streaming_( //
             }
 
             // Extract: dot = (pop_a + pop_b - depth + matching) / 2
-            svuint32_t b_pop_u32x = svld1_u32(predicate_all_b32x, b_norms + row_start_b);
+            svuint32_t b_pop_u32x = svld1_u32(column_predicate_b32x, b_norms + row_start_b);
             for (nk_size_t row = 0; row < rows_a_remaining; row++) {
                 svuint32_t za1_u32x = svread_hor_za32_u32_m(svdup_u32(0), predicate_all_b32x, 1, row);
                 svuint32_t pop_a_u32x = svdup_u32(a_popcounts[row]);
