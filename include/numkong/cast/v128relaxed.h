@@ -29,8 +29,8 @@ extern "C" {
  *  Shifts the 15-bit magnitude into F32 exponent+mantissa position, then multiplies
  *  by 2^112 (magic = 0x77800000) to rebias the exponent. This single multiply also
  *  correctly normalizes F16 subnormals into F32 normals — no branching or FPU
- *  integer-to-float conversion needed. Inf/NaN (exp=31) overflows the multiply and
- *  is fixed with a comparison + blend.
+ *  integer-to-float conversion needed. Inf/NaN (exp=31) would scale to 65536 instead,
+ *  so a comparison + blend rebiases it directly.
  */
 NK_HELPER_INLINE nk_b128_vec_t nk_f16x4_to_f32x4_v128relaxed_(nk_b64_vec_t f16_vec) {
     v128_t raw_i64x2 = wasm_i64x2_splat(f16_vec.u64);
@@ -46,9 +46,8 @@ NK_HELPER_INLINE nk_b128_vec_t nk_f16x4_to_f32x4_v128relaxed_(nk_b64_vec_t f16_v
     v128_t magic_f32x4 = wasm_i32x4_splat(0x77800000);
     v128_t rebiased_f32x4 = wasm_f32x4_mul((v128_t)shifted_u32x4, (v128_t)magic_f32x4);
 
-    // Fix inf/NaN: exp=31 after shift becomes 0x1F<<13 = 0x000F8000, × 2^112 overflows.
-    // Detect via threshold on shifted magnitude and apply direct rebias instead.
-    v128_t infnan_threshold_u32x4 = wasm_i32x4_splat(0x38800000);
+    // Exponent 31 lands at 0x0F800000 after the shift and would scale to 65536; rebias it directly
+    v128_t infnan_threshold_u32x4 = wasm_i32x4_splat(0x0F800000);
     v128_t infnan_mask_u32x4 = wasm_u32x4_ge(shifted_u32x4, infnan_threshold_u32x4);
     v128_t direct_u32x4 = wasm_v128_or(shifted_u32x4, wasm_i32x4_splat(0x70000000));
     v128_t result_u32x4 = wasm_i32x4_relaxed_laneselect(direct_u32x4, rebiased_f32x4, infnan_mask_u32x4);
