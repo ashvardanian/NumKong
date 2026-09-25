@@ -542,10 +542,11 @@ NK_API_COMPTIME void nk_each_scale_i8_haswell(nk_i8_t const *a, nk_size_t n, nk_
         __m256 a_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)a_i32s));
         // The normal part.
         __m256 result_f32x8 = _mm256_fmadd_ps(a_f32x8, alpha_f32x8, beta_f32x8);
-        // Instead of serial calls to expensive `nk_f32_to_u8_serial`, convert and clip with SIMD.
-        __m256i result_i32x8 = _mm256_cvtps_epi32(result_f32x8);
-        result_i32x8 = _mm256_max_epi32(result_i32x8, _mm256_set1_epi32(-128));
-        result_i32x8 = _mm256_min_epi32(result_i32x8, _mm256_set1_epi32(127));
+        // Instead of serial `nk_f32_to_i8_serial` calls, clip and convert with SIMD, zeroing NaNs.
+        __m256 ordered_f32x8 = _mm256_cmp_ps(result_f32x8, result_f32x8, _CMP_ORD_Q);
+        result_f32x8 = _mm256_max_ps(result_f32x8, _mm256_set1_ps(-128.0f));
+        result_f32x8 = _mm256_min_ps(result_f32x8, _mm256_set1_ps(127.0f));
+        __m256i result_i32x8 = _mm256_cvtps_epi32(_mm256_and_ps(result_f32x8, ordered_f32x8));
         // Export into a serial buffer.
         _mm256_storeu_si256((__m256i *)sum_i32s, result_i32x8);
         result[i + 0] = (nk_i8_t)sum_i32s[0];
@@ -609,10 +610,11 @@ NK_API_COMPTIME void nk_each_blend_i8_haswell(       //
         // The normal part.
         __m256 ab_f32x8 = _mm256_mul_ps(a_f32x8, alpha_f32x8);
         __m256 result_f32x8 = _mm256_fmadd_ps(b_f32x8, beta_f32x8, ab_f32x8);
-        // Instead of serial calls to expensive `nk_f32_to_u8_serial`, convert and clip with SIMD.
-        __m256i result_i32x8 = _mm256_cvtps_epi32(result_f32x8);
-        result_i32x8 = _mm256_max_epi32(result_i32x8, _mm256_set1_epi32(-128));
-        result_i32x8 = _mm256_min_epi32(result_i32x8, _mm256_set1_epi32(127));
+        // Instead of serial `nk_f32_to_i8_serial` calls, clip and convert with SIMD, zeroing NaNs.
+        __m256 ordered_f32x8 = _mm256_cmp_ps(result_f32x8, result_f32x8, _CMP_ORD_Q);
+        result_f32x8 = _mm256_max_ps(result_f32x8, _mm256_set1_ps(-128.0f));
+        result_f32x8 = _mm256_min_ps(result_f32x8, _mm256_set1_ps(127.0f));
+        __m256i result_i32x8 = _mm256_cvtps_epi32(_mm256_and_ps(result_f32x8, ordered_f32x8));
         // Export into a serial buffer.
         _mm256_storeu_si256((__m256i *)sum_i32s, result_i32x8);
         result[i + 0] = (nk_i8_t)sum_i32s[0];
@@ -671,10 +673,10 @@ NK_API_COMPTIME void nk_each_scale_u8_haswell(nk_u8_t const *a, nk_size_t n, nk_
         __m256 a_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)a_i32s));
         // The normal part.
         __m256 result_f32x8 = _mm256_fmadd_ps(a_f32x8, alpha_f32x8, beta_f32x8);
-        // Instead of serial calls to expensive `nk_f32_to_u8_serial`, convert and clip with SIMD.
+        // Instead of serial calls to expensive `nk_f32_to_u8_serial`, clip and convert with SIMD.
+        result_f32x8 = _mm256_max_ps(result_f32x8, _mm256_setzero_ps());
+        result_f32x8 = _mm256_min_ps(result_f32x8, _mm256_set1_ps(255.0f));
         __m256i result_i32x8 = _mm256_cvtps_epi32(result_f32x8);
-        result_i32x8 = _mm256_max_epi32(result_i32x8, _mm256_set1_epi32(0));
-        result_i32x8 = _mm256_min_epi32(result_i32x8, _mm256_set1_epi32(255));
         // Export into a serial buffer.
         _mm256_storeu_si256((__m256i *)sum_i32s, result_i32x8);
         result[i + 0] = (nk_u8_t)sum_i32s[0];
@@ -738,10 +740,10 @@ NK_API_COMPTIME void nk_each_blend_u8_haswell(       //
         // The normal part.
         __m256 ab_f32x8 = _mm256_mul_ps(a_f32x8, alpha_f32x8);
         __m256 result_f32x8 = _mm256_fmadd_ps(b_f32x8, beta_f32x8, ab_f32x8);
-        // Instead of serial calls to expensive `nk_f32_to_u8_serial`, convert and clip with SIMD.
+        // Instead of serial calls to expensive `nk_f32_to_u8_serial`, clip and convert with SIMD.
+        result_f32x8 = _mm256_max_ps(result_f32x8, _mm256_setzero_ps());
+        result_f32x8 = _mm256_min_ps(result_f32x8, _mm256_set1_ps(255.0f));
         __m256i result_i32x8 = _mm256_cvtps_epi32(result_f32x8);
-        result_i32x8 = _mm256_max_epi32(result_i32x8, _mm256_set1_epi32(0));
-        result_i32x8 = _mm256_min_epi32(result_i32x8, _mm256_set1_epi32(255));
         // Export into a serial buffer.
         _mm256_storeu_si256((__m256i *)sum_i32s, result_i32x8);
         result[i + 0] = (nk_u8_t)sum_i32s[0];
@@ -791,10 +793,11 @@ NK_API_COMPTIME void nk_each_fma_i8_haswell(                           //
         __m256 ab_f32x8 = _mm256_mul_ps(a_f32x8, b_f32x8);
         __m256 abc_f32x8 = _mm256_mul_ps(ab_f32x8, alpha_f32x8);
         __m256 result_f32x8 = _mm256_fmadd_ps(c_f32x8, beta_f32x8, abc_f32x8);
-        // Instead of serial calls to expensive `nk_f32_to_u8_serial`, convert and clip with SIMD.
-        __m256i result_i32x8 = _mm256_cvtps_epi32(result_f32x8);
-        result_i32x8 = _mm256_max_epi32(result_i32x8, _mm256_set1_epi32(-128));
-        result_i32x8 = _mm256_min_epi32(result_i32x8, _mm256_set1_epi32(127));
+        // Instead of serial `nk_f32_to_i8_serial` calls, clip and convert with SIMD, zeroing NaNs.
+        __m256 ordered_f32x8 = _mm256_cmp_ps(result_f32x8, result_f32x8, _CMP_ORD_Q);
+        result_f32x8 = _mm256_max_ps(result_f32x8, _mm256_set1_ps(-128.0f));
+        result_f32x8 = _mm256_min_ps(result_f32x8, _mm256_set1_ps(127.0f));
+        __m256i result_i32x8 = _mm256_cvtps_epi32(_mm256_and_ps(result_f32x8, ordered_f32x8));
         // Export into a serial buffer.
         _mm256_storeu_si256((__m256i *)sum_i32s, result_i32x8);
         result[i + 0] = (nk_i8_t)sum_i32s[0];
@@ -844,10 +847,10 @@ NK_API_COMPTIME void nk_each_fma_u8_haswell(                           //
         __m256 ab_f32x8 = _mm256_mul_ps(a_f32x8, b_f32x8);
         __m256 abc_f32x8 = _mm256_mul_ps(ab_f32x8, alpha_f32x8);
         __m256 result_f32x8 = _mm256_fmadd_ps(c_f32x8, beta_f32x8, abc_f32x8);
-        // Instead of serial calls to expensive `nk_f32_to_u8_serial`, convert and clip with SIMD.
+        // Instead of serial calls to expensive `nk_f32_to_u8_serial`, clip and convert with SIMD.
+        result_f32x8 = _mm256_max_ps(result_f32x8, _mm256_setzero_ps());
+        result_f32x8 = _mm256_min_ps(result_f32x8, _mm256_set1_ps(255.0f));
         __m256i result_i32x8 = _mm256_cvtps_epi32(result_f32x8);
-        result_i32x8 = _mm256_max_epi32(result_i32x8, _mm256_set1_epi32(0));
-        result_i32x8 = _mm256_min_epi32(result_i32x8, _mm256_set1_epi32(255));
         // Export into a serial buffer.
         _mm256_storeu_si256((__m256i *)sum_i32s, result_i32x8);
         result[i + 0] = (nk_u8_t)sum_i32s[0];

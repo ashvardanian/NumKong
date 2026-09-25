@@ -205,6 +205,10 @@ void bench_each() {
     run_each<f32_k, scale_k, f32_k>("each_scale_f32_neon", nk_each_scale_f32_neon);
     run_each<f32_k, blend_k, f32_k>("each_blend_f32_neon", nk_each_blend_f32_neon);
     run_each<f32_k, fma_k, f32_k>("each_fma_f32_neon", nk_each_fma_f32_neon);
+    // f16
+    run_each<f16_k, scale_k, f32_k>("each_scale_f16_neon", nk_each_scale_f16_neon);
+    run_each<f16_k, blend_k, f32_k>("each_blend_f16_neon", nk_each_blend_f16_neon);
+    run_each<f16_k, fma_k, f32_k>("each_fma_f16_neon", nk_each_fma_f16_neon);
     // e4m3
     run_each<e4m3_k, sum_k, f32_k>("each_sum_e4m3_neon", nk_each_sum_e4m3_neon);
     run_each<e4m3_k, scale_k, f32_k>("each_scale_e4m3_neon", nk_each_scale_e4m3_neon);
@@ -217,7 +221,11 @@ void bench_each() {
     run_each<e5m2_k, fma_k, f32_k>("each_fma_e5m2_neon", nk_each_fma_e5m2_neon);
     // u8, i8
     run_each<u8_k, sum_k, f32_k>("each_sum_u8_neon", nk_each_sum_u8_neon);
+    run_each<u8_k, scale_k, f32_k>("each_scale_u8_neon", nk_each_scale_u8_neon);
+    run_each<u8_k, blend_k, f32_k>("each_blend_u8_neon", nk_each_blend_u8_neon);
     run_each<i8_k, sum_k, f32_k>("each_sum_i8_neon", nk_each_sum_i8_neon);
+    run_each<i8_k, scale_k, f32_k>("each_scale_i8_neon", nk_each_scale_i8_neon);
+    run_each<i8_k, blend_k, f32_k>("each_blend_i8_neon", nk_each_blend_i8_neon);
     // i16, u16
     run_each<i16_k, sum_k, f32_k>("each_sum_i16_neon", nk_each_sum_i16_neon);
     run_each<i16_k, scale_k, f32_k>("each_scale_i16_neon", nk_each_scale_i16_neon);
@@ -249,17 +257,7 @@ void bench_each() {
 #endif
 
 #if NK_TARGET_NEONHALF
-    // f16
     run_each<f16_k, sum_k, f32_k>("each_sum_f16_neonhalf", nk_each_sum_f16_neonhalf);
-    run_each<f16_k, scale_k, f32_k>("each_scale_f16_neonhalf", nk_each_scale_f16_neonhalf);
-    run_each<f16_k, blend_k, f32_k>("each_blend_f16_neonhalf", nk_each_blend_f16_neonhalf);
-    run_each<f16_k, fma_k, f32_k>("each_fma_f16_neonhalf", nk_each_fma_f16_neonhalf);
-    // u8
-    run_each<u8_k, scale_k, f32_k>("each_scale_u8_neonhalf", nk_each_scale_u8_neonhalf);
-    run_each<u8_k, blend_k, f32_k>("each_blend_u8_neonhalf", nk_each_blend_u8_neonhalf);
-    // i8
-    run_each<i8_k, scale_k, f32_k>("each_scale_i8_neonhalf", nk_each_scale_i8_neonhalf);
-    run_each<i8_k, blend_k, f32_k>("each_blend_i8_neonhalf", nk_each_blend_i8_neonhalf);
 #endif
 
 #if NK_TARGET_NEONBFDOT
@@ -370,8 +368,10 @@ void bench_each() {
     run_each<e5m2_k, fma_k, f32_k>("each_fma_e5m2_skylake", nk_each_fma_e5m2_skylake);
     // i8, u8
     run_each<i8_k, scale_k, f32_k>("each_scale_i8_skylake", nk_each_scale_i8_skylake);
+    run_each<i8_k, blend_k, f32_k>("each_blend_i8_skylake", nk_each_blend_i8_skylake);
     run_each<i8_k, fma_k, f32_k>("each_fma_i8_skylake", nk_each_fma_i8_skylake);
     run_each<u8_k, scale_k, f32_k>("each_scale_u8_skylake", nk_each_scale_u8_skylake);
+    run_each<u8_k, blend_k, f32_k>("each_blend_u8_skylake", nk_each_blend_u8_skylake);
     run_each<u8_k, fma_k, f32_k>("each_fma_u8_skylake", nk_each_fma_u8_skylake);
     // i16, u16
     run_each<i16_k, scale_k, f32_k>("each_scale_i16_skylake", nk_each_scale_i16_skylake);
@@ -409,11 +409,6 @@ void bench_each() {
 #endif
 
 #if NK_TARGET_SAPPHIRE
-    // i8, u8
-    run_each<i8_k, scale_k, f32_k>("each_scale_i8_sapphire", nk_each_scale_i8_sapphire);
-    run_each<i8_k, blend_k, f32_k>("each_blend_i8_sapphire", nk_each_blend_i8_sapphire);
-    run_each<u8_k, scale_k, f32_k>("each_scale_u8_sapphire", nk_each_scale_u8_sapphire);
-    run_each<u8_k, blend_k, f32_k>("each_blend_u8_sapphire", nk_each_blend_u8_sapphire);
     // f16, e4m3
     run_each<f16_k, sum_k, f32_k>("each_sum_f16_sapphire", nk_each_sum_f16_sapphire);
     run_each<e4m3_k, sum_k, f32_k>("each_sum_e4m3_sapphire", nk_each_sum_e4m3_sapphire);

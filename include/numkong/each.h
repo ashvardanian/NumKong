@@ -68,9 +68,9 @@
  *
  *  @section each_arm_instructions Relevant ARM NEON/SVE Instructions
  *
- *  On ARM, i8/u8 elementwise operations convert to f16 intermediates using FCVT to maintain high
- *  vector throughput (8 elements per 128-bit register vs 4 for f32). Saturating adds (SQADD/UQADD)
- *  handle integer overflow. FMLA provides fused multiply-add for floating-point scale/blend/fma.
+ *  On ARM, i8/u8 and f16 scale/blend/fma widen to f32 intermediates, as f16 ones would round where
+ *  the serial kernels do not. Saturating adds (SQADD/UQADD) handle integer overflow. FMLA provides
+ *  fused multiply-add for floating-point scale/blend/fma.
  *
  *  @verbatim
  *  Intrinsic       Instruction   M1 Firestorm  Graviton 3   Graviton 4
@@ -662,6 +662,16 @@ NK_API_COMPTIME void nk_each_fma_e4m3_neon(nk_e4m3_t const *a, nk_e4m3_t const *
 NK_API_COMPTIME void nk_each_fma_e5m2_neon(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_e5m2_t const *c, nk_size_t n,
                                            nk_f32_t const *alpha, nk_f32_t const *beta, nk_e5m2_t *result);
 
+/** @copydoc nk_each_scale_f16 */
+NK_API_COMPTIME void nk_each_scale_f16_neon(nk_f16_t const *a, nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
+                                            nk_f16_t *result);
+/** @copydoc nk_each_blend_f16 */
+NK_API_COMPTIME void nk_each_blend_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t const *alpha,
+                                            nk_f32_t const *beta, nk_f16_t *result);
+/** @copydoc nk_each_fma_f16 */
+NK_API_COMPTIME void nk_each_fma_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
+                                          nk_f32_t const *alpha, nk_f32_t const *beta, nk_f16_t *result);
+
 /** @copydoc nk_each_scale_f64 */
 NK_API_COMPTIME void nk_each_scale_f32c_neon(nk_f32c_t const *a, nk_size_t n, nk_f32c_t const *alpha,
                                              nk_f32c_t const *beta, nk_f32c_t *result);
@@ -685,6 +695,18 @@ NK_API_COMPTIME void nk_each_fma_f64c_neon(nk_f64c_t const *a, nk_f64c_t const *
 NK_API_COMPTIME void nk_each_sum_i8_neon(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i8_t *result);
 /** @copydoc nk_each_sum_u8 */
 NK_API_COMPTIME void nk_each_sum_u8_neon(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u8_t *result);
+/** @copydoc nk_each_scale_i8 */
+NK_API_COMPTIME void nk_each_scale_i8_neon(nk_i8_t const *a, nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
+                                           nk_i8_t *result);
+/** @copydoc nk_each_scale_u8 */
+NK_API_COMPTIME void nk_each_scale_u8_neon(nk_u8_t const *a, nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
+                                           nk_u8_t *result);
+/** @copydoc nk_each_blend_i8 */
+NK_API_COMPTIME void nk_each_blend_i8_neon(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t const *alpha,
+                                           nk_f32_t const *beta, nk_i8_t *result);
+/** @copydoc nk_each_blend_u8 */
+NK_API_COMPTIME void nk_each_blend_u8_neon(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t const *alpha,
+                                           nk_f32_t const *beta, nk_u8_t *result);
 #endif // NK_TARGET_NEON
 
 #if NK_TARGET_NEONBFDOT
@@ -704,28 +726,6 @@ NK_API_COMPTIME void nk_each_fma_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t co
 #if NK_TARGET_NEONHALF
 /** @copydoc nk_each_sum_f16 */
 NK_API_COMPTIME void nk_each_sum_f16_neonhalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f16_t *result);
-/** @copydoc nk_each_scale_f16 */
-NK_API_COMPTIME void nk_each_scale_f16_neonhalf(nk_f16_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                nk_f32_t const *beta, nk_f16_t *result);
-/** @copydoc nk_each_blend_f16 */
-NK_API_COMPTIME void nk_each_blend_f16_neonhalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
-                                                nk_f32_t const *alpha, nk_f32_t const *beta, nk_f16_t *result);
-/** @copydoc nk_each_fma_f16 */
-NK_API_COMPTIME void nk_each_fma_f16_neonhalf(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                              nk_f32_t const *alpha, nk_f32_t const *beta, nk_f16_t *result);
-
-/** @copydoc nk_each_scale_i8 */
-NK_API_COMPTIME void nk_each_scale_i8_neonhalf(nk_i8_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                               nk_f32_t const *beta, nk_i8_t *result);
-/** @copydoc nk_each_scale_u8 */
-NK_API_COMPTIME void nk_each_scale_u8_neonhalf(nk_u8_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                               nk_f32_t const *beta, nk_u8_t *result);
-/** @copydoc nk_each_blend_i8 */
-NK_API_COMPTIME void nk_each_blend_i8_neonhalf(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t const *alpha,
-                                               nk_f32_t const *beta, nk_i8_t *result);
-/** @copydoc nk_each_blend_u8 */
-NK_API_COMPTIME void nk_each_blend_u8_neonhalf(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t const *alpha,
-                                               nk_f32_t const *beta, nk_u8_t *result);
 #endif // NK_TARGET_NEONHALF
 
 #if NK_TARGET_V128
@@ -1027,6 +1027,12 @@ NK_API_COMPTIME void nk_each_blend_f16_skylake(nk_f16_t const *a, nk_f16_t const
 /** @copydoc nk_each_blend_bf16 */
 NK_API_COMPTIME void nk_each_blend_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
                                                 nk_f32_t const *alpha, nk_f32_t const *beta, nk_bf16_t *result);
+/** @copydoc nk_each_blend_i8 */
+NK_API_COMPTIME void nk_each_blend_i8_skylake(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t const *alpha,
+                                              nk_f32_t const *beta, nk_i8_t *result);
+/** @copydoc nk_each_blend_u8 */
+NK_API_COMPTIME void nk_each_blend_u8_skylake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t const *alpha,
+                                              nk_f32_t const *beta, nk_u8_t *result);
 
 /** @copydoc nk_each_fma_f64 */
 NK_API_COMPTIME void nk_each_fma_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
@@ -1127,25 +1133,10 @@ NK_API_COMPTIME void nk_each_sum_u64_icelake(nk_u64_t const *a, nk_u64_t const *
 #endif // NK_TARGET_ICELAKE
 
 #if NK_TARGET_SAPPHIRE
-/** @copydoc nk_each_scale_i8 */
-NK_API_COMPTIME void nk_each_scale_i8_sapphire(nk_i8_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                               nk_f32_t const *beta, nk_i8_t *result);
-/** @copydoc nk_each_scale_u8 */
-NK_API_COMPTIME void nk_each_scale_u8_sapphire(nk_u8_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                               nk_f32_t const *beta, nk_u8_t *result);
-
 /** @copydoc nk_each_sum_f16 */
 NK_API_COMPTIME void nk_each_sum_f16_sapphire(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f16_t *result);
 /** @copydoc nk_each_sum_e4m3 */
 NK_API_COMPTIME void nk_each_sum_e4m3_sapphire(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_e4m3_t *result);
-
-/** @copydoc nk_each_blend_i8 */
-NK_API_COMPTIME void nk_each_blend_i8_sapphire(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t const *alpha,
-                                               nk_f32_t const *beta, nk_i8_t *result);
-/** @copydoc nk_each_blend_u8 */
-NK_API_COMPTIME void nk_each_blend_u8_sapphire(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t const *alpha,
-                                               nk_f32_t const *beta, nk_u8_t *result);
-
 #endif // NK_TARGET_SAPPHIRE
 
 #if NK_TARGET_RVV
@@ -1585,8 +1576,8 @@ NK_API_COMPTIME void nk_each_scale_f16(nk_f16_t const *a, nk_size_t n, nk_f32_t 
     nk_each_scale_f16_skylake(a, n, alpha, beta, r);
 #elif NK_TARGET_HASWELL
     nk_each_scale_f16_haswell(a, n, alpha, beta, r);
-#elif NK_TARGET_NEONHALF
-    nk_each_scale_f16_neonhalf(a, n, alpha, beta, r);
+#elif NK_TARGET_NEON
+    nk_each_scale_f16_neon(a, n, alpha, beta, r);
 #elif NK_TARGET_RVV
     nk_each_scale_f16_rvv(a, n, alpha, beta, r);
 #elif NK_TARGET_V128RELAXED
@@ -1598,14 +1589,12 @@ NK_API_COMPTIME void nk_each_scale_f16(nk_f16_t const *a, nk_size_t n, nk_f32_t 
 
 NK_API_COMPTIME void nk_each_scale_i8(nk_i8_t const *a, nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
                                       nk_i8_t *r) {
-#if NK_TARGET_SAPPHIRE
-    nk_each_scale_i8_sapphire(a, n, alpha, beta, r);
-#elif NK_TARGET_SKYLAKE
+#if NK_TARGET_SKYLAKE
     nk_each_scale_i8_skylake(a, n, alpha, beta, r);
 #elif NK_TARGET_HASWELL
     nk_each_scale_i8_haswell(a, n, alpha, beta, r);
-#elif NK_TARGET_NEONHALF
-    nk_each_scale_i8_neonhalf(a, n, alpha, beta, r);
+#elif NK_TARGET_NEON
+    nk_each_scale_i8_neon(a, n, alpha, beta, r);
 #elif NK_TARGET_RVV
     nk_each_scale_i8_rvv(a, n, alpha, beta, r);
 #elif NK_TARGET_V128RELAXED
@@ -1617,14 +1606,12 @@ NK_API_COMPTIME void nk_each_scale_i8(nk_i8_t const *a, nk_size_t n, nk_f32_t co
 
 NK_API_COMPTIME void nk_each_scale_u8(nk_u8_t const *a, nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
                                       nk_u8_t *r) {
-#if NK_TARGET_SAPPHIRE
-    nk_each_scale_u8_sapphire(a, n, alpha, beta, r);
-#elif NK_TARGET_SKYLAKE
+#if NK_TARGET_SKYLAKE
     nk_each_scale_u8_skylake(a, n, alpha, beta, r);
 #elif NK_TARGET_HASWELL
     nk_each_scale_u8_haswell(a, n, alpha, beta, r);
-#elif NK_TARGET_NEONHALF
-    nk_each_scale_u8_neonhalf(a, n, alpha, beta, r);
+#elif NK_TARGET_NEON
+    nk_each_scale_u8_neon(a, n, alpha, beta, r);
 #elif NK_TARGET_RVV
     nk_each_scale_u8_rvv(a, n, alpha, beta, r);
 #elif NK_TARGET_V128RELAXED
@@ -1775,8 +1762,8 @@ NK_API_COMPTIME void nk_each_blend_f16(nk_f16_t const *a, nk_f16_t const *b, nk_
     nk_each_blend_f16_skylake(a, b, n, alpha, beta, r);
 #elif NK_TARGET_HASWELL
     nk_each_blend_f16_haswell(a, b, n, alpha, beta, r);
-#elif NK_TARGET_NEONHALF
-    nk_each_blend_f16_neonhalf(a, b, n, alpha, beta, r);
+#elif NK_TARGET_NEON
+    nk_each_blend_f16_neon(a, b, n, alpha, beta, r);
 #elif NK_TARGET_RVV
     nk_each_blend_f16_rvv(a, b, n, alpha, beta, r);
 #elif NK_TARGET_V128RELAXED
@@ -1788,12 +1775,12 @@ NK_API_COMPTIME void nk_each_blend_f16(nk_f16_t const *a, nk_f16_t const *b, nk_
 
 NK_API_COMPTIME void nk_each_blend_i8(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t const *alpha,
                                       nk_f32_t const *beta, nk_i8_t *r) {
-#if NK_TARGET_SAPPHIRE
-    nk_each_blend_i8_sapphire(a, b, n, alpha, beta, r);
+#if NK_TARGET_SKYLAKE
+    nk_each_blend_i8_skylake(a, b, n, alpha, beta, r);
 #elif NK_TARGET_HASWELL
     nk_each_blend_i8_haswell(a, b, n, alpha, beta, r);
-#elif NK_TARGET_NEONHALF
-    nk_each_blend_i8_neonhalf(a, b, n, alpha, beta, r);
+#elif NK_TARGET_NEON
+    nk_each_blend_i8_neon(a, b, n, alpha, beta, r);
 #elif NK_TARGET_RVV
     nk_each_blend_i8_rvv(a, b, n, alpha, beta, r);
 #elif NK_TARGET_V128RELAXED
@@ -1805,12 +1792,12 @@ NK_API_COMPTIME void nk_each_blend_i8(nk_i8_t const *a, nk_i8_t const *b, nk_siz
 
 NK_API_COMPTIME void nk_each_blend_u8(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t const *alpha,
                                       nk_f32_t const *beta, nk_u8_t *r) {
-#if NK_TARGET_SAPPHIRE
-    nk_each_blend_u8_sapphire(a, b, n, alpha, beta, r);
+#if NK_TARGET_SKYLAKE
+    nk_each_blend_u8_skylake(a, b, n, alpha, beta, r);
 #elif NK_TARGET_HASWELL
     nk_each_blend_u8_haswell(a, b, n, alpha, beta, r);
-#elif NK_TARGET_NEONHALF
-    nk_each_blend_u8_neonhalf(a, b, n, alpha, beta, r);
+#elif NK_TARGET_NEON
+    nk_each_blend_u8_neon(a, b, n, alpha, beta, r);
 #elif NK_TARGET_RVV
     nk_each_blend_u8_rvv(a, b, n, alpha, beta, r);
 #elif NK_TARGET_V128RELAXED
@@ -1905,8 +1892,8 @@ NK_API_COMPTIME void nk_each_fma_f16(nk_f16_t const *a, nk_f16_t const *b, nk_f1
     nk_each_fma_f16_skylake(a, b, c, n, alpha, beta, r);
 #elif NK_TARGET_HASWELL
     nk_each_fma_f16_haswell(a, b, c, n, alpha, beta, r);
-#elif NK_TARGET_NEONHALF
-    nk_each_fma_f16_neonhalf(a, b, c, n, alpha, beta, r);
+#elif NK_TARGET_NEON
+    nk_each_fma_f16_neon(a, b, c, n, alpha, beta, r);
 #elif NK_TARGET_RVV
     nk_each_fma_f16_rvv(a, b, c, n, alpha, beta, r);
 #elif NK_TARGET_V128RELAXED

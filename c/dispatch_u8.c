@@ -113,17 +113,12 @@ void nk_dispatch_u8_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punne
         default: break;
         }
 #endif
-#if NK_TARGET_NEONHALF
-    if (v & nk_cap_neonhalf_k) switch (k) {
-        case nk_kernel_each_blend_k: *m = (m_t)&nk_each_blend_u8_neonhalf, *c = nk_cap_neonhalf_k; return;
-        case nk_kernel_each_scale_k: *m = (m_t)&nk_each_scale_u8_neonhalf, *c = nk_cap_neonhalf_k; return;
-        default: break;
-        }
-#endif
 #if NK_TARGET_NEON
     if (v & nk_cap_neon_k) switch (k) {
         case nk_kernel_hamming_k: *m = (m_t)&nk_hamming_u8_neon, *c = nk_cap_neon_k; return;
         case nk_kernel_each_sum_k: *m = (m_t)&nk_each_sum_u8_neon, *c = nk_cap_neon_k; return;
+        case nk_kernel_each_scale_k: *m = (m_t)&nk_each_scale_u8_neon, *c = nk_cap_neon_k; return;
+        case nk_kernel_each_blend_k: *m = (m_t)&nk_each_blend_u8_neon, *c = nk_cap_neon_k; return;
         case nk_kernel_reduce_moments_k: *m = (m_t)&nk_reduce_moments_u8_neon, *c = nk_cap_neon_k; return;
         case nk_kernel_reduce_minmax_k: *m = (m_t)&nk_reduce_minmax_u8_neon, *c = nk_cap_neon_k; return;
         default: break;
@@ -150,13 +145,6 @@ void nk_dispatch_u8_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punne
         case nk_kernel_euclideans_symmetric_k:
             *m = (m_t)&nk_euclideans_symmetric_u8_sapphireamx, *c = nk_cap_sapphireamx_k;
             return;
-        default: break;
-        }
-#endif
-#if NK_TARGET_SAPPHIRE
-    if (v & nk_cap_sapphire_k) switch (k) {
-        case nk_kernel_each_blend_k: *m = (m_t)&nk_each_blend_u8_sapphire, *c = nk_cap_sapphire_k; return;
-        case nk_kernel_each_scale_k: *m = (m_t)&nk_each_scale_u8_sapphire, *c = nk_cap_sapphire_k; return;
         default: break;
         }
 #endif
@@ -187,6 +175,7 @@ void nk_dispatch_u8_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punne
     if (v & nk_cap_skylake_k) switch (k) {
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_u8_skylake, *c = nk_cap_skylake_k; return;
         case nk_kernel_each_fma_k: *m = (m_t)&nk_each_fma_u8_skylake, *c = nk_cap_skylake_k; return;
+        case nk_kernel_each_blend_k: *m = (m_t)&nk_each_blend_u8_skylake, *c = nk_cap_skylake_k; return;
         case nk_kernel_each_scale_k: *m = (m_t)&nk_each_scale_u8_skylake, *c = nk_cap_skylake_k; return;
         case nk_kernel_reduce_moments_k: *m = (m_t)&nk_reduce_moments_u8_skylake, *c = nk_cap_skylake_k; return;
         case nk_kernel_reduce_minmax_k: *m = (m_t)&nk_reduce_minmax_u8_skylake, *c = nk_cap_skylake_k; return;

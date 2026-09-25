@@ -897,6 +897,81 @@ NK_API_COMPTIME void nk_each_fma_e5m2_neon(nk_e5m2_t const *a, nk_e5m2_t const *
     }
 }
 
+NK_API_COMPTIME void nk_each_scale_f16_neon(nk_f16_t const *a, nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
+                                            nk_f16_t *result) {
+    float32x4_t alpha_f32x4 = vdupq_n_f32(*alpha);
+    float32x4_t beta_f32x4 = vdupq_n_f32(*beta);
+    nk_size_t i = 0;
+    for (; i + 8 <= n; i += 8) {
+        float16x8_t a_f16x8 = vld1q_f16((float16_t const *)a + i);
+        float32x4_t result_low_f32x4 = vfmaq_f32(beta_f32x4, vcvt_f32_f16(vget_low_f16(a_f16x8)), alpha_f32x4);
+        float32x4_t result_high_f32x4 = vfmaq_f32(beta_f32x4, vcvt_high_f32_f16(a_f16x8), alpha_f32x4);
+        vst1q_f16((float16_t *)result + i, vcvt_high_f16_f32(vcvt_f16_f32(result_low_f32x4), result_high_f32x4));
+    }
+    for (; i < n; ++i) {
+        nk_f32_t ai, scaled;
+        nk_f16_to_f32_serial(a + i, &ai);
+        scaled = *alpha * ai + *beta;
+        nk_f32_to_f16_serial(&scaled, result + i);
+    }
+}
+
+NK_API_COMPTIME void nk_each_blend_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t const *alpha,
+                                            nk_f32_t const *beta, nk_f16_t *result) {
+    float32x4_t alpha_f32x4 = vdupq_n_f32(*alpha);
+    float32x4_t beta_f32x4 = vdupq_n_f32(*beta);
+    nk_size_t i = 0;
+    for (; i + 8 <= n; i += 8) {
+        float16x8_t a_f16x8 = vld1q_f16((float16_t const *)a + i);
+        float16x8_t b_f16x8 = vld1q_f16((float16_t const *)b + i);
+        // Unfused, like the serial kernel, so the two agree bit for bit
+        float32x4_t a_scaled_low_f32x4 = vmulq_f32(vcvt_f32_f16(vget_low_f16(a_f16x8)), alpha_f32x4);
+        float32x4_t a_scaled_high_f32x4 = vmulq_f32(vcvt_high_f32_f16(a_f16x8), alpha_f32x4);
+        float32x4_t b_scaled_low_f32x4 = vmulq_f32(vcvt_f32_f16(vget_low_f16(b_f16x8)), beta_f32x4);
+        float32x4_t b_scaled_high_f32x4 = vmulq_f32(vcvt_high_f32_f16(b_f16x8), beta_f32x4);
+        float32x4_t result_low_f32x4 = vaddq_f32(a_scaled_low_f32x4, b_scaled_low_f32x4);
+        float32x4_t result_high_f32x4 = vaddq_f32(a_scaled_high_f32x4, b_scaled_high_f32x4);
+        vst1q_f16((float16_t *)result + i, vcvt_high_f16_f32(vcvt_f16_f32(result_low_f32x4), result_high_f32x4));
+    }
+    for (; i < n; ++i) {
+        nk_f32_t ai, bi;
+        nk_f16_to_f32_serial(a + i, &ai);
+        nk_f16_to_f32_serial(b + i, &bi);
+        nk_f32_t a_scaled = *alpha * ai, b_scaled = *beta * bi, blended = a_scaled + b_scaled;
+        nk_f32_to_f16_serial(&blended, result + i);
+    }
+}
+
+NK_API_COMPTIME void nk_each_fma_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
+                                          nk_f32_t const *alpha, nk_f32_t const *beta, nk_f16_t *result) {
+    float32x4_t alpha_f32x4 = vdupq_n_f32(*alpha);
+    float32x4_t beta_f32x4 = vdupq_n_f32(*beta);
+    nk_size_t i = 0;
+    for (; i + 8 <= n; i += 8) {
+        float16x8_t a_f16x8 = vld1q_f16((float16_t const *)a + i);
+        float16x8_t b_f16x8 = vld1q_f16((float16_t const *)b + i);
+        float16x8_t c_f16x8 = vld1q_f16((float16_t const *)c + i);
+        float32x4_t ab_low_f32x4 = vmulq_f32(vcvt_f32_f16(vget_low_f16(a_f16x8)), vcvt_f32_f16(vget_low_f16(b_f16x8)));
+        float32x4_t ab_high_f32x4 = vmulq_f32(vcvt_high_f32_f16(a_f16x8), vcvt_high_f32_f16(b_f16x8));
+        // Unfused, like the serial kernel, so the two agree bit for bit
+        float32x4_t ab_scaled_low_f32x4 = vmulq_f32(ab_low_f32x4, alpha_f32x4);
+        float32x4_t ab_scaled_high_f32x4 = vmulq_f32(ab_high_f32x4, alpha_f32x4);
+        float32x4_t c_scaled_low_f32x4 = vmulq_f32(vcvt_f32_f16(vget_low_f16(c_f16x8)), beta_f32x4);
+        float32x4_t c_scaled_high_f32x4 = vmulq_f32(vcvt_high_f32_f16(c_f16x8), beta_f32x4);
+        float32x4_t result_low_f32x4 = vaddq_f32(ab_scaled_low_f32x4, c_scaled_low_f32x4);
+        float32x4_t result_high_f32x4 = vaddq_f32(ab_scaled_high_f32x4, c_scaled_high_f32x4);
+        vst1q_f16((float16_t *)result + i, vcvt_high_f16_f32(vcvt_f16_f32(result_low_f32x4), result_high_f32x4));
+    }
+    for (; i < n; ++i) {
+        nk_f32_t ai, bi, ci;
+        nk_f16_to_f32_serial(a + i, &ai);
+        nk_f16_to_f32_serial(b + i, &bi);
+        nk_f16_to_f32_serial(c + i, &ci);
+        nk_f32_t ab_scaled = ai * bi * *alpha, c_scaled = ci * *beta, fma = ab_scaled + c_scaled;
+        nk_f32_to_f16_serial(&fma, result + i);
+    }
+}
+
 NK_API_COMPTIME void nk_each_scale_f32c_neon(nk_f32c_t const *a, nk_size_t n, nk_f32c_t const *alpha,
                                              nk_f32c_t const *beta, nk_f32c_t *result) {
     float32x4_t alpha_real_f32x4 = vdupq_n_f32(alpha->real);
@@ -1122,6 +1197,96 @@ NK_API_COMPTIME void nk_each_sum_i8_neon(nk_i8_t const *a, nk_i8_t const *b, nk_
     for (; i < n; ++i) {
         nk_f32_t sum = (nk_f32_t)a[i] + b[i];
         nk_f32_to_i8_serial(&sum, result + i);
+    }
+}
+
+NK_API_COMPTIME void nk_each_scale_u8_neon(nk_u8_t const *a, nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
+                                           nk_u8_t *result) {
+    float32x4_t alpha_f32x4 = vdupq_n_f32(*alpha);
+    float32x4_t beta_f32x4 = vdupq_n_f32(*beta);
+    nk_size_t i = 0;
+    for (; i + 8 <= n; i += 8) {
+        uint16x8_t a_u16x8 = vmovl_u8(vld1_u8(a + i));
+        float32x4_t result_low_f32x4 = vfmaq_f32(beta_f32x4, vcvtq_f32_u32(vmovl_u16(vget_low_u16(a_u16x8))),
+                                                 alpha_f32x4);
+        float32x4_t result_high_f32x4 = vfmaq_f32(beta_f32x4, vcvtq_f32_u32(vmovl_high_u16(a_u16x8)), alpha_f32x4);
+        uint16x8_t result_u16x8 = vcombine_u16(vqmovn_u32(vcvtnq_u32_f32(result_low_f32x4)),
+                                               vqmovn_u32(vcvtnq_u32_f32(result_high_f32x4)));
+        vst1_u8(result + i, vqmovn_u16(result_u16x8));
+    }
+    for (; i < n; ++i) {
+        nk_f32_t scaled = *alpha * a[i] + *beta;
+        nk_f32_to_u8_serial(&scaled, result + i);
+    }
+}
+
+NK_API_COMPTIME void nk_each_blend_u8_neon(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t const *alpha,
+                                           nk_f32_t const *beta, nk_u8_t *result) {
+    float32x4_t alpha_f32x4 = vdupq_n_f32(*alpha);
+    float32x4_t beta_f32x4 = vdupq_n_f32(*beta);
+    nk_size_t i = 0;
+    for (; i + 8 <= n; i += 8) {
+        uint16x8_t a_u16x8 = vmovl_u8(vld1_u8(a + i));
+        uint16x8_t b_u16x8 = vmovl_u8(vld1_u8(b + i));
+        // Unfused, like the serial kernel, so the two agree bit for bit
+        float32x4_t a_scaled_low_f32x4 = vmulq_f32(vcvtq_f32_u32(vmovl_u16(vget_low_u16(a_u16x8))), alpha_f32x4);
+        float32x4_t a_scaled_high_f32x4 = vmulq_f32(vcvtq_f32_u32(vmovl_high_u16(a_u16x8)), alpha_f32x4);
+        float32x4_t b_scaled_low_f32x4 = vmulq_f32(vcvtq_f32_u32(vmovl_u16(vget_low_u16(b_u16x8))), beta_f32x4);
+        float32x4_t b_scaled_high_f32x4 = vmulq_f32(vcvtq_f32_u32(vmovl_high_u16(b_u16x8)), beta_f32x4);
+        float32x4_t result_low_f32x4 = vaddq_f32(a_scaled_low_f32x4, b_scaled_low_f32x4);
+        float32x4_t result_high_f32x4 = vaddq_f32(a_scaled_high_f32x4, b_scaled_high_f32x4);
+        uint16x8_t result_u16x8 = vcombine_u16(vqmovn_u32(vcvtnq_u32_f32(result_low_f32x4)),
+                                               vqmovn_u32(vcvtnq_u32_f32(result_high_f32x4)));
+        vst1_u8(result + i, vqmovn_u16(result_u16x8));
+    }
+    for (; i < n; ++i) {
+        nk_f32_t a_scaled = *alpha * a[i], b_scaled = *beta * b[i], blended = a_scaled + b_scaled;
+        nk_f32_to_u8_serial(&blended, result + i);
+    }
+}
+
+NK_API_COMPTIME void nk_each_scale_i8_neon(nk_i8_t const *a, nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
+                                           nk_i8_t *result) {
+    float32x4_t alpha_f32x4 = vdupq_n_f32(*alpha);
+    float32x4_t beta_f32x4 = vdupq_n_f32(*beta);
+    nk_size_t i = 0;
+    for (; i + 8 <= n; i += 8) {
+        int16x8_t a_i16x8 = vmovl_s8(vld1_s8(a + i));
+        float32x4_t result_low_f32x4 = vfmaq_f32(beta_f32x4, vcvtq_f32_s32(vmovl_s16(vget_low_s16(a_i16x8))),
+                                                 alpha_f32x4);
+        float32x4_t result_high_f32x4 = vfmaq_f32(beta_f32x4, vcvtq_f32_s32(vmovl_high_s16(a_i16x8)), alpha_f32x4);
+        int16x8_t result_i16x8 = vcombine_s16(vqmovn_s32(vcvtnq_s32_f32(result_low_f32x4)),
+                                              vqmovn_s32(vcvtnq_s32_f32(result_high_f32x4)));
+        vst1_s8(result + i, vqmovn_s16(result_i16x8));
+    }
+    for (; i < n; ++i) {
+        nk_f32_t scaled = *alpha * a[i] + *beta;
+        nk_f32_to_i8_serial(&scaled, result + i);
+    }
+}
+
+NK_API_COMPTIME void nk_each_blend_i8_neon(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t const *alpha,
+                                           nk_f32_t const *beta, nk_i8_t *result) {
+    float32x4_t alpha_f32x4 = vdupq_n_f32(*alpha);
+    float32x4_t beta_f32x4 = vdupq_n_f32(*beta);
+    nk_size_t i = 0;
+    for (; i + 8 <= n; i += 8) {
+        int16x8_t a_i16x8 = vmovl_s8(vld1_s8(a + i));
+        int16x8_t b_i16x8 = vmovl_s8(vld1_s8(b + i));
+        // Unfused, like the serial kernel, so the two agree bit for bit
+        float32x4_t a_scaled_low_f32x4 = vmulq_f32(vcvtq_f32_s32(vmovl_s16(vget_low_s16(a_i16x8))), alpha_f32x4);
+        float32x4_t a_scaled_high_f32x4 = vmulq_f32(vcvtq_f32_s32(vmovl_high_s16(a_i16x8)), alpha_f32x4);
+        float32x4_t b_scaled_low_f32x4 = vmulq_f32(vcvtq_f32_s32(vmovl_s16(vget_low_s16(b_i16x8))), beta_f32x4);
+        float32x4_t b_scaled_high_f32x4 = vmulq_f32(vcvtq_f32_s32(vmovl_high_s16(b_i16x8)), beta_f32x4);
+        float32x4_t result_low_f32x4 = vaddq_f32(a_scaled_low_f32x4, b_scaled_low_f32x4);
+        float32x4_t result_high_f32x4 = vaddq_f32(a_scaled_high_f32x4, b_scaled_high_f32x4);
+        int16x8_t result_i16x8 = vcombine_s16(vqmovn_s32(vcvtnq_s32_f32(result_low_f32x4)),
+                                              vqmovn_s32(vcvtnq_s32_f32(result_high_f32x4)));
+        vst1_s8(result + i, vqmovn_s16(result_i16x8));
+    }
+    for (; i < n; ++i) {
+        nk_f32_t a_scaled = *alpha * a[i], b_scaled = *beta * b[i], blended = a_scaled + b_scaled;
+        nk_f32_to_i8_serial(&blended, result + i);
     }
 }
 
