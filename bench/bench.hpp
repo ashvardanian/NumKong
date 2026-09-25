@@ -134,7 +134,8 @@ extern bench_config_t bench_config;
 
 /** Translates foreign flags, injects @c NK_FILTER and @c NK_BUDGET_SECS, runs Google Benchmark. */
 inline bool initialize_benchmarks(int argc, char **argv) {
-    std::vector<std::string> arguments = {argv[0]};
+    // Static, because Google Benchmark keeps `argv[0]` for its `Running` line after this returns
+    static std::vector<std::string> arguments = {argv[0]};
     bool user_set_min_time = false;
     bool wants_help = false;
 
@@ -186,7 +187,7 @@ inline bool initialize_benchmarks(int argc, char **argv) {
         else arguments.push_back("--benchmark_min_time=10s");
     }
 
-    std::vector<char *> argument_pointers;
+    static std::vector<char *> argument_pointers;
     for (auto &argument : arguments) argument_pointers.push_back(argument.data());
     int arguments_count = static_cast<int>(argument_pointers.size());
 
