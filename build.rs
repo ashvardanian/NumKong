@@ -376,18 +376,18 @@ fn build_numkong() -> Result<HashMap<String, bool>, String> {
     }
 
     // Pin TU baseline to each arch's ABI floor; SIMD kernels carry per-function pragmas.
-    // `NUMKONG_MARCH_NATIVE=1` opts into a host-tuned, non-portable build, ignored on MSVC.
+    // `NUMKONG_TARGET_ARCH=native` opts into a host-tuned, non-portable build, ignored on MSVC.
     // Keep per-arch table in sync with CMakeLists.txt, setup.py, binding.gyp.
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
     let is_apple = target_os == "macos" || target_os == "ios";
     let is_cross = env::var("HOST").unwrap_or_default() != env::var("TARGET").unwrap_or_default();
-    let march_native = env::var("NUMKONG_MARCH_NATIVE").is_ok_and(|v| v == "1" || v == "true" || v == "TRUE");
+    let march_native = env::var("NUMKONG_TARGET_ARCH").is_ok_and(|v| v == "native");
     // Portable baseline: pin TU ISA floor + forbid auto-vectorization so serial
     // fallbacks don't get silently promoted to NEON/SSE2/VSX. SIMD kernels use
     // explicit intrinsics; unaffected. MSVC has no command-line vectorizer
-    // toggle; `NUMKONG_MARCH_NATIVE=1` opts out for host-tuned builds.
+    // toggle; `NUMKONG_TARGET_ARCH=native` opts out for host-tuned builds.
     if march_native && !is_msvc && !is_cross {
-        println!("cargo:warning=NUMKONG_MARCH_NATIVE=1: building host-tuned, result will not run on older CPUs");
+        println!("cargo:warning=NUMKONG_TARGET_ARCH=native: building host-tuned, result will not run on older CPUs");
         // Apple Clang's `-march=native` advertises only a subset of host features
         // (no SME/SME2/FP16_FML); `-mcpu=native` is the complete knob on macOS.
         build.flag_if_supported(if is_apple { "-mcpu=native" } else { "-march=native" });
@@ -505,7 +505,7 @@ fn build_numkong() -> Result<HashMap<String, bool>, String> {
     watch_dir("probes");
 
     // Rerun on env var changes
-    println!("cargo:rerun-if-env-changed=NUMKONG_MARCH_NATIVE");
+    println!("cargo:rerun-if-env-changed=NUMKONG_TARGET_ARCH");
     println!("cargo:rerun-if-env-changed=CARGO_CFG_TARGET_FEATURE");
     for table in [
         X86_PROBES,

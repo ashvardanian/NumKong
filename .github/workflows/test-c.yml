@@ -14,7 +14,7 @@ permissions:
 jobs:
   test_c:
     name: Test C on Linux
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -31,27 +31,47 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt update
-          sudo apt install -y cmake gcc-14 g++-14 libjemalloc-dev libomp-dev libopenblas-dev
+          sudo apt install -y gcc-14 g++-14 libjemalloc-dev libomp-dev libopenblas-dev
 
       - name: Build Locally
         run: |
-          cmake -D CMAKE_BUILD_TYPE=Release -D NUMKONG_BUILD_TEST=1 -D NUMKONG_BUILD_BENCH=1 -D NUMKONG_COMPARE_TO_BLAS=ON \
-            -D CMAKE_C_COMPILER=gcc-14 -D CMAKE_CXX_COMPILER=g++-14 -B build_release
-          cmake --build build_release --config Release
+          cmake --preset release -D NUMKONG_COMPARE_TO_BLAS=ON -D CMAKE_C_COMPILER=gcc-14 -D CMAKE_CXX_COMPILER=g++-14
+          cmake --build --preset release
 
+      # Runs the static and the shared-library suites
       - name: Test
-        run: build_release/numkong_test
-        env:
-          NUMKONG_BUDGET_SECS: 0.2
+        run: ctest --preset release
 
-      - name: Build Shared Library Test
+  # Release compiles `nk_assert_` out, so only this job checks the library's invariants.
+  test_c_debug:
+    name: Test Debug build on Ubuntu
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Print Machine Specs
+        shell: bash
         run: |
-          cmake -D CMAKE_BUILD_TYPE=Release -D NUMKONG_BUILD_SHARED=1 -D NUMKONG_BUILD_SHARED_TEST=1 \
-            -D CMAKE_C_COMPILER=gcc-14 -D CMAKE_CXX_COMPILER=g++-14 -B build_shared
-          cmake --build build_shared --config Release --target numkong_shared_test
+          echo "::group::Machine Information"
+          uname -a || true
+          cat /proc/cpuinfo 2>/dev/null | head -30 || sysctl -a machdep.cpu 2>/dev/null | head -30 || wmic cpu get Name,NumberOfCores,MaxClockSpeed 2>/dev/null || true
+          free -h 2>/dev/null || vm_stat 2>/dev/null || systeminfo 2>/dev/null | head -20 || true
+          echo "::endgroup::"
 
-      - name: Test Shared Library
-        run: LD_LIBRARY_PATH=build_shared build_shared/numkong_shared_test
+      - name: Install Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y gcc-14 g++-14 libjemalloc-dev libomp-dev libopenblas-dev
+
+      - name: Build Locally
+        run: |
+          cmake --preset debug -D CMAKE_C_COMPILER=gcc-14 -D CMAKE_CXX_COMPILER=g++-14
+          cmake --build --preset debug --target numkong_test
+
+      # The `debug` test preset pins small shapes: at the default ones, unoptimized kernels under ASan take hours.
+      - name: Test
+        run: ctest --preset debug -R '^numkong_test$'
 
   test_macos_homebrew_llvm:
     name: Test C on macOS with Homebrew LLVM
@@ -72,13 +92,9 @@ jobs:
       - name: Build
         run: |
           LLVM_PREFIX="$(brew --prefix llvm)"
-          cmake -B build_brew_llvm \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_C_COMPILER="${LLVM_PREFIX}/bin/clang" \
-            -DCMAKE_CXX_COMPILER="${LLVM_PREFIX}/bin/clang++" \
-            -DNUMKONG_BUILD_TEST=1 \
-            -DNUMKONG_BUILD_SHARED=1
-          cmake --build build_brew_llvm --config Release
+          cmake --preset release -D NUMKONG_BUILD_BENCH=OFF \
+            -D CMAKE_C_COMPILER="${LLVM_PREFIX}/bin/clang" -D CMAKE_CXX_COMPILER="${LLVM_PREFIX}/bin/clang++"
+          cmake --build --preset release
 
       # Smoke test under lldb with an impossible NUMKONG_FILTER so no kernels run —
       # only `nk_capabilities_available()` / `nk_configure_thread()` and the suite's
@@ -87,22 +103,20 @@ jobs:
       # 8 instructions around it so the offender is visible in the job log.
       - name: Smoke Test under lldb
         run: |
-          DYLD_LIBRARY_PATH=build_brew_llvm \
+          DYLD_LIBRARY_PATH=build_release \
             lldb --batch \
               -o run \
               -k 'bt all' \
               -k 'image lookup -a {frame.pc}' \
               -k 'disassemble -c 8 -s {frame.pc}' \
               -k 'quit' \
-              -- build_brew_llvm/numkong_test
+              -- build_release/numkong_test
         env:
           NUMKONG_FILTER: __nk_impossible_filter__
           NUMKONG_BUDGET_SECS: 0.05
 
       - name: Test
-        run: DYLD_LIBRARY_PATH=build_brew_llvm build_brew_llvm/numkong_test
-        env:
-          NUMKONG_BUDGET_SECS: 0.2
+        run: ctest --preset release
 
   test_windows:
     name: Test C on Windows
@@ -145,7 +159,7 @@ jobs:
           cmake -A x64 `
             -DCMAKE_BUILD_TYPE=Release `
             -DNUMKONG_BUILD_SHARED=ON `
-            -DNUMKONG_BUILD_SHARED_TEST=ON `
+            -DNUMKONG_BUILD_TEST=ON `
             -B build_shared
           cmake --build build_shared --config Release --target numkong_shared_test
 
@@ -157,7 +171,7 @@ jobs:
 
   test_android:
     name: Test C for Android ARM64
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
 
     steps:
       - name: Checkout
@@ -180,16 +194,14 @@ jobs:
 
       - name: Build via CMake
         run: |
-          cmake -B build_android \
-            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-android-arm64.cmake \
-            -DNUMKONG_BUILD_SHARED=ON
-          cmake --build build_android
+          cmake --preset android_arm64
+          cmake --build --preset android_arm64
 
       - name: Verify Binary
         run: |
-          file build_android/libnumkong.so
-          file build_android/libnumkong.so | grep -q "ELF 64-bit.*aarch64"
-          readelf -d build_android/libnumkong.so | head -20
+          file build_android_arm64/libnumkong.so
+          file build_android_arm64/libnumkong.so | grep -q "ELF 64-bit.*aarch64"
+          readelf -d build_android_arm64/libnumkong.so | head -20
 
       - name: Install Rust Toolchain
         uses: moonrepo/setup-rust@v1
@@ -206,7 +218,7 @@ jobs:
   # NEON code paths, like float64x2_t which doesn't exist on ARMv7.
   test_android_armv7:
     name: Test C for Android ARMv7
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
 
     steps:
       - name: Checkout
@@ -220,10 +232,8 @@ jobs:
 
       - name: Build via CMake
         run: |
-          cmake -B build_android_armv7 \
-            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-android-armv7.cmake \
-            -DNUMKONG_BUILD_SHARED=ON
-          cmake --build build_android_armv7
+          cmake --preset android_armv7
+          cmake --build --preset android_armv7
 
       - name: Verify Binary
         run: |
@@ -245,7 +255,7 @@ jobs:
   # but with the GNU toolchain instead of the NDK's Clang.
   test_armv7_linux:
     name: Test C for Linux ARMv7
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
 
     steps:
       - name: Checkout
@@ -258,19 +268,13 @@ jobs:
 
       - name: Build via CMake
         run: |
-          cmake -B build_armv7 \
-            -DCMAKE_SYSTEM_NAME=Linux \
-            -DCMAKE_SYSTEM_PROCESSOR=arm \
-            -DCMAKE_C_COMPILER=arm-linux-gnueabihf-gcc-14 \
-            -DCMAKE_CXX_COMPILER=arm-linux-gnueabihf-g++-14 \
-            -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
-            -DNUMKONG_BUILD_SHARED=ON
-          cmake --build build_armv7
+          cmake --preset linux_armv7 -D CMAKE_C_COMPILER=arm-linux-gnueabihf-gcc-14 -D CMAKE_CXX_COMPILER=arm-linux-gnueabihf-g++-14
+          cmake --build --preset linux_armv7
 
       - name: Verify Binary
         run: |
-          file build_armv7/libnumkong.so
-          file build_armv7/libnumkong.so | grep -q "ELF 32-bit.*ARM"
+          file build_linux_armv7/libnumkong.so
+          file build_linux_armv7/libnumkong.so | grep -q "ELF 32-bit.*ARM"
 
       - name: Install Rust Toolchain
         uses: moonrepo/setup-rust@v1
@@ -286,7 +290,7 @@ jobs:
 
   test_riscv_llvm23:
     name: Test RISC-V LLVM 23 under QEMU, ${{ matrix.march }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     # Noble's qemu-user is 8.2, which predates `Zvbb`/`Zvfh` in `riscv_hwprobe`,
     # so RVV would never dispatch and this job would pass on serial fallbacks.
     # Trixie has qemu 10, and apt.llvm.org publishes Clang 23 for trixie.
@@ -306,7 +310,7 @@ jobs:
           set -eux
           apt-get update
           apt-get install -y --no-install-recommends git ca-certificates curl gnupg \
-            cmake make qemu-user gcc-riscv64-linux-gnu g++-riscv64-linux-gnu libc6-dev-riscv64-cross
+            cmake ninja-build qemu-user gcc-riscv64-linux-gnu g++-riscv64-linux-gnu libc6-dev-riscv64-cross
           curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor -o /usr/share/keyrings/llvm.gpg
           echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/trixie/ llvm-toolchain-trixie-23 main" \
             > /etc/apt/sources.list.d/llvm.list
@@ -320,26 +324,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cmake -B build_riscv \
-            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscv64-llvm.cmake \
-            -DLLVM_ROOT=/usr/lib/llvm-23 \
-            -DRISCV_MARCH=${{ matrix.march }} \
-            -DNUMKONG_BUILD_TEST=ON \
-            -DNUMKONG_BUILD_SHARED=ON
+          cmake --preset linux_riscv64_llvm -D LLVM_ROOT=/usr/lib/llvm-23 -D RISCV_MARCH=${{ matrix.march }}
 
       - name: Build
-        run: cmake --build build_riscv --parallel
+        run: cmake --build --preset linux_riscv64_llvm
 
       # `-V` so the ISA table lands in the log and shows which kernels dispatched.
       - name: Test
-        run: ctest --test-dir build_riscv -V --no-tests=error
-        env:
-          NUMKONG_IN_QEMU: 1
-          NUMKONG_BUDGET_SECS: 0.1
+        run: ctest --preset linux_riscv64_llvm -V
 
   test_qemu_cross:
     name: Test C under QEMU, ${{ matrix.name }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     # Noble's GCC 14 cross ICEs folding SVE intrinsics under LTO; Trixie's builds the same tree.
     container: debian:trixie
     timeout-minutes: 60
@@ -384,7 +380,7 @@ jobs:
       - name: Install Dependencies
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends git ca-certificates cmake make g++ qemu-user \
+          apt-get install -y --no-install-recommends git ca-certificates cmake ninja-build g++ qemu-user \
             gcc-14-${{ matrix.triple }} g++-14-${{ matrix.triple }}
 
       - name: Checkout
@@ -393,27 +389,19 @@ jobs:
       # The toolchain file knows the emulator and loader prefix; only these two vary.
       - name: Configure for ${{ matrix.qemu_cpu }}
         run: |
-          cmake -B build_cross \
-            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-${{ matrix.arch }}-gnu.cmake \
-            -D${{ matrix.prefix }}_COMPILER_SUFFIX=-14 \
-            -D${{ matrix.prefix }}_QEMU_CPU=${{ matrix.qemu_cpu }} \
-            -DNUMKONG_BUILD_TEST=ON \
-            -DNUMKONG_BUILD_SHARED_TEST=ON \
-            -DNUMKONG_BUILD_SHARED=ON
+          cmake --preset linux_${{ matrix.arch }} \
+            -D ${{ matrix.prefix }}_COMPILER_SUFFIX=-14 -D ${{ matrix.prefix }}_QEMU_CPU=${{ matrix.qemu_cpu }}
 
       - name: Build
-        run: cmake --build build_cross --parallel
+        run: cmake --build --preset linux_${{ matrix.arch }}
 
       # `-V` so the ISA table lands in the log and shows which kernels dispatched.
       - name: Test
-        run: ctest --test-dir build_cross -V --no-tests=error
-        env:
-          NUMKONG_IN_QEMU: 1
-          NUMKONG_BUDGET_SECS: 0.1
+        run: ctest --preset linux_${{ matrix.arch }} -V
 
   test_x86_sde:
     name: Test x86 under Intel SDE
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 90
 
     steps:
@@ -429,12 +417,10 @@ jobs:
 
       - name: Build with All x86 ISAs
         run: |
-          cmake -B build_sde \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DNUMKONG_BUILD_TEST=ON
-          cmake --build build_sde --config Release --parallel
+          cmake --preset release
+          cmake --build --preset release --target numkong_test
 
       - name: Test Under Granite Rapids Emulation
-        run: "$SDE_PATH/sde64 -gnr -- build_sde/numkong_test"
+        run: "$SDE_PATH/sde64 -gnr -- build_release/numkong_test"
         env:
           NUMKONG_BUDGET_SECS: 0

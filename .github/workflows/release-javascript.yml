@@ -115,7 +115,7 @@ jobs:
   # One module per tier and width; the loader picks a wasm32 tier by what the engine validates.
   build_wasm_module:
     name: Build WASM Module, ${{ matrix.width }} ${{ matrix.simd }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
@@ -144,12 +144,8 @@ jobs:
       - name: Build WASM
         run: |
           source ~/emsdk/emsdk_env.sh
-          cmake -B build_wasm \
-            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-${{ matrix.width }}-emscripten.cmake \
-            -DNUMKONG_WASM_SIMD=${{ matrix.simd }} \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DNUMKONG_BUILD_SHARED=ON
-          cmake --build build_wasm --config Release
+          cmake --preset ${{ matrix.width }}_emscripten -B build_wasm -D NUMKONG_WASM_SIMD=${{ matrix.simd }}
+          cmake --build build_wasm
       - name: Upload WASM Module
         uses: actions/upload-artifact@v7
         with:
@@ -163,7 +159,7 @@ jobs:
   build_wasm:
     name: Build WASM Bundle
     needs: build_wasm_module
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
@@ -199,7 +195,7 @@ jobs:
     name: Publish Platform Package, ${{ matrix.platform }}
     needs: [build_native]
     if: always()
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     environment:
       name: npm-numkong
     permissions:
@@ -238,7 +234,7 @@ jobs:
     name: Publish Main Package to NPM
     needs: [publish_platform_packages, build_wasm]
     if: always()
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     environment:
       name: npm-numkong
       url: https://www.npmjs.com/package/numkong

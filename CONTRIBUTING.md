@@ -22,25 +22,27 @@ cmake/                    Toolchain files for cross-compilation — WASM, WASI, 
 
 ### Building
 
+The presets in `CMakePresets.json` are the configurations CI builds, and `cmake --list-presets` shows the ones this machine can run.
+
 ```sh
-cmake -B build_release -D CMAKE_BUILD_TYPE=Release \
-      -D NUMKONG_BUILD_TEST=1 \
-      -D NUMKONG_BUILD_BENCH=1 \
-      -D NUMKONG_COMPARE_TO_BLAS=1
-cmake --build build_release --config Release --parallel
+cmake --preset release -D NUMKONG_COMPARE_TO_BLAS=1
+cmake --build --preset release
+ctest --preset release                  # the static and shared-library suites
 build_release/numkong_bench
-build_release/numkong_test
 ```
 
-| CMake Flag                  | Default            | Description                                                                   |
-| :-------------------------- | :----------------- | :---------------------------------------------------------------------------- |
-| `NUMKONG_BUILD_TEST`        | `OFF`              | Compile precision tests with ULP error analysis                               |
-| `NUMKONG_BUILD_BENCH`       | `OFF`              | Compile micro-benchmarks                                                      |
-| `NUMKONG_BUILD_SHARED`      | `ON`, if top-level | Compile dynamic library                                                       |
-| `NUMKONG_BUILD_SHARED_TEST` | `OFF`              | Compile tests against the shared library                                      |
-| `NUMKONG_COMPARE_TO_BLAS`   | `AUTO`             | Include OpenBLAS, or Apple's Accelerate on macOS, into test/bench comparisons |
-| `NUMKONG_COMPARE_TO_MKL`    | `AUTO`             | Include Intel' MKL into test/bench comparisons                                |
-| `NUMKONG_MARCH_NATIVE`      | `OFF`              | Tune for host CPU with `-march=native`                                        |
+`debug`, `cuda`, the `linux_<arch>` cross builds under QEMU, Android and WASM follow the same three commands.
+Machine-specific settings, like a compiler path, belong in an untracked `CMakeUserPresets.json`.
+
+| CMake Flag                | Default            | Description                                                                   |
+| :------------------------ | :----------------- | :---------------------------------------------------------------------------- |
+| `NUMKONG_BUILD_TEST`      | `OFF`              | Compile precision tests, and with the shared library also tests against it    |
+| `NUMKONG_BUILD_BENCH`     | `OFF`              | Compile micro-benchmarks                                                      |
+| `NUMKONG_BUILD_SHARED`    | `ON`, if top-level | Compile dynamic library                                                       |
+| `NUMKONG_BUILD_CUDA`      | `OFF`              | Add CUDA to whichever of the test and bench builds is on                      |
+| `NUMKONG_COMPARE_TO_BLAS` | `AUTO`             | Include OpenBLAS, or Apple's Accelerate on macOS, into test/bench comparisons |
+| `NUMKONG_COMPARE_TO_MKL`  | `AUTO`             | Include Intel' MKL into test/bench comparisons                                |
+| `NUMKONG_TARGET_ARCH`     | empty              | Tune for a CPU, like the host with `native`                                   |
 
 The test suites seed from 42, or from a fresh draw under `NUMKONG_SEED=random`, and print the seed they use.
 `NUMKONG_FILTER` is a regex over kernel names, and each failing kernel prints a `rerun:` line with its seed and a filter selecting it alone.
@@ -67,7 +69,7 @@ LoongArch is the one arch that can't honor the per-function-pragma model: `__att
 Until NumKong's minimum supported toolchain catches up, LoongArch artifacts require LASX-capable hardware (LA464+, c. 2021).
 `Package.swift` and `golang/numkong.go` do not pin baselines: SPM forbids `.unsafeFlags()` on remotely consumed targets, and the cgo bindings rely on the surrounding compiler default.
 
-For host-tuned local builds, set `NUMKONG_MARCH_NATIVE=1` (env var honored by `build.rs` and `setup.py`; CMake option `-DNUMKONG_MARCH_NATIVE=ON`).
+For host-tuned local builds, set `NUMKONG_TARGET_ARCH=native` (env var honored by `build.rs`, `setup.py` and `binding.gyp`; CMake option `-DNUMKONG_TARGET_ARCH=native`).
 The resulting artifact bakes host-specific instructions into scaffolding code and is __not__ portable.
 
 ### Compiler Requirements
@@ -303,7 +305,7 @@ CC=$(brew --prefix llvm)/bin/clang CXX=$(brew --prefix llvm)/bin/clang++ pip ins
 ```
 
 Wheels pin a portable per-arch baseline by default — see [Target Baseline Policy](#target-baseline-policy).
-For host-tuned local installs, set `NUMKONG_MARCH_NATIVE=1 pip install -e .` (the resulting build is not redistributable).
+For host-tuned local installs, set `NUMKONG_TARGET_ARCH=native pip install -e .` (the resulting build is not redistributable).
 
 Before merging your changes you may want to test your changes against the entire matrix of Python versions NumKong supports.
 For that you need the `cibuildwheel`, which is tricky to use on macOS and Windows, as it would target just the local environment.
@@ -348,7 +350,7 @@ Configuring the CMake build (`cmake -B build ...`) arms the repo's Git hooks (`c
 ```sh
 cargo test -p numkong
 cargo test -p numkong -- --nocapture      # to see the output
-NUMKONG_MARCH_NATIVE=1 cargo build --release   # for host-tuned local builds
+NUMKONG_TARGET_ARCH=native cargo build --release   # for host-tuned local builds
 ```
 
 The crate pins a portable per-arch baseline by default — see [Target Baseline Policy](#target-baseline-policy).

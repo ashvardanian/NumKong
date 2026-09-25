@@ -86,7 +86,7 @@ def march_baseline_args() -> list[str]:
 
     Keeps serial kernels serial — auto-vec would otherwise promote fallbacks to
     NEON/SSE2/VSX. SIMD kernels use explicit intrinsics; unaffected. MSVC has no
-    command-line vectorizer toggle. `NUMKONG_MARCH_NATIVE=1` opts out (non-MSVC).
+    command-line vectorizer toggle. `NUMKONG_TARGET_ARCH=native` opts out (non-MSVC).
 
     Keep per-arch table in sync with CMakeLists.txt, build.rs, binding.gyp.
     """
@@ -96,8 +96,8 @@ def march_baseline_args() -> list[str]:
         if is_64bit_arm():
             return ["/arch:armv8.0"]
         return []
-    if os.environ.get("NUMKONG_MARCH_NATIVE") in ("1", "true", "TRUE") and not is_cross_compiling():
-        print("[NumKong] NUMKONG_MARCH_NATIVE=1: building host-tuned, result will not run on older CPUs")
+    if os.environ.get("NUMKONG_TARGET_ARCH") == "native" and not is_cross_compiling():
+        print("[NumKong] NUMKONG_TARGET_ARCH=native: building host-tuned, result will not run on older CPUs")
         # Apple Clang's `-march=native` advertises only a subset of host features
         # (no SME/SME2/FP16_FML); `-mcpu=native` is the complete knob on macOS.
         return ["-mcpu=native"] if sys.platform == "darwin" else ["-march=native"]
@@ -542,7 +542,7 @@ class ParallelBuildExt(build_ext):
         # In Docker containers (e.g. cibuildwheel), `os.cpu_count()` returns the
         # *host* core count, not the container's allocated vCPUs.  Launching dozens
         # of heavy SIMD compilation jobs in parallel OOMs the container (exit 143).
-        self.parallel = int(os.environ.get("NUMKONG_BUILD_PARALLEL", min(os.cpu_count() or 1, 4)))
+        self.parallel = int(os.environ.get("NUMKONG_BUILD_JOBS", min(os.cpu_count() or 1, 4)))
 
 
 setup(

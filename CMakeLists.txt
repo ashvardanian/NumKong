@@ -8,16 +8,15 @@
 # CMake options:
 #
 #   -D CMAKE_BUILD_TYPE=<Release|Debug|RelWithDebInfo>
-#   -D NUMKONG_BUILD_TEST=<ON|OFF>           (default: OFF)
-#   -D NUMKONG_BUILD_BENCH=<ON|OFF>          (default: OFF)
-#   -D NUMKONG_BUILD_CUDA_TEST=<ON|OFF>      (default: OFF)
-#   -D NUMKONG_BUILD_CUDA_BENCH=<ON|OFF>     (default: OFF, adds CUDA rows to numkong_bench)
-#   -D NUMKONG_CUDA_ARCHITECTURES=<list>     (default: 80-real;90a-real;100f-real;120f-real;80-virtual)
-#   -D NUMKONG_COMPARE_TO_BLAS=<ON|OFF>      (default: OFF)
-#   -D NUMKONG_COMPARE_TO_MKL=<ON|OFF>       (default: OFF)
-#   -D NUMKONG_BUILD_SHARED=<ON|OFF>         (default: OFF)
-#   -D NUMKONG_BUILD_SHARED_TEST=<ON|OFF>    (default: OFF, requires NUMKONG_BUILD_SHARED)
-#   -D NUMKONG_WASI_HOSTED=<ON|OFF>          (default: OFF, import capability probes from host)
+#   -D NUMKONG_BUILD_TEST=<ON|OFF>          (default: OFF, with NUMKONG_BUILD_SHARED also the shared-library test)
+#   -D NUMKONG_BUILD_BENCH=<ON|OFF>         (default: OFF)
+#   -D NUMKONG_BUILD_CUDA=<ON|OFF>          (default: OFF, adds CUDA to whichever of the test and bench builds is on)
+#   -D NUMKONG_CUDA_ARCHITECTURES=<list>    (default: 80-real;90a-real;100f-real;120f-real;80-virtual)
+#   -D NUMKONG_COMPARE_TO_BLAS=<ON|OFF>     (default: OFF)
+#   -D NUMKONG_COMPARE_TO_MKL=<ON|OFF>      (default: OFF)
+#   -D NUMKONG_BUILD_SHARED=<ON|OFF>        (default: OFF)
+#   -D NUMKONG_WASI_HOSTED=<ON|OFF>         (default: OFF, import capability probes from host)
+#   -D NUMKONG_TARGET_ARCH=<arch>           (default: empty for the portable ABI floor, or `native`)
 #
 # Different SIMD ISA extensions reqiore different compiler versions:
 #
@@ -62,13 +61,14 @@
 # To build the CUDA interop test (test/main.cu); see that file's docstring for what it covers and the
 # GPU compatibility notes. Requires nvcc on PATH.
 #
-#     cmake -B build_cuda -D NUMKONG_BUILD_CUDA_TEST=ON
+#     cmake -B build_cuda -D NUMKONG_BUILD_TEST=ON -D NUMKONG_BUILD_CUDA=ON
 #     cmake --build build_cuda
 #     ctest --test-dir build_cuda -R cuda --output-on-failure
 #
 # To add CUDA rows and their cuBLAS baselines to numkong_bench, building only the cubin of the GPU at hand:
 #
-#     cmake -B build_cuda -D CMAKE_BUILD_TYPE=Release -D NUMKONG_BUILD_CUDA_BENCH=ON -D NUMKONG_CUDA_ARCHITECTURES=120f-real
+#     cmake -B build_cuda -D CMAKE_BUILD_TYPE=Release -D NUMKONG_BUILD_BENCH=ON -D NUMKONG_BUILD_CUDA=ON \
+#           -D NUMKONG_CUDA_ARCHITECTURES=120f-real
 #     cmake --build build_cuda --target numkong_bench
 #     build_cuda/numkong_bench
 #
@@ -141,18 +141,16 @@ endif ()
 
 option(NUMKONG_BUILD_SHARED "Compile a dynamic library" ${NUMKONG_IS_MAIN_PROJECT_})
 option(NUMKONG_INSTALL "Install headers, libraries & the CMake package files" ${NUMKONG_IS_MAIN_PROJECT_})
-option(NUMKONG_BUILD_TEST "Compile precision tests with ULP-based error analysis" OFF)
+option(NUMKONG_BUILD_TEST "Compile precision tests, and shared-library tests with NUMKONG_BUILD_SHARED" OFF)
 option(NUMKONG_BUILD_BENCH "Compile micro-benchmarks for current ISA" OFF)
-option(NUMKONG_BUILD_CUDA_TEST "Compile CUDA tensors & type system interop tests" OFF)
-option(NUMKONG_BUILD_CUDA_BENCH "Add CUDA kernel rows to the benchmarks" OFF)
-option(NUMKONG_BUILD_SHARED_TEST "Compile shared-library tests, requires NUMKONG_BUILD_SHARED" OFF)
+option(NUMKONG_BUILD_CUDA "Add CUDA kernels to whichever of the test and bench builds is on" OFF)
 option(NUMKONG_WASI_HOSTED "Import capability probes from WASI host environment" OFF)
 
-option(NUMKONG_MARCH_NATIVE "Build with -march=native (host-tuned, not portable)" OFF)
+set(NUMKONG_TARGET_ARCH "" CACHE STRING "Host-tuned `-march`, like native, for a build that is not portable")
 option(NUMKONG_ENABLE_ASAN "Enable AddressSanitizer in Debug builds" ${NUMKONG_IS_MAIN_PROJECT_})
 
 # `add_test()` entries are only generated when testing is enabled.
-if (NUMKONG_BUILD_TEST OR NUMKONG_BUILD_SHARED_TEST OR NUMKONG_BUILD_CUDA_TEST)
+if (NUMKONG_BUILD_TEST)
     enable_testing()
 endif ()
 
@@ -162,7 +160,7 @@ set(NUMKONG_COMPARE_TO_MKL "AUTO" CACHE STRING "Include Intel MKL in tests and b
 set_property(CACHE NUMKONG_COMPARE_TO_BLAS PROPERTY STRINGS "AUTO" "ON" "OFF")
 set_property(CACHE NUMKONG_COMPARE_TO_MKL PROPERTY STRINGS "AUTO" "ON" "OFF")
 
-# CUDA baselines for NUMKONG_BUILD_CUDA_BENCH
+# CUDA baselines for the CUDA rows of the benchmarks
 option(NUMKONG_COMPARE_TO_CUBLAS "Include cuBLASLt and cuBLAS in CUDA benchmarks" ON)
 option(NUMKONG_COMPARE_TO_CUDNN "Include cuDNN attention in CUDA benchmarks, found under NUMKONG_CUDNN_ROOT" OFF)
 option(NUMKONG_COMPARE_TO_CUVS "Include cuVS distances in CUDA benchmarks, found under NUMKONG_CUVS_ROOTS" OFF)
@@ -292,18 +290,20 @@ endif ()
 
 # Portable baseline policy (commits 43e8324d, 453ed5ff, 23f51955): each translation unit gets a per-arch
 # ABI floor, auto-vectorization is forbidden so serial fallbacks stay scalar, and SIMD kernels opt in via
-# per-function __attribute__((target(...))) or #pragma GCC target. NUMKONG_MARCH_NATIVE=ON opts out for a
+# per-function __attribute__((target(...))) or #pragma GCC target. NUMKONG_TARGET_ARCH=native opts out for a
 # host-tuned build. Keep the per-arch table in sync with build.rs, setup.py, and binding.gyp.
-if (NUMKONG_MARCH_NATIVE AND NOT MSVC AND NOT CMAKE_CROSSCOMPILING)
-    message(WARNING "NUMKONG_MARCH_NATIVE=ON: baking host-specific instructions; result will not run on older CPUs")
+if (NUMKONG_TARGET_ARCH AND NOT MSVC AND NOT CMAKE_CROSSCOMPILING)
+    message(
+        WARNING "NUMKONG_TARGET_ARCH=${NUMKONG_TARGET_ARCH}: baking specific instructions; result may not run elsewhere"
+    )
     if (CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|IntelLLVM)$")
         # Apple Clang's `-march=native` only advertises a subset of host features
         # (no SME/SME2/FP16_FML); `-mcpu=native` is the complete knob on macOS.
         # GCC/Clang on Linux/FreeBSD use `-march=native` as usual.
-        if (APPLE)
+        if (APPLE AND NUMKONG_TARGET_ARCH STREQUAL "native")
             add_compile_options(-mcpu=native)
         else ()
-            add_compile_options(-march=native)
+            add_compile_options(-march=${NUMKONG_TARGET_ARCH})
         endif ()
     endif ()
 elseif (CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|IntelLLVM)$")
@@ -419,7 +419,7 @@ endif ()
 
 # Probe whether C++ test executables need an explicit math library (`-lm`) on this toolchain.
 set(NUMKONG_CXX_MATH_LIB_ "")
-if (NUMKONG_BUILD_TEST OR NUMKONG_BUILD_SHARED_TEST)
+if (NUMKONG_BUILD_TEST)
     include(cmake/nk_math_lib.cmake)
     nk_detect_cxx_math_lib_(NUMKONG_CXX_MATH_LIB_)
     message(STATUS "NumKong: Explicit libm for C++ tests: ${NUMKONG_CXX_MATH_LIB_}")
@@ -522,19 +522,14 @@ endif ()
 
 # The test and bench harnesses print through {fmt}, pinned to the release StringZilla and USearch fetch, because in a
 # nested build the first `FetchContent_Declare` wins.
-if (NUMKONG_BUILD_TEST
-    OR NUMKONG_BUILD_SHARED_TEST
-    OR NUMKONG_BUILD_CUDA_TEST
-    OR NUMKONG_BUILD_BENCH
-    OR NUMKONG_BUILD_CUDA_BENCH
-)
+if (NUMKONG_BUILD_TEST OR NUMKONG_BUILD_BENCH)
     include(FetchContent)
     FetchContent_Declare(fmt GIT_REPOSITORY https://github.com/fmtlib/fmt.git GIT_TAG 12.2.0 FIND_PACKAGE_ARGS 12.2.0)
     FetchContent_MakeAvailable(fmt)
 endif ()
 
 # Google Benchmark serves both the CPU and the CUDA benchmarks
-if (NUMKONG_BUILD_BENCH OR NUMKONG_BUILD_CUDA_BENCH)
+if (NUMKONG_BUILD_BENCH)
     # We only need the core parts of Google Benchmark — disable tests, docs, and
     # force std::regex so the regex-backend detection (which uses try_run) doesn't
     # fail when ASAN is enabled and the sanitizer DLL isn't on PATH at configure time.
@@ -559,7 +554,7 @@ if (NUMKONG_BUILD_BENCH OR NUMKONG_BUILD_CUDA_BENCH)
 endif ()
 
 # Build benchmarks
-if (NUMKONG_BUILD_BENCH OR NUMKONG_BUILD_CUDA_BENCH)
+if (NUMKONG_BUILD_BENCH)
     add_executable(
         numkong_bench
         bench/main.cpp bench/dot.cpp bench/spatial.cpp bench/set.cpp bench/curved.cpp bench/probability.cpp
@@ -845,11 +840,7 @@ if (NUMKONG_BUILD_SHARED)
 endif ()
 
 # Shared-library test (tests runtime dispatch path)
-if (NUMKONG_BUILD_SHARED_TEST)
-    if (NOT NUMKONG_BUILD_SHARED)
-        message(FATAL_ERROR "NUMKONG_BUILD_SHARED_TEST requires NUMKONG_BUILD_SHARED=ON")
-    endif ()
-
+if (NUMKONG_BUILD_TEST AND NUMKONG_BUILD_SHARED)
     add_executable(
         numkong_shared_test
         test/main.cpp test/dot.cpp test/spatial.cpp test/set.cpp test/curved.cpp test/probability.cpp test/each.cpp
@@ -919,7 +910,7 @@ endif ()
 
 # One cubin per device family plus a PTX tail, needing CUDA 12.9 or newer. To iterate on one GPU keep its family,
 # like "120f-real": "native" drops the family suffix and with it the Float6 tensor-core instructions.
-if (NUMKONG_BUILD_CUDA_TEST OR NUMKONG_BUILD_CUDA_BENCH)
+if (NUMKONG_BUILD_CUDA)
     enable_language(CUDA)
     set(NUMKONG_CUDA_ARCHITECTURES "80-real;90a-real;100f-real;120f-real;80-virtual"
         CACHE STRING "GPU architectures baked into the CUDA targets"
@@ -939,7 +930,7 @@ endif ()
 
 # CUDA interop test built from test/main.cu; see that file's docstring for what it covers and the GPU
 # compatibility notes.
-if (NUMKONG_BUILD_CUDA_TEST)
+if (NUMKONG_BUILD_TEST AND NUMKONG_BUILD_CUDA)
     add_executable(numkong_cuda_test test/main.cu)
     target_include_directories(numkong_cuda_test PRIVATE "${PROJECT_SOURCE_DIR}/include")
     set_target_properties(
@@ -971,7 +962,7 @@ if (NUMKONG_BUILD_CUDA_TEST)
 endif ()
 
 # CUDA rows in the same `numkong_bench`, from bench/cross_cuda.cu, with optional cuBLAS, cuDNN and cuVS baselines.
-if (NUMKONG_BUILD_CUDA_BENCH)
+if (NUMKONG_BUILD_BENCH AND NUMKONG_BUILD_CUDA)
     find_package(CUDAToolkit REQUIRED)
     target_sources(numkong_bench PRIVATE bench/cross_cuda.cu)
     set_target_properties(
@@ -981,7 +972,7 @@ if (NUMKONG_BUILD_CUDA_BENCH)
     target_compile_options(numkong_bench PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
     target_compile_definitions(
         numkong_bench
-        PRIVATE NUMKONG_BUILD_CUDA_BENCH=1 ${NUMKONG_CUDA_FAMILY_DEFINITIONS_}
+        PRIVATE NUMKONG_BUILD_CUDA=1 ${NUMKONG_CUDA_FAMILY_DEFINITIONS_}
                 NUMKONG_COMPARE_TO_CUBLAS=$<BOOL:${NUMKONG_COMPARE_TO_CUBLAS}>
                 NUMKONG_COMPARE_TO_CUDNN=$<BOOL:${NUMKONG_COMPARE_TO_CUDNN}>
                 NUMKONG_COMPARE_TO_CUVS=$<BOOL:${NUMKONG_COMPARE_TO_CUVS}>

@@ -48,18 +48,14 @@ jobs:
           sudo apt-get install -y clang-20 lld-20 make crossbuild-essential-arm64
       - name: Build Shared Library
         run: |
-          cmake -B build_release \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_C_COMPILER_TARGET=${{ matrix.target }} \
-            -DCMAKE_CXX_COMPILER_TARGET=${{ matrix.target }} \
-            -DCMAKE_SHARED_LINKER_FLAGS="-fuse-ld=lld-20" \
-            -DCMAKE_SYSTEM_NAME=Linux \
-            -DCMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }} \
-            -DNUMKONG_BUILD_SHARED=ON \
-            -DNUMKONG_BUILD_TEST=OFF \
-            -DNUMKONG_BUILD_BENCH=OFF
-          cmake --build build_release --config Release
-          cp build_release/libnumkong.so \
+          cmake --preset release_shared \
+            -D CMAKE_C_COMPILER_TARGET=${{ matrix.target }} \
+            -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.target }} \
+            -D CMAKE_SHARED_LINKER_FLAGS="-fuse-ld=lld-20" \
+            -D CMAKE_SYSTEM_NAME=Linux \
+            -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }}
+          cmake --build --preset release_shared
+          cp build_release_shared/libnumkong.so \
             "numkong_linux_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.so"
       - name: Package Debian Archive
         run: |
@@ -68,7 +64,7 @@ jobs:
           mkdir -p "${DEB_DIR}/usr/local/lib"
           mkdir -p "${DEB_DIR}/usr/local/include/numkong"
           mkdir -p "${DEB_DIR}/usr/local/share/doc/numkong"
-          cp build_release/libnumkong.so "${DEB_DIR}/usr/local/lib/"
+          cp build_release_shared/libnumkong.so "${DEB_DIR}/usr/local/lib/"
           cp -r include/numkong/* "${DEB_DIR}/usr/local/include/numkong/"
           cp LICENSE "${DEB_DIR}/usr/local/share/doc/numkong/"
           cat > "${DEB_DIR}/DEBIAN/control" <<CTRL
@@ -150,17 +146,12 @@ jobs:
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
       - name: Build Shared Library
         run: |
-          cmake -B build_release \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }} \
-            -DNUMKONG_BUILD_SHARED=ON \
-            -DNUMKONG_BUILD_TEST=OFF \
-            -DNUMKONG_BUILD_BENCH=OFF
-          cmake --build build_release --config Release
-          cp build_release/libnumkong.dylib \
+          cmake --preset release_shared -D CMAKE_OSX_ARCHITECTURES=${{ matrix.arch }}
+          cmake --build --preset release_shared
+          cp build_release_shared/libnumkong.dylib \
             "numkong_macos_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.dylib"
           zip -r "numkong_macos_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.zip" \
-            build_release/libnumkong.dylib include/numkong/ LICENSE
+            build_release_shared/libnumkong.dylib include/numkong/ LICENSE
       - name: Upload to GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -173,9 +164,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - abi: armeabi-v7a
+          - preset: android_armv7
             arch: arm32
-          - abi: arm64-v8a
+          - preset: android_arm64
             arch: arm64
     steps:
       - name: Checkout Repository
@@ -185,22 +176,16 @@ jobs:
       - name: Get Version
         id: set_version
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
+      # The toolchain files take API level 28 and the NDK's default static libc++
       - name: Build Shared Library
         run: |
-          cmake -B build_android \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK_LATEST_HOME}/build/cmake/android.toolchain.cmake \
-            -DCMAKE_ANDROID_STL_TYPE=c++_static \
-            -DANDROID_PLATFORM=28 \
-            -DANDROID_ABI=${{ matrix.abi }} \
-            -DNUMKONG_BUILD_SHARED=ON \
-            -DNUMKONG_BUILD_TEST=OFF \
-            -DNUMKONG_BUILD_BENCH=OFF
-          cmake --build build_android --config Release
+          export ANDROID_NDK_ROOT="${ANDROID_NDK_LATEST_HOME}"
+          cmake --preset ${{ matrix.preset }}
+          cmake --build --preset ${{ matrix.preset }}
       - name: Package Archive
         run: |
           zip -r "numkong_android_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.zip" \
-            build_android/libnumkong.so include/numkong/ LICENSE
+            build_${{ matrix.preset }}/libnumkong.so include/numkong/ LICENSE
       - name: Upload to GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -209,7 +194,7 @@ jobs:
   # One module per tier and width; the loader picks a wasm32 tier by what the engine validates.
   build_wasm_module:
     name: Build WASM Module, ${{ matrix.width }} ${{ matrix.simd }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
@@ -242,12 +227,8 @@ jobs:
       - name: Build WASM
         run: |
           source ~/emsdk/emsdk_env.sh
-          cmake -B build_wasm \
-            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-${{ matrix.width }}-emscripten.cmake \
-            -DNUMKONG_WASM_SIMD=${{ matrix.simd }} \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DNUMKONG_BUILD_SHARED=ON
-          cmake --build build_wasm --config Release
+          cmake --preset ${{ matrix.width }}_emscripten -B build_wasm -D NUMKONG_WASM_SIMD=${{ matrix.simd }}
+          cmake --build build_wasm
       # The wasm64 linker flags can produce a module that links but fails to instantiate.
       - name: Smoke Test WASM64 Module
         if: matrix.width == 'wasm64'
@@ -269,7 +250,7 @@ jobs:
   create_wasm_library:
     name: Create WASM Library
     needs: build_wasm_module
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
@@ -353,19 +334,15 @@ jobs:
             | tar -xJf - -C /tmp/freebsd-sysroot ./lib ./usr/lib ./usr/include
       - name: Build Shared Library
         run: |
-          cmake -B build_freebsd \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_SYSTEM_NAME=FreeBSD \
-            -DCMAKE_SYSTEM_PROCESSOR=${{ matrix.processor }} \
-            -DCMAKE_SYSROOT=/tmp/freebsd-sysroot \
-            -DCMAKE_C_COMPILER_TARGET=${{ matrix.processor }}-unknown-freebsd${{ env.FREEBSD_RELEASE }} \
-            -DCMAKE_CXX_COMPILER_TARGET=${{ matrix.processor }}-unknown-freebsd${{ env.FREEBSD_RELEASE }} \
-            -DCMAKE_SHARED_LINKER_FLAGS="-fuse-ld=lld-20" \
-            -DNUMKONG_BUILD_SHARED=ON \
-            -DNUMKONG_BUILD_TEST=OFF \
-            -DNUMKONG_BUILD_BENCH=OFF
-          cmake --build build_freebsd --config Release
-          cp build_freebsd/libnumkong.so \
+          cmake --preset release_shared \
+            -D CMAKE_SYSTEM_NAME=FreeBSD \
+            -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.processor }} \
+            -D CMAKE_SYSROOT=/tmp/freebsd-sysroot \
+            -D CMAKE_C_COMPILER_TARGET=${{ matrix.processor }}-unknown-freebsd${{ env.FREEBSD_RELEASE }} \
+            -D CMAKE_CXX_COMPILER_TARGET=${{ matrix.processor }}-unknown-freebsd${{ env.FREEBSD_RELEASE }} \
+            -D CMAKE_SHARED_LINKER_FLAGS="-fuse-ld=lld-20"
+          cmake --build --preset release_shared
+          cp build_release_shared/libnumkong.so \
             "numkong_freebsd_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.so"
       - name: Upload to GitHub Release
         env:
@@ -417,18 +394,14 @@ jobs:
           sudo apt-get install -y ${{ matrix.pkg }}
       - name: Build Shared Library
         run: |
-          cmake -B build_release \
-            -DCMAKE_SYSTEM_NAME=Linux \
-            -DCMAKE_SYSTEM_PROCESSOR=${{ matrix.processor }} \
-            -DCMAKE_C_COMPILER=${{ matrix.cc }} \
-            -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} \
-            -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DNUMKONG_BUILD_SHARED=ON \
-            -DNUMKONG_BUILD_TEST=OFF \
-            -DNUMKONG_BUILD_BENCH=OFF
-          cmake --build build_release --config Release
-          cp build_release/libnumkong.so \
+          cmake --preset release_shared \
+            -D CMAKE_SYSTEM_NAME=Linux \
+            -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.processor }} \
+            -D CMAKE_C_COMPILER=${{ matrix.cc }} \
+            -D CMAKE_CXX_COMPILER=${{ matrix.cxx }} \
+            -D CMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY
+          cmake --build --preset release_shared
+          cp build_release_shared/libnumkong.so \
             "numkong_linux_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.so"
       - name: Upload to GitHub Release
         env:
@@ -457,16 +430,10 @@ jobs:
             gcc-riscv64-linux-gnu libc6-dev-riscv64-cross
       - name: Build Shared Library
         run: |
-          cmake -B build_riscv \
-            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscv64-llvm.cmake \
-            -DLLVM_ROOT=/usr/lib/llvm-23 \
-            -DRISCV_MARCH=rv64gcv_zvfh_zvfbfwma_zvbb \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DNUMKONG_BUILD_SHARED=ON \
-            -DNUMKONG_BUILD_TEST=OFF \
-            -DNUMKONG_BUILD_BENCH=OFF
-          cmake --build build_riscv --config Release
-          cp build_riscv/libnumkong.so \
+          cmake --preset linux_riscv64_llvm -D LLVM_ROOT=/usr/lib/llvm-23 -D RISCV_MARCH=rv64gcv_zvfh_zvfbfwma_zvbb \
+            -D NUMKONG_BUILD_TEST=OFF
+          cmake --build --preset linux_riscv64_llvm
+          cp build_linux_riscv64_llvm/libnumkong.so \
             "numkong_linux_riscv64_${{ steps.set_version.outputs.version }}.so"
       - name: Upload to GitHub Release
         env:

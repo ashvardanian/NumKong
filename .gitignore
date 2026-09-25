@@ -19,6 +19,9 @@ bun.lockb
 .claude/
 tmp/
 
+# Per-developer preset overrides: toolchain paths that are true of one machine, not of the project
+CMakeUserPresets.json
+
 # Playwright and test artifacts
 playwright-report/
 test-results/

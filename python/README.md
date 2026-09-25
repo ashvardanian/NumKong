@@ -65,12 +65,12 @@ When building from source, the compiler requirements depend on the platform.
 On macOS x86 only AVX2 is available; on macOS ARM NEON is always present, but SME requires Apple M4+ with Xcode 16+ (AppleClang 16+).
 RISC-V builds require Clang and LLD because GCC lacks `zvfh`, `zvfbfwma`, and `zvbb` support.
 On Windows, MSVC 19.44+ (Visual Studio 2022 17.14+) is recommended for full AVX-512 with FP16/BF16/VNNI.
-Build parallelism is controlled by `NUMKONG_BUILD_PARALLEL`, which defaults to `min(cpu_count, 4)` and should be lowered in memory-constrained containers.
+Build parallelism is controlled by `NUMKONG_BUILD_JOBS`, which defaults to `min(cpu_count, 4)` and should be lowered in memory-constrained containers.
 There is no OpenMP dependency.
 Python-side parallelism uses the `threads=` argument on the GIL-free kernels, or `concurrent.futures` around them.
 
 ```sh
-NUMKONG_BUILD_PARALLEL=2 pip install . --no-build-isolation
+NUMKONG_BUILD_JOBS=2 pip install . --no-build-isolation
 ```
 
 ## Dot Products

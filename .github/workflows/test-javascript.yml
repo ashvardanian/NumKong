@@ -21,7 +21,7 @@ env:
 jobs:
   test_nodejs:
     name: Test Node.js
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     env:
       CC: gcc-14
       CXX: g++-14
@@ -66,59 +66,59 @@ jobs:
   # relaxed rows are separate builds, and the wasm32 Emscripten rows hand their modules to the browser job.
   test_wasm:
     name: Test WASM, ${{ matrix.name }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: wasm32-emscripten v128 under Node
             sdk: emscripten
-            toolchain: toolchain-wasm32-emscripten
+            preset: wasm32_emscripten
             simd: v128
             build: build-wasm
             runtime: emscripten
             node: 22
           - name: wasm32-emscripten v128relaxed under Node
             sdk: emscripten
-            toolchain: toolchain-wasm32-emscripten
+            preset: wasm32_emscripten
             simd: v128relaxed
             build: build-wasm
             runtime: emscripten
             node: 22
           - name: wasm64-emscripten v128relaxed under Node
             sdk: emscripten
-            toolchain: toolchain-wasm64-emscripten
+            preset: wasm64_emscripten
             simd: v128relaxed
             build: build-wasm64
             runtime: emscripten64
             node: 24
           - name: wasm32-wasi v128 under Node
             sdk: wasi
-            toolchain: toolchain-wasm32-wasi
+            preset: wasm32_wasi
             simd: v128
             runtime: wasi-node
             node: 22
           - name: wasm32-wasi v128relaxed under Node
             sdk: wasi
-            toolchain: toolchain-wasm32-wasi
+            preset: wasm32_wasi
             simd: v128relaxed
             runtime: wasi-node
             node: 22
           - name: wasm32-wasi v128 under Wasmtime and Wasmer
             sdk: wasi
-            toolchain: toolchain-wasm32-wasi
+            preset: wasm32_wasi
             simd: v128
             runtime: standalone
             node: 22
           - name: wasm32-wasi v128relaxed under Wasmtime and Wasmer
             sdk: wasi
-            toolchain: toolchain-wasm32-wasi
+            preset: wasm32_wasi
             simd: v128relaxed
             runtime: standalone
             node: 22
           - name: wasm32-wasi-threads v128relaxed under Wasmtime
             sdk: wasi
-            toolchain: toolchain-wasm32-wasi-threads
+            preset: wasm32_wasi_threads
             simd: v128relaxed
             runtime: wasmtime-threads
             node: 22
@@ -169,8 +169,8 @@ jobs:
         if: matrix.sdk == 'emscripten'
         run: |
           source ~/emsdk/emsdk_env.sh
-          cmake -B ${{ matrix.build }} -DCMAKE_TOOLCHAIN_FILE=cmake/${{ matrix.toolchain }}.cmake \
-            -DNUMKONG_WASM_SIMD=${{ matrix.simd }} -DNUMKONG_BUILD_SHARED=ON
+          # `test/wasm.mjs` and the browser pages load the modules from these directories by name
+          cmake --preset ${{ matrix.preset }} -B ${{ matrix.build }} -D NUMKONG_WASM_SIMD=${{ matrix.simd }}
           cmake --build ${{ matrix.build }}
 
       - name: Upload Emscripten Module
@@ -188,9 +188,8 @@ jobs:
         if: matrix.sdk == 'wasi'
         run: |
           export WASI_SDK_PATH=~/wasi-sdk
-          cmake -B build-wasi -DCMAKE_TOOLCHAIN_FILE=cmake/${{ matrix.toolchain }}.cmake \
-            -DNUMKONG_WASM_SIMD=${{ matrix.simd }} -DNUMKONG_BUILD_TEST=ON \
-            -DNUMKONG_WASI_HOSTED=${{ matrix.runtime == 'wasi-node' && 'ON' || 'OFF' }}
+          cmake --preset ${{ matrix.preset }} -B build-wasi -D NUMKONG_WASM_SIMD=${{ matrix.simd }} \
+            -D NUMKONG_WASI_HOSTED=${{ matrix.runtime == 'wasi-node' && 'ON' || 'OFF' }}
           cmake --build build-wasi
 
       - name: Build JavaScript Bindings
@@ -259,7 +258,7 @@ jobs:
     name: Test WASM, wasm32-emscripten under browsers
     needs: test_wasm
     if: ${{ !cancelled() }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
 
     steps:
       - name: Checkout
@@ -318,7 +317,7 @@ jobs:
 
   test_deno:
     name: Test Deno
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     env:
       CC: gcc-14
       CXX: g++-14
@@ -369,7 +368,7 @@ jobs:
 
   test_bun:
     name: Test Bun
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     env:
       CC: gcc-14
       CXX: g++-14

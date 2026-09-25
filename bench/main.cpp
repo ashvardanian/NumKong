@@ -172,7 +172,7 @@ int main(int argc, char **argv) {
 
     log_environment();
     fmt::println("- Seed: {}", bench_config.seed);
-#if NUMKONG_BUILD_CUDA_BENCH
+#if NUMKONG_BUILD_CUDA
     print_cuda_header();
 #endif
     fmt::println(
@@ -217,7 +217,7 @@ int main(int argc, char **argv) {
     bench_cross_power();
     bench_cross_wasm();
     bench_cross_loongarch();
-#if NUMKONG_BUILD_CUDA_BENCH
+#if NUMKONG_BUILD_CUDA
     bench_cross_cuda();
 #endif
 

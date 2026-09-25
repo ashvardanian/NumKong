@@ -14,7 +14,7 @@ permissions:
 jobs:
   test_golang:
     name: Test Go
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
 
     steps:
       - name: Checkout

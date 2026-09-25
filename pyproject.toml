@@ -75,7 +75,7 @@ test-requires = ["pytest", "pytest-randomly", "pytest-repeat", "tabulate"]
 test-skip = "*_i686 *_ppc64le *_s390x"
 
 [tool.cibuildwheel.environment]
-NUMKONG_BUILD_PARALLEL = "2"
+NUMKONG_BUILD_JOBS = "2"
 
 [tool.cibuildwheel.linux]
 # On CentOS we have to use `yum`, and `extras` fails to download on Arm instances.
