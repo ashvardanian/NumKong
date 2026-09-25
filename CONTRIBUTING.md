@@ -414,7 +414,7 @@ sudo docker run --rm -v "$PWD:/workspace" -w /workspace swift:5.9 /bin/bash -cl 
 ## GoLang
 
 ```sh
-go test ./test/golang/ # To test
+go test ./golang/ # To test
 go test -run=^$ -bench=. -benchmem ./bench/golang/ # To benchmark
 ```
 

@@ -1,15 +1,11 @@
+// A goroutine pool that splits the packed and symmetric batch kernels into row ranges.
+//
 // File: golang/matrix.go
 // Author: Ash Vardanian
 
 package numkong
 
-/*
-#cgo CFLAGS: -O3 -I../include
-#cgo LDFLAGS: -O3 -L. -lm
-#define NUMKONG_NATIVE_F16 (0)
-#define NUMKONG_NATIVE_BF16 (0)
-#include "numkong/numkong.h"
-*/
+// #include "numkong/numkong.h"
 import "C"
 import (
 	"runtime"
@@ -79,6 +75,9 @@ func (p *WorkerPool) run(totalRows int, fn func(lo, hi int)) {
 	}
 	wg.Wait()
 }
+
+// divideRoundUp divides rounding up, for tile and thread counts only.
+func divideRoundUp(dividend, divisor int) int { return (dividend + divisor - 1) / divisor }
 
 // region DotsPackedMatrix WithPool methods
 

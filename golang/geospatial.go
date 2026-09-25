@@ -1,15 +1,11 @@
+// Haversine and Vincenty distances in meters between latitude and longitude slices in radians.
+//
 // File: golang/geospatial.go
 // Author: Ash Vardanian
 
 package numkong
 
-/*
-#cgo CFLAGS: -O3 -I../include
-#cgo LDFLAGS: -O3 -L. -lm
-#define NUMKONG_NATIVE_F16 (0)
-#define NUMKONG_NATIVE_BF16 (0)
-#include "numkong/numkong.h"
-*/
+// #include "numkong/numkong.h"
 import "C"
 
 // HaversineF64 writes the great-circle distance in meters between each pair of float64 coordinates

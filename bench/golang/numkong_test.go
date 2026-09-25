@@ -1,3 +1,5 @@
+// Benchmarks the angular distance of float32 vectors against a pure Go cosine distance.
+//
 // File: bench/golang/numkong_test.go
 // Author: Ash Vardanian
 

@@ -1,15 +1,11 @@
+// Kullback-Leibler and Jensen-Shannon divergences of float64 and float32 distributions.
+//
 // File: golang/probability.go
 // Author: Ash Vardanian
 
 package numkong
 
-/*
-#cgo CFLAGS: -O3 -I../include
-#cgo LDFLAGS: -O3 -L. -lm
-#define NUMKONG_NATIVE_F16 (0)
-#define NUMKONG_NATIVE_BF16 (0)
-#include "numkong/numkong.h"
-*/
+// #include "numkong/numkong.h"
 import "C"
 
 // KullbackLeiblerF64 computes the Kullback-Leibler divergence between two float64 distributions.

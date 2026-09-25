@@ -1,15 +1,11 @@
+// Dot products of many rows against a matrix packed once, or within one set of rows.
+//
 // File: golang/dots.go
 // Author: Ash Vardanian
 
 package numkong
 
-/*
-#cgo CFLAGS: -O3 -I../include
-#cgo LDFLAGS: -O3 -L. -lm
-#define NUMKONG_NATIVE_F16 (0)
-#define NUMKONG_NATIVE_BF16 (0)
-#include "numkong/numkong.h"
-*/
+// #include "numkong/numkong.h"
 import "C"
 import "unsafe"
 

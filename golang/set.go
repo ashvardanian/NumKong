@@ -1,15 +1,11 @@
+// Hamming and Jaccard distances over bit vectors, bytes and set-hash signatures.
+//
 // File: golang/set.go
 // Author: Ash Vardanian
 
 package numkong
 
-/*
-#cgo CFLAGS: -O3 -I../include
-#cgo LDFLAGS: -O3 -L. -lm
-#define NUMKONG_NATIVE_F16 (0)
-#define NUMKONG_NATIVE_BF16 (0)
-#include "numkong/numkong.h"
-*/
+// #include "numkong/numkong.h"
 import "C"
 
 // HammingU8 counts the positions at which two uint8 vectors differ.

@@ -1,15 +1,11 @@
+// Dot products of float and integer slices, backed by the dispatched nk_dot family.
+//
 // File: golang/dot.go
 // Author: Ash Vardanian
 
 package numkong
 
-/*
-#cgo CFLAGS: -O3 -I../include
-#cgo LDFLAGS: -O3 -L. -lm
-#define NUMKONG_NATIVE_F16 (0)
-#define NUMKONG_NATIVE_BF16 (0)
-#include "numkong/numkong.h"
-*/
+// #include "numkong/numkong.h"
 import "C"
 
 // DotF64 computes the dot product of two float64 vectors.
