@@ -682,12 +682,13 @@ struct vector {
 
     /**
      *  @brief Factory: allocate a zero-initialized vector with @p dims dimensions.
-     *  @return Non-empty vector on success, empty vector on allocation failure.
+     *  @return Non-empty vector on success, empty vector on allocation failure or when @p dims is
+     *      not a whole number of storage values.
      */
     [[nodiscard]] static vector try_zeros(size_type dims, allocator_type_ alloc = {}) noexcept {
         vector v(alloc);
         size_type values = dimensions_to_values(dims);
-        if (values == 0) return v;
+        if (values == 0 || dims % dimensions_per_value<value_type>()) return v;
         pointer ptr = alloc_traits::allocate(v.alloc_, values);
         if (!ptr) return v;
         if constexpr (is_memset_zero_safe_v<value_type_>) std::memset(ptr, 0, values * sizeof(value_type_));
@@ -709,12 +710,13 @@ struct vector {
 
     /**
      *  @brief Factory: allocate a vector filled with @p val.
-     *  @return Non-empty vector on success, empty vector on allocation failure.
+     *  @return Non-empty vector on success, empty vector on allocation failure or when @p dims is
+     *      not a whole number of storage values.
      */
     [[nodiscard]] static vector try_full(size_type dims, value_type_ val, allocator_type_ alloc = {}) noexcept {
         vector v(alloc);
         size_type values = dimensions_to_values(dims);
-        if (values == 0) return v;
+        if (values == 0 || dims % dimensions_per_value<value_type>()) return v;
         pointer ptr = alloc_traits::allocate(v.alloc_, values);
         if (!ptr) return v;
         for (size_type i = 0; i < values; ++i) ptr[i] = val;
@@ -726,13 +728,14 @@ struct vector {
 
     /**
      *  @brief Factory: allocate an uninitialized vector.
-     *  @return Non-empty vector on success, empty vector on allocation failure.
+     *  @return Non-empty vector on success, empty vector on allocation failure or when @p dims is
+     *      not a whole number of storage values.
      *  @warning Contents are uninitialized. Caller must fill before reading.
      */
     [[nodiscard]] static vector try_empty(size_type dims, allocator_type_ alloc = {}) noexcept {
         vector v(alloc);
         size_type values = dimensions_to_values(dims);
-        if (values == 0) return v;
+        if (values == 0 || dims % dimensions_per_value<value_type>()) return v;
         pointer ptr = alloc_traits::allocate(v.alloc_, values);
         if (!ptr) return v;
         v.data_ = ptr;
@@ -744,7 +747,7 @@ struct vector {
     /**
      *  @brief Factory: adopt raw memory. Caller transfers ownership.
      *  @param[in] ptr Pointer to data (must have been allocated by @p alloc).
-     *  @param[in] dims Number of logical dimensions.
+     *  @param[in] dims Number of logical dimensions, a whole number of storage values.
      *  @param[in] alloc Allocator instance.
      */
     [[nodiscard]] static vector from_raw(pointer ptr, size_type dims, allocator_type_ alloc = {}) noexcept {
@@ -768,12 +771,12 @@ struct vector {
     constexpr size_type capacity() const noexcept { return capacity_values_; }
 
     /**
-     *  @brief Resize in place to @p dims dimensions without reallocating: succeeds iff the packed
-     *      storage fits `capacity()`, so `values_data()` never moves.
+     *  @brief Resize in place to @p dims dimensions without reallocating: succeeds iff @p dims is a
+     *      whole number of storage values that fits `capacity()`, so `values_data()` never moves.
      *  @return `true` on success; @c false leaves the size untouched.
      */
     [[nodiscard]] constexpr bool try_resize(size_type dims) noexcept {
-        if (dimensions_to_values(dims) > capacity_values_) return false;
+        if (dims % dimensions_per_value<value_type>() || dimensions_to_values(dims) > capacity_values_) return false;
         dimensions_ = dims;
         return true;
     }

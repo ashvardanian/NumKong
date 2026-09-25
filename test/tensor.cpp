@@ -340,6 +340,9 @@ error_stats_t test_sub_byte_i4x2() {
     v[0] = 5, v[1] = -3;
     stats.expect(v[0] == 5, "i4x2_t dim 0 mismatch");
     stats.expect(v[1] == -3, "i4x2_t dim 1 mismatch");
+
+    stats.expect(nk::vector<nk::i4x2_t>::try_zeros(7).empty(), "i4x2_t allocated half a byte");
+    stats.expect(!v.try_resize(99) && v.size() == 100, "i4x2_t resized to half a byte");
     return stats;
 }
 
@@ -358,21 +361,21 @@ error_stats_t test_sub_byte_u1x8() {
 
 error_stats_t test_block_scaled_composites() {
     error_stats_t stats(comparison_family_t::exact_k);
-    // NVFP4: 9 bytes per block × 7 blocks for 100 logical dims.
-    auto nvfp4_vec = make_vector<nk::nvfp4_t>(100);
-    stats.expect(nvfp4_vec.size() == 100, "nvfp4_t size mismatch");
-    stats.expect(nvfp4_vec.size_values() == 7, "nvfp4_t size_values mismatch (⌈100/16⌉)");
+    // NVFP4: 9 bytes per block × 7 blocks for 112 logical dims.
+    auto nvfp4_vec = make_vector<nk::nvfp4_t>(112);
+    stats.expect(nvfp4_vec.size() == 112, "nvfp4_t size mismatch");
+    stats.expect(nvfp4_vec.size_values() == 7, "nvfp4_t size_values mismatch (112/16)");
     stats.expect(nvfp4_vec.size_bytes() == 63, "nvfp4_t size_bytes mismatch (7 × 9)");
 
-    // MXFP4: 17 bytes per block × 4 blocks for 100 logical dims.
-    auto mxfp4_vec = make_vector<nk::mxfp4_t>(100);
-    stats.expect(mxfp4_vec.size() == 100, "mxfp4_t size mismatch");
-    stats.expect(mxfp4_vec.size_values() == 4, "mxfp4_t size_values mismatch (⌈100/32⌉)");
+    // MXFP4: 17 bytes per block × 4 blocks for 128 logical dims.
+    auto mxfp4_vec = make_vector<nk::mxfp4_t>(128);
+    stats.expect(mxfp4_vec.size() == 128, "mxfp4_t size mismatch");
+    stats.expect(mxfp4_vec.size_values() == 4, "mxfp4_t size_values mismatch (128/32)");
     stats.expect(mxfp4_vec.size_bytes() == 68, "mxfp4_t size_bytes mismatch (4 × 17)");
 
-    // MXFP8 E4M3: 33 bytes per block × 4 blocks for 100 logical dims.
-    auto mxfp8_vec = make_vector<nk::mxfp8_e4m3_t>(100);
-    stats.expect(mxfp8_vec.size() == 100, "mxfp8_e4m3_t size mismatch");
+    // MXFP8 E4M3: 33 bytes per block × 4 blocks for 128 logical dims.
+    auto mxfp8_vec = make_vector<nk::mxfp8_e4m3_t>(128);
+    stats.expect(mxfp8_vec.size() == 128, "mxfp8_e4m3_t size mismatch");
     stats.expect(mxfp8_vec.size_values() == 4, "mxfp8_e4m3_t size_values mismatch");
     stats.expect(mxfp8_vec.size_bytes() == 132, "mxfp8_e4m3_t size_bytes mismatch (4 × 33)");
 

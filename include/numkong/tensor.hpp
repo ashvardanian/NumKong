@@ -164,6 +164,13 @@ constexpr std::size_t storage_values_for_shape_(shape_storage_<max_rank_> const 
     return values;
 }
 
+/** Whether the last extent is a whole number of storage values: @c storage_values_for_shape_ rounds
+ *  a partial one down, leaving the trailing dimensions without storage. */
+template <typename value_type_, std::size_t max_rank_>
+constexpr bool shape_fills_whole_values_(shape_storage_<max_rank_> const &shape) noexcept {
+    return shape.rank == 0 || shape.extents[shape.rank - 1] % dimensions_per_value<value_type_>() == 0;
+}
+
 template <typename value_type_, std::size_t max_rank_>
 constexpr shape_storage_<max_rank_> make_contiguous_shape_(std::size_t const *exts, std::size_t rank_val) noexcept {
     shape_storage_<max_rank_> s;
@@ -203,7 +210,9 @@ template <typename value_type_, std::size_t max_rank_, std::size_t... indices_, 
 constexpr std::array<std::size_t, sizeof...(indices_)> resolve_tensor_indices_(shape_storage_<max_rank_> const &shape,
                                                                                std::index_sequence<indices_...>,
                                                                                index_types_... idxs) noexcept {
-    return {resolve_index_(idxs, shape.extents[indices_])...};
+    std::array<std::size_t, sizeof...(indices_)> const coords {resolve_index_(idxs, shape.extents[indices_])...};
+    nk_assert_(((coords[indices_] < shape.extents[indices_]) && ...));
+    return coords;
 }
 
 template <typename value_type_, std::size_t max_rank_, std::size_t extent_>
@@ -334,6 +343,7 @@ struct tensor_view {
         nk_assert_(shape_.rank >= 1);
         if (shape_.rank == 0) return {};
         auto i = resolve_index_(idx, shape_.extents[0]);
+        nk_assert_(i < shape_.extents[0]);
         auto offset = static_cast<difference_type>(i) * shape_.strides[0];
         shape_storage_<max_rank_> sub;
         sub.rank = shape_.rank - 1;
@@ -444,13 +454,15 @@ struct tensor_view {
 
     /** Reshape to new extents, requires contiguous layout and matching element count. The output
      *  rank may differ from the source; pass it as the template argument when narrowing or
-     *  widening. Returns an empty view when not contiguous or when element counts disagree. */
+     *  widening. Returns an empty view when not contiguous, when element counts disagree, or when
+     *  the last extent is not a whole number of storage values. */
     template <std::size_t out_rank_ = max_rank_>
     constexpr tensor_view<value_type_, out_rank_> reshape(std::initializer_list<size_type> new_extents) const noexcept {
         auto new_rank = new_extents.size();
         if (!is_contiguous() || new_rank > out_rank_ || new_rank == 0) return {};
         auto new_shape = make_contiguous_shape_<value_type, out_rank_>(new_extents.begin(), new_rank);
-        if (storage_values_for_shape_<value_type>(new_shape) != storage_values_for_shape_<value_type>(shape_))
+        if (!shape_fills_whole_values_<value_type>(new_shape) ||
+            storage_values_for_shape_<value_type>(new_shape) != storage_values_for_shape_<value_type>(shape_))
             return {};
         return {data_, new_shape};
     }
@@ -608,6 +620,7 @@ struct tensor_span {
         nk_assert_(shape_.rank >= 1);
         if (shape_.rank == 0) return {};
         auto i = resolve_index_(idx, shape_.extents[0]);
+        nk_assert_(i < shape_.extents[0]);
         auto offset = static_cast<difference_type>(i) * shape_.strides[0];
         shape_storage_<max_rank_> sub;
         sub.rank = shape_.rank - 1;
@@ -724,13 +737,15 @@ struct tensor_span {
 
     /** Reshape to new extents, requires contiguous layout and matching element count. The output
      *  rank may differ from the source; pass it as the template argument when narrowing or
-     *  widening. Returns an empty span if not contiguous or element counts don't match. */
+     *  widening. Returns an empty span if not contiguous, if element counts don't match, or if the
+     *  last extent is not a whole number of storage values. */
     template <std::size_t out_rank_ = max_rank_>
     constexpr tensor_span<value_type_, out_rank_> reshape(std::initializer_list<size_type> new_extents) const noexcept {
         auto new_rank = new_extents.size();
         if (!is_contiguous() || new_rank > out_rank_ || new_rank == 0) return {};
         auto new_shape = make_contiguous_shape_<value_type, out_rank_>(new_extents.begin(), new_rank);
-        if (storage_values_for_shape_<value_type>(new_shape) != storage_values_for_shape_<value_type>(shape_))
+        if (!shape_fills_whole_values_<value_type>(new_shape) ||
+            storage_values_for_shape_<value_type>(new_shape) != storage_values_for_shape_<value_type>(shape_))
             return {};
         return {data_, new_shape};
     }
@@ -858,6 +873,7 @@ constexpr decltype(auto) tensor_flat_lookup_(tensor_view<value_type_, max_rank_>
     nk_assert_(input.byte_data() != nullptr);
     if constexpr (dimensions_per_value<value_type_>() > 1) nk_assert_(input.rank() > 0);
     auto flat = resolve_index_(idx, input.numel());
+    nk_assert_(flat < input.numel());
     if constexpr (dimensions_per_value<value_type_>() == 1) {
         if (input.rank() == 0) return input.scalar();
     }
@@ -877,6 +893,7 @@ constexpr decltype(auto) tensor_flat_lookup_(tensor_span<value_type_, max_rank_>
     nk_assert_(input.byte_data() != nullptr);
     if constexpr (dimensions_per_value<value_type_>() > 1) nk_assert_(input.rank() > 0);
     auto flat = resolve_index_(idx, input.numel());
+    nk_assert_(flat < input.numel());
     if constexpr (dimensions_per_value<value_type_>() == 1) {
         if (input.rank() == 0) return input.scalar_ref();
     }
@@ -1379,8 +1396,9 @@ struct tensor {
 
     /**
      *  @brief Reshape in place to contiguous @p extents, without reallocating: succeeds iff the new
-     *      volume fits `capacity()` and the rank fits @c max_rank_, so `data()` never moves —
-     *      resizing to a step's live extents is safe under captured GPU graphs.
+     *      volume fits `capacity()`, the rank fits @c max_rank_ and the last extent is a whole
+     *      number of storage values, so `data()` never moves — resizing to a step's live extents is
+     *      safe under captured GPU graphs.
      *  @return @c true on success; @c false leaves the shape untouched.
      */
     [[nodiscard]] constexpr bool try_resize(std::initializer_list<size_type> extents) noexcept {
@@ -1391,7 +1409,9 @@ struct tensor {
     [[nodiscard]] constexpr bool try_resize(size_type const *extents, size_type rank) noexcept {
         if (rank > max_rank_) return false;
         shape_storage_<max_rank_> const resized = make_contiguous_shape_<value_type_, max_rank_>(extents, rank);
-        if (storage_values_for_shape_<value_type_>(resized) > capacity_) return false;
+        if (!shape_fills_whole_values_<value_type_>(resized) ||
+            storage_values_for_shape_<value_type_>(resized) > capacity_)
+            return false;
         shape_ = resized;
         return true;
     }
@@ -1447,7 +1467,7 @@ struct tensor {
         if (rank > max_rank_) return t;
         t.shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents.begin(), rank);
         auto storage_values = storage_values_for_shape_<value_type_>(t.shape_);
-        if (storage_values == 0) return t;
+        if (storage_values == 0 || !shape_fills_whole_values_<value_type_>(t.shape_)) return t;
         pointer ptr = alloc_traits::allocate(t.alloc_, storage_values);
         if (!ptr) return t;
         if constexpr (is_memset_zero_safe_v<value_type_>)
@@ -1484,7 +1504,7 @@ struct tensor {
         if (rank > max_rank_) return t;
         t.shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents.begin(), rank);
         auto storage_values = storage_values_for_shape_<value_type_>(t.shape_);
-        if (storage_values == 0) return t;
+        if (storage_values == 0 || !shape_fills_whole_values_<value_type_>(t.shape_)) return t;
         pointer ptr = alloc_traits::allocate(t.alloc_, storage_values);
         if (!ptr) return t;
         for (size_type i = 0; i < storage_values; ++i) ptr[i] = val;
@@ -1506,7 +1526,7 @@ struct tensor {
         if (rank > max_rank_) return t;
         t.shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents.begin(), rank);
         auto storage_values = storage_values_for_shape_<value_type_>(t.shape_);
-        if (storage_values == 0) return t;
+        if (storage_values == 0 || !shape_fills_whole_values_<value_type_>(t.shape_)) return t;
         pointer ptr = alloc_traits::allocate(t.alloc_, storage_values);
         if (!ptr) return t;
         t.data_ = ptr;
@@ -1521,7 +1541,7 @@ struct tensor {
         if (rank > max_rank_) return t;
         t.shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents, rank);
         auto storage_values = storage_values_for_shape_<value_type_>(t.shape_);
-        if (storage_values == 0) return t;
+        if (storage_values == 0 || !shape_fills_whole_values_<value_type_>(t.shape_)) return t;
         pointer ptr = alloc_traits::allocate(t.alloc_, storage_values);
         if (!ptr) return t;
         if constexpr (is_memset_zero_safe_v<value_type_>)
@@ -1540,7 +1560,7 @@ struct tensor {
         if (rank > max_rank_) return t;
         t.shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents, rank);
         auto storage_values = storage_values_for_shape_<value_type_>(t.shape_);
-        if (storage_values == 0) return t;
+        if (storage_values == 0 || !shape_fills_whole_values_<value_type_>(t.shape_)) return t;
         pointer ptr = alloc_traits::allocate(t.alloc_, storage_values);
         if (!ptr) return t;
         t.data_ = ptr;
@@ -1555,7 +1575,7 @@ struct tensor {
         if (rank > max_rank_) return t;
         t.shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents, rank);
         auto storage_values = storage_values_for_shape_<value_type_>(t.shape_);
-        if (storage_values == 0) return t;
+        if (storage_values == 0 || !shape_fills_whole_values_<value_type_>(t.shape_)) return t;
         pointer ptr = alloc_traits::allocate(t.alloc_, storage_values);
         if (!ptr) return t;
         for (size_type i = 0; i < storage_values; ++i) ptr[i] = val;
@@ -1602,9 +1622,10 @@ struct tensor {
         return t;
     }
 
-    /** Factory: adopt raw memory. */
+    /** Factory: adopt raw memory, whose @p shape must end in a whole number of storage values. */
     [[nodiscard]] static tensor from_raw(pointer ptr, shape_storage_<max_rank_> const &shape,
                                          allocator_type_ alloc = {}) noexcept {
+        nk_assert_(shape_fills_whole_values_<value_type_>(shape));
         tensor t(alloc);
         t.data_ = ptr;
         t.capacity_ = storage_values_for_shape_<value_type_>(shape);
