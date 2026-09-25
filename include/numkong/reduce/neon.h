@@ -176,14 +176,6 @@ NK_HELPER_INLINE void nk_reduce_minmax_f32_neon_contiguous_( //
         max_iter_u32x4 = vbslq_u32(greater_u32x4, iter_u32x4, max_iter_u32x4);
     }
     nk_f32_t min_value = vminvq_f32(min_f32x4), max_value = vmaxvq_f32(max_f32x4);
-
-    // All-NaN / sentinel check: sentinels remain unchanged when all data is NaN.
-    if (min_value == NK_F32_MAX && max_value == NK_F32_MIN) {
-        *min_value_ptr = NK_F32_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = NK_F32_MIN,
-        *max_index_ptr = NK_SIZE_MAX;
-        return;
-    }
-
     uint32x4_t min_value_match_u32x4 = vceqq_f32(min_f32x4, vdupq_n_f32(min_value));
     uint32x4_t masked_min_iter_u32x4 = vbslq_u32(min_value_match_u32x4, min_iter_u32x4, vdupq_n_u32(NK_U32_MAX));
     nk_u32_t earliest_min_cycle = vminvq_u32(masked_min_iter_u32x4);
@@ -202,8 +194,13 @@ NK_HELPER_INLINE void nk_reduce_minmax_f32_neon_contiguous_( //
     uint32x4_t max_masked_lanes_u32x4 = vbslq_u32(max_both_match_u32x4, lane_indices_u32x4, vdupq_n_u32(NK_U32_MAX));
     nk_u32_t max_lane_offset = vminvq_u32(max_masked_lanes_u32x4);
     nk_size_t max_idx = (nk_size_t)earliest_max_cycle * 4 + (nk_size_t)max_lane_offset;
-    *min_value_ptr = min_value, *min_index_ptr = min_idx;
-    *max_value_ptr = max_value, *max_index_ptr = max_idx;
+    // The winning lane keeps the zero sign `vminvq` may flip; an unmoved sentinel means no index
+    nk_b128_vec_t min_values_vec, max_values_vec;
+    min_values_vec.f32x4 = min_f32x4, max_values_vec.f32x4 = max_f32x4;
+    *min_value_ptr = min_values_vec.f32s[min_lane_offset];
+    *min_index_ptr = min_value < NK_F32_MAX ? min_idx : NK_SIZE_MAX;
+    *max_value_ptr = max_values_vec.f32s[max_lane_offset];
+    *max_index_ptr = max_value > NK_F32_MIN ? max_idx : NK_SIZE_MAX;
 }
 
 NK_HELPER_INLINE void nk_reduce_minmax_f32_neon_strided_(                 //
@@ -247,11 +244,6 @@ nk_reduce_minmax_f32_neon_cycle:
     }
     else {
         nk_f32_t min_value = vminvq_f32(min_f32x4), max_value = vmaxvq_f32(max_f32x4);
-        if (min_value == NK_F32_MAX && max_value == NK_F32_MIN) {
-            *min_value_ptr = NK_F32_MAX, *min_index_ptr = NK_SIZE_MAX;
-            *max_value_ptr = NK_F32_MIN, *max_index_ptr = NK_SIZE_MAX;
-            return;
-        }
         uint32x4_t min_value_match_u32x4 = vceqq_f32(min_f32x4, vdupq_n_f32(min_value));
         uint32x4_t masked_min_iter_u32x4 = vbslq_u32(min_value_match_u32x4, min_iter_u32x4, vdupq_n_u32(NK_U32_MAX));
         nk_u32_t earliest_min_cycle = vminvq_u32(masked_min_iter_u32x4);
@@ -270,8 +262,13 @@ nk_reduce_minmax_f32_neon_cycle:
                                                       vdupq_n_u32(NK_U32_MAX));
         nk_u32_t max_lane_offset = vminvq_u32(max_masked_lanes_u32x4);
         nk_size_t max_idx = (nk_size_t)earliest_max_cycle * 4 + (nk_size_t)max_lane_offset;
-        *min_value_ptr = min_value, *min_index_ptr = min_idx;
-        *max_value_ptr = max_value, *max_index_ptr = max_idx;
+        // The winning lane keeps the zero sign `vminvq` may flip; an unmoved sentinel has no index
+        nk_b128_vec_t min_values_vec, max_values_vec;
+        min_values_vec.f32x4 = min_f32x4, max_values_vec.f32x4 = max_f32x4;
+        *min_value_ptr = min_values_vec.f32s[min_lane_offset];
+        *min_index_ptr = min_value < NK_F32_MAX ? min_idx : NK_SIZE_MAX;
+        *max_value_ptr = max_values_vec.f32s[max_lane_offset];
+        *max_index_ptr = max_value > NK_F32_MIN ? max_idx : NK_SIZE_MAX;
         return;
     }
 
@@ -429,14 +426,9 @@ NK_HELPER_INLINE void nk_reduce_minmax_f64_neon_contiguous_( //
         if (val < min_value) min_value = val, min_index = idx;
         if (val > max_value) max_value = val, max_index = idx;
     }
-    // All-NaN / sentinel check: sentinels remain unchanged when all data is NaN.
-    if (min_value == NK_F64_MAX && max_value == NK_F64_MIN) {
-        *min_value_ptr = NK_F64_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = NK_F64_MIN,
-        *max_index_ptr = NK_SIZE_MAX;
-        return;
-    }
-    *min_value_ptr = min_value, *min_index_ptr = min_index;
-    *max_value_ptr = max_value, *max_index_ptr = max_index;
+    // A side still at its sentinel found nothing past it, rather than the lane that never moved
+    *min_value_ptr = min_value, *min_index_ptr = min_value < NK_F64_MAX ? min_index : NK_SIZE_MAX;
+    *max_value_ptr = max_value, *max_index_ptr = max_value > NK_F64_MIN ? max_index : NK_SIZE_MAX;
 }
 
 NK_API_COMPTIME void nk_reduce_minmax_f64_neon(                        //

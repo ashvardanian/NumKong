@@ -646,9 +646,10 @@ NK_HELPER_INLINE void nk_reduce_minmax_f32_haswell_contiguous_( //
         nk_u32_t earliest_loop_cycle = nk_reduce_min_u32x8_haswell_(masked_cycle_u32x8);
         __m256i cycle_match_b32x8 = _mm256_cmpeq_epi32(masked_cycle_u32x8, _mm256_set1_epi32((int)earliest_loop_cycle));
         unsigned int min_lane = _tzcnt_u32((unsigned int)_mm256_movemask_ps(_mm256_castsi256_ps(cycle_match_b32x8)));
-        nk_b256_vec_t loop_cycle_vec;
-        loop_cycle_vec.ymm = min_loop_cycle_u32x8;
+        nk_b256_vec_t loop_cycle_vec, min_values_vec;
+        loop_cycle_vec.ymm = min_loop_cycle_u32x8, min_values_vec.ymm_ps = min_f32x8;
         min_idx = (nk_size_t)loop_cycle_vec.u32s[min_lane] * 8 + min_lane;
+        min_value = min_values_vec.f32s[min_lane]; // The reduction may return the other zero
     }
     // Locate the maximum index
     if (idx > 0) max_value = nk_reduce_max_f32x8_haswell_(max_f32x8);
@@ -659,9 +660,10 @@ NK_HELPER_INLINE void nk_reduce_minmax_f32_haswell_contiguous_( //
         nk_u32_t earliest_loop_cycle = nk_reduce_min_u32x8_haswell_(masked_cycle_u32x8);
         __m256i cycle_match_b32x8 = _mm256_cmpeq_epi32(masked_cycle_u32x8, _mm256_set1_epi32((int)earliest_loop_cycle));
         unsigned int max_lane = _tzcnt_u32((unsigned int)_mm256_movemask_ps(_mm256_castsi256_ps(cycle_match_b32x8)));
-        nk_b256_vec_t loop_cycle_vec;
-        loop_cycle_vec.ymm = max_loop_cycle_u32x8;
+        nk_b256_vec_t loop_cycle_vec, max_values_vec;
+        loop_cycle_vec.ymm = max_loop_cycle_u32x8, max_values_vec.ymm_ps = max_f32x8;
         max_idx = (nk_size_t)loop_cycle_vec.u32s[max_lane] * 8 + max_lane;
+        max_value = max_values_vec.f32s[max_lane]; // The reduction may return the other zero
     }
 
     // Scalar tail
@@ -870,11 +872,8 @@ NK_HELPER_INLINE void nk_reduce_minmax_f64_haswell_contiguous_( //
 
     nk_f64_t min_value = nk_reduce_min_f64x4_haswell_(min_f64x4);
     nk_f64_t max_value = nk_reduce_max_f64x4_haswell_(max_f64x4);
-    if (min_value == NK_F64_MAX && max_value == NK_F64_MIN) {
-        *min_value_ptr = NK_F64_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = NK_F64_MIN,
-        *max_index_ptr = NK_SIZE_MAX;
-        return;
-    }
+    // Lanes keep their own zero signs; a side still at its sentinel has no index
+    nk_b256_vec_t values_vec;
     {
         __m256d value_match_b64x4 = _mm256_cmp_pd(min_f64x4, _mm256_set1_pd(min_value), _CMP_EQ_OQ);
         __m256i masked_cycle_u64x4 = _mm256_blendv_epi8(_mm256_set1_epi64x((nk_i64_t)NK_U64_MAX), min_loop_cycle_u64x4,
@@ -884,9 +883,9 @@ NK_HELPER_INLINE void nk_reduce_minmax_f64_haswell_contiguous_( //
                                                        _mm256_set1_epi64x((nk_i64_t)earliest_loop_cycle));
         unsigned int min_lane = _tzcnt_u32((unsigned int)_mm256_movemask_pd(_mm256_castsi256_pd(cycle_match_b64x4)));
         nk_b256_vec_t loop_cycle_vec;
-        loop_cycle_vec.ymm = min_loop_cycle_u64x4;
-        *min_value_ptr = min_value;
-        *min_index_ptr = (nk_size_t)loop_cycle_vec.u64s[min_lane] * 4 + min_lane;
+        loop_cycle_vec.ymm = min_loop_cycle_u64x4, values_vec.ymm_pd = min_f64x4;
+        *min_value_ptr = values_vec.f64s[min_lane];
+        *min_index_ptr = min_value < NK_F64_MAX ? (nk_size_t)loop_cycle_vec.u64s[min_lane] * 4 + min_lane : NK_SIZE_MAX;
     }
     {
         __m256d value_match_b64x4 = _mm256_cmp_pd(max_f64x4, _mm256_set1_pd(max_value), _CMP_EQ_OQ);
@@ -897,9 +896,9 @@ NK_HELPER_INLINE void nk_reduce_minmax_f64_haswell_contiguous_( //
                                                        _mm256_set1_epi64x((nk_i64_t)earliest_loop_cycle));
         unsigned int max_lane = _tzcnt_u32((unsigned int)_mm256_movemask_pd(_mm256_castsi256_pd(cycle_match_b64x4)));
         nk_b256_vec_t loop_cycle_vec;
-        loop_cycle_vec.ymm = max_loop_cycle_u64x4;
-        *max_value_ptr = max_value;
-        *max_index_ptr = (nk_size_t)loop_cycle_vec.u64s[max_lane] * 4 + max_lane;
+        loop_cycle_vec.ymm = max_loop_cycle_u64x4, values_vec.ymm_pd = max_f64x4;
+        *max_value_ptr = values_vec.f64s[max_lane];
+        *max_index_ptr = max_value > NK_F64_MIN ? (nk_size_t)loop_cycle_vec.u64s[max_lane] * 4 + max_lane : NK_SIZE_MAX;
     }
 }
 
@@ -1086,7 +1085,8 @@ NK_HELPER_INLINE void nk_reduce_minmax_i8_haswell_contiguous_( //
         __m256i masked_cycle_u8x32 = _mm256_blendv_epi8(_mm256_set1_epi8((char)NK_U8_MAX), min_loop_cycle_u8x32,
                                                         value_match_b8x32);
         nk_u8_t earliest_loop_cycle = nk_reduce_min_u8x32_haswell_(masked_cycle_u8x32);
-        __m256i cycle_match_b8x32 = _mm256_cmpeq_epi8(masked_cycle_u8x32, _mm256_set1_epi8((char)earliest_loop_cycle));
+        __m256i cycle_match_b8x32 = _mm256_and_si256(
+            value_match_b8x32, _mm256_cmpeq_epi8(masked_cycle_u8x32, _mm256_set1_epi8((char)earliest_loop_cycle)));
         min_lane = _tzcnt_u32((unsigned int)_mm256_movemask_epi8(cycle_match_b8x32));
     }
     {
@@ -1094,7 +1094,8 @@ NK_HELPER_INLINE void nk_reduce_minmax_i8_haswell_contiguous_( //
         __m256i masked_cycle_u8x32 = _mm256_blendv_epi8(_mm256_set1_epi8((char)NK_U8_MAX), max_loop_cycle_u8x32,
                                                         value_match_b8x32);
         nk_u8_t earliest_loop_cycle = nk_reduce_min_u8x32_haswell_(masked_cycle_u8x32);
-        __m256i cycle_match_b8x32 = _mm256_cmpeq_epi8(masked_cycle_u8x32, _mm256_set1_epi8((char)earliest_loop_cycle));
+        __m256i cycle_match_b8x32 = _mm256_and_si256(
+            value_match_b8x32, _mm256_cmpeq_epi8(masked_cycle_u8x32, _mm256_set1_epi8((char)earliest_loop_cycle)));
         max_lane = _tzcnt_u32((unsigned int)_mm256_movemask_epi8(cycle_match_b8x32));
     }
     nk_b256_vec_t loop_cycle_vec;
@@ -1288,7 +1289,8 @@ NK_HELPER_INLINE void nk_reduce_minmax_u8_haswell_contiguous_( //
         __m256i masked_cycle_u8x32 = _mm256_blendv_epi8(_mm256_set1_epi8((char)NK_U8_MAX), min_loop_cycle_u8x32,
                                                         value_match_b8x32);
         nk_u8_t earliest_loop_cycle = nk_reduce_min_u8x32_haswell_(masked_cycle_u8x32);
-        __m256i cycle_match_b8x32 = _mm256_cmpeq_epi8(masked_cycle_u8x32, _mm256_set1_epi8((char)earliest_loop_cycle));
+        __m256i cycle_match_b8x32 = _mm256_and_si256(
+            value_match_b8x32, _mm256_cmpeq_epi8(masked_cycle_u8x32, _mm256_set1_epi8((char)earliest_loop_cycle)));
         min_lane = _tzcnt_u32((unsigned int)_mm256_movemask_epi8(cycle_match_b8x32));
     }
     {
@@ -1296,7 +1298,8 @@ NK_HELPER_INLINE void nk_reduce_minmax_u8_haswell_contiguous_( //
         __m256i masked_cycle_u8x32 = _mm256_blendv_epi8(_mm256_set1_epi8((char)NK_U8_MAX), max_loop_cycle_u8x32,
                                                         value_match_b8x32);
         nk_u8_t earliest_loop_cycle = nk_reduce_min_u8x32_haswell_(masked_cycle_u8x32);
-        __m256i cycle_match_b8x32 = _mm256_cmpeq_epi8(masked_cycle_u8x32, _mm256_set1_epi8((char)earliest_loop_cycle));
+        __m256i cycle_match_b8x32 = _mm256_and_si256(
+            value_match_b8x32, _mm256_cmpeq_epi8(masked_cycle_u8x32, _mm256_set1_epi8((char)earliest_loop_cycle)));
         max_lane = _tzcnt_u32((unsigned int)_mm256_movemask_epi8(cycle_match_b8x32));
     }
     nk_b256_vec_t loop_cycle_vec;
@@ -1478,8 +1481,8 @@ NK_HELPER_INLINE void nk_reduce_minmax_i16_haswell_contiguous_( //
         __m256i masked_cycle_u16x16 = _mm256_blendv_epi8(_mm256_set1_epi16((short)NK_U16_MAX), min_loop_cycle_u16x16,
                                                          value_match_b16x16);
         nk_u16_t earliest_loop_cycle = nk_reduce_min_u16x16_haswell_(masked_cycle_u16x16);
-        __m256i cycle_match_b16x16 = _mm256_cmpeq_epi16(masked_cycle_u16x16,
-                                                        _mm256_set1_epi16((short)earliest_loop_cycle));
+        __m256i cycle_match_b16x16 = _mm256_and_si256(
+            value_match_b16x16, _mm256_cmpeq_epi16(masked_cycle_u16x16, _mm256_set1_epi16((short)earliest_loop_cycle)));
         min_lane = _tzcnt_u32((unsigned int)_mm256_movemask_epi8(cycle_match_b16x16)) / 2;
     }
     {
@@ -1487,8 +1490,8 @@ NK_HELPER_INLINE void nk_reduce_minmax_i16_haswell_contiguous_( //
         __m256i masked_cycle_u16x16 = _mm256_blendv_epi8(_mm256_set1_epi16((short)NK_U16_MAX), max_loop_cycle_u16x16,
                                                          value_match_b16x16);
         nk_u16_t earliest_loop_cycle = nk_reduce_min_u16x16_haswell_(masked_cycle_u16x16);
-        __m256i cycle_match_b16x16 = _mm256_cmpeq_epi16(masked_cycle_u16x16,
-                                                        _mm256_set1_epi16((short)earliest_loop_cycle));
+        __m256i cycle_match_b16x16 = _mm256_and_si256(
+            value_match_b16x16, _mm256_cmpeq_epi16(masked_cycle_u16x16, _mm256_set1_epi16((short)earliest_loop_cycle)));
         max_lane = _tzcnt_u32((unsigned int)_mm256_movemask_epi8(cycle_match_b16x16)) / 2;
     }
     nk_b256_vec_t loop_cycle_vec;
@@ -1682,8 +1685,8 @@ NK_HELPER_INLINE void nk_reduce_minmax_u16_haswell_contiguous_( //
         __m256i masked_cycle_u16x16 = _mm256_blendv_epi8(_mm256_set1_epi16((short)NK_U16_MAX), min_loop_cycle_u16x16,
                                                          value_match_b16x16);
         nk_u16_t earliest_loop_cycle = nk_reduce_min_u16x16_haswell_(masked_cycle_u16x16);
-        __m256i cycle_match_b16x16 = _mm256_cmpeq_epi16(masked_cycle_u16x16,
-                                                        _mm256_set1_epi16((short)earliest_loop_cycle));
+        __m256i cycle_match_b16x16 = _mm256_and_si256(
+            value_match_b16x16, _mm256_cmpeq_epi16(masked_cycle_u16x16, _mm256_set1_epi16((short)earliest_loop_cycle)));
         min_lane = _tzcnt_u32((unsigned int)_mm256_movemask_epi8(cycle_match_b16x16)) / 2;
     }
     {
@@ -1691,8 +1694,8 @@ NK_HELPER_INLINE void nk_reduce_minmax_u16_haswell_contiguous_( //
         __m256i masked_cycle_u16x16 = _mm256_blendv_epi8(_mm256_set1_epi16((short)NK_U16_MAX), max_loop_cycle_u16x16,
                                                          value_match_b16x16);
         nk_u16_t earliest_loop_cycle = nk_reduce_min_u16x16_haswell_(masked_cycle_u16x16);
-        __m256i cycle_match_b16x16 = _mm256_cmpeq_epi16(masked_cycle_u16x16,
-                                                        _mm256_set1_epi16((short)earliest_loop_cycle));
+        __m256i cycle_match_b16x16 = _mm256_and_si256(
+            value_match_b16x16, _mm256_cmpeq_epi16(masked_cycle_u16x16, _mm256_set1_epi16((short)earliest_loop_cycle)));
         max_lane = _tzcnt_u32((unsigned int)_mm256_movemask_epi8(cycle_match_b16x16)) / 2;
     }
     nk_b256_vec_t loop_cycle_vec;
@@ -2573,7 +2576,8 @@ NK_HELPER_INLINE void nk_reduce_minmax_e4m3_haswell_contiguous_( //
         __m256i masked_cycle_u8x32 = _mm256_blendv_epi8(_mm256_set1_epi8((char)NK_U8_MAX), min_loop_cycle_u8x32,
                                                         value_match_b8x32);
         nk_u8_t earliest_loop_cycle = nk_reduce_min_u8x32_haswell_(masked_cycle_u8x32);
-        __m256i cycle_match_b8x32 = _mm256_cmpeq_epi8(masked_cycle_u8x32, _mm256_set1_epi8((char)earliest_loop_cycle));
+        __m256i cycle_match_b8x32 = _mm256_and_si256(
+            value_match_b8x32, _mm256_cmpeq_epi8(masked_cycle_u8x32, _mm256_set1_epi8((char)earliest_loop_cycle)));
         min_lane = _tzcnt_u32((unsigned int)_mm256_movemask_epi8(cycle_match_b8x32));
         nk_b256_vec_t loop_cycle_vec;
         loop_cycle_vec.ymm = min_loop_cycle_u8x32;
@@ -2589,7 +2593,8 @@ NK_HELPER_INLINE void nk_reduce_minmax_e4m3_haswell_contiguous_( //
         __m256i masked_cycle_u8x32 = _mm256_blendv_epi8(_mm256_set1_epi8((char)NK_U8_MAX), max_loop_cycle_u8x32,
                                                         value_match_b8x32);
         nk_u8_t earliest_loop_cycle = nk_reduce_min_u8x32_haswell_(masked_cycle_u8x32);
-        __m256i cycle_match_b8x32 = _mm256_cmpeq_epi8(masked_cycle_u8x32, _mm256_set1_epi8((char)earliest_loop_cycle));
+        __m256i cycle_match_b8x32 = _mm256_and_si256(
+            value_match_b8x32, _mm256_cmpeq_epi8(masked_cycle_u8x32, _mm256_set1_epi8((char)earliest_loop_cycle)));
         max_lane = _tzcnt_u32((unsigned int)_mm256_movemask_epi8(cycle_match_b8x32));
         nk_b256_vec_t loop_cycle_vec;
         loop_cycle_vec.ymm = max_loop_cycle_u8x32;
@@ -2799,7 +2804,8 @@ NK_HELPER_INLINE void nk_reduce_minmax_e5m2_haswell_contiguous_( //
         __m256i masked_cycle_u8x32 = _mm256_blendv_epi8(_mm256_set1_epi8((char)NK_U8_MAX), min_loop_cycle_u8x32,
                                                         value_match_b8x32);
         nk_u8_t earliest_loop_cycle = nk_reduce_min_u8x32_haswell_(masked_cycle_u8x32);
-        __m256i cycle_match_b8x32 = _mm256_cmpeq_epi8(masked_cycle_u8x32, _mm256_set1_epi8((char)earliest_loop_cycle));
+        __m256i cycle_match_b8x32 = _mm256_and_si256(
+            value_match_b8x32, _mm256_cmpeq_epi8(masked_cycle_u8x32, _mm256_set1_epi8((char)earliest_loop_cycle)));
         min_lane = _tzcnt_u32((unsigned int)_mm256_movemask_epi8(cycle_match_b8x32));
         nk_b256_vec_t loop_cycle_vec;
         loop_cycle_vec.ymm = min_loop_cycle_u8x32;
@@ -2815,7 +2821,8 @@ NK_HELPER_INLINE void nk_reduce_minmax_e5m2_haswell_contiguous_( //
         __m256i masked_cycle_u8x32 = _mm256_blendv_epi8(_mm256_set1_epi8((char)NK_U8_MAX), max_loop_cycle_u8x32,
                                                         value_match_b8x32);
         nk_u8_t earliest_loop_cycle = nk_reduce_min_u8x32_haswell_(masked_cycle_u8x32);
-        __m256i cycle_match_b8x32 = _mm256_cmpeq_epi8(masked_cycle_u8x32, _mm256_set1_epi8((char)earliest_loop_cycle));
+        __m256i cycle_match_b8x32 = _mm256_and_si256(
+            value_match_b8x32, _mm256_cmpeq_epi8(masked_cycle_u8x32, _mm256_set1_epi8((char)earliest_loop_cycle)));
         max_lane = _tzcnt_u32((unsigned int)_mm256_movemask_epi8(cycle_match_b8x32));
         nk_b256_vec_t loop_cycle_vec;
         loop_cycle_vec.ymm = max_loop_cycle_u8x32;
@@ -3020,7 +3027,8 @@ NK_HELPER_INLINE void nk_reduce_minmax_e2m3_haswell_contiguous_( //
         __m256i masked_cycle_u8x32 = _mm256_blendv_epi8(_mm256_set1_epi8((char)NK_U8_MAX), min_loop_cycle_u8x32,
                                                         value_match_b8x32);
         nk_u8_t earliest_loop_cycle = nk_reduce_min_u8x32_haswell_(masked_cycle_u8x32);
-        __m256i cycle_match_b8x32 = _mm256_cmpeq_epi8(masked_cycle_u8x32, _mm256_set1_epi8((char)earliest_loop_cycle));
+        __m256i cycle_match_b8x32 = _mm256_and_si256(
+            value_match_b8x32, _mm256_cmpeq_epi8(masked_cycle_u8x32, _mm256_set1_epi8((char)earliest_loop_cycle)));
         min_lane = _tzcnt_u32((unsigned int)_mm256_movemask_epi8(cycle_match_b8x32));
     }
     {
@@ -3028,7 +3036,8 @@ NK_HELPER_INLINE void nk_reduce_minmax_e2m3_haswell_contiguous_( //
         __m256i masked_cycle_u8x32 = _mm256_blendv_epi8(_mm256_set1_epi8((char)NK_U8_MAX), max_loop_cycle_u8x32,
                                                         value_match_b8x32);
         nk_u8_t earliest_loop_cycle = nk_reduce_min_u8x32_haswell_(masked_cycle_u8x32);
-        __m256i cycle_match_b8x32 = _mm256_cmpeq_epi8(masked_cycle_u8x32, _mm256_set1_epi8((char)earliest_loop_cycle));
+        __m256i cycle_match_b8x32 = _mm256_and_si256(
+            value_match_b8x32, _mm256_cmpeq_epi8(masked_cycle_u8x32, _mm256_set1_epi8((char)earliest_loop_cycle)));
         max_lane = _tzcnt_u32((unsigned int)_mm256_movemask_epi8(cycle_match_b8x32));
     }
     nk_b256_vec_t loop_cycle_vec;
@@ -3209,7 +3218,8 @@ NK_HELPER_INLINE void nk_reduce_minmax_e3m2_haswell_contiguous_( //
         __m256i masked_cycle_u8x32 = _mm256_blendv_epi8(_mm256_set1_epi8((char)NK_U8_MAX), min_loop_cycle_u8x32,
                                                         value_match_b8x32);
         nk_u8_t earliest_loop_cycle = nk_reduce_min_u8x32_haswell_(masked_cycle_u8x32);
-        __m256i cycle_match_b8x32 = _mm256_cmpeq_epi8(masked_cycle_u8x32, _mm256_set1_epi8((char)earliest_loop_cycle));
+        __m256i cycle_match_b8x32 = _mm256_and_si256(
+            value_match_b8x32, _mm256_cmpeq_epi8(masked_cycle_u8x32, _mm256_set1_epi8((char)earliest_loop_cycle)));
         min_lane = _tzcnt_u32((unsigned int)_mm256_movemask_epi8(cycle_match_b8x32));
     }
     {
@@ -3217,7 +3227,8 @@ NK_HELPER_INLINE void nk_reduce_minmax_e3m2_haswell_contiguous_( //
         __m256i masked_cycle_u8x32 = _mm256_blendv_epi8(_mm256_set1_epi8((char)NK_U8_MAX), max_loop_cycle_u8x32,
                                                         value_match_b8x32);
         nk_u8_t earliest_loop_cycle = nk_reduce_min_u8x32_haswell_(masked_cycle_u8x32);
-        __m256i cycle_match_b8x32 = _mm256_cmpeq_epi8(masked_cycle_u8x32, _mm256_set1_epi8((char)earliest_loop_cycle));
+        __m256i cycle_match_b8x32 = _mm256_and_si256(
+            value_match_b8x32, _mm256_cmpeq_epi8(masked_cycle_u8x32, _mm256_set1_epi8((char)earliest_loop_cycle)));
         max_lane = _tzcnt_u32((unsigned int)_mm256_movemask_epi8(cycle_match_b8x32));
     }
     nk_b256_vec_t loop_cycle_vec;
@@ -3393,8 +3404,8 @@ NK_HELPER_INLINE void nk_reduce_minmax_bf16_haswell_contiguous_( //
         __m256i masked_cycle_u16x16 = _mm256_blendv_epi8(_mm256_set1_epi16((short)NK_U16_MAX), min_loop_cycle_u16x16,
                                                          value_match_b16x16);
         nk_u16_t earliest_loop_cycle = nk_reduce_min_u16x16_haswell_(masked_cycle_u16x16);
-        __m256i cycle_match_b16x16 = _mm256_cmpeq_epi16(masked_cycle_u16x16,
-                                                        _mm256_set1_epi16((short)earliest_loop_cycle));
+        __m256i cycle_match_b16x16 = _mm256_and_si256(
+            value_match_b16x16, _mm256_cmpeq_epi16(masked_cycle_u16x16, _mm256_set1_epi16((short)earliest_loop_cycle)));
         min_lane = _tzcnt_u32((unsigned int)_mm256_movemask_epi8(cycle_match_b16x16)) / 2;
     }
     {
@@ -3402,8 +3413,8 @@ NK_HELPER_INLINE void nk_reduce_minmax_bf16_haswell_contiguous_( //
         __m256i masked_cycle_u16x16 = _mm256_blendv_epi8(_mm256_set1_epi16((short)NK_U16_MAX), max_loop_cycle_u16x16,
                                                          value_match_b16x16);
         nk_u16_t earliest_loop_cycle = nk_reduce_min_u16x16_haswell_(masked_cycle_u16x16);
-        __m256i cycle_match_b16x16 = _mm256_cmpeq_epi16(masked_cycle_u16x16,
-                                                        _mm256_set1_epi16((short)earliest_loop_cycle));
+        __m256i cycle_match_b16x16 = _mm256_and_si256(
+            value_match_b16x16, _mm256_cmpeq_epi16(masked_cycle_u16x16, _mm256_set1_epi16((short)earliest_loop_cycle)));
         max_lane = _tzcnt_u32((unsigned int)_mm256_movemask_epi8(cycle_match_b16x16)) / 2;
     }
     nk_b256_vec_t loop_cycle_vec;
@@ -3438,12 +3449,19 @@ NK_API_COMPTIME void nk_reduce_minmax_bf16_haswell(                     //
                                       &left_max_index);
         nk_reduce_minmax_bf16_haswell(data_ptr + left_count, count - left_count, stride_bytes, &right_min,
                                       &right_min_index, &right_max, &right_max_index);
-        if (nk_bf16_order_serial(right_min, left_min) < 0)
-            *min_value_ptr = right_min, *min_index_ptr = left_count + right_min_index;
-        else *min_value_ptr = left_min, *min_index_ptr = left_min_index;
-        if (nk_bf16_order_serial(right_max, left_max) > 0)
-            *max_value_ptr = right_max, *max_index_ptr = left_count + right_max_index;
-        else *max_value_ptr = left_max, *max_index_ptr = left_max_index;
+        // Prefer the side that found valid data (NK_SIZE_MAX means all-NaN)
+        if (left_min_index == NK_SIZE_MAX)
+            *min_value_ptr = right_min,
+            *min_index_ptr = right_min_index == NK_SIZE_MAX ? NK_SIZE_MAX : left_count + right_min_index;
+        else if (right_min_index == NK_SIZE_MAX || nk_bf16_order_serial(left_min, right_min) <= 0)
+            *min_value_ptr = left_min, *min_index_ptr = left_min_index;
+        else *min_value_ptr = right_min, *min_index_ptr = left_count + right_min_index;
+        if (left_max_index == NK_SIZE_MAX)
+            *max_value_ptr = right_max,
+            *max_index_ptr = right_max_index == NK_SIZE_MAX ? NK_SIZE_MAX : left_count + right_max_index;
+        else if (right_max_index == NK_SIZE_MAX || nk_bf16_order_serial(left_max, right_max) >= 0)
+            *max_value_ptr = left_max, *max_index_ptr = left_max_index;
+        else *max_value_ptr = right_max, *max_index_ptr = left_count + right_max_index;
     }
     else if (stride_elements == 1)
         nk_reduce_minmax_bf16_haswell_contiguous_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,
@@ -3577,8 +3595,8 @@ NK_HELPER_INLINE void nk_reduce_minmax_f16_haswell_contiguous_( //
         __m256i masked_cycle_u16x16 = _mm256_blendv_epi8(_mm256_set1_epi16((short)NK_U16_MAX), min_loop_cycle_u16x16,
                                                          value_match_b16x16);
         nk_u16_t earliest_loop_cycle = nk_reduce_min_u16x16_haswell_(masked_cycle_u16x16);
-        __m256i cycle_match_b16x16 = _mm256_cmpeq_epi16(masked_cycle_u16x16,
-                                                        _mm256_set1_epi16((short)earliest_loop_cycle));
+        __m256i cycle_match_b16x16 = _mm256_and_si256(
+            value_match_b16x16, _mm256_cmpeq_epi16(masked_cycle_u16x16, _mm256_set1_epi16((short)earliest_loop_cycle)));
         min_lane = _tzcnt_u32((unsigned int)_mm256_movemask_epi8(cycle_match_b16x16)) / 2;
     }
     {
@@ -3586,8 +3604,8 @@ NK_HELPER_INLINE void nk_reduce_minmax_f16_haswell_contiguous_( //
         __m256i masked_cycle_u16x16 = _mm256_blendv_epi8(_mm256_set1_epi16((short)NK_U16_MAX), max_loop_cycle_u16x16,
                                                          value_match_b16x16);
         nk_u16_t earliest_loop_cycle = nk_reduce_min_u16x16_haswell_(masked_cycle_u16x16);
-        __m256i cycle_match_b16x16 = _mm256_cmpeq_epi16(masked_cycle_u16x16,
-                                                        _mm256_set1_epi16((short)earliest_loop_cycle));
+        __m256i cycle_match_b16x16 = _mm256_and_si256(
+            value_match_b16x16, _mm256_cmpeq_epi16(masked_cycle_u16x16, _mm256_set1_epi16((short)earliest_loop_cycle)));
         max_lane = _tzcnt_u32((unsigned int)_mm256_movemask_epi8(cycle_match_b16x16)) / 2;
     }
     nk_b256_vec_t loop_cycle_vec;
@@ -3622,12 +3640,19 @@ NK_API_COMPTIME void nk_reduce_minmax_f16_haswell(                     //
                                      &left_max_index);
         nk_reduce_minmax_f16_haswell(data_ptr + left_count, count - left_count, stride_bytes, &right_min,
                                      &right_min_index, &right_max, &right_max_index);
-        if (nk_f16_order_serial(right_min, left_min) < 0)
-            *min_value_ptr = right_min, *min_index_ptr = left_count + right_min_index;
-        else *min_value_ptr = left_min, *min_index_ptr = left_min_index;
-        if (nk_f16_order_serial(right_max, left_max) > 0)
-            *max_value_ptr = right_max, *max_index_ptr = left_count + right_max_index;
-        else *max_value_ptr = left_max, *max_index_ptr = left_max_index;
+        // Prefer the side that found valid data (NK_SIZE_MAX means all-NaN)
+        if (left_min_index == NK_SIZE_MAX)
+            *min_value_ptr = right_min,
+            *min_index_ptr = right_min_index == NK_SIZE_MAX ? NK_SIZE_MAX : left_count + right_min_index;
+        else if (right_min_index == NK_SIZE_MAX || nk_f16_order_serial(left_min, right_min) <= 0)
+            *min_value_ptr = left_min, *min_index_ptr = left_min_index;
+        else *min_value_ptr = right_min, *min_index_ptr = left_count + right_min_index;
+        if (left_max_index == NK_SIZE_MAX)
+            *max_value_ptr = right_max,
+            *max_index_ptr = right_max_index == NK_SIZE_MAX ? NK_SIZE_MAX : left_count + right_max_index;
+        else if (right_max_index == NK_SIZE_MAX || nk_f16_order_serial(left_max, right_max) >= 0)
+            *max_value_ptr = left_max, *max_index_ptr = left_max_index;
+        else *max_value_ptr = right_max, *max_index_ptr = left_count + right_max_index;
     }
     else if (stride_elements == 1)
         nk_reduce_minmax_f16_haswell_contiguous_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,

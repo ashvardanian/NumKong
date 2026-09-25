@@ -170,13 +170,9 @@ NK_HELPER_INLINE void nk_reduce_minmax_f32_v128relaxed_contiguous_( //
         if (value < min_value) min_value = value, min_index = index;
         if (value > max_value) max_value = value, max_index = index;
     }
-    if (min_value == NK_F32_MAX && max_value == NK_F32_MIN) {
-        *min_value_ptr = NK_F32_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = NK_F32_MIN,
-        *max_index_ptr = NK_SIZE_MAX;
-        return;
-    }
-    *min_value_ptr = min_value, *min_index_ptr = min_index;
-    *max_value_ptr = max_value, *max_index_ptr = max_index;
+    // A side still at its sentinel found nothing past it, rather than the lane that never moved
+    *min_value_ptr = min_value, *min_index_ptr = min_value < NK_F32_MAX ? min_index : NK_SIZE_MAX;
+    *max_value_ptr = max_value, *max_index_ptr = max_value > NK_F32_MIN ? max_index : NK_SIZE_MAX;
 }
 
 NK_API_COMPTIME void nk_reduce_minmax_f32_v128relaxed(             //
@@ -252,13 +248,9 @@ NK_HELPER_INLINE void nk_reduce_minmax_f64_v128relaxed_contiguous_( //
         if (value < min_value) min_value = value, min_index = index;
         if (value > max_value) max_value = value, max_index = index;
     }
-    if (min_value == NK_F64_MAX && max_value == NK_F64_MIN) {
-        *min_value_ptr = NK_F64_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = NK_F64_MIN,
-        *max_index_ptr = NK_SIZE_MAX;
-        return;
-    }
-    *min_value_ptr = min_value, *min_index_ptr = min_index;
-    *max_value_ptr = max_value, *max_index_ptr = max_index;
+    // A side still at its sentinel found nothing past it, rather than the lane that never moved
+    *min_value_ptr = min_value, *min_index_ptr = min_value < NK_F64_MAX ? min_index : NK_SIZE_MAX;
+    *max_value_ptr = max_value, *max_index_ptr = max_value > NK_F64_MIN ? max_index : NK_SIZE_MAX;
 }
 
 NK_API_COMPTIME void nk_reduce_minmax_f64_v128relaxed(             //
@@ -287,8 +279,9 @@ NK_HELPER_INLINE void nk_reduce_minmax_bf16_v128relaxed_contiguous_( //
     nk_bf16_t *max_value_ptr, nk_size_t *max_index_ptr) {
     v128_t abs_mask_u16x8 = wasm_i16x8_splat(0x7FFF);
     v128_t nan_threshold_u16x8 = wasm_i16x8_splat((short)0x7F80);
-    v128_t min_cmp_i16x8 = wasm_i16x8_splat(0x7F80);        // +inf comparable
-    v128_t max_cmp_i16x8 = wasm_i16x8_splat((short)0x807F); // -inf comparable
+    // Start from the NaN comparables past ±inf, so that infinities still claim a lane and an index
+    v128_t min_cmp_i16x8 = wasm_i16x8_splat(0x7FFF);
+    v128_t max_cmp_i16x8 = wasm_i16x8_splat((short)0x8000);
     v128_t min_iter_u16x8 = wasm_i16x8_splat(0), max_iter_u16x8 = wasm_i16x8_splat(0);
     v128_t iter_u16x8 = wasm_i16x8_splat(0), one_u16x8 = wasm_i16x8_splat(1);
     nk_size_t index = 0;
@@ -338,7 +331,7 @@ NK_HELPER_INLINE void nk_reduce_minmax_bf16_v128relaxed_contiguous_( //
         if (comparable < min_comparable) min_comparable = comparable, min_index = index;
         if (comparable > max_comparable) max_comparable = comparable, max_index = index;
     }
-    if (min_comparable == 0x7F80 && max_comparable == (nk_i16_t)0x807F) {
+    if (min_comparable == 0x7FFF && max_comparable == (nk_i16_t)0x8000) {
         *min_value_ptr = NK_BF16_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = NK_BF16_MIN,
         *max_index_ptr = NK_SIZE_MAX;
         return;
@@ -372,12 +365,19 @@ NK_API_COMPTIME void nk_reduce_minmax_bf16_v128relaxed(             //
                                           &left_max_value, &left_max_index);
         nk_reduce_minmax_bf16_v128relaxed(data + left_count * stride_elements, count - left_count, stride_bytes,
                                           &right_min_value, &right_min_index, &right_max_value, &right_max_index);
-        if (nk_bf16_order_serial(right_min_value, left_min_value) < 0)
-            *min_value_ptr = right_min_value, *min_index_ptr = left_count + right_min_index;
-        else *min_value_ptr = left_min_value, *min_index_ptr = left_min_index;
-        if (nk_bf16_order_serial(right_max_value, left_max_value) > 0)
-            *max_value_ptr = right_max_value, *max_index_ptr = left_count + right_max_index;
-        else *max_value_ptr = left_max_value, *max_index_ptr = left_max_index;
+        // Prefer the side that found valid data (NK_SIZE_MAX means all-NaN)
+        if (left_min_index == NK_SIZE_MAX)
+            *min_value_ptr = right_min_value,
+            *min_index_ptr = right_min_index == NK_SIZE_MAX ? NK_SIZE_MAX : left_count + right_min_index;
+        else if (right_min_index == NK_SIZE_MAX || nk_bf16_order_serial(left_min_value, right_min_value) <= 0)
+            *min_value_ptr = left_min_value, *min_index_ptr = left_min_index;
+        else *min_value_ptr = right_min_value, *min_index_ptr = left_count + right_min_index;
+        if (left_max_index == NK_SIZE_MAX)
+            *max_value_ptr = right_max_value,
+            *max_index_ptr = right_max_index == NK_SIZE_MAX ? NK_SIZE_MAX : left_count + right_max_index;
+        else if (right_max_index == NK_SIZE_MAX || nk_bf16_order_serial(left_max_value, right_max_value) >= 0)
+            *max_value_ptr = left_max_value, *max_index_ptr = left_max_index;
+        else *max_value_ptr = right_max_value, *max_index_ptr = left_count + right_max_index;
     }
     else if (stride_elements == 1)
         nk_reduce_minmax_bf16_v128relaxed_contiguous_(data, count, min_value_ptr, min_index_ptr, max_value_ptr,
@@ -391,56 +391,72 @@ NK_HELPER_INLINE void nk_reduce_minmax_f16_v128relaxed_contiguous_( //
     nk_f16_t const *data, nk_size_t count,                          //
     nk_f16_t *min_value_ptr, nk_size_t *min_index_ptr,              //
     nk_f16_t *max_value_ptr, nk_size_t *max_index_ptr) {
-    v128_t min_f32x4 = wasm_f32x4_splat(NK_F32_MAX), max_f32x4 = wasm_f32x4_splat(NK_F32_MIN);
-    v128_t min_iter_u32x4 = wasm_i32x4_splat(0), max_iter_u32x4 = wasm_i32x4_splat(0);
-    v128_t iter_u32x4 = wasm_i32x4_splat(0), one_u32x4 = wasm_i32x4_splat(1);
+    v128_t abs_mask_u16x8 = wasm_i16x8_splat(0x7FFF);
+    v128_t nan_threshold_u16x8 = wasm_i16x8_splat((short)0x7C00);
+    // Start from the NaN comparables past ±inf, so that infinities still claim a lane and an index
+    v128_t min_cmp_i16x8 = wasm_i16x8_splat(0x7FFF);
+    v128_t max_cmp_i16x8 = wasm_i16x8_splat((short)0x8000);
+    v128_t min_iter_u16x8 = wasm_i16x8_splat(0), max_iter_u16x8 = wasm_i16x8_splat(0);
+    v128_t iter_u16x8 = wasm_i16x8_splat(0), one_u16x8 = wasm_i16x8_splat(1);
     nk_size_t index = 0;
-    for (; index + 4 <= count; index += 4) {
-        nk_b64_vec_t raw;
-        raw.u64 = *(nk_u64_t const *)(data + index);
-        v128_t data_f32x4 = nk_f16x4_to_f32x4_v128relaxed_(raw).v128;
-        v128_t less_b32x4 = wasm_f32x4_lt(data_f32x4, min_f32x4);
-        v128_t greater_b32x4 = wasm_f32x4_gt(data_f32x4, max_f32x4);
-        min_f32x4 = wasm_i32x4_relaxed_laneselect(data_f32x4, min_f32x4, less_b32x4);
-        max_f32x4 = wasm_i32x4_relaxed_laneselect(data_f32x4, max_f32x4, greater_b32x4);
-        min_iter_u32x4 = wasm_i32x4_relaxed_laneselect(iter_u32x4, min_iter_u32x4, less_b32x4);
-        max_iter_u32x4 = wasm_i32x4_relaxed_laneselect(iter_u32x4, max_iter_u32x4, greater_b32x4);
-        iter_u32x4 = wasm_i32x4_add(iter_u32x4, one_u32x4);
+    for (; index + 8 <= count; index += 8) {
+        v128_t raw_u16x8 = wasm_v128_load(data + index);
+        // Convert to comparable i16: sign = srai(raw, 15), flip = srli(sign, 1), cmp = raw ^ flip
+        v128_t sign_i16x8 = wasm_i16x8_shr(raw_u16x8, 15);
+        v128_t flip_u16x8 = wasm_u16x8_shr(sign_i16x8, 1);
+        v128_t cmp_i16x8 = wasm_v128_xor(raw_u16x8, flip_u16x8);
+        // Filter NaN: (raw & 0x7FFF) <= 0x7C00 (both sides non-negative, so signed LE works)
+        v128_t abs_u16x8 = wasm_v128_and(raw_u16x8, abs_mask_u16x8);
+        v128_t not_nan_i16x8 = wasm_i16x8_le(abs_u16x8, nan_threshold_u16x8);
+        // Compare as signed i16, masked by not-NaN
+        v128_t less_i16x8 = wasm_v128_and(wasm_i16x8_lt(cmp_i16x8, min_cmp_i16x8), not_nan_i16x8);
+        v128_t greater_i16x8 = wasm_v128_and(wasm_i16x8_gt(cmp_i16x8, max_cmp_i16x8), not_nan_i16x8);
+        min_cmp_i16x8 = wasm_i16x8_relaxed_laneselect(cmp_i16x8, min_cmp_i16x8, less_i16x8);
+        max_cmp_i16x8 = wasm_i16x8_relaxed_laneselect(cmp_i16x8, max_cmp_i16x8, greater_i16x8);
+        min_iter_u16x8 = wasm_i16x8_relaxed_laneselect(iter_u16x8, min_iter_u16x8, less_i16x8);
+        max_iter_u16x8 = wasm_i16x8_relaxed_laneselect(iter_u16x8, max_iter_u16x8, greater_i16x8);
+        iter_u16x8 = wasm_i16x8_add(iter_u16x8, one_u16x8);
     }
-    nk_b128_vec_t min_values_vec, max_values_vec, min_iters_vec, max_iters_vec;
-    min_values_vec.v128 = min_f32x4;
-    max_values_vec.v128 = max_f32x4;
-    min_iters_vec.v128 = min_iter_u32x4;
-    max_iters_vec.v128 = max_iter_u32x4;
-    nk_f32_t min_value_f32 = min_values_vec.f32s[0];
-    nk_size_t min_index = (nk_size_t)min_iters_vec.u32s[0] * 4;
-    for (int i = 1; i < 4; ++i) {
-        nk_size_t abs_index = (nk_size_t)min_iters_vec.u32s[i] * 4 + (nk_size_t)i;
-        if (min_values_vec.f32s[i] < min_value_f32 ||
-            (min_values_vec.f32s[i] == min_value_f32 && abs_index < min_index))
-            min_value_f32 = min_values_vec.f32s[i], min_index = abs_index;
+    // Horizontal reduction over 8 lanes
+    nk_b128_vec_t min_cmp_vec, max_cmp_vec, min_iters_vec, max_iters_vec;
+    min_cmp_vec.v128 = min_cmp_i16x8;
+    max_cmp_vec.v128 = max_cmp_i16x8;
+    min_iters_vec.v128 = min_iter_u16x8;
+    max_iters_vec.v128 = max_iter_u16x8;
+    nk_i16_t min_comparable = min_cmp_vec.i16s[0];
+    nk_size_t min_index = (nk_size_t)min_iters_vec.u16s[0] * 8;
+    for (int i = 1; i < 8; ++i) {
+        nk_size_t abs_index = (nk_size_t)min_iters_vec.u16s[i] * 8 + (nk_size_t)i;
+        if (min_cmp_vec.i16s[i] < min_comparable || (min_cmp_vec.i16s[i] == min_comparable && abs_index < min_index))
+            min_comparable = min_cmp_vec.i16s[i], min_index = abs_index;
     }
-    nk_f32_t max_value_f32 = max_values_vec.f32s[0];
-    nk_size_t max_index = (nk_size_t)max_iters_vec.u32s[0] * 4;
-    for (int i = 1; i < 4; ++i) {
-        nk_size_t abs_index = (nk_size_t)max_iters_vec.u32s[i] * 4 + (nk_size_t)i;
-        if (max_values_vec.f32s[i] > max_value_f32 ||
-            (max_values_vec.f32s[i] == max_value_f32 && abs_index < max_index))
-            max_value_f32 = max_values_vec.f32s[i], max_index = abs_index;
+    nk_i16_t max_comparable = max_cmp_vec.i16s[0];
+    nk_size_t max_index = (nk_size_t)max_iters_vec.u16s[0] * 8;
+    for (int i = 1; i < 8; ++i) {
+        nk_size_t abs_index = (nk_size_t)max_iters_vec.u16s[i] * 8 + (nk_size_t)i;
+        if (max_cmp_vec.i16s[i] > max_comparable || (max_cmp_vec.i16s[i] == max_comparable && abs_index < max_index))
+            max_comparable = max_cmp_vec.i16s[i], max_index = abs_index;
     }
+    // Scalar tail
     for (; index < count; ++index) {
-        nk_f32_t value;
-        nk_f16_to_f32_serial(data + index, &value);
-        if (value < min_value_f32) min_value_f32 = value, min_index = index;
-        if (value > max_value_f32) max_value_f32 = value, max_index = index;
+        nk_u16_t raw = *(nk_u16_t const *)(data + index);
+        if ((raw & 0x7FFF) > 0x7C00) continue; // skip NaN
+        nk_i16_t comparable = (raw & 0x8000) ? (nk_i16_t)(raw ^ 0x7FFF) : (nk_i16_t)raw;
+        if (comparable < min_comparable) min_comparable = comparable, min_index = index;
+        if (comparable > max_comparable) max_comparable = comparable, max_index = index;
     }
-    if (min_value_f32 == NK_F32_MAX && max_value_f32 == NK_F32_MIN) {
+    if (min_comparable == 0x7FFF && max_comparable == (nk_i16_t)0x8000) {
         *min_value_ptr = NK_F16_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = NK_F16_MIN,
         *max_index_ptr = NK_SIZE_MAX;
         return;
     }
-    *min_value_ptr = data[min_index], *min_index_ptr = min_index;
-    *max_value_ptr = data[max_index], *max_index_ptr = max_index;
+    // Convert comparable back to raw f16
+    nk_i16_t min_sign = min_comparable >> 15;
+    nk_u16_t min_raw = (nk_u16_t)min_comparable ^ ((nk_u16_t)min_sign >> 1);
+    *(nk_u16_t *)min_value_ptr = min_raw, *min_index_ptr = min_index;
+    nk_i16_t max_sign = max_comparable >> 15;
+    nk_u16_t max_raw = (nk_u16_t)max_comparable ^ ((nk_u16_t)max_sign >> 1);
+    *(nk_u16_t *)max_value_ptr = max_raw, *max_index_ptr = max_index;
 }
 
 NK_API_COMPTIME void nk_reduce_minmax_f16_v128relaxed(             //
@@ -455,7 +471,7 @@ NK_API_COMPTIME void nk_reduce_minmax_f16_v128relaxed(             //
     else if (!aligned)
         nk_reduce_minmax_f16_serial(data, count, stride_bytes, min_value_ptr, min_index_ptr, max_value_ptr,
                                     max_index_ptr);
-    else if (count > (nk_size_t)NK_U32_MAX * 4) {
+    else if (count > (nk_size_t)(NK_U16_MAX + 1) * 8) {
         nk_size_t left_count = count / 2;
         nk_f16_t left_min_value, right_min_value, left_max_value, right_max_value;
         nk_size_t left_min_index, right_min_index, left_max_index, right_max_index;
@@ -463,12 +479,19 @@ NK_API_COMPTIME void nk_reduce_minmax_f16_v128relaxed(             //
                                          &left_max_value, &left_max_index);
         nk_reduce_minmax_f16_v128relaxed(data + left_count * stride_elements, count - left_count, stride_bytes,
                                          &right_min_value, &right_min_index, &right_max_value, &right_max_index);
-        if (nk_f16_order_serial(right_min_value, left_min_value) < 0)
-            *min_value_ptr = right_min_value, *min_index_ptr = left_count + right_min_index;
-        else *min_value_ptr = left_min_value, *min_index_ptr = left_min_index;
-        if (nk_f16_order_serial(right_max_value, left_max_value) > 0)
-            *max_value_ptr = right_max_value, *max_index_ptr = left_count + right_max_index;
-        else *max_value_ptr = left_max_value, *max_index_ptr = left_max_index;
+        // Prefer the side that found valid data (NK_SIZE_MAX means all-NaN)
+        if (left_min_index == NK_SIZE_MAX)
+            *min_value_ptr = right_min_value,
+            *min_index_ptr = right_min_index == NK_SIZE_MAX ? NK_SIZE_MAX : left_count + right_min_index;
+        else if (right_min_index == NK_SIZE_MAX || nk_f16_order_serial(left_min_value, right_min_value) <= 0)
+            *min_value_ptr = left_min_value, *min_index_ptr = left_min_index;
+        else *min_value_ptr = right_min_value, *min_index_ptr = left_count + right_min_index;
+        if (left_max_index == NK_SIZE_MAX)
+            *max_value_ptr = right_max_value,
+            *max_index_ptr = right_max_index == NK_SIZE_MAX ? NK_SIZE_MAX : left_count + right_max_index;
+        else if (right_max_index == NK_SIZE_MAX || nk_f16_order_serial(left_max_value, right_max_value) >= 0)
+            *max_value_ptr = left_max_value, *max_index_ptr = left_max_index;
+        else *max_value_ptr = right_max_value, *max_index_ptr = left_count + right_max_index;
     }
     else if (stride_elements == 1)
         nk_reduce_minmax_f16_v128relaxed_contiguous_(data, count, min_value_ptr, min_index_ptr, max_value_ptr,

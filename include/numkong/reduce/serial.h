@@ -470,7 +470,7 @@ NK_API_COMPTIME void nk_reduce_minmax_i8_serial(                  //
     nk_i8_t *max_value_ptr, nk_size_t *max_index_ptr) {
     unsigned char const *ptr = (unsigned char const *)data;
     nk_i8_t min_value = NK_I8_MAX, max_value = NK_I8_MIN;
-    nk_size_t min_idx = NK_SIZE_MAX, max_idx = NK_SIZE_MAX;
+    nk_size_t min_idx = count ? 0 : NK_SIZE_MAX, max_idx = min_idx;
     for (nk_size_t i = 0; i < count; ++i, ptr += stride_bytes) {
         nk_i8_t val = *(nk_i8_t const *)ptr;
         if (val < min_value) min_value = val, min_idx = i;
@@ -486,7 +486,7 @@ NK_API_COMPTIME void nk_reduce_minmax_u8_serial(                  //
     nk_u8_t *max_value_ptr, nk_size_t *max_index_ptr) {
     unsigned char const *ptr = (unsigned char const *)data;
     nk_u8_t min_value = NK_U8_MAX, max_value = NK_U8_MIN;
-    nk_size_t min_idx = NK_SIZE_MAX, max_idx = NK_SIZE_MAX;
+    nk_size_t min_idx = count ? 0 : NK_SIZE_MAX, max_idx = min_idx;
     for (nk_size_t i = 0; i < count; ++i, ptr += stride_bytes) {
         nk_u8_t val = *(nk_u8_t const *)ptr;
         if (val < min_value) min_value = val, min_idx = i;
@@ -502,7 +502,7 @@ NK_API_COMPTIME void nk_reduce_minmax_i16_serial(                  //
     nk_i16_t *max_value_ptr, nk_size_t *max_index_ptr) {
     unsigned char const *ptr = (unsigned char const *)data;
     nk_i16_t min_value = NK_I16_MAX, max_value = NK_I16_MIN;
-    nk_size_t min_idx = NK_SIZE_MAX, max_idx = NK_SIZE_MAX;
+    nk_size_t min_idx = count ? 0 : NK_SIZE_MAX, max_idx = min_idx;
     for (nk_size_t i = 0; i < count; ++i, ptr += stride_bytes) {
         nk_i16_t val = *(nk_i16_t const *)ptr;
         if (val < min_value) min_value = val, min_idx = i;
@@ -518,7 +518,7 @@ NK_API_COMPTIME void nk_reduce_minmax_u16_serial(                  //
     nk_u16_t *max_value_ptr, nk_size_t *max_index_ptr) {
     unsigned char const *ptr = (unsigned char const *)data;
     nk_u16_t min_value = NK_U16_MAX, max_value = NK_U16_MIN;
-    nk_size_t min_idx = NK_SIZE_MAX, max_idx = NK_SIZE_MAX;
+    nk_size_t min_idx = count ? 0 : NK_SIZE_MAX, max_idx = min_idx;
     for (nk_size_t i = 0; i < count; ++i, ptr += stride_bytes) {
         nk_u16_t val = *(nk_u16_t const *)ptr;
         if (val < min_value) min_value = val, min_idx = i;
@@ -534,7 +534,7 @@ NK_API_COMPTIME void nk_reduce_minmax_i32_serial(                  //
     nk_i32_t *max_value_ptr, nk_size_t *max_index_ptr) {
     unsigned char const *ptr = (unsigned char const *)data;
     nk_i32_t min_value = NK_I32_MAX, max_value = NK_I32_MIN;
-    nk_size_t min_idx = NK_SIZE_MAX, max_idx = NK_SIZE_MAX;
+    nk_size_t min_idx = count ? 0 : NK_SIZE_MAX, max_idx = min_idx;
     for (nk_size_t i = 0; i < count; ++i, ptr += stride_bytes) {
         nk_i32_t val = *(nk_i32_t const *)ptr;
         if (val < min_value) min_value = val, min_idx = i;
@@ -550,7 +550,7 @@ NK_API_COMPTIME void nk_reduce_minmax_u32_serial(                  //
     nk_u32_t *max_value_ptr, nk_size_t *max_index_ptr) {
     unsigned char const *ptr = (unsigned char const *)data;
     nk_u32_t min_value = NK_U32_MAX, max_value = NK_U32_MIN;
-    nk_size_t min_idx = NK_SIZE_MAX, max_idx = NK_SIZE_MAX;
+    nk_size_t min_idx = count ? 0 : NK_SIZE_MAX, max_idx = min_idx;
     for (nk_size_t i = 0; i < count; ++i, ptr += stride_bytes) {
         nk_u32_t val = *(nk_u32_t const *)ptr;
         if (val < min_value) min_value = val, min_idx = i;
@@ -566,7 +566,7 @@ NK_API_COMPTIME void nk_reduce_minmax_i64_serial(                  //
     nk_i64_t *max_value_ptr, nk_size_t *max_index_ptr) {
     unsigned char const *ptr = (unsigned char const *)data;
     nk_i64_t min_value = NK_I64_MAX, max_value = NK_I64_MIN;
-    nk_size_t min_idx = NK_SIZE_MAX, max_idx = NK_SIZE_MAX;
+    nk_size_t min_idx = count ? 0 : NK_SIZE_MAX, max_idx = min_idx;
     for (nk_size_t i = 0; i < count; ++i, ptr += stride_bytes) {
         nk_i64_t val = *(nk_i64_t const *)ptr;
         if (val < min_value) min_value = val, min_idx = i;
@@ -582,7 +582,7 @@ NK_API_COMPTIME void nk_reduce_minmax_u64_serial(                  //
     nk_u64_t *max_value_ptr, nk_size_t *max_index_ptr) {
     unsigned char const *ptr = (unsigned char const *)data;
     nk_u64_t min_value = NK_U64_MAX, max_value = NK_U64_MIN;
-    nk_size_t min_idx = NK_SIZE_MAX, max_idx = NK_SIZE_MAX;
+    nk_size_t min_idx = count ? 0 : NK_SIZE_MAX, max_idx = min_idx;
     for (nk_size_t i = 0; i < count; ++i, ptr += stride_bytes) {
         nk_u64_t val = *(nk_u64_t const *)ptr;
         if (val < min_value) min_value = val, min_idx = i;
@@ -672,7 +672,7 @@ NK_API_COMPTIME void nk_reduce_minmax_e2m3_serial(                  //
     nk_e2m3_t *max_value_ptr, nk_size_t *max_index_ptr) {
     unsigned char const *ptr = (unsigned char const *)data;
     nk_e2m3_t min_value = NK_E2M3_MAX, max_value = NK_E2M3_MIN;
-    nk_size_t min_idx = NK_SIZE_MAX, max_idx = NK_SIZE_MAX;
+    nk_size_t min_idx = count ? 0 : NK_SIZE_MAX, max_idx = min_idx;
     for (nk_size_t i = 0; i < count; ++i, ptr += stride_bytes) {
         nk_e2m3_t raw_value = *(nk_e2m3_t const *)ptr;
         if (nk_e2m3_order_serial(raw_value, min_value) < 0) min_value = raw_value, min_idx = i;
@@ -688,7 +688,7 @@ NK_API_COMPTIME void nk_reduce_minmax_e3m2_serial(                  //
     nk_e3m2_t *max_value_ptr, nk_size_t *max_index_ptr) {
     unsigned char const *ptr = (unsigned char const *)data;
     nk_e3m2_t min_value = NK_E3M2_MAX, max_value = NK_E3M2_MIN;
-    nk_size_t min_idx = NK_SIZE_MAX, max_idx = NK_SIZE_MAX;
+    nk_size_t min_idx = count ? 0 : NK_SIZE_MAX, max_idx = min_idx;
     for (nk_size_t i = 0; i < count; ++i, ptr += stride_bytes) {
         nk_e3m2_t raw_value = *(nk_e3m2_t const *)ptr;
         if (nk_e3m2_order_serial(raw_value, min_value) < 0) min_value = raw_value, min_idx = i;
@@ -704,7 +704,7 @@ NK_API_COMPTIME void nk_reduce_minmax_i4_serial(                    //
     nk_i8_t *max_value_ptr, nk_size_t *max_index_ptr) {
     unsigned char const *ptr = (unsigned char const *)data;
     nk_i8_t min_value = 7, max_value = -8; // i4 range: -8 to 7
-    nk_size_t min_idx = NK_SIZE_MAX, max_idx = NK_SIZE_MAX;
+    nk_size_t min_idx = count ? 0 : NK_SIZE_MAX, max_idx = min_idx;
     for (nk_size_t i = 0; i < count; ++i) {
         nk_size_t byte_idx = i / 2;
         unsigned char byte_val = ptr[byte_idx * stride_bytes];
@@ -722,7 +722,7 @@ NK_API_COMPTIME void nk_reduce_minmax_u4_serial(                    //
     nk_u8_t *max_value_ptr, nk_size_t *max_index_ptr) {
     unsigned char const *ptr = (unsigned char const *)data;
     nk_u8_t min_value = 15, max_value = 0; // u4 range: 0 to 15
-    nk_size_t min_idx = NK_SIZE_MAX, max_idx = NK_SIZE_MAX;
+    nk_size_t min_idx = count ? 0 : NK_SIZE_MAX, max_idx = min_idx;
     for (nk_size_t i = 0; i < count; ++i) {
         nk_size_t byte_idx = i / 2;
         unsigned char byte_val = ptr[byte_idx * stride_bytes];
@@ -740,7 +740,7 @@ NK_API_COMPTIME void nk_reduce_minmax_u1_serial(                    //
     nk_u8_t *max_value_ptr, nk_size_t *max_index_ptr) {
     unsigned char const *ptr = (unsigned char const *)data;
     nk_u8_t min_value = 1, max_value = 0;
-    nk_size_t min_idx = NK_SIZE_MAX, max_idx = NK_SIZE_MAX;
+    nk_size_t min_idx = count ? 0 : NK_SIZE_MAX, max_idx = min_idx;
     for (nk_size_t i = 0; i < count; ++i) {
         nk_size_t byte_idx = i / 8;
         unsigned char byte_val = ptr[byte_idx * stride_bytes];
