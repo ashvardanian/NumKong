@@ -30,50 +30,6 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "avx512bf16", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NK_HELPER_INLINE __m512i nk_substract_bf16x32_genoa_(__m512i a_i16, __m512i b_i16) {
-
-    nk_b512_vec_t d, a_f32_even, b_f32_even, d_f32_even, a_f32_odd, b_f32_odd, d_f32_odd;
-
-    // There are several approaches to perform subtraction in `bf16`. The first one is:
-    //
-    //      Perform a couple of casts - each is a bitshift. To convert `bf16` to `f32`,
-    //      expand it to 32-bit integers, then shift the bits by 16 to the left.
-    //      Then subtract as floats, and shift back. During expansion, we will double the space,
-    //      and should use separate registers for top and bottom halves.
-    //      Some compilers don't have `_mm512_extracti32x8_epi32`, so we use `_mm512_extracti64x4_epi64`:
-    //
-    //          a_f32_bot.fvec = _mm512_castsi512_ps(_mm512_slli_epi32(
-    //              _mm512_cvtepu16_epi32(_mm512_castsi512_si256(a_i16)), 16));
-    //          b_f32_bot.fvec = _mm512_castsi512_ps(_mm512_slli_epi32(
-    //              _mm512_cvtepu16_epi32(_mm512_castsi512_si256(b_i16)), 16));
-    //          a_f32_top.fvec =_mm512_castsi512_ps(
-    //              _mm512_slli_epi32(_mm512_cvtepu16_epi32(_mm512_extracti64x4_epi64(a_i16, 1)), 16));
-    //          b_f32_top.fvec =_mm512_castsi512_ps(
-    //              _mm512_slli_epi32(_mm512_cvtepu16_epi32(_mm512_extracti64x4_epi64(b_i16, 1)), 16));
-    //          d_f32_top.fvec = _mm512_sub_ps(a_f32_top.fvec, b_f32_top.fvec);
-    //          d_f32_bot.fvec = _mm512_sub_ps(a_f32_bot.fvec, b_f32_bot.fvec);
-    //          d.ivec = _mm512_castsi256_si512(_mm512_cvtepi32_epi16(
-    //              _mm512_srli_epi32(_mm512_castps_si512(d_f32_bot.fvec), 16)));
-    //          d.ivec = _mm512_inserti64x4(d.ivec, _mm512_cvtepi32_epi16(
-    //              _mm512_srli_epi32(_mm512_castps_si512(d_f32_top.fvec), 16)), 1);
-    //
-    // Instead of using multple shifts and an insertion, we can achieve similar result with fewer expensive
-    // calls to `_mm512_permutex2var_epi16`, or a cheap `_mm512_mask_shuffle_epi8` and blend:
-    //
-    a_f32_odd.zmm = _mm512_and_si512(a_i16, _mm512_set1_epi32(0xFFFF0000));
-    a_f32_even.zmm = _mm512_slli_epi32(a_i16, 16);
-    b_f32_odd.zmm = _mm512_and_si512(b_i16, _mm512_set1_epi32(0xFFFF0000));
-    b_f32_even.zmm = _mm512_slli_epi32(b_i16, 16);
-
-    d_f32_odd.zmm_ps = _mm512_sub_ps(a_f32_odd.zmm_ps, b_f32_odd.zmm_ps);
-    d_f32_even.zmm_ps = _mm512_sub_ps(a_f32_even.zmm_ps, b_f32_even.zmm_ps);
-
-    d_f32_even.zmm = _mm512_srli_epi32(d_f32_even.zmm, 16);
-    d.zmm = _mm512_mask_blend_epi16(0x55555555, d_f32_odd.zmm, d_f32_even.zmm);
-
-    return d.zmm;
-}
-
 NK_API_COMPTIME void nk_sqeuclidean_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
     __m512 a_sq_f32x16 = _mm512_setzero_ps();
     __m512 b_sq_f32x16 = _mm512_setzero_ps();

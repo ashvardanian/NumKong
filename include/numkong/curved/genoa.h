@@ -15,8 +15,8 @@
 #if NK_TARGET_GENOA
 
 #include "numkong/types.h"
-#include "numkong/spatial/genoa.h"  // `nk_substract_bf16x32_genoa_`
-#include "numkong/reduce/skylake.h" // `nk_reduce_add_f32x16_skylake_`
+#include "numkong/spatial/haswell.h" // `nk_f32_sqrt_haswell`
+#include "numkong/reduce/skylake.h"  // `nk_reduce_add_f32x16_skylake_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -70,6 +70,7 @@ NK_API_COMPTIME void nk_mahalanobis_bf16_genoa(nk_bf16_t const *a, nk_bf16_t con
     nk_size_t const tail_start = n - tail_length;
     __mmask32 const tail_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, tail_length);
     __m512 sum_f32x16 = _mm512_setzero_ps();
+    __m512i const high_mask_i32x16 = _mm512_set1_epi32((int)0xFFFF0000);
 
     for (nk_size_t i = 0; i != n; ++i) {
         nk_f32_t a_i, b_i;
@@ -77,7 +78,7 @@ NK_API_COMPTIME void nk_mahalanobis_bf16_genoa(nk_bf16_t const *a, nk_bf16_t con
         nk_bf16_to_f32_serial(b + i, &b_i);
         __m512 diff_i_f32x16 = _mm512_set1_ps(a_i - b_i);
         __m512 cdiff_j_f32x16 = _mm512_setzero_ps();
-        __m512i a_j_bf16x32, b_j_bf16x32, diff_j_bf16x32, c_bf16x32;
+        __m512i a_j_bf16x32, b_j_bf16x32, c_bf16x32;
         nk_size_t j = 0;
 
         // The nested loop is cleaner to implement with a `goto` in this case:
@@ -92,9 +93,14 @@ NK_API_COMPTIME void nk_mahalanobis_bf16_genoa(nk_bf16_t const *a, nk_bf16_t con
             b_j_bf16x32 = _mm512_maskz_loadu_epi16(tail_m32, b + tail_start);
             c_bf16x32 = _mm512_maskz_loadu_epi16(tail_m32, c + i * n + tail_start);
         }
-        diff_j_bf16x32 = nk_substract_bf16x32_genoa_(a_j_bf16x32, b_j_bf16x32);
-        cdiff_j_f32x16 = _mm512_dpbf16_ps(cdiff_j_f32x16, nk_m512bh_from_m512i_(diff_j_bf16x32),
-                                          nk_m512bh_from_m512i_(c_bf16x32));
+        __m512 diff_odd_f32x16 = _mm512_sub_ps(_mm512_castsi512_ps(_mm512_and_si512(a_j_bf16x32, high_mask_i32x16)),
+                                               _mm512_castsi512_ps(_mm512_and_si512(b_j_bf16x32, high_mask_i32x16)));
+        __m512 diff_even_f32x16 = _mm512_sub_ps(_mm512_castsi512_ps(_mm512_slli_epi32(a_j_bf16x32, 16)),
+                                                _mm512_castsi512_ps(_mm512_slli_epi32(b_j_bf16x32, 16)));
+        cdiff_j_f32x16 = _mm512_fmadd_ps(
+            diff_odd_f32x16, _mm512_castsi512_ps(_mm512_and_si512(c_bf16x32, high_mask_i32x16)), cdiff_j_f32x16);
+        cdiff_j_f32x16 = _mm512_fmadd_ps(diff_even_f32x16, _mm512_castsi512_ps(_mm512_slli_epi32(c_bf16x32, 16)),
+                                         cdiff_j_f32x16);
         j += 32;
         if (j < n) goto nk_mahalanobis_bf16_genoa_cycle;
         sum_f32x16 = _mm512_fmadd_ps(diff_i_f32x16, cdiff_j_f32x16, sum_f32x16);
