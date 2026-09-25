@@ -1069,6 +1069,10 @@ typedef nk_f64_t nk_fmax_t;
 #define NK_F32_MAX 3.402823466e+38f
 #define NK_F32_MIN (-3.402823466e+38f)
 
+/** Infinities as an overflowing product, since C names them portably only in `<math.h>`. */
+#define NK_F64_INF ((nk_f64_t)(1e300 * 1e300))
+#define NK_F32_INF ((nk_f32_t)(1e300 * 1e300))
+
 /** Fundamental math constants shared across the scalar, elementwise, reduction, and probability
  *  kernels. Base-2 polynomial evaluation means natural-log/exp quantities fold through log₂e
  *  and ln2, so both the single- and double-precision spellings are provided and each site keeps

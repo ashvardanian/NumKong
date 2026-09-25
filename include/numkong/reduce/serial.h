@@ -45,6 +45,25 @@ NK_HELPER_INLINE nk_f64_t nk_reduce_sum_f64_serial_(nk_f64_t const *values, nk_f
     return running_sum + accumulated_error;
 }
 
+/** First index holding @p value, or @c NK_SIZE_MAX. Minmax kernels call it only for a side still
+ *  at its infinite sentinel, which nothing but that infinity and NaNs leave in place. */
+NK_HELPER_INLINE nk_size_t nk_reduce_find_f32_serial_(nk_f32_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                                      nk_f32_t value) {
+    unsigned char const *ptr = (unsigned char const *)data;
+    for (nk_size_t i = 0; i < count; ++i, ptr += stride_bytes)
+        if (*(nk_f32_t const *)ptr == value) return i;
+    return NK_SIZE_MAX;
+}
+
+/** First index holding @p value, or @c NK_SIZE_MAX, for the f64 minmax kernels. */
+NK_HELPER_INLINE nk_size_t nk_reduce_find_f64_serial_(nk_f64_t const *data, nk_size_t count, nk_size_t stride_bytes,
+                                                      nk_f64_t value) {
+    unsigned char const *ptr = (unsigned char const *)data;
+    for (nk_size_t i = 0; i < count; ++i, ptr += stride_bytes)
+        if (*(nk_f64_t const *)ptr == value) return i;
+    return NK_SIZE_MAX;
+}
+
 /*  Keep the serial instantiations below actually scalar, regardless of build type.
  *  See dots/serial.h for rationale. */
 #if defined(__clang__)
@@ -437,13 +456,15 @@ NK_API_COMPTIME void nk_reduce_minmax_f32_serial(                  //
     nk_f32_t *min_value_ptr, nk_size_t *min_index_ptr,             //
     nk_f32_t *max_value_ptr, nk_size_t *max_index_ptr) {
     unsigned char const *ptr = (unsigned char const *)data;
-    nk_f32_t min_value = NK_F32_MAX, max_value = NK_F32_MIN;
+    nk_f32_t min_value = NK_F32_INF, max_value = -NK_F32_INF;
     nk_size_t min_idx = NK_SIZE_MAX, max_idx = NK_SIZE_MAX;
     for (nk_size_t i = 0; i < count; ++i, ptr += stride_bytes) {
         nk_f32_t val = *(nk_f32_t const *)ptr;
         if (val < min_value) min_value = val, min_idx = i;
         if (val > max_value) max_value = val, max_idx = i;
     }
+    if (min_value == NK_F32_INF) min_idx = nk_reduce_find_f32_serial_(data, count, stride_bytes, NK_F32_INF);
+    if (max_value == -NK_F32_INF) max_idx = nk_reduce_find_f32_serial_(data, count, stride_bytes, -NK_F32_INF);
     *min_value_ptr = min_value, *min_index_ptr = min_idx;
     *max_value_ptr = max_value, *max_index_ptr = max_idx;
 }
@@ -453,13 +474,15 @@ NK_API_COMPTIME void nk_reduce_minmax_f64_serial(                  //
     nk_f64_t *min_value_ptr, nk_size_t *min_index_ptr,             //
     nk_f64_t *max_value_ptr, nk_size_t *max_index_ptr) {
     unsigned char const *ptr = (unsigned char const *)data;
-    nk_f64_t min_value = NK_F64_MAX, max_value = NK_F64_MIN;
+    nk_f64_t min_value = NK_F64_INF, max_value = -NK_F64_INF;
     nk_size_t min_idx = NK_SIZE_MAX, max_idx = NK_SIZE_MAX;
     for (nk_size_t i = 0; i < count; ++i, ptr += stride_bytes) {
         nk_f64_t val = *(nk_f64_t const *)ptr;
         if (val < min_value) min_value = val, min_idx = i;
         if (val > max_value) max_value = val, max_idx = i;
     }
+    if (min_value == NK_F64_INF) min_idx = nk_reduce_find_f64_serial_(data, count, stride_bytes, NK_F64_INF);
+    if (max_value == -NK_F64_INF) max_idx = nk_reduce_find_f64_serial_(data, count, stride_bytes, -NK_F64_INF);
     *min_value_ptr = min_value, *min_index_ptr = min_idx;
     *max_value_ptr = max_value, *max_index_ptr = max_idx;
 }

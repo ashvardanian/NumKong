@@ -612,8 +612,8 @@ NK_HELPER_INLINE void nk_reduce_minmax_f32_haswell_contiguous_( //
     nk_f32_t *min_value_ptr, nk_size_t *min_index_ptr,          //
     nk_f32_t *max_value_ptr, nk_size_t *max_index_ptr) {
 
-    __m256 min_f32x8 = _mm256_set1_ps(NK_F32_MAX);
-    __m256 max_f32x8 = _mm256_set1_ps(NK_F32_MIN);
+    __m256 min_f32x8 = _mm256_set1_ps(NK_F32_INF);
+    __m256 max_f32x8 = _mm256_set1_ps(-NK_F32_INF);
     __m256i min_loop_cycle_u32x8 = _mm256_setzero_si256();
     __m256i max_loop_cycle_u32x8 = _mm256_setzero_si256();
     __m256i current_loop_cycle_u32x8 = _mm256_setzero_si256();
@@ -634,12 +634,12 @@ NK_HELPER_INLINE void nk_reduce_minmax_f32_haswell_contiguous_( //
     }
 
     // Reduce SIMD lanes and scan for indices
-    nk_f32_t min_value = NK_F32_MAX, max_value = NK_F32_MIN;
+    nk_f32_t min_value = NK_F32_INF, max_value = -NK_F32_INF;
     nk_size_t min_idx = NK_SIZE_MAX, max_idx = NK_SIZE_MAX;
 
     // Locate the minimum index
     if (idx > 0) min_value = nk_reduce_min_f32x8_haswell_(min_f32x8);
-    if (min_value < NK_F32_MAX) {
+    if (min_value < NK_F32_INF) {
         __m256 value_match_b32x8 = _mm256_cmp_ps(min_f32x8, _mm256_set1_ps(min_value), _CMP_EQ_OQ);
         __m256i masked_cycle_u32x8 = _mm256_blendv_epi8(_mm256_set1_epi32((int)NK_U32_MAX), min_loop_cycle_u32x8,
                                                         _mm256_castps_si256(value_match_b32x8));
@@ -653,7 +653,7 @@ NK_HELPER_INLINE void nk_reduce_minmax_f32_haswell_contiguous_( //
     }
     // Locate the maximum index
     if (idx > 0) max_value = nk_reduce_max_f32x8_haswell_(max_f32x8);
-    if (max_value > NK_F32_MIN) {
+    if (max_value > -NK_F32_INF) {
         __m256 value_match_b32x8 = _mm256_cmp_ps(max_f32x8, _mm256_set1_ps(max_value), _CMP_EQ_OQ);
         __m256i masked_cycle_u32x8 = _mm256_blendv_epi8(_mm256_set1_epi32((int)NK_U32_MAX), max_loop_cycle_u32x8,
                                                         _mm256_castps_si256(value_match_b32x8));
@@ -672,6 +672,8 @@ NK_HELPER_INLINE void nk_reduce_minmax_f32_haswell_contiguous_( //
         if (val < min_value) min_value = val, min_idx = idx;
         if (val > max_value) max_value = val, max_idx = idx;
     }
+    if (min_value == NK_F32_INF) min_idx = nk_reduce_find_f32_serial_(data_ptr, count, sizeof(nk_f32_t), NK_F32_INF);
+    if (max_value == -NK_F32_INF) max_idx = nk_reduce_find_f32_serial_(data_ptr, count, sizeof(nk_f32_t), -NK_F32_INF);
     *min_value_ptr = min_value, *min_index_ptr = min_idx;
     *max_value_ptr = max_value, *max_index_ptr = max_idx;
 }
@@ -684,7 +686,7 @@ NK_API_COMPTIME void nk_reduce_minmax_f32_haswell(                     //
     nk_size_t stride_elements = stride_bytes / sizeof(nk_f32_t);
     int aligned = (stride_bytes % sizeof(nk_f32_t) == 0);
     if (count == 0)
-        *min_value_ptr = NK_F32_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = NK_F32_MIN,
+        *min_value_ptr = NK_F32_INF, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = -NK_F32_INF,
         *max_index_ptr = NK_SIZE_MAX;
     else if (!aligned || stride_elements == 0)
         nk_reduce_minmax_f32_serial(data_ptr, count, stride_bytes, min_value_ptr, min_index_ptr, max_value_ptr,
@@ -697,9 +699,12 @@ NK_API_COMPTIME void nk_reduce_minmax_f32_haswell(                     //
                                      &left_max_index);
         nk_reduce_minmax_f32_haswell(data_ptr + left_count * stride_elements, count - left_count, stride_bytes,
                                      &right_min, &right_min_index, &right_max, &right_max_index);
-        if (right_min < left_min) *min_value_ptr = right_min, *min_index_ptr = left_count + right_min_index;
+        // An all-NaN left half has no index, so an equal infinity on the right still wins
+        if (right_min < left_min || (left_min_index == NK_SIZE_MAX && right_min_index != NK_SIZE_MAX))
+            *min_value_ptr = right_min, *min_index_ptr = left_count + right_min_index;
         else *min_value_ptr = left_min, *min_index_ptr = left_min_index;
-        if (right_max > left_max) *max_value_ptr = right_max, *max_index_ptr = left_count + right_max_index;
+        if (right_max > left_max || (left_max_index == NK_SIZE_MAX && right_max_index != NK_SIZE_MAX))
+            *max_value_ptr = right_max, *max_index_ptr = left_count + right_max_index;
         else *max_value_ptr = left_max, *max_index_ptr = left_max_index;
     }
     else if (stride_elements == 1)
@@ -829,8 +834,8 @@ NK_HELPER_INLINE void nk_reduce_minmax_f64_haswell_contiguous_( //
     nk_f64_t *min_value_ptr, nk_size_t *min_index_ptr,          //
     nk_f64_t *max_value_ptr, nk_size_t *max_index_ptr) {
 
-    __m256d min_f64x4 = _mm256_set1_pd(NK_F64_MAX);
-    __m256d max_f64x4 = _mm256_set1_pd(NK_F64_MIN);
+    __m256d min_f64x4 = _mm256_set1_pd(NK_F64_INF);
+    __m256d max_f64x4 = _mm256_set1_pd(-NK_F64_INF);
     __m256i min_loop_cycle_u64x4 = _mm256_setzero_si256();
     __m256i max_loop_cycle_u64x4 = _mm256_setzero_si256();
     __m256i current_loop_cycle_u64x4 = _mm256_setzero_si256();
@@ -872,7 +877,7 @@ NK_HELPER_INLINE void nk_reduce_minmax_f64_haswell_contiguous_( //
 
     nk_f64_t min_value = nk_reduce_min_f64x4_haswell_(min_f64x4);
     nk_f64_t max_value = nk_reduce_max_f64x4_haswell_(max_f64x4);
-    // Lanes keep their own zero signs; a side still at its sentinel has no index
+    // Lanes keep their own zero signs; a side still at its sentinel is looked up
     nk_b256_vec_t values_vec;
     {
         __m256d value_match_b64x4 = _mm256_cmp_pd(min_f64x4, _mm256_set1_pd(min_value), _CMP_EQ_OQ);
@@ -885,7 +890,9 @@ NK_HELPER_INLINE void nk_reduce_minmax_f64_haswell_contiguous_( //
         nk_b256_vec_t loop_cycle_vec;
         loop_cycle_vec.ymm = min_loop_cycle_u64x4, values_vec.ymm_pd = min_f64x4;
         *min_value_ptr = values_vec.f64s[min_lane];
-        *min_index_ptr = min_value < NK_F64_MAX ? (nk_size_t)loop_cycle_vec.u64s[min_lane] * 4 + min_lane : NK_SIZE_MAX;
+        *min_index_ptr = min_value < NK_F64_INF
+                             ? (nk_size_t)loop_cycle_vec.u64s[min_lane] * 4 + min_lane
+                             : nk_reduce_find_f64_serial_(data_ptr, count, sizeof(nk_f64_t), NK_F64_INF);
     }
     {
         __m256d value_match_b64x4 = _mm256_cmp_pd(max_f64x4, _mm256_set1_pd(max_value), _CMP_EQ_OQ);
@@ -898,7 +905,9 @@ NK_HELPER_INLINE void nk_reduce_minmax_f64_haswell_contiguous_( //
         nk_b256_vec_t loop_cycle_vec;
         loop_cycle_vec.ymm = max_loop_cycle_u64x4, values_vec.ymm_pd = max_f64x4;
         *max_value_ptr = values_vec.f64s[max_lane];
-        *max_index_ptr = max_value > NK_F64_MIN ? (nk_size_t)loop_cycle_vec.u64s[max_lane] * 4 + max_lane : NK_SIZE_MAX;
+        *max_index_ptr = max_value > -NK_F64_INF
+                             ? (nk_size_t)loop_cycle_vec.u64s[max_lane] * 4 + max_lane
+                             : nk_reduce_find_f64_serial_(data_ptr, count, sizeof(nk_f64_t), -NK_F64_INF);
     }
 }
 
@@ -910,7 +919,7 @@ NK_API_COMPTIME void nk_reduce_minmax_f64_haswell(                     //
     nk_size_t stride_elements = stride_bytes / sizeof(nk_f64_t);
     int aligned = (stride_bytes % sizeof(nk_f64_t) == 0);
     if (count == 0)
-        *min_value_ptr = NK_F64_MAX, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = NK_F64_MIN,
+        *min_value_ptr = NK_F64_INF, *min_index_ptr = NK_SIZE_MAX, *max_value_ptr = -NK_F64_INF,
         *max_index_ptr = NK_SIZE_MAX;
     else if (!aligned || stride_elements == 0)
         nk_reduce_minmax_f64_serial(data_ptr, count, stride_bytes, min_value_ptr, min_index_ptr, max_value_ptr,
