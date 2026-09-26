@@ -104,7 +104,7 @@ extern "C" {
 #endif
 
 /**
- *  @brief  Horizontal moments reduction (sum + sum-of-squares) over a strided array.
+ *  @brief Horizontal moments reduction (sum + sum-of-squares) over a strided array.
  *  @param[in] data Pointer to the input data.
  *  @param[in] count Counts dimensions, a multiple of the values per byte.
  *  @param[in] stride_bytes Byte stride between elements, `sizeof(*data)` for contiguous arrays.
@@ -115,7 +115,7 @@ NUMKONG_API_RUNTIME void nk_reduce_moments_f64(nk_f64_t const *data, nk_size_t c
                                                nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr);
 
 /**
- *  @brief  Horizontal min+max reduction with argmin/argmax over a strided array.
+ *  @brief Horizontal min+max reduction with argmin/argmax over a strided array.
  *  @param[in] data Pointer to the input data.
  *  @param[in] count Counts dimensions, a multiple of the values per byte.
  *  @param[in] stride_bytes Byte stride between elements, `sizeof(*data)` for contiguous arrays.
@@ -954,7 +954,7 @@ NUMKONG_API_COMPTIME void nk_reduce_minmax_e3m2_v128relaxed(nk_e3m2_t const *, n
 #endif // NUMKONG_TARGET_V128RELAXED
 
 /**
- *  @brief  Returns the accumulator dtype for the @c sum output of reduce_moments.
+ *  @brief Returns the accumulator dtype for the @c sum output of reduce_moments.
  *
  *  Float types accumulate into wider floats; signed ints into i64; unsigned ints into u64.
  */
@@ -984,7 +984,7 @@ NUMKONG_HELPER_INLINE nk_dtype_t nk_reduce_moments_sum_dtype(nk_dtype_t dtype) {
 }
 
 /**
- *  @brief  Returns the accumulator dtype for the @c sumsq output of reduce_moments.
+ *  @brief Returns the accumulator dtype for the @c sumsq output of reduce_moments.
  *
  *  Same as sum except all integers (signed and unsigned) accumulate into u64.
  */

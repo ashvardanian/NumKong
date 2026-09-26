@@ -34,7 +34,7 @@ extern "C" {
 #endif
 
 /**
- *  @brief  Native per-element popcount using Zvbb vcpop.v (1 instruction).
+ *  @brief Native per-element popcount using Zvbb vcpop.v (1 instruction).
  *
  *  Replaces the 11-instruction SWAR approach in nk_popcount_u8m4_rvv_.
  */

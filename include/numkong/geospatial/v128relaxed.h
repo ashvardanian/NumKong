@@ -206,8 +206,8 @@ NUMKONG_API_COMPTIME void nk_haversine_f32_v128relaxed( //
 }
 
 /**
- *  @brief  WASM Relaxed SIMD helper for Vincenty's geodesic distance on 2 f64 point pairs.
- *  @note   This is a true SIMD implementation using masked convergence tracking via blending.
+ *  @brief WASM Relaxed SIMD helper for Vincenty's geodesic distance on 2 f64 point pairs.
+ *  @note This is a true SIMD implementation using masked convergence tracking via blending.
  */
 NUMKONG_HELPER_INLINE v128_t nk_vincenty_f64x2_v128relaxed_(     //
     v128_t first_latitudes_f64x2, v128_t first_longitudes_f64x2, //
@@ -426,8 +426,8 @@ NUMKONG_API_COMPTIME void nk_vincenty_f64_v128relaxed( //
 }
 
 /**
- *  @brief  WASM Relaxed SIMD helper for Vincenty's geodesic distance on 4 f32 point pairs.
- *  @note   This is a true SIMD implementation using masked convergence tracking via blending.
+ *  @brief WASM Relaxed SIMD helper for Vincenty's geodesic distance on 4 f32 point pairs.
+ *  @note This is a true SIMD implementation using masked convergence tracking via blending.
  */
 NUMKONG_HELPER_INLINE v128_t nk_vincenty_f32x4_v128relaxed_(     //
     v128_t first_latitudes_f32x4, v128_t first_longitudes_f32x4, //

@@ -379,13 +379,13 @@ def build_subbyte_float_lookup_table(
     """Build a byte→float64 lookup table for a sub-byte float format.
 
     Args:
-        sign_bit:           position of the sign bit (counting from bit 0)
-        exp_bits:           number of exponent bits
-        mant_bits:          number of mantissa bits
-        bias:               exponent bias
-        total_bits:         number of significant bits (6 for float6, 8 for float8)
-        has_inf:            if True, max exponent with zero mantissa = ±∞
-        nan_only_max_mant:  if True, only max_exp + max_mant is NaN (e4m3 rule)
+        sign_bit: position of the sign bit (counting from bit 0)
+        exp_bits: number of exponent bits
+        mant_bits: number of mantissa bits
+        bias: exponent bias
+        total_bits: number of significant bits (6 for float6, 8 for float8)
+        has_inf: if True, max exponent with zero mantissa = ±∞
+        nan_only_max_mant: if True, only max_exp + max_mant is NaN (e4m3 rule)
     """
     n = 1 << total_bits
     exp_mask = (1 << exp_bits) - 1

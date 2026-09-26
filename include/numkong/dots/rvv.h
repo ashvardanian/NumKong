@@ -145,7 +145,7 @@ NUMKONG_API_COMPTIME void nk_dots_pack_f32_rvv(nk_f32_t const *b, nk_size_t colu
 }
 
 /**
- *  @brief  f32 packed GEMM kernel: C += A * B_packed^T with f64 widened accumulation.
+ *  @brief f32 packed GEMM kernel: C += A * B_packed^T with f64 widened accumulation.
  *
  *  Vectorizes over the depth dimension (k). For each (row, column) pair:
  *    acc_f64 = sum_k  f64(a[row][k]) * f64(b_packed[column][k])
@@ -349,7 +349,7 @@ NUMKONG_API_COMPTIME void nk_dots_pack_f64_rvv(nk_f64_t const *b, nk_size_t colu
 }
 
 /**
- *  @brief  f64 packed GEMM kernel: C += A * B_packed^T with Kahan compensation.
+ *  @brief f64 packed GEMM kernel: C += A * B_packed^T with Kahan compensation.
  *
  *  Vectorizes over depth dimension k using @c vfmul+Kahan (vector-vector multiply).
  *  Uses Kahan summation over full depth to maintain precision.
@@ -517,7 +517,7 @@ NUMKONG_API_COMPTIME void nk_dots_symmetric_f64_rvv(nk_f64_t const *vectors, nk_
 #pragma region E2M3 Floats
 
 /**
- *  @brief  Scalar conversion helper: e2m3 byte → signed i8 (value × 16).
+ *  @brief Scalar conversion helper: e2m3 byte → signed i8 (value × 16).
  *
  *  Extracts 5-bit magnitude, looks up in LUT, applies sign from bit 5.
  *  Every e2m3 value × 16 is an exact integer in [-120, +120], fitting in i8.
@@ -587,7 +587,7 @@ NUMKONG_API_COMPTIME void nk_dots_pack_e2m3_rvv(nk_e2m3_t const *b, nk_size_t co
 }
 
 /**
- *  @brief  e2m3 packed GEMM kernel: C += A * B_packed^T with integer i8 LUT arithmetic.
+ *  @brief e2m3 packed GEMM kernel: C += A * B_packed^T with integer i8 LUT arithmetic.
  *
  *  Vectorizes over the depth dimension (k). For each (row, column) pair:
  *    - Load raw e2m3 bytes from A, extract magnitude via @c vluxei8 gather LUT
@@ -876,7 +876,7 @@ NUMKONG_API_COMPTIME void nk_dots_pack_e2m1_rvv(nk_e2m1x2_t const *b, nk_size_t 
 }
 
 /**
- *  @brief  e2m1 packed GEMM kernel: C = A * B_packed^T with integer i8 LUT arithmetic.
+ *  @brief e2m1 packed GEMM kernel: C = A * B_packed^T with integer i8 LUT arithmetic.
  *
  *  Vectorizes over the bytes of A. Each byte's nibbles gather their signed values via @c vluxei8,
  *  meet the matching entries of the two packed B halves in @c vwmul and @c vwmacc, whose paired
@@ -1064,7 +1064,7 @@ NUMKONG_API_COMPTIME void nk_dots_symmetric_e2m1_rvv(nk_e2m1x2_t const *vectors,
 #pragma region E3M2 Floats
 
 /**
- *  @brief  Scalar conversion helper: e3m2 byte → signed i16 (value × 16).
+ *  @brief Scalar conversion helper: e3m2 byte → signed i16 (value × 16).
  *
  *  Extracts 5-bit magnitude, looks up in LUT, applies sign from bit 5.
  *  Every e3m2 value × 16 is an exact integer in [-448, +448], requiring i16.
@@ -1134,7 +1134,7 @@ NUMKONG_API_COMPTIME void nk_dots_pack_e3m2_rvv(nk_e3m2_t const *b, nk_size_t co
 }
 
 /**
- *  @brief  e3m2 packed GEMM kernel: C += A * B_packed^T with integer i16 LUT arithmetic.
+ *  @brief e3m2 packed GEMM kernel: C += A * B_packed^T with integer i16 LUT arithmetic.
  *
  *  Vectorizes over the depth dimension (k). For each (row, column) pair:
  *    - Load raw e3m2 bytes from A, convert to signed i16 via @c vluxei16 gather LUT
@@ -1405,7 +1405,7 @@ NUMKONG_API_COMPTIME void nk_dots_pack_bf16_rvv(nk_bf16_t const *b, nk_size_t co
 }
 
 /**
- *  @brief  bf16 packed GEMM kernel: C += A * B_packed^T with f64 widened accumulation.
+ *  @brief bf16 packed GEMM kernel: C += A * B_packed^T with f64 widened accumulation.
  *
  *  Vectorizes over the depth dimension (k). For each (row, column) pair:
  *    - Load A as u16m1 and convert to f32m2 via @c nk_bf16m1_to_f32m2_rvv_
@@ -1614,7 +1614,7 @@ NUMKONG_API_COMPTIME void nk_dots_pack_f16_rvv(nk_f16_t const *b, nk_size_t colu
 }
 
 /**
- *  @brief  f16 packed GEMM kernel: C += A * B_packed^T with f64 widened accumulation.
+ *  @brief f16 packed GEMM kernel: C += A * B_packed^T with f64 widened accumulation.
  *
  *  Vectorizes over the depth dimension (k). For each (row, column) pair:
  *    - Load A as u16m1 and convert to f32m2 via @c nk_f16m1_to_f32m2_rvv_
@@ -1828,7 +1828,7 @@ NUMKONG_API_COMPTIME void nk_dots_pack_i8_rvv(nk_i8_t const *b, nk_size_t column
 }
 
 /**
- *  @brief  i8 packed GEMM kernel: C += A * B_packed^T with i32 accumulation.
+ *  @brief i8 packed GEMM kernel: C += A * B_packed^T with i32 accumulation.
  *
  *  Vectorizes over the depth dimension (k). For each (row, column) pair:
  *    - Load i8 values from A and pre-packed i8 values from B
@@ -2040,7 +2040,7 @@ NUMKONG_API_COMPTIME void nk_dots_pack_u8_rvv(nk_u8_t const *b, nk_size_t column
 }
 
 /**
- *  @brief  u8 packed GEMM kernel: C += A * B_packed^T with u32 accumulation.
+ *  @brief u8 packed GEMM kernel: C += A * B_packed^T with u32 accumulation.
  *
  *  Vectorizes over the depth dimension (k). For each (row, column) pair:
  *    - Load u8 values from A and pre-packed u8 values from B
@@ -2285,7 +2285,7 @@ NUMKONG_API_COMPTIME void nk_dots_pack_e4m3_rvv(nk_e4m3_t const *b, nk_size_t co
 }
 
 /**
- *  @brief  e4m3 packed GEMM kernel: C += A * B_packed^T with f64 widened accumulation.
+ *  @brief e4m3 packed GEMM kernel: C += A * B_packed^T with f64 widened accumulation.
  *
  *  Vectorizes over the depth dimension (k). For each (row, column) pair:
  *    - Load pre-packed f32 values from B
@@ -2580,7 +2580,7 @@ NUMKONG_API_COMPTIME void nk_dots_pack_e5m2_rvv(nk_e5m2_t const *b, nk_size_t co
 }
 
 /**
- *  @brief  e5m2 packed GEMM kernel: C += A * B_packed^T with f64 widened accumulation.
+ *  @brief e5m2 packed GEMM kernel: C += A * B_packed^T with f64 widened accumulation.
  *
  *  Vectorizes over the depth dimension (k). For each (row, column) pair:
  *    - Load pre-packed f32 values from B

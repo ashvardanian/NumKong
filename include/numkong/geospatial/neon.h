@@ -191,8 +191,8 @@ NUMKONG_API_COMPTIME void nk_haversine_f32_neon(    //
 }
 
 /**
- *  @brief  NEON helper for Vincenty's geodesic distance on 2 f64 point pairs.
- *  @note   This is a true SIMD implementation using masked convergence tracking via blending.
+ *  @brief NEON helper for Vincenty's geodesic distance on 2 f64 point pairs.
+ *  @note This is a true SIMD implementation using masked convergence tracking via blending.
  */
 NUMKONG_HELPER_INLINE float64x2_t nk_vincenty_f64x2_neon_(                 //
     float64x2_t first_latitudes_f64x2, float64x2_t first_longitudes_f64x2, //
@@ -397,8 +397,8 @@ NUMKONG_API_COMPTIME void nk_vincenty_f64_neon(     //
 }
 
 /**
- *  @brief  NEON helper for Vincenty's geodesic distance on 4 f32 point pairs.
- *  @note   This is a true SIMD implementation using masked convergence tracking via blending.
+ *  @brief NEON helper for Vincenty's geodesic distance on 4 f32 point pairs.
+ *  @note This is a true SIMD implementation using masked convergence tracking via blending.
  */
 NUMKONG_HELPER_INLINE float32x4_t nk_vincenty_f32x4_neon_(                 //
     float32x4_t first_latitudes_f32x4, float32x4_t first_longitudes_f32x4, //

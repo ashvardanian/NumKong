@@ -58,7 +58,7 @@ extern "C" {
 #pragma region Haversine Distance
 
 /**
- *  @brief  RVV internal kernel for Haversine distance on vector_length f64 point pairs.
+ *  @brief RVV internal kernel for Haversine distance on vector_length f64 point pairs.
  *
  *  Haversine formula, where R is @c NUMKONG_EARTH_MEDIATORIAL_RADIUS:
  *
@@ -206,8 +206,8 @@ NUMKONG_API_COMPTIME void nk_haversine_f32_rvv(     //
 #pragma region Vincenty Distance
 
 /**
- *  @brief  RVV internal kernel for Vincenty's geodesic distance on vector_length f64 point pairs.
- *  @note   This is a true SIMD implementation using masked convergence tracking via vmerge.
+ *  @brief RVV internal kernel for Vincenty's geodesic distance on vector_length f64 point pairs.
+ *  @note This is a true SIMD implementation using masked convergence tracking via vmerge.
  *
  *  Vincenty's formulae iterate to solve the geodesic on an oblate spheroid (WGS-84 ellipsoid). Each
  *  SIMD lane tracks its own convergence state via mask registers. The loop terminates when all
@@ -488,8 +488,8 @@ NUMKONG_API_COMPTIME void nk_vincenty_f64_rvv(      //
 }
 
 /**
- *  @brief  RVV internal kernel for Vincenty's geodesic distance on vector_length f32 point pairs.
- *  @note   This is a true SIMD implementation using masked convergence tracking via vmerge.
+ *  @brief RVV internal kernel for Vincenty's geodesic distance on vector_length f32 point pairs.
+ *  @note This is a true SIMD implementation using masked convergence tracking via vmerge.
  */
 NUMKONG_HELPER_INLINE void nk_vincenty_f32_rvv_kernel_( //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons,     //

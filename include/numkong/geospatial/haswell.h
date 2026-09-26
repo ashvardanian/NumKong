@@ -194,8 +194,8 @@ NUMKONG_API_COMPTIME void nk_haversine_f32_haswell( //
 }
 
 /**
- *  @brief  AVX2 helper for Vincenty's geodesic distance on 4 f64 point pairs.
- *  @note   This is a true SIMD implementation using masked convergence tracking via blending.
+ *  @brief AVX2 helper for Vincenty's geodesic distance on 4 f64 point pairs.
+ *  @note This is a true SIMD implementation using masked convergence tracking via blending.
  */
 NUMKONG_HELPER_INLINE __m256d nk_vincenty_f64x4_haswell_(          //
     __m256d first_latitudes_f64x4, __m256d first_longitudes_f64x4, //
@@ -404,8 +404,8 @@ NUMKONG_API_COMPTIME void nk_vincenty_f64_haswell(  //
 }
 
 /**
- *  @brief  AVX2 helper for Vincenty's geodesic distance on 8 f32 point pairs.
- *  @note   This is a true SIMD implementation using masked convergence tracking via blending.
+ *  @brief AVX2 helper for Vincenty's geodesic distance on 8 f32 point pairs.
+ *  @note This is a true SIMD implementation using masked convergence tracking via blending.
  */
 NUMKONG_HELPER_INLINE __m256 nk_vincenty_f32x8_haswell_(         //
     __m256 first_latitudes_f32x8, __m256 first_longitudes_f32x8, //

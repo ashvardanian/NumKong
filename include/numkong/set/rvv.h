@@ -55,7 +55,7 @@ extern "C" {
 #pragma region Binary Sets
 
 /**
- *  @brief  Compute byte-level popcount using arithmetic SWAR.
+ *  @brief Compute byte-level popcount using arithmetic SWAR.
  *
  *  Uses parallel bit counting (Hamming weight) — no vrgather, so scales
  *  linearly with LMUL unlike the nibble-LUT approach.

@@ -113,7 +113,7 @@
 #define NUMKONG_VERSION_PATCH 2
 
 /**
- *  @brief  Removes compile-time dispatching in favor of runtime dispatching, so @c nk_dot_f32
+ *  @brief Removes compile-time dispatching in favor of runtime dispatching, so @c nk_dot_f32
  *      invokes the most advanced backend supported by the CPU running the program.
  *
  *  Without it, the function is pinned to the most advanced backend supported by the CPU used to

@@ -116,8 +116,8 @@ NUMKONG_API_COMPTIME void nk_haversine_f64_skylake( //
 }
 
 /**
- *  @brief  AVX-512 helper for Vincenty's geodesic distance on 8 f64 point pairs.
- *  @note   This is a true SIMD implementation using masked convergence tracking.
+ *  @brief AVX-512 helper for Vincenty's geodesic distance on 8 f64 point pairs.
+ *  @note This is a true SIMD implementation using masked convergence tracking.
  */
 NUMKONG_HELPER_INLINE __m512d nk_vincenty_f64x8_skylake_(          //
     __m512d first_latitudes_f64x8, __m512d first_longitudes_f64x8, //
@@ -394,8 +394,8 @@ NUMKONG_API_COMPTIME void nk_haversine_f32_skylake( //
 }
 
 /**
- *  @brief  AVX-512 helper for Vincenty's geodesic distance on 16 f32 point pairs.
- *  @note   This is a true SIMD implementation using masked convergence tracking.
+ *  @brief AVX-512 helper for Vincenty's geodesic distance on 16 f32 point pairs.
+ *  @note This is a true SIMD implementation using masked convergence tracking.
  */
 NUMKONG_HELPER_INLINE __m512 nk_vincenty_f32x16_skylake_(          //
     __m512 first_latitudes_f32x16, __m512 first_longitudes_f32x16, //

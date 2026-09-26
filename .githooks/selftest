@@ -266,6 +266,33 @@ assert_accepts "free-standing Doxygen command" include/numkong/probe.h <<'FIXTUR
 int probe(int value);
 FIXTURE
 
+assert_rejects "double-spaced Doxygen command" "aligns Doxygen text into columns" include/numkong/probe.h <<'FIXTURE'
+/**
+ *  @brief  Reads the value once.
+ *
+ *  Never twice, as the value is volatile.
+ */
+int probe(void);
+FIXTURE
+
+assert_rejects "parameter descriptions aligned into a column" "aligns Doxygen text into columns" include/numkong/probe.h <<'FIXTURE'
+/**
+ *  @brief Probes two values.
+ *  @param[in] a     The first value.
+ *  @param[in] count The second value.
+ */
+int probe(int a, int count);
+FIXTURE
+
+assert_accepts "single-spaced Doxygen text" include/numkong/probe.h <<'FIXTURE'
+/**
+ *  @brief Probes two values.
+ *  @param[in] a The first value.
+ *  @param[in] count The second value.
+ */
+int probe(int a, int count);
+FIXTURE
+
 assert_rejects "@see naming an identifier" "mixes the cross-reference tags" include/numkong/probe.h <<'FIXTURE'
 /**
  *  @brief Probes a value.
@@ -1347,6 +1374,24 @@ FIXTURE
 
 assert_accepts "Python lowercase emphasis" python/probe.py <<'FIXTURE'
 """Reads only the header."""
+FIXTURE
+
+assert_rejects "Python arguments aligned into a column" "aligns docstring arguments into a column" python/probe.py <<'FIXTURE'
+"""Probes a value.
+
+Args:
+    value:   The value.
+    count:   How many times.
+"""
+FIXTURE
+
+assert_accepts "Python arguments single-spaced" python/probe.py <<'FIXTURE'
+"""Probes a value.
+
+Args:
+    value: The value.
+    count: How many times.
+"""
 FIXTURE
 
 assert_rejects "TSDoc type braces" "uses JSDoc tag syntax" javascript/probe.ts <<'FIXTURE'

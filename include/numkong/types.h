@@ -1171,7 +1171,7 @@ typedef nk_f64_t nk_fmax_t;
 #define NUMKONG_NIBBLES_PER_BYTE 2
 
 /**
- *  @brief  Enumeration of supported scalar data types.
+ *  @brief Enumeration of supported scalar data types.
  *
  *  Includes complex type descriptors which in C code would use the real counterparts, but the
  *  independent flags contain metadata to be passed between programming language interfaces.
@@ -1286,7 +1286,7 @@ typedef enum {
 } nk_dtype_t;
 
 /**
- *  @brief  Descriptor for a block-scaled tensor layout (OCP MX family + NVIDIA NVFP4).
+ *  @brief Descriptor for a block-scaled tensor layout (OCP MX family + NVIDIA NVFP4).
  *
  *  Elements are grouped in fixed-size contiguous blocks; each block has its own
  *  @c scale_dtype scale byte stored in a separate scales buffer. An optional
@@ -2013,7 +2013,7 @@ typedef union NUMKONG_MAY_ALIAS_ nk_b256_vec_t {
 } nk_b256_vec_t;
 
 /**
- *  @brief  Small 64-byte memory slice viewable as different types.
+ *  @brief Small 64-byte memory slice viewable as different types.
  *
  *  TODO: On GCC and Clang we use @c __transparent_union__ attribute to allow implicit conversions
  *  between the different vector types when passing them as function arguments. The most important
@@ -2170,7 +2170,7 @@ NUMKONG_HELPER_AUTO nk_u16_t nk_u16_ror(nk_u16_t x, int n) { return (x >> n) | (
 NUMKONG_HELPER_AUTO nk_u8_t nk_u8_ror(nk_u8_t x, int n) { return (x >> n) | (x << (8 - n)); }
 
 /**
- *  @brief  SWAR population count for 64-bit integers.
+ *  @brief SWAR population count for 64-bit integers.
  *
  *  Classic algorithm from Hacker's Delight using parallel bit summation:
  *  - Count bits in pairs (2-bit sums)

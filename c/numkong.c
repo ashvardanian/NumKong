@@ -1067,7 +1067,7 @@ NUMKONG_HELPER_INLINE void nk_dispatch_table_build_(nk_capability_t caps) {
 }
 
 /**
- *  @brief  Points dispatch at everything available. Idempotent, and safe to call from anywhere.
+ *  @brief Points dispatch at everything available. Idempotent, and safe to call from anywhere.
  *
  *  Runs from the library constructor and again from every entry point that needs the table, so a
  *  host that never runs constructors still gets a usable one. A built table always retains

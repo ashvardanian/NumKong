@@ -234,6 +234,18 @@ check_doxygen_command_not_glued() {
         "            write \`as @c foo does\`, never \`(@c foo)\`:"
 }
 
+# Rejects Doxygen text aligned into columns by hand, as in `@brief  Text` or `@param[in] a     Text`, because
+# such columns drift with the first edit; `check_tag_continuation_hanging_indent` covers continuation lines.
+check_doxygen_columns_unaligned() {
+    local aligned
+    aligned=$(printf '%s\n' "$staged_added_text" | grep -E "$added_documentation_line_pattern" | grep -E \
+        '@(brief|param|tparam|returns?|retval|note|warning|details|pre|post|sa|see|ref|c|p|b)(\[[a-z,]+\])?  +[^[:space:]]|@(t?param(\[[a-z,]+\])?|retval) +[A-Za-z_][A-Za-z0-9_.]*  +[^[:space:]]' ||
+        true)
+    [ -z "$aligned" ] || reject_with_reason "$aligned" \
+        "$staged_path aligns Doxygen text into columns by hand;" \
+        "            put one space after a command and after the name it documents:"
+}
+
 # Rejects `@sa` pointing at a URL and `@see` without one, because Doxygen treats the two alike and only this
 # check keeps them scannable: `@sa` names an identifier, `@see` a URL, optionally after a title.
 check_sa_names_identifiers_see_names_urls() {
@@ -1451,6 +1463,17 @@ check_python_docstring_sections() {
         "$staged_path names a docstring section outside Google style; use Args:, Returns:, Raises:"
 }
 
+# Rejects docstring arguments aligned into a column by hand, as in `    name:     Text`, because such columns
+# drift with the first edit; an inline comment keeps its two spaces after a colon.
+check_python_arguments_unaligned() {
+    local aligned
+    aligned=$(printf '%s\n' "$staged_added_text" |
+        grep -E '^\+[[:space:]]+[A-Za-z_][A-Za-z0-9_]*( \([^)]*\))?:  +[^[:space:]#]' || true)
+    [ -z "$aligned" ] || reject_with_reason "$aligned" \
+        "$staged_path aligns docstring arguments into a column by hand; put one space after the colon:"
+}
+
+
 # Rejects a Go method referenced as a call, such as `b.Depth()`, because doc links are `[Type.Method]`.
 check_go_method_links_bracketed() {
     local calls
@@ -1498,14 +1521,14 @@ check_go_file_header() {
 # Rejects a Rust file whose leading `//!` module doc does not end with `File: <path>` and `Author:` lines.
 check_rust_module_fields() {
     local fields
-    fields=$(printf '%s\n' "$staged_file_text" | awk -v path="$staged_path" '
+    fields=$(awk -v path="$staged_path" '
         NR == 1 && !/^\/\/!/ { print "line 1: no //! module doc"; exit }
         /^\/\/!/ { before_last = last; last = $0; next }
         {
             if (before_last != "//! File: " path) print "module doc must end with //! File: " path
             else if (last !~ /^\/\/! Author: [A-Z]/) print "module doc must end with //! Author: <author>"
             exit
-        }')
+        }' <<<"$staged_file_text")
     [ -z "$fields" ] || reject_with_reason "$fields" \
         "$staged_path opens without the module fields; end its //! doc with File: and Author: lines:"
 }
@@ -2273,6 +2296,7 @@ run_shared_checks() {
         check_markdown_emphasis_absent_in_comments
         check_markup_command_without_backticks
         check_doxygen_command_not_glued
+        check_doxygen_columns_unaligned
         check_sa_names_identifiers_see_names_urls
         check_cross_references_start_their_line
         check_section_has_snake_case_identifier
@@ -2399,6 +2423,7 @@ run_shared_checks() {
     *.py | *.pyi)
         check_python_module_fields
         check_python_attributes_use_docstrings
+        check_python_arguments_unaligned
         ;;
     .github/workflows/*.yml | .github/workflows/*.yaml) check_workflow_names ;;
     .vscode/settings.json | .vscode/extensions.json | .zed/settings.json) check_editor_settings_sorted ;;

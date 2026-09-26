@@ -224,9 +224,9 @@ int nk_scalar_buffer_export(nk_scalar_buffer_t const *source, nk_dtype_t source_
  *  Py_buffer with shape/strides pointing into @p backing. When the fallback path is taken,
  *  `buffer->obj` is NULL, so @c PyBuffer_Release is a no-op.
  *
- *  @param[in]  obj     Python object.
- *  @param[out] buffer  Output Py_buffer.
- *  @param[in]  flags   PyBUF_* flags for PyObject_GetBuffer.
+ *  @param[in] obj Python object.
+ *  @param[out] buffer Output Py_buffer.
+ *  @param[in] flags PyBUF_* flags for PyObject_GetBuffer.
  *  @param[out] backing Storage for shape/strides (used only on fallback path).
  *  @return 1 on success, 0 on failure (with Python exception set).
  */
@@ -264,11 +264,11 @@ int parse_tensor(PyObject *tensor, Py_buffer *buffer, MatrixOrVectorView *parsed
  *  N-dimensional sibling of parse_tensor, which is limited to 1D/2D. Caller must call
  *  PyBuffer_Release(buffer) when done with the view.
  *
- *  @param[in]  obj    Python object exposing buffer protocol or __array_interface__.
+ *  @param[in] obj Python object exposing buffer protocol or __array_interface__.
  *  @param[out] buffer Output Py_buffer (caller must release with PyBuffer_Release).
- *  @param[out] view   Output TensorView with borrowed pointers into buffer.
+ *  @param[out] view Output TensorView with borrowed pointers into buffer.
  *  @param[out] backing Backing storage for shape/strides (used by __array_interface__ fallback).
- *  @param[in]  dtype_hint Override dtype; nk_dtype_unknown_k to infer from buffer format.
+ *  @param[in] dtype_hint Override dtype; nk_dtype_unknown_k to infer from buffer format.
  *  @return 1 on success, 0 on failure (Python exception set).
  */
 int parse_tensor_nd(PyObject *obj, Py_buffer *buffer, TensorView *view, nk_buffer_backing_t *backing,
