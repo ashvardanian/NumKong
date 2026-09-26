@@ -55,9 +55,9 @@ template <typename weight_type_>
 error_stats_t test_sparse_dot(typename weight_type_::sparse_dot_kernel_t kernel) {
     using weight_t = weight_type_;
     using index_t = typename weight_t::sparse_dot_index_t;
-    using reference_t = reference_for<weight_t>;
+    using reference_t = tracked<reference_for<weight_t>>;
 
-    error_stats_t stats(comparison_family_t::approximate_k);
+    error_stats_t stats(nk_sparse_dot_error_bound(weight_t::dtype()));
     std::mt19937 generator(global_config.seed);
     std::size_t dim = global_config.sparse_dimensions;
     auto a_idx = make_vector<index_t>(dim), b_idx = make_vector<index_t>(dim);

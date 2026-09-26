@@ -126,7 +126,8 @@ extern "C" {
 
 /**
  *  @brief Returns the packed KV-cache size in bytes for a ragged batch of segments.
- *  @param[in] key_value_head_count Number of K/V heads (≤ query heads for grouped-query attention).
+ *  @param[in] key_value_head_count Number of K/V heads, a nonzero divisor of the query head count;
+ *      attention must take it and @p depth as packed, and only debug builds assert these rules.
  *  @param[in] depth Head dimension; any value ≥ 1.
  *  @param[in] segment_lengths Live token counts, one per segment; zeros allowed.
  *  @param[in] segment_count Number of segments packed together.

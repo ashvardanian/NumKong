@@ -89,13 +89,18 @@ Put that name into the template the run opens with:
 
 Each kernel is assigned a __comparison family__ that determines which error metrics are reported and what constitutes failure.
 Families are defined in `harness.hpp` as `comparison_family_t`.
-All floating-point families report `max_abs`, `max_rel`, and `mean_ulp`; most also report `max_ulp` and `exact` match counts, and some substitute `mean_abs` or `mean_rel`.
+All floating-point families report `max_abs` and `max_rel`; the rest of each row is some of `mean_ulp`, `max_ulp`, `exact` match counts, `mean_abs`, `mean_rel` and `max_bound`.
 
 - __`exact_k`__ — integer and binary metrics: Hamming, Jaccard, set intersections, integer min/max.
   Reports `max_dist`, `mean_dist`, `max_abs`, `mismatch`, `exact`.
   Fails on any `max_dist > 0`.
-- __`approximate_k`__ — everything measured against a ULP budget: elementwise float ops, reductions and dot products.
+- __`approximate_k`__ — everything measured against a ULP budget: single-vector distances, trigonometry, mesh alignment, MaxSim and elementwise sums.
   Fails on `max_ulp > NUMKONG_ULP_THRESHOLD_{F32,F16,BF16}`.
+- __`bounded_k`__ — results held to the `nk_*_error_bound` of their family, like `nk_dot_error_bound`, on every backend: dot products, batched dots and distances, bilinear and Mahalanobis forms, sparse dots, moments, and elementwise scale, blend and FMA.
+  A result may land (roundings + 1) · bound · Σ|terms| from exact, plus the rounding into its output type, where `tracked` references carry the roundings and Σ|terms| through the same arithmetic.
+  Reports `max_bound`, the largest error as a share of its own bound, and fails when it exceeds 1.
+- __`normalized_reduction_k`__ — attention outputs, which pass through zero where ULP distances explode.
+  Fails when `max_abs` exceeds `NUMKONG_SCALE_THRESHOLD` times the largest reference.
 - __`probability_k`__ — probability divergences: KL, Jensen-Shannon.
   Also reports `mean_abs` and `mean_rel`.
 - __`geospatial_k`__ — geographic distances: Haversine, Vincenty.
@@ -104,7 +109,7 @@ All floating-point families report `max_abs`, `max_rel`, and `mean_ulp`; most al
 ### Reference Baselines
 
 C++ tests compare SIMD kernels against high-precision serial references.
-The baseline type depends on the input dtype, selected by the `reference_for<input, result>` template in `harness.hpp`.
+The baseline type depends on the input dtype, selected by the `reference_for<input>` template in `harness.hpp`.
 
 - __f32 and f64 inputs__ use `f118_t` — a double-double type with ~103-bit mantissa, defined in `types.hpp`.
   Two `double` values track a high and low component, capturing rounding errors that a single `double` would lose.

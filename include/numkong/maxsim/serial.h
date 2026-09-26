@@ -67,7 +67,7 @@ typedef struct {
     nk_u32_t reserved[8];
 } nk_maxsim_packed_header_t;
 
-NUMKONG_STATIC_ASSERT(sizeof(nk_maxsim_packed_header_t) == 64, nk_maxsim_packed_header_must_be_64_bytes);
+nk_static_assert_(sizeof(nk_maxsim_packed_header_t) == 64, nk_maxsim_packed_header_must_be_64_bytes);
 
 /** Per-vector quantization metadata, 12 bytes, stored once per vector in the packed buffer's
  *  metadata region. */
@@ -84,7 +84,7 @@ typedef struct {
     nk_f32_t inverse_norm_f32;
 } nk_maxsim_vector_metadata_t;
 
-NUMKONG_STATIC_ASSERT(sizeof(nk_maxsim_vector_metadata_t) == 12, nk_maxsim_vector_metadata_must_be_12_bytes);
+nk_static_assert_(sizeof(nk_maxsim_vector_metadata_t) == 12, nk_maxsim_vector_metadata_must_be_12_bytes);
 
 /** Conversion function pointer type for element-to-f32 conversion. Each conversion reads one
  *  element from @c source and writes one f32 to @c destination. */

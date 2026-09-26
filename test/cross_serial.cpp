@@ -5,7 +5,7 @@
  *  @brief Batch operation tests - Serial fallback.
  */
 #include "harness.hpp"
-#include "cross.cuh"
+#include "cross.hpp"
 
 using namespace ashvardanian::numkong::test;
 

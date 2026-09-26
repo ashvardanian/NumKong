@@ -7,7 +7,7 @@
  *  Covers NEON, NEONHALF, NEONFHM, NEONBFDOT, NEONSDOT.
  */
 #include "harness.hpp"
-#include "cross.cuh"
+#include "cross.hpp"
 
 using namespace ashvardanian::numkong::test;
 

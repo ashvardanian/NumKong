@@ -1,5 +1,5 @@
 /**
- *  @file bench/cross.cuh
+ *  @file bench/cross.hpp
  *  @author Ash Vardanian
  *  @date September 23, 2026
  *  @brief Backend-neutral cross-kernel benchmarks: batched dots, angular and euclidean distances,
@@ -18,8 +18,8 @@
  *  masked row is not credited for the keys it skips.
  */
 #pragma once
-#ifndef NUMKONG_BENCH_CROSS_CUH
-#define NUMKONG_BENCH_CROSS_CUH
+#ifndef NUMKONG_BENCH_CROSS_HPP
+#define NUMKONG_BENCH_CROSS_HPP
 
 #include <cmath>   // `std::fma`, `std::sqrt`
 #include <cstdint> // `std::int64_t`, `std::uint64_t`
@@ -587,4 +587,4 @@ void run_attention_causal(std::string const &name, pack_size_kernel_type_ packed
 
 } // namespace ashvardanian::numkong::bench
 
-#endif // NUMKONG_BENCH_CROSS_CUH
+#endif // NUMKONG_BENCH_CROSS_HPP

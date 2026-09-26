@@ -1,25 +1,25 @@
 /**
- *  @file test/cross.cuh
+ *  @file test/cross.hpp
  *  @author Ash Vardanian
  *  @date January 14, 2025
  *  @brief Backend-neutral cross-kernel scenarios: batched dots, spatial and set distances, and
  *      ragged attention windows.
  *
  *  Every scenario is a template over the scalar type, its kernels, and a backend owning where
- *  kernel operands live, how a kernel is called, when its results become readable, and how its
- *  products accumulate: @c host_backend_t by default, @c cuda_backend_t from `harness.cuh` for the
- *  CUDA suite. Set distances run on the host only. References always run the serial `nk::`
- *  templates on the host. Outputs start filled with @c canary_k bytes, so a stray write shows.
+ *  kernel operands live, how a kernel is called, and when its results become readable:
+ *  @c host_backend_t by default, @c cuda_backend_t from `harness.cuh` for the CUDA suite. Every
+ *  backend is held to the same `nk_*_error_bound` of each family. Set distances run on the host
+ *  only. References always run the serial `nk::` templates on the host. Outputs start filled with
+ *  @c canary_k bytes, so a stray write shows.
  */
 #pragma once
-#ifndef NUMKONG_TEST_CROSS_CUH
-#define NUMKONG_TEST_CROSS_CUH
+#ifndef NUMKONG_TEST_CROSS_HPP
+#define NUMKONG_TEST_CROSS_HPP
 
 #include <cmath>   // `std::ldexp`, `std::nextafter`
 #include <cstdint> // `std::int64_t`, `std::uint64_t`
 #include <cstring> // `std::memset`, `std::memcmp`
 
-#include <bit>              // `std::bit_cast`, `std::countr_zero`
 #include <initializer_list> // `std::initializer_list`
 #include <random>           // `std::uniform_real_distribution`
 #include <vector>           // `std::vector`
@@ -64,19 +64,6 @@ void synchronize(backend_type_ &backend, error_stats_t &stats) noexcept {
 
 #pragma region Tolerances
 
-/** The family a dot product is judged in: ULP thresholds, bit for bit, or a bound of its own. */
-constexpr comparison_family_t dots_family(accumulation_t accumulation) noexcept {
-    return accumulation == accumulation_t::family_thresholds_k ? comparison_family_t::approximate_k
-           : accumulation == accumulation_t::exact_k           ? comparison_family_t::exact_k
-                                                               : comparison_family_t::bounded_k;
-}
-
-/** The family a distance is judged in: the ULP thresholds, or a tolerance around the reference. */
-constexpr comparison_family_t spatials_family(accumulation_t accumulation) noexcept {
-    return accumulation == accumulation_t::family_thresholds_k ? comparison_family_t::approximate_k
-                                                               : comparison_family_t::bounded_k;
-}
-
 /** The family an attention output is judged in: the scale threshold, or that threshold floored by
  *  the weights. */
 constexpr comparison_family_t attention_family(attention_weights_t weights) noexcept {
@@ -84,45 +71,12 @@ constexpr comparison_family_t attention_family(attention_weights_t weights) noex
                                                          : comparison_family_t::bounded_k;
 }
 
-/** The exponent of the lowest set bit of @p value's significand: @p value is an odd multiple of
- *  that power of two. */
-inline int grid_exponent(double value) noexcept {
-    std::uint64_t const bits = std::bit_cast<std::uint64_t>(value);
-    int const biased_exponent = static_cast<int>((bits >> 52) & 0x7FF);
-    std::uint64_t const significand = (bits & ((1ull << 52) - 1)) | (biased_exponent ? 1ull << 52 : 0);
-    return std::max(biased_exponent, 1) - 1075 + std::countr_zero(significand);
-}
-
-/** How far a dot product of @p depth terms may land from @p reference under @p accumulation, given
- *  Σ|a · b| as @p magnitude and the grid every product lies on as @p grid. A sum in p bits of terms
- *  on one grid is exact while Σ|a · b| stays below 2ᵖ grid steps, so F32 and F64 accumulations must
- *  then match exactly. */
-inline double dot_bound(accumulation_t accumulation, double reference, double magnitude, int grid,
-                        std::size_t depth) noexcept {
-    double const steps = static_cast<double>(depth);
-    switch (accumulation) {
-    case accumulation_t::dot2_k: {
-        double const gamma = steps * 0x1p-53, absolute = std::fabs(reference);
-        return 2 * (std::nextafter(absolute, INFINITY) - absolute) + 4 * gamma * gamma * magnitude;
-    }
-    case accumulation_t::f64_k: return magnitude < std::ldexp(1.0, 53 + grid) ? 0 : (steps + 1) * 0x1p-53 * magnitude;
-    case accumulation_t::f32_k: return magnitude < std::ldexp(1.0, 24 + grid) ? 0 : (steps + 1) * 0x1p-24 * magnitude;
-    case accumulation_t::tensor_core_k: return (steps / 32 + 1) * 0x1p-22 * magnitude + 1e-30;
-    default: return 0;
-    }
-}
-
-/** A distance's tolerance over @p depth terms: absolute for angular, relative to ‖a‖² + ‖b‖² for
- *  squared euclidean. */
-inline double spatial_tolerance(accumulation_t accumulation, std::size_t depth) noexcept {
-    double const steps = static_cast<double>(depth);
-    switch (accumulation) {
-    case accumulation_t::dot2_k:
-    case accumulation_t::f64_k: return 0x1p-40;
-    case accumulation_t::exact_k: return 0x1p-16;
-    case accumulation_t::tensor_core_k: return 4 * ((steps / 32 + 1) * 0x1p-22 + steps * 0x1p-24) + 0x1p-16;
-    default: return 0;
-    }
+/** A distance's tolerance over @p depth terms of the dots beneath it, each adding up to
+ *  @p term_error_bound: absolute for angular, relative to ‖a‖² + ‖b‖² for squared euclidean. Both
+ *  norms and the dot err by (depth + 1) terms of it relative to ‖a‖ · ‖b‖, and the finish rounds
+ *  once more. */
+inline double spatial_tolerance(nk_f64_t term_error_bound, std::size_t depth) noexcept {
+    return 4 * static_cast<double>(depth + 2) * term_error_bound;
 }
 
 /** Decodes @p rows rows of @p depth dimensions, @p row_stride_values values apart, into F64. */
@@ -136,56 +90,21 @@ std::vector<double> decode_rows(nk::vector<scalar_type_, allocator_type_> const 
     return decoded;
 }
 
-/** Decodes @p rows rows of @p matrix when @p accumulation_ judges dots by a bound, and nothing
- *  otherwise. */
-template <accumulation_t accumulation_, typename vector_type_>
-std::vector<double> decode_for(vector_type_ const &matrix, std::size_t rows, std::size_t depth,
-                               std::size_t row_stride_values) {
-    if constexpr (dots_family(accumulation_) != comparison_family_t::bounded_k) return {};
-    else return decode_rows(matrix, rows, depth, row_stride_values);
-}
-
-/** Folds one dot product into @p stats, bounded by the terms of the decoded rows when @p
- *  accumulation_ needs it. */
-template <accumulation_t accumulation_, typename result_type_, typename reference_type_>
-void accumulate_dot(error_stats_t &stats, result_type_ result, reference_type_ reference,
-                    std::vector<double> const &first_rows, std::size_t first_row,
-                    std::vector<double> const &second_rows, std::size_t second_row, std::size_t depth) {
-    if constexpr (dots_family(accumulation_) != comparison_family_t::bounded_k) stats.accumulate(result, reference);
-    else {
-        double const *first = first_rows.data() + first_row * depth, *second = second_rows.data() + second_row * depth;
-        double magnitude = 0;
-        int grid = std::numeric_limits<double>::max_exponent;
-        for (std::size_t index = 0; index < depth; index++) {
-            double const product = first[index] * second[index];
-            magnitude += std::fabs(product);
-            if (product != 0) grid = std::min(grid, grid_exponent(product));
-        }
-        double const expected = static_cast<double>(reference);
-        stats.accumulate_bounded(result, expected, dot_bound(accumulation_, expected, magnitude, grid, depth));
-    }
-}
-
-/** Folds one angular distance into @p stats, within the tolerance of @p accumulation_ when it has
- *  one. */
-template <accumulation_t accumulation_, typename result_type_, typename reference_type_>
+/** Folds one angular distance into @p stats, within the tolerance of its dots. */
+template <typename result_type_, typename reference_type_>
 void accumulate_angular(error_stats_t &stats, result_type_ result, reference_type_ reference, std::size_t depth) {
-    if constexpr (accumulation_ == accumulation_t::family_thresholds_k) stats.accumulate(result, reference);
-    else stats.accumulate_bounded(result, static_cast<double>(reference), spatial_tolerance(accumulation_, depth));
+    stats.accumulate_bounded(result, static_cast<double>(reference), spatial_tolerance(stats.term_error_bound, depth));
 }
 
 /** Folds one euclidean distance into @p stats; a tolerance bounds its square, relative to both
  *  squared norms. */
-template <accumulation_t accumulation_, typename result_type_, typename reference_type_>
+template <typename result_type_, typename reference_type_>
 void accumulate_euclidean(error_stats_t &stats, result_type_ result, reference_type_ reference,
                           reference_type_ squared_norms, std::size_t depth) {
-    if constexpr (accumulation_ == accumulation_t::family_thresholds_k) stats.accumulate(result, reference);
-    else {
-        double const expected = static_cast<double>(reference), computed = static_cast<double>(result);
-        double const scale = static_cast<double>(squared_norms) > 0 ? static_cast<double>(squared_norms) : 1;
-        double const sum = std::max(computed + expected, std::numeric_limits<double>::min());
-        stats.accumulate_bounded(result, expected, spatial_tolerance(accumulation_, depth) * scale / sum);
-    }
+    double const expected = static_cast<double>(reference), computed = static_cast<double>(result);
+    double const scale = static_cast<double>(squared_norms) > 0 ? static_cast<double>(squared_norms) : 1;
+    double const sum = std::max(computed + expected, std::numeric_limits<double>::min());
+    stats.accumulate_bounded(result, expected, spatial_tolerance(stats.term_error_bound, depth) * scale / sum);
 }
 
 /** Folds every attention output into @p stats: the scale threshold of the largest reference,
@@ -566,40 +485,36 @@ void fill_ill_conditioned(generator_type_ &generator, vector_type_ &first, std::
     }
 }
 
-/** The largest error of plain F64 accumulation over every cell, in ulp of the reference. */
-template <typename reference_vector_type_>
-double naive_error_ulps(std::vector<double> const &first_rows, std::vector<double> const &second_rows,
-                        reference_vector_type_ const &reference, std::size_t height, std::size_t width,
-                        std::size_t depth) {
+/** The largest error over every cell of @p computed, in ulp of the tracked @p reference, where
+ *  @p computed is called with a row and a column. */
+template <typename computed_type_, typename reference_vector_type_>
+double worst_error_ulps(computed_type_ computed, reference_vector_type_ const &reference, std::size_t height,
+                        std::size_t width) {
     double worst = 0;
     for (std::size_t row = 0; row < height; row++)
         for (std::size_t column = 0; column < width; column++) {
-            double naive = 0;
-            for (std::size_t index = 0; index < depth; index++)
-                naive += first_rows[row * depth + index] * second_rows[column * depth + index];
-            double const expected = static_cast<double>(reference[row * width + column]);
+            double const expected = static_cast<double>(reference[row * width + column].value);
             double const absolute = std::fabs(expected), ulp = std::nextafter(absolute, INFINITY) - absolute;
-            worst = std::max(worst, std::fabs(naive - expected) / ulp);
+            worst = std::max(worst, std::fabs(computed(row, column) - expected) / ulp);
         }
     return worst;
 }
 
 /** Packed GEMM over @c dots_packed_cases against the serial `nk::` reference, with C stride padding
  *  left untouched. */
-template <typename scalar_type_, typename backend_type_ = host_backend_t,
-          accumulation_t accumulation_ = backend_type_::template dots_accumulation<scalar_type_>(),
-          typename pack_size_kernel_type_, typename pack_kernel_type_, typename dots_kernel_type_>
+template <typename scalar_type_, typename backend_type_ = host_backend_t, typename pack_size_kernel_type_,
+          typename pack_kernel_type_, typename dots_kernel_type_>
 error_stats_t test_dots_packed(pack_size_kernel_type_ packed_size_fn, pack_kernel_type_ pack_fn,
                                dots_kernel_type_ dots_fn) {
     using scalar_t = scalar_type_;
     using result_t = typename scalar_t::dot_result_t;
-    using reference_t = reference_for<scalar_t, result_t>;
+    using reference_t = bounded_reference_for<scalar_t, result_t>;
     using scalars_t = nk::vector<scalar_t, typename backend_type_::template allocator<scalar_t>>;
     using results_t = nk::vector<result_t, typename backend_type_::template allocator<result_t>>;
     using bytes_t = nk::vector<char, typename backend_type_::template allocator<char>>;
 
     backend_type_ backend;
-    error_stats_t stats(dots_family(accumulation_));
+    error_stats_t stats(nk_dot_error_bound(scalar_t::dtype()));
     std::mt19937 generator(global_config.seed);
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
     std::vector<dots_packed_case_t> const cases = dots_packed_cases<scalar_t>();
@@ -621,7 +536,7 @@ error_stats_t test_dots_packed(pack_size_kernel_type_ packed_size_fn, pack_kerne
                  b = scalars_t::try_zeros(width * b_stride_values * dimensions_per_value);
             auto c = results_t::try_zeros(height * c_stride / sizeof(result_t));
             auto b_packed = bytes_t::try_zeros(packed_size_fn(width, depth));
-            auto c_reference = make_vector<reference_t>(height * width);
+            std::vector<reference_t> c_reference(height * width);
             auto b_packed_reference = make_vector<char>(nk::dots_pack_size<scalar_t, nk::no_simd_k>(width, depth));
 
             if constexpr (std::is_same_v<scalar_t, f64_t>) {
@@ -643,22 +558,33 @@ error_stats_t test_dots_packed(pack_size_kernel_type_ packed_size_fn, pack_kerne
             nk::dots_pack<scalar_t, nk::no_simd_k>(b.values_data(), width, depth, b_stride,
                                                    b_packed_reference.raw_values_data());
             nk::dots_packed<scalar_t, reference_t, nk::no_simd_k>(a.values_data(), b_packed_reference.raw_values_data(),
-                                                                  c_reference.values_data(), height, width, depth,
-                                                                  a_stride, width * sizeof(reference_t));
-            std::vector<double> const a_rows = decode_for<accumulation_>(a, height, depth, a_stride_values),
-                                      b_rows = decode_for<accumulation_>(b, width, depth, b_stride_values);
+                                                                  c_reference.data(), height, width, depth, a_stride,
+                                                                  width * sizeof(reference_t));
 
             for (std::size_t row = 0; row < height; row++)
                 for (std::size_t column = 0; column < width; column++)
-                    accumulate_dot<accumulation_>(stats, c[row * c_stride / sizeof(result_t) + column],
-                                                  c_reference[row * width + column], a_rows, row, b_rows, column,
-                                                  depth);
+                    stats.accumulate(c[row * c_stride / sizeof(result_t) + column], c_reference[row * width + column]);
             expect_padding_untouched(stats, c, height, width * sizeof(result_t), c_stride);
-            if constexpr (std::is_same_v<scalar_t, f64_t> &&
-                          dots_family(accumulation_) == comparison_family_t::bounded_k)
-                if (test_case.operands == dots_operands_t::ill_conditioned_k)
-                    stats.expect(naive_error_ulps(a_rows, b_rows, c_reference, height, width, depth) >= 1e3,
-                                 "the ill-conditioned case is within 1000 ulp for plain F64");
+
+            // F64 dots compensate their sums, which the ill-conditioned case tells from plain F64 ones
+            if constexpr (std::is_same_v<scalar_t, f64_t>)
+                if (test_case.operands == dots_operands_t::ill_conditioned_k) {
+                    std::vector<double> const a_rows = decode_rows(a, height, depth, a_stride_values),
+                                              b_rows = decode_rows(b, width, depth, b_stride_values);
+                    auto const naive = [&](std::size_t row, std::size_t column) {
+                        double sum = 0;
+                        for (std::size_t index = 0; index < depth; index++)
+                            sum += a_rows[row * depth + index] * b_rows[column * depth + index];
+                        return sum;
+                    };
+                    auto const computed = [&](std::size_t row, std::size_t column) {
+                        return static_cast<double>(c[row * c_stride / sizeof(result_t) + column]);
+                    };
+                    stats.expect(worst_error_ulps(naive, c_reference, height, width) >= 1e3,
+                                 "the ill-conditioned case is beyond 1000 ulp for plain F64");
+                    stats.expect(worst_error_ulps(computed, c_reference, height, width) <= 4,
+                                 "compensated F64 dots stay within 4 ulp on the ill-conditioned case");
+                }
         }
     }
     return stats;
@@ -743,19 +669,18 @@ inline std::vector<dots_symmetric_case_t> dots_symmetric_cases() {
 }
 
 /** Symmetric GEMM, A × Aᵀ, over @c dots_symmetric_cases against the serial `nk::` reference, on and
- *  above the diagonal of the computed rows, with everything else in the output left untouched. */
-template <typename scalar_type_, typename backend_type_ = host_backend_t,
-          accumulation_t accumulation_ = backend_type_::template dots_accumulation<scalar_type_>(),
-          typename symmetric_kernel_type_>
-error_stats_t test_dots_symmetric(symmetric_kernel_type_ symmetric_fn) {
+ *  above the diagonal of the computed rows, with everything else in the output left untouched.
+ *  External baselines summing less precisely than NumKong pass their own @p term_error_bound. */
+template <typename scalar_type_, typename backend_type_ = host_backend_t, typename symmetric_kernel_type_>
+error_stats_t test_dots_symmetric(symmetric_kernel_type_ symmetric_fn, nk_f64_t term_error_bound) {
     using scalar_t = scalar_type_;
     using result_t = typename scalar_t::dot_result_t;
-    using reference_t = reference_for<scalar_t, result_t>;
+    using reference_t = bounded_reference_for<scalar_t, result_t>;
     using scalars_t = nk::vector<scalar_t, typename backend_type_::template allocator<scalar_t>>;
     using results_t = nk::vector<result_t, typename backend_type_::template allocator<result_t>>;
 
     backend_type_ backend;
-    error_stats_t stats(dots_family(accumulation_));
+    error_stats_t stats(term_error_bound);
     std::mt19937 generator(global_config.seed);
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
     std::vector<dots_symmetric_case_t> const cases = dots_symmetric_cases();
@@ -773,7 +698,7 @@ error_stats_t test_dots_symmetric(symmetric_kernel_type_ symmetric_fn) {
 
             auto a = scalars_t::try_zeros(count * stride_values * dimensions_per_value);
             auto c = results_t::try_zeros(count * c_stride / sizeof(result_t));
-            auto c_reference = make_vector<reference_t>(count * count);
+            std::vector<reference_t> c_reference(count * count);
             fill_random(generator, a);
             fill_padding_canary(a, count, row_bytes, stride), fill_canary(c);
 
@@ -783,19 +708,23 @@ error_stats_t test_dots_symmetric(symmetric_kernel_type_ symmetric_fn) {
             synchronize(backend, stats);
 
             // Compute reference using nk:: template
-            nk::dots_symmetric<scalar_t, reference_t, nk::no_simd_k>(
-                a.values_data(), count, depth, stride, c_reference.values_data(), count * sizeof(reference_t),
-                row_start, row_end - row_start);
-            std::vector<double> const rows = decode_for<accumulation_>(a, count, depth, stride_values);
+            nk::dots_symmetric<scalar_t, reference_t, nk::no_simd_k>(a.values_data(), count, depth, stride,
+                                                                     c_reference.data(), count * sizeof(reference_t),
+                                                                     row_start, row_end - row_start);
 
             for (std::size_t row = row_start; row < row_end; row++)
                 for (std::size_t column = row; column < count; column++)
-                    accumulate_dot<accumulation_>(stats, c[row * c_stride / sizeof(result_t) + column],
-                                                  c_reference[row * count + column], rows, row, rows, column, depth);
+                    stats.accumulate(c[row * c_stride / sizeof(result_t) + column], c_reference[row * count + column]);
             expect_symmetric_untouched<result_t>(stats, c, count, c_stride, row_start, row_end);
         }
     }
     return stats;
+}
+
+/** @c test_dots_symmetric held to the `nk_dot_error_bound` of @p scalar_type_. */
+template <typename scalar_type_, typename backend_type_ = host_backend_t, typename symmetric_kernel_type_>
+error_stats_t test_dots_symmetric(symmetric_kernel_type_ symmetric_fn) {
+    return test_dots_symmetric<scalar_type_, backend_type_>(symmetric_fn, nk_dot_error_bound(scalar_type_::dtype()));
 }
 
 /** The launch contract of a backend refusing misaligned operands, which a CPU backend has no part
@@ -1036,20 +965,19 @@ error_stats_t test_jaccards_symmetric(typename scalar_type_::jaccards_symmetric_
 #pragma region Spatial Distances
 
 /** Batched angular distances, 1 − dot / √(‖a‖² · ‖b‖²), with B packed in two column windows. */
-template <typename scalar_type_, typename backend_type_ = host_backend_t,
-          accumulation_t accumulation_ = backend_type_::template spatials_accumulation<scalar_type_>(),
-          typename pack_size_kernel_type_, typename pack_kernel_type_, typename angulars_kernel_type_>
+template <typename scalar_type_, typename backend_type_ = host_backend_t, typename pack_size_kernel_type_,
+          typename pack_kernel_type_, typename angulars_kernel_type_>
 error_stats_t test_angulars_packed(pack_size_kernel_type_ packed_size_fn, pack_kernel_type_ pack_fn,
                                    angulars_kernel_type_ angulars_fn) {
     using scalar_t = scalar_type_;
     using result_t = typename scalar_t::angular_result_t;
-    using reference_t = reference_for<scalar_t, result_t>;
+    using reference_t = reference_for<scalar_t>;
     using scalars_t = nk::vector<scalar_t, typename backend_type_::template allocator<scalar_t>>;
     using results_t = nk::vector<result_t, typename backend_type_::template allocator<result_t>>;
     using bytes_t = nk::vector<char, typename backend_type_::template allocator<char>>;
 
     backend_type_ backend;
-    error_stats_t stats(spatials_family(accumulation_));
+    error_stats_t stats(nk_angular_error_bound(scalar_t::dtype()));
     std::mt19937 generator(global_config.seed);
 
     std::size_t m = global_config.matrix_height, n = global_config.matrix_width;
@@ -1102,27 +1030,26 @@ error_stats_t test_angulars_packed(pack_size_kernel_type_ packed_size_fn, pack_k
                      c_stride);
         synchronize(backend, stats);
 
-        for (std::size_t i = 0; i < m * n; i++) accumulate_angular<accumulation_>(stats, c[i], c_ref[i], k);
+        for (std::size_t i = 0; i < m * n; i++) accumulate_angular(stats, c[i], c_ref[i], k);
     }
     return stats;
 }
 
 /** Batched euclidean distances, √max(0, ‖a‖² + ‖b‖² − 2 · dot), with B packed in two column
  *  windows. Row 0 of A is zero, so row 0 of C reads every packed norm back as √‖b‖². */
-template <typename scalar_type_, typename backend_type_ = host_backend_t,
-          accumulation_t accumulation_ = backend_type_::template spatials_accumulation<scalar_type_>(),
-          typename pack_size_kernel_type_, typename pack_kernel_type_, typename euclideans_kernel_type_>
+template <typename scalar_type_, typename backend_type_ = host_backend_t, typename pack_size_kernel_type_,
+          typename pack_kernel_type_, typename euclideans_kernel_type_>
 error_stats_t test_euclideans_packed(pack_size_kernel_type_ packed_size_fn, pack_kernel_type_ pack_fn,
                                      euclideans_kernel_type_ euclideans_fn) {
     using scalar_t = scalar_type_;
     using result_t = typename scalar_t::euclidean_result_t;
-    using reference_t = reference_for<scalar_t, result_t>;
+    using reference_t = reference_for<scalar_t>;
     using scalars_t = nk::vector<scalar_t, typename backend_type_::template allocator<scalar_t>>;
     using results_t = nk::vector<result_t, typename backend_type_::template allocator<result_t>>;
     using bytes_t = nk::vector<char, typename backend_type_::template allocator<char>>;
 
     backend_type_ backend;
-    error_stats_t stats(spatials_family(accumulation_));
+    error_stats_t stats(nk_euclidean_error_bound(scalar_t::dtype()));
     std::mt19937 generator(global_config.seed);
 
     std::size_t m = global_config.matrix_height, n = global_config.matrix_width;
@@ -1178,26 +1105,23 @@ error_stats_t test_euclideans_packed(pack_size_kernel_type_ packed_size_fn, pack
 
         for (std::size_t i = 0; i < m; i++)
             for (std::size_t j = 0; j < n; j++)
-                accumulate_euclidean<accumulation_>(stats, c[i * n + j], c_ref[i * n + j],
-                                                    reference_t(a_sumsqs[i] + b_sumsqs[j]), k);
+                accumulate_euclidean(stats, c[i * n + j], c_ref[i * n + j], reference_t(a_sumsqs[i] + b_sumsqs[j]), k);
     }
     return stats;
 }
 
 /** Symmetric angular distances over the upper triangle, zeros on the diagonal, and untouched below
  *  it. */
-template <typename scalar_type_, typename backend_type_ = host_backend_t,
-          accumulation_t accumulation_ = backend_type_::template spatials_accumulation<scalar_type_>(),
-          typename symmetric_kernel_type_>
+template <typename scalar_type_, typename backend_type_ = host_backend_t, typename symmetric_kernel_type_>
 error_stats_t test_angulars_symmetric(symmetric_kernel_type_ symmetric_fn) {
     using scalar_t = scalar_type_;
     using result_t = typename scalar_t::angular_result_t;
-    using reference_t = reference_for<scalar_t, result_t>;
+    using reference_t = reference_for<scalar_t>;
     using scalars_t = nk::vector<scalar_t, typename backend_type_::template allocator<scalar_t>>;
     using results_t = nk::vector<result_t, typename backend_type_::template allocator<result_t>>;
 
     backend_type_ backend;
-    error_stats_t stats(spatials_family(accumulation_));
+    error_stats_t stats(nk_angular_error_bound(scalar_t::dtype()));
     std::mt19937 generator(global_config.seed);
 
     std::size_t n = global_config.matrix_height;
@@ -1242,8 +1166,7 @@ error_stats_t test_angulars_symmetric(symmetric_kernel_type_ symmetric_fn) {
 
         // Values on and above the diagonal, with nothing written below it
         for (std::size_t i = 0; i < n; i++)
-            for (std::size_t j = i; j < n; j++)
-                accumulate_angular<accumulation_>(stats, c[i * n + j], c_ref[i * n + j], k);
+            for (std::size_t j = i; j < n; j++) accumulate_angular(stats, c[i * n + j], c_ref[i * n + j], k);
         expect_symmetric_untouched<result_t>(stats, c, n, c_stride, 0, n);
     }
     return stats;
@@ -1251,18 +1174,16 @@ error_stats_t test_angulars_symmetric(symmetric_kernel_type_ symmetric_fn) {
 
 /** Symmetric euclidean distances over the upper triangle, zeros on the diagonal, and untouched
  *  below it. */
-template <typename scalar_type_, typename backend_type_ = host_backend_t,
-          accumulation_t accumulation_ = backend_type_::template spatials_accumulation<scalar_type_>(),
-          typename symmetric_kernel_type_>
+template <typename scalar_type_, typename backend_type_ = host_backend_t, typename symmetric_kernel_type_>
 error_stats_t test_euclideans_symmetric(symmetric_kernel_type_ symmetric_fn) {
     using scalar_t = scalar_type_;
     using result_t = typename scalar_t::euclidean_result_t;
-    using reference_t = reference_for<scalar_t, result_t>;
+    using reference_t = reference_for<scalar_t>;
     using scalars_t = nk::vector<scalar_t, typename backend_type_::template allocator<scalar_t>>;
     using results_t = nk::vector<result_t, typename backend_type_::template allocator<result_t>>;
 
     backend_type_ backend;
-    error_stats_t stats(spatials_family(accumulation_));
+    error_stats_t stats(nk_euclidean_error_bound(scalar_t::dtype()));
     std::mt19937 generator(global_config.seed);
 
     std::size_t n = global_config.matrix_height;
@@ -1308,8 +1229,7 @@ error_stats_t test_euclideans_symmetric(symmetric_kernel_type_ symmetric_fn) {
         // Values on and above the diagonal, with nothing written below it
         for (std::size_t i = 0; i < n; i++)
             for (std::size_t j = i; j < n; j++)
-                accumulate_euclidean<accumulation_>(stats, c[i * n + j], c_ref[i * n + j],
-                                                    reference_t(sumsqs[i] + sumsqs[j]), k);
+                accumulate_euclidean(stats, c[i * n + j], c_ref[i * n + j], reference_t(sumsqs[i] + sumsqs[j]), k);
         expect_symmetric_untouched<result_t>(stats, c, n, c_stride, 0, n);
     }
     return stats;
@@ -1446,4 +1366,4 @@ error_stats_t test_attention_causal_packed(pack_size_kernel_type_ packed_size_fn
 
 } // namespace ashvardanian::numkong::test
 
-#endif // NUMKONG_TEST_CROSS_CUH
+#endif // NUMKONG_TEST_CROSS_HPP

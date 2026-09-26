@@ -110,8 +110,7 @@ typedef struct {
     nk_u32_t reserved[6];
 } nk_maxsim_sapphireamx_i8_header_t;
 
-NUMKONG_STATIC_ASSERT(sizeof(nk_maxsim_sapphireamx_i8_header_t) == 64,
-                      nk_maxsim_sapphireamx_i8_header_must_be_64_bytes);
+nk_static_assert_(sizeof(nk_maxsim_sapphireamx_i8_header_t) == 64, nk_maxsim_sapphireamx_i8_header_must_be_64_bytes);
 
 #pragma endregion I8 Header
 
@@ -707,8 +706,8 @@ typedef struct {
     nk_u32_t reserved[9];
 } nk_maxsim_sapphireamx_bf16_header_t;
 
-NUMKONG_STATIC_ASSERT(sizeof(nk_maxsim_sapphireamx_bf16_header_t) == 64,
-                      nk_maxsim_sapphireamx_bf16_header_must_be_64_bytes);
+nk_static_assert_(sizeof(nk_maxsim_sapphireamx_bf16_header_t) == 64,
+                  nk_maxsim_sapphireamx_bf16_header_must_be_64_bytes);
 
 NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_sapphireamx(nk_size_t vector_count, nk_size_t depth) {
     nk_size_t const tile_bytes = 1024; // 16 × 32 × 2B = 1KB per tile

@@ -19,19 +19,17 @@ using namespace ashvardanian::numkong::test;
  */
 template <typename scalar_type_>
 void make_psd(scalar_type_ *data, nk_size_t n) {
+    auto at = [=](nk_size_t row, nk_size_t column) { return static_cast<double>(data[row * n + column]); };
     // Symmetrize — m[i][j] = m[j][i] = average of original pair
     for (nk_size_t i = 0; i < n; ++i)
-        for (nk_size_t j = i + 1; j < n; ++j) {
-            double avg = ((double)data[i * n + j] + (double)data[j * n + i]) * 0.5;
-            data[i * n + j] = scalar_type_(avg);
-            data[j * n + i] = scalar_type_(avg);
-        }
+        for (nk_size_t j = i + 1; j < n; ++j)
+            data[i * n + j] = data[j * n + i] = scalar_type_((at(i, j) + at(j, i)) / 2);
     // Strict diagonal dominance — set m[i][i] > sum_{j!=i} |m[i][j]|
     for (nk_size_t i = 0; i < n; ++i) {
         double row_sum = 0;
         for (nk_size_t j = 0; j < n; ++j)
-            if (i != j) row_sum += std::abs((double)data[i * n + j]);
-        data[i * n + i] = scalar_type_(row_sum + 1.0);
+            if (i != j) row_sum += std::fabs(at(i, j));
+        data[i * n + i] = scalar_type_(row_sum + 1);
     }
 }
 
@@ -41,26 +39,26 @@ error_stats_t test_bilinear(typename scalar_type_::curved_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     using result_t = typename scalar_t::curved_result_t;
-    using reference_t = reference_for<scalar_t, result_t>;
+    using reference_t = tracked<reference_for<scalar_t>>;
 
-    error_stats_t stats(comparison_family_t::approximate_k);
+    error_stats_t stats(nk_bilinear_error_bound(scalar_t::dtype()));
     std::mt19937 generator(global_config.seed);
 
-    auto a = make_vector<scalar_t>(global_config.dense_dimensions),
-         b = make_vector<scalar_t>(global_config.dense_dimensions);
-    auto m = make_vector<scalar_t>(global_config.dense_dimensions * global_config.dense_dimensions);
+    auto a = make_vector<scalar_t>(global_config.curved_dimensions),
+         b = make_vector<scalar_t>(global_config.curved_dimensions);
+    auto m = make_vector<scalar_t>(global_config.curved_dimensions * global_config.curved_dimensions);
     for (auto start = test_start_time(); within_time_budget(start);) {
         fill_random(generator, a);
         fill_random(generator, b);
         fill_random(generator, m);
 
         result_t result;
-        kernel(a.raw_values_data(), b.raw_values_data(), m.raw_values_data(), global_config.dense_dimensions,
+        kernel(a.raw_values_data(), b.raw_values_data(), m.raw_values_data(), global_config.curved_dimensions,
                &result.raw_);
 
         reference_t reference;
         nk::bilinear<scalar_t, reference_t, nk::no_simd_k>(a.values_data(), b.values_data(), m.values_data(),
-                                                           global_config.dense_dimensions, &reference);
+                                                           global_config.curved_dimensions, &reference);
 
         stats.accumulate(result, reference);
     }
@@ -74,28 +72,28 @@ error_stats_t test_mahalanobis(typename scalar_type_::curved_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     using result_t = typename scalar_t::curved_result_t;
-    using reference_t = reference_for<scalar_t>;
+    using reference_t = tracked<reference_for<scalar_t>>;
 
-    error_stats_t stats(comparison_family_t::approximate_k);
+    error_stats_t stats(nk_mahalanobis_error_bound(scalar_t::dtype()));
     std::mt19937 generator(global_config.seed);
 
-    auto a = make_vector<scalar_t>(global_config.dense_dimensions),
-         b = make_vector<scalar_t>(global_config.dense_dimensions);
-    auto m = make_vector<scalar_t>(global_config.dense_dimensions * global_config.dense_dimensions);
+    auto a = make_vector<scalar_t>(global_config.curved_dimensions),
+         b = make_vector<scalar_t>(global_config.curved_dimensions);
+    auto m = make_vector<scalar_t>(global_config.curved_dimensions * global_config.curved_dimensions);
 
     for (auto start = test_start_time(); within_time_budget(start);) {
         fill_random(generator, a);
         fill_random(generator, b);
         fill_random(generator, m);
-        make_psd(m.values_data(), global_config.dense_dimensions);
+        make_psd(m.values_data(), global_config.curved_dimensions);
 
         result_t result;
-        kernel(a.raw_values_data(), b.raw_values_data(), m.raw_values_data(), global_config.dense_dimensions,
+        kernel(a.raw_values_data(), b.raw_values_data(), m.raw_values_data(), global_config.curved_dimensions,
                &result.raw_);
 
         reference_t reference;
         nk::mahalanobis<scalar_t, reference_t, nk::no_simd_k>(a.values_data(), b.values_data(), m.values_data(),
-                                                              global_config.dense_dimensions, &reference);
+                                                              global_config.curved_dimensions, &reference);
 
         stats.accumulate(result, reference);
     }

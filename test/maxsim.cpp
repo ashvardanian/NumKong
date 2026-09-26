@@ -18,7 +18,7 @@ error_stats_t test_maxsim_packed(typename scalar_type_::dots_pack_size_kernel_t 
                                  typename scalar_type_::maxsim_packed_kernel_t maxsim_fn) {
     using scalar_t = scalar_type_;
     using result_t = typename scalar_t::maxsim_result_t;
-    using reference_t = reference_for<scalar_t, result_t>;
+    using reference_t = reference_for<scalar_t>;
 
     error_stats_t stats(comparison_family_t::approximate_k);
     std::mt19937 generator(global_config.seed);

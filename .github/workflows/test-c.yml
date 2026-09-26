@@ -139,35 +139,14 @@ jobs:
       - name: Set Up CMake
         uses: lukka/get-cmake@latest
 
-      # No `-G`: let CMake pick the installed Visual Studio.
       - name: Build
         run: |
-          cmake -A x64 `
-            -DCMAKE_BUILD_TYPE=Release `
-            -DNUMKONG_BUILD_TEST=ON `
-            -DNUMKONG_BUILD_BENCH=OFF `
-            -B build_release
-          cmake --build build_release --config Release
+          cmake --preset msvc_x64
+          cmake --build --preset msvc_x64
 
+      # Runs the static and the shared-library suites; CTest reports a structured exception's real code
       - name: Test
-        run: build_release\Release\numkong_test.exe
-        env:
-          NUMKONG_BUDGET_SECS: 0.2
-
-      - name: Build Shared Library Test
-        run: |
-          cmake -A x64 `
-            -DCMAKE_BUILD_TYPE=Release `
-            -DNUMKONG_BUILD_SHARED=ON `
-            -DNUMKONG_BUILD_TEST=ON `
-            -B build_shared
-          cmake --build build_shared --config Release --target numkong_shared_test
-
-      - name: Test Shared Library
-        shell: cmd # PowerShell normalizes structured-exception exit codes to 1; cmd preserves the real code
-        run: build_shared\Release\numkong_shared_test.exe
-        env:
-          NUMKONG_BUDGET_SECS: 0.2
+        run: ctest --preset msvc_x64
 
   test_android:
     name: Test C for Android ARM64

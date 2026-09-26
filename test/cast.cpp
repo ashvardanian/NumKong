@@ -45,7 +45,7 @@ error_stats_t test_cast(cast_t kernel) {
     auto reference_vec = make_vector<to_type_>(dimensions);
 
     for (auto start = test_start_time(); within_time_budget(start);) {
-        fill_random(generator, source_vec);
+        fill_random_bits(generator, source_vec);
 
         nk_cast_serial(source_vec.raw_values_data(), from_type_::dtype(), dimensions, reference_vec.raw_values_data(),
                        to_type_::dtype());
@@ -210,6 +210,8 @@ void test_casts() {
     check("cast_f32_to_u16_haswell", test_cast<f32_t, u16_t>, nk_cast_haswell);
     check("cast_u8_to_f32_haswell", test_cast<u8_t, f32_t>, nk_cast_haswell);
     check("cast_f32_to_u8_haswell", test_cast<f32_t, u8_t>, nk_cast_haswell);
+    check("cast_f32_to_i32_haswell", test_cast<f32_t, i32_t>, nk_cast_haswell);
+    check("cast_f32_to_u32_haswell", test_cast<f32_t, u32_t>, nk_cast_haswell);
     check("cast_block_scaled_nvfp4_haswell", test_cast_block_scaled, nk_cast_block_scaled_haswell, nk_nvfp4);
     check("cast_block_scaled_mxfp4_haswell", test_cast_block_scaled, nk_cast_block_scaled_haswell, nk_mxfp4);
     check("cast_block_scaled_mxfp6_e2m3_haswell", test_cast_block_scaled, nk_cast_block_scaled_haswell, nk_mxfp6_e2m3);
@@ -271,6 +273,9 @@ void test_casts() {
     check("cast_f64_to_u64_skylake", test_cast<f64_t, u64_t>, nk_cast_skylake);
     check("cast_u32_to_f64_skylake", test_cast<u32_t, f64_t>, nk_cast_skylake);
     check("cast_f64_to_u32_skylake", test_cast<f64_t, u32_t>, nk_cast_skylake);
+    check("cast_u64_to_i64_skylake", test_cast<u64_t, i64_t>, nk_cast_skylake);
+    check("cast_i64_to_u64_skylake", test_cast<i64_t, u64_t>, nk_cast_skylake);
+    check("cast_u64_to_i32_skylake", test_cast<u64_t, i32_t>, nk_cast_skylake);
     // Verify serial fallbacks for rare paths
     check("cast_i8_to_f64_skylake", test_cast<i8_t, f64_t>, nk_cast_skylake);
     check("cast_f64_to_bf16_skylake", test_cast<f64_t, bf16_t>, nk_cast_skylake);

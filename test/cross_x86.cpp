@@ -7,7 +7,7 @@
  *  Covers Haswell, Skylake, Ice Lake, Genoa, Sapphire.
  */
 #include "harness.hpp"
-#include "cross.cuh"
+#include "cross.hpp"
 
 using namespace ashvardanian::numkong::test;
 

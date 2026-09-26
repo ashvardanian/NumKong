@@ -89,9 +89,7 @@ jobs:
       matrix:
         include:
           - arch: x64
-            cmake_arch: x64
           - arch: arm64
-            cmake_arch: ARM64
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
@@ -106,21 +104,15 @@ jobs:
         id: set_version
         shell: bash
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
-      # No `-G`: let CMake pick the installed Visual Studio.
       - name: Build Shared Library
         run: |
-          cmake -A ${{ matrix.cmake_arch }} `
-            -DCMAKE_BUILD_TYPE=Release `
-            -DNUMKONG_BUILD_SHARED=ON `
-            -DNUMKONG_BUILD_TEST=OFF `
-            -DNUMKONG_BUILD_BENCH=OFF `
-            -B build_release
-          cmake --build build_release --config Release
+          cmake --preset msvc_${{ matrix.arch }} -D NUMKONG_BUILD_TEST=OFF
+          cmake --build --preset msvc_${{ matrix.arch }}
       - name: Package Archive
         shell: bash
         run: |
           tar -czf "numkong_windows_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.tar.gz" \
-            build_release/Release/numkong.dll \
+            build_msvc_${{ matrix.arch }}/Release/numkong.dll \
             include/numkong/ \
             LICENSE
       - name: Upload to GitHub Release

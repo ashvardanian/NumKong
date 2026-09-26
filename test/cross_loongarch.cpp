@@ -5,7 +5,7 @@
  *  @brief Batch operation tests - LoongArch LASX ISA family.
  */
 #include "harness.hpp"
-#include "cross.cuh"
+#include "cross.hpp"
 
 using namespace ashvardanian::numkong::test;
 

@@ -8,7 +8,7 @@
  *  shares; the relaxed tier carries every other dtype and its own bf16, i8 and u8 twins.
  */
 #include "harness.hpp"
-#include "cross.cuh"
+#include "cross.hpp"
 
 using namespace ashvardanian::numkong::test;
 

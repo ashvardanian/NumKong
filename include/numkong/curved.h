@@ -327,6 +327,18 @@ NUMKONG_HELPER_INLINE nk_dtype_t nk_mahalanobis_output_dtype(nk_dtype_t dtype) {
     }
 }
 
+/** Returns the error bound of bilinear forms, per @c nk_accumulation_error_bound of their
+ *  output. */
+NUMKONG_HELPER_INLINE nk_f64_t nk_bilinear_error_bound(nk_dtype_t dtype) {
+    return nk_accumulation_error_bound(nk_bilinear_output_dtype(dtype));
+}
+
+/** Returns the error bound of Mahalanobis metrics, per @c nk_accumulation_error_bound of their
+ *  output. */
+NUMKONG_HELPER_INLINE nk_f64_t nk_mahalanobis_error_bound(nk_dtype_t dtype) {
+    return nk_accumulation_error_bound(nk_mahalanobis_output_dtype(dtype));
+}
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif

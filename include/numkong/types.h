@@ -1459,6 +1459,23 @@ NUMKONG_API_COMPTIME nk_size_t nk_dtype_bits(nk_dtype_t dtype) {
     }
 }
 
+/**
+ *  @brief Returns the rounding error each term may add to a sum kept in @p dtype, relative to the
+ *      terms' magnitudes: |result − exact| ≤ (roundings + 1) · bound · Σ|terms|.
+ *
+ *  Floats get their unit roundoff with two bits of slack for matrix units that truncate; integer
+ *  sums are exact. Kernel families derive their bounds from it, like @c nk_dot_error_bound.
+ */
+NUMKONG_API_COMPTIME nk_f64_t nk_accumulation_error_bound(nk_dtype_t dtype) {
+    switch (dtype) {
+    case nk_f64_k: return 0x1p-51;
+    case nk_f64c_k: return 0x1p-51;
+    case nk_f32_k: return 0x1p-22;
+    case nk_f32c_k: return 0x1p-22;
+    default: return 0;
+    }
+}
+
 /** Compares an explicit-length string against a NUL-terminated literal. */
 NUMKONG_API_COMPTIME int nk_same_literal_(char const *name, nk_size_t length, char const *literal) {
     nk_size_t position = 0;
@@ -1777,37 +1794,48 @@ NUMKONG_HELPER_AUTO int nk_packed_shape_matches_(void (*packed_shape)(void const
     return packed_width == width && packed_depth == depth;
 }
 
-/** Makes sure the sizes of the types are as expected, as C only has @c _Static_assert from C11. */
-#define NUMKONG_STATIC_ASSERT(cond, msg) typedef char static_assertion_##msg[(cond) ? 1 : -1]
-NUMKONG_STATIC_ASSERT(sizeof(nk_u1x8_t) == 1, nk_u1x8_t_must_be_1_byte);
-NUMKONG_STATIC_ASSERT(sizeof(nk_i4x2_t) == 1, nk_i4_t_must_be_1_byte);
-NUMKONG_STATIC_ASSERT(sizeof(nk_u4x2_t) == 1, nk_u4_t_must_be_1_byte);
-NUMKONG_STATIC_ASSERT(sizeof(nk_e4m3_t) == 1, nk_e4m3_t_must_be_1_byte);
-NUMKONG_STATIC_ASSERT(sizeof(nk_e5m2_t) == 1, nk_e5m2_t_must_be_1_byte);
-NUMKONG_STATIC_ASSERT(sizeof(nk_e2m3_t) == 1, nk_e2m3_t_must_be_1_byte);
-NUMKONG_STATIC_ASSERT(sizeof(nk_e3m2_t) == 1, nk_e3m2_t_must_be_1_byte);
-NUMKONG_STATIC_ASSERT(sizeof(nk_e2m1x2_t) == 1, nk_e2m1x2_t_must_be_1_byte);
-NUMKONG_STATIC_ASSERT(sizeof(nk_ue8m0_t) == 1, nk_ue8m0_t_must_be_1_byte);
-NUMKONG_STATIC_ASSERT(sizeof(nk_ue4m3_t) == 1, nk_ue4m3_t_must_be_1_byte);
-NUMKONG_STATIC_ASSERT(sizeof(nk_i8_t) == 1, nk_i8_t_must_be_1_byte);
-NUMKONG_STATIC_ASSERT(sizeof(nk_u8_t) == 1, nk_u8_t_must_be_1_byte);
-NUMKONG_STATIC_ASSERT(sizeof(nk_i16_t) == 2, nk_i16_t_must_be_2_bytes);
-NUMKONG_STATIC_ASSERT(sizeof(nk_u16_t) == 2, nk_u16_t_must_be_2_bytes);
-NUMKONG_STATIC_ASSERT(sizeof(nk_i32_t) == 4, nk_i32_t_must_be_4_bytes);
-NUMKONG_STATIC_ASSERT(sizeof(nk_u32_t) == 4, nk_u32_t_must_be_4_bytes);
-NUMKONG_STATIC_ASSERT(sizeof(nk_i64_t) == 8, nk_i64_t_must_be_8_bytes);
-NUMKONG_STATIC_ASSERT(sizeof(nk_u64_t) == 8, nk_u64_t_must_be_8_bytes);
-NUMKONG_STATIC_ASSERT(sizeof(nk_f32_t) == 4, nk_f32_t_must_be_4_bytes);
-NUMKONG_STATIC_ASSERT(sizeof(nk_f64_t) == 8, nk_f64_t_must_be_8_bytes);
-NUMKONG_STATIC_ASSERT(sizeof(nk_f16_t) == 2, nk_f16_t_must_be_2_bytes);
-NUMKONG_STATIC_ASSERT(sizeof(nk_bf16_t) == 2, nk_bf16_t_must_be_2_bytes);
-NUMKONG_STATIC_ASSERT(sizeof(nk_nvfp4_t) == 9, nk_nvfp4_t_must_be_9_bytes);
-NUMKONG_STATIC_ASSERT(sizeof(nk_mxfp4_t) == 17, nk_mxfp4_t_must_be_17_bytes);
-NUMKONG_STATIC_ASSERT(sizeof(nk_mxfp6_e2m3_t) == 33, nk_mxfp6_e2m3_t_must_be_33_bytes);
-NUMKONG_STATIC_ASSERT(sizeof(nk_mxfp6_e3m2_t) == 33, nk_mxfp6_e3m2_t_must_be_33_bytes);
-NUMKONG_STATIC_ASSERT(sizeof(nk_mxfp8_e4m3_t) == 33, nk_mxfp8_e4m3_t_must_be_33_bytes);
-NUMKONG_STATIC_ASSERT(sizeof(nk_mxfp8_e5m2_t) == 33, nk_mxfp8_e5m2_t_must_be_33_bytes);
-NUMKONG_STATIC_ASSERT(sizeof(nk_mxint8_t) == 33, nk_mxint8_t_must_be_33_bytes);
+/** Compile-time assert akin to C++ @c static_assert. Uses the native assertion where available
+ *  (C++11 @c static_assert, C11 @c _Static_assert); the older-C typedef fallback must sit at file
+ *  scope to stay clear of @c -Wunused-local-typedef. */
+#if defined(__cplusplus) && __cplusplus >= 201103L
+#define nk_static_assert_(condition, name) static_assert(condition, #name)
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#define nk_static_assert_(condition, name) _Static_assert(condition, #name)
+#elif defined(_MSC_VER)
+#define nk_static_assert_(condition, name) static_assert(condition, #name)
+#else
+#define nk_static_assert_(condition, name) typedef char nk_static_assert_##name[(condition) ? 1 : -1]
+#endif
+
+nk_static_assert_(sizeof(nk_u1x8_t) == 1, nk_u1x8_t_must_be_1_byte);
+nk_static_assert_(sizeof(nk_i4x2_t) == 1, nk_i4_t_must_be_1_byte);
+nk_static_assert_(sizeof(nk_u4x2_t) == 1, nk_u4_t_must_be_1_byte);
+nk_static_assert_(sizeof(nk_e4m3_t) == 1, nk_e4m3_t_must_be_1_byte);
+nk_static_assert_(sizeof(nk_e5m2_t) == 1, nk_e5m2_t_must_be_1_byte);
+nk_static_assert_(sizeof(nk_e2m3_t) == 1, nk_e2m3_t_must_be_1_byte);
+nk_static_assert_(sizeof(nk_e3m2_t) == 1, nk_e3m2_t_must_be_1_byte);
+nk_static_assert_(sizeof(nk_e2m1x2_t) == 1, nk_e2m1x2_t_must_be_1_byte);
+nk_static_assert_(sizeof(nk_ue8m0_t) == 1, nk_ue8m0_t_must_be_1_byte);
+nk_static_assert_(sizeof(nk_ue4m3_t) == 1, nk_ue4m3_t_must_be_1_byte);
+nk_static_assert_(sizeof(nk_i8_t) == 1, nk_i8_t_must_be_1_byte);
+nk_static_assert_(sizeof(nk_u8_t) == 1, nk_u8_t_must_be_1_byte);
+nk_static_assert_(sizeof(nk_i16_t) == 2, nk_i16_t_must_be_2_bytes);
+nk_static_assert_(sizeof(nk_u16_t) == 2, nk_u16_t_must_be_2_bytes);
+nk_static_assert_(sizeof(nk_i32_t) == 4, nk_i32_t_must_be_4_bytes);
+nk_static_assert_(sizeof(nk_u32_t) == 4, nk_u32_t_must_be_4_bytes);
+nk_static_assert_(sizeof(nk_i64_t) == 8, nk_i64_t_must_be_8_bytes);
+nk_static_assert_(sizeof(nk_u64_t) == 8, nk_u64_t_must_be_8_bytes);
+nk_static_assert_(sizeof(nk_f32_t) == 4, nk_f32_t_must_be_4_bytes);
+nk_static_assert_(sizeof(nk_f64_t) == 8, nk_f64_t_must_be_8_bytes);
+nk_static_assert_(sizeof(nk_f16_t) == 2, nk_f16_t_must_be_2_bytes);
+nk_static_assert_(sizeof(nk_bf16_t) == 2, nk_bf16_t_must_be_2_bytes);
+nk_static_assert_(sizeof(nk_nvfp4_t) == 9, nk_nvfp4_t_must_be_9_bytes);
+nk_static_assert_(sizeof(nk_mxfp4_t) == 17, nk_mxfp4_t_must_be_17_bytes);
+nk_static_assert_(sizeof(nk_mxfp6_e2m3_t) == 33, nk_mxfp6_e2m3_t_must_be_33_bytes);
+nk_static_assert_(sizeof(nk_mxfp6_e3m2_t) == 33, nk_mxfp6_e3m2_t_must_be_33_bytes);
+nk_static_assert_(sizeof(nk_mxfp8_e4m3_t) == 33, nk_mxfp8_e4m3_t_must_be_33_bytes);
+nk_static_assert_(sizeof(nk_mxfp8_e5m2_t) == 33, nk_mxfp8_e5m2_t_must_be_33_bytes);
+nk_static_assert_(sizeof(nk_mxint8_t) == 33, nk_mxint8_t_must_be_33_bytes);
 
 #define nk_assign_from_to_(src, dest) (*(dest) = *(src))
 

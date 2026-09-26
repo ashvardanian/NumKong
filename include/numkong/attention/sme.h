@@ -352,7 +352,8 @@ __arm_new("za") static void nk_attention_packed_b16_sme_streaming_(             
     nk_size_t const channel_tiles = depth_padded / tile_dimension;
 
     nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
-    if (header->depth != depth || header->heads != key_value_head_count) return;
+    nk_assert_(header->depth == depth && header->heads == key_value_head_count && key_value_head_count != 0 &&
+               head_count % key_value_head_count == 0);
     nk_size_t const segment_count = header->segments;
     nk_u64_t const *payload_offsets = (nk_u64_t const *)((char const *)key_value_packed + sizeof(*header));
     nk_u32_t const *segment_lengths = (nk_u32_t const *)(payload_offsets + segment_count + 1);
@@ -1027,7 +1028,8 @@ __arm_new("za") static void nk_attention_packed_i8_sme_streaming_(              
     nk_size_t const channel_tiles = depth_padded / tile_dimension;
 
     nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
-    if (header->depth != depth || header->heads != key_value_head_count) return;
+    nk_assert_(header->depth == depth && header->heads == key_value_head_count && key_value_head_count != 0 &&
+               head_count % key_value_head_count == 0);
     nk_size_t const segment_count = header->segments;
     nk_u64_t const *payload_offsets = (nk_u64_t const *)((char const *)key_value_packed + sizeof(*header));
     nk_u32_t const *segment_lengths = (nk_u32_t const *)(payload_offsets + segment_count + 1);

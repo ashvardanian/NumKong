@@ -17,7 +17,7 @@ error_stats_t test_sqeuclidean(typename scalar_type_::sqeuclidean_kernel_t kerne
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     using result_t = typename scalar_t::sqeuclidean_result_t;
-    using reference_t = reference_for<scalar_t, result_t>;
+    using reference_t = reference_for<scalar_t>;
 
     error_stats_t stats(comparison_family_t::approximate_k);
     std::mt19937 generator(global_config.seed);
@@ -47,7 +47,7 @@ error_stats_t test_angular(typename scalar_type_::angular_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     using result_t = typename scalar_t::angular_result_t;
-    using reference_t = reference_for<scalar_t, result_t>;
+    using reference_t = reference_for<scalar_t>;
 
     error_stats_t stats(comparison_family_t::approximate_k);
     std::mt19937 generator(global_config.seed);
@@ -77,7 +77,7 @@ error_stats_t test_euclidean(typename scalar_type_::euclidean_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     using result_t = typename scalar_t::euclidean_result_t;
-    using reference_t = reference_for<scalar_t, result_t>;
+    using reference_t = reference_for<scalar_t>;
 
     error_stats_t stats(comparison_family_t::approximate_k);
     std::mt19937 generator(global_config.seed);

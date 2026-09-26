@@ -13,7 +13,7 @@
 #include "numkong/sets.h"
 #include "numkong/spatials.h"
 
-#include "cross.cuh"
+#include "cross.hpp"
 
 using namespace ashvardanian::numkong::bench;
 

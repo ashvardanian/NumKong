@@ -2595,6 +2595,17 @@ check_facts_tested_by_value() {
         "$staged_path tests an always-defined NUMKONG_ARCH_, _OS_ or _HAS_ fact with defined; use #if:"
 }
 
+# Rejects a function-like ALL_CAPS macro, because preprocessor codegen hides the very lines a reader greps for.
+# Every ALL_CAPS macro is object-like; the few that must take arguments, like `nk_static_assert_`, are snake_case_.
+check_all_caps_macros_object_like() {
+    local generators
+    generators=$(printf '%s\n' "$staged_added_text" | blank_c_comments_preserving_columns |
+        grep -E '^\+[[:space:]]*#[[:space:]]*define[[:space:]]+[A-Z][A-Z0-9_]*\(' || true)
+    [ -z "$generators" ] || reject_with_reason "$generators" \
+        "$staged_path defines a function-like ALL_CAPS macro; write a helper function or the expansion out," \
+        "            or name a file-local generator snake_case_ and #undef it after use:"
+}
+
 # Routes one staged file through the checks only NumKong has.
 run_project_checks() {
     case "$staged_path" in
@@ -2602,7 +2613,10 @@ run_project_checks() {
     *) check_retired_prefix_absent ;;
     esac
     case "$staged_path" in
-    *.c | *.h | *.cpp | *.hpp | *.cu | *.cuh) check_facts_tested_by_value ;;
+    *.c | *.h | *.cpp | *.hpp | *.cu | *.cuh)
+        check_facts_tested_by_value
+        check_all_caps_macros_object_like
+        ;;
     esac
     case "$staged_path" in
     include/numkong/*/*.h | include/numkong/*/*.cuh)

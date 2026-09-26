@@ -36,7 +36,7 @@
 #ifndef NUMKONG_TEST_HARNESS_HPP
 #define NUMKONG_TEST_HARNESS_HPP
 
-#include <cmath>   // `std::fabs`, `std::isnan`, `std::isinf`
+#include <cmath>   // `std::fabs`, `std::isnan`, `std::ldexp`, `std::ilogb`
 #include <cstdint> // `std::uint64_t`, `std::int32_t`, `std::int64_t`
 #include <cstdio>  // `std::fflush`, `stdout`, `stderr`
 #include <cstdlib> // `std::abort`, `std::getenv`, `std::strtod`
@@ -183,15 +183,14 @@ template <typename value_type_>
 }
 
 /**
- *  @brief Maps scalar types to appropriate reference types for ULP testing.
+ *  @brief Maps an input type to the type its reference results are computed in.
  *
- *  Two template parameters: input type and result type (defaulting to input).
  *  - f32/f64 input → f118_t (need full double-double precision)
  *  - Complex f32c/f64c input → f118c_t
  *  - Smaller complex (f16c, bf16c) → f64c_t (52-bit mantissa >> 7-10 bit mantissa)
  *  - Everything else (integers, bf16, f16, etc.) → f64_t
  */
-template <typename input_type_, typename result_type_ = input_type_>
+template <typename input_type_>
 using reference_for = std::conditional_t<
     std::is_same_v<input_type_, f32_t> || std::is_same_v<input_type_, f64_t>, f118_t,
     std::conditional_t<
@@ -567,9 +566,78 @@ std::uint64_t integer_distance(scalar_type_ a, scalar_type_ b) noexcept {
     return a_ordered >= b_ordered ? a_ordered - b_ordered : b_ordered - a_ordered;
 }
 
+#pragma region Tracked References
+
+/**
+ *  @brief A reference value that also carries the scale of any correct kernel's rounding error.
+ *
+ *  The arithmetic computing @c value also sums the magnitudes of the terms it combines, and counts
+ *  the most roundings on any path from an input. No summation order rounds more often than the
+ *  serial reference, so the bound holds for every kernel. Complex values take their modulus, which
+ *  bounds both parts of their sums and products.
+ */
+template <typename value_type_>
+struct tracked {
+    value_type_ value {};
+    double magnitude = 0;
+    std::size_t roundings = 0;
+
+    static constexpr nk_dtype_t dtype() noexcept { return value_type_::dtype(); }
+    static constexpr bool is_integer() noexcept { return false; }
+
+    tracked() = default;
+    tracked(value_type_ value, double magnitude, std::size_t roundings) noexcept
+        : value(value), magnitude(magnitude), roundings(roundings) {}
+
+    /** An input, exact in the reference type and not rounded yet. */
+    template <typename input_type_>
+    explicit tracked(input_type_ input) noexcept
+        : value(static_cast<value_type_>(input)), magnitude(static_cast<double>(value.abs())) {}
+
+    friend tracked operator+(tracked const &a, tracked const &b) noexcept {
+        return {a.value + b.value, a.magnitude + b.magnitude, std::max(a.roundings, b.roundings) + 1};
+    }
+    friend tracked operator-(tracked const &a, tracked const &b) noexcept {
+        return {a.value - b.value, a.magnitude + b.magnitude, std::max(a.roundings, b.roundings) + 1};
+    }
+    friend tracked operator*(tracked const &a, tracked const &b) noexcept {
+        // Each part of a complex product also adds two real products
+        std::size_t const own_roundings = value_type_::is_complex() ? 2 : 1;
+        return {a.value * b.value, a.magnitude * b.magnitude, a.roundings + b.roundings + own_roundings};
+    }
+    tracked saturating_add(tracked const &other) const noexcept { return *this + other; }
+    tracked saturating_mul(tracked const &other) const noexcept { return *this * other; }
+
+    /** The radicand's error shrinks by the derivative 1 / (2√v), and the root rounds once more. */
+    tracked sqrt() const noexcept {
+        value_type_ const root = value.sqrt();
+        double const root_magnitude = static_cast<double>(root);
+        return {root, std::max(magnitude / (2 * root_magnitude), root_magnitude), roundings + 1};
+    }
+};
+
+/** The reference a sum over @p input_type_ is checked against: integer results exact in their own
+ *  type, floating ones tracked. */
+template <typename input_type_, typename result_type_>
+using bounded_reference_for =
+    std::conditional_t<nk::is_integral_dtype<result_type_>(), result_type_, tracked<reference_for<input_type_>>>;
+
+/** Half a unit in the last place of @p scalar_type_ at @p value, subnormals included: what rounding
+ *  a result into that type adds. */
+template <typename scalar_type_>
+double half_ulp(double value) noexcept {
+    using component_t = typename scalar_type_::component_t;
+    int const smallest_normal_exponent = std::ilogb(static_cast<double>(component_t::positive_min()));
+    int const exponent = std::max(std::ilogb(value), smallest_normal_exponent);
+    return std::ldexp(1.0, exponent - static_cast<int>(component_t::mantissa_bits()) - 1);
+}
+
+#pragma endregion Tracked References
+
 /** Accumulator for error statistics across multiple test trials. */
 struct error_stats_t {
     comparison_family_t family = comparison_family_t::approximate_k;
+    nk_f64_t term_error_bound = 0;
 
     nk_f64_t min_abs_err = std::numeric_limits<nk_f64_t>::max();
     nk_f64_t max_abs_err = 0;
@@ -594,6 +662,12 @@ struct error_stats_t {
 
     explicit error_stats_t(comparison_family_t family = comparison_family_t::approximate_k) noexcept : family(family) {}
 
+    /** Judges results against tracked references, each term adding up to @p term_error_bound of
+     *  Σ|terms|, like the `nk_*_error_bound` helpers return; zero demands exact results. */
+    explicit error_stats_t(nk_f64_t term_error_bound) noexcept
+        : family(term_error_bound == 0 ? comparison_family_t::exact_k : comparison_family_t::bounded_k),
+          term_error_bound(term_error_bound) {}
+
     /** Record a boolean property; @p property names it in the report when it does not hold. */
     void expect(bool held, char const *property) noexcept {
         if (!held && !first_failure) first_failure = property;
@@ -601,14 +675,22 @@ struct error_stats_t {
         accumulate(static_cast<int>(held), 1);
     }
 
-    /** Records one result against its reference, failing when error exceeds @p bound, or on NaN. */
-    template <typename actual_type_>
-    void accumulate_bounded(actual_type_ actual, nk_f64_t expected, nk_f64_t bound) noexcept {
-        nk_f64_t const error = std::fabs(static_cast<nk_f64_t>(actual) - expected);
-        nk_f64_t const ratio = error == 0 ? 0 : error / bound;
+    /** Records one result against its reference, failing on NaN or when the error exceeds @p bound
+     *  plus the rounding into @p actual_type_. Past that type's finite range, a saturated or
+     *  overflowed result of the reference's sign is exact, and non-finite references are only
+     *  counted, as @c accumulate_scalar does. */
+    template <typename actual_type_, typename expected_type_>
+    void accumulate_bounded(actual_type_ actual, expected_type_ expected, nk_f64_t bound) noexcept {
+        nk_f64_t const result = static_cast<nk_f64_t>(actual), reference = static_cast<nk_f64_t>(expected);
+        if (!std::isfinite(reference)) return accumulate_scalar(actual, reference);
+        nk_f64_t const limit = static_cast<nk_f64_t>(actual_type_::finite_max());
+        bool const saturated = std::fabs(reference) > limit && std::fabs(result) >= limit &&
+                               std::signbit(result) == std::signbit(reference);
+        nk_f64_t const error = saturated || result == reference ? 0 : std::fabs(result - reference);
+        nk_f64_t const ratio = error == 0 ? 0 : error / (bound + half_ulp<actual_type_>(reference));
         max_bound_ratio = std::isnan(ratio) ? std::numeric_limits<nk_f64_t>::infinity()
                                             : std::max(max_bound_ratio, ratio);
-        accumulate_scalar(actual, expected);
+        accumulate_scalar(actual, reference);
     }
 
     template <typename actual_type_, typename expected_type_>
@@ -616,6 +698,19 @@ struct error_stats_t {
         if constexpr (nk::is_complex_dtype<actual_type_>())
             accumulate_scalar(actual.real(), expected.real()), accumulate_scalar(actual.imag(), expected.imag());
         else accumulate_scalar(actual, expected);
+    }
+
+    /** Records a result against a tracked reference: integers exactly once it rounds into them,
+     *  floats within @c term_error_bound of its magnitude per rounding. */
+    template <typename actual_type_, typename value_type_>
+    void accumulate(actual_type_ actual, tracked<value_type_> const &expected) noexcept {
+        nk_f64_t const bound = (expected.roundings + 1) * term_error_bound * expected.magnitude;
+        if constexpr (nk::is_integral_dtype<actual_type_>())
+            accumulate_scalar(actual, expected.value.template to<actual_type_>());
+        else if constexpr (nk::is_complex_dtype<actual_type_>())
+            accumulate_bounded(actual.real(), expected.value.real(), bound),
+                accumulate_bounded(actual.imag(), expected.value.imag(), bound);
+        else accumulate_bounded(actual, expected.value, bound);
     }
 
     template <typename actual_type_, typename expected_type_>
@@ -672,13 +767,14 @@ struct error_stats_t {
     std::size_t mismatches() const noexcept { return count - exact_matches; }
 
     void reset() noexcept {
-        comparison_family_t const current_family = family;
-        *this = error_stats_t {current_family};
+        error_stats_t fresh {family};
+        fresh.term_error_bound = term_error_bound;
+        *this = fresh;
     }
 
     void merge(error_stats_t const &other) noexcept {
         if (other.count == 0) return;
-        if (count == 0) family = other.family;
+        if (count == 0) family = other.family, term_error_bound = other.term_error_bound;
         else assert(family == other.family && "Can't merge stats from different comparison families");
         min_abs_err = std::min(min_abs_err, other.min_abs_err);
         max_abs_err = std::max(max_abs_err, other.max_abs_err);
@@ -777,30 +873,17 @@ void fill_random(generator_type_ &generator, nk::vector<scalar_type_, allocator_
     }
 }
 
+/** Fills @p vector with uniformly random bits, reaching every NaN, infinity, subnormal and
+ *  out-of-range value its type can hold. */
+template <typename scalar_type_, typename allocator_type_, typename generator_type_>
+void fill_random_bits(generator_type_ &generator, nk::vector<scalar_type_, allocator_type_> &vector) {
+    std::uniform_int_distribution<unsigned> byte(0, 255);
+    auto *bytes = reinterpret_cast<std::uint8_t *>(vector.raw_values_data());
+    for (std::size_t index = 0; index < vector.size_bytes(); index++)
+        bytes[index] = static_cast<std::uint8_t>(byte(generator));
+}
+
 #pragma region Host Backend
-
-/** The arithmetic a backend accumulates products with, setting how far its results may land from
- *  the reference. */
-enum class accumulation_t {
-
-    /** Judged by the comparison family's own ULP or scale thresholds. */
-    family_thresholds_k,
-
-    /** Integer products summed exactly, compared bit for bit. */
-    exact_k,
-
-    /** F64 with TwoProd and TwoSum: two ulp plus 4 · γ² of Σ|a · b|. */
-    dot2_k,
-
-    /** Products exact in F64 and summed in F64: (depth + 1) · 2⁻⁵³ of Σ|a · b|, or exact. */
-    f64_k,
-
-    /** Products exact in F32 and summed in F32: (depth + 1) · 2⁻²⁴ of Σ|a · b|, or exact. */
-    f32_k,
-
-    /** 32-deep MMA blocks into F32, truncated to ~22 bits: (depth / 32 + 1) · 2⁻²² of Σ|a · b|. */
-    tensor_core_k,
-};
 
 /** Runs CPU kernels in place: operands in host memory, direct calls, results readable at once. */
 struct host_backend_t {
@@ -808,23 +891,6 @@ struct host_backend_t {
     /** The allocator every kernel operand comes from. */
     template <typename value_type_>
     using allocator = aligned_allocator<value_type_>;
-
-    /** Dots of @p scalar_type_ accumulate integers exactly, F64 in Dot2, F32 in F64, and narrower
-     *  floats in F32. */
-    template <typename scalar_type_>
-    static constexpr accumulation_t dots_accumulation() noexcept {
-        using result_t = typename scalar_type_::dot_result_t;
-        if constexpr (is_integral_dtype<result_t>()) return accumulation_t::exact_k;
-        else if constexpr (std::is_same_v<scalar_type_, f64_t>) return accumulation_t::dot2_k;
-        else if constexpr (std::is_same_v<result_t, f64_t>) return accumulation_t::f64_k;
-        else return accumulation_t::f32_k;
-    }
-
-    /** Distances of @p scalar_type_ keep the comparison family's ULP thresholds. */
-    template <typename scalar_type_>
-    static constexpr accumulation_t spatials_accumulation() noexcept {
-        return accumulation_t::family_thresholds_k;
-    }
 
     /** Row stride for @p row_bytes: exactly one row, keeping the tightest stride covered. */
     static constexpr std::size_t row_stride(std::size_t row_bytes) noexcept { return row_bytes; }

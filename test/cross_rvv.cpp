@@ -5,7 +5,7 @@
  *  @brief Batch operation tests - RVV ISA family, RISC-V Vector.
  */
 #include "harness.hpp"
-#include "cross.cuh"
+#include "cross.hpp"
 
 using namespace ashvardanian::numkong::test;
 

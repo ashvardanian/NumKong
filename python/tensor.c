@@ -346,37 +346,46 @@ static size_t g_view_freelist_count = 0;
 
 #ifdef Py_GIL_DISABLED
 static PyMutex g_view_freelist_mutex = {0};
-#define NUMKONG_VIEW_FREELIST_LOCK()   PyMutex_Lock(&g_view_freelist_mutex)
-#define NUMKONG_VIEW_FREELIST_UNLOCK() PyMutex_Unlock(&g_view_freelist_mutex)
-#else
-#define NUMKONG_VIEW_FREELIST_LOCK()   ((void)0)
-#define NUMKONG_VIEW_FREELIST_UNLOCK() ((void)0)
 #endif
+
+/** Take the free-list mutex in free-threaded builds; elsewhere the GIL serializes callers. */
+static void tensor_view_freelist_lock(void) {
+#ifdef Py_GIL_DISABLED
+    PyMutex_Lock(&g_view_freelist_mutex);
+#endif
+}
+
+/** Release the free-list mutex taken by @c tensor_view_freelist_lock. */
+static void tensor_view_freelist_unlock(void) {
+#ifdef Py_GIL_DISABLED
+    PyMutex_Unlock(&g_view_freelist_mutex);
+#endif
+}
 
 /** Park a dead view header for reuse. Returns 1 if pooled, 0 if the caller must free it. */
 static int tensor_view_freelist_push(Tensor *view) {
     int pooled = 0;
-    NUMKONG_VIEW_FREELIST_LOCK();
+    tensor_view_freelist_lock();
     if (g_view_freelist_count < NUMKONG_VIEW_FREELIST_CAP) {
         view->parent = (PyObject *)g_view_freelist_head; // reuse `parent` as the intrusive next-link
         g_view_freelist_head = view;
         g_view_freelist_count++;
         pooled = 1;
     }
-    NUMKONG_VIEW_FREELIST_UNLOCK();
+    tensor_view_freelist_unlock();
     return pooled;
 }
 
 /** Pop and revive a pooled view header, or NULL when the pool is empty. */
 static Tensor *tensor_view_freelist_pop(void) {
     Tensor *view = NULL;
-    NUMKONG_VIEW_FREELIST_LOCK();
+    tensor_view_freelist_lock();
     if (g_view_freelist_head) {
         view = g_view_freelist_head;
         g_view_freelist_head = (Tensor *)view->parent; // unlink
         g_view_freelist_count--;
     }
-    NUMKONG_VIEW_FREELIST_UNLOCK();
+    tensor_view_freelist_unlock();
     if (view) _Py_NewReference((PyObject *)view); // dead header → live, refcount 1
     return view;
 }
@@ -390,7 +399,7 @@ static Tensor *tensor_view_header_new(void) {
 
 /** Drain the view free-list at interpreter teardown, wired as the module's m_free. */
 void nk_tensor_view_freelist_clear(void) {
-    NUMKONG_VIEW_FREELIST_LOCK();
+    tensor_view_freelist_lock();
     Tensor *node = g_view_freelist_head;
     while (node) {
         Tensor *next = (Tensor *)node->parent;
@@ -399,7 +408,7 @@ void nk_tensor_view_freelist_clear(void) {
     }
     g_view_freelist_head = NULL;
     g_view_freelist_count = 0;
-    NUMKONG_VIEW_FREELIST_UNLOCK();
+    tensor_view_freelist_unlock();
 }
 
 static void Tensor_dealloc(PyObject *self) {

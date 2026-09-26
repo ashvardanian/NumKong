@@ -88,7 +88,7 @@ typedef struct {
     nk_u32_t reserved[7];           // padding to 64 bytes
 } nk_maxsim_sme_packed_header_t;
 
-NUMKONG_STATIC_ASSERT(sizeof(nk_maxsim_sme_packed_header_t) == 64, nk_maxsim_sme_packed_header_must_be_64_bytes);
+nk_static_assert_(sizeof(nk_maxsim_sme_packed_header_t) == 64, nk_maxsim_sme_packed_header_must_be_64_bytes);
 
 /**
  *  @brief MaxSim f16 kernel with both Q and D pre-packed, extracting through vertical column reads.
@@ -530,9 +530,9 @@ NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_sme(                               
 }
 
 NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_sme(nk_size_t columns, nk_size_t depth) { //
-    nk_size_t const expansion = 4;                                                          // i8->i32 SMOPA
-    nk_size_t const tile_dimension = nk_sme_cntw_();                                        // 16 for SVL=512
-    nk_size_t const vector_elements = nk_sme_cntb_();                                       // 64 for SVL=512
+    nk_size_t const expansion = 4;                                                               // i8 → i32 SMOPA
+    nk_size_t const tile_dimension = nk_sme_cntw_();                                             // 16 for SVL=512
+    nk_size_t const vector_elements = nk_sme_cntb_();                                            // 64 for SVL=512
     nk_size_t const column_tile_count = nk_size_divide_round_up_(columns, tile_dimension);
     nk_size_t const depth_step_count = nk_size_divide_round_up_(depth, expansion);
     nk_size_t const original_stride = nk_size_round_up_to_multiple_(depth * sizeof(nk_f32_t), 64);
@@ -556,7 +556,7 @@ NUMKONG_API_COMPTIME void nk_maxsim_pack_f32_sme(                               
     nk_size_t const blob_bytes = nk_maxsim_pack_size_f32_sme(columns, depth);
     for (nk_size_t byte_index = 0; byte_index < blob_bytes; byte_index++) ((char *)packed)[byte_index] = 0;
 
-    nk_size_t const expansion = 4;                    // i8->i32 SMOPA
+    nk_size_t const expansion = 4;                    // i8 → i32 SMOPA
     nk_size_t const tile_dimension = nk_sme_cntw_();  // 16 for SVL=512
     nk_size_t const vector_elements = nk_sme_cntb_(); // 64 for SVL=512
     nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_f32_t);
@@ -741,7 +741,7 @@ __arm_new("za") static void nk_maxsim_packed_f32_streaming_( //
     nk_size_t const query_original_stride_elements = query_header->original_stride / sizeof(nk_f32_t);
     nk_size_t const document_original_stride_elements = document_header->original_stride / sizeof(nk_f32_t);
 
-    nk_size_t const expansion = 4; // i8->i32 SMOPA
+    nk_size_t const expansion = 4; // i8 → i32 SMOPA
 
     svbool_t const predicate_all_b8x = svptrue_b8();
     svbool_t const predicate_all_b32x = svptrue_b32();

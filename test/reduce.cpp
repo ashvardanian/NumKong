@@ -15,9 +15,11 @@ constexpr std::size_t max_stride_k = 50;
 
 template <typename input_type_>
 error_stats_t test_reduce_moments(typename input_type_::reduce_moments_kernel_t kernel) {
-    using sum_type_ = typename input_type_::reduce_moments_sum_t;
-    using sumsq_type_ = typename input_type_::reduce_moments_sumsq_t;
-    error_stats_t stats(comparison_family_t::approximate_k);
+    using sum_t = typename input_type_::reduce_moments_sum_t;
+    using sumsq_t = typename input_type_::reduce_moments_sumsq_t;
+    using sum_reference_t = bounded_reference_for<input_type_, sum_t>;
+    using sumsq_reference_t = bounded_reference_for<input_type_, sumsq_t>;
+    error_stats_t stats(nk_reduce_moments_error_bound(input_type_::dtype()));
     std::mt19937 generator(global_config.seed);
     std::uniform_int_distribution<std::size_t> stride_bytes_distribution(1, max_stride_k);
     std::size_t const dims_per_value = nk::dimensions_per_value<input_type_>();
@@ -26,22 +28,22 @@ error_stats_t test_reduce_moments(typename input_type_::reduce_moments_kernel_t 
     for (auto start = test_start_time(); within_time_budget(start);) {
         std::size_t stride_bytes = stride_bytes_distribution(generator);
         fill_random(generator, buffer);
-        typename sum_type_::raw_t sum;
-        typename sumsq_type_::raw_t sumsq;
+        typename sum_t::raw_t sum;
+        typename sumsq_t::raw_t sumsq;
         kernel(buffer.raw_values_data(), n, stride_bytes, &sum, &sumsq);
-        sum_type_ ref_sum;
-        sumsq_type_ ref_sumsq;
-        nk::reduce_moments<input_type_, sum_type_, sumsq_type_, nk::no_simd_k>(buffer.values_data(), n, stride_bytes,
-                                                                               &ref_sum, &ref_sumsq);
-        stats.accumulate(sum_type_::from_raw(sum), ref_sum);
-        stats.accumulate(sumsq_type_::from_raw(sumsq), ref_sumsq);
+        sum_reference_t sum_reference;
+        sumsq_reference_t sumsq_reference;
+        nk::reduce_moments<input_type_, sum_reference_t, sumsq_reference_t, nk::no_simd_k>(
+            buffer.values_data(), n, stride_bytes, &sum_reference, &sumsq_reference);
+        stats.accumulate(sum_t::from_raw(sum), sum_reference);
+        stats.accumulate(sumsq_t::from_raw(sumsq), sumsq_reference);
     }
     return stats;
 }
 
 template <typename input_type_>
 error_stats_t test_reduce_minmax(typename input_type_::reduce_minmax_kernel_t kernel) {
-    using output_type_ = typename input_type_::reduce_minmax_value_t;
+    using output_t = typename input_type_::reduce_minmax_value_t;
     error_stats_t stats(comparison_family_t::exact_k);
     std::mt19937 generator(global_config.seed);
     std::uniform_int_distribution<std::size_t> stride_bytes_distribution(1, max_stride_k);
@@ -49,18 +51,18 @@ error_stats_t test_reduce_minmax(typename input_type_::reduce_minmax_kernel_t ke
     std::size_t const n = nk::divide_round_up(global_config.dense_dimensions, dims_per_value) * dims_per_value;
     auto buffer = make_vector<input_type_>(n * (max_stride_k + sizeof(input_type_)));
     auto compare = [&](std::size_t stride_bytes) {
-        typename output_type_::raw_t min_val, max_val;
+        typename output_t::raw_t min_val, max_val;
         nk_size_t min_idx, max_idx;
         kernel(buffer.raw_values_data(), n, stride_bytes, &min_val, &min_idx, &max_val, &max_idx);
-        output_type_ ref_min, ref_max;
+        output_t ref_min, ref_max;
         std::size_t ref_min_idx, ref_max_idx;
-        nk::reduce_minmax<input_type_, output_type_, nk::no_simd_k>(buffer.values_data(), n, stride_bytes, &ref_min,
-                                                                    &ref_min_idx, &ref_max, &ref_max_idx);
+        nk::reduce_minmax<input_type_, output_t, nk::no_simd_k>(buffer.values_data(), n, stride_bytes, &ref_min,
+                                                                &ref_min_idx, &ref_max, &ref_max_idx);
         stats.accumulate(static_cast<nk_size_t>(min_idx), static_cast<nk_size_t>(ref_min_idx));
         stats.accumulate(static_cast<nk_size_t>(max_idx), static_cast<nk_size_t>(ref_max_idx));
         if (ref_min_idx == NUMKONG_SIZE_MAX) return; // No index, so the values are only sentinels
-        stats.accumulate(output_type_::from_raw(min_val), ref_min);
-        stats.accumulate(output_type_::from_raw(max_val), ref_max);
+        stats.accumulate(output_t::from_raw(min_val), ref_min);
+        stats.accumulate(output_t::from_raw(max_val), ref_max);
     };
     // Uniform inputs never win a strict comparison, yet only an all-NaN one lacks an index
     std::fill_n(buffer.values_data(), buffer.size_values(), nk::finite_max<input_type_>());

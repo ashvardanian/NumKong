@@ -10,7 +10,7 @@
  *  while the second half compares @c nk_cast on the CPU bit for bit against CUDA's @c __nv_cvt_*
  *  intrinsics on the GPU, covering every fp32, fp16 and bf16 input against every e4m3, e5m2, e3m2
  *  and e2m3 variant. The cross sections run the dots, spatial and attention scenarios of
- *  `cross.cuh` through @c cuda_backend_t for every family the device runs, and
+ *  `cross.hpp` through @c cuda_backend_t for every family the device runs, and
  *  `NUMKONG_FILTER=<regex>` keeps only the sections and kernels whose names match.
  *
  *  The test builds and runs on any Turing-or-newer GPU. CUDA's __nv_cvt_* converters fall back to
@@ -33,7 +33,7 @@
 #include <cuda_runtime.h>
 
 #include "harness.cuh" // `cuda_backend_t`
-#include "cross.cuh"   // `test_dots_packed`, `attention_weights_t`
+#include "cross.hpp"   // `test_dots_packed`, `attention_weights_t`
 
 using namespace ashvardanian::numkong::test;
 

@@ -4,7 +4,7 @@
  *  @date September 22, 2026
  *  @brief Batch operation benchmarks, CUDA kernels against cuBLASLt, cuBLAS, cuDNN and cuVS.
  *
- *  Runs the drivers of `cross.cuh` through the shared @c cuda_backend_t over device-resident
+ *  Runs the drivers of `cross.hpp` through the shared @c cuda_backend_t over device-resident
  *  operands, launching on @c cudaStreamPerThread, with timed windows of launches bracketed by CUDA
  *  events and reported through @c UseManualTime, so launch latency and host synchronization stay
  *  outside the measurement. The Time column is per window, and the @c calls counter recovers the
@@ -45,7 +45,7 @@
 #include "numkong/numkong.h"
 
 #include "../test/harness.cuh" // `test::cuda_backend_t`, `device_vector`
-#include "cross.cuh"
+#include "cross.hpp"
 
 using namespace ashvardanian::numkong::bench;
 using nk::test::device_vector;

@@ -5,7 +5,7 @@
  *  @brief Batch operation tests - Power ISA family, VSX.
  */
 #include "harness.hpp"
-#include "cross.cuh"
+#include "cross.hpp"
 
 using namespace ashvardanian::numkong::test;
 

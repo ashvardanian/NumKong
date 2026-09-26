@@ -15,7 +15,7 @@
 
 #include <string_view> // `std::string_view`
 
-#include "numkong/capabilities.h" // nk_capabilities, nk_cpu_configure_thread
+#include "numkong/capabilities.h" // nk_cpu_capabilities, nk_cpu_configure_thread
 
 #if !NUMKONG_ARCH_WASM_
 #include <csignal> // `std::signal`, `SIGILL`

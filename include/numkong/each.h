@@ -1361,6 +1361,15 @@ NUMKONG_HELPER_INLINE nk_dtype_t nk_each_scale_input_dtype(nk_dtype_t dtype) {
     }
 }
 
+/** Returns the error bound of elementwise scale, blend and FMA before their results round into
+ *  @p dtype: zero for integers, which match exactly, and else per @c nk_accumulation_error_bound
+ *  of their coefficients. */
+NUMKONG_HELPER_INLINE nk_f64_t nk_each_error_bound(nk_dtype_t dtype) {
+    nk_dtype_family_t const family = nk_dtype_family(dtype);
+    if (family == nk_dtype_family_int_k || family == nk_dtype_family_uint_k) return 0;
+    return nk_accumulation_error_bound(nk_each_scale_input_dtype(dtype));
+}
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif

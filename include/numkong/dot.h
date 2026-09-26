@@ -705,6 +705,11 @@ NUMKONG_HELPER_INLINE nk_dtype_t nk_dot_output_dtype(nk_dtype_t dtype) {
     }
 }
 
+/** Returns the error bound of dot products, per @c nk_accumulation_error_bound of their output. */
+NUMKONG_HELPER_INLINE nk_f64_t nk_dot_error_bound(nk_dtype_t dtype) {
+    return nk_accumulation_error_bound(nk_dot_output_dtype(dtype));
+}
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif

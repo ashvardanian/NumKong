@@ -428,7 +428,7 @@ To add a new operation family, for example `foo`:
 4. __C++ wrapper__: create `include/numkong/foo.hpp` with the typed C++ API.
 5. __Test__: create `test/foo.cpp` with precision validation against `f118_t` references.
 6. __Benchmark__: create `bench/foo.cpp` with Google Benchmark harness.
-7. __Cross-platform tests__: add a scenario to `test/cross.cuh`, then register it in the relevant `test/cross_*.cpp` files and, for CUDA kernels, in `test/main.cu`.
+7. __Cross-platform tests__: add a scenario to `test/cross.hpp`, then register it in the relevant `test/cross_*.cpp` files and, for CUDA kernels, in `test/main.cu`.
 8. __CMakeLists.txt__: wire the new source files into the `numkong_test` and `numkong_bench` targets.
 9. __Language bindings__: update `python/numkong.c`, `javascript/numkong.c`, `rust/numkong.rs`, etc. as needed.
 

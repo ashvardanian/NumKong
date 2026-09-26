@@ -1013,6 +1013,12 @@ NUMKONG_HELPER_INLINE nk_dtype_t nk_reduce_moments_sumsq_dtype(nk_dtype_t dtype)
     }
 }
 
+/** Returns the error bound of both reduce_moments outputs, per @c nk_accumulation_error_bound of
+ *  their accumulators. */
+NUMKONG_HELPER_INLINE nk_f64_t nk_reduce_moments_error_bound(nk_dtype_t dtype) {
+    return nk_accumulation_error_bound(nk_reduce_moments_sum_dtype(dtype));
+}
+
 /**
  *  @brief Returns the value dtype for reduce_minmax outputs.
  *

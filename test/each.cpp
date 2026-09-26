@@ -58,14 +58,12 @@ template <typename scalar_type_>
 error_stats_t test_scale(typename scalar_type_::scale_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using scale_t = typename scalar_t::scale_t;
-    using reference_t = reference_for<scalar_t>;
+    using value_t = tracked<reference_for<scalar_t>>;
 
-    error_stats_t stats(nk::is_integral_dtype<scalar_t>() ? comparison_family_t::exact_k
-                                                          : comparison_family_t::approximate_k);
+    error_stats_t stats(nk_each_error_bound(scalar_t::dtype()));
     std::mt19937 generator(global_config.seed);
     auto input = make_vector<scalar_t>(global_config.dense_dimensions);
-    auto result = make_vector<scalar_t>(global_config.dense_dimensions),
-         reference = make_vector<scalar_t>(global_config.dense_dimensions);
+    auto result = make_vector<scalar_t>(global_config.dense_dimensions);
 
     for (auto start = test_start_time(); within_time_budget(start);) {
         fill_random(generator, input);
@@ -73,10 +71,8 @@ error_stats_t test_scale(typename scalar_type_::scale_kernel_t kernel) {
         scale_t beta = random_coef<scalar_t>(generator);
 
         kernel(input.raw_values_data(), global_config.dense_dimensions, &alpha, &beta, result.raw_values_data());
-        nk::scale<scalar_t, reference_t, nk::no_simd_k>(input.values_data(), global_config.dense_dimensions, &alpha,
-                                                        &beta, reference.values_data());
-
-        for (std::size_t i = 0; i < global_config.dense_dimensions; i++) stats.accumulate(result[i], reference[i]);
+        for (std::size_t i = 0; i < global_config.dense_dimensions; i++)
+            stats.accumulate(result[i], value_t(input[i]) * value_t(alpha) + value_t(beta));
     }
     return stats;
 }
@@ -86,15 +82,13 @@ template <typename scalar_type_>
 error_stats_t test_blend(typename scalar_type_::blend_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using scale_t = typename scalar_t::scale_t;
-    using reference_t = reference_for<scalar_t>;
+    using value_t = tracked<reference_for<scalar_t>>;
 
-    error_stats_t stats(nk::is_integral_dtype<scalar_t>() ? comparison_family_t::exact_k
-                                                          : comparison_family_t::approximate_k);
+    error_stats_t stats(nk_each_error_bound(scalar_t::dtype()));
     std::mt19937 generator(global_config.seed);
     auto a = make_vector<scalar_t>(global_config.dense_dimensions),
          b = make_vector<scalar_t>(global_config.dense_dimensions);
-    auto result = make_vector<scalar_t>(global_config.dense_dimensions),
-         reference = make_vector<scalar_t>(global_config.dense_dimensions);
+    auto result = make_vector<scalar_t>(global_config.dense_dimensions);
 
     for (auto start = test_start_time(); within_time_budget(start);) {
         fill_random(generator, a);
@@ -104,10 +98,8 @@ error_stats_t test_blend(typename scalar_type_::blend_kernel_t kernel) {
 
         kernel(a.raw_values_data(), b.raw_values_data(), global_config.dense_dimensions, &alpha, &beta,
                result.raw_values_data());
-        nk::blend<scalar_t, reference_t, nk::no_simd_k>(
-            a.values_data(), b.values_data(), global_config.dense_dimensions, &alpha, &beta, reference.values_data());
-
-        for (std::size_t i = 0; i < global_config.dense_dimensions; i++) stats.accumulate(result[i], reference[i]);
+        for (std::size_t i = 0; i < global_config.dense_dimensions; i++)
+            stats.accumulate(result[i], value_t(a[i]) * value_t(alpha) + value_t(b[i]) * value_t(beta));
     }
     return stats;
 }
@@ -117,16 +109,14 @@ template <typename scalar_type_>
 error_stats_t test_fma(typename scalar_type_::fma_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using scale_t = typename scalar_t::scale_t;
-    using reference_t = reference_for<scalar_t>;
+    using value_t = tracked<reference_for<scalar_t>>;
 
-    error_stats_t stats(nk::is_integral_dtype<scalar_t>() ? comparison_family_t::exact_k
-                                                          : comparison_family_t::approximate_k);
+    error_stats_t stats(nk_each_error_bound(scalar_t::dtype()));
     std::mt19937 generator(global_config.seed);
     auto a = make_vector<scalar_t>(global_config.dense_dimensions),
          b = make_vector<scalar_t>(global_config.dense_dimensions);
     auto c = make_vector<scalar_t>(global_config.dense_dimensions);
-    auto result = make_vector<scalar_t>(global_config.dense_dimensions),
-         reference = make_vector<scalar_t>(global_config.dense_dimensions);
+    auto result = make_vector<scalar_t>(global_config.dense_dimensions);
 
     for (auto start = test_start_time(); within_time_budget(start);) {
         fill_random(generator, a);
@@ -137,10 +127,8 @@ error_stats_t test_fma(typename scalar_type_::fma_kernel_t kernel) {
 
         kernel(a.raw_values_data(), b.raw_values_data(), c.raw_values_data(), global_config.dense_dimensions, &alpha,
                &beta, result.raw_values_data());
-        nk::fma<scalar_t, reference_t, nk::no_simd_k>(a.values_data(), b.values_data(), global_config.dense_dimensions,
-                                                      c.values_data(), &alpha, &beta, reference.values_data());
-
-        for (std::size_t i = 0; i < global_config.dense_dimensions; i++) stats.accumulate(result[i], reference[i]);
+        for (std::size_t i = 0; i < global_config.dense_dimensions; i++)
+            stats.accumulate(result[i], value_t(a[i]) * value_t(b[i]) * value_t(alpha) + value_t(c[i]) * value_t(beta));
     }
     return stats;
 }

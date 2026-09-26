@@ -6320,14 +6320,14 @@ constexpr accumulator_type_ fdsa(in_type_ a, in_type_ b, accumulator_type_ acc) 
 
 /** Free-standing saturating addition for baseline implementations. */
 template <typename accumulator_type_, typename in_type_>
-    requires(dimensions_per_value<in_type_>() == 1 || std::is_same<accumulator_type_, in_type_>::value)
+    requires(std::is_same<accumulator_type_, in_type_>::value || dimensions_per_value<in_type_>() == 1)
 constexpr accumulator_type_ saturating_add(accumulator_type_ a, in_type_ b) noexcept {
     return a.saturating_add(static_cast<accumulator_type_>(b));
 }
 
 /** Free-standing saturating multiplication for baseline implementations. */
 template <typename accumulator_type_, typename in_type_>
-    requires(dimensions_per_value<in_type_>() == 1 || std::is_same<accumulator_type_, in_type_>::value)
+    requires(std::is_same<accumulator_type_, in_type_>::value || dimensions_per_value<in_type_>() == 1)
 constexpr accumulator_type_ saturating_mul(accumulator_type_ a, in_type_ b) noexcept {
     return a.saturating_mul(static_cast<accumulator_type_>(b));
 }
