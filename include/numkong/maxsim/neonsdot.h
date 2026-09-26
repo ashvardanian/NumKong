@@ -138,15 +138,17 @@ NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_neonsdot( //
 }
 
 /** Factored coarse i8 argmax kernel for NEONSDOT. Uses vdotq_s32 (signed × signed) — no XOR bias,
- *  no metadata parameter. 4Q × 4D register tiling with 16 int32x4_t accumulators. */
-NUMKONG_HELPER_INLINE void nk_maxsim_coarse_argmax_neonsdot_(                                             //
-    nk_i8_t const *query_i8, nk_i8_t const *document_i8, nk_size_t query_count, nk_size_t document_count, //
+ *  screening-weighted dots. 4Q × 4D register tiling with 16 int32x4_t accumulators. */
+NUMKONG_HELPER_INLINE void nk_maxsim_coarse_argmax_neonsdot_( //
+    nk_i8_t const *query_i8, nk_i8_t const *document_i8,      //
+    nk_maxsim_vector_metadata_t const *document_metadata,     //
+    nk_size_t query_count, nk_size_t document_count,          //
     nk_size_t depth_i8_padded, nk_u32_t *best_document_indices) {
 
     // Primary path: 4-query grouping
     nk_size_t query_block_start_index = 0;
     for (; query_block_start_index + 4 <= query_count; query_block_start_index += 4) {
-        nk_i32_t running_max_i32[4] = {NUMKONG_I32_MIN, NUMKONG_I32_MIN, NUMKONG_I32_MIN, NUMKONG_I32_MIN};
+        nk_f32_t running_max_f32[4] = {NUMKONG_F32_MIN, NUMKONG_F32_MIN, NUMKONG_F32_MIN, NUMKONG_F32_MIN};
         nk_u32_t running_argmax_u32[4] = {0, 0, 0, 0};
 
         // 4Q × 4D document blocking
@@ -203,11 +205,12 @@ NUMKONG_HELPER_INLINE void nk_maxsim_coarse_argmax_neonsdot_(                   
             // Reduce and update argmax for each of 4 queries × 4 documents
             for (nk_size_t query_tile_index = 0; query_tile_index < 4; query_tile_index++) {
                 for (nk_size_t document_tile_index = 0; document_tile_index < 4; document_tile_index++) {
+                    nk_size_t document_index = document_block_start_index + document_tile_index;
                     nk_i32_t dot = vaddvq_s32(accumulator_tiles_i32x4[query_tile_index][document_tile_index]);
-                    if (dot > running_max_i32[query_tile_index]) {
-                        running_max_i32[query_tile_index] = dot;
-                        running_argmax_u32[query_tile_index] = (nk_u32_t)(document_block_start_index +
-                                                                          document_tile_index);
+                    nk_f32_t score = (nk_f32_t)dot * document_metadata[document_index].screen_weight_f32;
+                    if (score > running_max_f32[query_tile_index]) {
+                        running_max_f32[query_tile_index] = score;
+                        running_argmax_u32[query_tile_index] = (nk_u32_t)document_index;
                     }
                 }
             }
@@ -247,11 +250,14 @@ NUMKONG_HELPER_INLINE void nk_maxsim_coarse_argmax_neonsdot_(                   
                     document_i8x16);
             }
 
-            nk_i32_t dots[4] = {vaddvq_s32(accumulator_0_i32x4), vaddvq_s32(accumulator_1_i32x4),
-                                vaddvq_s32(accumulator_2_i32x4), vaddvq_s32(accumulator_3_i32x4)};
+            nk_f32_t screen_weight = document_metadata[document_index].screen_weight_f32;
+            nk_f32_t scores[4] = {(nk_f32_t)vaddvq_s32(accumulator_0_i32x4) * screen_weight,
+                                  (nk_f32_t)vaddvq_s32(accumulator_1_i32x4) * screen_weight,
+                                  (nk_f32_t)vaddvq_s32(accumulator_2_i32x4) * screen_weight,
+                                  (nk_f32_t)vaddvq_s32(accumulator_3_i32x4) * screen_weight};
             for (nk_size_t query_tile_index = 0; query_tile_index < 4; query_tile_index++) {
-                if (dots[query_tile_index] > running_max_i32[query_tile_index]) {
-                    running_max_i32[query_tile_index] = dots[query_tile_index];
+                if (scores[query_tile_index] > running_max_f32[query_tile_index]) {
+                    running_max_f32[query_tile_index] = scores[query_tile_index];
                     running_argmax_u32[query_tile_index] = (nk_u32_t)document_index;
                 }
             }
@@ -264,7 +270,7 @@ NUMKONG_HELPER_INLINE void nk_maxsim_coarse_argmax_neonsdot_(                   
     // Query tail: 1Q × 1D
     for (nk_size_t query_index = query_block_start_index; query_index < query_count; query_index++) {
         nk_i8_t const *query_i8_row = query_i8 + query_index * depth_i8_padded;
-        nk_i32_t running_max_i32 = NUMKONG_I32_MIN;
+        nk_f32_t running_max_f32 = NUMKONG_F32_MIN;
         nk_u32_t running_argmax_u32 = 0;
 
         for (nk_size_t document_index = 0; document_index < document_count; document_index++) {
@@ -278,8 +284,9 @@ NUMKONG_HELPER_INLINE void nk_maxsim_coarse_argmax_neonsdot_(                   
             }
 
             nk_i32_t coarse_dot_i32 = vaddvq_s32(accumulator_i32x4);
-            if (coarse_dot_i32 > running_max_i32) {
-                running_max_i32 = coarse_dot_i32;
+            nk_f32_t coarse_score_f32 = (nk_f32_t)coarse_dot_i32 * document_metadata[document_index].screen_weight_f32;
+            if (coarse_score_f32 > running_max_f32) {
+                running_max_f32 = coarse_score_f32;
                 running_argmax_u32 = (nk_u32_t)document_index;
             }
         }
@@ -300,8 +307,8 @@ NUMKONG_API_COMPTIME void nk_maxsim_packed_bf16_neonsdot( //
         nk_u32_t best_document_indices[256];
 
         nk_maxsim_coarse_argmax_neonsdot_(regions.query_quantized + chunk_start * regions.depth_i8_padded,
-                                          regions.document_quantized, chunk_size, document_count,
-                                          regions.depth_i8_padded, best_document_indices);
+                                          regions.document_quantized, regions.document_metadata, chunk_size,
+                                          document_count, regions.depth_i8_padded, best_document_indices);
 
         for (nk_size_t query_index = 0; query_index < chunk_size; query_index++) {
             nk_u32_t best_document_index = best_document_indices[query_index];
@@ -334,8 +341,8 @@ NUMKONG_API_COMPTIME void nk_maxsim_packed_f32_neonsdot( //
         nk_u32_t best_document_indices[256];
 
         nk_maxsim_coarse_argmax_neonsdot_(regions.query_quantized + chunk_start * regions.depth_i8_padded,
-                                          regions.document_quantized, chunk_size, document_count,
-                                          regions.depth_i8_padded, best_document_indices);
+                                          regions.document_quantized, regions.document_metadata, chunk_size,
+                                          document_count, regions.depth_i8_padded, best_document_indices);
 
         for (nk_size_t query_index = 0; query_index < chunk_size; query_index++) {
             nk_u32_t best_document_index = best_document_indices[query_index];
@@ -369,8 +376,8 @@ NUMKONG_API_COMPTIME void nk_maxsim_packed_f16_neonsdot( //
         nk_u32_t best_document_indices[256];
 
         nk_maxsim_coarse_argmax_neonsdot_(regions.query_quantized + chunk_start * regions.depth_i8_padded,
-                                          regions.document_quantized, chunk_size, document_count,
-                                          regions.depth_i8_padded, best_document_indices);
+                                          regions.document_quantized, regions.document_metadata, chunk_size,
+                                          document_count, regions.depth_i8_padded, best_document_indices);
 
         for (nk_size_t query_index = 0; query_index < chunk_size; query_index++) {
             nk_u32_t best_document_index = best_document_indices[query_index];

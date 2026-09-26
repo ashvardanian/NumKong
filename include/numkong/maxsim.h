@@ -7,9 +7,9 @@
  *  Computes angular distance late-interaction: result = Σᵢ minⱼ angular(qᵢ, dⱼ).
  *  Angular distance = 1 - dot(q, d) / sqrt(||q||² × ||d||²), clamped >= 0.
  *
- *  Strategy: coarse i8-quantized screening with running argmax, dot as proxy for argmin angular,
- *  then full-precision refinement of the winning pairs via @c nk_dot_* primitives, finalized with
- *  angular distance and accumulated with @c f64.
+ *  Strategy: coarse i8-quantized screening with a running argmax over i8 dots, each weighted by its
+ *  document's scale / ‖d‖ to rank by cosine, then full-precision refinement of the winning pairs
+ *  via @c nk_dot_* primitives, finalized with angular distance and accumulated with @c f64.
  *
  *  Precision policy:
  *  - @c f32 inputs keep packed payloads and metadata narrow for memory bandwidth.

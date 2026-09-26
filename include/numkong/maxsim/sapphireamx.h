@@ -7,11 +7,12 @@
  *  @sa include/numkong/maxsim.h
  *
  *  bf16: fused AMX approach using TDPBF16PS for direct bf16 dot products, with per-tile column
- *  extraction for running argmax and angular distance finalization. Uses 4 accumulator tiles,
- *  TMM4-7, for 4-way document tile pipelining.
+ *  extraction for a running max of dot / ‖d‖ and angular distance finalization. Uses 4 accumulator
+ *  tiles, TMM4-7, for 4-way document tile pipelining.
  *
  *  f32/f16: coarse i8 screening via AMX TDPBSSD, signed i8 × signed i8 → i32, with a 4-accumulator
- *  pipeline, then full-precision refinement with nk_dot_f32/nk_dot_f16.
+ *  pipeline, weighted by each document's scale / ‖d‖, then full-precision refinement with
+ *  nk_dot_f32/nk_dot_f16.
  *
  *  TMM register allocation, all 3 dtypes:
  *  - TMM0: query, A-side — loaded once per depth step
@@ -29,7 +30,7 @@
  *  i8 packed layout, f32/f16:
  *  [Header 64B] [0-63B padding for 64B alignment] [i8 A-side tiles: col_tiles × depth_tiles × 1KB]
  *  [i8 B-side tiles: col_tiles × depth_tiles × 1KB] [originals 64B-aligned: n × original_stride]
- *  [inverse norms: n × f32]
+ *  [inverse norms: n × f32] [screening weights: n × f32]
  *
  *  @verbatim
  *  Intrinsic                   Instruction         Notes
@@ -72,7 +73,7 @@ extern "C" {
 
 /** i8 packed buffer header for AMX coarse+refine MaxSim (64 bytes). Stores both A-side (row-major)
  *  and B-side (quad-interleaved) i8 tile formats, original f32/f16 vectors for full-precision
- *  refinement, and per-vector inverse norms. */
+ *  refinement, and per-vector inverse norms and screening weights. */
 typedef struct {
 
     /** Number of vector-tile groups, ⌈n / 16⌉. */
@@ -102,8 +103,11 @@ typedef struct {
     /** Byte offset from buffer start to f32 inverse norms. */
     nk_u32_t norms_offset;
 
+    /** Byte offset from buffer start to f32 screening weights, absmax / (127 · ‖v‖). */
+    nk_u32_t screen_weights_offset;
+
     /** Padding to 64 bytes. */
-    nk_u32_t reserved[7];
+    nk_u32_t reserved[6];
 } nk_maxsim_sapphireamx_i8_header_t;
 
 NUMKONG_STATIC_ASSERT(sizeof(nk_maxsim_sapphireamx_i8_header_t) == 64,
@@ -121,7 +125,8 @@ NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_sapphireamx(nk_size_t vec
     nk_size_t original_stride = nk_size_round_up_to_multiple_(depth * sizeof(nk_f32_t), 64);
     nk_size_t originals_bytes = vector_count * original_stride;
     nk_size_t norms_bytes = vector_count * sizeof(nk_f32_t);
-    return 64 + 63 + a_side_bytes + b_side_bytes + originals_bytes + norms_bytes;
+    nk_size_t screen_weights_bytes = vector_count * sizeof(nk_f32_t);
+    return 64 + 63 + a_side_bytes + b_side_bytes + originals_bytes + norms_bytes + screen_weights_bytes;
 }
 
 NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f32_sapphireamx(void const *packed, nk_size_t *vectors,
@@ -156,13 +161,15 @@ NUMKONG_API_COMPTIME void nk_maxsim_pack_f32_sapphireamx( //
     header->original_stride_bytes = (nk_u32_t)original_stride_bytes;
     header->norms_offset = (nk_u32_t)(a_side_offset + a_side_total_bytes + b_side_total_bytes +
                                       vector_count * original_stride_bytes);
-    for (nk_size_t reserved_index = 0; reserved_index < 7; reserved_index++) header->reserved[reserved_index] = 0;
+    header->screen_weights_offset = (nk_u32_t)(header->norms_offset + vector_count * sizeof(nk_f32_t));
+    for (nk_size_t reserved_index = 0; reserved_index < 6; reserved_index++) header->reserved[reserved_index] = 0;
 
     // Pointers to data regions (A-side is guaranteed 64B-aligned)
     nk_i8_t *a_side_base = (nk_i8_t *)((char *)packed + a_side_offset);
     char *b_side_base = (char *)packed + header->b_side_offset;
     char *originals_base = (char *)packed + header->originals_offset;
     nk_f32_t *inverse_norms = (nk_f32_t *)((char *)packed + header->norms_offset);
+    nk_f32_t *screen_weights = (nk_f32_t *)((char *)packed + header->screen_weights_offset);
 
     // Zero all A-side tiles (aligned stores — A-side offset is 64B-aligned)
     {
@@ -201,8 +208,9 @@ NUMKONG_API_COMPTIME void nk_maxsim_pack_f32_sapphireamx( //
             a_side_base[tile_flat_index * 1024 + row_in_tile * 64 + column_in_tile] = quantized_i8;
         }
 
-        // Store inverse norm
+        // Store inverse norm and screening weight
         inverse_norms[vector_index] = (norm_squared_f32 > 0.0f) ? nk_f32_rsqrt_haswell(norm_squared_f32) : 0.0f;
+        screen_weights[vector_index] = absmax_f32 / 127.0f * inverse_norms[vector_index];
 
         // Copy original vector with 64B-aligned stride
         char *destination_original = originals_base + vector_index * original_stride_bytes;
@@ -246,6 +254,8 @@ NUMKONG_API_COMPTIME void nk_maxsim_packed_f32_sapphireamx( //
     nk_f32_t const *query_inverse_norms = (nk_f32_t const *)((char const *)query_packed + query_header->norms_offset);
     nk_f32_t const *document_inverse_norms = (nk_f32_t const *)((char const *)document_packed +
                                                                 document_header->norms_offset);
+    nk_f32_t const *document_screen_weights = (nk_f32_t const *)((char const *)document_packed +
+                                                                 document_header->screen_weights_offset);
 
     nk_amx_tile_configure_sapphireamx_();
 
@@ -260,7 +270,7 @@ NUMKONG_API_COMPTIME void nk_maxsim_packed_f32_sapphireamx( //
         nk_size_t query_row_start = query_tile_index * 16;
         nk_size_t valid_queries = (query_row_start + 16 <= query_count) ? 16 : (query_count - query_row_start);
 
-        __m512i running_maximum_i32x16 = _mm512_set1_epi32(NUMKONG_I32_MIN);
+        __m512 running_maximum_f32x16 = _mm512_set1_ps(NUMKONG_F32_MIN);
         __m512i running_argmax_i32x16 = _mm512_setzero_si512();
 
         NUMKONG_ALIGN64_ nk_i32_t tile_results_i32[4][16][16];
@@ -309,9 +319,13 @@ NUMKONG_API_COMPTIME void nk_maxsim_packed_f32_sapphireamx( //
                                                                    _mm512_set1_epi32((int)column_within_tile));
                     __m512i column_dots_i32x16 = _mm512_i32gather_epi32(gather_index_i32x16,
                                                                         tile_results_i32[tile_offset], 4);
-                    __mmask16 is_better_m16 = _mm512_cmpgt_epi32_mask(column_dots_i32x16, running_maximum_i32x16);
-                    running_maximum_i32x16 = _mm512_mask_mov_epi32(running_maximum_i32x16, is_better_m16,
-                                                                   column_dots_i32x16);
+                    __m512 column_scores_f32x16 = _mm512_mul_ps(
+                        _mm512_cvtepi32_ps(column_dots_i32x16),
+                        _mm512_set1_ps(document_screen_weights[document_column_start + column_within_tile]));
+                    __mmask16 is_better_m16 = _mm512_cmp_ps_mask(column_scores_f32x16, running_maximum_f32x16,
+                                                                 _CMP_GT_OQ);
+                    running_maximum_f32x16 = _mm512_mask_mov_ps(running_maximum_f32x16, is_better_m16,
+                                                                column_scores_f32x16);
                     running_argmax_i32x16 = _mm512_mask_mov_epi32(
                         running_argmax_i32x16, is_better_m16,
                         _mm512_set1_epi32((int)(document_column_start + column_within_tile)));
@@ -343,9 +357,12 @@ NUMKONG_API_COMPTIME void nk_maxsim_packed_f32_sapphireamx( //
                 __m512i gather_index_i32x16 = _mm512_add_epi32(row_stride_indices_i32x16,
                                                                _mm512_set1_epi32((int)column_within_tile));
                 __m512i column_dots_i32x16 = _mm512_i32gather_epi32(gather_index_i32x16, tile_results_i32[0], 4);
-                __mmask16 is_better_m16 = _mm512_cmpgt_epi32_mask(column_dots_i32x16, running_maximum_i32x16);
-                running_maximum_i32x16 = _mm512_mask_mov_epi32(running_maximum_i32x16, is_better_m16,
-                                                               column_dots_i32x16);
+                __m512 column_scores_f32x16 = _mm512_mul_ps(
+                    _mm512_cvtepi32_ps(column_dots_i32x16),
+                    _mm512_set1_ps(document_screen_weights[document_column_start + column_within_tile]));
+                __mmask16 is_better_m16 = _mm512_cmp_ps_mask(column_scores_f32x16, running_maximum_f32x16, _CMP_GT_OQ);
+                running_maximum_f32x16 = _mm512_mask_mov_ps(running_maximum_f32x16, is_better_m16,
+                                                            column_scores_f32x16);
                 running_argmax_i32x16 = _mm512_mask_mov_epi32(
                     running_argmax_i32x16, is_better_m16,
                     _mm512_set1_epi32((int)(document_column_start + column_within_tile)));
@@ -388,7 +405,8 @@ NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_sapphireamx(nk_size_t vec
     nk_size_t original_stride = nk_size_round_up_to_multiple_(depth * sizeof(nk_f16_t), 64);
     nk_size_t originals_bytes = vector_count * original_stride;
     nk_size_t norms_bytes = vector_count * sizeof(nk_f32_t);
-    return 64 + 63 + a_side_bytes + b_side_bytes + originals_bytes + norms_bytes;
+    nk_size_t screen_weights_bytes = vector_count * sizeof(nk_f32_t);
+    return 64 + 63 + a_side_bytes + b_side_bytes + originals_bytes + norms_bytes + screen_weights_bytes;
 }
 
 NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f16_sapphireamx(void const *packed, nk_size_t *vectors,
@@ -423,13 +441,15 @@ NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_sapphireamx( //
     header->original_stride_bytes = (nk_u32_t)original_stride_bytes;
     header->norms_offset = (nk_u32_t)(a_side_offset + a_side_total_bytes + b_side_total_bytes +
                                       vector_count * original_stride_bytes);
-    for (nk_size_t reserved_index = 0; reserved_index < 7; reserved_index++) header->reserved[reserved_index] = 0;
+    header->screen_weights_offset = (nk_u32_t)(header->norms_offset + vector_count * sizeof(nk_f32_t));
+    for (nk_size_t reserved_index = 0; reserved_index < 6; reserved_index++) header->reserved[reserved_index] = 0;
 
     // Pointers to data regions (A-side is guaranteed 64B-aligned)
     nk_i8_t *a_side_base = (nk_i8_t *)((char *)packed + a_side_offset);
     char *b_side_base = (char *)packed + header->b_side_offset;
     char *originals_base = (char *)packed + header->originals_offset;
     nk_f32_t *inverse_norms = (nk_f32_t *)((char *)packed + header->norms_offset);
+    nk_f32_t *screen_weights = (nk_f32_t *)((char *)packed + header->screen_weights_offset);
 
     // Zero all A-side tiles (aligned stores — A-side offset is 64B-aligned)
     {
@@ -471,8 +491,9 @@ NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_sapphireamx( //
             a_side_base[tile_flat_index * 1024 + row_in_tile * 64 + column_in_tile] = quantized_i8;
         }
 
-        // Store inverse norm
+        // Store inverse norm and screening weight
         inverse_norms[vector_index] = (norm_squared_f32 > 0.0f) ? nk_f32_rsqrt_haswell(norm_squared_f32) : 0.0f;
+        screen_weights[vector_index] = absmax_f32 / 127.0f * inverse_norms[vector_index];
 
         // Copy original f16 vector with 64B-aligned stride
         char *destination_original = originals_base + vector_index * original_stride_bytes;
@@ -516,6 +537,8 @@ NUMKONG_API_COMPTIME void nk_maxsim_packed_f16_sapphireamx( //
     nk_f32_t const *query_inverse_norms = (nk_f32_t const *)((char const *)query_packed + query_header->norms_offset);
     nk_f32_t const *document_inverse_norms = (nk_f32_t const *)((char const *)document_packed +
                                                                 document_header->norms_offset);
+    nk_f32_t const *document_screen_weights = (nk_f32_t const *)((char const *)document_packed +
+                                                                 document_header->screen_weights_offset);
 
     nk_amx_tile_configure_sapphireamx_();
 
@@ -528,7 +551,7 @@ NUMKONG_API_COMPTIME void nk_maxsim_packed_f16_sapphireamx( //
         nk_size_t query_row_start = query_tile_index * 16;
         nk_size_t valid_queries = (query_row_start + 16 <= query_count) ? 16 : (query_count - query_row_start);
 
-        __m512i running_maximum_i32x16 = _mm512_set1_epi32(NUMKONG_I32_MIN);
+        __m512 running_maximum_f32x16 = _mm512_set1_ps(NUMKONG_F32_MIN);
         __m512i running_argmax_i32x16 = _mm512_setzero_si512();
 
         NUMKONG_ALIGN64_ nk_i32_t tile_results_i32[4][16][16];
@@ -576,9 +599,13 @@ NUMKONG_API_COMPTIME void nk_maxsim_packed_f16_sapphireamx( //
                                                                    _mm512_set1_epi32((int)column_within_tile));
                     __m512i column_dots_i32x16 = _mm512_i32gather_epi32(gather_index_i32x16,
                                                                         tile_results_i32[tile_offset], 4);
-                    __mmask16 is_better_m16 = _mm512_cmpgt_epi32_mask(column_dots_i32x16, running_maximum_i32x16);
-                    running_maximum_i32x16 = _mm512_mask_mov_epi32(running_maximum_i32x16, is_better_m16,
-                                                                   column_dots_i32x16);
+                    __m512 column_scores_f32x16 = _mm512_mul_ps(
+                        _mm512_cvtepi32_ps(column_dots_i32x16),
+                        _mm512_set1_ps(document_screen_weights[document_column_start + column_within_tile]));
+                    __mmask16 is_better_m16 = _mm512_cmp_ps_mask(column_scores_f32x16, running_maximum_f32x16,
+                                                                 _CMP_GT_OQ);
+                    running_maximum_f32x16 = _mm512_mask_mov_ps(running_maximum_f32x16, is_better_m16,
+                                                                column_scores_f32x16);
                     running_argmax_i32x16 = _mm512_mask_mov_epi32(
                         running_argmax_i32x16, is_better_m16,
                         _mm512_set1_epi32((int)(document_column_start + column_within_tile)));
@@ -610,9 +637,12 @@ NUMKONG_API_COMPTIME void nk_maxsim_packed_f16_sapphireamx( //
                 __m512i gather_index_i32x16 = _mm512_add_epi32(row_stride_indices_i32x16,
                                                                _mm512_set1_epi32((int)column_within_tile));
                 __m512i column_dots_i32x16 = _mm512_i32gather_epi32(gather_index_i32x16, tile_results_i32[0], 4);
-                __mmask16 is_better_m16 = _mm512_cmpgt_epi32_mask(column_dots_i32x16, running_maximum_i32x16);
-                running_maximum_i32x16 = _mm512_mask_mov_epi32(running_maximum_i32x16, is_better_m16,
-                                                               column_dots_i32x16);
+                __m512 column_scores_f32x16 = _mm512_mul_ps(
+                    _mm512_cvtepi32_ps(column_dots_i32x16),
+                    _mm512_set1_ps(document_screen_weights[document_column_start + column_within_tile]));
+                __mmask16 is_better_m16 = _mm512_cmp_ps_mask(column_scores_f32x16, running_maximum_f32x16, _CMP_GT_OQ);
+                running_maximum_f32x16 = _mm512_mask_mov_ps(running_maximum_f32x16, is_better_m16,
+                                                            column_scores_f32x16);
                 running_argmax_i32x16 = _mm512_mask_mov_epi32(
                     running_argmax_i32x16, is_better_m16,
                     _mm512_set1_epi32((int)(document_column_start + column_within_tile)));
@@ -806,7 +836,6 @@ NUMKONG_API_COMPTIME void nk_maxsim_packed_bf16_sapphireamx( //
         __mmask16 valid_query_m16 = (valid_queries >= 16) ? (__mmask16)0xFFFF : (__mmask16)((1u << valid_queries) - 1);
 
         __m512 running_maximum_f32x16 = _mm512_set1_ps(NUMKONG_F32_MIN);
-        __m512i running_argmax_i32x16 = _mm512_setzero_si512();
 
         NUMKONG_ALIGN64_ nk_f32_t tile_results_f32[4][16][16];
         nk_size_t document_tile_index = 0;
@@ -854,13 +883,10 @@ NUMKONG_API_COMPTIME void nk_maxsim_packed_bf16_sapphireamx( //
                                                                    _mm512_set1_epi32((int)column_within_tile));
                     __m512 column_dots_f32x16 = _mm512_i32gather_ps(gather_index_i32x16,
                                                                     (float const *)tile_results_f32[tile_offset], 4);
-                    __mmask16 is_better_m16 = _mm512_cmp_ps_mask(column_dots_f32x16, running_maximum_f32x16,
-                                                                 _CMP_GT_OQ);
-                    running_maximum_f32x16 = _mm512_mask_mov_ps(running_maximum_f32x16, is_better_m16,
-                                                                column_dots_f32x16);
-                    running_argmax_i32x16 = _mm512_mask_mov_epi32(
-                        running_argmax_i32x16, is_better_m16,
-                        _mm512_set1_epi32((int)(document_column_start + column_within_tile)));
+                    __m512 column_scores_f32x16 = _mm512_mul_ps(
+                        column_dots_f32x16,
+                        _mm512_set1_ps(document_inverse_norms[document_column_start + column_within_tile]));
+                    running_maximum_f32x16 = _mm512_max_ps(running_maximum_f32x16, column_scores_f32x16);
                 }
             }
         }
@@ -890,22 +916,19 @@ NUMKONG_API_COMPTIME void nk_maxsim_packed_bf16_sapphireamx( //
                                                                _mm512_set1_epi32((int)column_within_tile));
                 __m512 column_dots_f32x16 = _mm512_i32gather_ps(gather_index_i32x16, (float const *)tile_results_f32[0],
                                                                 4);
-                __mmask16 is_better_m16 = _mm512_cmp_ps_mask(column_dots_f32x16, running_maximum_f32x16, _CMP_GT_OQ);
-                running_maximum_f32x16 = _mm512_mask_mov_ps(running_maximum_f32x16, is_better_m16, column_dots_f32x16);
-                running_argmax_i32x16 = _mm512_mask_mov_epi32(
-                    running_argmax_i32x16, is_better_m16,
-                    _mm512_set1_epi32((int)(document_column_start + column_within_tile)));
+                __m512 column_scores_f32x16 = _mm512_mul_ps(
+                    column_dots_f32x16,
+                    _mm512_set1_ps(document_inverse_norms[document_column_start + column_within_tile]));
+                running_maximum_f32x16 = _mm512_max_ps(running_maximum_f32x16, column_scores_f32x16);
             }
         }
 
         // Angular distance finalization using AVX-512
         __m512 query_inverse_norms_f32x16 = _mm512_maskz_loadu_ps(valid_query_m16,
                                                                   query_inverse_norms + query_row_start);
-        __m512 document_inverse_norms_f32x16 = _mm512_i32gather_ps(running_argmax_i32x16, document_inverse_norms, 4);
 
-        // cosine = dot × inv_norm_q × inv_norm_d
-        __m512 cosine_f32x16 = _mm512_mul_ps(_mm512_mul_ps(running_maximum_f32x16, query_inverse_norms_f32x16),
-                                             document_inverse_norms_f32x16);
+        // cosine = max(dot × inv_norm_d) × inv_norm_q
+        __m512 cosine_f32x16 = _mm512_mul_ps(running_maximum_f32x16, query_inverse_norms_f32x16);
 
         // angular = max(1 - cosine, 0), masked to valid queries only
         __m512 angular_distance_f32x16 = _mm512_max_ps(_mm512_sub_ps(_mm512_set1_ps(1.0f), cosine_f32x16),

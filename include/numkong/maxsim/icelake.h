@@ -156,7 +156,7 @@ NUMKONG_HELPER_INLINE __m128i nk_maxsim_reduce_i32x16x4_icelake_( //
 }
 
 /** Factored coarse i8 argmax kernel for Ice Lake / Genoa. Uses AVX-512 VNNI VPDPBUSD with XOR-0x80
- *  bias and 128*sum_quantized correction. */
+ *  bias and 128*sum_quantized correction, weighting each dot by the document's screening weight. */
 NUMKONG_HELPER_INLINE void nk_maxsim_coarse_argmax_icelake_( //
     nk_i8_t const *query_i8, nk_i8_t const *document_i8,     //
     nk_maxsim_vector_metadata_t const *document_metadata,    //
@@ -168,7 +168,7 @@ NUMKONG_HELPER_INLINE void nk_maxsim_coarse_argmax_icelake_( //
     // Primary path: 4-query grouping
     nk_size_t query_block_start_index = 0;
     for (; query_block_start_index + 4 <= query_count; query_block_start_index += 4) {
-        __m128i running_max_i32x4 = _mm_set1_epi32(NUMKONG_I32_MIN);
+        __m128 running_max_f32x4 = _mm_set1_ps(NUMKONG_F32_MIN);
         __m128i running_argmax_i32x4 = _mm_setzero_si128();
 
         // 4x4 document blocking
@@ -285,27 +285,44 @@ NUMKONG_HELPER_INLINE void nk_maxsim_coarse_argmax_icelake_( //
             __m128i document_3_dots_i32x4 = _mm_unpackhi_epi64(transpose_queries_01_high_i32x4,
                                                                transpose_queries_23_high_i32x4);
 
-            __m128i comparison_mask_i32x4, document_index_i32x4;
+            __m128 document_scores_f32x4, comparison_mask_f32x4;
+            __m128i document_index_i32x4;
 
-            comparison_mask_i32x4 = _mm_cmpgt_epi32(document_0_dots_i32x4, running_max_i32x4);
+            document_scores_f32x4 = _mm_mul_ps(
+                _mm_cvtepi32_ps(document_0_dots_i32x4),
+                _mm_set1_ps(document_metadata[document_block_start_index + 0].screen_weight_f32));
+            comparison_mask_f32x4 = _mm_cmpgt_ps(document_scores_f32x4, running_max_f32x4);
             document_index_i32x4 = _mm_set1_epi32((int)(document_block_start_index + 0));
-            running_max_i32x4 = _mm_blendv_epi8(running_max_i32x4, document_0_dots_i32x4, comparison_mask_i32x4);
-            running_argmax_i32x4 = _mm_blendv_epi8(running_argmax_i32x4, document_index_i32x4, comparison_mask_i32x4);
+            running_max_f32x4 = _mm_blendv_ps(running_max_f32x4, document_scores_f32x4, comparison_mask_f32x4);
+            running_argmax_i32x4 = _mm_blendv_epi8(running_argmax_i32x4, document_index_i32x4,
+                                                   _mm_castps_si128(comparison_mask_f32x4));
 
-            comparison_mask_i32x4 = _mm_cmpgt_epi32(document_1_dots_i32x4, running_max_i32x4);
+            document_scores_f32x4 = _mm_mul_ps(
+                _mm_cvtepi32_ps(document_1_dots_i32x4),
+                _mm_set1_ps(document_metadata[document_block_start_index + 1].screen_weight_f32));
+            comparison_mask_f32x4 = _mm_cmpgt_ps(document_scores_f32x4, running_max_f32x4);
             document_index_i32x4 = _mm_set1_epi32((int)(document_block_start_index + 1));
-            running_max_i32x4 = _mm_blendv_epi8(running_max_i32x4, document_1_dots_i32x4, comparison_mask_i32x4);
-            running_argmax_i32x4 = _mm_blendv_epi8(running_argmax_i32x4, document_index_i32x4, comparison_mask_i32x4);
+            running_max_f32x4 = _mm_blendv_ps(running_max_f32x4, document_scores_f32x4, comparison_mask_f32x4);
+            running_argmax_i32x4 = _mm_blendv_epi8(running_argmax_i32x4, document_index_i32x4,
+                                                   _mm_castps_si128(comparison_mask_f32x4));
 
-            comparison_mask_i32x4 = _mm_cmpgt_epi32(document_2_dots_i32x4, running_max_i32x4);
+            document_scores_f32x4 = _mm_mul_ps(
+                _mm_cvtepi32_ps(document_2_dots_i32x4),
+                _mm_set1_ps(document_metadata[document_block_start_index + 2].screen_weight_f32));
+            comparison_mask_f32x4 = _mm_cmpgt_ps(document_scores_f32x4, running_max_f32x4);
             document_index_i32x4 = _mm_set1_epi32((int)(document_block_start_index + 2));
-            running_max_i32x4 = _mm_blendv_epi8(running_max_i32x4, document_2_dots_i32x4, comparison_mask_i32x4);
-            running_argmax_i32x4 = _mm_blendv_epi8(running_argmax_i32x4, document_index_i32x4, comparison_mask_i32x4);
+            running_max_f32x4 = _mm_blendv_ps(running_max_f32x4, document_scores_f32x4, comparison_mask_f32x4);
+            running_argmax_i32x4 = _mm_blendv_epi8(running_argmax_i32x4, document_index_i32x4,
+                                                   _mm_castps_si128(comparison_mask_f32x4));
 
-            comparison_mask_i32x4 = _mm_cmpgt_epi32(document_3_dots_i32x4, running_max_i32x4);
+            document_scores_f32x4 = _mm_mul_ps(
+                _mm_cvtepi32_ps(document_3_dots_i32x4),
+                _mm_set1_ps(document_metadata[document_block_start_index + 3].screen_weight_f32));
+            comparison_mask_f32x4 = _mm_cmpgt_ps(document_scores_f32x4, running_max_f32x4);
             document_index_i32x4 = _mm_set1_epi32((int)(document_block_start_index + 3));
-            running_max_i32x4 = _mm_blendv_epi8(running_max_i32x4, document_3_dots_i32x4, comparison_mask_i32x4);
-            running_argmax_i32x4 = _mm_blendv_epi8(running_argmax_i32x4, document_index_i32x4, comparison_mask_i32x4);
+            running_max_f32x4 = _mm_blendv_ps(running_max_f32x4, document_scores_f32x4, comparison_mask_f32x4);
+            running_argmax_i32x4 = _mm_blendv_epi8(running_argmax_i32x4, document_index_i32x4,
+                                                   _mm_castps_si128(comparison_mask_f32x4));
         }
 
         // Document tail: 4Q × 1D
@@ -356,11 +373,14 @@ NUMKONG_HELPER_INLINE void nk_maxsim_coarse_argmax_icelake_( //
                 _mm512_reduce_add_epi32(accumulator_2_i32x16) - bias_correction_i32,
                 _mm512_reduce_add_epi32(accumulator_1_i32x16) - bias_correction_i32,
                 _mm512_reduce_add_epi32(accumulator_0_i32x16) - bias_correction_i32);
+            __m128 coarse_scores_f32x4 = _mm_mul_ps(_mm_cvtepi32_ps(coarse_dots_i32x4),
+                                                    _mm_set1_ps(document_metadata[document_index].screen_weight_f32));
 
-            __m128i comparison_mask_i32x4 = _mm_cmpgt_epi32(coarse_dots_i32x4, running_max_i32x4);
+            __m128 comparison_mask_f32x4 = _mm_cmpgt_ps(coarse_scores_f32x4, running_max_f32x4);
             __m128i document_index_i32x4 = _mm_set1_epi32((int)document_index);
-            running_max_i32x4 = _mm_blendv_epi8(running_max_i32x4, coarse_dots_i32x4, comparison_mask_i32x4);
-            running_argmax_i32x4 = _mm_blendv_epi8(running_argmax_i32x4, document_index_i32x4, comparison_mask_i32x4);
+            running_max_f32x4 = _mm_blendv_ps(running_max_f32x4, coarse_scores_f32x4, comparison_mask_f32x4);
+            running_argmax_i32x4 = _mm_blendv_epi8(running_argmax_i32x4, document_index_i32x4,
+                                                   _mm_castps_si128(comparison_mask_f32x4));
         }
 
         best_document_indices[query_block_start_index + 0] = (nk_u32_t)_mm_extract_epi32(running_argmax_i32x4, 0);
@@ -372,7 +392,7 @@ NUMKONG_HELPER_INLINE void nk_maxsim_coarse_argmax_icelake_( //
     // Query tail: 1Q × 1D
     for (nk_size_t query_index = query_block_start_index; query_index < query_count; query_index++) {
         nk_i8_t const *query_i8_row = query_i8 + query_index * depth_i8_padded;
-        nk_i32_t running_max_i32 = NUMKONG_I32_MIN;
+        nk_f32_t running_max_f32 = NUMKONG_F32_MIN;
         nk_u32_t running_argmax_u32 = 0;
 
         for (nk_size_t document_index = 0; document_index < document_count; document_index++) {
@@ -388,9 +408,10 @@ NUMKONG_HELPER_INLINE void nk_maxsim_coarse_argmax_icelake_( //
 
             nk_i32_t coarse_dot_i32 = _mm512_reduce_add_epi32(accumulator_i32x16) -
                                       128 * document_metadata[document_index].sum_i8_i32;
+            nk_f32_t coarse_score_f32 = (nk_f32_t)coarse_dot_i32 * document_metadata[document_index].screen_weight_f32;
 
-            if (coarse_dot_i32 > running_max_i32) {
-                running_max_i32 = coarse_dot_i32;
+            if (coarse_score_f32 > running_max_f32) {
+                running_max_f32 = coarse_score_f32;
                 running_argmax_u32 = (nk_u32_t)document_index;
             }
         }

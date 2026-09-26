@@ -33,18 +33,16 @@ extern "C" {
 
 /** Coarse i8 argmax kernel for WASM Relaxed SIMD. Uses relaxed_dot_i8x16_i7x16_add with both
  *  operands in [-63, 63], so native signed × signed arithmetic needs no bias correction. Simple
- *  1Q × 1D tiling with scalar running argmax. */
+ *  1Q × 1D tiling with a scalar running argmax over screening-weighted dots. */
 NUMKONG_HELPER_INLINE void nk_maxsim_coarse_argmax_v128relaxed_( //
     nk_i8_t const *query_i8, nk_i8_t const *document_i8,         //
     nk_maxsim_vector_metadata_t const *document_metadata,        //
     nk_size_t query_count, nk_size_t document_count,             //
     nk_size_t depth_i8_padded, nk_u32_t *best_document_indices) {
 
-    nk_unused_(document_metadata);
-
     for (nk_size_t query_index = 0; query_index < query_count; query_index++) {
         nk_i8_t const *query_i8_row = query_i8 + query_index * depth_i8_padded;
-        nk_i32_t running_max_i32 = NUMKONG_I32_MIN;
+        nk_f32_t running_max_f32 = NUMKONG_F32_MIN;
         nk_u32_t running_argmax_u32 = 0;
 
         for (nk_size_t document_index = 0; document_index < document_count; document_index++) {
@@ -60,9 +58,10 @@ NUMKONG_HELPER_INLINE void nk_maxsim_coarse_argmax_v128relaxed_( //
 
             // Horizontal i32x4 reduce → scalar
             nk_i32_t coarse_dot_i32 = nk_reduce_add_i32x4_v128_(accumulator_i32x4);
+            nk_f32_t coarse_score_f32 = (nk_f32_t)coarse_dot_i32 * document_metadata[document_index].screen_weight_f32;
 
-            if (coarse_dot_i32 > running_max_i32) {
-                running_max_i32 = coarse_dot_i32;
+            if (coarse_score_f32 > running_max_f32) {
+                running_max_f32 = coarse_score_f32;
                 running_argmax_u32 = (nk_u32_t)document_index;
             }
         }

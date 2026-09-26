@@ -11,16 +11,17 @@
  *
  *  MaxSim computes: result = Σᵢ minⱼ angular(qᵢ, dⱼ) — angular distance late-interaction scoring.
  *
- *  Strategy: coarse i8-quantized screening with running argmax, dot as proxy for argmin angular,
- *  then full-precision refinement of the winning query, document pairs via existing nk_dot_*
- *  primitives, finalized with angular distance: 1 - dot / sqrt(||q||² × ||d||²).
+ *  Strategy: coarse i8-quantized screening with a running argmax over i8 dots, each weighted by its
+ *  document's scale / ‖d‖ to rank by cosine, then full-precision refinement of the winning query,
+ *  document pairs via existing nk_dot_* primitives, finalized with angular distance:
+ *  1 - dot / sqrt(||q||² × ||d||²).
  *
  *  @section packed_layout Packed Buffer Layout
  *
  *  [Header 64B] [i8 vectors 64B-aligned] [metadata 64B-aligned] [originals row-major, 64B-aligned]
  *
  *  - i8 region: row-major with padded depth for SIMD alignment
- *  - Metadata region: vector_count x 12 bytes (scale + sum + norm_squared per vector)
+ *  - Metadata region: vector_count x 12 bytes (screening weight + sum + inverse norm per vector)
  *  - Originals region: row-major bf16 or f32, stride padded to 64B for nk_dot_* calls
  */
 #ifndef NUMKONG_MAXSIM_SERIAL_H
@@ -72,8 +73,9 @@ NUMKONG_STATIC_ASSERT(sizeof(nk_maxsim_packed_header_t) == 64, nk_maxsim_packed_
  *  metadata region. */
 typedef struct {
 
-    /** Quantization scale, absmax / range_limit. */
-    nk_f32_t scale_f32;
+    /** Screening weight scale / ‖v‖ for scale absmax / range_limit, so an i8 dot times it ranks
+     *  by cosine; 0 for a zero vector. */
+    nk_f32_t screen_weight_f32;
 
     /** Sum of all i8 quantized elements (for VPDPBUSD/VPMADDUBSW bias correction). */
     nk_i32_t sum_i8_i32;
@@ -173,7 +175,7 @@ NUMKONG_HELPER_INLINE void nk_maxsim_quantize_vector_(                   //
     // Zero-pad remaining bytes
     for (nk_size_t dim_index = depth; dim_index < depth_i8_padded; dim_index++) destination_i8[dim_index] = 0;
 
-    metadata->scale_f32 = scale_f32;
+    metadata->screen_weight_f32 = norm_squared_f32 > 0.0f ? scale_f32 * nk_f32_rsqrt_serial(norm_squared_f32) : 0.0f;
     metadata->sum_i8_i32 = sum_quantized_i32;
     *norm_squared_ptr = norm_squared_f32;
 }
@@ -372,15 +374,18 @@ NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_serial( //
 #endif
 
 /** DType-agnostic coarse i8 argmax kernel for the serial backend, producing per-query best document
- *  indices from signed i8 × i8 dot products, which need no bias correction here. */
+ *  indices from signed i8 × i8 dot products, which need no bias correction here, weighted by each
+ *  document's screening weight. */
 NUMKONG_HELPER_INLINE void nk_maxsim_coarse_argmax_serial_( //
-    nk_i8_t const *query_i8, nk_i8_t const *document_i8, nk_size_t query_count, nk_size_t document_count,
+    nk_i8_t const *query_i8, nk_i8_t const *document_i8,    //
+    nk_maxsim_vector_metadata_t const *document_metadata,   //
+    nk_size_t query_count, nk_size_t document_count,        //
     nk_size_t depth_i8_padded, nk_u32_t *best_document_indices) {
 
     // Primary path: 4-query grouping
     nk_size_t query_block_start_index = 0;
     for (; query_block_start_index + 4 <= query_count; query_block_start_index += 4) {
-        nk_i32_t running_max_i32[4] = {NUMKONG_I32_MIN, NUMKONG_I32_MIN, NUMKONG_I32_MIN, NUMKONG_I32_MIN};
+        nk_f32_t running_max_f32[4] = {NUMKONG_F32_MIN, NUMKONG_F32_MIN, NUMKONG_F32_MIN, NUMKONG_F32_MIN};
         nk_u32_t running_argmax_u32[4] = {0, 0, 0, 0};
 
         for (nk_size_t document_index = 0; document_index < document_count; document_index++) {
@@ -400,8 +405,10 @@ NUMKONG_HELPER_INLINE void nk_maxsim_coarse_argmax_serial_( //
             }
 
             for (nk_size_t query_tile_index = 0; query_tile_index < 4; query_tile_index++) {
-                if (accumulator_i32[query_tile_index] > running_max_i32[query_tile_index]) {
-                    running_max_i32[query_tile_index] = accumulator_i32[query_tile_index];
+                nk_f32_t score_f32 = (nk_f32_t)accumulator_i32[query_tile_index] *
+                                     document_metadata[document_index].screen_weight_f32;
+                if (score_f32 > running_max_f32[query_tile_index]) {
+                    running_max_f32[query_tile_index] = score_f32;
                     running_argmax_u32[query_tile_index] = (nk_u32_t)document_index;
                 }
             }
@@ -414,7 +421,7 @@ NUMKONG_HELPER_INLINE void nk_maxsim_coarse_argmax_serial_( //
     // Edge path: remaining 1-3 queries
     for (nk_size_t query_index = query_block_start_index; query_index < query_count; query_index++) {
         nk_i8_t const *query_i8_row = query_i8 + query_index * depth_i8_padded;
-        nk_i32_t running_max_i32 = NUMKONG_I32_MIN;
+        nk_f32_t running_max_f32 = NUMKONG_F32_MIN;
         nk_u32_t running_argmax_u32 = 0;
 
         for (nk_size_t document_index = 0; document_index < document_count; document_index++) {
@@ -424,8 +431,9 @@ NUMKONG_HELPER_INLINE void nk_maxsim_coarse_argmax_serial_( //
             for (nk_size_t dim_index = 0; dim_index < depth_i8_padded; dim_index++)
                 accumulator_i32 += (nk_i32_t)query_i8_row[dim_index] * (nk_i32_t)document_i8_row[dim_index];
 
-            if (accumulator_i32 > running_max_i32) {
-                running_max_i32 = accumulator_i32;
+            nk_f32_t score_f32 = (nk_f32_t)accumulator_i32 * document_metadata[document_index].screen_weight_f32;
+            if (score_f32 > running_max_f32) {
+                running_max_f32 = score_f32;
                 running_argmax_u32 = (nk_u32_t)document_index;
             }
         }
@@ -455,8 +463,8 @@ NUMKONG_API_COMPTIME void nk_maxsim_packed_bf16_serial( //
         nk_u32_t best_document_indices[256];
 
         nk_maxsim_coarse_argmax_serial_(regions.query_quantized + chunk_start * regions.depth_i8_padded,
-                                        regions.document_quantized, chunk_size, document_count, regions.depth_i8_padded,
-                                        best_document_indices);
+                                        regions.document_quantized, regions.document_metadata, chunk_size,
+                                        document_count, regions.depth_i8_padded, best_document_indices);
 
         for (nk_size_t query_index = 0; query_index < chunk_size; query_index++) {
             nk_u32_t best_document_index = best_document_indices[query_index];
@@ -491,8 +499,8 @@ NUMKONG_API_COMPTIME void nk_maxsim_packed_f32_serial( //
         nk_u32_t best_document_indices[256];
 
         nk_maxsim_coarse_argmax_serial_(regions.query_quantized + chunk_start * regions.depth_i8_padded,
-                                        regions.document_quantized, chunk_size, document_count, regions.depth_i8_padded,
-                                        best_document_indices);
+                                        regions.document_quantized, regions.document_metadata, chunk_size,
+                                        document_count, regions.depth_i8_padded, best_document_indices);
 
         for (nk_size_t query_index = 0; query_index < chunk_size; query_index++) {
             nk_u32_t best_document_index = best_document_indices[query_index];
@@ -528,8 +536,8 @@ NUMKONG_API_COMPTIME void nk_maxsim_packed_f16_serial( //
         nk_u32_t best_document_indices[256];
 
         nk_maxsim_coarse_argmax_serial_(regions.query_quantized + chunk_start * regions.depth_i8_padded,
-                                        regions.document_quantized, chunk_size, document_count, regions.depth_i8_padded,
-                                        best_document_indices);
+                                        regions.document_quantized, regions.document_metadata, chunk_size,
+                                        document_count, regions.depth_i8_padded, best_document_indices);
 
         for (nk_size_t query_index = 0; query_index < chunk_size; query_index++) {
             nk_u32_t best_document_index = best_document_indices[query_index];

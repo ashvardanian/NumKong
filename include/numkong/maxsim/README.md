@@ -8,10 +8,10 @@ $$
 \text{MaxSim}(Q, D) = \sum_{i=0}^{m-1} \min_{j=0}^{n-1} \text{angular}(q_i, d_j)
 $$
 
-Coarse screening finds the best document via i8 dot products as a proxy for argmin angular:
+Coarse screening weights each i8 dot product by the document's quantization scale $s_j$ over its norm, which ranks documents by cosine and so finds argmin angular:
 
 $$
-j^* = \arg\max_j \text{dot}_{\text{i8}}(q_i, d_j)
+j^* = \arg\max_j \text{dot}_{\text{i8}}(q_i, d_j) \cdot \frac{s_j}{\|d_j\|}
 $$
 
 Full-precision refinement:
@@ -29,7 +29,7 @@ def maxsim(queries: np.ndarray, documents: np.ndarray) -> float:
     score = 0.0
     for q in queries:
         dots = documents @ q
-        best = np.argmax(dots)
+        best = np.argmax(dots / np.linalg.norm(documents, axis=1))
         d = documents[best]
         angular = 1 - np.dot(q, d) / (np.linalg.norm(q) * np.linalg.norm(d))
         score += angular
@@ -96,7 +96,7 @@ After finding the best document index per query, full-precision angular refineme
 ### Three-Region Packed Buffer
 
 All backends use a three-region packed buffer layout: [Header 64B] [i8 vectors, 64B-aligned] [metadata, 64B-aligned] [originals, 64B-aligned].
-Per-vector metadata (12 bytes) stores quantization scale, i8 sum (for bias correction), and inverse norm (for angular finalization).
+Per-vector metadata (12 bytes) stores the screening weight (quantization scale over norm), i8 sum (for bias correction), and inverse norm (for angular finalization).
 The originals region stores full-precision vectors for refinement via existing `nk_dot_*` primitives.
 
 ## Performance
