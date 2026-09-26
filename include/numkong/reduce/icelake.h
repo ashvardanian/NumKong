@@ -321,7 +321,7 @@ NUMKONG_API_COMPTIME void nk_reduce_moments_i16_icelake(               //
 NUMKONG_HELPER_INLINE void nk_reduce_moments_e2m3_icelake_contiguous_( //
     nk_e2m3_t const *data_ptr, nk_size_t count,                        //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
-    // 64-byte LUT: maps 5-bit unsigned magnitude -> value*16 as u8 (0..120)
+    // 64-byte LUT: maps 5-bit unsigned magnitude → value × 16 as u8 (0..120)
     // Entries 0-31 replicated in upper 32 bytes (VPERMB indexes mod 64)
     __m512i const lut_magnitude_u8x64 = _mm512_set_epi8(120, 112, 104, 96, 88, 80, 72, 64, 60, 56, 52, 48, 44, 40, 36,
                                                         32, 30, 28, 26, 24, 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2, 0,
@@ -432,7 +432,7 @@ NUMKONG_API_COMPTIME void nk_reduce_moments_e2m3_icelake(               //
 NUMKONG_HELPER_INLINE void nk_reduce_moments_e3m2_icelake_contiguous_( //
     nk_e3m2_t const *data_ptr, nk_size_t count,                        //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
-    // 32-entry i16 LUT: maps 5-bit unsigned magnitude -> value*16 as i16 (0..448)
+    // 32-entry i16 LUT: maps 5-bit unsigned magnitude → value × 16 as i16 (0..448)
     __m512i const lut_magnitude_i16x32 = _mm512_set_epi16(448, 384, 320, 256, 224, 192, 160, 128, 112, 96, 80, 64, 56,
                                                           48, 40, 32, 28, 24, 20, 16, 14, 12, 10, 8, 7, 6, 5, 4, 3, 2,
                                                           1, 0);
@@ -443,7 +443,7 @@ NUMKONG_HELPER_INLINE void nk_reduce_moments_e3m2_icelake_contiguous_( //
     __m512i sumsq_i32x16 = _mm512_setzero_si512();
     nk_size_t idx = 0;
     for (; idx + 32 <= count; idx += 32) {
-        // Load 32 bytes, widen u8->u16
+        // Load 32 bytes, widen u8 → u16
         __m256i data_u8x32 = _mm256_loadu_si256((__m256i const *)(data_ptr + idx));
         __m512i data_u16x32 = _mm512_cvtepu8_epi16(data_u8x32);
         // Extract 5-bit magnitude, VPERMW LUT lookup
@@ -453,9 +453,9 @@ NUMKONG_HELPER_INLINE void nk_reduce_moments_e3m2_icelake_contiguous_( //
         __mmask32 sign_m32 = _mm512_test_epi16_mask(data_u16x32, sign_mask_i16x32);
         __m512i signed_mag_i16x32 = _mm512_mask_sub_epi16(unsigned_mag_i16x32, sign_m32, _mm512_setzero_si512(),
                                                           unsigned_mag_i16x32);
-        // Sum: VPMADDWD(signed_i16, ones) = sum of pairs -> i32
+        // Sum: VPMADDWD(signed_i16, ones) = sum of pairs → i32
         sum_i32x16 = _mm512_add_epi32(sum_i32x16, _mm512_madd_epi16(signed_mag_i16x32, ones_i16x32));
-        // Sumsq: VPMADDWD(unsigned_mag, unsigned_mag) = sum of pairs of squares -> i32
+        // Sumsq: VPMADDWD(unsigned_mag, unsigned_mag) = sum of pairs of squares → i32
         // max per i32: 2 * 448^2 = 401408, fits in i32
         sumsq_i32x16 = _mm512_add_epi32(sumsq_i32x16, _mm512_madd_epi16(unsigned_mag_i16x32, unsigned_mag_i16x32));
     }

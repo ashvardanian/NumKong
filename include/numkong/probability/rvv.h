@@ -228,7 +228,7 @@ NUMKONG_API_COMPTIME void nk_kld_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, n
         // Load f16 as raw u16 bits
         vuint16m1_t a_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)a, vector_length);
         vuint16m1_t b_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)b, vector_length);
-        // Convert f16 to f32 (m1 -> m2)
+        // Convert f16 to f32 (m1 → m2)
         vfloat32m2_t a_f32m2 = nk_f16m1_to_f32m2_rvv_(a_u16m1, vector_length);
         vfloat32m2_t b_f32m2 = nk_f16m1_to_f32m2_rvv_(b_u16m1, vector_length);
         // ratio = max(a, ε) / max(b, ε)
@@ -256,7 +256,7 @@ NUMKONG_API_COMPTIME void nk_kld_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b
         // Load bf16 as raw u16 bits
         vuint16m1_t a_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)a, vector_length);
         vuint16m1_t b_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)b, vector_length);
-        // Convert bf16 to f32 (m1 -> m2)
+        // Convert bf16 to f32 (m1 → m2)
         vfloat32m2_t a_f32m2 = nk_bf16m1_to_f32m2_rvv_(a_u16m1, vector_length);
         vfloat32m2_t b_f32m2 = nk_bf16m1_to_f32m2_rvv_(b_u16m1, vector_length);
         // ratio = max(a, ε) / max(b, ε)
@@ -357,7 +357,7 @@ NUMKONG_API_COMPTIME void nk_jsd_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, n
         // Load f16 as raw u16 bits
         vuint16m1_t a_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)a, vector_length);
         vuint16m1_t b_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)b, vector_length);
-        // Convert f16 to f32 (m1 -> m2)
+        // Convert f16 to f32 (m1 → m2)
         vfloat32m2_t va_f32m2 = nk_f16m1_to_f32m2_rvv_(a_u16m1, vector_length);
         vfloat32m2_t vb_f32m2 = nk_f16m1_to_f32m2_rvv_(b_u16m1, vector_length);
         // M = (a + b) / 2
@@ -395,7 +395,7 @@ NUMKONG_API_COMPTIME void nk_jsd_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b
         // Load bf16 as raw u16 bits
         vuint16m1_t a_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)a, vector_length);
         vuint16m1_t b_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)b, vector_length);
-        // Convert bf16 to f32 (m1 -> m2)
+        // Convert bf16 to f32 (m1 → m2)
         vfloat32m2_t va_f32m2 = nk_bf16m1_to_f32m2_rvv_(a_u16m1, vector_length);
         vfloat32m2_t vb_f32m2 = nk_bf16m1_to_f32m2_rvv_(b_u16m1, vector_length);
         // M = (a + b) / 2

@@ -77,7 +77,7 @@ void sparse_dot(index_type_ const *a, index_type_ const *b, weight_t const *a_we
                 std::size_t a_length, std::size_t b_length, result_type_ *product) noexcept {
     constexpr bool simd = allow_simd_ == prefer_simd_k && std::is_same_v<result_type_, typename weight_t::dot_result_t>;
 
-    // u16 indices + bf16 weights -> f32 product
+    // u16 indices + bf16 weights → f32 product
     if constexpr (std::is_same_v<index_type_, u16_t> && std::is_same_v<weight_t, bf16_t> && simd)
         nk_sparse_dot_u16bf16(&a->raw_, &b->raw_, &a_weights->raw_, &b_weights->raw_, a_length, b_length,
                               &product->raw_);

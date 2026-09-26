@@ -3512,12 +3512,12 @@ NUMKONG_API_COMPTIME void nk_dots_packed_e2m3_sapphireamx( //
             _tile_zero(6);
             _tile_zero(7);
 
-            // E2M3 always uses buffered load for E2M3 -> I8 conversion
+            // E2M3 always uses buffered load for E2M3 → I8 conversion
             for (nk_size_t depth_tile_idx = 0; depth_tile_idx < depth_tiles_count; depth_tile_idx++) {
                 nk_size_t const depth_offset = depth_tile_idx * tile_depth;
                 nk_size_t const valid_depth = (depth_tile_idx < full_depth_tiles_count) ? tile_depth : depth_remainder;
 
-                // Load A with E2M3 -> I8 conversion
+                // Load A with E2M3 → I8 conversion
                 nk_dots_e2m3_load_a_sapphireamx_(&a_tile_top, a + row_block_start * a_stride_bytes + depth_offset,
                                                  a_stride_bytes, rows_in_high_tile, valid_depth);
                 if (rows_in_low_tile > 0) {
@@ -3956,12 +3956,12 @@ NUMKONG_API_COMPTIME void nk_dots_packed_e2m1_sapphireamx(   //
             _tile_zero(6);
             _tile_zero(7);
 
-            // E2M1 always uses buffered load for E2M1 -> I8 conversion
+            // E2M1 always uses buffered load for E2M1 → I8 conversion
             for (nk_size_t depth_tile_idx = 0; depth_tile_idx < depth_tiles_count; depth_tile_idx++) {
                 nk_size_t const depth_offset = depth_tile_idx * tile_depth;
                 nk_size_t const valid_depth = (depth_tile_idx < full_depth_tiles_count) ? tile_depth : depth_remainder;
 
-                // Load A with E2M1 -> I8 conversion
+                // Load A with E2M1 → I8 conversion
                 nk_dots_e2m1_load_a_sapphireamx_(&a_tile_top, a + row_block_start * a_stride_bytes + depth_offset / 2,
                                                  a_stride_bytes, rows_in_high_tile, valid_depth);
                 if (rows_in_low_tile > 0) {
@@ -4343,12 +4343,12 @@ NUMKONG_API_COMPTIME void nk_dots_packed_e3m2_sapphireamx( //
             _tile_zero(6);
             _tile_zero(7);
 
-            // FP8 always uses buffered load for E3M2 -> BF16 conversion
+            // FP8 always uses buffered load for E3M2 → BF16 conversion
             for (nk_size_t depth_tile_idx = 0; depth_tile_idx < depth_tiles_count; depth_tile_idx++) {
                 nk_size_t const depth_offset = depth_tile_idx * tile_depth;
                 nk_size_t const valid_depth = (depth_tile_idx < full_depth_tiles_count) ? tile_depth : depth_remainder;
 
-                // Load A with FP8 -> BF16 conversion
+                // Load A with FP8 → BF16 conversion
                 nk_dots_e3m2_load_a_sapphireamx_(&a_tile_top, a + row_block_start * a_stride_bytes + depth_offset,
                                                  a_stride_bytes, rows_in_high_tile, valid_depth);
                 if (rows_in_low_tile > 0) {

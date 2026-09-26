@@ -1584,7 +1584,7 @@ NUMKONG_HELPER_INLINE void nk_dot_through_i32_finalize_haswell_(                
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
     nk_unused_(total_dimensions);
     // ILP-optimized 4-way horizontal reduction for i32 in AVX2
-    // 8->4 for all 4 states
+    // 8 → 4 for all 4 states
     __m128i sum_a_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(state_a->sum_i32x8),
                                         _mm256_extracti128_si256(state_a->sum_i32x8, 1));
     __m128i sum_b_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(state_b->sum_i32x8),

@@ -1015,7 +1015,7 @@ NUMKONG_HELPER_INLINE void nk_reduce_moments_i16_neon_contiguous_( //
         int16x8_t data_i16x8 = vld1q_s16(data_ptr + idx);
         int32x4_t sum32_i32x4 = vpaddlq_s16(data_i16x8);
         sum_i64x2 = vaddq_s64(sum_i64x2, vpaddlq_s32(sum32_i32x4));
-        // sumsq: widening multiply i16*i16 -> i32, then widen to u64
+        // sumsq: widening multiply i16 × i16 → i32, then widen to u64
         int32x4_t sq_low_i32x4 = vmull_s16(vget_low_s16(data_i16x8), vget_low_s16(data_i16x8));
         int32x4_t sq_high_i32x4 = vmull_high_s16(data_i16x8, data_i16x8);
         // i16*i16 squares are always non-negative, safe to reinterpret as u32
@@ -1554,7 +1554,7 @@ NUMKONG_HELPER_INLINE void nk_reduce_moments_i32_neon_contiguous_( //
     nk_size_t idx = 0;
     for (; idx + 4 <= count; idx += 4) {
         int32x4_t data_i32x4 = vld1q_s32(data_ptr + idx);
-        // Sum: widen i32->i64 and accumulate with carry detection
+        // Sum: widen i32 → i64 and accumulate with carry detection
         int64x2_t data_low_i64x2 = vmovl_s32(vget_low_s32(data_i32x4));
         uint64x2_t before_u64x2 = sum_low_u64x2;
         sum_low_u64x2 = vaddq_u64(sum_low_u64x2, vreinterpretq_u64_s64(data_low_i64x2));
@@ -1573,7 +1573,7 @@ NUMKONG_HELPER_INLINE void nk_reduce_moments_i32_neon_contiguous_( //
         sum_high_i64x2 = vsubq_s64(sum_high_i64x2, vreinterpretq_s64_u64(carry_u64x2));
         sum_high_i64x2 = vaddq_s64(sum_high_i64x2, vshrq_n_s64(data_high_i64x2, 63));
 
-        // Sumsq: widening multiply i32*i32 -> i64 (always non-negative for squares)
+        // Sumsq: widening multiply i32 × i32 → i64 (always non-negative for squares)
         int64x2_t squares_low_i64x2 = vmull_s32(vget_low_s32(data_i32x4), vget_low_s32(data_i32x4));
         int64x2_t squares_high_i64x2 = vmull_high_s32(data_i32x4, data_i32x4);
         uint64x2_t sq_before_u64x2 = sumsq_u64x2;
@@ -1595,7 +1595,7 @@ NUMKONG_HELPER_INLINE void nk_reduce_moments_i32_neon_contiguous_( //
     nk_u64_t sumsq;
     if (sumsq_overflow) sumsq = NUMKONG_U64_MAX;
     else sumsq = nk_reduce_sadd_u64x2_neon_(sumsq_u64x2);
-    // Sum: horizontal 128-bit reduction (2 lanes -> scalar)
+    // Sum: horizontal 128-bit reduction (2 lanes → scalar)
     nk_b128_vec_t lower_vec, upper_vec;
     lower_vec.u64x2 = sum_low_u64x2;
     upper_vec.i64x2 = sum_high_i64x2;
@@ -1971,10 +1971,10 @@ NUMKONG_HELPER_INLINE void nk_reduce_moments_u32_neon_contiguous_( //
     nk_size_t idx = 0;
     for (; idx + 4 <= count; idx += 4) {
         uint32x4_t data_u32x4 = vld1q_u32(data_ptr + idx);
-        // Widen u32 -> u64 and accumulate sum
+        // Widen u32 → u64 and accumulate sum
         sum_u64x2 = vaddq_u64(sum_u64x2, vmovl_u32(vget_low_u32(data_u32x4)));
         sum_u64x2 = vaddq_u64(sum_u64x2, vmovl_high_u32(data_u32x4));
-        // Sumsq: widening multiply u32*u32 -> u64, saturating add
+        // Sumsq: widening multiply u32 × u32 → u64, saturating add
         uint64x2_t sq_low_u64x2 = vmull_u32(vget_low_u32(data_u32x4), vget_low_u32(data_u32x4));
         uint64x2_t sq_high_u64x2 = vmull_high_u32(data_u32x4, data_u32x4);
         sumsq_u64x2 = vqaddq_u64(sumsq_u64x2, sq_low_u64x2);

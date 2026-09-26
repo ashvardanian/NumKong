@@ -51,7 +51,7 @@ NUMKONG_API_COMPTIME void nk_angular_i8_alder(nk_i8_t const *a, nk_i8_t const *b
     //
     // For angular distance we need: dot(a,b), ||a||^2, ||b||^2
     // Using dpbusd(u8, i8) for asymmetric unsigned x signed:
-    //   a' = a XOR 0x80 (signed -> unsigned), then dpbusd(a', b) = (a+128)*b
+    //   a' = a XOR 0x80 (signed → unsigned), then dpbusd(a', b) = (a+128)*b
     //   a*b = dpbusd(a',b) - 128*sum(b)
     //
     // For norms: dpbusd(a', a) = (a+128)*a, so a^2 = dpbusd(a',a) - 128*sum(a)

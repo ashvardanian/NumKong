@@ -290,7 +290,7 @@ static PyObject *implement_mesh_alignment(nk_kernel_kind_t metric_kind, PyObject
                scale_tensor->data, rmsd_tensor->data);
     }
     else {
-        // Batched case: (B, N, 3) -> rotation (B,3,3), scale (B,), rmsd (B,), centroids (B,3)
+        // Batched case: (B, N, 3) → rotation (B,3,3), scale (B,), rmsd (B,), centroids (B,3)
         Py_ssize_t rot_shape[3] = {batch_size, 3, 3};
         Py_ssize_t scalar_shape[1] = {batch_size};
         Py_ssize_t cent_shape[2] = {batch_size, 3};

@@ -39,7 +39,7 @@ NUMKONG_HELPER_INLINE void nk_reduce_moments_i8_neonsdot_contiguous_( //
         sum_i32x4 = vdotq_s32(sum_i32x4, data_i8x16, ones_i8x16);
         sumsq_i32x4 = vdotq_s32(sumsq_i32x4, data_i8x16, data_i8x16);
     }
-    // Widen i32 -> i64 and horizontal reduce
+    // Widen i32 → i64 and horizontal reduce
     int64x2_t sum_i64x2 = vpaddlq_s32(sum_i32x4);
     nk_i64_t sum = vgetq_lane_s64(sum_i64x2, 0) + vgetq_lane_s64(sum_i64x2, 1);
     uint64x2_t sumsq_u64x2 = vpaddlq_u32(vreinterpretq_u32_s32(sumsq_i32x4));
@@ -83,7 +83,7 @@ NUMKONG_HELPER_INLINE void nk_reduce_moments_i8_neonsdot_strided_(       //
             sumsq_i32x4 = vdotq_s32(sumsq_i32x4, data_i8x16, data_i8x16);
         }
     }
-    // Widen i32 -> i64 and horizontal reduce
+    // Widen i32 → i64 and horizontal reduce
     int64x2_t sum_i64x2 = vpaddlq_s32(sum_i32x4);
     nk_i64_t sum = vgetq_lane_s64(sum_i64x2, 0) + vgetq_lane_s64(sum_i64x2, 1);
     uint64x2_t sumsq_u64x2 = vpaddlq_u32(vreinterpretq_u32_s32(sumsq_i32x4));

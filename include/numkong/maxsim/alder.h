@@ -239,7 +239,7 @@ NUMKONG_HELPER_INLINE void nk_maxsim_coarse_argmax_alder_( //
                                                                         query3_biased_u8x32, document_i8x32);
             }
 
-            // Reduce each query's 4 doc accumulators -> __m128i
+            // Reduce each query's 4 doc accumulators → __m128i
             __m128i query_0_coarse_dots_i32x4 = nk_maxsim_reduce_i32x8x4_haswell_(
                 accumulator_tiles_i32x8[0][0], accumulator_tiles_i32x8[0][1], accumulator_tiles_i32x8[0][2],
                 accumulator_tiles_i32x8[0][3]);
@@ -264,7 +264,7 @@ NUMKONG_HELPER_INLINE void nk_maxsim_coarse_argmax_alder_( //
             query_2_coarse_dots_i32x4 = _mm_sub_epi32(query_2_coarse_dots_i32x4, bias_correction_i32x4);
             query_3_coarse_dots_i32x4 = _mm_sub_epi32(query_3_coarse_dots_i32x4, bias_correction_i32x4);
 
-            // 4x4 transpose: [query][doc] -> [doc][query] for vectorized argmax
+            // 4x4 transpose: [query][doc] → [doc][query] for vectorized argmax
             __m128i transpose_queries_01_low_i32x4 = _mm_unpacklo_epi32(query_0_coarse_dots_i32x4,
                                                                         query_1_coarse_dots_i32x4);
             __m128i transpose_queries_23_low_i32x4 = _mm_unpacklo_epi32(query_2_coarse_dots_i32x4,

@@ -143,7 +143,7 @@ NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_haswell( //
 NUMKONG_HELPER_INLINE __m128i nk_maxsim_reduce_i32x8x4_haswell_( //
     __m256i accumulator_a_i32x8, __m256i accumulator_b_i32x8,    //
     __m256i accumulator_c_i32x8, __m256i accumulator_d_i32x8) {
-    // 8 -> 4 (extract high 128-bit half and add to low half)
+    // 8 → 4 (extract high 128-bit half and add to low half)
     __m128i sum_a_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(accumulator_a_i32x8),
                                         _mm256_extracti128_si256(accumulator_a_i32x8, 1));
     __m128i sum_b_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(accumulator_b_i32x8),
@@ -152,7 +152,7 @@ NUMKONG_HELPER_INLINE __m128i nk_maxsim_reduce_i32x8x4_haswell_( //
                                         _mm256_extracti128_si256(accumulator_c_i32x8, 1));
     __m128i sum_d_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(accumulator_d_i32x8),
                                         _mm256_extracti128_si256(accumulator_d_i32x8, 1));
-    // 4x4 transpose + reduce -> [sum_a, sum_b, sum_c, sum_d]
+    // 4x4 transpose + reduce → [sum_a, sum_b, sum_c, sum_d]
     __m128i transpose_ab_low_i32x4 = _mm_unpacklo_epi32(sum_a_i32x4, sum_b_i32x4);
     __m128i transpose_cd_low_i32x4 = _mm_unpacklo_epi32(sum_c_i32x4, sum_d_i32x4);
     __m128i transpose_ab_high_i32x4 = _mm_unpackhi_epi32(sum_a_i32x4, sum_b_i32x4);
@@ -276,7 +276,7 @@ NUMKONG_HELPER_INLINE void nk_maxsim_coarse_argmax_haswell_( //
                 accumulator_tiles_i32x8[3][3] = _mm256_add_epi32(accumulator_tiles_i32x8[3][3], products_i32x8);
             }
 
-            // Reduce each query's 4 doc accumulators -> __m128i
+            // Reduce each query's 4 doc accumulators → __m128i
             __m128i query_0_coarse_dots_i32x4 = nk_maxsim_reduce_i32x8x4_haswell_(
                 accumulator_tiles_i32x8[0][0], accumulator_tiles_i32x8[0][1], accumulator_tiles_i32x8[0][2],
                 accumulator_tiles_i32x8[0][3]);
@@ -301,7 +301,7 @@ NUMKONG_HELPER_INLINE void nk_maxsim_coarse_argmax_haswell_( //
             query_2_coarse_dots_i32x4 = _mm_sub_epi32(query_2_coarse_dots_i32x4, bias_correction_i32x4);
             query_3_coarse_dots_i32x4 = _mm_sub_epi32(query_3_coarse_dots_i32x4, bias_correction_i32x4);
 
-            // 4x4 transpose: [query][doc] -> [doc][query] for vectorized argmax
+            // 4x4 transpose: [query][doc] → [doc][query] for vectorized argmax
             __m128i transpose_queries_01_low_i32x4 = _mm_unpacklo_epi32(query_0_coarse_dots_i32x4,
                                                                         query_1_coarse_dots_i32x4);
             __m128i transpose_queries_23_low_i32x4 = _mm_unpacklo_epi32(query_2_coarse_dots_i32x4,

@@ -64,10 +64,10 @@ void measure_each(bm::State &state, kernel_type_ kernel, std::size_t dimensions)
     alpha_t beta = alpha_t(0.3f);
 
     // Preallocate vectors for different kernel types:
-    // - sum: input_a, input_c -> output
-    // - blend: input_a, input_c + alpha, beta -> output
-    // - fma: input_a, input_b, input_c + alpha, beta -> output
-    // - scale: input_a + alpha, beta -> output
+    // - sum: input_a, input_c → output
+    // - blend: input_a, input_c + alpha, beta → output
+    // - fma: input_a, input_b, input_c + alpha, beta → output
+    // - scale: input_a + alpha, beta → output
     std::size_t bytes_per_set = bench_dtype_bytes(input_dtype_, 4 * dimensions);
     std::size_t const vectors_count = bench_input_count(bytes_per_set);
     std::vector<input_vector_t> input_a(vectors_count), input_b(vectors_count);

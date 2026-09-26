@@ -109,7 +109,7 @@ NUMKONG_API_COMPTIME void nk_hamming_u8_haswell(nk_u8_t const *a, nk_u8_t const 
     // - `_mm_popcnt_u64`:       p1 only, 3cy latency, 1cy throughput (bottleneck)
     //
     // For counting mismatches, we XOR and popcount the resulting bits set to 1.
-    // Alternative: compare -> movemask -> popcount, but movemask only works per-byte MSBs.
+    // Alternative: compare → movemask → popcount, but movemask only works per-byte MSBs.
     // XOR approach: each differing byte produces 0xFF (8 bits set), need to count bytes not bits.
 
     nk_u32_t differences = 0;
@@ -151,7 +151,7 @@ NUMKONG_API_COMPTIME void nk_jaccard_u16_haswell(nk_u16_t const *a, nk_u16_t con
     // Haswell port analysis:
     // - `_mm256_loadu_si256`:   p23, 1cy latency (load)
     // - `_mm256_cmpeq_epi16`:   p015, 1cy latency, 0.33cy throughput
-    // - `_mm256_packs_epi16`:   p5, 1cy latency, 1cy throughput (pack 16->8 bit)
+    // - `_mm256_packs_epi16`:   p5, 1cy latency, 1cy throughput (pack 16 → 8 bit)
     // - `_mm_movemask_epi8`:    p0, 3cy latency (extracts MSB of each byte)
     // - `_mm_popcnt_u32`:       p1 only, 3cy latency, 1cy throughput
 
@@ -168,7 +168,7 @@ NUMKONG_API_COMPTIME void nk_jaccard_u16_haswell(nk_u16_t const *a, nk_u16_t con
 
         // Pack 16-bit results to 8-bit to use movemask efficiently.
         // _mm256_packs_epi16 saturates signed 16-bit to signed 8-bit:
-        // 0xFFFF (-1) -> 0x80 (-128), 0x0000 (0) -> 0x00 (0)
+        // 0xFFFF (-1) → 0x80 (-128), 0x0000 (0) → 0x00 (0)
         // Note: packs interleaves lanes, so we need to handle the permutation.
         // For counting, we just need the total popcount, so lane order doesn't matter.
         __m256i packed_i8x32 = _mm256_packs_epi16(equality_u16x16, equality_u16x16);

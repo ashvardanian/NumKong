@@ -1045,7 +1045,7 @@ NUMKONG_API_COMPTIME void nk_cast_neon(void const *from, nk_dtype_t from_type, n
                  to_type == nk_u8_k || to_type == nk_i16_k || to_type == nk_u16_k || to_type == nk_i32_k ||
                  to_type == nk_u32_k);
 
-    // Fall back to serial for unsupported or i32<->u32 (loses precision through f32)
+    // Fall back to serial for unsupported or i32 ↔ u32 (loses precision through f32)
     if (!from_ok || !to_ok || (from_type == nk_i32_k && to_type == nk_u32_k) ||
         (from_type == nk_u32_k && to_type == nk_i32_k)) {
         nk_cast_serial(from, from_type, n, to, to_type);

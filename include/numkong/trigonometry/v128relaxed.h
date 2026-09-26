@@ -68,13 +68,11 @@ NUMKONG_HELPER_INLINE v128_t nk_f32x4_sin_v128relaxed_(v128_t const angles_radia
     v128_t multiples_of_pi_f32x4 = wasm_i32x4_relaxed_trunc_f32x4(rounded_quotients_f32x4);
 
     // Reduce the angle: angle - rounded_quotients_f32x4 * pi_f32x4
-    // vfmsq_f32(acc, a, b) = acc - a*b -> wasm_f32x4_relaxed_nmadd(a, b, acc)
     v128_t const angles_f32x4 = wasm_f32x4_relaxed_nmadd(rounded_quotients_f32x4, pi_f32x4, angles_radians);
     v128_t const angles_sq_f32x4 = wasm_f32x4_mul(angles_f32x4, angles_f32x4);
     v128_t const angles_cubed_f32x4 = wasm_f32x4_mul(angles_f32x4, angles_sq_f32x4);
 
     // Compute the polynomial approximation
-    // vfmaq_f32(acc, a, b) = acc + a*b -> wasm_f32x4_relaxed_madd(a, b, acc)
     v128_t polynomials_f32x4 = coeff_5_f32x4;
     polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, angles_sq_f32x4, coeff_3_f32x4);
     polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, angles_sq_f32x4, coeff_1_f32x4);
@@ -286,7 +284,7 @@ NUMKONG_HELPER_INLINE v128_t nk_f64x2_sin_v128relaxed_(v128_t const angles_radia
     // Check parity in i32, then widen to i64 mask for laneselect
     v128_t parity_i32_i32x4 = wasm_v128_and(multiples_i32_f64x2, wasm_i32x4_splat(1));
     v128_t odd_i32_i32x4 = wasm_i32x4_eq(parity_i32_i32x4, wasm_i32x4_splat(1));
-    // Widen: lane0 of i32 -> lanes 0-1 of i64, lane1 -> lanes 2-3
+    // Widen: lane0 of i32 → lanes 0-1 of i64, lane1 → lanes 2-3.
     // Shuffle i32 lanes [0,0,1,1] to broadcast each i32 parity into both halves of each i64
     v128_t odd_mask_i32x4 = wasm_i32x4_shuffle(odd_i32_i32x4, odd_i32_i32x4, 0, 0, 1, 1);
     v128_t negated_angles_f64x2 = wasm_f64x2_neg(angles_f64x2);

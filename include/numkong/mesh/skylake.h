@@ -132,9 +132,9 @@ NUMKONG_HELPER_INLINE void nk_mesh_streaming_stats_f32_skylake_( //
     // Per-channel gather indices packing the 5 contributing fp64 lanes (across both halves)
     // into lanes 0..4 of the output, with lanes 5..7 zeroed by maskz so the subsequent
     // _mm512_reduce_add_pd is exact without needing a mask-reduce variant.
-    //    x -> low {0,3,6} + high {1,4}  = idx [0, 3, 6, 9, 12, _, _, _]
-    //    y -> low {1,4,7} + high {2,5}  = idx [1, 4, 7, 10, 13, _, _, _]
-    //    z -> low {2,5}   + high {0,3,6} = idx [2, 5, 8, 11, 14, _, _, _]
+    //    x → low {0,3,6} + high {1,4}  = indices [0, 3, 6, 9, 12, _, _, _]
+    //    y → low {1,4,7} + high {2,5}  = indices [1, 4, 7, 10, 13, _, _, _]
+    //    z → low {2,5}   + high {0,3,6} = indices [2, 5, 8, 11, 14, _, _, _]
     __m512i const idx_channel_x_i64x8 = _mm512_setr_epi64(0, 3, 6, 9, 12, 0, 0, 0);
     __m512i const idx_channel_y_i64x8 = _mm512_setr_epi64(1, 4, 7, 10, 13, 0, 0, 0);
     __m512i const idx_channel_z_i64x8 = _mm512_setr_epi64(2, 5, 8, 11, 14, 0, 0, 0);
@@ -243,7 +243,7 @@ NUMKONG_HELPER_INLINE void nk_mesh_streaming_stats_f32_skylake_( //
     sum_b_out[2] = _mm512_reduce_add_pd(sum_b_z_f64x8);
 
     // H cells: a-channel picks which demux mask applies; prod-vector picks which b-channel the
-    // product pairs a with (diag -> same, rot1 -> +1, rot2 -> +2 mod 3).
+    // product pairs a with (diag → same, rot1 → +1, rot2 → +2 mod 3).
     __m512d product_diagonal_x_f64x8 = _mm512_maskz_permutex2var_pd( //
         channel_lanes_m8, product_diagonal_low_f64x8, idx_channel_x_i64x8, product_diagonal_high_f64x8);
     __m512d product_diagonal_y_f64x8 = _mm512_maskz_permutex2var_pd( //

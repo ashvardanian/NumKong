@@ -907,8 +907,8 @@ NUMKONG_HELPER_INLINE void nk_dot_f32x8_finalize_skylake(                       
     nk_dot_f32x8_state_skylake_t const *state_c, nk_dot_f32x8_state_skylake_t const *state_d, //
     nk_size_t total_dimensions, nk_b256_vec_t *result) {
     nk_unused_(total_dimensions);
-    // ILP-optimized 4-way horizontal reduction for f64
-    // 8->4 for all 4 states (extract high 256-bit half and add to low half)
+    // ILP-optimized 4-way horizontal reduction for f64.
+    // 8 → 4 for all 4 states (extract high 256-bit half and add to low half)
     __m256d sum_a_f64x4 = _mm256_add_pd(_mm512_castpd512_pd256(state_a->sum_f64x8),
                                         _mm512_extractf64x4_pd(state_a->sum_f64x8, 1));
     __m256d sum_b_f64x4 = _mm256_add_pd(_mm512_castpd512_pd256(state_b->sum_f64x8),
@@ -917,7 +917,7 @@ NUMKONG_HELPER_INLINE void nk_dot_f32x8_finalize_skylake(                       
                                         _mm512_extractf64x4_pd(state_c->sum_f64x8, 1));
     __m256d sum_d_f64x4 = _mm256_add_pd(_mm512_castpd512_pd256(state_d->sum_f64x8),
                                         _mm512_extractf64x4_pd(state_d->sum_f64x8, 1));
-    // 4->2 for all 4 states (extract high 128-bit half and add to low half)
+    // 4 → 2 for all 4 states (extract high 128-bit half and add to low half)
     __m128d sum_a_f64x2 = _mm_add_pd(_mm256_castpd256_pd128(sum_a_f64x4), _mm256_extractf128_pd(sum_a_f64x4, 1));
     __m128d sum_b_f64x2 = _mm_add_pd(_mm256_castpd256_pd128(sum_b_f64x4), _mm256_extractf128_pd(sum_b_f64x4, 1));
     __m128d sum_c_f64x2 = _mm_add_pd(_mm256_castpd256_pd128(sum_c_f64x4), _mm256_extractf128_pd(sum_c_f64x4, 1));

@@ -2592,10 +2592,10 @@ PyObject *Tensor_astype(PyObject *self, PyObject *const *args, Py_ssize_t nargs,
         return out_obj;
     }
 
-    // Block-scaled target -> quantize into a ScaledTensor.
+    // Block-scaled target → quantize into a ScaledTensor.
     if (nk_dtype_is_block_scaled(target_dtype)) return Tensor_encode_block_scaled(tensor, target_dtype);
 
-    // Same dtype -> return copy
+    // Same dtype → return copy
     if (target_dtype == tensor->dtype) return Tensor_copy(self, NULL, 0, NULL);
 
     // Compute total elements

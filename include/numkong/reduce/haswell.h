@@ -362,14 +362,14 @@ NUMKONG_HELPER_INLINE __m256i nk_u64_sadd_epi64_haswell_(__m256i a_u64x4, __m256
     __m256i a_biased_i64x4 = _mm256_xor_si256(a_u64x4, sign_bit_i64x4);
     __m256i result_biased_i64x4 = _mm256_xor_si256(result_u64x4, sign_bit_i64x4);
     __m256i overflow_u64x4 = _mm256_cmpgt_epi64(a_biased_i64x4, result_biased_i64x4);
-    return _mm256_or_si256(result_u64x4, overflow_u64x4); // overflow lanes -> all-ones = U64_MAX
+    return _mm256_or_si256(result_u64x4, overflow_u64x4); // overflow lanes → all-ones = U64_MAX
 }
 
 NUMKONG_HELPER_INLINE __m256i nk_i64_smul_sq_epi64_haswell_(__m256i value_i64x4) {
     // abs(val) — AVX2 lacks _mm256_abs_epi64, emulate:
     __m256i sign_i64x4 = _mm256_cmpgt_epi64(_mm256_setzero_si256(), value_i64x4);
     __m256i abs_value_u64x4 = _mm256_sub_epi64(_mm256_xor_si256(value_i64x4, sign_i64x4), sign_i64x4);
-    // Extract low 32 bits and square: _mm256_mul_epu32 multiplies even 32-bit lanes -> 64-bit
+    // Extract low 32 bits and square: _mm256_mul_epu32 multiplies even 32-bit lanes → 64-bit
     __m256i low_halves_u32x4 = _mm256_and_si256(abs_value_u64x4, _mm256_set1_epi64x(0xFFFFFFFF));
     __m256i low_sq_u64x4 = _mm256_mul_epu32(low_halves_u32x4, low_halves_u32x4);
     // Check if high 32 bits are zero (value fits in 32 bits)
@@ -390,7 +390,7 @@ NUMKONG_HELPER_INLINE __m256i nk_u64_smul_sq_epi64_haswell_(__m256i value_u64x4)
 }
 
 NUMKONG_HELPER_INLINE nk_u64_t nk_reduce_sadd_u64x4_haswell_(__m256i v_u64x4) {
-    // 4->2: fold high 128 into low 128
+    // 4 → 2: fold high 128 into low 128
     __m128i high_u64x2 = _mm256_extracti128_si256(v_u64x4, 1);
     __m128i low_u64x2 = _mm256_castsi256_si128(v_u64x4);
     __m128i sum_u64x2 = _mm_add_epi64(low_u64x2, high_u64x2);
@@ -399,7 +399,7 @@ NUMKONG_HELPER_INLINE nk_u64_t nk_reduce_sadd_u64x4_haswell_(__m256i v_u64x4) {
     __m128i sum_biased_i64x2 = _mm_xor_si128(sum_u64x2, sign_bit_i64x2);
     __m128i overflow_u64x2 = _mm_cmpgt_epi64(low_biased_i64x2, sum_biased_i64x2);
     sum_u64x2 = _mm_or_si128(sum_u64x2, overflow_u64x2);
-    // 2->1: fold lane 1 into lane 0
+    // 2 → 1: fold lane 1 into lane 0
     __m128i swapped_u64x2 = _mm_unpackhi_epi64(sum_u64x2, sum_u64x2);
     __m128i final_u64x2 = _mm_add_epi64(sum_u64x2, swapped_u64x2);
     __m128i sum2_biased_i64x2 = _mm_xor_si128(sum_u64x2, sign_bit_i64x2);

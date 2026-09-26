@@ -331,13 +331,13 @@ mod tests {
         let cap0 = kv.capacity();
         assert!(cap0 > 0);
 
-        // Same geometry repacked in place -> allocation reused, capacity unchanged.
+        // Same geometry repacked in place → allocation reused, capacity unchanged.
         kv.try_pack_into(&small.view(), &small.view(), head_dim, &small_off)
             .unwrap();
         assert_eq!(kv.capacity(), cap0, "same-size repack must reuse the buffer");
         assert_eq!(kv.tokens(), 10);
 
-        // Larger geometry -> capacity grows, never shrinks.
+        // Larger geometry → capacity grows, never shrinks.
         kv.try_pack_into(&big.view(), &big.view(), head_dim, &big_off).unwrap();
         assert!(kv.capacity() >= cap0, "grow must not shrink capacity");
         assert_eq!(kv.tokens(), 24);

@@ -98,7 +98,7 @@ NUMKONG_API_COMPTIME void nk_mahalanobis_bf16_neonbfdot(nk_bf16_t const *a, nk_b
         float32x4_t inner_sum_f32x4 = vdupq_n_f32(0);
         nk_size_t j = 0;
 
-        // Process 4 elements at a time (convert bf16->f32, subtract, then FMA)
+        // Process 4 elements at a time (convert bf16 → f32, subtract, then FMA)
         for (; j + 4 <= n; j += 4) {
             bfloat16x4_t a_j_bf16x4 = vld1_bf16((nk_bf16_for_arm_simd_t const *)(a + j));
             bfloat16x4_t b_j_bf16x4 = vld1_bf16((nk_bf16_for_arm_simd_t const *)(b + j));
