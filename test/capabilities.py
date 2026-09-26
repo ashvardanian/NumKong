@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Test SIMD capability reporting: nk.get_capabilities_{detected,compiled,available,enabled}.
+"""Test CPU capability reporting and narrowing: nk.capabilities_{detected,compiled,enabled,enable}.
 
 Capabilities are reported along two independent axes — `detected` (what this CPU can execute)
-and `compiled` (what the ISA probes baked into this build) — plus `available` (their
-intersection) and `enabled` (the subset dispatch is restricted to).
+and `compiled` (what the ISA probes baked into this build) — plus `enabled` (what dispatch uses,
+their intersection unless narrowed by `capabilities_enable`).
 
 Conflating the axes is a silent performance cliff rather than a build error, which is how
 SIMD-free wheels once shipped with every check green: `detected` is true of the machine no
@@ -23,21 +23,16 @@ import pytest
 import numkong as nk
 
 
-BASELINE_BY_MACHINE: dict[tuple[str, ...], str] = {
-    ("x86_64", "amd64", "x64"): "haswell",
-    ("arm64", "aarch64"): "neon",
+BASELINE_BY_MACHINE: dict[tuple[str, ...], nk.Capability] = {
+    ("x86_64", "amd64", "x64"): nk.Capability.HASWELL,
+    ("arm64", "aarch64"): nk.Capability.NEON,
 }
 """The ISA every supported toolchain emits for a given 64-bit architecture. A machine that detects
 one of these but did not compile it in has a broken probe, not a slow CPU.
 """
 
 
-def enabled_names(capabilities: dict[str, bool]) -> set[str]:
-    """Names of the capabilities set to True."""
-    return {name for name, on in capabilities.items() if on}
-
-
-def baseline_for_this_machine() -> str | None:
+def baseline_for_this_machine() -> nk.Capability | None:
     """The ISA this machine is expected to carry, or None where none is guaranteed."""
     if not sys.maxsize > 2**32:
         return None  # 32-bit targets (i686, armv7) have no guaranteed baseline
@@ -48,10 +43,18 @@ def baseline_for_this_machine() -> str | None:
     return None
 
 
-def test_capability_names_are_complete():
-    """Every accessor reports the same key set.
+@pytest.fixture(autouse=True)
+def restore_enabled_capabilities():
+    """Restores the enabled set each test found, which `keep_one_capability` caches across tests."""
+    enabled = nk.capabilities_enabled()
+    yield
+    nk.capabilities_enable(enabled)
 
-    A name missing here means the binding's name table drifted from the `nk_cap_*_k` bits.
+
+def test_capability_members_are_the_cpu_tiers():
+    """`Capability` has one member per CPU tier and none for the GPU tiers.
+
+    A name missing here means the names drifted from the `nk_cap_*_k` bits.
     """
     # fmt: off
     expected = [
@@ -66,28 +69,19 @@ def test_capability_names_are_complete():
         "loongsonasx", "powervsx", "v128", "v128relaxed",
     ]
     # fmt: on
-    accessors = (
-        nk.get_capabilities_detected,
-        nk.get_capabilities_compiled,
-        nk.get_capabilities_available,
-        nk.get_capabilities_enabled,
-    )
-    for accessor in accessors:
-        reported = accessor()
-        for name in expected:
-            assert name in reported, f"'{name}' missing from {accessor.__name__}()"
+    assert sorted(nk.Capability.__members__) == sorted(name.upper() for name in expected)
 
 
-def test_axes_are_independent_and_derived_sets_follow():
-    """`available` is exactly the intersection, and `enabled` never escapes it."""
-    detected = enabled_names(nk.get_capabilities_detected())
-    compiled = enabled_names(nk.get_capabilities_compiled())
-    available = enabled_names(nk.get_capabilities_available())
-    enabled = enabled_names(nk.get_capabilities_enabled())
+def test_enabling_everything_keeps_what_runs_here():
+    """Asking for every tier leaves exactly the ones both detected and compiled, serial included.
 
-    assert available == detected & compiled, "available must be exactly detected & compiled"
-    assert enabled <= available, f"dispatch may not reach unavailable kernels: {enabled - available}"
-    assert "serial" in available, "the serial fallback is always both detected and compiled in"
+    Without the clamp, enabling an ISA that was compiled in but that this CPU lacks points
+    dispatch at instructions the hardware refuses to execute.
+    """
+    detected, compiled = nk.capabilities_detected(), nk.capabilities_compiled()
+    enabled = nk.capabilities_enable(detected | compiled)
+    assert enabled == detected & compiled == nk.capabilities_enabled()
+    assert nk.Capability.SERIAL in enabled, "the serial fallback is always both detected and compiled in"
 
 
 def test_compiled_covers_the_baseline_this_machine_detects():
@@ -103,53 +97,27 @@ def test_compiled_covers_the_baseline_this_machine_detects():
     baseline = baseline_for_this_machine()
     if baseline is None:
         pytest.skip(f"no SIMD baseline is guaranteed on {platform.machine()}")
-    if not nk.get_capabilities_detected().get(baseline):
-        pytest.skip(f"this CPU does not report {baseline}; nothing to verify")
+    if baseline not in nk.capabilities_detected():
+        pytest.skip(f"this CPU does not report {baseline.name}; nothing to verify")
 
-    assert nk.get_capabilities_compiled().get(baseline), (
-        f"this CPU reports {baseline} but no {baseline} kernels were compiled in — "
+    assert baseline in nk.capabilities_compiled(), (
+        f"this CPU reports {baseline.name} but no {baseline.name} kernels were compiled in — "
         f"the ISA probes failed at build time and this build is scalar"
     )
 
 
-def test_enable_and_disable_move_a_capability_in_and_out():
-    """`enable` and `disable` move a capability across the enabled set."""
-    candidates = sorted(enabled_names(nk.get_capabilities_available()) - {"serial"})
-    if not candidates:
-        pytest.skip("scalar build: no capability other than serial to toggle")
+def test_enable_drops_the_tiers_left_out():
+    """`capabilities_enable` makes `wanted` the enabled set, so a tier left out stops dispatching."""
+    available = nk.capabilities_detected() & nk.capabilities_compiled()
+    tiers = [tier for tier in nk.Capability if tier in available and tier != nk.Capability.SERIAL]
+    if not tiers:
+        pytest.skip("scalar build: no tier other than serial to toggle")
 
-    capability = candidates[0]
-    nk.disable_capability(capability)
-    assert capability not in enabled_names(nk.get_capabilities_enabled())
-    nk.enable_capability(capability)
-    assert capability in enabled_names(nk.get_capabilities_enabled())
-
-
-def test_enabling_an_unavailable_capability_is_a_no_op():
-    """Enabling what this build cannot run must not reach dispatch.
-
-    Without the clamp, enabling an ISA that was compiled in but that this CPU lacks points
-    dispatch at instructions the hardware refuses to execute.
-    """
-    available = enabled_names(nk.get_capabilities_available())
-    unavailable = sorted(enabled_names(nk.get_capabilities_compiled()) - available)
-    if not unavailable:
-        pytest.skip("every compiled capability is available here; nothing to clamp")
-
-    for capability in unavailable:
-        nk.enable_capability(capability)
-        assert capability not in enabled_names(nk.get_capabilities_enabled()), (
-            f"'{capability}' is not available here, so enabling it must not reach dispatch"
-        )
+    enabled = nk.capabilities_enable(available ^ tiers[0])
+    assert tiers[0] not in enabled and enabled == nk.capabilities_enabled()
+    assert nk.capabilities_enable(available) == available
 
 
-def test_serial_survives_disabling_everything_else():
+def test_serial_survives_enabling_nothing():
     """The serial fallback always remains, so a kernel is always found."""
-    others = sorted(enabled_names(nk.get_capabilities_available()) - {"serial"})
-    try:
-        for capability in others:
-            nk.disable_capability(capability)
-        assert "serial" in enabled_names(nk.get_capabilities_enabled())
-    finally:
-        for capability in others:
-            nk.enable_capability(capability)
+    assert nk.capabilities_enable(nk.Capability(0)) == nk.Capability.SERIAL

@@ -215,37 +215,34 @@ test(`[${runtime}] Euclidean distance`, () => {
 });
 
 test(`[${runtime}] Capability detection`, () => {
-  // Test that each capability axis returns a bigint
-  if (typeof numkong.getCapabilitiesAvailable === "function") {
-    const caps = numkong.getCapabilitiesAvailable();
-    assert(typeof caps === "bigint", "getCapabilitiesAvailable should return bigint");
-    console.log(`  Available capabilities: 0x${caps.toString(16)}`);
+  const { Capability } = numkong;
+  const detected = numkong.capabilitiesDetected();
+  const compiled = numkong.capabilitiesCompiled();
+  const enabled = numkong.capabilitiesEnabled();
+  console.log(`  Enabled capabilities: 0x${enabled.toString(16)}`);
+  assert.strictEqual(enabled, detected & compiled, "enabled must default to detected & compiled");
+  assert.strictEqual(enabled & Capability.serial, Capability.serial, "serial must always be enabled");
 
-    // `available` is the intersection, so it can never exceed either axis it derives from.
-    const detected = numkong.getCapabilitiesDetected();
-    const compiled = numkong.getCapabilitiesCompiled();
-    assert(caps === (detected & compiled), "available must equal detected & compiled");
+  // Names come from the C library at load: one per CPU tier, none for the GPU tiers from bit 42 up.
+  assert(Object.isFrozen(Capability), "Capability must be frozen");
+  assert.strictEqual(Capability.v128, 1n << 41n);
+  assert.strictEqual(Capability.ampere, undefined);
 
-    // Test the hasCapability helper
-    if (typeof numkong.hasCapability === "function") {
-      // Serial fallback should always be present
-      assert(numkong.hasCapability(1n << 0n), "SERIAL capability should be present");
+  // Narrowing to nothing keeps serial, and asking for everything restores the default set.
+  assert.strictEqual(numkong.capabilitiesEnable(0n), Capability.serial);
+  assert.strictEqual(numkong.capabilitiesEnabled(), Capability.serial);
+  assert.strictEqual(numkong.capabilitiesEnable(~0n), enabled);
+
+  // Every engine in the support matrix validates the SIMD128 probe; relaxed SIMD varies by engine.
+  if (runtime !== "native") {
+    assert.strictEqual(detected & Capability.v128, Capability.v128, "detected must include v128 on every WASM runtime");
+    if (WebAssembly.validate(relaxedProbe)) {
+      assert.strictEqual(
+        detected & Capability.v128relaxed,
+        Capability.v128relaxed,
+        "detected must include v128relaxed where the engine validates the relaxed probe",
+      );
     }
-
-    // Every engine in the support matrix validates the SIMD128 probe; relaxed SIMD depends on the engine.
-    if (runtime !== "native") {
-      const v128 = 1n << 41n;
-      const v128relaxed = 1n << 16n;
-      assert((detected & v128) === v128, "detected must include V128 on every WASM runtime");
-      if (WebAssembly.validate(relaxedProbe)) {
-        assert(
-          (detected & v128relaxed) === v128relaxed,
-          "detected must include V128RELAXED where the engine validates the relaxed probe",
-        );
-      }
-    }
-  } else {
-    console.log(`  Capability accessors not available in ${runtime} mode`);
   }
 });
 

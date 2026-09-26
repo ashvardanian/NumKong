@@ -451,28 +451,29 @@ For one-off parallel work without a pool, you can still use `ConfigureThread` di
 
 ```go
 go func() {
-	unlock := nk.ConfigureThread() // lock thread + configure SIMD
-	defer unlock()                 // release the OS thread on return
+	unlock := nk.ConfigureThread(nk.CapabilitiesEnabled()) // lock thread + configure SIMD
+	defer unlock()                                         // release the OS thread on return
 	nk.DotsPackedF32(queries, dbPacked, results, height)
 }()
 ```
 
 ## Thread Configuration and Capabilities
 
-`ConfigureThread` pins the current goroutine to an OS thread via `runtime.LockOSThread`, enables CPU-specific acceleration features such as Intel AMX, then returns an unlock function.
+`ConfigureThread` pins the current goroutine to an OS thread via `runtime.LockOSThread`, enables the CPU-specific state the given capabilities need, such as Intel AMX tiles, then returns an unlock function.
 Goroutines can migrate between OS threads, so thread-local state (AMX tiles) would be lost without pinning.
 
 ```go
-unlock := nk.ConfigureThread()          // auto-detect capabilities, lock thread
-// or: unlock := nk.ConfigureThreadWith(caps) // narrow to an explicit capability mask
-defer unlock()                          // release the OS thread on return
-caps := nk.CapabilitiesAvailable()      // what can actually run here
+unlock := nk.ConfigureThread(nk.CapabilitiesEnabled()) // lock thread, configure what dispatch uses
+defer unlock()                                         // release the OS thread on return
+
+enabled := nk.CapabilitiesEnabled()         // what dispatch uses: detected on this CPU and compiled in
+fmt.Println(enabled)                        // like "serial,neon,neonhalf,neonfhm,neonsdot"
+fmt.Println(enabled.Has(nk.CapNeon))        // test one tier
+nk.CapabilitiesEnable(enabled &^ nk.CapSme) // narrow dispatch, returns what took effect
 ```
 
-`ConfigureThread` returns the unlock function, so capture it and defer the call: `unlock := nk.ConfigureThread(); defer unlock()`.
-
-`ConfigureThreadWith` lets you narrow the enabled feature set.
-The package also exposes capability bit constants, like `CapSerial`, `CapNeon`, `CapHaswell`, `CapSkylake`, `CapSapphire`, `CapSapphireAmx`, and `CapSme`.
+`CapabilitiesDetected` and `CapabilitiesCompiled` report the two raw axes, what this CPU executes and what this binary contains.
+Every tier is a typed `Capability` constant, like `CapSerial`, `CapNeon`, `CapHaswell`, `CapSkylake`, `CapSapphire`, `CapSapphireAmx`, and `CapSme`.
 These are useful for logging the active platform or gating optional benchmark paths.
 
 ## cGo Integration Notes

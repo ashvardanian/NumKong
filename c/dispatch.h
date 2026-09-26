@@ -507,7 +507,7 @@ typedef struct {
     int (*e2m3_order)(nk_e2m3_t, nk_e2m3_t);
 
     /**
-     *  @brief  The capabilities this table was built from, and the set @c nk_find_kernel_punned
+     *  @brief The capabilities this table was built from, and the set @c nk_cpu_find_kernel_punned
      *      searches. Lives inside the table so the two cannot drift.
      *
      *  Zero until the table is built. A built table always retains @b nk_cap_serial_k, so zero

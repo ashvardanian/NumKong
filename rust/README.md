@@ -11,10 +11,10 @@ That matters for fp16, bf16, fp8, packed bits, and strided reductions.
 ## Quickstart
 
 ```rust
-use numkong::{capabilities, Dot};
+use numkong::{capabilities, Capabilities, Dot};
 
 fn main() {
-    capabilities::configure_thread();
+    capabilities::configure_thread(Capabilities::enabled());
     let a = [1.0_f32, 2.0, 3.0];
     let b = [4.0_f32, 5.0, 6.0];
     let dot = f32::dot(&a, &b).unwrap();
@@ -105,28 +105,26 @@ A warning is emitted for each disabled backend.
 It must be called once per thread before using AMX operations.
 
 ```rust
-use numkong::{capabilities, cap};
+use numkong::{capabilities, Capabilities, Capability};
 
-let caps = capabilities::available();
-capabilities::configure_thread();
+let enabled = Capabilities::enabled();
+capabilities::configure_thread(enabled);
 
-if caps & cap::SAPPHIREAMX != 0 {
-    println!("AMX available");
+println!("dispatching to {enabled}"); // like "serial,neon,neonhalf"
+if enabled.contains(Capability::SapphireAmx) {
+    println!("AMX enabled");
 }
 ```
 
-Capabilities are reported along two independent axes, plus the sets derived from them:
+A `Capabilities` set of `Capability` tiers is reported along two independent axes, plus the set dispatch uses:
 
-| Accessor                    | Meaning                                                      |
-| :-------------------------- | :----------------------------------------------------------- |
-| `capabilities::detected()`  | what this CPU can execute, from CPUID or HWCAP               |
-| `capabilities::compiled()`  | what this binary contains, from the ISA probes at build time |
-| `capabilities::available()` | the intersection, i.e. what can actually run here            |
-| `capabilities::enabled()`   | the subset dispatch is restricted to                         |
+- `Capabilities::detected()`: what this CPU can execute, from CPUID or HWCAP
+- `Capabilities::compiled()`: what this binary contains, from the ISA probes at build time
+- `Capabilities::enabled()`: what dispatch uses, i.e. both axes at once unless narrowed
 
-Reach for `available()` unless you specifically mean one of the raw axes.
+Reach for `enabled()` unless you specifically mean one of the raw axes.
 `detected()` describes the machine and says nothing about whether a kernel was compiled in, so a build whose ISA probes failed still reports your CPU's full feature set while containing no SIMD kernels at all.
-Narrow dispatch with `capabilities::{enable, disable, restrict}`; all clamp to `available()` and always keep `cap::SERIAL`.
+Narrow dispatch with `Capabilities::enabled().without(Capability::Skylake).enable()`, which clamps to both axes, always keeps `Capability::Serial`, and returns the set that stuck.
 
 Call `configure_thread` at the start of every thread that will use AMX operations.
 In a thread-pool setting, each worker thread needs its own call.

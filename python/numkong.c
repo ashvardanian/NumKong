@@ -981,155 +981,73 @@ int parse_tensor_nd(PyObject *obj, Py_buffer *buffer, TensorView *view, nk_buffe
     return 1;
 }
 
-char const doc_enable_capability[] =                                                       //
-    "Enable a specific SIMD kernel family.\n\n"                                            //
-    "Args:\n"                                                                              //
-    "    capability (str): Name of the SIMD feature to enable, for example 'haswell'.\n\n" //
-    "Signature:\n"                                                                         //
-    "    >>> def enable_capability(capability): ...";
+/** The `numkong.Capability` flags class, built at import, that every capability function speaks. */
+static PyObject *capability_type = NULL;
 
-/**
- *  @brief Re-arms this thread for whatever is enabled now, e.g. AMX tile permission.
- *  @return 1 on success, 0 with a Python exception set.
- */
-static int configure_thread_for_enabled_capabilities(void) {
-    if (!nk_configure_thread(nk_capabilities_enabled())) {
-        PyErr_SetString(PyExc_RuntimeError, "Failed to configure thread for updated capabilities");
-        return 0;
-    }
-    return 1;
-}
-
-PyObject *api_enable_capability(PyObject *self, PyObject *cap_name_obj) {
-    char const *cap_name = PyUnicode_AsUTF8(cap_name_obj);
-    if (!cap_name) {
-        PyErr_SetString(PyExc_TypeError, "Capability name must be a string");
-        return NULL;
-    }
-
-    for (size_t i = 0; nk_capability_names_[i].name; ++i) {
-        if (nk_capability_names_[i].flag & nk_cap_devices_k) continue;
-        if (same_string(cap_name, nk_capability_names_[i].name)) {
-            if (nk_capability_names_[i].flag == nk_cap_serial_k) {
-                PyErr_SetString(PyExc_ValueError, "Can't change the serial functionality");
-                return NULL;
-            }
-            nk_capabilities_enable(nk_capability_names_[i].flag);
-            if (!configure_thread_for_enabled_capabilities()) return NULL;
-            Py_RETURN_NONE;
-        }
-    }
-
-    PyErr_SetString(PyExc_ValueError, "Unknown capability");
-    return NULL;
-}
-
-char const doc_disable_capability[] =                                                       //
-    "Disable a specific SIMD kernel family.\n\n"                                            //
-    "Args:\n"                                                                               //
-    "    capability (str): Name of the SIMD feature to disable, for example 'haswell'.\n\n" //
-    "Signature:\n"                                                                          //
-    "    >>> def disable_capability(capability): ...";
-
-PyObject *api_disable_capability(PyObject *self, PyObject *cap_name_obj) {
-    char const *cap_name = PyUnicode_AsUTF8(cap_name_obj);
-    if (!cap_name) {
-        PyErr_SetString(PyExc_TypeError, "Capability name must be a string");
-        return NULL;
-    }
-
-    for (size_t i = 0; nk_capability_names_[i].name; ++i) {
-        if (nk_capability_names_[i].flag & nk_cap_devices_k) continue;
-        if (same_string(cap_name, nk_capability_names_[i].name)) {
-            if (nk_capability_names_[i].flag == nk_cap_serial_k) {
-                PyErr_SetString(PyExc_ValueError, "Can't change the serial functionality");
-                return NULL;
-            }
-            nk_capabilities_disable(nk_capability_names_[i].flag);
-            if (!configure_thread_for_enabled_capabilities()) return NULL;
-            Py_RETURN_NONE;
-        }
-    }
-
-    PyErr_SetString(PyExc_ValueError, "Unknown capability");
-    return NULL;
-}
-
-char const doc_get_capabilities_detected[] =                                                             //
-    "Get the SIMD capabilities this CPU supports, as a dictionary of feature flags.\n\n"                 //
+char const doc_capabilities_detected[] =                                                                 //
+    "Get the CPU capabilities this machine can execute.\n\n"                                             //
     "Detected from CPUID or HWCAP. Says nothing about whether the kernels were compiled in — for that\n" //
-    "see `get_capabilities_compiled`, and for what will actually run on this machine see\n"              //
-    "`get_capabilities_available`.\n\n"                                                                  //
-    "The dictionary maps capability names to booleans. Known capabilities (beyond serial):\n"            //
-    "  x86 AVX2: haswell, alder, sierra.\n"                                                              //
-    "  x86 AVX512: skylake, icelake, genoa, sapphire, turin, diamond.\n"                                 //
-    "  x86 AMX: sapphireamx, graniteamx, diamondamx.\n"                                                  //
-    "  ARM NEON: neon, neonhalf, neonfhm, neonbfdot, neonsdot, neonfp8.\n"                               //
-    "  ARM SVE: sve, svehalf, svebfdot, svesdot, sve2, sve2p1.\n"                                        //
-    "  ARM SME: sme, sme2, sme2p1, smef64, smehalf, smebf16, smebi32, smelut2, smefa64.\n"               //
-    "  RISC-V: rvv, rvvhalf, rvvbf16, rvvbb.\n"                                                          //
-    "  LoongArch: loongsonasx.\n"                                                                        //
-    "  Power: powervsx.\n"                                                                               //
-    "  WASM: v128, v128relaxed.\n\n"                                                                     //
+    "see `capabilities_compiled`, and for what dispatch uses see `capabilities_enabled`.\n\n"            //
+    "Returns:\n"                                                                                         //
+    "    Capability: One flag per CPU tier, like `Capability.HASWELL`.\n\n"                              //
     "Signature:\n"                                                                                       //
-    "    >>> def get_capabilities_detected(): ...";
+    "    >>> def capabilities_detected() -> Capability: ...";
 
-char const doc_get_capabilities_compiled[] =                                                               //
-    "Get the SIMD capabilities whose kernels were compiled into this binary.\n\n"                          //
-    "Decided at build time by the ISA probes. Independent of the CPU: a binary built with a broken\n"      //
-    "probe toolchain still reports this machine's full `get_capabilities_detected` set while containing\n" //
-    "no SIMD kernels at all, which is what makes a scalar build hard to spot.\n\n"                         //
-    "Signature:\n"                                                                                         //
-    "    >>> def get_capabilities_compiled(): ...";
+char const doc_capabilities_compiled[] =                                                               //
+    "Get the CPU capabilities whose kernels were compiled into this binary.\n\n"                       //
+    "Decided at build time by the ISA probes. Independent of the CPU: a binary built with a broken\n"  //
+    "probe toolchain still reports this machine's full `capabilities_detected` set while containing\n" //
+    "no SIMD kernels at all, which is what makes a scalar build hard to spot.\n\n"                     //
+    "Signature:\n"                                                                                     //
+    "    >>> def capabilities_compiled() -> Capability: ...";
 
-char const doc_get_capabilities_available[] =                                                            //
-    "Get the SIMD capabilities that can actually execute here.\n\n"                                      //
-    "The intersection of `get_capabilities_detected` and `get_capabilities_compiled`. This is the\n"     //
-    "honest answer to 'will NumKong use AVX-512 on this machine?' — either axis alone over-reports.\n\n" //
-    "Signature:\n"                                                                                       //
-    "    >>> def get_capabilities_available(): ...";
+char const doc_capabilities_enabled[] =                                                                     //
+    "Get the CPU capabilities dispatch uses.\n\n"                                                           //
+    "Starts as `capabilities_detected() & capabilities_compiled()`, the honest answer to 'will NumKong\n"   //
+    "use AVX-512 on this machine?', and changes only through `capabilities_enable`. Always has SERIAL.\n\n" //
+    "Signature:\n"                                                                                          //
+    "    >>> def capabilities_enabled() -> Capability: ...";
 
-char const doc_get_capabilities_enabled[] =                                                                //
-    "Get the SIMD capabilities dispatch is currently restricted to.\n\n"                                   //
-    "Starts equal to `get_capabilities_available` and shrinks or grows within it as `enable_capability`\n" //
-    "and `disable_capability` are called. Mostly useful for testing one kernel family at a time.\n\n"      //
-    "Signature:\n"                                                                                         //
-    "    >>> def get_capabilities_enabled(): ...";
+char const doc_capabilities_enable[] =                                                                    //
+    "Make `wanted` the CPU capabilities dispatch uses, and configure the calling thread for them.\n\n"    //
+    "Tiers this CPU cannot execute or this binary lacks are dropped and SERIAL is always kept, so\n"      //
+    "dispatch never reaches a kernel that cannot run here. Mostly useful to test one tier at a time.\n\n" //
+    "Args:\n"                                                                                             //
+    "    wanted (Capability): Tiers to dispatch between, for example `Capability.HASWELL`.\n\n"           //
+    "Returns:\n"                                                                                          //
+    "    Capability: The tiers enabled after clamping.\n\n"                                               //
+    "Signature:\n"                                                                                        //
+    "    >>> def capabilities_enable(wanted, /) -> Capability: ...";
 
-static PyObject *capabilities_to_dict(nk_capability_t caps) {
-    PyObject *cap_dict = PyDict_New();
-    if (!cap_dict) return NULL;
-
-    for (size_t i = 0; nk_capability_names_[i].name; ++i) {
-        if (nk_capability_names_[i].flag & nk_cap_devices_k) continue;
-        PyObject *val = PyBool_FromLong((caps & nk_capability_names_[i].flag) != 0);
-        if (PyDict_SetItemString(cap_dict, nk_capability_names_[i].name, val) < 0) {
-            Py_DECREF(val);
-            Py_DECREF(cap_dict);
-            return NULL;
-        }
-        Py_DECREF(val);
-    }
-
-    return cap_dict;
+PyObject *api_capabilities_detected(PyObject *self) {
+    return PyObject_CallFunction(capability_type, "K", (unsigned long long)nk_cpu_capabilities_detected());
 }
 
-PyObject *api_get_capabilities_detected(PyObject *self) { return capabilities_to_dict(nk_capabilities_detected()); }
-PyObject *api_get_capabilities_compiled(PyObject *self) { return capabilities_to_dict(nk_capabilities_compiled()); }
-PyObject *api_get_capabilities_available(PyObject *self) { return capabilities_to_dict(nk_capabilities_available()); }
-PyObject *api_get_capabilities_enabled(PyObject *self) { return capabilities_to_dict(nk_capabilities_enabled()); }
+PyObject *api_capabilities_compiled(PyObject *self) {
+    return PyObject_CallFunction(capability_type, "K", (unsigned long long)nk_cpu_capabilities_compiled());
+}
+
+PyObject *api_capabilities_enabled(PyObject *self) {
+    return PyObject_CallFunction(capability_type, "K", (unsigned long long)nk_cpu_capabilities_enabled());
+}
+
+PyObject *api_capabilities_enable(PyObject *self, PyObject *wanted) {
+    unsigned long long const wanted_bits = PyLong_AsUnsignedLongLong(wanted);
+    if (wanted_bits == (unsigned long long)-1 && PyErr_Occurred()) return NULL;
+    nk_capability_t const enabled = nk_cpu_capabilities_enable((nk_capability_t)wanted_bits);
+    if (!nk_cpu_configure_thread(enabled)) {
+        PyErr_SetString(PyExc_RuntimeError, "Failed to configure the calling thread for the enabled capabilities");
+        return NULL;
+    }
+    return PyObject_CallFunction(capability_type, "K", (unsigned long long)enabled);
+}
 
 static PyMethodDef nk_methods[] = {
-    // Introspecting library and hardware capabilities
-    {"get_capabilities_detected", (PyCFunction)api_get_capabilities_detected, METH_NOARGS,
-     doc_get_capabilities_detected},
-    {"get_capabilities_compiled", (PyCFunction)api_get_capabilities_compiled, METH_NOARGS,
-     doc_get_capabilities_compiled},
-    {"get_capabilities_available", (PyCFunction)api_get_capabilities_available, METH_NOARGS,
-     doc_get_capabilities_available},
-    {"get_capabilities_enabled", (PyCFunction)api_get_capabilities_enabled, METH_NOARGS, doc_get_capabilities_enabled},
-    {"enable_capability", (PyCFunction)api_enable_capability, METH_O, doc_enable_capability},
-    {"disable_capability", (PyCFunction)api_disable_capability, METH_O, doc_disable_capability},
+    // Introspecting and narrowing the CPU capabilities dispatch uses
+    {"capabilities_detected", (PyCFunction)api_capabilities_detected, METH_NOARGS, doc_capabilities_detected},
+    {"capabilities_compiled", (PyCFunction)api_capabilities_compiled, METH_NOARGS, doc_capabilities_compiled},
+    {"capabilities_enabled", (PyCFunction)api_capabilities_enabled, METH_NOARGS, doc_capabilities_enabled},
+    {"capabilities_enable", (PyCFunction)api_capabilities_enable, METH_O, doc_capabilities_enable},
 
     // NumPy and SciPy compatible interfaces for dense vector representations. Each function can
     // compute distances between:
@@ -1373,7 +1291,36 @@ PyMODINIT_FUNC PyInit__numkong(void) {
         return NULL;
     }
 
-    nk_configure_thread(nk_capabilities_available());
+    // Register the Capability flags, one member per CPU tier, named after the C library's spelling
+    PyObject *capability_members = PyDict_New();
+    for (unsigned bit = 0; capability_members && bit != 64; ++bit) {
+        nk_capability_t const flag = (nk_capability_t)1 << bit;
+        char name[NUMKONG_CAPABILITIES_NAME_CAPACITY];
+        if ((flag & nk_cap_devices_k) || !nk_name_capabilities(flag, name, sizeof(name))) continue;
+        for (char *letter = name; *letter; ++letter) *letter = (char)Py_TOUPPER(*letter);
+        PyObject *value = PyLong_FromUnsignedLongLong(flag);
+        if (!value || PyDict_SetItemString(capability_members, name, value) < 0) Py_CLEAR(capability_members);
+        Py_XDECREF(value);
+    }
+    PyObject *enum_module = capability_members ? PyImport_ImportModule("enum") : NULL;
+    PyObject *int_flag = enum_module ? PyObject_GetAttrString(enum_module, "IntFlag") : NULL;
+    PyObject *int_flag_args = int_flag ? Py_BuildValue("(sO)", "Capability", capability_members) : NULL;
+    // Without `module`, the enum takes the import machinery's module name and cannot unpickle
+    PyObject *int_flag_kwargs = int_flag_args ? Py_BuildValue("{ss}", "module", "numkong") : NULL;
+    capability_type = int_flag_kwargs ? PyObject_Call(int_flag, int_flag_args, int_flag_kwargs) : NULL;
+    Py_XDECREF(int_flag_kwargs);
+    Py_XDECREF(int_flag_args);
+    Py_XDECREF(int_flag);
+    Py_XDECREF(enum_module);
+    Py_XDECREF(capability_members);
+    Py_XINCREF(capability_type);
+    if (!capability_type || PyModule_AddObject(m, "Capability", capability_type) < 0) {
+        Py_XDECREF(capability_type);
+        Py_XDECREF(m);
+        return NULL;
+    }
+
+    nk_cpu_configure_thread(nk_cpu_capabilities_enabled());
 
     // Register scalar types (bfloat16, float8_e4m3, float8_e5m2)
     if (nk_register_scalar_types(m) < 0) {

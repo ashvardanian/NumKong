@@ -233,24 +233,23 @@ Owned `Vector` and `Matrix` are fixed-capacity resizable.
 Capability detection is explicit:
 
 ```ts
-import { Capability, getCapabilitiesAvailable, hasCapability } from "numkong";
+import { Capability, capabilitiesEnabled, capabilitiesEnable } from "numkong";
 
-console.log(getCapabilitiesAvailable()); // what can actually run here
-console.log(hasCapability(Capability.HASWELL));
-console.log(hasCapability(Capability.NEON));
+console.log(capabilitiesEnabled()); // what dispatch uses
+console.log((capabilitiesEnabled() & Capability.haswell) !== 0n);
+capabilitiesEnable(capabilitiesEnabled() & ~Capability.skylake); // stop dispatching to AVX-512
 ```
 
-`getCapabilitiesAvailable()` is the intersection of two independent axes, and is the one you usually want:
+`capabilitiesEnabled()` is the one you usually want, and derives from two independent axes:
 
-| Accessor                     | Meaning                                                     |
-| :--------------------------- | :---------------------------------------------------------- |
-| `getCapabilitiesDetected()`  | what this CPU or WASM host can execute                      |
-| `getCapabilitiesCompiled()`  | what this build contains, from the ISA probes at build time |
-| `getCapabilitiesAvailable()` | the intersection, i.e. what can actually run here           |
-| `getCapabilitiesEnabled()`   | the subset dispatch is restricted to                        |
+- `capabilitiesDetected()`: what this CPU or WASM host can execute.
+- `capabilitiesCompiled()`: what this build contains, from the ISA probes at build time.
+- `capabilitiesEnabled()`: what dispatch uses, both axes at once unless narrowed.
+- `capabilitiesEnable(wanted)`: makes `wanted` the enabled set, clamped to both axes, and returns what took effect.
 
-`getCapabilitiesDetected()` describes the machine and says nothing about whether a kernel was compiled in, so a prebuild whose ISA probes failed still reports your CPU's full feature set while containing no SIMD kernels at all.
-Narrow dispatch with `enableCapabilities`, `disableCapabilities`, or `restrictCapabilities`; all clamp to the available set and always keep the serial fallback.
+`capabilitiesDetected()` describes the machine and says nothing about whether a kernel was compiled in, so a prebuild whose ISA probes failed still reports your CPU's full feature set while containing no SIMD kernels at all.
+The enabled set always keeps the `serial` fallback.
+`Capability` maps each lowercase CPU tier name, like `haswell`, `neon` or `v128relaxed`, to its bit, and is built at load from the C library's own names.
 
 The exact bitmask depends on whether you are running the native addon or a WASM runtime.
 

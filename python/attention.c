@@ -131,7 +131,7 @@ static PyObject *AttentionPackedMatrix_get_shape(PyObject *self, void *closure) 
     AttentionPackedMatrix *mm = (AttentionPackedMatrix *)self;
     nk_attention_packed_shape_punned_t shape_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_attention_packed_shape_k, mm->dtype, (nk_kernel_punned_t *)&shape_fn, &cap);
+    nk_cpu_find_kernel_punned(nk_kernel_attention_packed_shape_k, mm->dtype, (nk_kernel_punned_t *)&shape_fn, &cap);
     if (!shape_fn || !cap) {
         PyErr_Format(PyExc_LookupError, "No packed_shape kernel for dtype '%s'",
                      nk_dtype_to_pybuffer_typestr(mm->dtype));
@@ -353,8 +353,9 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
     nk_attention_pack_size_punned_t size_fn = NULL;
     nk_attention_pack_punned_t pack_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_attention_pack_size_k, dtype, (nk_kernel_punned_t *)&size_fn, &cap);
-    if (size_fn && cap) nk_find_kernel_punned(nk_kernel_attention_pack_k, dtype, (nk_kernel_punned_t *)&pack_fn, &cap);
+    nk_cpu_find_kernel_punned(nk_kernel_attention_pack_size_k, dtype, (nk_kernel_punned_t *)&size_fn, &cap);
+    if (size_fn && cap)
+        nk_cpu_find_kernel_punned(nk_kernel_attention_pack_k, dtype, (nk_kernel_punned_t *)&pack_fn, &cap);
     if (!size_fn || !pack_fn || !cap) {
         PyErr_Format(PyExc_LookupError, "No attention pack kernels for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
@@ -604,8 +605,8 @@ PyObject *api_attention_bidirectional_packed(PyObject *self, PyObject *const *ar
 
     task.kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_attention_bidirectional_packed_k, packed->dtype, (nk_kernel_punned_t *)&task.kernel,
-                          &capability);
+    nk_cpu_find_kernel_punned(nk_kernel_attention_bidirectional_packed_k, packed->dtype,
+                              (nk_kernel_punned_t *)&task.kernel, &capability);
     if (!task.kernel || !capability) {
         PyErr_Format(PyExc_LookupError, "No attention_bidirectional_packed kernel for dtype '%s'",
                      nk_dtype_python_name(packed->dtype));
@@ -666,8 +667,8 @@ PyObject *api_attention_causal_packed(PyObject *self, PyObject *const *args, Py_
 
     task.kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_attention_causal_packed_k, packed->dtype, (nk_kernel_punned_t *)&task.kernel,
-                          &capability);
+    nk_cpu_find_kernel_punned(nk_kernel_attention_causal_packed_k, packed->dtype, (nk_kernel_punned_t *)&task.kernel,
+                              &capability);
     if (!task.kernel || !capability) {
         PyErr_Format(PyExc_LookupError, "No attention_causal_packed kernel for dtype '%s'",
                      nk_dtype_python_name(packed->dtype));

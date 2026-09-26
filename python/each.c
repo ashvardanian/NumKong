@@ -171,7 +171,7 @@ PyObject *api_fma(PyObject *self, PyObject *const *args, Py_ssize_t const positi
     // Look up the kernel and the capability
     nk_each_fma_punned_t kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_each_fma_k, dtype, (nk_kernel_punned_t *)&kernel, &capability);
+    nk_cpu_find_kernel_punned(nk_kernel_each_fma_k, dtype, (nk_kernel_punned_t *)&kernel, &capability);
     if (!kernel || !capability) {
         PyErr_Format(PyExc_LookupError, "No fma kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
@@ -318,7 +318,7 @@ PyObject *api_blend(PyObject *self, PyObject *const *args, Py_ssize_t const posi
     // Look up the kernel and the capability
     nk_each_blend_punned_t kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_each_blend_k, dtype, (nk_kernel_punned_t *)&kernel, &capability);
+    nk_cpu_find_kernel_punned(nk_kernel_each_blend_k, dtype, (nk_kernel_punned_t *)&kernel, &capability);
     if (!kernel || !capability) {
         PyErr_Format(PyExc_LookupError, "No blend kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
@@ -452,7 +452,7 @@ PyObject *api_scale(PyObject *self, PyObject *const *args, Py_ssize_t const posi
     // Look up the kernel and the capability
     nk_each_scale_punned_t kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_each_scale_k, dtype, (nk_kernel_punned_t *)&kernel, &capability);
+    nk_cpu_find_kernel_punned(nk_kernel_each_scale_k, dtype, (nk_kernel_punned_t *)&kernel, &capability);
     if (!kernel || !capability) {
         PyErr_Format(PyExc_LookupError, "No scale kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
@@ -609,7 +609,7 @@ PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t const po
 
     nk_reduce_rmsnorm_punned_t kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_reduce_rmsnorm_k, dtype, (nk_kernel_punned_t *)&kernel, &capability);
+    nk_cpu_find_kernel_punned(nk_kernel_reduce_rmsnorm_k, dtype, (nk_kernel_punned_t *)&kernel, &capability);
     if (!kernel || !capability) {
         PyErr_Format(PyExc_LookupError, "No rmsnorm kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
@@ -742,7 +742,7 @@ PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t const pos
 
     nk_each_swiglu_punned_t kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_each_swiglu_k, dtype, (nk_kernel_punned_t *)&kernel, &capability);
+    nk_cpu_find_kernel_punned(nk_kernel_each_swiglu_k, dtype, (nk_kernel_punned_t *)&kernel, &capability);
     if (!kernel || !capability) {
         PyErr_Format(PyExc_LookupError, "No swiglu kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
@@ -815,7 +815,7 @@ static PyObject *add_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyO
 
     nk_each_scale_punned_t scale_kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_each_scale_k, dtype, (nk_kernel_punned_t *)&scale_kernel, &capability);
+    nk_cpu_find_kernel_punned(nk_kernel_each_scale_k, dtype, (nk_kernel_punned_t *)&scale_kernel, &capability);
     if (!scale_kernel || !capability) {
         PyErr_Format(PyExc_LookupError, "No scale kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
@@ -942,7 +942,7 @@ static PyObject *add_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out
 
     nk_each_sum_punned_t sum_kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_each_sum_k, dtype, (nk_kernel_punned_t *)&sum_kernel, &capability);
+    nk_cpu_find_kernel_punned(nk_kernel_each_sum_k, dtype, (nk_kernel_punned_t *)&sum_kernel, &capability);
     if (!sum_kernel || !capability) {
         PyErr_Format(PyExc_LookupError, "No sum kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
@@ -1122,7 +1122,7 @@ static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj
 
     nk_each_scale_punned_t scale_kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_each_scale_k, dtype, (nk_kernel_punned_t *)&scale_kernel, &capability);
+    nk_cpu_find_kernel_punned(nk_kernel_each_scale_k, dtype, (nk_kernel_punned_t *)&scale_kernel, &capability);
     if (!scale_kernel || !capability) {
         PyErr_Format(PyExc_LookupError, "No scale kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
@@ -1249,7 +1249,7 @@ static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject
 
     nk_each_fma_punned_t fma_kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_each_fma_k, dtype, (nk_kernel_punned_t *)&fma_kernel, &capability);
+    nk_cpu_find_kernel_punned(nk_kernel_each_fma_k, dtype, (nk_kernel_punned_t *)&fma_kernel, &capability);
     if (!fma_kernel || !capability) {
         PyErr_Format(PyExc_LookupError, "No fma kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;

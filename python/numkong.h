@@ -289,19 +289,15 @@ int py_object_is_scalar(PyObject *obj);
  */
 int py_number_to_f64(PyObject *obj, nk_f64_t *value);
 
-PyObject *api_enable_capability(PyObject *self, PyObject *cap_name_obj);
-PyObject *api_disable_capability(PyObject *self, PyObject *cap_name_obj);
-PyObject *api_get_capabilities_detected(PyObject *self);
-PyObject *api_get_capabilities_compiled(PyObject *self);
-PyObject *api_get_capabilities_available(PyObject *self);
-PyObject *api_get_capabilities_enabled(PyObject *self);
+PyObject *api_capabilities_detected(PyObject *self);
+PyObject *api_capabilities_compiled(PyObject *self);
+PyObject *api_capabilities_enabled(PyObject *self);
+PyObject *api_capabilities_enable(PyObject *self, PyObject *wanted);
 
-extern char const doc_enable_capability[];
-extern char const doc_disable_capability[];
-extern char const doc_get_capabilities_detected[];
-extern char const doc_get_capabilities_compiled[];
-extern char const doc_get_capabilities_available[];
-extern char const doc_get_capabilities_enabled[];
+extern char const doc_capabilities_detected[];
+extern char const doc_capabilities_compiled[];
+extern char const doc_capabilities_enabled[];
+extern char const doc_capabilities_enable[];
 
 #ifdef __cplusplus
 }

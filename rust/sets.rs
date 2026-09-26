@@ -542,7 +542,7 @@ where
         let rows_per_thread = height.div_ceil(num_threads);
 
         pool.broadcast(move |thread_index, _colocation_index| {
-            crate::capabilities::configure_thread();
+            crate::capabilities::configure_thread(crate::Capabilities::enabled());
             let row_start = thread_index * rows_per_thread;
             if row_start >= height {
                 return;
@@ -635,7 +635,7 @@ impl<Scalar: Hammings + Clone + Send + Sync, Alloc: Allocator + Clone, const MAX
         let result_stride = output.stride_bytes(0) as usize;
 
         pool.broadcast(move |thread_index, _colocation_index| {
-            crate::capabilities::configure_thread();
+            crate::capabilities::configure_thread(crate::Capabilities::enabled());
             let (row_start, row_count) = compute_thread_rows(thread_index, num_threads, vector_count);
             unsafe {
                 Scalar::hammings_symmetric(
@@ -695,7 +695,7 @@ where
         let rows_per_thread = height.div_ceil(num_threads);
 
         pool.broadcast(move |thread_index, _colocation_index| {
-            crate::capabilities::configure_thread();
+            crate::capabilities::configure_thread(crate::Capabilities::enabled());
             let row_start = thread_index * rows_per_thread;
             if row_start >= height {
                 return;
@@ -798,7 +798,7 @@ where
         let result_stride = output.stride_bytes(0) as usize;
 
         pool.broadcast(move |thread_index, _colocation_index| {
-            crate::capabilities::configure_thread();
+            crate::capabilities::configure_thread(crate::Capabilities::enabled());
             let (row_start, row_count) = compute_thread_rows(thread_index, num_threads, vector_count);
             unsafe {
                 Scalar::jaccards_symmetric(

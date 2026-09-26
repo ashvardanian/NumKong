@@ -278,7 +278,7 @@ pip install numpy scipy ml_dtypes tabulate          # optional reference librari
 pytest test/ -s -x -Wd                              # to run tests
 
 # to check supported SIMD instructions:
-python -c "import numkong; print(numkong.get_capabilities_available())"
+python -c "import numkong; print(repr(numkong.capabilities_enabled()))"
 ```
 
 Alternatively, use `uv` to create the virtual environment.

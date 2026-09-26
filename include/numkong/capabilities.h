@@ -779,7 +779,7 @@ typedef void (*nk_kernel_punned_t)(void *);
 
 #if NUMKONG_ARCH_X86_64_
 
-NUMKONG_HELPER_AUTO int nk_configure_thread_x86_(nk_capability_t capabilities) {
+NUMKONG_HELPER_AUTO int nk_cpu_configure_thread_x86_(nk_capability_t capabilities) {
 #if NUMKONG_TARGET_SAPPHIREAMX
     if (capabilities & nk_cap_sapphireamx_k) {
 #if NUMKONG_OS_LINUX_
@@ -798,7 +798,7 @@ NUMKONG_HELPER_AUTO int nk_configure_thread_x86_(nk_capability_t capabilities) {
     return 1;
 }
 
-NUMKONG_HELPER_AUTO nk_capability_t nk_capabilities_detected_x8664_(void) {
+NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_detected_x8664_(void) {
     union four_registers_t {
         int array[4];
         struct separate_t {
@@ -907,7 +907,7 @@ NUMKONG_HELPER_AUTO nk_capability_t nk_capabilities_detected_x8664_(void) {
 
 #if NUMKONG_ARCH_ARM64_
 
-NUMKONG_HELPER_AUTO int nk_configure_thread_arm64_(nk_capability_t capabilities) {
+NUMKONG_HELPER_AUTO int nk_cpu_configure_thread_arm64_(nk_capability_t capabilities) {
 #if defined(_MSC_VER)
     nk_unused_(capabilities);
     return 1;
@@ -938,7 +938,7 @@ NUMKONG_HELPER_AUTO int nk_configure_thread_arm64_(nk_capability_t capabilities)
 
 #elif NUMKONG_OS_LINUX_ || NUMKONG_OS_FREEBSD_
     // Read ID registers via MRS, safe only once MRS is known to work: any capability beyond basic
-    // NEON means nk_capabilities_detected_arm64_ saw the kernel emulate it.
+    // NEON means nk_cpu_capabilities_detected_arm64_ saw the kernel emulate it.
     if (capabilities & ~(nk_cap_neon_k | nk_cap_serial_k)) {
         // FEAT_EBF16: ID_AA64ISAR1_EL1.BF16 bits [47:44] >= 0b0010
         register unsigned long isar1_val __asm__("x0");
@@ -962,7 +962,7 @@ NUMKONG_HELPER_AUTO int nk_configure_thread_arm64_(nk_capability_t capabilities)
 #endif // _MSC_VER
 }
 
-NUMKONG_HELPER_AUTO nk_capability_t nk_capabilities_detected_arm64_(void) {
+NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_detected_arm64_(void) {
 #if NUMKONG_OS_APPLE_
     size_t size = sizeof(unsigned);
     unsigned supports_neon = 0, supports_fp16 = 0, supports_fhm = 0, supports_bf16 = 0, supports_dotprod = 0;
@@ -1109,7 +1109,7 @@ NUMKONG_HELPER_AUTO nk_capability_t nk_capabilities_detected_arm64_(void) {
 
 #if NUMKONG_ARCH_RISCV64_
 
-NUMKONG_HELPER_AUTO nk_capability_t nk_capabilities_detected_riscv64_(void) {
+NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_detected_riscv64_(void) {
 #if NUMKONG_OS_LINUX_
     unsigned long hwcap = getauxval(AT_HWCAP);
     nk_capability_t caps = nk_cap_serial_k;
@@ -1145,7 +1145,7 @@ NUMKONG_HELPER_AUTO nk_capability_t nk_capabilities_detected_riscv64_(void) {
 
 #if NUMKONG_ARCH_LOONGARCH64_
 
-NUMKONG_HELPER_AUTO nk_capability_t nk_capabilities_detected_loongarch64_(void) {
+NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_detected_loongarch64_(void) {
 #if NUMKONG_OS_LINUX_
     unsigned long hwcap = getauxval(AT_HWCAP);
     nk_capability_t caps = nk_cap_serial_k;
@@ -1161,7 +1161,7 @@ NUMKONG_HELPER_AUTO nk_capability_t nk_capabilities_detected_loongarch64_(void) 
 
 #if NUMKONG_ARCH_PPC64_
 
-NUMKONG_HELPER_AUTO nk_capability_t nk_capabilities_detected_power64_(void) {
+NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_detected_power64_(void) {
 #if NUMKONG_OS_LINUX_
     unsigned long hwcap = getauxval(AT_HWCAP);
     unsigned long hwcap2 = getauxval(AT_HWCAP2);
@@ -1191,7 +1191,7 @@ __attribute__((__import_module__("env"), __import_name__("nk_has_v128"))) extern
 __attribute__((__import_module__("env"), __import_name__("nk_has_relaxed"))) extern int nk_has_relaxed(void);
 #endif
 
-NUMKONG_HELPER_AUTO nk_capability_t nk_capabilities_detected_wasm_(void) {
+NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_detected_wasm_(void) {
     /*  A hosted module asks its engine to validate one probe module per tier, so `detected` describes the
      *  engine; a standalone module has already been validated whole, so it reports its own flags. */
 #if ((defined(__EMSCRIPTEN__) && NUMKONG_RUNTIME_DISPATCH) || (defined(__wasi__) && NUMKONG_WASI_HOSTED)) && \
@@ -1210,30 +1210,30 @@ NUMKONG_HELPER_AUTO nk_capability_t nk_capabilities_detected_wasm_(void) {
 
 #endif // NUMKONG_ARCH_WASM_
 
-NUMKONG_HELPER_AUTO int nk_configure_thread_(nk_capability_t capabilities) {
+NUMKONG_HELPER_AUTO int nk_cpu_configure_thread_(nk_capability_t capabilities) {
 #if NUMKONG_ARCH_X86_64_
-    return nk_configure_thread_x86_(capabilities);
+    return nk_cpu_configure_thread_x86_(capabilities);
 #endif
 #if NUMKONG_ARCH_ARM64_
-    return nk_configure_thread_arm64_(capabilities);
+    return nk_cpu_configure_thread_arm64_(capabilities);
 #endif
     nk_unused_(capabilities);
     return 1; // success — no platform-specific thread configuration needed
 }
 
-NUMKONG_HELPER_AUTO nk_capability_t nk_capabilities_detected_(void) {
+NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_detected_(void) {
 #if NUMKONG_ARCH_X86_64_
-    return nk_capabilities_detected_x8664_();
+    return nk_cpu_capabilities_detected_x8664_();
 #elif NUMKONG_ARCH_ARM64_
-    return nk_capabilities_detected_arm64_();
+    return nk_cpu_capabilities_detected_arm64_();
 #elif NUMKONG_ARCH_RISCV64_
-    return nk_capabilities_detected_riscv64_();
+    return nk_cpu_capabilities_detected_riscv64_();
 #elif NUMKONG_ARCH_LOONGARCH64_
-    return nk_capabilities_detected_loongarch64_();
+    return nk_cpu_capabilities_detected_loongarch64_();
 #elif NUMKONG_ARCH_PPC64_
-    return nk_capabilities_detected_power64_();
+    return nk_cpu_capabilities_detected_power64_();
 #elif NUMKONG_ARCH_WASM_
-    return nk_capabilities_detected_wasm_();
+    return nk_cpu_capabilities_detected_wasm_();
 #else
     return nk_cap_serial_k;
 #endif
@@ -1241,8 +1241,8 @@ NUMKONG_HELPER_AUTO nk_capability_t nk_capabilities_detected_(void) {
 
 /** Returns the capabilities whose kernels were compiled into this binary, as decided by the
  *  `NUMKONG_TARGET_*` macros the ISA probes set at build time. Says nothing about the current CPU —
- *  see @b nk_capabilities_detected_(). */
-NUMKONG_HELPER_AUTO nk_capability_t nk_capabilities_compiled_(void) {
+ *  see @b nk_cpu_capabilities_detected_(). */
+NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_compiled_(void) {
     nk_capability_t caps = nk_cap_serial_k;
 #if NUMKONG_ARCH_X86_64_
     caps |= nk_cap_haswell_k * NUMKONG_TARGET_HASWELL;
@@ -1300,37 +1300,50 @@ NUMKONG_HELPER_AUTO nk_capability_t nk_capabilities_compiled_(void) {
     return caps;
 }
 
-/*  SIMD capabilities, reported along two independent axes and the sets derived from them:
+/*  CPU capabilities, reported along two independent axes and the set dispatch uses:
  *
- *  - @b nk_capabilities_detected() — what this CPU can execute, from CPUID or HWCAP.
- *  - @b nk_capabilities_compiled() — what this binary contains, from the `NUMKONG_TARGET_*` macros
- *    the ISA probes set at build time.
- *  - @b nk_capabilities_available() — the intersection, i.e. what can actually run here.
- *  - @b nk_capabilities_enabled() — the subset dispatch is restricted to. Always a subset of
- *    @b available, and always retains @b nk_cap_serial_k.
+ *  - @b nk_cpu_capabilities_detected() — what this CPU can execute, from CPUID or HWCAP.
+ *  - @b nk_cpu_capabilities_compiled() — what this binary contains, from the `NUMKONG_TARGET_*`
+ *    macros the ISA probes set at build time.
+ *  - @b nk_cpu_capabilities_enabled() — what dispatch uses: both axes at once, unless narrowed by
+ *    @b nk_cpu_capabilities_enable(). Always retains @b nk_cap_serial_k.
  *
  *  The two axes are independent, and conflating them is a silent performance cliff rather than a
  *  build error: a binary whose ISA probes failed still reports this machine's full @b detected
- *  mask while containing no SIMD kernels at all. Ask for @b available() unless you specifically
- *  mean one of the raw axes. */
+ *  mask while containing no SIMD kernels at all. Ask for @b enabled() unless you specifically mean
+ *  one of the raw axes.
+ *
+ *  @b nk_cpu_capabilities_enable() makes @p wanted the enabled set, clamped to both axes, and
+ *  returns what it kept. */
 
 #if NUMKONG_RUNTIME_DISPATCH
 
-NUMKONG_API_RUNTIME nk_capability_t nk_capabilities_detected(void);
-NUMKONG_API_RUNTIME nk_capability_t nk_capabilities_compiled(void);
-NUMKONG_API_RUNTIME nk_capability_t nk_capabilities_available(void);
-NUMKONG_API_RUNTIME nk_capability_t nk_capabilities_enabled(void);
-NUMKONG_API_RUNTIME void nk_capabilities_restrict(nk_capability_t);
-NUMKONG_API_RUNTIME void nk_capabilities_enable(nk_capability_t);
-NUMKONG_API_RUNTIME void nk_capabilities_disable(nk_capability_t);
-NUMKONG_API_RUNTIME int nk_configure_thread(nk_capability_t);
+NUMKONG_API_RUNTIME nk_capability_t nk_cpu_capabilities_detected(void);
+NUMKONG_API_RUNTIME nk_capability_t nk_cpu_capabilities_compiled(void);
+NUMKONG_API_RUNTIME nk_capability_t nk_cpu_capabilities_enabled(void);
+NUMKONG_API_RUNTIME nk_capability_t nk_cpu_capabilities_enable(nk_capability_t wanted);
+
+/**
+ *  @brief Prepares the calling thread for the kernels of @p capabilities, and only those.
+ *  @param[in] capabilities The tiers to prepare for, like @c nk_cpu_capabilities_enabled() returns.
+ *  @return 1 on success.
+ *
+ *  Most tiers need nothing. The ones that do, and what they cost:
+ *  - @c nk_cap_sapphireamx_k on Linux: one @c arch_prctl syscall for AMX tile state, which the
+ *    kernel grants to the whole process. Windows and FreeBSD need no request.
+ *  - Arm with FEAT_EBF16: one write of the thread's @c FPCR, making BF16 dot products fused.
+ *    Finding FEAT_EBF16 costs a @c sysctl on Apple systems, and one ID-register read on Linux and
+ *    FreeBSD when @p capabilities holds more than NEON.
+ */
+NUMKONG_API_RUNTIME int nk_cpu_configure_thread(nk_capability_t capabilities);
 NUMKONG_API_RUNTIME int nk_uses_runtime_dispatch(void);
-NUMKONG_API_RUNTIME void nk_find_kernel_punned(nk_kernel_kind_t kind, nk_dtype_t dtype,
-                                               nk_kernel_punned_t *kernel_output, nk_capability_t *capability_output);
+NUMKONG_API_RUNTIME void nk_cpu_find_kernel_punned(nk_kernel_kind_t kind, nk_dtype_t dtype,
+                                                   nk_kernel_punned_t *kernel_output,
+                                                   nk_capability_t *capability_output);
 
 /**
  *  @brief Writes @p capabilities as a comma-separated name list such as "serial,haswell,skylake".
- *  @param[in] capabilities The capabilities to name, like @c nk_capabilities_detected() returns.
+ *  @param[in] capabilities The mask to name, like @c nk_cpu_capabilities_detected() returns.
  *  @param[out] buffer Destination, always null-terminated; the list is truncated to fit.
  *  @param[in] capacity Size of @p buffer, like @c NUMKONG_CAPABILITIES_NAME_CAPACITY; a zero
  *      capacity writes nothing.
@@ -1340,26 +1353,25 @@ NUMKONG_API_RUNTIME nk_size_t nk_name_capabilities(nk_capability_t capabilities,
 
 #else
 
-NUMKONG_API_COMPTIME int nk_uses_runtime_dispatch(void) { return 0; }
-NUMKONG_API_COMPTIME int nk_configure_thread(nk_capability_t c) { return nk_configure_thread_(c); }
-NUMKONG_API_COMPTIME nk_capability_t nk_capabilities_detected(void) { return nk_capabilities_detected_(); }
-NUMKONG_API_COMPTIME nk_capability_t nk_capabilities_compiled(void) { return nk_capabilities_compiled_(); }
-NUMKONG_API_COMPTIME nk_capability_t nk_capabilities_available(void) {
-    return nk_capabilities_detected_() & nk_capabilities_compiled_();
+NUMKONG_API_COMPTIME nk_capability_t nk_cpu_capabilities_detected(void) { return nk_cpu_capabilities_detected_(); }
+NUMKONG_API_COMPTIME nk_capability_t nk_cpu_capabilities_compiled(void) { return nk_cpu_capabilities_compiled_(); }
+NUMKONG_API_COMPTIME nk_capability_t nk_cpu_capabilities_enabled(void) {
+    return nk_cpu_capabilities_detected_() & nk_cpu_capabilities_compiled_();
 }
 
-/** Without a dispatch table there is nothing to narrow: the ISA was fixed at compile time, so the
- *  enabled set is always the available one and the mutators are no-ops. */
-NUMKONG_API_COMPTIME nk_capability_t nk_capabilities_enabled(void) { return nk_capabilities_available(); }
+/** Without a dispatch table there is nothing to narrow: the tiers were fixed at compile time, so
+ *  the enabled set stays as it is. */
+NUMKONG_API_COMPTIME nk_capability_t nk_cpu_capabilities_enable(nk_capability_t wanted) {
+    nk_unused_(wanted);
+    return nk_cpu_capabilities_enabled();
+}
 
-/** @copydoc nk_capabilities_enabled */
-NUMKONG_API_COMPTIME void nk_capabilities_restrict(nk_capability_t caps) { nk_unused_(caps); }
+/** @copydoc nk_cpu_configure_thread */
+NUMKONG_API_COMPTIME int nk_cpu_configure_thread(nk_capability_t capabilities) {
+    return nk_cpu_configure_thread_(capabilities);
+}
 
-/** @copydoc nk_capabilities_enabled */
-NUMKONG_API_COMPTIME void nk_capabilities_enable(nk_capability_t caps) { nk_unused_(caps); }
-
-/** @copydoc nk_capabilities_enabled */
-NUMKONG_API_COMPTIME void nk_capabilities_disable(nk_capability_t caps) { nk_unused_(caps); }
+NUMKONG_API_COMPTIME int nk_uses_runtime_dispatch(void) { return 0; }
 
 /** @copydoc nk_name_capabilities */
 NUMKONG_API_COMPTIME nk_size_t nk_name_capabilities(nk_capability_t capabilities, char *buffer, nk_size_t capacity) {

@@ -159,8 +159,8 @@ static std::vector<std::string> benchmark_arguments(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
-    nk_capability_t runtime_caps = nk_capabilities_detected();
-    nk_configure_thread(runtime_caps); // Also enables AMX if available
+    nk_capability_t runtime_caps = nk_cpu_capabilities_detected();
+    nk_cpu_configure_thread(runtime_caps); // Also enables AMX if available
 
 #if NUMKONG_COMPARE_TO_MKL
     mkl_set_num_threads(1);

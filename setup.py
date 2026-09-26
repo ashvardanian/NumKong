@@ -153,7 +153,7 @@ def detect_cc() -> tuple[str, bool, dict[str, str] | None]:
             # Imported here, not at module scope: this is private API that has already moved
             # twice (`msvccompiler` → `_msvccompiler` → `compilers.C.msvc`), and every other
             # platform must keep importing this file if it moves again.
-            from setuptools._distutils.ccompiler import new_compiler
+            from setuptools._distutils.ccompiler import new_compiler  # noqa: PLC0415
 
             # MSVC is never on PATH — setuptools locates it per target through `_get_vc_env`,
             # and the probes must use that same compiler and INCLUDE, or `<immintrin.h>` and
@@ -460,10 +460,10 @@ def emscripten_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
         "-w",
     ]
     link_args: list[str] = []
-    # Runtime dispatch is needed for the Python bindings (nk_find_kernel_punned).
-    # The EM_JS runtime probes in c/numkong.c are guarded by NUMKONG_RUNTIME_DISPATCH and
-    # __EMSCRIPTEN__; when building as a Pyodide side module, we define NUMKONG_PYODIDE_SIDE_MODULE_
-    # to replace them with conservative serial-only stubs.
+    # Runtime dispatch is needed for the Python bindings, which look kernels up through
+    # nk_cpu_find_kernel_punned. The EM_JS runtime probes in c/numkong.c are guarded by
+    # NUMKONG_RUNTIME_DISPATCH and __EMSCRIPTEN__; when building as a Pyodide side module, we define
+    # NUMKONG_PYODIDE_SIDE_MODULE_ to replace them with conservative serial-only stubs.
     macros: list[tuple[str, str]] = [
         ("NUMKONG_RUNTIME_DISPATCH", "1"),
         ("NUMKONG_PYODIDE_SIDE_MODULE_", "1"),

@@ -52,7 +52,7 @@ python -m pip install .
 Quick runtime check:
 
 ```sh
-python -c "import numkong as nk; print(nk.get_capabilities_available())"
+python -c "import numkong as nk; print(repr(nk.capabilities_enabled()))"
 ```
 
 ## Wheel Compatibility and Building from Source
@@ -715,12 +715,17 @@ Capability detection is explicit:
 ```python
 import numkong as nk
 
-# `available` is what can actually run: detected on this CPU AND compiled into the wheel.
-print({k: v for k, v in nk.get_capabilities_available().items() if v})
+# `enabled` is what dispatch uses: detected on this CPU AND compiled into the wheel.
+print(repr(nk.capabilities_enabled()))
+print(nk.Capability.SKYLAKE in nk.capabilities_enabled()) # will AVX-512 kernels run here?
 
 # The two raw axes, when you specifically mean one of them:
-print({k: v for k, v in nk.get_capabilities_detected().items() if v}) # this CPU
-print({k: v for k, v in nk.get_capabilities_compiled().items() if v}) # this build
+print(repr(nk.capabilities_detected())) # this CPU
+print(repr(nk.capabilities_compiled())) # this build
+
+# Narrow dispatch to one tier, e.g. to test it: what cannot run here is dropped, and serial always stays.
+nk.capabilities_enable(nk.Capability.HASWELL)
+nk.capabilities_enable(nk.capabilities_detected() & nk.capabilities_compiled()) # and back to everything
 ```
 
 The current implementation releases the GIL around the native dense metric calls and around the packed and symmetric matrix kernels.

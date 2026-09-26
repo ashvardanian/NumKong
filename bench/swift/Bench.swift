@@ -145,7 +145,7 @@ let workloads: [Workload] = {
 @Suite(.serialized)
 struct Bench {
     @Test func configuration() {
-        print("Capabilities: \(String(Capabilities.available, radix: 2))")
+        print("Capabilities: \(Capabilities.enabled)")
         print("Dense dimensions: \(denseDims)")
         print("Matrix: \(matrixHeight)×\(matrixDepth) × \(matrixWidth)×\(matrixDepth)")
     }
@@ -154,8 +154,8 @@ struct Bench {
     @Test(arguments: workloads, [false, true])
     func run(_ workload: Workload, serial: Bool) throws {
         let call = try workload.prepare()
-        if serial { Capabilities.restrict(Capabilities.serial) }
-        defer { Capabilities.restrict(Capabilities.available) }
+        if serial { Capabilities.enable(.serial) }
+        defer { Capabilities.enable(.detected) }
         let clock = ContinuousClock()
         let fastest = (0..<10).map { _ in clock.measure(call) }.min()!
         print("\(workload.testDescription)\(serial ? ", serial" : ""): \(fastest)")

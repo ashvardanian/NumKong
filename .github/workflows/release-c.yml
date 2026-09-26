@@ -236,7 +236,7 @@ jobs:
           node --experimental-wasm-memory64 -e "
             import('./build_wasm/numkong-wasm64-${{ matrix.simd }}.js')
               .then(m => m.default())
-              .then(M => console.log('capabilities:', M._nk_capabilities_available()))"
+              .then(M => console.log('capabilities:', M._nk_cpu_capabilities_enabled()))"
       - name: Upload WASM Module
         uses: actions/upload-artifact@v7
         with:

@@ -96,7 +96,7 @@
 #undef NUMKONG_NATIVE_BF16
 #define NUMKONG_NATIVE_BF16 0
 
-#include "numkong/capabilities.h" // `nk_capabilities_detected`, `nk_capability_t`
+#include "numkong/capabilities.h" // `nk_cpu_capabilities_detected`, `nk_capability_t`
 #include "numkong/types.hpp"
 #include "numkong/tensor.hpp"
 #include "numkong/dots.hpp"
@@ -443,7 +443,7 @@ struct error_stats_section_t {
 
     /** Runs only kernels whose family is in @p available: `#if NUMKONG_TARGET_X` says built, this says
      *  runnable. */
-    explicit error_stats_section_t(nk_capability_t available = nk_capabilities_detected()) noexcept
+    explicit error_stats_section_t(nk_capability_t available = nk_cpu_capabilities_detected()) noexcept
         : available(available) {}
 
     /** Restart under a new heading, for kernels needing @p cap. */
@@ -855,8 +855,8 @@ struct host_backend_t {
  *  binary. */
 inline void log_environment() {
     char compiled[NUMKONG_CAPABILITIES_NAME_CAPACITY], detected[NUMKONG_CAPABILITIES_NAME_CAPACITY];
-    nk_name_capabilities(nk_capabilities_compiled(), compiled, sizeof(compiled));
-    nk_name_capabilities(nk_capabilities_detected(), detected, sizeof(detected));
+    nk_name_capabilities(nk_cpu_capabilities_compiled(), compiled, sizeof(compiled));
+    nk_name_capabilities(nk_cpu_capabilities_detected(), detected, sizeof(detected));
     fmt::println("NumKong {}.{}.{}", NUMKONG_VERSION_MAJOR, NUMKONG_VERSION_MINOR, NUMKONG_VERSION_PATCH);
     fmt::println("- Compiled for: {}", compiled);
     fmt::println("- This machine: {}", detected);

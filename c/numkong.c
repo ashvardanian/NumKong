@@ -992,7 +992,7 @@ nk_dispatch_attention_causal_packed_(e4m3)
 nk_dispatch_attention_causal_packed_(i8)
 
 NUMKONG_API_RUNTIME int nk_uses_runtime_dispatch(void) { return 1; }
-NUMKONG_API_RUNTIME int nk_configure_thread(nk_capability_t c) { return nk_configure_thread_(c); }
+NUMKONG_API_RUNTIME int nk_cpu_configure_thread(nk_capability_t c) { return nk_cpu_configure_thread_(c); }
 
 NUMKONG_API_RUNTIME void nk_cast(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type) {
     nk_dispatch_table.cast(from, from_type, n, to, to_type);
@@ -1076,44 +1076,36 @@ NUMKONG_HELPER_INLINE void nk_dispatch_table_build_(nk_capability_t caps) {
  */
 NUMKONG_HELPER_INLINE void nk_initialize_(void) {
     if (nk_dispatch_table.enabled != 0) return;
-    nk_dispatch_table_build_(nk_capabilities_available());
+    nk_dispatch_table_build_(nk_cpu_capabilities_detected() & nk_cpu_capabilities_compiled_());
 }
 
 /** The capabilities this CPU can execute, probed once, as the answer cannot change mid-process. */
-NUMKONG_API_RUNTIME nk_capability_t nk_capabilities_detected(void) {
+NUMKONG_API_RUNTIME nk_capability_t nk_cpu_capabilities_detected(void) {
     static nk_capability_t cached = nk_cap_any_k;
-    if (cached == nk_cap_any_k) cached = nk_capabilities_detected_();
+    if (cached == nk_cap_any_k) cached = nk_cpu_capabilities_detected_();
     return cached;
 }
-NUMKONG_API_RUNTIME nk_capability_t nk_capabilities_compiled(void) { return nk_capabilities_compiled_(); }
-NUMKONG_API_RUNTIME nk_capability_t nk_capabilities_available(void) {
-    return nk_capabilities_detected() & nk_capabilities_compiled_();
-}
-NUMKONG_API_RUNTIME nk_capability_t nk_capabilities_enabled(void) {
+NUMKONG_API_RUNTIME nk_capability_t nk_cpu_capabilities_compiled(void) { return nk_cpu_capabilities_compiled_(); }
+NUMKONG_API_RUNTIME nk_capability_t nk_cpu_capabilities_enabled(void) {
     nk_initialize_();
     return nk_dispatch_table.enabled;
 }
-
-NUMKONG_API_RUNTIME void nk_capabilities_restrict(nk_capability_t caps) {
+NUMKONG_API_RUNTIME nk_capability_t nk_cpu_capabilities_enable(nk_capability_t wanted) {
     nk_initialize_();
-    // Clamped to `available`, and the serial fallback is never dropped, so dispatch can never be
+    // Clamped to both axes, and the serial fallback is never dropped, so dispatch can never be
     // pointed at a kernel that was not compiled in or that this CPU cannot execute.
-    nk_dispatch_table_build_((caps & nk_capabilities_available()) | nk_cap_serial_k);
-}
-NUMKONG_API_RUNTIME void nk_capabilities_enable(nk_capability_t caps) {
-    nk_capabilities_restrict(nk_capabilities_enabled() | caps);
-}
-NUMKONG_API_RUNTIME void nk_capabilities_disable(nk_capability_t caps) {
-    nk_capabilities_restrict(nk_capabilities_enabled() & ~caps);
+    nk_capability_t const available = nk_cpu_capabilities_detected() & nk_cpu_capabilities_compiled_();
+    nk_dispatch_table_build_((wanted & available) | nk_cap_serial_k);
+    return nk_dispatch_table.enabled;
 }
 NUMKONG_API_RUNTIME nk_size_t nk_name_capabilities(nk_capability_t capabilities, char *buffer, nk_size_t capacity) {
     return nk_name_capabilities_(capabilities, buffer, capacity);
 }
 
-NUMKONG_API_RUNTIME void nk_find_kernel_punned( //
-    nk_kernel_kind_t kind,                      //
-    nk_dtype_t dtype,                           //
-    nk_kernel_punned_t *kernel_output,          //
+NUMKONG_API_RUNTIME void nk_cpu_find_kernel_punned( //
+    nk_kernel_kind_t kind,                          //
+    nk_dtype_t dtype,                               //
+    nk_kernel_punned_t *kernel_output,              //
     nk_capability_t *capability_output) {
 
     // The enabled mask is the one the table was built from, so the kernel found here and the one

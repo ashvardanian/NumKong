@@ -26,7 +26,7 @@
 //! use numkong::{MaxSimPackedMatrix, Tensor};
 //!
 //! // Required once per thread before scoring: enables AMX tile state on x86.
-//! numkong::capabilities::configure_thread();
+//! numkong::capabilities::configure_thread(numkong::Capabilities::enabled());
 //!
 //! let queries = Tensor::<f32>::try_full(&[32, 128], 1.0).unwrap();
 //! let documents = Tensor::<f32>::try_full(&[1024, 128], 1.0).unwrap();
@@ -423,7 +423,7 @@ mod tests {
 
     #[test]
     fn maxsim_packs_from_tensor_view() {
-        crate::capabilities::configure_thread();
+        crate::capabilities::configure_thread(crate::Capabilities::enabled());
         let queries = Tensor::<f32>::try_full(&[4, 16], 1.0).unwrap();
         let docs = Tensor::<f32>::try_full(&[8, 16], 1.0).unwrap();
 
@@ -490,7 +490,7 @@ mod tests {
     fn reserve_then_pack_into_is_allocation_free() {
         // Reserve for the largest geometry once, then repeatedly pack smaller inputs: the pointer
         // must stay stable and capacity must not change — the decode-loop reuse contract.
-        crate::capabilities::configure_thread();
+        crate::capabilities::configure_thread(crate::Capabilities::enabled());
         let (max_vectors, depth) = (64usize, 32usize);
         let mut packed = MaxSimPackedMatrix::<f32>::empty_in(Global);
         packed.try_reserve(max_vectors, depth).unwrap();
@@ -513,7 +513,7 @@ mod tests {
 
     #[test]
     fn from_packed_bytes_roundtrips() {
-        crate::capabilities::configure_thread();
+        crate::capabilities::configure_thread(crate::Capabilities::enabled());
         let data = Tensor::<f32>::try_full(&[6, 24], 0.7f32).unwrap();
         let packed = MaxSimPackedMatrix::try_pack(&data).unwrap();
         let adopted =
@@ -526,7 +526,7 @@ mod tests {
     fn pack_is_hermetic() {
         // Packing is a pure function of its inputs: pre-filling the destination with different garbage
         // must not change a byte of the result. Both windows are 64-aligned so the layout is identical.
-        crate::capabilities::configure_thread();
+        crate::capabilities::configure_thread(crate::Capabilities::enabled());
         let (vectors, depth) = (5usize, 20usize); // non-tile-multiple exercises padding
         let data = Tensor::<f32>::try_full(&[vectors, depth], 1.5f32).unwrap();
         let size = <f32 as MaxSim>::maxsim_pack_size(vectors, depth);

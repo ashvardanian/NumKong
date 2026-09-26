@@ -59,10 +59,10 @@ interface EmscriptenModule {
   _nk_kld_f64(a: any, b: any, n: any, result: any): void;
   _nk_jsd_f32(a: any, b: any, n: any, result: any): void;
   _nk_jsd_f64(a: any, b: any, n: any, result: any): void;
-  _nk_capabilities_detected(): any;
-  _nk_capabilities_compiled(): any;
-  _nk_capabilities_available(): any;
-  _nk_capabilities_enabled(): any;
+  _nk_cpu_capabilities_detected(): any;
+  _nk_cpu_capabilities_compiled(): any;
+  _nk_cpu_capabilities_enabled(): any;
+  _nk_cpu_capabilities_enable(wanted: any): any;
   _nk_name_capabilities(capabilities: any, buffer: any, capacity: any): any;
 
   [key: string]: any;
@@ -129,6 +129,16 @@ export function initWasm(wasmModule: EmscriptenModule): void {
   // Pre-allocate an 8-byte result buffer (never freed during module lifetime)
   // _malloc always returns number (Emscripten-wrapped in both modes)
   resultPtr = wasmModule._malloc(8);
+
+  // 1024 is `NUMKONG_CAPABILITIES_NAME_CAPACITY`; bits from 42 up are GPU tiers, left out.
+  const names: Record<string, bigint> = {};
+  const namePtr = wasmModule._malloc(1024);
+  for (let bit = 1n; bit < 1n << 42n; bit <<= 1n) {
+    const length = wasmModule._nk_name_capabilities(bit, toWasmPtr(namePtr), 1024);
+    names[String.fromCharCode(...HEAPU8.subarray(namePtr, namePtr + length))] = bit;
+  }
+  wasmModule._free(namePtr);
+  Capability = Object.freeze(names);
 }
 
 /** Type information for dispatching */
@@ -520,54 +530,45 @@ function requireModule(): any {
  *
  *  Describes the host only, and says nothing about what was compiled into this module.
  *
- *  @returns Bitmask of capability flags, from the Capability constants.
+ *  @returns Bitmask of {@link Capability} bits.
  */
-export function getCapabilitiesDetected(): bigint {
-  return capabilitiesToBigInt(requireModule()._nk_capabilities_detected());
+export function capabilitiesDetected(): bigint {
+  return capabilitiesToBigInt(requireModule()._nk_cpu_capabilities_detected());
 }
 
 /**
  *  Returns the SIMD capabilities whose kernels were compiled into this module, as a bitmask.
- *  @returns Bitmask of capability flags, from the Capability constants.
+ *  @returns Bitmask of {@link Capability} bits.
  */
-export function getCapabilitiesCompiled(): bigint {
-  return capabilitiesToBigInt(requireModule()._nk_capabilities_compiled());
+export function capabilitiesCompiled(): bigint {
+  return capabilitiesToBigInt(requireModule()._nk_cpu_capabilities_compiled());
 }
 
 /**
- *  Returns the SIMD capabilities that can actually execute here, as a bitmask.
+ *  Returns the SIMD capabilities dispatch uses, as a bitmask.
  *
- *  The intersection of {@link getCapabilitiesDetected} and {@link getCapabilitiesCompiled}.
+ *  Both {@link capabilitiesDetected} and {@link capabilitiesCompiled} at once, unless narrowed by
+ *  {@link capabilitiesEnable}. Always includes `Capability.serial`.
  *
- *  @returns Bitmask of capability flags, from the Capability constants.
+ *  @returns Bitmask of {@link Capability} bits.
  */
-export function getCapabilitiesAvailable(): bigint {
-  return capabilitiesToBigInt(requireModule()._nk_capabilities_available());
+export function capabilitiesEnabled(): bigint {
+  return capabilitiesToBigInt(requireModule()._nk_cpu_capabilities_enabled());
 }
 
 /**
- *  Returns the SIMD capabilities dispatch is currently restricted to, as a bitmask.
+ *  Makes `wanted` the set dispatch uses, clamped to {@link capabilitiesDetected} and
+ *  {@link capabilitiesCompiled}. The serial fallback is always kept.
  *
- *  A subset of {@link getCapabilitiesAvailable}.
- *
- *  @returns Bitmask of capability flags, from the Capability constants.
+ *  @param wanted - Bitmask of {@link Capability} bits.
+ *  @returns The enabled set that took effect.
  */
-export function getCapabilitiesEnabled(): bigint {
-  return capabilitiesToBigInt(requireModule()._nk_capabilities_enabled());
+export function capabilitiesEnable(wanted: bigint): bigint {
+  return capabilitiesToBigInt(requireModule()._nk_cpu_capabilities_enable(wanted));
 }
 
-/**
- *  Checks whether a specific SIMD capability can actually execute here.
- *
- *  Tests against {@link getCapabilitiesAvailable}, so it is false both when the host lacks the
- *  feature and when its kernels were not compiled into this module.
- *
- *  @param cap - Capability flag to check, from the Capability constants.
- *  @returns True if the capability is available.
- */
-export function hasCapability(cap: bigint): boolean {
-  return (getCapabilitiesAvailable() & cap) !== 0n;
-}
+/** Lowercase CPU tier names, like `v128`, mapped to their capability bits by {@link initWasm}. */
+export let Capability: Readonly<Record<string, bigint>>;
 
 /** `FinalizationRegistry` for WASM `PackedMatrix` cleanup, an ES2021 feature from Node 14. */
 declare class FinalizationRegistry<T> { constructor(callback: (value: T) => void); register(target: object, value: T): void; }

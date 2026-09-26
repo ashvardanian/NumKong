@@ -20,7 +20,7 @@ static void MaxSimPackedMatrix_dealloc(PyObject *self) { Py_TYPE(self)->tp_free(
 static size_t maxsim_packed_matrix_nbytes(MaxSimPackedMatrix *mm) {
     nk_dots_pack_size_punned_t size_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_maxsim_pack_size_k, mm->dtype, (nk_kernel_punned_t *)&size_fn, &cap);
+    nk_cpu_find_kernel_punned(nk_kernel_maxsim_pack_size_k, mm->dtype, (nk_kernel_punned_t *)&size_fn, &cap);
     if (!size_fn || !cap) return 0;
     return size_fn(mm->vectors, mm->depth);
 }
@@ -57,7 +57,7 @@ static PyObject *MaxSimPackedMatrix_get_shape(PyObject *self, void *closure) {
     MaxSimPackedMatrix *mm = (MaxSimPackedMatrix *)self;
     nk_dots_packed_shape_punned_t shape_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_maxsim_packed_shape_k, mm->dtype, (nk_kernel_punned_t *)&shape_fn, &cap);
+    nk_cpu_find_kernel_punned(nk_kernel_maxsim_packed_shape_k, mm->dtype, (nk_kernel_punned_t *)&shape_fn, &cap);
     if (!shape_fn || !cap) {
         PyErr_Format(PyExc_LookupError, "No packed_shape kernel for dtype '%s'",
                      nk_dtype_to_pybuffer_typestr(mm->dtype));
@@ -128,7 +128,7 @@ static PyObject *MaxSimPackedMatrix_pack_size(PyObject *cls, PyObject *const *ar
 
     nk_dots_pack_size_punned_t size_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_maxsim_pack_size_k, dtype, (nk_kernel_punned_t *)&size_fn, &cap);
+    nk_cpu_find_kernel_punned(nk_kernel_maxsim_pack_size_k, dtype, (nk_kernel_punned_t *)&size_fn, &cap);
     if (!size_fn || !cap) {
         PyErr_Format(PyExc_LookupError, "No maxsim pack_size kernel for dtype '%s'",
                      nk_dtype_to_pybuffer_typestr(dtype));
@@ -264,7 +264,7 @@ PyObject *api_maxsim_pack(PyObject *self, PyObject *const *args, Py_ssize_t narg
 
     nk_dots_pack_size_punned_t size_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_maxsim_pack_size_k, target_dtype, (nk_kernel_punned_t *)&size_fn, &cap);
+    nk_cpu_find_kernel_punned(nk_kernel_maxsim_pack_size_k, target_dtype, (nk_kernel_punned_t *)&size_fn, &cap);
     if (!size_fn || !cap) {
         PyBuffer_Release(&b_buffer);
         PyErr_Format(PyExc_LookupError, "No maxsim pack_size kernel for dtype '%s'",
@@ -286,7 +286,7 @@ PyObject *api_maxsim_pack(PyObject *self, PyObject *const *args, Py_ssize_t narg
 
     nk_maxsim_pack_punned_t pack_fn = NULL;
     cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_maxsim_pack_k, target_dtype, (nk_kernel_punned_t *)&pack_fn, &cap);
+    nk_cpu_find_kernel_punned(nk_kernel_maxsim_pack_k, target_dtype, (nk_kernel_punned_t *)&pack_fn, &cap);
     if (!pack_fn || !cap) {
         Py_DECREF(packed);
         PyBuffer_Release(&b_buffer);
@@ -377,7 +377,7 @@ PyObject *api_maxsim_packed(PyObject *self, PyObject *const *args, Py_ssize_t na
 
     nk_maxsim_packed_punned_t kernel = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_maxsim_packed_k, queries->dtype, (nk_kernel_punned_t *)&kernel, &cap);
+    nk_cpu_find_kernel_punned(nk_kernel_maxsim_packed_k, queries->dtype, (nk_kernel_punned_t *)&kernel, &cap);
     if (!kernel || !cap) {
         PyErr_Format(PyExc_LookupError, "No maxsim_packed kernel for dtype '%s'",
                      nk_dtype_to_pybuffer_typestr(queries->dtype));
@@ -520,7 +520,7 @@ PyObject *api_maxsim(PyObject *self, PyObject *const *args, Py_ssize_t nargs, Py
 
         nk_dots_pack_size_punned_t size_fn = NULL;
         nk_capability_t cap = nk_cap_serial_k;
-        nk_find_kernel_punned(nk_kernel_maxsim_pack_size_k, target_dtype, (nk_kernel_punned_t *)&size_fn, &cap);
+        nk_cpu_find_kernel_punned(nk_kernel_maxsim_pack_size_k, target_dtype, (nk_kernel_punned_t *)&size_fn, &cap);
         if (!size_fn || !cap) {
             PyErr_Format(PyExc_LookupError, "No maxsim pack_size kernel for dtype '%s'",
                          nk_dtype_to_pybuffer_typestr(target_dtype));
@@ -529,7 +529,7 @@ PyObject *api_maxsim(PyObject *self, PyObject *const *args, Py_ssize_t nargs, Py
 
         nk_maxsim_pack_punned_t pack_fn = NULL;
         cap = nk_cap_serial_k;
-        nk_find_kernel_punned(nk_kernel_maxsim_pack_k, target_dtype, (nk_kernel_punned_t *)&pack_fn, &cap);
+        nk_cpu_find_kernel_punned(nk_kernel_maxsim_pack_k, target_dtype, (nk_kernel_punned_t *)&pack_fn, &cap);
         if (!pack_fn || !cap) {
             PyErr_Format(PyExc_LookupError, "No maxsim pack kernel for dtype '%s'",
                          nk_dtype_to_pybuffer_typestr(target_dtype));
@@ -538,7 +538,7 @@ PyObject *api_maxsim(PyObject *self, PyObject *const *args, Py_ssize_t nargs, Py
 
         nk_maxsim_packed_punned_t kernel = NULL;
         cap = nk_cap_serial_k;
-        nk_find_kernel_punned(nk_kernel_maxsim_packed_k, target_dtype, (nk_kernel_punned_t *)&kernel, &cap);
+        nk_cpu_find_kernel_punned(nk_kernel_maxsim_packed_k, target_dtype, (nk_kernel_punned_t *)&kernel, &cap);
         if (!kernel || !cap) {
             PyErr_Format(PyExc_LookupError, "No maxsim_packed kernel for dtype '%s'",
                          nk_dtype_to_pybuffer_typestr(target_dtype));

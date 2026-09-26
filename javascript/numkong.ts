@@ -84,53 +84,6 @@ if (addon) {
   );
 }
 
-/** CPU capability bit masks, in chronological order by first commercial silicon. Use these with
- *  {@link hasCapability} or {@link getCapabilitiesAvailable} to check for SIMD support. */
-export const Capability = {
-  SERIAL: 1n << 0n,          // Always: Fallback
-  NEON: 1n << 1n,            // 2013: ARM NEON
-  HASWELL: 1n << 2n,         // 2013: Intel AVX2
-  SKYLAKE: 1n << 3n,         // 2017: Intel AVX-512
-  NEONHALF: 1n << 4n,        // 2017: ARM NEON FP16
-  NEONSDOT: 1n << 5n,        // 2017: ARM NEON i8 dot
-  NEONFHM: 1n << 6n,         // 2018: ARM NEON FP16 FML
-  ICELAKE: 1n << 7n,         // 2019: Intel AVX-512 VNNI
-  GENOA: 1n << 8n,           // 2020: Intel/AMD AVX-512 BF16
-  NEONBFDOT: 1n << 9n,       // 2020: ARM NEON BF16
-  SVE: 1n << 10n,            // 2020: ARM SVE
-  SVEHALF: 1n << 11n,        // 2020: ARM SVE FP16
-  SVESDOT: 1n << 12n,        // 2020: ARM SVE i8 dot
-  ALDER: 1n << 13n,          // 2021: Intel AVX2+VNNI
-  SVEBFDOT: 1n << 14n,       // 2021: ARM SVE BF16
-  SVE2: 1n << 15n,           // 2022: ARM SVE2
-  V128RELAXED: 1n << 16n,    // 2022: WASM Relaxed SIMD
-  SAPPHIRE: 1n << 17n,       // 2023: Intel AVX-512 FP16
-  SAPPHIREAMX: 1n << 18n,    // 2023: Intel Sapphire AMX
-  RVV: 1n << 19n,            // 2023: RISC-V Vector
-  RVVHALF: 1n << 20n,        // 2023: RISC-V Zvfh
-  RVVBF16: 1n << 21n,        // 2023: RISC-V Zvfbfwma
-  GRANITEAMX: 1n << 22n,     // 2024: Intel Granite AMX FP16
-  TURIN: 1n << 23n,          // 2024: AMD Turin AVX-512 CD
-  SME: 1n << 24n,            // 2024: ARM SME
-  SME2: 1n << 25n,           // 2024: ARM SME2
-  SMEF64: 1n << 26n,         // 2024: ARM SME F64
-  SMEFA64: 1n << 27n,        // 2024: ARM SME FA64
-  SVE2P1: 1n << 28n,         // 2025+: ARM SVE2.1
-  SME2P1: 1n << 29n,         // 2025+: ARM SME2.1
-  SMEHALF: 1n << 30n,        // 2025+: ARM SME F16F16
-  SMEBF16: 1n << 31n,        // 2025+: ARM SME B16B16
-  SMELUT2: 1n << 32n,        // 2025+: ARM SME LUTv2
-  RVVBB: 1n << 33n,          // 2025+: RISC-V Zvbb
-  SIERRA: 1n << 34n,         // 2024: Intel AVXVNNIINT8
-  SMEBI32: 1n << 35n,        // 2025+: ARM SME BI32I32
-  LOONGSONASX: 1n << 36n,    // LoongArch LASX 256-bit SIMD
-  POWERVSX: 1n << 37n,       // Power VSX 128-bit SIMD
-  DIAMOND: 1n << 38n,        // 2025+: Intel AVX10.2
-  NEONFP8: 1n << 39n,        // ARM NEON FP8
-  DIAMONDAMX: 1n << 40n,     // 2025+: Intel Diamond Rapids AMX
-  V128: 1n << 41n,           // 2021: WASM SIMD128
-} as const;
-
 export { Float16Array, BFloat16Array, E4M3Array, E5M2Array, BinaryArray, TensorBase, VectorBase, VectorView, Vector, MatrixBase, Matrix, PackedMatrix, outputDType };
 
 /** Convert a single FP16 value, as uint16 bits, to FP32. */
@@ -194,97 +147,62 @@ function unwrapTensor(input: TensorBase): { arr: DistanceArray; dtype: DType } {
 }
 
 /**
- *  Returns the SIMD capabilities this CPU supports, as a bitmask.
+ *  Returns the CPU capabilities this machine executes, as a bitmask.
  *
  *  Describes the machine only, and says nothing about whether a kernel was compiled into this build
  *  — a prebuild whose ISA probes failed still reports your CPU's full feature set while containing
- *  no SIMD kernels at all. Prefer {@link getCapabilitiesAvailable}.
+ *  no SIMD kernels at all. Prefer {@link capabilitiesEnabled}.
  *
- *  @returns Bitmask of capability flags, from the Capability constants.
+ *  @returns Bitmask of {@link Capability} bits.
  */
-export const getCapabilitiesDetected = (): bigint => addon.getCapabilitiesDetected();
+export const capabilitiesDetected = (): bigint => addon.capabilitiesDetected();
 
 /**
- *  Returns the SIMD capabilities whose kernels were compiled into this binary, as a bitmask.
+ *  Returns the CPU capabilities whose kernels were compiled into this binary, as a bitmask.
  *
  *  Decided at build time by the ISA probes, independent of the CPU. The only accessor that can tell
  *  you a prebuild is silently scalar.
  *
- *  @returns Bitmask of capability flags, from the Capability constants.
+ *  @returns Bitmask of {@link Capability} bits.
  */
-export const getCapabilitiesCompiled = (): bigint => addon.getCapabilitiesCompiled();
+export const capabilitiesCompiled = (): bigint => addon.capabilitiesCompiled();
 
 /**
- *  Returns the SIMD capabilities that can actually execute here, as a bitmask.
+ *  Returns the CPU capabilities dispatch uses, as a bitmask.
  *
- *  The intersection of {@link getCapabilitiesDetected} and {@link getCapabilitiesCompiled}. Either
- *  axis alone over-reports.
+ *  Both {@link capabilitiesDetected} and {@link capabilitiesCompiled} at once, unless narrowed by
+ *  {@link capabilitiesEnable}. Always includes `Capability.serial`.
  *
- *  @returns Bitmask of capability flags, from the Capability constants.
+ *  @returns Bitmask of {@link Capability} bits.
  *
  *  @example
  *  ```ts
- *  import { getCapabilitiesAvailable, Capability } from 'numkong';
+ *  import { capabilitiesEnabled, Capability } from 'numkong';
  *
- *  const caps = getCapabilitiesAvailable();
- *  console.log(`Capabilities: 0x${caps.toString(16)}`);
- *
- *  if (caps & Capability.HASWELL) {
- *    console.log('AVX2 available');
- *  }
+ *  const enabled = capabilitiesEnabled();
+ *  if (enabled & Capability.haswell) console.log('AVX2 kernels in use');
  *  ```
  */
-export const getCapabilitiesAvailable = (): bigint => addon.getCapabilitiesAvailable();
+export const capabilitiesEnabled = (): bigint => addon.capabilitiesEnabled();
 
 /**
- *  Returns the SIMD capabilities dispatch is currently restricted to, as a bitmask.
- *  A subset of {@link getCapabilitiesAvailable}.
+ *  Makes `wanted` the set dispatch uses, clamped to {@link capabilitiesDetected} and
+ *  {@link capabilitiesCompiled}. The serial fallback is always kept.
  *
- *  @returns Bitmask of capability flags, from the Capability constants.
- */
-export const getCapabilitiesEnabled = (): bigint => addon.getCapabilitiesEnabled();
-
-/**
- *  Restricts dispatch to `caps`, clamped to {@link getCapabilitiesAvailable}.
- *  The serial fallback is always retained.
- *
- *  @param caps - Capability mask, from the Capability constants.
- */
-export const restrictCapabilities = (caps: bigint): void => addon.capabilitiesRestrict(caps);
-
-/**
- *  Adds `caps` to {@link getCapabilitiesEnabled}. Anything not available is ignored.
- *
- *  @param caps - Capability mask, from the Capability constants.
- */
-export const enableCapabilities = (caps: bigint): void => addon.capabilitiesEnable(caps);
-
-/**
- *  Removes `caps` from {@link getCapabilitiesEnabled}. The serial fallback cannot be removed.
- *
- *  @param caps - Capability mask, from the Capability constants.
- */
-export const disableCapabilities = (caps: bigint): void => addon.capabilitiesDisable(caps);
-
-/**
- *  Checks whether a specific SIMD capability can actually execute here.
- *
- *  Tests against {@link getCapabilitiesAvailable}, so it is false both when the CPU lacks the
- *  feature and when its kernels were not compiled into this build.
- *
- *  @param cap - Capability flag to check, from the Capability constants.
- *  @returns True if the capability is available, false otherwise.
+ *  @param wanted - Bitmask of {@link Capability} bits.
+ *  @returns The enabled set that took effect.
  *
  *  @example
  *  ```ts
- *  import { hasCapability, Capability } from 'numkong';
+ *  import { capabilitiesEnable, capabilitiesEnabled, Capability } from 'numkong';
  *
- *  if (hasCapability(Capability.HASWELL)) {
- *    console.log('Intel AVX2 (Haswell) available');
- *  }
+ *  capabilitiesEnable(capabilitiesEnabled() & ~Capability.skylake);
  *  ```
  */
-export const hasCapability = (cap: bigint): boolean => (addon.getCapabilitiesAvailable() & cap) !== 0n;
+export const capabilitiesEnable = (wanted: bigint): bigint => addon.capabilitiesEnable(wanted);
+
+/** Lowercase CPU tier names, like `haswell` or `neon`, mapped to their capability bits. */
+export const Capability: Readonly<Record<string, bigint>> = Object.freeze(addon.Capability);
 
 /**
  *  Computes the squared Euclidean distance between two vectors.

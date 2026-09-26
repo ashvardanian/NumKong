@@ -132,7 +132,21 @@ let kernels: [Kernel] = {
 }()
 
 @Test func capabilities() {
-    print("Capabilities: \(Capabilities.available)")
+    print("Capabilities: \(Capabilities.enabled)")
+    let names: [(Capabilities, String)] = [
+        (.serial, "serial"), (.neon, "neon"), (.haswell, "haswell"), (.skylake, "skylake"),
+        (.neonHalf, "neonhalf"), (.neonSDot, "neonsdot"), (.neonFhm, "neonfhm"), (.icelake, "icelake"),
+        (.genoa, "genoa"), (.neonBfDot, "neonbfdot"), (.sve, "sve"), (.sveHalf, "svehalf"),
+        (.sveSDot, "svesdot"), (.alder, "alder"), (.sveBfDot, "svebfdot"), (.sve2, "sve2"),
+        (.v128Relaxed, "v128relaxed"), (.sapphire, "sapphire"), (.sapphireAmx, "sapphireamx"), (.rvv, "rvv"),
+        (.rvvHalf, "rvvhalf"), (.rvvBf16, "rvvbf16"), (.graniteAmx, "graniteamx"), (.turin, "turin"),
+        (.sme, "sme"), (.sme2, "sme2"), (.smeF64, "smef64"), (.smeFa64, "smefa64"),
+        (.sve2p1, "sve2p1"), (.sme2p1, "sme2p1"), (.smeHalf, "smehalf"), (.smeBf16, "smebf16"),
+        (.smeLut2, "smelut2"), (.rvvBB, "rvvbb"), (.sierra, "sierra"), (.smeBi32, "smebi32"),
+        (.loongsonAsx, "loongsonasx"), (.powerVsx, "powervsx"), (.diamond, "diamond"), (.neonFp8, "neonfp8"),
+        (.diamondAmx, "diamondamx"), (.v128, "v128"),
+    ]
+    for (capability, name) in names { #expect(capability.description == name) }
 }
 
 @Test(arguments: kernels)

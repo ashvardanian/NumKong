@@ -7768,7 +7768,7 @@ mod tests {
 
     #[test]
     fn tensor_ref_extension_traits() {
-        crate::capabilities::configure_thread();
+        crate::capabilities::configure_thread(crate::Capabilities::enabled());
         let t = Tensor::<f32>::try_full(&[3, 4], 2.0).unwrap();
         let v = t.view();
 

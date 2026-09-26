@@ -1235,7 +1235,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         let total_tasks = segment_count * query_head_count;
         pool.for_n_dynamic(total_tasks, move |prong| {
             // Configure the worker for AMX and other thread-local SIMD state — idempotent.
-            crate::capabilities::configure_thread();
+            crate::capabilities::configure_thread(crate::Capabilities::enabled());
             unsafe {
                 Scalar::attention_bidirectional_packed(
                     q_ptr.as_ptr(),
@@ -1295,7 +1295,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
 
         let total_tasks = segment_count * query_head_count;
         pool.for_n_dynamic(total_tasks, move |prong| {
-            crate::capabilities::configure_thread();
+            crate::capabilities::configure_thread(crate::Capabilities::enabled());
             unsafe {
                 Scalar::attention_causal_packed(
                     q_ptr.as_ptr(),
@@ -1429,7 +1429,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         let lengths_ptr = fu::SyncConstPtr::new(segment_lengths);
         let packed_ptr = fu::SyncMutPtr::new(destination);
         pool.for_n_dynamic(total_tasks - 1, move |prong| {
-            crate::capabilities::configure_thread();
+            crate::capabilities::configure_thread(crate::Capabilities::enabled());
             unsafe {
                 Scalar::attention_pack(
                     keys_ptr.as_ptr(),
@@ -1482,7 +1482,7 @@ mod tests {
 
     #[test]
     fn shape_matches_packed_cache() {
-        crate::capabilities::configure_thread();
+        crate::capabilities::configure_thread(crate::Capabilities::enabled());
         let (tokens, heads, depth) = (6usize, 2usize, 8usize);
         let keys = Tensor::<bf16>::try_full(&[tokens, heads * depth], bf16::from_f32(0.1)).unwrap();
         let values = keys.try_clone().unwrap();
@@ -1499,7 +1499,7 @@ mod tests {
 
     #[test]
     fn reserve_then_pack_into_is_allocation_free() {
-        crate::capabilities::configure_thread();
+        crate::capabilities::configure_thread(crate::Capabilities::enabled());
         let (heads, depth) = (2usize, 8usize);
         let max_lengths = [64u32];
         let mut cache = AttentionPackedMatrix::<bf16>::empty_in(Global);
@@ -1523,7 +1523,7 @@ mod tests {
 
     #[test]
     fn from_packed_bytes_roundtrips() {
-        crate::capabilities::configure_thread();
+        crate::capabilities::configure_thread(crate::Capabilities::enabled());
         let (tokens, heads, depth) = (6usize, 2usize, 8usize);
         let keys = Tensor::<bf16>::try_full(&[tokens, heads * depth], bf16::from_f32(0.1)).unwrap();
         let values = keys.try_clone().unwrap();
@@ -1541,7 +1541,7 @@ mod tests {
         // garbage must not change a single byte of the result. This is the invariant that lets the
         // container skip pre-zeroing — the packer owns every byte, including the directory's aligned
         // tail and each plane's padding. Both windows are 64-aligned so the layout is identical.
-        crate::capabilities::configure_thread();
+        crate::capabilities::configure_thread(crate::Capabilities::enabled());
         let (heads, depth) = (2usize, 64usize);
         let offsets = [0u32, 7, 7, 40]; // three segments, including a 0-length pad (7..7)
         let segment_lengths: Vec<u32> = offsets.windows(2).map(|pair| pair[1] - pair[0]).collect();

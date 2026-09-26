@@ -1764,7 +1764,7 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
         let matrix_ptr = fu::SyncConstPtr::new(matrix.as_ptr());
         let destination_ptr = fu::SyncMutPtr::new(destination);
         pool.for_slices(width, move |prong, count| {
-            crate::capabilities::configure_thread();
+            crate::capabilities::configure_thread(crate::Capabilities::enabled());
             let columns_begin = prong.task_index;
             unsafe {
                 Scalar::dots_pack(
@@ -2208,7 +2208,7 @@ where
         pool.broadcast(move |thread_index, _colocation_index| {
             // Configure each worker thread for optimal SIMD, including AMX
             // This is idempotent and safe to call multiple times
-            crate::capabilities::configure_thread();
+            crate::capabilities::configure_thread(crate::Capabilities::enabled());
 
             let row_start = thread_index * rows_per_thread;
             if row_start >= height {
@@ -2376,7 +2376,7 @@ where
         let result_stride = output.stride_bytes(0) as usize;
 
         pool.broadcast(move |thread_index, _colocation_index| {
-            crate::capabilities::configure_thread();
+            crate::capabilities::configure_thread(crate::Capabilities::enabled());
             let (row_start, row_count) = compute_thread_rows(thread_index, num_threads, vector_count);
             unsafe {
                 Scalar::dots_symmetric(

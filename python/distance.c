@@ -151,7 +151,7 @@ static PyObject *implement_dense_metric( //
     // Look up the metric and the capability
     nk_metric_dense_punned_t metric = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_find_kernel_punned(metric_kind, dtype, (nk_kernel_punned_t *)&metric, &capability);
+    nk_cpu_find_kernel_punned(metric_kind, dtype, (nk_kernel_punned_t *)&metric, &capability);
     if (!metric || !capability) {
         PyErr_Format( //
             PyExc_LookupError,
@@ -335,7 +335,7 @@ static PyObject *implement_curved_metric( //
     // Look up the metric and the capability
     nk_metric_curved_punned_t metric = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_find_kernel_punned(metric_kind, dtype, (nk_kernel_punned_t *)&metric, &capability);
+    nk_cpu_find_kernel_punned(metric_kind, dtype, (nk_kernel_punned_t *)&metric, &capability);
     if (!metric || !capability) {
         PyErr_Format( //
             PyExc_LookupError,
@@ -462,7 +462,7 @@ static PyObject *implement_geospatial_metric( //
     // Look up the metric kernel
     nk_metric_geospatial_punned_t metric = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_find_kernel_punned(metric_kind, dtype, (nk_kernel_punned_t *)&metric, &capability);
+    nk_cpu_find_kernel_punned(metric_kind, dtype, (nk_kernel_punned_t *)&metric, &capability);
     if (!metric || !capability) {
         PyErr_Format(PyExc_LookupError, "Unsupported metric '%c' and dtype '%s'", metric_kind,
                      nk_dtype_to_pybuffer_typestr(dtype));
@@ -539,7 +539,7 @@ static PyObject *implement_sparse_metric( //
     nk_dtype_t dtype = a_parsed.dtype;
     nk_sparse_intersect_punned_t metric = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_find_kernel_punned(metric_kind, dtype, (nk_kernel_punned_t *)&metric, &capability);
+    nk_cpu_find_kernel_punned(metric_kind, dtype, (nk_kernel_punned_t *)&metric, &capability);
     if (!metric || !capability) {
         PyErr_Format( //
             PyExc_LookupError, "Unsupported metric '%c' and dtype combination ('%s'/'%s' and '%s'/'%s')",
@@ -646,8 +646,8 @@ static int cdist_batch_symmetric(                                   //
     nk_size_t threads) {
     nk_dots_symmetric_punned_t kernel = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(symmetric_kind, dtype, //
-                          (nk_kernel_punned_t *)&kernel, &cap);
+    nk_cpu_find_kernel_punned(symmetric_kind, dtype, //
+                              (nk_kernel_punned_t *)&kernel, &cap);
     if (!kernel || !cap) return -1;
 
     cdist_symmetric_task_t task;
@@ -701,16 +701,16 @@ static int cdist_batch_packed(                                                  
     nk_dots_packed_punned_t kernel = NULL;
     nk_capability_t cap = nk_cap_serial_k;
 
-    nk_find_kernel_punned(nk_kernel_dots_pack_size_k, dtype, (nk_kernel_punned_t *)&size_fn, &cap);
+    nk_cpu_find_kernel_punned(nk_kernel_dots_pack_size_k, dtype, (nk_kernel_punned_t *)&size_fn, &cap);
     if (!size_fn || !cap) return -2;
 
     cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_dots_pack_k, dtype, (nk_kernel_punned_t *)&pack_fn, &cap);
+    nk_cpu_find_kernel_punned(nk_kernel_dots_pack_k, dtype, (nk_kernel_punned_t *)&pack_fn, &cap);
     if (!pack_fn || !cap) return -2;
 
     cap = nk_cap_serial_k;
-    nk_find_kernel_punned(packed_kind, dtype, //
-                          (nk_kernel_punned_t *)&kernel, &cap);
+    nk_cpu_find_kernel_punned(packed_kind, dtype, //
+                              (nk_kernel_punned_t *)&kernel, &cap);
     if (!kernel || !cap) return -2;
 
     nk_size_t packed_size = size_fn(b_count, dimensions);
@@ -823,7 +823,7 @@ static PyObject *implement_cdist(                        //
     // Look up the metric and the capability
     nk_metric_dense_punned_t metric = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_find_kernel_punned(metric_kind, dtype, (nk_kernel_punned_t *)&metric, &capability);
+    nk_cpu_find_kernel_punned(metric_kind, dtype, (nk_kernel_punned_t *)&metric, &capability);
     if (!metric || !capability) {
         PyErr_Format( //
             PyExc_LookupError, "Unsupported metric '%c' and dtype combination ('%s'/'%s' and '%s'/'%s')",
@@ -935,7 +935,7 @@ static PyObject *implement_pointer_access(nk_kernel_kind_t metric_kind, PyObject
 
     nk_kernel_punned_t metric = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_find_kernel_punned(metric_kind, dtype, &metric, &capability);
+    nk_cpu_find_kernel_punned(metric_kind, dtype, &metric, &capability);
     if (!metric || !capability) {
         PyErr_SetString(PyExc_LookupError, "No such metric");
         return NULL;
@@ -1449,7 +1449,7 @@ PyObject *api_sparse_dot(PyObject *self, PyObject *const *args, Py_ssize_t nargs
 
     nk_sparse_dot_punned_t kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_sparse_dot_k, dispatch_dtype, (nk_kernel_punned_t *)&kernel, &capability);
+    nk_cpu_find_kernel_punned(nk_kernel_sparse_dot_k, dispatch_dtype, (nk_kernel_punned_t *)&kernel, &capability);
     if (!kernel || !capability) {
         PyErr_SetString(PyExc_LookupError, "No sparse_dot kernel available for this dtype combination");
         goto cleanup;

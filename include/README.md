@@ -16,7 +16,7 @@ int main(void) {
     nk_f32_t a[] = {1, 2, 3};
     nk_f32_t b[] = {4, 5, 6};
     nk_f64_t dot = 0;
-    nk_configure_thread(nk_capabilities_available());
+    nk_cpu_configure_thread(nk_cpu_capabilities_enabled());
     nk_dot_f32(a, b, 3, &dot); // widened f32 → f64 output
     printf("dot=%f\n", dot);
     return 0;
@@ -105,7 +105,7 @@ If you want runtime-selected kernels without naming a specific ISA, use the punn
 ```c
 nk_metric_dense_punned_t angular = 0;
 nk_capability_t used = nk_cap_serial_k;
-nk_find_kernel_punned(nk_kernel_angular_k, nk_f32_k, (nk_kernel_punned_t *)&angular, &used);
+nk_cpu_find_kernel_punned(nk_kernel_angular_k, nk_f32_k, (nk_kernel_punned_t *)&angular, &used);
 
 nk_f32_t a[768], b[768], result = 0;
 angular(a, b, 768, &result);
@@ -534,31 +534,29 @@ Its footprint is exposed through `size_bytes()`.
 ## Runtime Dispatch and Capabilities
 
 Runtime dispatch is the default recommendation for shipping one binary across many CPU generations.
-`nk_configure_thread` enables CPU-specific acceleration features such as Intel AMX.
-It must be called once per thread before using AMX operations and returns 1 on success, 0 on failure.
+Capabilities are reported along two independent axes, plus the set dispatch uses:
 
-Capabilities are reported along two independent axes, plus the sets derived from them:
+- `nk_cpu_capabilities_detected()` is what this CPU can execute, from CPUID or HWCAP.
+- `nk_cpu_capabilities_compiled()` is what this binary contains, from the ISA probes at build time.
+- `nk_cpu_capabilities_enabled()` is what dispatch uses: both axes at once, unless narrowed.
 
-| Accessor                      | Meaning                                                         |
-| :---------------------------- | :-------------------------------------------------------------- |
-| `nk_capabilities_detected()`  | what this CPU can execute, from CPUID or HWCAP                  |
-| `nk_capabilities_compiled()`  | what this binary contains, from the ISA probes at build time    |
-| `nk_capabilities_available()` | the intersection, i.e. what can actually run here               |
-| `nk_capabilities_enabled()`   | the subset dispatch is restricted to, always within `available` |
+Ask for `enabled` unless you specifically mean one of the raw axes.
+The two axes are independent, and conflating them fails quietly rather than loudly: a binary whose ISA probes failed still reports this machine's full `detected` mask while containing no SIMD kernels at all.
 
-Ask for `available` unless you specifically mean one of the raw axes.
-The two are independent, and conflating them fails quietly rather than loudly: a binary whose ISA probes failed still reports this machine's full `detected` mask while containing no SIMD kernels at all.
+`nk_cpu_capabilities_enable` makes a mask the enabled set and returns what it kept.
+It clamps to both axes and always retains `nk_cap_serial_k`, so dispatch can never be pointed at a kernel that is absent or unsupported.
+
+`nk_cpu_configure_thread` prepares the calling thread for the tiers it is given, and only those, returning 1 on success.
+Most tiers need nothing: AMX on Linux costs one `arch_prctl` syscall, which grants tile state to the whole process, and fused BF16 dot products on Arm cost one `FPCR` write per thread.
 
 ```c
-nk_capability_t caps = nk_capabilities_available();
-nk_configure_thread(caps);
-if (caps & nk_cap_sapphireamx_k) { /* AMX both detected and compiled in */ }
+nk_capability_t enabled = nk_cpu_capabilities_enabled();
+nk_cpu_configure_thread(enabled);
+if (enabled & nk_cap_sapphireamx_k) { /* AMX both detected and compiled in */ }
+nk_cpu_capabilities_enable(enabled & ~nk_cap_sapphireamx_k); // dispatch without AMX
 ```
 
 `nk_name_capabilities` spells any such mask as the names bindings accept, like "serial,neon,neonhalf", into a buffer of `NUMKONG_CAPABILITIES_NAME_CAPACITY` bytes.
-
-Narrow what dispatch may select with `nk_capabilities_enable`, `nk_capabilities_disable`, or `nk_capabilities_restrict`.
-All three clamp to `available` and always retain `nk_cap_serial_k`, so dispatch can never be pointed at a kernel that is absent or unsupported.
 
 For exact register-level details, see `capabilities.h`.
 The C++ wrappers can also call directly into named backends if you want to pin a path for testing or benchmarking.
@@ -614,7 +612,7 @@ The main user-facing CMake options are:
 
 - `NUMKONG_BUILD_SHARED` builds a shared library, ON by default for standalone builds and OFF when included as a subdirectory.
 - `NUMKONG_BUILD_TEST` and `NUMKONG_BUILD_BENCH` enable precision tests and benchmarks respectively, both OFF by default.
-- `NUMKONG_RUNTIME_DISPATCH=1` compiles all backends into one binary and selects at runtime via `nk_capabilities_available()`, recommended for shipping one binary across CPU generations.
+- `NUMKONG_RUNTIME_DISPATCH=1` compiles all backends into one binary and selects at runtime via `nk_cpu_capabilities_enabled()`, recommended for shipping one binary across CPU generations.
   It is a preprocessor definition rather than a CMake option, so pass it through the compiler flags.
 - `NUMKONG_COMPARE_TO_BLAS` and `NUMKONG_COMPARE_TO_MKL` link benchmarks against a system BLAS or Intel MKL, each accepting `AUTO`, `ON`, or `OFF` with `AUTO` as the default.
 

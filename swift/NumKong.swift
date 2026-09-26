@@ -239,83 +239,90 @@ where A.Element == Float32 {
 
 // MARK: - Capabilities
 
-/// Bitmasks of SIMD instruction sets, along two independent axes and the sets derived from them.
+/// A set of CPU SIMD tiers, reported along two independent axes and the set dispatch uses.
 ///
-/// Prefer ``available`` unless you specifically mean one of the raw axes: ``detected`` describes
+/// Prefer ``enabled`` unless you specifically mean one of the raw axes: ``detected`` describes
 /// the CPU and says nothing about whether a kernel was compiled into this binary, so selecting on
 /// it alone claims hardware support for code that may not exist here.
-public enum Capabilities {
+public struct Capabilities: OptionSet, Sendable, CustomStringConvertible {
+    public let rawValue: UInt64
+    public init(rawValue: UInt64) { self.rawValue = rawValue }
+
+    public static let serial = Capabilities(rawValue: 1 << 0)
+    public static let neon = Capabilities(rawValue: 1 << 1)
+    public static let haswell = Capabilities(rawValue: 1 << 2)
+    public static let skylake = Capabilities(rawValue: 1 << 3)
+    public static let neonHalf = Capabilities(rawValue: 1 << 4)
+    public static let neonSDot = Capabilities(rawValue: 1 << 5)
+    public static let neonFhm = Capabilities(rawValue: 1 << 6)
+    public static let icelake = Capabilities(rawValue: 1 << 7)
+    public static let genoa = Capabilities(rawValue: 1 << 8)
+    public static let neonBfDot = Capabilities(rawValue: 1 << 9)
+    public static let sve = Capabilities(rawValue: 1 << 10)
+    public static let sveHalf = Capabilities(rawValue: 1 << 11)
+    public static let sveSDot = Capabilities(rawValue: 1 << 12)
+    public static let alder = Capabilities(rawValue: 1 << 13)
+    public static let sveBfDot = Capabilities(rawValue: 1 << 14)
+    public static let sve2 = Capabilities(rawValue: 1 << 15)
+    public static let v128Relaxed = Capabilities(rawValue: 1 << 16)
+    public static let sapphire = Capabilities(rawValue: 1 << 17)
+    public static let sapphireAmx = Capabilities(rawValue: 1 << 18)
+    public static let rvv = Capabilities(rawValue: 1 << 19)
+    public static let rvvHalf = Capabilities(rawValue: 1 << 20)
+    public static let rvvBf16 = Capabilities(rawValue: 1 << 21)
+    public static let graniteAmx = Capabilities(rawValue: 1 << 22)
+    public static let turin = Capabilities(rawValue: 1 << 23)
+    public static let sme = Capabilities(rawValue: 1 << 24)
+    public static let sme2 = Capabilities(rawValue: 1 << 25)
+    public static let smeF64 = Capabilities(rawValue: 1 << 26)
+    public static let smeFa64 = Capabilities(rawValue: 1 << 27)
+    public static let sve2p1 = Capabilities(rawValue: 1 << 28)
+    public static let sme2p1 = Capabilities(rawValue: 1 << 29)
+    public static let smeHalf = Capabilities(rawValue: 1 << 30)
+    public static let smeBf16 = Capabilities(rawValue: 1 << 31)
+    public static let smeLut2 = Capabilities(rawValue: 1 << 32)
+    public static let rvvBB = Capabilities(rawValue: 1 << 33)
+    public static let sierra = Capabilities(rawValue: 1 << 34)
+    public static let smeBi32 = Capabilities(rawValue: 1 << 35)
+    public static let loongsonAsx = Capabilities(rawValue: 1 << 36)
+    public static let powerVsx = Capabilities(rawValue: 1 << 37)
+    public static let diamond = Capabilities(rawValue: 1 << 38)
+    public static let neonFp8 = Capabilities(rawValue: 1 << 39)
+    public static let diamondAmx = Capabilities(rawValue: 1 << 40)
+    public static let v128 = Capabilities(rawValue: 1 << 41)
+
     /// What this CPU supports, from CPUID or HWCAP.
-    public static var detected: UInt64 { UInt64(nk_capabilities_detected()) }
+    public static var detected: Capabilities { Capabilities(rawValue: UInt64(nk_cpu_capabilities_detected())) }
 
     /// What this binary contains, as decided by the ISA probes at build time.
-    public static var compiled: UInt64 { UInt64(nk_capabilities_compiled()) }
+    public static var compiled: Capabilities { Capabilities(rawValue: UInt64(nk_cpu_capabilities_compiled())) }
 
-    /// What can actually execute here: ``detected`` intersected with ``compiled``.
-    public static var available: UInt64 { UInt64(nk_capabilities_available()) }
+    /// What dispatch uses: ``detected`` and ``compiled`` at once, unless narrowed by
+    /// ``enable(_:)``. Always contains ``serial``.
+    public static var enabled: Capabilities { Capabilities(rawValue: UInt64(nk_cpu_capabilities_enabled())) }
 
-    /// What dispatch is currently restricted to, a subset of ``available``.
-    public static var enabled: UInt64 { UInt64(nk_capabilities_enabled()) }
+    /// Makes `wanted` the ``enabled`` set, clamped to ``detected`` and ``compiled`` and keeping
+    /// ``serial``.
+    /// - Returns: The set that took effect.
+    @discardableResult
+    public static func enable(_ wanted: Capabilities) -> Capabilities {
+        Capabilities(rawValue: UInt64(nk_cpu_capabilities_enable(nk_capability_t(wanted.rawValue))))
+    }
 
-    /// Whether `capability` can actually execute here, i.e. whether it is in ``available``.
-    /// False both when this CPU lacks the feature and when its kernels were not compiled in.
-    public static func has(_ capability: UInt64) -> Bool { available & capability != 0 }
-
-    /// Restricts dispatch to `capabilities`, clamped to ``available``; serial is always kept.
-    public static func restrict(_ capabilities: UInt64) { nk_capabilities_restrict(nk_capability_t(capabilities)) }
-
-    /// Adds `capabilities` to ``enabled``. Anything not in ``available`` is ignored.
-    public static func enable(_ capabilities: UInt64) { nk_capabilities_enable(nk_capability_t(capabilities)) }
-
-    /// Removes `capabilities` from ``enabled``. The serial fallback cannot be removed.
-    public static func disable(_ capabilities: UInt64) { nk_capabilities_disable(nk_capability_t(capabilities)) }
-
-    /// Configures the current thread for the capabilities that can run here, e.g. AMX tile state on
-    /// x86. Must be called once per thread before using AMX operations.
+    /// Configures the current thread for `capabilities`, usually ``enabled``, e.g. AMX tile state
+    /// on x86. Must be called once per thread before using AMX operations.
     /// - Returns: `true` on success.
     @discardableResult
-    public static func configureThread() -> Bool { nk_configure_thread(nk_capabilities_available()) != 0 }
+    public static func configureThread(_ capabilities: Capabilities) -> Bool {
+        nk_cpu_configure_thread(nk_capability_t(capabilities.rawValue)) != 0
+    }
 
-    public static let serial: UInt64 = 1 << 0
-    public static let neon: UInt64 = 1 << 1
-    public static let haswell: UInt64 = 1 << 2
-    public static let skylake: UInt64 = 1 << 3
-    public static let neonHalf: UInt64 = 1 << 4
-    public static let neonSDot: UInt64 = 1 << 5
-    public static let neonFhm: UInt64 = 1 << 6
-    public static let icelake: UInt64 = 1 << 7
-    public static let genoa: UInt64 = 1 << 8
-    public static let neonBfDot: UInt64 = 1 << 9
-    public static let sve: UInt64 = 1 << 10
-    public static let sveHalf: UInt64 = 1 << 11
-    public static let sveSDot: UInt64 = 1 << 12
-    public static let alder: UInt64 = 1 << 13
-    public static let sveBfDot: UInt64 = 1 << 14
-    public static let sve2: UInt64 = 1 << 15
-    public static let v128Relaxed: UInt64 = 1 << 16
-    public static let sapphire: UInt64 = 1 << 17
-    public static let sapphireAmx: UInt64 = 1 << 18
-    public static let rvv: UInt64 = 1 << 19
-    public static let rvvHalf: UInt64 = 1 << 20
-    public static let rvvBf16: UInt64 = 1 << 21
-    public static let graniteAmx: UInt64 = 1 << 22
-    public static let turin: UInt64 = 1 << 23
-    public static let sme: UInt64 = 1 << 24
-    public static let sme2: UInt64 = 1 << 25
-    public static let smeF64: UInt64 = 1 << 26
-    public static let smeFa64: UInt64 = 1 << 27
-    public static let sve2p1: UInt64 = 1 << 28
-    public static let sme2p1: UInt64 = 1 << 29
-    public static let smeHalf: UInt64 = 1 << 30
-    public static let smeBf16: UInt64 = 1 << 31
-    public static let smeLut2: UInt64 = 1 << 32
-    public static let rvvBB: UInt64 = 1 << 33
-    public static let sierra: UInt64 = 1 << 34
-    public static let smeBi32: UInt64 = 1 << 35
-    public static let loongsonAsx: UInt64 = 1 << 36
-    public static let powerVsx: UInt64 = 1 << 37
-    public static let diamond: UInt64 = 1 << 38
-    public static let neonFp8: UInt64 = 1 << 39
-    public static let diamondAmx: UInt64 = 1 << 40
-    public static let v128: UInt64 = 1 << 41
+    /// The tier names, comma-separated, like "serial,haswell".
+    public var description: String {
+        String(unsafeUninitializedCapacity: Int(NUMKONG_CAPABILITIES_NAME_CAPACITY)) { names in
+            names.withMemoryRebound(to: CChar.self) {
+                Int(nk_name_capabilities(nk_capability_t(rawValue), $0.baseAddress, nk_size_t($0.count)))
+            }
+        }
+    }
 }

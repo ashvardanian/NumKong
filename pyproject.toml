@@ -64,7 +64,7 @@ test-command = """
     python -m pip install numpy --only-binary=:all: || (echo "Failed to install NumPy" && exit 0) &&
     python -m pip install scipy --only-binary=:all: || (echo "Failed to install SciPy" && exit 0) &&
     python -m pip install ml_dtypes --only-binary=:all: || (echo "Failed to install ml_dtypes" && exit 0) &&
-    python -X faulthandler -c "import numkong; print(numkong.get_capabilities_available())" &&
+    python -X faulthandler -c "import numkong; print(repr(numkong.capabilities_enabled()))" &&
     PYTHONMALLOC=debug pytest {project}/test/ -s -x -Wd
 """
 test-requires = ["pytest", "pytest-randomly", "pytest-repeat", "tabulate"]
@@ -113,7 +113,7 @@ test-command = """
     cmd /c "python -m pip install numpy --only-binary=:all: & if errorlevel 1 echo Failed to install NumPy... Nothing can stop me, I'm all the way up! &
     python -m pip install scipy --only-binary=:all: & if errorlevel 1 echo Failed to install SciPy... Nothing can stop me, I'm all the way up! &
     python -m pip install ml_dtypes --only-binary=:all: & if errorlevel 1 echo Failed to install ml_dtypes... Nothing can stop me, I'm all the way up! &
-    python -X faulthandler -c "import numkong; print(numkong.get_capabilities_available())" &
+    python -X faulthandler -c "import numkong; print(repr(numkong.capabilities_enabled()))" &
     set PYTHONMALLOC=debug && pytest {project}/test/ -s -x -Wd"
 """
 
@@ -190,7 +190,7 @@ select = "*-pyodide*"
 test-command = """
     python -m pip install numpy --only-binary=:all: || (echo "Failed to install NumPy" && exit 0) &&
     python -m pip install scipy --only-binary=:all: || (echo "Failed to install SciPy" && exit 0) &&
-    python -X faulthandler -c "import numkong; print(numkong.get_capabilities_available())" &&
+    python -X faulthandler -c "import numkong; print(repr(numkong.capabilities_enabled()))" &&
     PYTHONMALLOC=debug python -m pytest {project}/test/ -s -x -Wd
 """
 

@@ -180,7 +180,7 @@ __SIMD and Relaxed SIMD Support__
 
 All WASM builds require fixed-width SIMD — 128-bit `v128`.
 The `v128relaxed` tier adds Relaxed SIMD instructions like `f32x4.relaxed_madd` and the fused `i8` dot product; an engine without them refuses the whole module at instantiation, which is why the tier is a build choice rather than a runtime one.
-Inside a module, `nk_capabilities_detected` still reports what the host validates — through `EM_JS` probes under Emscripten and through the `env.nk_has_*` imports a Node host supplies under `NUMKONG_WASI_HOSTED` — and `nk_capabilities_available` intersects that with what was compiled.
+Inside a module, `nk_cpu_capabilities_detected` still reports what the host validates — through `EM_JS` probes under Emscripten and through the `env.nk_has_*` imports a Node host supplies under `NUMKONG_WASI_HOSTED` — and `nk_cpu_capabilities_enabled` intersects that with what was compiled.
 
 | Engine   | SIMD128 | Relaxed SIMD | Threads | Memory64 |
 | :------- | ------: | -----------: | ------: | -------: |

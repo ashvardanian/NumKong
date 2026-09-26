@@ -73,7 +73,7 @@ static void PackedMatrix_dealloc(PyObject *self) { Py_TYPE(self)->tp_free(self);
 static size_t packed_matrix_nbytes(PackedMatrix *mm) {
     nk_dots_pack_size_punned_t size_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_dots_pack_size_k, mm->dtype, (nk_kernel_punned_t *)&size_fn, &cap);
+    nk_cpu_find_kernel_punned(nk_kernel_dots_pack_size_k, mm->dtype, (nk_kernel_punned_t *)&size_fn, &cap);
     if (!size_fn || !cap) return 0;
     return size_fn(mm->width, mm->depth);
 }
@@ -110,7 +110,7 @@ static PyObject *PackedMatrix_get_shape(PyObject *self, void *closure) {
     PackedMatrix *mm = (PackedMatrix *)self;
     nk_dots_packed_shape_punned_t shape_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_dots_packed_shape_k, mm->dtype, (nk_kernel_punned_t *)&shape_fn, &cap);
+    nk_cpu_find_kernel_punned(nk_kernel_dots_packed_shape_k, mm->dtype, (nk_kernel_punned_t *)&shape_fn, &cap);
     if (!shape_fn || !cap) {
         PyErr_Format(PyExc_LookupError, "No packed_shape kernel for dtype '%s'",
                      nk_dtype_to_pybuffer_typestr(mm->dtype));
@@ -179,7 +179,7 @@ static PyObject *PackedMatrix_pack_size(PyObject *cls, PyObject *const *args, Py
 
     nk_dots_pack_size_punned_t size_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_dots_pack_size_k, dtype, (nk_kernel_punned_t *)&size_fn, &cap);
+    nk_cpu_find_kernel_punned(nk_kernel_dots_pack_size_k, dtype, (nk_kernel_punned_t *)&size_fn, &cap);
     if (!size_fn || !cap) {
         PyErr_Format(PyExc_LookupError, "No pack_size kernel for dtype '%s'", nk_dtype_to_pybuffer_typestr(dtype));
         return NULL;
@@ -265,7 +265,7 @@ PyObject *Tensor_matmul(PyObject *self, PyObject *other) {
     // Find matmul kernel via punned dispatch
     nk_dots_packed_punned_t matmul_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_dots_packed_k, packed->dtype, (nk_kernel_punned_t *)&matmul_fn, &cap);
+    nk_cpu_find_kernel_punned(nk_kernel_dots_packed_k, packed->dtype, (nk_kernel_punned_t *)&matmul_fn, &cap);
     if (!matmul_fn || !cap) {
         PyErr_SetString(PyExc_LookupError, "No matmul kernel for this dtype");
         return NULL;
@@ -502,7 +502,7 @@ static PyObject *api_packed_common( //
 
     nk_dots_packed_punned_t kernel = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(spec->packed_kind, packed->dtype, (nk_kernel_punned_t *)&kernel, &cap);
+    nk_cpu_find_kernel_punned(spec->packed_kind, packed->dtype, (nk_kernel_punned_t *)&kernel, &cap);
     if (!kernel || !cap) {
         PyBuffer_Release(&a_buffer);
         PyErr_Format(PyExc_LookupError, "No %s_packed kernel for this dtype", spec->name);
@@ -633,7 +633,7 @@ static PyObject *api_symmetric_common( //
 
     nk_dots_symmetric_punned_t kernel = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(spec->symmetric_kind, dtype, (nk_kernel_punned_t *)&kernel, &cap);
+    nk_cpu_find_kernel_punned(spec->symmetric_kind, dtype, (nk_kernel_punned_t *)&kernel, &cap);
     if (!kernel || !cap) {
         PyErr_Format(PyExc_LookupError, "No %s_symmetric kernel for dtype '%s'", spec->name,
                      nk_dtype_to_pybuffer_typestr(dtype));
@@ -799,7 +799,7 @@ static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObje
     // Get packed size via punned dispatch
     nk_dots_pack_size_punned_t size_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_dots_pack_size_k, target_dtype, (nk_kernel_punned_t *)&size_fn, &cap);
+    nk_cpu_find_kernel_punned(nk_kernel_dots_pack_size_k, target_dtype, (nk_kernel_punned_t *)&size_fn, &cap);
     if (!size_fn || !cap) {
         PyBuffer_Release(&b_buffer);
         PyErr_Format(PyExc_LookupError, "No packing kernel for dtype '%s'", nk_dtype_to_pybuffer_typestr(target_dtype));
@@ -820,7 +820,7 @@ static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObje
 
     nk_dots_pack_punned_t pack_fn = NULL;
     cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_dots_pack_k, target_dtype, (nk_kernel_punned_t *)&pack_fn, &cap);
+    nk_cpu_find_kernel_punned(nk_kernel_dots_pack_k, target_dtype, (nk_kernel_punned_t *)&pack_fn, &cap);
     if (!pack_fn || !cap) {
         Py_DECREF(packed);
         PyBuffer_Release(&b_buffer);

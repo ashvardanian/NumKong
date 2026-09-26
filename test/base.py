@@ -576,9 +576,9 @@ def downcast_f32_to_dtype(f32_arr: np.ndarray, dtype: str) -> tuple[np.ndarray, 
     return raw, raw.astype(np.float64)
 
 
-available_capabilities: dict[str, str] = nk.get_capabilities_available()
-"""Must be `available`, not `runtime`: parametrizing over a capability this CPU has but this binary
-lacks silently tests the serial fallback while claiming to cover the SIMD kernel.
+available_capabilities: set[str] = {tier.name.lower() for tier in nk.Capability if tier in nk.capabilities_enabled()}
+"""Must be `enabled` at import, not `detected`: parametrizing over a capability this CPU has but this
+binary lacks silently tests the serial fallback while claiming to cover the SIMD kernel.
 """
 
 # fmt: off
@@ -598,12 +598,12 @@ possible_power_capabilities: list[str] = ["powervsx"]
 possible_wasm_capabilities: list[str] = ["v128", "v128relaxed"]
 # fmt: on
 
-possible_x86_capabilities = [c for c in possible_x86_capabilities if available_capabilities.get(c, False)]
-possible_arm_capabilities = [c for c in possible_arm_capabilities if available_capabilities.get(c, False)]
-possible_rvv_capabilities = [c for c in possible_rvv_capabilities if available_capabilities.get(c, False)]
-possible_loongarch_capabilities = [c for c in possible_loongarch_capabilities if available_capabilities.get(c, False)]
-possible_power_capabilities = [c for c in possible_power_capabilities if available_capabilities.get(c, False)]
-possible_wasm_capabilities = [c for c in possible_wasm_capabilities if available_capabilities.get(c, False)]
+possible_x86_capabilities = [c for c in possible_x86_capabilities if c in available_capabilities]
+possible_arm_capabilities = [c for c in possible_arm_capabilities if c in available_capabilities]
+possible_rvv_capabilities = [c for c in possible_rvv_capabilities if c in available_capabilities]
+possible_loongarch_capabilities = [c for c in possible_loongarch_capabilities if c in available_capabilities]
+possible_power_capabilities = [c for c in possible_power_capabilities if c in available_capabilities]
+possible_wasm_capabilities = [c for c in possible_wasm_capabilities if c in available_capabilities]
 
 hardware_capabilities: list[str] = []
 machine_architecture = platform.machine()
@@ -647,11 +647,7 @@ def keep_one_capability(cap: str):
     assert cap in possible_capabilities, f"Capability {cap} is not available on this platform."
     if cap == current_capability:
         return
-    for c in possible_capabilities:
-        if c != cap and c != "serial":
-            nk.disable_capability(c)
-    if cap != "serial":
-        nk.enable_capability(cap)
+    nk.capabilities_enable(nk.Capability[cap.upper()])
     current_capability = cap
 
 

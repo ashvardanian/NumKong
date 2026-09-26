@@ -157,7 +157,7 @@ PyObject *api_rope(PyObject *self, PyObject *const *args, Py_ssize_t const posit
 
     nk_kernel_trig_rope_punned_t kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_trig_rope_k, dtype, (nk_kernel_punned_t *)&kernel, &capability);
+    nk_cpu_find_kernel_punned(nk_kernel_trig_rope_k, dtype, (nk_kernel_punned_t *)&kernel, &capability);
     if (!kernel || !capability) {
         PyErr_Format(PyExc_LookupError, "No rope kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
@@ -290,7 +290,7 @@ static PyObject *implement_trigonometry(nk_kernel_kind_t kernel_kind, PyObject *
     // Look up the kernel and the capability
     nk_kernel_trig_punned_t kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_find_kernel_punned(kernel_kind, dtype, (nk_kernel_punned_t *)&kernel, &capability);
+    nk_cpu_find_kernel_punned(kernel_kind, dtype, (nk_kernel_punned_t *)&kernel, &capability);
     if (!kernel || !capability) {
         PyErr_Format(PyExc_LookupError, "No '%c' kernel for dtype '%s'", kernel_kind, nk_dtype_python_name(dtype));
         goto cleanup;

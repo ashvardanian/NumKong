@@ -156,7 +156,7 @@ static napi_value dense(napi_env env, napi_callback_info info, nk_kernel_kind_t 
 
     nk_metric_dense_punned_t metric = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_find_kernel_punned(kernel_kind, dtype, (nk_kernel_punned_t *)&metric, &capability);
+    nk_cpu_find_kernel_punned(kernel_kind, dtype, (nk_kernel_punned_t *)&metric, &capability);
     if (!metric || !capability) {
         napi_throw_error(env, NULL, "Unsupported dtype for given metric");
         return NULL;
@@ -218,99 +218,77 @@ napi_value api_jaccard(napi_env env, napi_callback_info info) { return dense(env
 #pragma region Capabilities API
 
 /**
- *  @brief Returns the SIMD capabilities this CPU supports, as a bitmask.
+ *  @brief Returns the CPU capabilities this machine executes.
  *  @return BigInt bitmask of nk_capability_t flags.
  *
  *  Describes the machine only. A capability reported here whose kernels were not compiled in will
- *  never run — see @b api_get_capabilities_available().
+ *  never run — see @b api_capabilities_enabled().
  */
-napi_value api_get_capabilities_detected(napi_env env, napi_callback_info info) {
+napi_value api_capabilities_detected(napi_env env, napi_callback_info info) {
     napi_value result;
-    napi_create_bigint_uint64(env, (uint64_t)nk_capabilities_detected(), &result);
+    napi_create_bigint_uint64(env, (uint64_t)nk_cpu_capabilities_detected(), &result);
     return result;
 }
 
 /**
- *  @brief Returns the SIMD capabilities whose kernels were compiled into this binary.
+ *  @brief Returns the CPU capabilities whose kernels were compiled into this binary.
  *  @return BigInt bitmask of nk_capability_t flags.
  */
-napi_value api_get_capabilities_compiled(napi_env env, napi_callback_info info) {
+napi_value api_capabilities_compiled(napi_env env, napi_callback_info info) {
     napi_value result;
-    napi_create_bigint_uint64(env, (uint64_t)nk_capabilities_compiled(), &result);
+    napi_create_bigint_uint64(env, (uint64_t)nk_cpu_capabilities_compiled(), &result);
     return result;
 }
 
 /**
- *  @brief Returns the SIMD capabilities that can actually execute here.
- *  @return BigInt bitmask of nk_capability_t flags, the intersection of detected and compiled.
- */
-napi_value api_get_capabilities_available(napi_env env, napi_callback_info info) {
-    napi_value result;
-    napi_create_bigint_uint64(env, (uint64_t)nk_capabilities_available(), &result);
-    return result;
-}
-
-/**
- *  @brief Returns the SIMD capabilities dispatch is currently restricted to.
- *  @return BigInt bitmask of nk_capability_t flags, a subset of the available set.
+ *  @brief Returns the CPU capabilities dispatch uses.
+ *  @return BigInt bitmask of nk_capability_t flags, detected and compiled unless narrowed.
  *
  *  This is the mask every kernel lookup walks.
  */
-napi_value api_get_capabilities_enabled(napi_env env, napi_callback_info info) {
+napi_value api_capabilities_enabled(napi_env env, napi_callback_info info) {
     napi_value result;
-    napi_create_bigint_uint64(env, (uint64_t)nk_capabilities_enabled(), &result);
+    napi_create_bigint_uint64(env, (uint64_t)nk_cpu_capabilities_enabled(), &result);
     return result;
 }
 
-/** Reads a BigInt capability mask from the first argument. Returns 0 on error. */
-static int parse_capability_mask(napi_env env, napi_callback_info info, nk_capability_t *mask) {
+/**
+ *  @brief Makes the BigInt mask argument the enabled set, clamped to detected and compiled.
+ *  @return BigInt bitmask of the enabled set that took effect, always with the serial fallback.
+ */
+napi_value api_capabilities_enable(napi_env env, napi_callback_info info) {
     size_t argc = 1;
     napi_value args[1];
     if (napi_get_cb_info(env, info, &argc, args, NULL, NULL) != napi_ok || argc < 1) {
         napi_throw_error(env, NULL, "Expected 1 argument: a BigInt capability mask");
-        return 0;
+        return NULL;
     }
-    uint64_t value;
+    uint64_t wanted;
     bool lossless;
-    if (napi_get_value_bigint_uint64(env, args[0], &value, &lossless) != napi_ok) {
+    if (napi_get_value_bigint_uint64(env, args[0], &wanted, &lossless) != napi_ok) {
         napi_throw_error(env, NULL, "Capability mask must be a BigInt");
-        return 0;
+        return NULL;
     }
-    *mask = (nk_capability_t)value;
-    return 1;
+    napi_value result;
+    napi_create_bigint_uint64(env, (uint64_t)nk_cpu_capabilities_enable((nk_capability_t)wanted), &result);
+    return result;
 }
 
-/**
- *  @brief Restricts dispatch to the given mask, clamped to the available set.
- *  @return `undefined`.
- */
-napi_value api_capabilities_restrict(napi_env env, napi_callback_info info) {
-    nk_capability_t mask;
-    if (!parse_capability_mask(env, info, &mask)) return NULL;
-    nk_capabilities_restrict(mask);
-    return NULL;
-}
-
-/**
- *  @brief Adds the given mask to the enabled set. Anything unavailable is ignored.
- *  @return `undefined`.
- */
-napi_value api_capabilities_enable(napi_env env, napi_callback_info info) {
-    nk_capability_t mask;
-    if (!parse_capability_mask(env, info, &mask)) return NULL;
-    nk_capabilities_enable(mask);
-    return NULL;
-}
-
-/**
- *  @brief Removes the given mask from the enabled set. The serial fallback always survives.
- *  @return `undefined`.
- */
-napi_value api_capabilities_disable(napi_env env, napi_callback_info info) {
-    nk_capability_t mask;
-    if (!parse_capability_mask(env, info, &mask)) return NULL;
-    nk_capabilities_disable(mask);
-    return NULL;
+/** Exports @c Capability, mapping every CPU tier's name to its BigInt bit, and no GPU tiers. */
+static napi_status export_capability_names(napi_env env, napi_value exports) {
+    napi_value names;
+    napi_status status = napi_create_object(env, &names);
+    if (status != napi_ok) return status;
+    for (unsigned shift = 0; shift != 64; ++shift) {
+        nk_capability_t const bit = (nk_capability_t)1 << shift;
+        char name[NUMKONG_CAPABILITIES_NAME_CAPACITY];
+        if ((bit & nk_cap_devices_k) || !nk_name_capabilities(bit, name, sizeof(name))) continue;
+        napi_value value;
+        if ((status = napi_create_bigint_uint64(env, (uint64_t)bit, &value)) != napi_ok ||
+            (status = napi_set_named_property(env, names, name, value)) != napi_ok)
+            return status;
+    }
+    return napi_set_named_property(env, exports, "Capability", names);
 }
 
 #pragma endregion Capabilities API
@@ -469,7 +447,7 @@ static napi_value api_dots_pack_size(napi_env env, napi_callback_info info) {
 
     nk_dots_pack_size_punned_t size_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_dots_pack_size_k, dtype, (nk_kernel_punned_t *)&size_fn, &cap);
+    nk_cpu_find_kernel_punned(nk_kernel_dots_pack_size_k, dtype, (nk_kernel_punned_t *)&size_fn, &cap);
     if (!size_fn) {
         napi_throw_error(env, NULL, "dots_pack_size not available for this dtype");
         return NULL;
@@ -516,7 +494,7 @@ static napi_value api_dots_pack(napi_env env, napi_callback_info info) {
     // Get packed size
     nk_dots_pack_size_punned_t size_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_dots_pack_size_k, dtype, (nk_kernel_punned_t *)&size_fn, &cap);
+    nk_cpu_find_kernel_punned(nk_kernel_dots_pack_size_k, dtype, (nk_kernel_punned_t *)&size_fn, &cap);
     if (!size_fn) {
         napi_throw_error(env, NULL, "dots_pack_size not available for this dtype");
         return NULL;
@@ -534,7 +512,7 @@ static napi_value api_dots_pack(napi_env env, napi_callback_info info) {
     // Pack
     nk_dots_pack_punned_t pack_fn = NULL;
     cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_dots_pack_k, dtype, (nk_kernel_punned_t *)&pack_fn, &cap);
+    nk_cpu_find_kernel_punned(nk_kernel_dots_pack_k, dtype, (nk_kernel_punned_t *)&pack_fn, &cap);
     if (!pack_fn) {
         napi_throw_error(env, NULL, "dots_pack not available for this dtype");
         return NULL;
@@ -635,7 +613,7 @@ static napi_value api_packed_common(napi_env env, napi_callback_info info, nk_ke
 
     nk_dots_packed_punned_t kernel = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(kernel_kind, dtype, (nk_kernel_punned_t *)&kernel, &cap);
+    nk_cpu_find_kernel_punned(kernel_kind, dtype, (nk_kernel_punned_t *)&kernel, &cap);
     if (!kernel) {
         napi_throw_error(env, NULL, "Packed kernel not available for this dtype");
         return NULL;
@@ -742,7 +720,7 @@ static napi_value api_symmetric_common(napi_env env, napi_callback_info info, nk
 
     nk_dots_symmetric_punned_t kernel = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(kernel_kind, dtype, (nk_kernel_punned_t *)&kernel, &cap);
+    nk_cpu_find_kernel_punned(kernel_kind, dtype, (nk_kernel_punned_t *)&kernel, &cap);
     if (!kernel) {
         napi_throw_error(env, NULL, "Symmetric kernel not available for this dtype");
         return NULL;
@@ -801,13 +779,11 @@ napi_value Init(napi_env env, napi_value exports) {
         export_function(env, exports, "jaccard", api_jaccard) != napi_ok ||
         export_function(env, exports, "kullbackleibler", api_kld) != napi_ok ||
         export_function(env, exports, "jensenshannon", api_jsd) != napi_ok ||
-        export_function(env, exports, "getCapabilitiesDetected", api_get_capabilities_detected) != napi_ok ||
-        export_function(env, exports, "getCapabilitiesCompiled", api_get_capabilities_compiled) != napi_ok ||
-        export_function(env, exports, "getCapabilitiesAvailable", api_get_capabilities_available) != napi_ok ||
-        export_function(env, exports, "getCapabilitiesEnabled", api_get_capabilities_enabled) != napi_ok ||
-        export_function(env, exports, "capabilitiesRestrict", api_capabilities_restrict) != napi_ok ||
+        export_function(env, exports, "capabilitiesDetected", api_capabilities_detected) != napi_ok ||
+        export_function(env, exports, "capabilitiesCompiled", api_capabilities_compiled) != napi_ok ||
+        export_function(env, exports, "capabilitiesEnabled", api_capabilities_enabled) != napi_ok ||
         export_function(env, exports, "capabilitiesEnable", api_capabilities_enable) != napi_ok ||
-        export_function(env, exports, "capabilitiesDisable", api_capabilities_disable) != napi_ok ||
+        export_capability_names(env, exports) != napi_ok ||
         export_function(env, exports, "castF16ToF32", api_cast_f16_to_f32) != napi_ok ||
         export_function(env, exports, "castF32ToF16", api_cast_f32_to_f16) != napi_ok ||
         export_function(env, exports, "castBF16ToF32", api_cast_bf16_to_f32) != napi_ok ||
@@ -827,6 +803,7 @@ napi_value Init(napi_env env, napi_value exports) {
         export_function(env, exports, "euclideansSymmetric", api_euclideans_symmetric) != napi_ok) {
         return NULL;
     }
+    nk_cpu_configure_thread(nk_cpu_capabilities_enabled());
     return exports;
 }
 

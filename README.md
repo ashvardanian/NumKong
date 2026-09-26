@@ -344,22 +344,22 @@ When no kernel matches, the dispatcher sets the [capabilities mask](c/dispatch.h
 
 NumKong provides two dispatch mechanisms.
 __Compile-time dispatch__ selects the fastest kernel supported by the target platform at build time — thinner binaries, no indirection overhead, but requires knowing your deployment hardware.
-__Run-time dispatch__ compiles every supported kernel into the binary and picks the best one on the target machine via `nk_capabilities_available()` — one pointer indirection per call, but a single binary runs everywhere.
+__Run-time dispatch__ compiles every supported kernel into the binary and picks the best one on the target machine via `nk_cpu_capabilities_enabled()` — one pointer indirection per call, but a single binary runs everywhere.
 The run-time path is common in DBMS products (ClickHouse), web browsers (Chromium), and other upstream projects that ship to heterogeneous fleets.
 Distributed artifacts (Rust crate, Python wheels, JS native modules, shared libs from the default CMake build) pin the translation-unit baseline to each architecture's ABI floor so the library runs on any CPU matching the ABI, not just the build host — see [CONTRIBUTING.md](CONTRIBUTING.md#target-baseline-policy) for the per-arch table and the `NUMKONG_TARGET_ARCH` override used for host-tuned local builds.
 
 All kernel names follow the pattern `nk_{operation}_{type}_{backend}`.
-If you need to resolve the best kernel manually, use `nk_find_kernel_punned` with a `nk_kernel_kind_t` and a `nk_dtype_t`:
+If you need to resolve the best kernel manually, use `nk_cpu_find_kernel_punned` with a `nk_kernel_kind_t` and a `nk_dtype_t`:
 
 ```c
 nk_metric_dense_punned_t angular = 0;
 nk_capability_t used = nk_cap_serial_k;
-nk_find_kernel_punned(
+nk_cpu_find_kernel_punned(
     nk_kernel_angular_k, nk_f32_k,            // what functionality? for which input type?
     (nk_kernel_punned_t *)&angular, &used);   // the kernel found and capabilities used!
 ```
 
-The search is bounded by `nk_capabilities_enabled()`, the same mask the dispatch table was built from, so a manually resolved kernel and a direct call always agree. The library initializes itself on load and again on first use, so lookups are lock-free.
+The search is bounded by `nk_cpu_capabilities_enabled()`, the same mask the dispatch table was built from, so a manually resolved kernel and a direct call always agree. The library initializes itself on load and again on first use, so lookups are lock-free.
 
 ## Numeric Types
 
