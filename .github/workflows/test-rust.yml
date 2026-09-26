@@ -30,7 +30,7 @@ jobs:
           echo "::endgroup::"
 
       - name: Install Rust Toolchain
-        uses: moonrepo/setup-rust@v1
+        uses: dtolnay/rust-toolchain@nightly
 
       - name: Install Cross-Compilation Targets and Dependencies
         run: |
@@ -84,25 +84,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
       - name: Install Rust Toolchain
-        uses: moonrepo/setup-rust@v1
+        uses: dtolnay/rust-toolchain@nightly
         with:
-          components: clippy
+          components: clippy, rustfmt
       - name: Run Clippy with All Features
         run: cargo clippy --all-features -- -D warnings
-      - name: Install Nightly rustfmt
-        run: rustup toolchain install nightly --component rustfmt
       - name: Rustfmt Check
-        run: cargo +nightly fmt --all --check
+        run: cargo fmt --all --check
 
   msrv:
-    name: Build Rust via MSRV 1.73
+    name: Build Rust via MSRV 1.100
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-      - name: Install Rust 1.73
-        run: rustup toolchain install 1.73 --profile minimal
+      # Until 1.100 reaches stable, nightly stands in, and `rust-version` rejects any older compiler.
+      - name: Install Rust 1.100
+        uses: dtolnay/rust-toolchain@nightly
       - name: Build with Default Features
-        run: cargo +1.73 build
+        run: cargo build
       - name: Build No-Alloc
-        run: cargo +1.73 build --no-default-features
+        run: cargo build --no-default-features

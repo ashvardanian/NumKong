@@ -22,14 +22,13 @@
 //!
 //! # Custom allocators
 //!
-//! [`Tensor`] is generic over [`allocator_api2::alloc::Allocator`], the ecosystem's stable stand-in
-//! for the unstable `core::alloc::Allocator`. Any allocator written against that trait — a bump
-//! arena, a pool, a pinned-memory allocator — plugs into the `try_*_in` constructors with no
-//! adapter, and because `allocator-api2` also implements the trait for `&A`, an arena that is not
-//! `Clone` goes in by reference. [`Global`], the default, forwards to the system heap.
+//! [`Tensor`] is generic over [`core::alloc::Allocator`]. Any allocator written against that trait
+//! — a bump arena, a pool, a pinned-memory allocator — plugs into the `try_*_in` constructors with
+//! no adapter, and because `core` also implements the trait for `&A`, an arena that is not `Clone`
+//! goes in by reference. [`Global`], the default, forwards to the system heap.
 //!
 //! ```rust
-//! use allocator_api2::alloc::{AllocError, Allocator, Layout};
+//! use core::alloc::{AllocError, Allocator, Layout};
 //! use core::ptr::NonNull;
 //! use numkong::{Global, Tensor};
 //!
@@ -71,7 +70,7 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
-pub use allocator_api2::alloc::{AllocError, Allocator};
+pub use core::alloc::{AllocError, Allocator};
 
 use core::marker::PhantomData;
 use core::ops::{Index, IndexMut};
@@ -128,10 +127,10 @@ pub(crate) fn shape_product(shape: &[usize]) -> Result<usize, TensorError> {
 
 /// The default allocator, forwarding to the heap registered with `#[global_allocator]`.
 ///
-/// The [`Allocator`] trait itself comes from `allocator-api2`, so an arena, a pool, or a
-/// pinned-memory allocator written against that trait — including by reference, since it provides
-/// `impl Allocator for &A` — drops into [`Tensor`] and the packed containers with no adapter.
-/// This type only names the default.
+/// The [`Allocator`] trait itself is `core`'s, so an arena, a pool, or a pinned-memory allocator
+/// written against it — including by reference, through `impl Allocator for &A` — drops into
+/// [`Tensor`] and the packed containers with no adapter. This type only names the default, and
+/// stays separate from `alloc::alloc::Global` so the heapless build still has one.
 ///
 /// Without the `alloc` feature there is no heap to forward to and every request fails. That is a
 /// supported configuration rather than a broken one: the borrowed API — the scalar traits over
@@ -7209,7 +7208,7 @@ mod tests {
 
     #[test]
     fn allocators_are_honored_by_reference_and_across_growth() {
-        use allocator_api2::alloc::AllocError;
+        use core::alloc::AllocError;
         use core::sync::atomic::{AtomicUsize, Ordering};
 
         // Deliberately not `Clone`, so it can only reach a container by reference — the case the
