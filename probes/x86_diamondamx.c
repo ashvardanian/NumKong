@@ -19,7 +19,7 @@
 int main(void) {
     volatile int zero = 0;
     _tile_dphf8ps(0, 1, 2);
-    volatile __m512 row = _mm512_castsi512_ps(_tile_movrow(0, zero));
+    volatile __m512 row = (__m512)_tile_movrow(0, zero); // GCC yields __m512, Clang __m512i
     (void)row;
     _tile_release();
     return zero;

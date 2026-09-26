@@ -65,22 +65,23 @@ enum {
 /** Drains the four FP32 accumulator tiles (TDPBF16PS / TDPHF8PS) of one 2×2 register block to
  *  the score panel, one ZMM row per tile per iteration. Tiles 0/1 fill the top 16 rows, 2/3 the
  *  bottom 16; @c _tile_movrow takes the tile as a compile-time immediate, so all four are
- *  written out explicitly. */
+ *  written out explicitly, each cast to @c __m512 as GCC returns that and Clang @c __m512i. */
 NUMKONG_HELPER_INLINE void nk_attention_f32_store_grid_diamondamx_(nk_f32_t *scores_panel, nk_size_t pair_idx,
                                                                    nk_size_t panel_width) {
     for (unsigned row_idx = 0; row_idx < 16; row_idx++) {
         nk_f32_t *top_row = scores_panel + pair_idx * 32 + row_idx * panel_width;
         nk_f32_t *bottom_row = scores_panel + 16 * panel_width + pair_idx * 32 + row_idx * panel_width;
-        _mm512_storeu_ps(top_row, _mm512_castsi512_ps(_tile_movrow(0, row_idx)));
-        _mm512_storeu_ps(top_row + 16, _mm512_castsi512_ps(_tile_movrow(1, row_idx)));
-        _mm512_storeu_ps(bottom_row, _mm512_castsi512_ps(_tile_movrow(2, row_idx)));
-        _mm512_storeu_ps(bottom_row + 16, _mm512_castsi512_ps(_tile_movrow(3, row_idx)));
+        _mm512_storeu_ps(top_row, (__m512)_tile_movrow(0, row_idx));
+        _mm512_storeu_ps(top_row + 16, (__m512)_tile_movrow(1, row_idx));
+        _mm512_storeu_ps(bottom_row, (__m512)_tile_movrow(2, row_idx));
+        _mm512_storeu_ps(bottom_row + 16, (__m512)_tile_movrow(3, row_idx));
     }
 }
 
 /** Fuses the four FP32 accumulator tiles of one 2×2 register block into @p o_acc row-wise as o = o
  *  · correction + drained. Tiles 0/1 use the top row-tile's corrections, 2/3 the bottom's;
- *  @c _tile_movrow needs a compile-time tile immediate, so all four are written out explicitly. */
+ *  @c _tile_movrow needs a compile-time tile immediate, so all four are written out explicitly,
+ *  cast as in @c nk_attention_f32_store_grid_diamondamx_. */
 NUMKONG_HELPER_INLINE void nk_attention_f32_accumulate_grid_diamondamx_(nk_size_t channel_start, nk_f32_t *o_acc,
                                                                         nk_size_t output_stride_floats,
                                                                         nk_f32_t const (*corrections)[16]) {
@@ -89,14 +90,14 @@ NUMKONG_HELPER_INLINE void nk_attention_f32_accumulate_grid_diamondamx_(nk_size_
         nk_f32_t *bottom_row = o_acc + (16 + row_idx) * output_stride_floats + channel_start;
         __m512 const top_correction = _mm512_set1_ps(corrections[0][row_idx]);
         __m512 const bottom_correction = _mm512_set1_ps(corrections[1][row_idx]);
-        _mm512_store_ps(top_row, _mm512_fmadd_ps(_mm512_load_ps(top_row), top_correction,
-                                                 _mm512_castsi512_ps(_tile_movrow(0, row_idx))));
+        _mm512_store_ps(top_row,
+                        _mm512_fmadd_ps(_mm512_load_ps(top_row), top_correction, (__m512)_tile_movrow(0, row_idx)));
         _mm512_store_ps(top_row + 16, _mm512_fmadd_ps(_mm512_load_ps(top_row + 16), top_correction,
-                                                      _mm512_castsi512_ps(_tile_movrow(1, row_idx))));
+                                                      (__m512)_tile_movrow(1, row_idx)));
         _mm512_store_ps(bottom_row, _mm512_fmadd_ps(_mm512_load_ps(bottom_row), bottom_correction,
-                                                    _mm512_castsi512_ps(_tile_movrow(2, row_idx))));
+                                                    (__m512)_tile_movrow(2, row_idx)));
         _mm512_store_ps(bottom_row + 16, _mm512_fmadd_ps(_mm512_load_ps(bottom_row + 16), bottom_correction,
-                                                         _mm512_castsi512_ps(_tile_movrow(3, row_idx))));
+                                                         (__m512)_tile_movrow(3, row_idx)));
     }
 }
 
