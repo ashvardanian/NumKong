@@ -76,7 +76,7 @@ nk_kld_f32_neon_cycle:
         n -= 4, a += 4, b += 4;
     }
 
-    float32x4_t ratio_f32x4 = vdivq_f32(vaddq_f32(a_f32x4, epsilon_f32x4), vaddq_f32(b_f32x4, epsilon_f32x4));
+    float32x4_t ratio_f32x4 = vdivq_f32(vmaxq_f32(a_f32x4, epsilon_f32x4), vmaxq_f32(b_f32x4, epsilon_f32x4));
     float32x4_t log_ratio_f32x4 = nk_log2_f32x4_neon_(ratio_f32x4);
     float32x4_t contribution_f32x4 = vmulq_f32(a_f32x4, log_ratio_f32x4);
     sum_low_f64x2 = vaddq_f64(sum_low_f64x2, vcvt_f64_f32(vget_low_f32(contribution_f32x4)));
@@ -111,8 +111,8 @@ nk_jsd_f32_neon_cycle:
     }
 
     float32x4_t mean_f32x4 = vmulq_n_f32(vaddq_f32(a_f32x4, b_f32x4), 0.5f);
-    float32x4_t ratio_a_f32x4 = vdivq_f32(vaddq_f32(a_f32x4, epsilon_f32x4), vaddq_f32(mean_f32x4, epsilon_f32x4));
-    float32x4_t ratio_b_f32x4 = vdivq_f32(vaddq_f32(b_f32x4, epsilon_f32x4), vaddq_f32(mean_f32x4, epsilon_f32x4));
+    float32x4_t ratio_a_f32x4 = vdivq_f32(vmaxq_f32(a_f32x4, epsilon_f32x4), vmaxq_f32(mean_f32x4, epsilon_f32x4));
+    float32x4_t ratio_b_f32x4 = vdivq_f32(vmaxq_f32(b_f32x4, epsilon_f32x4), vmaxq_f32(mean_f32x4, epsilon_f32x4));
     float32x4_t log_ratio_a_f32x4 = nk_log2_f32x4_neon_(ratio_a_f32x4);
     float32x4_t log_ratio_b_f32x4 = nk_log2_f32x4_neon_(ratio_b_f32x4);
     float32x4_t contribution_a_f32x4 = vmulq_f32(a_f32x4, log_ratio_a_f32x4);
@@ -171,10 +171,10 @@ nk_kld_f16_neon_cycle:
         n -= 8, a += 8, b += 8;
     }
 
-    float32x4_t ratio_low_f32x4 = vdivq_f32(vaddq_f32(a_low_f32x4, epsilon_f32x4),
-                                            vaddq_f32(b_low_f32x4, epsilon_f32x4));
-    float32x4_t ratio_high_f32x4 = vdivq_f32(vaddq_f32(a_high_f32x4, epsilon_f32x4),
-                                             vaddq_f32(b_high_f32x4, epsilon_f32x4));
+    float32x4_t ratio_low_f32x4 = vdivq_f32(vmaxq_f32(a_low_f32x4, epsilon_f32x4),
+                                            vmaxq_f32(b_low_f32x4, epsilon_f32x4));
+    float32x4_t ratio_high_f32x4 = vdivq_f32(vmaxq_f32(a_high_f32x4, epsilon_f32x4),
+                                             vmaxq_f32(b_high_f32x4, epsilon_f32x4));
     float32x4_t log_ratio_low_f32x4 = nk_log2_f32x4_neon_(ratio_low_f32x4);
     float32x4_t log_ratio_high_f32x4 = nk_log2_f32x4_neon_(ratio_high_f32x4);
     sum_f32x4 = vfmaq_f32(sum_f32x4, a_low_f32x4, log_ratio_low_f32x4);
@@ -217,14 +217,14 @@ nk_jsd_f16_neon_cycle:
 
     float32x4_t mean_low_f32x4 = vmulq_n_f32(vaddq_f32(a_low_f32x4, b_low_f32x4), 0.5f);
     float32x4_t mean_high_f32x4 = vmulq_n_f32(vaddq_f32(a_high_f32x4, b_high_f32x4), 0.5f);
-    float32x4_t ratio_a_low_f32x4 = vdivq_f32(vaddq_f32(a_low_f32x4, epsilon_f32x4),
-                                              vaddq_f32(mean_low_f32x4, epsilon_f32x4));
-    float32x4_t ratio_a_high_f32x4 = vdivq_f32(vaddq_f32(a_high_f32x4, epsilon_f32x4),
-                                               vaddq_f32(mean_high_f32x4, epsilon_f32x4));
-    float32x4_t ratio_b_low_f32x4 = vdivq_f32(vaddq_f32(b_low_f32x4, epsilon_f32x4),
-                                              vaddq_f32(mean_low_f32x4, epsilon_f32x4));
-    float32x4_t ratio_b_high_f32x4 = vdivq_f32(vaddq_f32(b_high_f32x4, epsilon_f32x4),
-                                               vaddq_f32(mean_high_f32x4, epsilon_f32x4));
+    float32x4_t ratio_a_low_f32x4 = vdivq_f32(vmaxq_f32(a_low_f32x4, epsilon_f32x4),
+                                              vmaxq_f32(mean_low_f32x4, epsilon_f32x4));
+    float32x4_t ratio_a_high_f32x4 = vdivq_f32(vmaxq_f32(a_high_f32x4, epsilon_f32x4),
+                                               vmaxq_f32(mean_high_f32x4, epsilon_f32x4));
+    float32x4_t ratio_b_low_f32x4 = vdivq_f32(vmaxq_f32(b_low_f32x4, epsilon_f32x4),
+                                              vmaxq_f32(mean_low_f32x4, epsilon_f32x4));
+    float32x4_t ratio_b_high_f32x4 = vdivq_f32(vmaxq_f32(b_high_f32x4, epsilon_f32x4),
+                                               vmaxq_f32(mean_high_f32x4, epsilon_f32x4));
     float32x4_t log_ratio_a_low_f32x4 = nk_log2_f32x4_neon_(ratio_a_low_f32x4);
     float32x4_t log_ratio_a_high_f32x4 = nk_log2_f32x4_neon_(ratio_a_high_f32x4);
     float32x4_t log_ratio_b_low_f32x4 = nk_log2_f32x4_neon_(ratio_b_low_f32x4);

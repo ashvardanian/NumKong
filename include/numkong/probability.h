@@ -25,6 +25,9 @@
  *  - For @c f64 inputs, both the vertical path and the horizontal reduction stay in @c f64, with
  *    stable summation in the serial kernels.
  *  - For @c f16 and @c bf16 inputs, the kernels still widen to @c f32.
+ *  - Both operands of every ratio are clamped to at least ε, which is
+ *    @c NUMKONG_F32_DIVISION_EPSILON or @c NUMKONG_F64_DIVISION_EPSILON, so terms at or above ε
+ *    follow the exact formula.
  *
  *  For hardware architectures:
  *

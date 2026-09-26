@@ -26,7 +26,7 @@ extern "C" {
         for (nk_size_t i = 0; i != n; ++i) {                                                                           \
             load_and_convert(a + i, &a_value);                                                                         \
             load_and_convert(b + i, &b_value);                                                                         \
-            sum += a_value * compute_log((a_value + epsilon) / (b_value + epsilon));                                   \
+            sum += a_value * compute_log(nk_max_of_two(a_value, epsilon) / nk_max_of_two(b_value, epsilon));           \
         }                                                                                                              \
         *result = (output_type)sum;                                                                                    \
     }
@@ -40,9 +40,9 @@ extern "C" {
         for (nk_size_t i = 0; i != n; ++i) {                                                                           \
             load_and_convert(a + i, &a_value);                                                                         \
             load_and_convert(b + i, &b_value);                                                                         \
-            nk_##unpacked_type##_t midpoint_value = (a_value + b_value) / 2;                                           \
-            sum += a_value * compute_log((a_value + epsilon) / (midpoint_value + epsilon));                            \
-            sum += b_value * compute_log((b_value + epsilon) / (midpoint_value + epsilon));                            \
+            nk_##unpacked_type##_t midpoint_value = nk_max_of_two((a_value + b_value) / 2, epsilon);                   \
+            sum += a_value * compute_log(nk_max_of_two(a_value, epsilon) / midpoint_value);                            \
+            sum += b_value * compute_log(nk_max_of_two(b_value, epsilon) / midpoint_value);                            \
         }                                                                                                              \
         output_type sum_half = ((output_type)sum / 2);                                                                 \
         *result = sum_half > 0 ? compute_sqrt(sum_half) : 0;                                                           \
@@ -138,8 +138,8 @@ NUMKONG_API_COMPTIME void nk_kld_f64_serial(nk_f64_t const *a, nk_f64_t const *b
     nk_f64_t sum = 0, compensation = 0;
     for (nk_size_t i = 0; i != n; ++i) {
         nk_f64_t a_value = a[i], b_value = b[i];
-        nk_f64_t term = a_value * nk_f64_log_serial_((a_value + NUMKONG_F64_DIVISION_EPSILON) /
-                                                     (b_value + NUMKONG_F64_DIVISION_EPSILON));
+        nk_f64_t term = a_value * nk_f64_log_serial_(nk_max_of_two(a_value, NUMKONG_F64_DIVISION_EPSILON) /
+                                                     nk_max_of_two(b_value, NUMKONG_F64_DIVISION_EPSILON));
         nk_f64_t provisional_sum = sum + term;
         compensation += (nk_f64_abs_(sum) >= nk_f64_abs_(term)) ? ((sum - provisional_sum) + term)
                                                                 : ((term - provisional_sum) + sum);
@@ -153,15 +153,13 @@ NUMKONG_API_COMPTIME void nk_jsd_f64_serial(nk_f64_t const *a, nk_f64_t const *b
     nk_f64_t sum = 0, compensation = 0;
     for (nk_size_t i = 0; i != n; ++i) {
         nk_f64_t a_value = a[i], b_value = b[i];
-        nk_f64_t mi = (a_value + b_value) / 2;
-        nk_f64_t term_a = a_value * nk_f64_log_serial_((a_value + NUMKONG_F64_DIVISION_EPSILON) /
-                                                       (mi + NUMKONG_F64_DIVISION_EPSILON));
+        nk_f64_t mi = nk_max_of_two((a_value + b_value) / 2, NUMKONG_F64_DIVISION_EPSILON);
+        nk_f64_t term_a = a_value * nk_f64_log_serial_(nk_max_of_two(a_value, NUMKONG_F64_DIVISION_EPSILON) / mi);
         nk_f64_t provisional_sum = sum + term_a;
         compensation += (nk_f64_abs_(sum) >= nk_f64_abs_(term_a)) ? ((sum - provisional_sum) + term_a)
                                                                   : ((term_a - provisional_sum) + sum);
         sum = provisional_sum;
-        nk_f64_t term_b = b_value * nk_f64_log_serial_((b_value + NUMKONG_F64_DIVISION_EPSILON) /
-                                                       (mi + NUMKONG_F64_DIVISION_EPSILON));
+        nk_f64_t term_b = b_value * nk_f64_log_serial_(nk_max_of_two(b_value, NUMKONG_F64_DIVISION_EPSILON) / mi);
         provisional_sum = sum + term_b;
         compensation += (nk_f64_abs_(sum) >= nk_f64_abs_(term_b)) ? ((sum - provisional_sum) + term_b)
                                                                   : ((term_b - provisional_sum) + sum);

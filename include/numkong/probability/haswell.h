@@ -119,7 +119,7 @@ nk_kld_f16_haswell_cycle:
         b_f32x8 = _mm256_cvtph_ps(_mm_loadu_si128((__m128i const *)b));
         n -= 8, a += 8, b += 8;
     }
-    __m256 ratio_f32x8 = _mm256_div_ps(_mm256_add_ps(a_f32x8, epsilon_f32x8), _mm256_add_ps(b_f32x8, epsilon_f32x8));
+    __m256 ratio_f32x8 = _mm256_div_ps(_mm256_max_ps(a_f32x8, epsilon_f32x8), _mm256_max_ps(b_f32x8, epsilon_f32x8));
     __m256 log_ratio_f32x8 = nk_log2_f32x8_haswell_(ratio_f32x8);
     __m256 contribution_f32x8 = _mm256_mul_ps(a_f32x8, log_ratio_f32x8);
     sum_f32x8 = _mm256_add_ps(sum_f32x8, contribution_f32x8);
@@ -152,10 +152,10 @@ nk_jsd_f16_haswell_cycle:
         n -= 8, a += 8, b += 8;
     }
     __m256 mean_f32x8 = _mm256_mul_ps(_mm256_add_ps(a_f32x8, b_f32x8), _mm256_set1_ps(0.5f)); // M = (P + Q) / 2
-    __m256 ratio_a_f32x8 = _mm256_div_ps(_mm256_add_ps(a_f32x8, epsilon_f32x8),
-                                         _mm256_add_ps(mean_f32x8, epsilon_f32x8));
-    __m256 ratio_b_f32x8 = _mm256_div_ps(_mm256_add_ps(b_f32x8, epsilon_f32x8),
-                                         _mm256_add_ps(mean_f32x8, epsilon_f32x8));
+    __m256 ratio_a_f32x8 = _mm256_div_ps(_mm256_max_ps(a_f32x8, epsilon_f32x8),
+                                         _mm256_max_ps(mean_f32x8, epsilon_f32x8));
+    __m256 ratio_b_f32x8 = _mm256_div_ps(_mm256_max_ps(b_f32x8, epsilon_f32x8),
+                                         _mm256_max_ps(mean_f32x8, epsilon_f32x8));
     __m256 log_ratio_a_f32x8 = nk_log2_f32x8_haswell_(ratio_a_f32x8);
     __m256 log_ratio_b_f32x8 = nk_log2_f32x8_haswell_(ratio_b_f32x8);
     __m256 contribution_a_f32x8 = _mm256_mul_ps(a_f32x8, log_ratio_a_f32x8);
@@ -191,7 +191,7 @@ nk_kld_f64_haswell_cycle:
         b_f64x4 = _mm256_loadu_pd(b);
         n -= 4, a += 4, b += 4;
     }
-    __m256d ratio_f64x4 = _mm256_div_pd(_mm256_add_pd(a_f64x4, epsilon_f64x4), _mm256_add_pd(b_f64x4, epsilon_f64x4));
+    __m256d ratio_f64x4 = _mm256_div_pd(_mm256_max_pd(a_f64x4, epsilon_f64x4), _mm256_max_pd(b_f64x4, epsilon_f64x4));
     __m256d log_ratio_f64x4 = nk_log2_f64x4_haswell_(ratio_f64x4);
     __m256d contribution_f64x4 = _mm256_mul_pd(a_f64x4, log_ratio_f64x4);
     // Kahan compensated summation
@@ -227,10 +227,10 @@ nk_jsd_f64_haswell_cycle:
         n -= 4, a += 4, b += 4;
     }
     __m256d mean_f64x4 = _mm256_mul_pd(_mm256_add_pd(a_f64x4, b_f64x4), _mm256_set1_pd(0.5));
-    __m256d ratio_a_f64x4 = _mm256_div_pd(_mm256_add_pd(a_f64x4, epsilon_f64x4),
-                                          _mm256_add_pd(mean_f64x4, epsilon_f64x4));
-    __m256d ratio_b_f64x4 = _mm256_div_pd(_mm256_add_pd(b_f64x4, epsilon_f64x4),
-                                          _mm256_add_pd(mean_f64x4, epsilon_f64x4));
+    __m256d ratio_a_f64x4 = _mm256_div_pd(_mm256_max_pd(a_f64x4, epsilon_f64x4),
+                                          _mm256_max_pd(mean_f64x4, epsilon_f64x4));
+    __m256d ratio_b_f64x4 = _mm256_div_pd(_mm256_max_pd(b_f64x4, epsilon_f64x4),
+                                          _mm256_max_pd(mean_f64x4, epsilon_f64x4));
     __m256d log_ratio_a_f64x4 = nk_log2_f64x4_haswell_(ratio_a_f64x4);
     __m256d log_ratio_b_f64x4 = nk_log2_f64x4_haswell_(ratio_b_f64x4);
     __m256d contribution_a_f64x4 = _mm256_mul_pd(a_f64x4, log_ratio_a_f64x4);

@@ -178,9 +178,9 @@ NUMKONG_API_COMPTIME void nk_kld_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, n
         vector_length = __riscv_vsetvl_e32m2(n);
         vfloat32m2_t a_f32m2 = __riscv_vle32_v_f32m2(a, vector_length);
         vfloat32m2_t b_f32m2 = __riscv_vle32_v_f32m2(b, vector_length);
-        // ratio = (a + ε) / (b + ε)
-        vfloat32m2_t a_eps_f32m2 = __riscv_vfadd_vf_f32m2(a_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
-        vfloat32m2_t b_eps_f32m2 = __riscv_vfadd_vf_f32m2(b_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
+        // ratio = max(a, ε) / max(b, ε)
+        vfloat32m2_t a_eps_f32m2 = __riscv_vfmax_vf_f32m2(a_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
+        vfloat32m2_t b_eps_f32m2 = __riscv_vfmax_vf_f32m2(b_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
         vfloat32m2_t ratio_f32m2 = __riscv_vfmul_vv_f32m2(
             a_eps_f32m2, nk_f32m2_reciprocal_rvv_(b_eps_f32m2, vector_length), vector_length);
         // log2(ratio)
@@ -202,9 +202,9 @@ NUMKONG_API_COMPTIME void nk_kld_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, n
         vector_length = __riscv_vsetvl_e64m4(n);
         vfloat64m4_t a_f64m4 = __riscv_vle64_v_f64m4(a, vector_length);
         vfloat64m4_t b_f64m4 = __riscv_vle64_v_f64m4(b, vector_length);
-        // ratio = (a + ε) / (b + ε) — full precision division
-        vfloat64m4_t a_eps_f64m4 = __riscv_vfadd_vf_f64m4(a_f64m4, NUMKONG_F64_DIVISION_EPSILON, vector_length);
-        vfloat64m4_t b_eps_f64m4 = __riscv_vfadd_vf_f64m4(b_f64m4, NUMKONG_F64_DIVISION_EPSILON, vector_length);
+        // ratio = max(a, ε) / max(b, ε) — full precision division
+        vfloat64m4_t a_eps_f64m4 = __riscv_vfmax_vf_f64m4(a_f64m4, NUMKONG_F64_DIVISION_EPSILON, vector_length);
+        vfloat64m4_t b_eps_f64m4 = __riscv_vfmax_vf_f64m4(b_f64m4, NUMKONG_F64_DIVISION_EPSILON, vector_length);
         vfloat64m4_t ratio_f64m4 = __riscv_vfdiv_vv_f64m4(a_eps_f64m4, b_eps_f64m4, vector_length);
         // log2(ratio)
         vfloat64m4_t log_ratio_f64m4 = nk_log2_f64m4_rvv_(ratio_f64m4, vector_length);
@@ -231,9 +231,9 @@ NUMKONG_API_COMPTIME void nk_kld_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, n
         // Convert f16 to f32 (m1 -> m2)
         vfloat32m2_t a_f32m2 = nk_f16m1_to_f32m2_rvv_(a_u16m1, vector_length);
         vfloat32m2_t b_f32m2 = nk_f16m1_to_f32m2_rvv_(b_u16m1, vector_length);
-        // ratio = (a + ε) / (b + ε)
-        vfloat32m2_t a_eps_f32m2 = __riscv_vfadd_vf_f32m2(a_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
-        vfloat32m2_t b_eps_f32m2 = __riscv_vfadd_vf_f32m2(b_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
+        // ratio = max(a, ε) / max(b, ε)
+        vfloat32m2_t a_eps_f32m2 = __riscv_vfmax_vf_f32m2(a_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
+        vfloat32m2_t b_eps_f32m2 = __riscv_vfmax_vf_f32m2(b_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
         vfloat32m2_t ratio_f32m2 = __riscv_vfmul_vv_f32m2(
             a_eps_f32m2, nk_f32m2_reciprocal_rvv_(b_eps_f32m2, vector_length), vector_length);
         vfloat32m2_t log_ratio_f32m2 = nk_log2_f32m2_rvv_(ratio_f32m2, vector_length);
@@ -259,9 +259,9 @@ NUMKONG_API_COMPTIME void nk_kld_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b
         // Convert bf16 to f32 (m1 -> m2)
         vfloat32m2_t a_f32m2 = nk_bf16m1_to_f32m2_rvv_(a_u16m1, vector_length);
         vfloat32m2_t b_f32m2 = nk_bf16m1_to_f32m2_rvv_(b_u16m1, vector_length);
-        // ratio = (a + ε) / (b + ε)
-        vfloat32m2_t a_eps_f32m2 = __riscv_vfadd_vf_f32m2(a_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
-        vfloat32m2_t b_eps_f32m2 = __riscv_vfadd_vf_f32m2(b_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
+        // ratio = max(a, ε) / max(b, ε)
+        vfloat32m2_t a_eps_f32m2 = __riscv_vfmax_vf_f32m2(a_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
+        vfloat32m2_t b_eps_f32m2 = __riscv_vfmax_vf_f32m2(b_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
         vfloat32m2_t ratio_f32m2 = __riscv_vfmul_vv_f32m2(
             a_eps_f32m2, nk_f32m2_reciprocal_rvv_(b_eps_f32m2, vector_length), vector_length);
         vfloat32m2_t log_ratio_f32m2 = nk_log2_f32m2_rvv_(ratio_f32m2, vector_length);
@@ -290,10 +290,10 @@ NUMKONG_API_COMPTIME void nk_jsd_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, n
         // M = (a + b) / 2
         vfloat32m2_t mean_f32m2 = __riscv_vfmul_vf_f32m2(__riscv_vfadd_vv_f32m2(va_f32m2, vb_f32m2, vector_length),
                                                          0.5f, vector_length);
-        // ratio_a = (a + eps) / (M + eps)
-        vfloat32m2_t va_eps_f32m2 = __riscv_vfadd_vf_f32m2(va_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
-        vfloat32m2_t vb_eps_f32m2 = __riscv_vfadd_vf_f32m2(vb_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
-        vfloat32m2_t mean_eps_f32m2 = __riscv_vfadd_vf_f32m2(mean_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
+        // ratio_a = max(a, eps) / max(M, eps)
+        vfloat32m2_t va_eps_f32m2 = __riscv_vfmax_vf_f32m2(va_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
+        vfloat32m2_t vb_eps_f32m2 = __riscv_vfmax_vf_f32m2(vb_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
+        vfloat32m2_t mean_eps_f32m2 = __riscv_vfmax_vf_f32m2(mean_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
         vfloat32m2_t mean_reciprocal_f32m2 = nk_f32m2_reciprocal_rvv_(mean_eps_f32m2, vector_length);
         vfloat32m2_t ratio_a_f32m2 = __riscv_vfmul_vv_f32m2(va_eps_f32m2, mean_reciprocal_f32m2, vector_length);
         vfloat32m2_t ratio_b_f32m2 = __riscv_vfmul_vv_f32m2(vb_eps_f32m2, mean_reciprocal_f32m2, vector_length);
@@ -325,10 +325,10 @@ NUMKONG_API_COMPTIME void nk_jsd_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, n
         // M = (a + b) / 2
         vfloat64m4_t mean_f64m4 = __riscv_vfmul_vf_f64m4(__riscv_vfadd_vv_f64m4(va_f64m4, vb_f64m4, vector_length), 0.5,
                                                          vector_length);
-        // ratio_a = (a + eps) / (M + eps), ratio_b = (b + eps) / (M + eps)
-        vfloat64m4_t va_eps_f64m4 = __riscv_vfadd_vf_f64m4(va_f64m4, NUMKONG_F64_DIVISION_EPSILON, vector_length);
-        vfloat64m4_t vb_eps_f64m4 = __riscv_vfadd_vf_f64m4(vb_f64m4, NUMKONG_F64_DIVISION_EPSILON, vector_length);
-        vfloat64m4_t mean_eps_f64m4 = __riscv_vfadd_vf_f64m4(mean_f64m4, NUMKONG_F64_DIVISION_EPSILON, vector_length);
+        // ratio_a = max(a, eps) / max(M, eps), ratio_b = max(b, eps) / max(M, eps)
+        vfloat64m4_t va_eps_f64m4 = __riscv_vfmax_vf_f64m4(va_f64m4, NUMKONG_F64_DIVISION_EPSILON, vector_length);
+        vfloat64m4_t vb_eps_f64m4 = __riscv_vfmax_vf_f64m4(vb_f64m4, NUMKONG_F64_DIVISION_EPSILON, vector_length);
+        vfloat64m4_t mean_eps_f64m4 = __riscv_vfmax_vf_f64m4(mean_f64m4, NUMKONG_F64_DIVISION_EPSILON, vector_length);
         // Full precision division (not reciprocal approximation)
         vfloat64m4_t ratio_a_f64m4 = __riscv_vfdiv_vv_f64m4(va_eps_f64m4, mean_eps_f64m4, vector_length);
         vfloat64m4_t ratio_b_f64m4 = __riscv_vfdiv_vv_f64m4(vb_eps_f64m4, mean_eps_f64m4, vector_length);
@@ -363,10 +363,10 @@ NUMKONG_API_COMPTIME void nk_jsd_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, n
         // M = (a + b) / 2
         vfloat32m2_t mean_f32m2 = __riscv_vfmul_vf_f32m2(__riscv_vfadd_vv_f32m2(va_f32m2, vb_f32m2, vector_length),
                                                          0.5f, vector_length);
-        // ratio_a = (a + eps) / (M + eps), ratio_b = (b + eps) / (M + eps)
-        vfloat32m2_t va_eps_f32m2 = __riscv_vfadd_vf_f32m2(va_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
-        vfloat32m2_t vb_eps_f32m2 = __riscv_vfadd_vf_f32m2(vb_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
-        vfloat32m2_t mean_eps_f32m2 = __riscv_vfadd_vf_f32m2(mean_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
+        // ratio_a = max(a, eps) / max(M, eps), ratio_b = max(b, eps) / max(M, eps)
+        vfloat32m2_t va_eps_f32m2 = __riscv_vfmax_vf_f32m2(va_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
+        vfloat32m2_t vb_eps_f32m2 = __riscv_vfmax_vf_f32m2(vb_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
+        vfloat32m2_t mean_eps_f32m2 = __riscv_vfmax_vf_f32m2(mean_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
         vfloat32m2_t mean_reciprocal_f32m2 = nk_f32m2_reciprocal_rvv_(mean_eps_f32m2, vector_length);
         vfloat32m2_t ratio_a_f32m2 = __riscv_vfmul_vv_f32m2(va_eps_f32m2, mean_reciprocal_f32m2, vector_length);
         vfloat32m2_t ratio_b_f32m2 = __riscv_vfmul_vv_f32m2(vb_eps_f32m2, mean_reciprocal_f32m2, vector_length);
@@ -401,10 +401,10 @@ NUMKONG_API_COMPTIME void nk_jsd_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b
         // M = (a + b) / 2
         vfloat32m2_t mean_f32m2 = __riscv_vfmul_vf_f32m2(__riscv_vfadd_vv_f32m2(va_f32m2, vb_f32m2, vector_length),
                                                          0.5f, vector_length);
-        // ratio_a = (a + eps) / (M + eps), ratio_b = (b + eps) / (M + eps)
-        vfloat32m2_t va_eps_f32m2 = __riscv_vfadd_vf_f32m2(va_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
-        vfloat32m2_t vb_eps_f32m2 = __riscv_vfadd_vf_f32m2(vb_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
-        vfloat32m2_t mean_eps_f32m2 = __riscv_vfadd_vf_f32m2(mean_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
+        // ratio_a = max(a, eps) / max(M, eps), ratio_b = max(b, eps) / max(M, eps)
+        vfloat32m2_t va_eps_f32m2 = __riscv_vfmax_vf_f32m2(va_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
+        vfloat32m2_t vb_eps_f32m2 = __riscv_vfmax_vf_f32m2(vb_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
+        vfloat32m2_t mean_eps_f32m2 = __riscv_vfmax_vf_f32m2(mean_f32m2, NUMKONG_F32_DIVISION_EPSILON, vector_length);
         vfloat32m2_t mean_reciprocal_f32m2 = nk_f32m2_reciprocal_rvv_(mean_eps_f32m2, vector_length);
         vfloat32m2_t ratio_a_f32m2 = __riscv_vfmul_vv_f32m2(va_eps_f32m2, mean_reciprocal_f32m2, vector_length);
         vfloat32m2_t ratio_b_f32m2 = __riscv_vfmul_vv_f32m2(vb_eps_f32m2, mean_reciprocal_f32m2, vector_length);
