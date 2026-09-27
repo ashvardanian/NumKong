@@ -941,8 +941,8 @@ NUMKONG_HELPER_AUTO int nk_cpu_configure_thread_arm64_(nk_capability_t capabilit
     // NEON means nk_cpu_capabilities_detected_arm64_ saw the kernel emulate it.
     if (capabilities & ~(nk_cap_neon_k | nk_cap_serial_k)) {
         // FEAT_EBF16: ID_AA64ISAR1_EL1.BF16 bits [47:44] >= 0b0010
-        register unsigned long isar1_val __asm__("x0");
-        __asm__ __volatile__(".inst 0xD5380620" : "=r"(isar1_val)); // MRS x0, ID_AA64ISAR1_EL1
+        unsigned long isar1_val;
+        __asm__ __volatile__(".inst 0xD5380620\n\tmov %0, x0" : "=r"(isar1_val) : : "x0"); // ID_AA64ISAR1_EL1
         if (((isar1_val >> 44) & 0xF) >= 2) fpcr_desired |= (1UL << 13);
     }
     else { nk_unused_(capabilities); }
@@ -1012,42 +1012,30 @@ NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_detected_arm64_(void) {
     unsigned long id_aa64isar0_el1 = 0, id_aa64isar1_el1 = 0, id_aa64pfr0_el1 = 0, id_aa64zfr0_el1 = 0,
                   id_aa64fpfr0_el1 = 0;
 
-    register unsigned long __isar0 __asm__("x0");
-    __asm__ __volatile__(".inst 0xD5380600" : "=r"(__isar0)); // MRS x0, ID_AA64ISAR0_EL1
-    id_aa64isar0_el1 = __isar0;
+    // Each raw MRS writes x0; moving it out spares pinning a variable to x0, which NVCC rejects.
+    __asm__ __volatile__(".inst 0xD5380600\n\tmov %0, x0" : "=r"(id_aa64isar0_el1) : : "x0"); // ID_AA64ISAR0_EL1
     unsigned supports_integer_dot_products = ((id_aa64isar0_el1 >> 44) & 0xF) >= 1;
     unsigned supports_fhm = ((id_aa64isar0_el1 >> 48) & 0xF) >= 1;
-    register unsigned long __isar1 __asm__("x0");
-    __asm__ __volatile__(".inst 0xD5380620" : "=r"(__isar1)); // MRS x0, ID_AA64ISAR1_EL1
-    id_aa64isar1_el1 = __isar1;
+    __asm__ __volatile__(".inst 0xD5380620\n\tmov %0, x0" : "=r"(id_aa64isar1_el1) : : "x0"); // ID_AA64ISAR1_EL1
     unsigned supports_bf16 = ((id_aa64isar1_el1 >> 44) & 0xF) >= 1;
 
-    register unsigned long __pfr0 __asm__("x0");
-    __asm__ __volatile__(".inst 0xD5380400" : "=r"(__pfr0)); // MRS x0, ID_AA64PFR0_EL1
-    id_aa64pfr0_el1 = __pfr0;
+    __asm__ __volatile__(".inst 0xD5380400\n\tmov %0, x0" : "=r"(id_aa64pfr0_el1) : : "x0"); // ID_AA64PFR0_EL1
     unsigned supports_sve = ((id_aa64pfr0_el1 >> 32) & 0xF) >= 1;
     unsigned supports_fp16 = ((id_aa64pfr0_el1 >> 20) & 0xF) == 0x1;
     unsigned supports_neon = ((id_aa64pfr0_el1 >> 20) & 0xF) != 0xF;
 
-    if (supports_sve) {
-        register unsigned long __zfr0 __asm__("x0");
-        __asm__ __volatile__(".inst 0xD5380480" : "=r"(__zfr0)); // MRS x0, ID_AA64ZFR0_EL1
-        id_aa64zfr0_el1 = __zfr0;
-    }
+    if (supports_sve)
+        __asm__ __volatile__(".inst 0xD5380480\n\tmov %0, x0" : "=r"(id_aa64zfr0_el1) : : "x0"); // ID_AA64ZFR0_EL1
     unsigned supports_svesdotmm = ((id_aa64zfr0_el1 >> 44) & 0xF) >= 1;
     unsigned supports_svebfdot = ((id_aa64zfr0_el1 >> 20) & 0xF) >= 1;
     unsigned supports_sve2 = ((id_aa64zfr0_el1) & 0xF) >= 1;
     unsigned supports_sve2p1 = ((id_aa64zfr0_el1) & 0xF) >= 2;
 
-    register unsigned long __fpfr0 __asm__("x0");
-    __asm__ __volatile__(".inst 0xD53804E0" : "=r"(__fpfr0)); // MRS x0, ID_AA64FPFR0_EL1
-    id_aa64fpfr0_el1 = __fpfr0;
+    __asm__ __volatile__(".inst 0xD53804E0\n\tmov %0, x0" : "=r"(id_aa64fpfr0_el1) : : "x0"); // ID_AA64FPFR0_EL1
     unsigned supports_fp8dot4 = ((id_aa64fpfr0_el1 >> 29) & 0x1) >= 1;
 
     unsigned long id_aa64pfr1_el1 = 0, id_aa64smfr0_el1 = 0;
-    register unsigned long __pfr1 __asm__("x0");
-    __asm__ __volatile__(".inst 0xD5380420" : "=r"(__pfr1)); // MRS x0, ID_AA64PFR1_EL1
-    id_aa64pfr1_el1 = __pfr1;
+    __asm__ __volatile__(".inst 0xD5380420\n\tmov %0, x0" : "=r"(id_aa64pfr1_el1) : : "x0"); // ID_AA64PFR1_EL1
     unsigned supports_sme = ((id_aa64pfr1_el1 >> 24) & 0xF) >= 1;
 
     unsigned supports_sme2 = 0, supports_sme2p1 = 0;
@@ -1057,9 +1045,7 @@ NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_detected_arm64_(void) {
         // MRS x0, ID_AA64SMFR0_EL1 (S3_0_C0_C4_5) — encoded as raw .inst because some
         // assemblers (Clang 21 in Android NDK r29) reject the symbolic register name.
         // Encoding: 0xD53804A0 = MRS x0, op0=3, op1=0, CRn=0, CRm=4, op2=5, Rt=0.
-        register unsigned long __smfr0 __asm__("x0");
-        __asm__ __volatile__(".inst 0xD53804A0" : "=r"(__smfr0));
-        id_aa64smfr0_el1 = __smfr0;
+        __asm__ __volatile__(".inst 0xD53804A0\n\tmov %0, x0" : "=r"(id_aa64smfr0_el1) : : "x0");
         unsigned sme_version = (id_aa64smfr0_el1 >> 56) & 0xF;
         supports_sme2 = sme_version >= 1;
         supports_sme2p1 = sme_version >= 2;
