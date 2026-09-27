@@ -14,7 +14,7 @@ env:
 
 jobs:
   create_linux_deb_package:
-    name: Create Debian Package
+    name: Create Debian Package for ${{ matrix.arch }}, ${{ matrix.target }}
     runs-on: ubuntu-24.04
     env:
       CC: clang-20
@@ -82,7 +82,7 @@ jobs:
         run: gh release upload ${{ github.event.release.tag_name }} *.so *.deb --clobber
 
   create_windows_dll_library:
-    name: Create Library for Windows
+    name: Create Library for Windows, ${{ matrix.arch }}
     runs-on: windows-2025
     strategy:
       fail-fast: false
@@ -108,11 +108,13 @@ jobs:
         run: |
           cmake --preset msvc_${{ matrix.arch }} -D NUMKONG_BUILD_TEST=OFF
           cmake --build --preset msvc_${{ matrix.arch }}
+      # MSVC links a DLL through its import library, so the archive carries both.
       - name: Package Archive
         shell: bash
         run: |
           tar -czf "numkong_windows_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.tar.gz" \
             build_msvc_${{ matrix.arch }}/Release/numkong.dll \
+            build_msvc_${{ matrix.arch }}/Release/numkong.lib \
             include/numkong/ \
             LICENSE
       - name: Upload to GitHub Release
@@ -150,7 +152,7 @@ jobs:
         run: gh release upload ${{ github.event.release.tag_name }} *.dylib *.zip --clobber
 
   create_android_library:
-    name: Create Android Library
+    name: Create Library for Android, ${{ matrix.arch }}, ${{ matrix.preset }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -283,7 +285,7 @@ jobs:
         run: gh release upload ${{ github.event.release.tag_name }} numkong_wasm_*.tar.gz numkong_wasm_*.zip --clobber
 
   create_freebsd_library:
-    name: Create Library for FreeBSD
+    name: Create Library for FreeBSD, ${{ matrix.arch }}, ${{ matrix.processor }}, ${{ matrix.freebsd_arch }}
     runs-on: ubuntu-24.04
     env:
       CC: clang-20

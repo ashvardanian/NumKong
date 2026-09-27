@@ -68,7 +68,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt update
-          sudo apt install -y cmake build-essential libjemalloc-dev libomp-dev
+          sudo apt install -y cmake build-essential
           sudo apt install -y gcc-14-aarch64-linux-gnu g++-14-aarch64-linux-gnu binutils-aarch64-linux-gnu
 
       - name: Set Up MSVC ARM64 Cross-Compiler

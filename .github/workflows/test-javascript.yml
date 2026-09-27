@@ -47,7 +47,7 @@ jobs:
           timeout_minutes: 180
           command: |
             sudo apt update
-            sudo apt install -y cmake build-essential libjemalloc-dev libomp-dev
+            sudo apt install -y cmake build-essential
 
       - name: Set Up Node.js
         uses: actions/setup-node@v7
@@ -343,7 +343,7 @@ jobs:
           timeout_minutes: 180
           command: |
             sudo apt update
-            sudo apt install -y cmake build-essential libjemalloc-dev libomp-dev
+            sudo apt install -y cmake build-essential
 
       - name: Set Up Node.js
         uses: actions/setup-node@v7
@@ -394,7 +394,7 @@ jobs:
           timeout_minutes: 180
           command: |
             sudo apt update
-            sudo apt install -y cmake build-essential libjemalloc-dev libomp-dev
+            sudo apt install -y cmake build-essential
 
       - name: Set Up Node.js
         uses: actions/setup-node@v7
