@@ -106,26 +106,29 @@ NUMKONG_HELPER_INLINE void nk_reduce_moments_bf16_neonbfdot_strided_(      //
     *sumsq_ptr = vaddvq_f32(sumsq_f32x4);
 }
 
-NUMKONG_API_COMPTIME void nk_reduce_moments_bf16_neonbfdot(             //
+NUMKONG_API_COMPTIME nk_status_t nk_reduce_moments_bf16_neonbfdot(      //
     nk_bf16_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
-    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
+    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride_bytes / sizeof(nk_bf16_t);
     int aligned = (stride_bytes % sizeof(nk_bf16_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (!aligned || stride_elements == 0)
-        nk_reduce_moments_bf16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+        nk_reduce_moments_bf16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr, stream);
     else if (count > (nk_size_t)(NUMKONG_U16_MAX + 1) * 8) {
         nk_size_t left_count = count / 2;
         nk_f32_t left_sum_value, left_sumsq_value, right_sum_value, right_sumsq_value;
-        nk_reduce_moments_bf16_neonbfdot(data_ptr, left_count, stride_bytes, &left_sum_value, &left_sumsq_value);
+        nk_reduce_moments_bf16_neonbfdot(data_ptr, left_count, stride_bytes, &left_sum_value, &left_sumsq_value,
+                                         stream);
         nk_reduce_moments_bf16_neonbfdot(data_ptr + left_count * stride_elements, count - left_count, stride_bytes,
-                                         &right_sum_value, &right_sumsq_value);
+                                         &right_sum_value, &right_sumsq_value, stream);
         *sum_ptr = left_sum_value + right_sum_value, *sumsq_ptr = left_sumsq_value + right_sumsq_value;
     }
     else if (stride_elements == 1) nk_reduce_moments_bf16_neonbfdot_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr);
     else if (stride_elements <= 4)
         nk_reduce_moments_bf16_neonbfdot_strided_(data_ptr, count, stride_elements, sum_ptr, sumsq_ptr);
-    else nk_reduce_moments_bf16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    else nk_reduce_moments_bf16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr, stream);
+    return nk_success_k;
 }
 
 #if defined(__clang__)

@@ -320,13 +320,14 @@ NUMKONG_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e3m2x4_v128relaxed_(nk_b128_vec_t
     return result_vec;
 }
 
-NUMKONG_API_COMPTIME void nk_cast_v128relaxed(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                              nk_dtype_t to_type) {
+NUMKONG_API_COMPTIME nk_status_t nk_cast_v128relaxed(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
+                                                     nk_dtype_t to_type, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Same-type fast path
     if (from_type == to_type) {
         nk_size_t size_bits = nk_dtype_bits(from_type);
         if (size_bits > 0) nk_copy_bytes_(to, from, n * size_bits / 8);
-        return;
+        return nk_success_k;
     }
 
     // Validate supported types
@@ -337,10 +338,7 @@ NUMKONG_API_COMPTIME void nk_cast_v128relaxed(void const *from, nk_dtype_t from_
                  to_type == nk_e5m2_k || to_type == nk_e2m3_k || to_type == nk_e3m2_k || to_type == nk_i8_k ||
                  to_type == nk_u8_k);
 
-    if (!from_ok || !to_ok) {
-        nk_cast_serial(from, from_type, n, to, to_type);
-        return;
-    }
+    if (!from_ok || !to_ok) { return nk_cast_serial(from, from_type, n, to, to_type, stream); }
 
     // F32 hub: 4 elements per iteration
     nk_size_t batches = n / 4;
@@ -395,7 +393,8 @@ NUMKONG_API_COMPTIME void nk_cast_v128relaxed(void const *from, nk_dtype_t from_
     }
 
     // Handle tail elements with serial fallback
-    if (tail) nk_cast_serial(from_ptr, from_type, tail, to_ptr, to_type);
+    if (tail) nk_cast_serial(from_ptr, from_type, tail, to_ptr, to_type, stream);
+    return nk_success_k;
 }
 
 #if defined(__clang__)

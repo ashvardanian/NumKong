@@ -517,38 +517,13 @@ NUMKONG_HELPER_INLINE void nk_partial_load_e5m2x32_to_bf16x32_icelake_(void cons
     dst->zmm = nk_e5m2x32_to_bf16x32_icelake_(e5m2_partial_i8x32);
 }
 
-/** Load 32x e2m3 from memory and convert to 32x bf16 (Ice Lake AVX-512BW). */
-NUMKONG_HELPER_INLINE void nk_load_e2m3x32_to_bf16x32_icelake_(void const *src, nk_b512_vec_t *dst) {
-    dst->zmm = nk_e2m3x32_to_bf16x32_icelake_(_mm256_loadu_si256((__m256i const *)src));
-}
-
-/** Partial load n e2m3 elements from memory and convert to bf16 (Ice Lake AVX-512BW). */
-NUMKONG_HELPER_INLINE void nk_partial_load_e2m3x32_to_bf16x32_icelake_(void const *src, nk_b512_vec_t *dst,
-                                                                       nk_size_t n) {
-    __mmask32 mask_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)n);
-    __m256i e2m3_partial_i8x32 = _mm256_maskz_loadu_epi8(mask_m32, src);
-    dst->zmm = nk_e2m3x32_to_bf16x32_icelake_(e2m3_partial_i8x32);
-}
-
-/** Load 32x e3m2 from memory and convert to 32x bf16 (Ice Lake AVX-512BW). */
-NUMKONG_HELPER_INLINE void nk_load_e3m2x32_to_bf16x32_icelake_(void const *src, nk_b512_vec_t *dst) {
-    dst->zmm = nk_e3m2x32_to_bf16x32_icelake_(_mm256_loadu_si256((__m256i const *)src));
-}
-
-/** Partial load n e3m2 elements from memory and convert to bf16 (Ice Lake AVX-512BW). */
-NUMKONG_HELPER_INLINE void nk_partial_load_e3m2x32_to_bf16x32_icelake_(void const *src, nk_b512_vec_t *dst,
-                                                                       nk_size_t n) {
-    __mmask32 mask_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)n);
-    __m256i e3m2_partial_i8x32 = _mm256_maskz_loadu_epi8(mask_m32, src);
-    dst->zmm = nk_e3m2x32_to_bf16x32_icelake_(e3m2_partial_i8x32);
-}
-
 #pragma endregion Vectorized Conversions
 
 #pragma region Public API
 
-NUMKONG_API_COMPTIME void nk_cast_icelake(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                          nk_dtype_t to_type) {
+NUMKONG_API_COMPTIME nk_status_t nk_cast_icelake(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
+                                                 nk_dtype_t to_type, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Group 1: Conversions to bf16 (e4m3 → bf16, e5m2 → bf16)
     if (to_type == nk_bf16_k && (from_type == nk_e4m3_k || from_type == nk_e5m2_k)) {
         nk_e4m3_t const *from_ptr = (nk_e4m3_t const *)from;
@@ -615,7 +590,7 @@ NUMKONG_API_COMPTIME void nk_cast_icelake(void const *from, nk_dtype_t from_type
         }
         // Tail (< 32): serial keeps packed-nibble writes byte-identical to the reference.
         nk_size_t tail = n % 32;
-        if (tail) nk_cast_serial(from_ptr, from_type, tail, to_ptr, to_type);
+        if (tail) nk_cast_serial(from_ptr, from_type, tail, to_ptr, to_type, stream);
     }
 
     // Group 5: E2M3 / E3M2 (FP6) → f32 via the BF16 LUT decode widened to f32 (one VPERMW per 32).
@@ -632,11 +607,12 @@ NUMKONG_API_COMPTIME void nk_cast_icelake(void const *from, nk_dtype_t from_type
             _mm512_storeu_ps(to_ptr + 16, high_f32x16);
         }
         nk_size_t tail = n - i;
-        if (tail) nk_cast_skylake(from_ptr, from_type, tail, to_ptr, to_type);
+        if (tail) nk_cast_skylake(from_ptr, from_type, tail, to_ptr, to_type, stream);
     }
 
     // Default: delegate to Skylake for all other conversions (FP8/integer codecs, f32→FP6, etc.)
-    else nk_cast_skylake(from, from_type, n, to, to_type);
+    else nk_cast_skylake(from, from_type, n, to, to_type, stream);
+    return nk_success_k;
 }
 
 /** Reduce a block of @p block_count f32s to `amax = max(|x|)`. @p block_count ≤ 32. Reuses the
@@ -645,18 +621,18 @@ NUMKONG_HELPER_INLINE nk_f32_t nk_block_amax_f32_icelake_(nk_f32_t const *block,
     return nk_block_amax_f32_skylake_(block, block_count);
 }
 
-NUMKONG_API_COMPTIME void nk_cast_block_scaled_icelake(                                                        //
+NUMKONG_API_COMPTIME nk_status_t nk_cast_block_scaled_icelake(                                                 //
     void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
     nk_block_scaled_format_t const *from_format,                                                               //
     void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
-    nk_size_t count) {
+    nk_size_t count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     int from_plain = (from_format->scale_dtype == nk_dtype_unknown_k || from_format->block_size == 0);
     int to_plain = (to_format->scale_dtype == nk_dtype_unknown_k || to_format->block_size == 0);
 
     if (from_plain && to_plain) {
-        nk_cast_icelake(from, from_format->element_dtype, count, to, to_format->element_dtype);
-        return;
+        return nk_cast_icelake(from, from_format->element_dtype, count, to, to_format->element_dtype, stream);
     }
 
     nk_size_t from_block = from_plain ? 1u : from_format->block_size;
@@ -674,9 +650,8 @@ NUMKONG_API_COMPTIME void nk_cast_block_scaled_icelake(                         
         to_tensor_scale_f32 = to_tensor_scale->f32;
         if (to_tensor_scale_f32 == 0.0f) {
             // Fall back to serial for auto-derive (needs a full tensor scan; rare calibration path).
-            nk_cast_block_scaled_serial(from, from_scales, from_tensor_scale, from_format, to, to_scales,
-                                        to_tensor_scale, to_format, count);
-            return;
+            return nk_cast_block_scaled_serial(from, from_scales, from_tensor_scale, from_format, to, to_scales,
+                                               to_tensor_scale, to_format, count, stream);
         }
     }
 
@@ -692,7 +667,7 @@ NUMKONG_API_COMPTIME void nk_cast_block_scaled_icelake(                         
         // Decode source chunk into f32 scratch.
         if (from_plain) {
             void const *src = (nk_u8_t const *)from + (chunk_start * from_bits_per_element / NUMKONG_BITS_PER_BYTE);
-            nk_cast_icelake(src, from_format->element_dtype, chunk_count, scratch, nk_f32_k);
+            nk_cast_icelake(src, from_format->element_dtype, chunk_count, scratch, nk_f32_k, stream);
         }
         else {
             for (nk_size_t b = 0; b < chunk_count; b += from_block) {
@@ -703,7 +678,7 @@ NUMKONG_API_COMPTIME void nk_cast_block_scaled_icelake(                         
                                      from_tensor_scale_f32;
                 void const *src = (nk_u8_t const *)from +
                                   ((chunk_start + b) * from_bits_per_element / NUMKONG_BITS_PER_BYTE);
-                nk_cast_icelake(src, from_format->element_dtype, valid, scratch + b, nk_f32_k);
+                nk_cast_icelake(src, from_format->element_dtype, valid, scratch + b, nk_f32_k, stream);
                 __m512 scale_bcast_f32x16 = _mm512_set1_ps(scale_f32);
                 __m512 v_low_f32x16 = _mm512_maskz_loadu_ps(valid >= 16 ? 0xFFFF : (1u << valid) - 1u, scratch + b);
                 _mm512_mask_storeu_ps(scratch + b, valid >= 16 ? 0xFFFF : (1u << valid) - 1u,
@@ -719,7 +694,7 @@ NUMKONG_API_COMPTIME void nk_cast_block_scaled_icelake(                         
         // Encode f32 scratch into destination chunk.
         if (to_plain) {
             void *dst = (nk_u8_t *)to + (chunk_start * to_bits_per_element / NUMKONG_BITS_PER_BYTE);
-            nk_cast_icelake(scratch, nk_f32_k, chunk_count, dst, to_format->element_dtype);
+            nk_cast_icelake(scratch, nk_f32_k, chunk_count, dst, to_format->element_dtype, stream);
         }
         else {
             nk_f32_t element_max = nk_element_max_representable_(to_format->element_dtype);
@@ -751,10 +726,11 @@ NUMKONG_API_COMPTIME void nk_cast_block_scaled_icelake(                         
                     else if (encoded_scratch[saturate_index] < -element_max)
                         encoded_scratch[saturate_index] = -element_max;
                 }
-                nk_cast_icelake(encoded_scratch, nk_f32_k, valid, dst, to_format->element_dtype);
+                nk_cast_icelake(encoded_scratch, nk_f32_k, valid, dst, to_format->element_dtype, stream);
             }
         }
     }
+    return nk_success_k;
 }
 
 #pragma endregion Public API

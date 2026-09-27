@@ -61,8 +61,7 @@
 #if NUMKONG_TARGET_NEON
 
 #include "numkong/types.h"
-#include "numkong/cast/serial.h"   // `nk_cast_serial`, `nk_dtype_bits`
-#include "numkong/reduce/serial.h" // `nk_reduce_moments_f32_serial`
+#include "numkong/cast/serial.h" // `nk_cast_serial`, `nk_dtype_bits`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -1029,13 +1028,14 @@ NUMKONG_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e3m2x4_neon_(float32x4_t f32x4) {
 
 #pragma region Public API
 
-NUMKONG_API_COMPTIME void nk_cast_neon(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                       nk_dtype_t to_type) {
+NUMKONG_API_COMPTIME nk_status_t nk_cast_neon(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
+                                              nk_dtype_t to_type, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Same-type fast path
     if (from_type == to_type) {
         nk_size_t size_bits = nk_dtype_bits(from_type);
         if (size_bits > 0) nk_copy_bytes_(to, from, n * size_bits / 8);
-        return;
+        return nk_success_k;
     }
 
     // Validate supported types (f32 and smaller)
@@ -1051,8 +1051,7 @@ NUMKONG_API_COMPTIME void nk_cast_neon(void const *from, nk_dtype_t from_type, n
     // Fall back to serial for unsupported or i32 ↔ u32 (loses precision through f32)
     if (!from_ok || !to_ok || (from_type == nk_i32_k && to_type == nk_u32_k) ||
         (from_type == nk_u32_k && to_type == nk_i32_k)) {
-        nk_cast_serial(from, from_type, n, to, to_type);
-        return;
+        return nk_cast_serial(from, from_type, n, to, to_type, stream);
     }
 
     // F16 hub, 8 elements per iteration; BF16 skips it, as F16 turns |x| past 65504 into infinity
@@ -1107,7 +1106,7 @@ NUMKONG_API_COMPTIME void nk_cast_neon(void const *from, nk_dtype_t from_type, n
         n = n % 8;
         from = from_ptr;
         to = to_ptr;
-        if (n == 0) return;
+        if (n == 0) return nk_success_k;
     }
 
     // F32 hub: 4 elements per iteration (f32x4 intermediate)
@@ -1189,7 +1188,8 @@ NUMKONG_API_COMPTIME void nk_cast_neon(void const *from, nk_dtype_t from_type, n
     }
 
     // Handle tail elements with serial fallback
-    if (tail) nk_cast_serial(from_ptr, from_type, tail, to_ptr, to_type);
+    if (tail) nk_cast_serial(from_ptr, from_type, tail, to_ptr, to_type, stream);
+    return nk_success_k;
 }
 
 /** Reduce @p block_count f32s to `max(|x|)` via NEON (f32x4 horizontal max). */
@@ -1214,18 +1214,18 @@ NUMKONG_HELPER_INLINE nk_f32_t nk_block_amax_f32_neon_(nk_f32_t const *block, nk
     return result;
 }
 
-NUMKONG_API_COMPTIME void nk_cast_block_scaled_neon(                                                           //
+NUMKONG_API_COMPTIME nk_status_t nk_cast_block_scaled_neon(                                                    //
     void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
     nk_block_scaled_format_t const *from_format,                                                               //
     void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
-    nk_size_t count) {
+    nk_size_t count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     int from_plain = (from_format->scale_dtype == nk_dtype_unknown_k || from_format->block_size == 0);
     int to_plain = (to_format->scale_dtype == nk_dtype_unknown_k || to_format->block_size == 0);
 
     if (from_plain && to_plain) {
-        nk_cast_neon(from, from_format->element_dtype, count, to, to_format->element_dtype);
-        return;
+        return nk_cast_neon(from, from_format->element_dtype, count, to, to_format->element_dtype, stream);
     }
 
     nk_size_t from_block = from_plain ? 1u : from_format->block_size;
@@ -1242,9 +1242,8 @@ NUMKONG_API_COMPTIME void nk_cast_block_scaled_neon(                            
     if (to_has_tensor_scale) {
         to_tensor_scale_f32 = to_tensor_scale->f32;
         if (to_tensor_scale_f32 == 0.0f) {
-            nk_cast_block_scaled_serial(from, from_scales, from_tensor_scale, from_format, to, to_scales,
-                                        to_tensor_scale, to_format, count);
-            return;
+            return nk_cast_block_scaled_serial(from, from_scales, from_tensor_scale, from_format, to, to_scales,
+                                               to_tensor_scale, to_format, count, stream);
         }
     }
 
@@ -1259,7 +1258,7 @@ NUMKONG_API_COMPTIME void nk_cast_block_scaled_neon(                            
 
         if (from_plain) {
             void const *src = (nk_u8_t const *)from + (chunk_start * from_bits_per_element / NUMKONG_BITS_PER_BYTE);
-            nk_cast_neon(src, from_format->element_dtype, chunk_count, scratch, nk_f32_k);
+            nk_cast_neon(src, from_format->element_dtype, chunk_count, scratch, nk_f32_k, stream);
         }
         else {
             for (nk_size_t b = 0; b < chunk_count; b += from_block) {
@@ -1270,7 +1269,7 @@ NUMKONG_API_COMPTIME void nk_cast_block_scaled_neon(                            
                                      from_tensor_scale_f32;
                 void const *src = (nk_u8_t const *)from +
                                   ((chunk_start + b) * from_bits_per_element / NUMKONG_BITS_PER_BYTE);
-                nk_cast_neon(src, from_format->element_dtype, valid, scratch + b, nk_f32_k);
+                nk_cast_neon(src, from_format->element_dtype, valid, scratch + b, nk_f32_k, stream);
                 float32x4_t scale_bcast_vec = vdupq_n_f32(scale_f32);
                 nk_size_t k = 0;
                 for (; k + 4 <= valid; k += 4) {
@@ -1283,7 +1282,7 @@ NUMKONG_API_COMPTIME void nk_cast_block_scaled_neon(                            
 
         if (to_plain) {
             void *dst = (nk_u8_t *)to + (chunk_start * to_bits_per_element / NUMKONG_BITS_PER_BYTE);
-            nk_cast_neon(scratch, nk_f32_k, chunk_count, dst, to_format->element_dtype);
+            nk_cast_neon(scratch, nk_f32_k, chunk_count, dst, to_format->element_dtype, stream);
         }
         else {
             nk_f32_t element_max = nk_element_max_representable_(to_format->element_dtype);
@@ -1313,10 +1312,11 @@ NUMKONG_API_COMPTIME void nk_cast_block_scaled_neon(                            
                     else if (encoded_scratch[saturate_index] < -element_max)
                         encoded_scratch[saturate_index] = -element_max;
                 }
-                nk_cast_neon(encoded_scratch, nk_f32_k, valid, dst, to_format->element_dtype);
+                nk_cast_neon(encoded_scratch, nk_f32_k, valid, dst, to_format->element_dtype, stream);
             }
         }
     }
+    return nk_success_k;
 }
 
 #pragma endregion Public API

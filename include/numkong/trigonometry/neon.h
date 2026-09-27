@@ -522,7 +522,8 @@ NUMKONG_HELPER_INLINE float64x2_t nk_atan2_f64x2_neon_(float64x2_t const ys_inpu
     return results_f64x2;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_sin_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         float32x4_t angles_f32x4 = vld1q_f32(ins + i);
@@ -537,9 +538,11 @@ NUMKONG_API_COMPTIME void nk_trig_sin_f32_neon(nk_f32_t const *ins, nk_size_t n,
         results_vec.f32x4 = nk_sin_f32x4_neon_(angles_vec.f32x4);
         nk_partial_store_b32x4_serial_(&results_vec, outs + i, remaining);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_cos_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         float32x4_t angles_f32x4 = vld1q_f32(ins + i);
@@ -554,9 +557,11 @@ NUMKONG_API_COMPTIME void nk_trig_cos_f32_neon(nk_f32_t const *ins, nk_size_t n,
         results_vec.f32x4 = nk_cos_f32x4_neon_(angles_vec.f32x4);
         nk_partial_store_b32x4_serial_(&results_vec, outs + i, remaining);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_atan_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         float32x4_t values_f32x4 = vld1q_f32(ins + i);
@@ -571,9 +576,11 @@ NUMKONG_API_COMPTIME void nk_trig_atan_f32_neon(nk_f32_t const *ins, nk_size_t n
         results_vec.f32x4 = nk_atan_f32x4_neon_(values_vec.f32x4);
         nk_partial_store_b32x4_serial_(&results_vec, outs + i, remaining);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_sin_f64_neon(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f64_neon(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 2 <= n; i += 2) {
         float64x2_t angles_f64x2 = vld1q_f64(ins + i);
@@ -588,9 +595,11 @@ NUMKONG_API_COMPTIME void nk_trig_sin_f64_neon(nk_f64_t const *ins, nk_size_t n,
         results_vec.f64x2 = nk_sin_f64x2_neon_(angles_vec.f64x2);
         nk_partial_store_b64x2_serial_(&results_vec, outs + i, remaining);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_cos_f64_neon(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f64_neon(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 2 <= n; i += 2) {
         float64x2_t angles_f64x2 = vld1q_f64(ins + i);
@@ -605,9 +614,11 @@ NUMKONG_API_COMPTIME void nk_trig_cos_f64_neon(nk_f64_t const *ins, nk_size_t n,
         results_vec.f64x2 = nk_cos_f64x2_neon_(angles_vec.f64x2);
         nk_partial_store_b64x2_serial_(&results_vec, outs + i, remaining);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_atan_f64_neon(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f64_neon(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 2 <= n; i += 2) {
         float64x2_t values_f64x2 = vld1q_f64(ins + i);
@@ -622,6 +633,7 @@ NUMKONG_API_COMPTIME void nk_trig_atan_f64_neon(nk_f64_t const *ins, nk_size_t n
         results_vec.f64x2 = nk_atan_f64x2_neon_(values_vec.f64x2);
         nk_partial_store_b64x2_serial_(&results_vec, outs + i, remaining);
     }
+    return nk_success_k;
 }
 
 #if defined(__clang__)

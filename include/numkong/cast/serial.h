@@ -918,6 +918,13 @@ NUMKONG_HELPER_INLINE void nk_e4m3_to_f16_serial(nk_e4m3_t const *src, nk_f16_t 
     *dest = result.f;
 }
 
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#endif
+
 /**
  *  @brief Convert FP8 E5M2 to IEEE 754 single-precision float.
  *
@@ -945,43 +952,6 @@ NUMKONG_HELPER_INLINE void nk_e4m3_to_f16_serial(nk_e4m3_t const *src, nk_f16_t 
  *  @see OCP 8-bit Floating Point Specification: https://www.opencompute.org/documents/ocp-8-bit-floating-point-specification-ofp8-revision-1-0-2023-12-01-pdf-1
  *  @see ONNX Float8 types: https://onnx.ai/onnx/technical/float8.html
  */
-NUMKONG_HELPER_INLINE void nk_e5m2_to_f32_manual_(nk_e5m2_t const *src, nk_f32_t *dest) {
-    nk_u8_t raw = *src;
-    nk_u32_t sign = (nk_u32_t)(raw & 0x80) << 24;
-    nk_u32_t exponent = (raw >> 2) & 0x1Fu;
-    nk_u32_t mantissa = raw & 0x03u;
-    nk_fui32_t conv;
-
-    if (exponent == 0) {
-        if (mantissa == 0) {
-            conv.u = sign;
-            *dest = conv.f;
-            return;
-        }
-        nk_f32_t value = (nk_f32_t)mantissa * (1.0f / 65536.0f);
-        *dest = sign ? -value : value;
-        return;
-    }
-    if (exponent == 0x1Fu) {
-        if (mantissa == 0) { conv.u = sign | 0x7F800000u; }
-        else { conv.u = sign | 0x7FC00000u; }
-        *dest = conv.f;
-        return;
-    }
-
-    nk_u32_t f32_exponent = (exponent + 112u) << 23;
-    nk_u32_t f32_mantissa = mantissa << 21;
-    conv.u = sign | f32_exponent | f32_mantissa;
-    *dest = conv.f;
-}
-
-#if defined(__clang__)
-#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
-#elif defined(__GNUC__)
-#pragma GCC push_options
-#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
-#endif
-
 NUMKONG_API_COMPTIME void nk_e5m2_to_f32_serial(nk_e5m2_t const *src, nk_f32_t *dest) {
     static nk_u32_t const lut[128] = {
         0x00000000, 0x37800000, 0x38000000, 0x38400000, // exp=0  sub
@@ -1105,97 +1075,12 @@ NUMKONG_API_COMPTIME void nk_f32_to_e5m2_serial(nk_f32_t const *src, nk_e5m2_t *
 #pragma GCC pop_options
 #endif
 
-/**
- *  @brief Convert FP8 E5M2 to IEEE 754 half-precision float.
- *
- *  E5M2 format: 1 sign bit, 5 exponent bits (bias=15), 2 mantissa bits.
- *  F16 format:  1 sign bit, 5 exponent bits (bias=15), 10 mantissa bits.
- *
- *  Since E5M2 and F16 share the same exponent bias (15), normal values
- *  convert by simply shifting the magnitude left by 8 bits.
- *
- *  Conversion notes:
- *  - Normal values: F16 = sign | (mag << 8)
- *  - Subnormals: mant × 2⁻¹⁶ (where 2⁻¹⁶ = 0x0100 in F16)
- *  - Infinity (0x7C): maps to F16 infinity (0x7C00)
- *  - NaN (0x7D-0x7F): maps to F16 quiet NaN (0x7E00)
- */
-NUMKONG_HELPER_INLINE void nk_e5m2_to_f16_manual_(nk_e5m2_t const *src, nk_f16_t *dest) {
-    nk_u8_t raw = *src;
-    nk_u16_t sign = ((nk_u16_t)(raw & 0x80)) << 8;
-    nk_u16_t mag = raw & 0x7F;
-    nk_u16_t mant = raw & 0x03;
-    nk_u16_t exp = (raw >> 2) & 0x1F;
-    nk_fui16_t result;
-
-    if (exp == 0) {
-        if (mant == 0) {
-            result.u = sign; // Zero
-        }
-        else {
-            // Subnormal: mant × 2⁻¹⁶, where 2⁻¹⁶ = 0x0100 in F16
-            nk_fui16_t scale;
-            scale.u = 0x0100;
-            nk_fui16_t mant_f16;
-            mant_f16.f = (nk_f16_t)mant;
-            result.f = mant_f16.f * scale.f;
-            result.u |= sign;
-        }
-    }
-    else if (mag == 0x7C) {
-        result.u = sign | 0x7C00; // Infinity
-    }
-    else if (mag > 0x7C) {
-        result.u = sign | 0x7E00; // NaN
-    }
-    else {
-        // Normal: E5M2 and F16 have same bias (15), just shift magnitude
-        result.u = sign | ((nk_u16_t)mag << 8);
-    }
-    *dest = result.f;
-}
-
-NUMKONG_HELPER_INLINE void nk_e5m2_to_f16_serial(nk_e5m2_t const *src, nk_f16_t *dest) {
-    static nk_u16_t const lut[128] = {
-        0x0000, 0x0100, 0x0200, 0x0300, // exp=0  sub
-        0x0400, 0x0500, 0x0600, 0x0700, // exp=1
-        0x0800, 0x0900, 0x0A00, 0x0B00, // exp=2
-        0x0C00, 0x0D00, 0x0E00, 0x0F00, // exp=3
-        0x1000, 0x1100, 0x1200, 0x1300, // exp=4
-        0x1400, 0x1500, 0x1600, 0x1700, // exp=5
-        0x1800, 0x1900, 0x1A00, 0x1B00, // exp=6
-        0x1C00, 0x1D00, 0x1E00, 0x1F00, // exp=7
-        0x2000, 0x2100, 0x2200, 0x2300, // exp=8
-        0x2400, 0x2500, 0x2600, 0x2700, // exp=9
-        0x2800, 0x2900, 0x2A00, 0x2B00, // exp=10
-        0x2C00, 0x2D00, 0x2E00, 0x2F00, // exp=11
-        0x3000, 0x3100, 0x3200, 0x3300, // exp=12
-        0x3400, 0x3500, 0x3600, 0x3700, // exp=13
-        0x3800, 0x3900, 0x3A00, 0x3B00, // exp=14
-        0x3C00, 0x3D00, 0x3E00, 0x3F00, // exp=15
-        0x4000, 0x4100, 0x4200, 0x4300, // exp=16
-        0x4400, 0x4500, 0x4600, 0x4700, // exp=17
-        0x4800, 0x4900, 0x4A00, 0x4B00, // exp=18
-        0x4C00, 0x4D00, 0x4E00, 0x4F00, // exp=19
-        0x5000, 0x5100, 0x5200, 0x5300, // exp=20
-        0x5400, 0x5500, 0x5600, 0x5700, // exp=21
-        0x5800, 0x5900, 0x5A00, 0x5B00, // exp=22
-        0x5C00, 0x5D00, 0x5E00, 0x5F00, // exp=23
-        0x6000, 0x6100, 0x6200, 0x6300, // exp=24
-        0x6400, 0x6500, 0x6600, 0x6700, // exp=25
-        0x6800, 0x6900, 0x6A00, 0x6B00, // exp=26
-        0x6C00, 0x6D00, 0x6E00, 0x6F00, // exp=27
-        0x7000, 0x7100, 0x7200, 0x7300, // exp=28
-        0x7400, 0x7500, 0x7600, 0x7700, // exp=29
-        0x7800, 0x7900, 0x7A00, 0x7B00, // exp=30
-        0x7C00, 0x7E00, 0x7E00, 0x7E00, // inf, nan
-    };
-    nk_u8_t raw = *src;
-    nk_u16_t sign = ((nk_u16_t)(raw & 0x80)) << 8;
-    nk_fui16_t result;
-    result.u = sign | lut[raw & 0x7F];
-    *dest = result.f;
-}
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#endif
 
 /**
  *  @brief Convert FP6 E2M3FN to IEEE 754 single-precision float.
@@ -1207,44 +1092,6 @@ NUMKONG_HELPER_INLINE void nk_e5m2_to_f16_serial(nk_e5m2_t const *src, nk_f16_t 
  *  @see OCP Microscaling Formats Specification: https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf
  *  @see FP6-LLM: https://arxiv.org/abs/2401.14112
  */
-NUMKONG_HELPER_INLINE void nk_e2m3_to_f32_manual_(nk_e2m3_t const *src, nk_f32_t *dest) {
-    nk_u8_t raw = *src;
-    nk_u32_t sign = (nk_u32_t)((raw >> 5) & 0x01u) << 31;
-    nk_u32_t exponent = (raw >> 3) & 0x03u;
-    nk_u32_t mantissa = raw & 0x07u;
-    nk_fui32_t conv;
-
-    // Handle zero
-    if (exponent == 0 && mantissa == 0) {
-        conv.u = sign;
-        *dest = conv.f;
-        return;
-    }
-
-    // Handle subnormal (exp=0, mant!=0)
-    if (exponent == 0) {
-        // Subnormal: value = 2^(1-bias) * (mantissa / 2^p) = 2^0 * (mantissa / 8) = mantissa / 8
-        nk_f32_t value = (nk_f32_t)mantissa * (1.0f / 8.0f);
-        *dest = sign ? -value : value;
-        return;
-    }
-
-    // Normal values: rebias from E2M3 (bias=1) to F32 (bias=127)
-    // E2M3 exp range: 1-3 (unbiased: 0-2)
-    // F32 needs: (e2m3_exp - 1) + 127 = e2m3_exp + 126
-    nk_u32_t f32_exponent = (exponent + 126u) << 23;
-    nk_u32_t f32_mantissa = mantissa << 20;
-    conv.u = sign | f32_exponent | f32_mantissa;
-    *dest = conv.f;
-}
-
-#if defined(__clang__)
-#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
-#elif defined(__GNUC__)
-#pragma GCC push_options
-#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
-#endif
-
 NUMKONG_API_COMPTIME void nk_e2m3_to_f32_serial(nk_e2m3_t const *src, nk_f32_t *dest) {
     static nk_u32_t const lut[32] = {
         0x00000000, 0x3E000000, 0x3E800000, 0x3EC00000, 0x3F000000, 0x3F200000, 0x3F400000, 0x3F600000, // exp=0 sub
@@ -1343,43 +1190,6 @@ NUMKONG_API_COMPTIME void nk_f32_to_e2m3_serial(nk_f32_t const *src, nk_e2m3_t *
 #pragma GCC pop_options
 #endif
 
-/**
- *  @brief Convert FP6 E3M2FN to IEEE 754 single-precision float.
- *
- *  E3M2FN (FP6) format: 1 sign bit, 3 exponent bits (bias=3), 2 mantissa bits.
- *  Range: [-28, +28], no infinity or NaN (OCP Microscaling FN format).
- */
-NUMKONG_HELPER_INLINE void nk_e3m2_to_f32_manual_(nk_e3m2_t const *src, nk_f32_t *dest) {
-    nk_u8_t raw = *src;
-    nk_u32_t sign = (nk_u32_t)((raw >> 5) & 0x01u) << 31;
-    nk_u32_t exponent = (raw >> 2) & 0x07u;
-    nk_u32_t mantissa = raw & 0x03u;
-    nk_fui32_t conv;
-
-    // Handle zero
-    if (exponent == 0 && mantissa == 0) {
-        conv.u = sign;
-        *dest = conv.f;
-        return;
-    }
-
-    // Handle subnormal (exp=0, mant!=0)
-    if (exponent == 0) {
-        // Subnormal: value = 2^(-2) * (mantissa / 4)
-        nk_f32_t value = (nk_f32_t)mantissa * (1.0f / 16.0f); // 2^(-2) * (1/4) = 1/16
-        *dest = sign ? -value : value;
-        return;
-    }
-
-    // Normal values: rebias from E3M2 (bias=3) to F32 (bias=127)
-    // E3M2 exp range: 1-7 (unbiased: -2 to 4)
-    // F32 needs: (e3m2_exp - 3) + 127 = e3m2_exp + 124
-    nk_u32_t f32_exponent = (exponent + 124u) << 23;
-    nk_u32_t f32_mantissa = mantissa << 21;
-    conv.u = sign | f32_exponent | f32_mantissa;
-    *dest = conv.f;
-}
-
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((noinline)), apply_to = function)
 #elif defined(__GNUC__)
@@ -1387,6 +1197,12 @@ NUMKONG_HELPER_INLINE void nk_e3m2_to_f32_manual_(nk_e3m2_t const *src, nk_f32_t
 #pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
 #endif
 
+/**
+ *  @brief Convert FP6 E3M2FN to IEEE 754 single-precision float.
+ *
+ *  E3M2FN (FP6) format: 1 sign bit, 3 exponent bits (bias=3), 2 mantissa bits.
+ *  Range: [-28, +28], no infinity or NaN (OCP Microscaling FN format).
+ */
 NUMKONG_API_COMPTIME void nk_e3m2_to_f32_serial(nk_e3m2_t const *src, nk_f32_t *dest) {
     static nk_u32_t const lut[32] = {
         0x00000000, 0x3D800000, 0x3E000000, 0x3E400000, // exp=0 sub
@@ -1694,25 +1510,6 @@ NUMKONG_API_COMPTIME void nk_f32_to_ue4m3_serial(nk_f32_t const *src, nk_ue4m3_t
 #pragma GCC pop_options
 #endif
 
-NUMKONG_HELPER_INLINE void nk_f16_to_f64_serial(nk_f16_t const *x, nk_f64_t *y) {
-    nk_f32_t f32;
-    nk_f16_to_f32_serial(x, &f32);
-    *y = (nk_f64_t)f32;
-}
-NUMKONG_HELPER_INLINE void nk_f64_to_f16_serial(nk_f64_t const *x, nk_f16_t *y) {
-    nk_f32_t f32 = (nk_f32_t)*x;
-    nk_f32_to_f16_serial(&f32, y);
-}
-NUMKONG_HELPER_INLINE void nk_bf16_to_f64_serial(nk_bf16_t const *x, nk_f64_t *y) {
-    nk_f32_t f32;
-    nk_bf16_to_f32_serial(x, &f32);
-    *y = (nk_f64_t)f32;
-}
-NUMKONG_HELPER_INLINE void nk_f64_to_bf16_serial(nk_f64_t const *x, nk_bf16_t *y) {
-    nk_f32_t f32 = (nk_f32_t)*x;
-    nk_f32_to_bf16_serial(&f32, y);
-}
-
 /*  Convert floating-point numbers to integers with the project-wide narrowing policy: finite values
  *  are clamped and rounded to nearest, ties to even, infinities saturate, and NaNs map to zero. */
 NUMKONG_HELPER_INLINE nk_i64_t nk_rint_even_f64_to_i64_serial_(nk_f64_t x) {
@@ -1845,36 +1642,9 @@ NUMKONG_HELPER_INLINE void nk_u64_to_i64_serial(nk_u64_t const *x, nk_i64_t *y) 
     *y = (nk_i64_t)(*x >= 9223372036854775807ull ? 9223372036854775807ll : *x);
 }
 
-NUMKONG_HELPER_INLINE void nk_i8_to_u64_serial(nk_i8_t const *x, nk_u64_t *y) { *y = (nk_u64_t)(*x < 0 ? 0 : *x); }
-NUMKONG_HELPER_INLINE void nk_i16_to_u64_serial(nk_i16_t const *x, nk_u64_t *y) { *y = (nk_u64_t)(*x < 0 ? 0 : *x); }
-NUMKONG_HELPER_INLINE void nk_i32_to_u64_serial(nk_i32_t const *x, nk_u64_t *y) { *y = (nk_u64_t)(*x < 0 ? 0 : *x); }
 NUMKONG_HELPER_INLINE void nk_i64_to_u64_serial(nk_i64_t const *x, nk_u64_t *y) { *y = (nk_u64_t)(*x < 0 ? 0 : *x); }
 
-NUMKONG_HELPER_INLINE void nk_i64_to_f16_serial(nk_i64_t const *x, nk_f16_t *y) {
-    nk_f32_t f32 = (nk_f32_t)*x;
-    nk_f32_to_f16_serial(&f32, y);
-}
-NUMKONG_HELPER_INLINE void nk_i64_to_bf16_serial(nk_i64_t const *x, nk_bf16_t *y) {
-    nk_f32_t f32 = (nk_f32_t)*x;
-    nk_f32_to_bf16_serial(&f32, y);
-}
-NUMKONG_HELPER_INLINE void nk_u64_to_f16_serial(nk_u64_t const *x, nk_f16_t *y) {
-    nk_f32_t f32 = (nk_f32_t)*x;
-    nk_f32_to_f16_serial(&f32, y);
-}
-NUMKONG_HELPER_INLINE void nk_u64_to_bf16_serial(nk_u64_t const *x, nk_bf16_t *y) {
-    nk_f32_t f32 = (nk_f32_t)*x;
-    nk_f32_to_bf16_serial(&f32, y);
-}
-
-#if defined(__clang__)
-#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
-#elif defined(__GNUC__)
-#pragma GCC push_options
-#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
-#endif
-
-NUMKONG_API_COMPTIME void nk_i4x2_to_i8x2_serial(nk_i4x2_t const *src, nk_i8_t *dest) {
+NUMKONG_HELPER_INLINE void nk_i4x2_to_i8x2_serial_(nk_i4x2_t const *src, nk_i8_t *dest) {
     // Each nibble is a signed 4-bit integer in [-8, 7]
     nk_u8_t byte = *(nk_u8_t const *)src;
     nk_u8_t high_nibble = byte >> 4;
@@ -1884,18 +1654,12 @@ NUMKONG_API_COMPTIME void nk_i4x2_to_i8x2_serial(nk_i4x2_t const *src, nk_i8_t *
     dest[1] = (nk_i8_t)((low_nibble ^ 8) - 8);
 }
 
-NUMKONG_API_COMPTIME void nk_u4x2_to_u8x2_serial(nk_u4x2_t const *src, nk_u8_t *dest) {
+NUMKONG_HELPER_INLINE void nk_u4x2_to_u8x2_serial_(nk_u4x2_t const *src, nk_u8_t *dest) {
     // Each nibble is an unsigned 4-bit integer in [0, 15]
     nk_u8_t byte = *(nk_u8_t const *)src;
     dest[0] = byte >> 4;
     dest[1] = byte & 0x0F;
 }
-
-#if defined(__clang__)
-#pragma clang attribute pop
-#elif defined(__GNUC__)
-#pragma GCC pop_options
-#endif
 
 /**
  *  @brief Reads a typed scalar from @p buf and writes the widened f64c into @p result.
@@ -1989,7 +1753,7 @@ NUMKONG_HELPER_INLINE void nk_scalar_buffers_to_f64c_(                 //
         nk_i4x2_t const *pairs = (nk_i4x2_t const *)from_ptr;
         nk_i8_t unpacked[2];
         for (i = 0; i < from_count / NUMKONG_NIBBLES_PER_BYTE; ++i) {
-            nk_i4x2_to_i8x2_serial(&pairs[i], unpacked);
+            nk_i4x2_to_i8x2_serial_(&pairs[i], unpacked);
             to_buffers[i * 2].f64c.real = unpacked[0], to_buffers[i * 2].f64c.imag = 0;
             to_buffers[i * 2 + 1].f64c.real = unpacked[1], to_buffers[i * 2 + 1].f64c.imag = 0;
         }
@@ -1999,7 +1763,7 @@ NUMKONG_HELPER_INLINE void nk_scalar_buffers_to_f64c_(                 //
         nk_u4x2_t const *pairs = (nk_u4x2_t const *)from_ptr;
         nk_u8_t unpacked[2];
         for (i = 0; i < from_count / NUMKONG_NIBBLES_PER_BYTE; ++i) {
-            nk_u4x2_to_u8x2_serial(&pairs[i], unpacked);
+            nk_u4x2_to_u8x2_serial_(&pairs[i], unpacked);
             to_buffers[i * 2].f64c.real = unpacked[0], to_buffers[i * 2].f64c.imag = 0;
             to_buffers[i * 2 + 1].f64c.real = unpacked[1], to_buffers[i * 2 + 1].f64c.imag = 0;
         }
@@ -2196,7 +1960,7 @@ NUMKONG_HELPER_INLINE void nk_scalar_buffers_to_i64_(                  //
         nk_i4x2_t const *pairs = (nk_i4x2_t const *)from_ptr;
         for (i = 0; i < from_count / NUMKONG_NIBBLES_PER_BYTE; ++i) {
             nk_i8_t unpacked[2];
-            nk_i4x2_to_i8x2_serial(&pairs[i], unpacked);
+            nk_i4x2_to_i8x2_serial_(&pairs[i], unpacked);
             to_buffers[i * 2].i64 = unpacked[0];
             to_buffers[i * 2 + 1].i64 = unpacked[1];
         }
@@ -2312,7 +2076,7 @@ NUMKONG_HELPER_INLINE void nk_scalar_buffers_to_u64_(                  //
         nk_u4x2_t const *pairs = (nk_u4x2_t const *)from_ptr;
         for (i = 0; i < from_count / NUMKONG_NIBBLES_PER_BYTE; ++i) {
             nk_u8_t unpacked[2];
-            nk_u4x2_to_u8x2_serial(&pairs[i], unpacked);
+            nk_u4x2_to_u8x2_serial_(&pairs[i], unpacked);
             to_buffers[i * 2].u64 = unpacked[0];
             to_buffers[i * 2 + 1].u64 = unpacked[1];
         }
@@ -2421,15 +2185,16 @@ NUMKONG_HELPER_INLINE int nk_scalar_buffer_from_f64(nk_f64_t const *value, nk_sc
 #pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
 #endif
 
-NUMKONG_API_COMPTIME void nk_cast_serial(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                         nk_dtype_t to_type) {
+NUMKONG_API_COMPTIME nk_status_t nk_cast_serial(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
+                                                nk_dtype_t to_type, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_assert_dims_(n, from_type);
     nk_assert_dims_(n, to_type);
     if (from_type == to_type) {
         nk_size_t size_bits = nk_dtype_bits(from_type);
         nk_size_t size_bytes = n * size_bits / NUMKONG_BITS_PER_BYTE;
         if (size_bytes > 0) nk_copy_bytes_(to, from, size_bytes);
-        return;
+        return nk_success_k;
     }
 
     // F32 → BF16 skips the F64 hub, whose round trip may drop a NaN's sign and payload
@@ -2437,12 +2202,12 @@ NUMKONG_API_COMPTIME void nk_cast_serial(void const *from, nk_dtype_t from_type,
         nk_size_t const components = from_type == nk_f32c_k ? n * 2 : n;
         for (nk_size_t i = 0; i != components; ++i)
             nk_f32_to_bf16_serial((nk_f32_t const *)from + i, (nk_bf16_t *)to + i);
-        return;
+        return nk_success_k;
     }
 
     nk_size_t from_bits = nk_dtype_bits(from_type);
     nk_size_t to_bits = nk_dtype_bits(to_type);
-    if (from_bits == 0 || to_bits == 0) return;
+    if (from_bits == 0 || to_bits == 0) return nk_success_k;
 
     // Byte steps per batch of NUMKONG_BITS_PER_BYTE elements
     nk_size_t from_step = from_bits;
@@ -2467,7 +2232,7 @@ NUMKONG_API_COMPTIME void nk_cast_serial(void const *from, nk_dtype_t from_type,
             nk_scalar_buffers_to_u64_(src, from_type, tail, bufs);
             nk_scalar_buffers_from_u64_(bufs, dst, to_type, tail);
         }
-        return;
+        return nk_success_k;
     }
 
     // Both integers, at least one signed: i64 hub
@@ -2481,7 +2246,7 @@ NUMKONG_API_COMPTIME void nk_cast_serial(void const *from, nk_dtype_t from_type,
             nk_scalar_buffers_to_i64_(src, from_type, tail, bufs);
             nk_scalar_buffers_from_i64_(bufs, dst, to_type, tail);
         }
-        return;
+        return nk_success_k;
     }
 
     // Everything else: f64c hub (floats, complex, cross-category)
@@ -2493,30 +2258,7 @@ NUMKONG_API_COMPTIME void nk_cast_serial(void const *from, nk_dtype_t from_type,
         nk_scalar_buffers_to_f64c_(src, from_type, tail, bufs);
         nk_scalar_buffers_from_f64c_(bufs, dst, to_type, tail);
     }
-}
-
-NUMKONG_API_COMPTIME void nk_e4m3_to_bf16(nk_e4m3_t const *src, nk_bf16_t *dest) {
-    nk_f32_t temp;
-    nk_e4m3_to_f32_serial(src, &temp);
-    nk_f32_to_bf16_serial(&temp, dest);
-}
-
-NUMKONG_API_COMPTIME void nk_e5m2_to_bf16(nk_e5m2_t const *src, nk_bf16_t *dest) {
-    nk_f32_t temp;
-    nk_e5m2_to_f32_serial(src, &temp);
-    nk_f32_to_bf16_serial(&temp, dest);
-}
-
-NUMKONG_API_COMPTIME void nk_e2m3_to_bf16(nk_e2m3_t const *src, nk_bf16_t *dest) {
-    nk_f32_t temp;
-    nk_e2m3_to_f32_serial(src, &temp);
-    nk_f32_to_bf16_serial(&temp, dest);
-}
-
-NUMKONG_API_COMPTIME void nk_e3m2_to_bf16(nk_e3m2_t const *src, nk_bf16_t *dest) {
-    nk_f32_t temp;
-    nk_e3m2_to_f32_serial(src, &temp);
-    nk_f32_to_bf16_serial(&temp, dest);
+    return nk_success_k;
 }
 
 #if defined(__clang__)
@@ -2748,65 +2490,19 @@ NUMKONG_API_COMPTIME nk_size_t nk_block_scaled_scales_size(nk_size_t count, nk_b
     return nk_size_divide_round_up_(count, format.block_size);
 }
 
-NUMKONG_API_COMPTIME nk_block_scaled_format_t nk_nvfp4(void) {
-    nk_block_scaled_format_t format = {nk_e2m1_k, nk_ue4m3_k, nk_f32_k, 16};
-    return format;
-}
-NUMKONG_API_COMPTIME nk_block_scaled_format_t nk_mxfp4(void) {
-    nk_block_scaled_format_t format = {nk_e2m1_k, nk_ue8m0_k, nk_dtype_unknown_k, 32};
-    return format;
-}
-NUMKONG_API_COMPTIME nk_block_scaled_format_t nk_mxfp6_e2m3(void) {
-    nk_block_scaled_format_t format = {nk_e2m3_k, nk_ue8m0_k, nk_dtype_unknown_k, 32};
-    return format;
-}
-NUMKONG_API_COMPTIME nk_block_scaled_format_t nk_mxfp6_e3m2(void) {
-    nk_block_scaled_format_t format = {nk_e3m2_k, nk_ue8m0_k, nk_dtype_unknown_k, 32};
-    return format;
-}
-NUMKONG_API_COMPTIME nk_block_scaled_format_t nk_mxfp8_e4m3(void) {
-    nk_block_scaled_format_t format = {nk_e4m3_k, nk_ue8m0_k, nk_dtype_unknown_k, 32};
-    return format;
-}
-NUMKONG_API_COMPTIME nk_block_scaled_format_t nk_mxfp8_e5m2(void) {
-    nk_block_scaled_format_t format = {nk_e5m2_k, nk_ue8m0_k, nk_dtype_unknown_k, 32};
-    return format;
-}
-NUMKONG_API_COMPTIME nk_block_scaled_format_t nk_mxint8(void) {
-    nk_block_scaled_format_t format = {nk_i8_k, nk_ue8m0_k, nk_dtype_unknown_k, 32};
-    return format;
-}
-NUMKONG_API_COMPTIME nk_block_scaled_format_t nk_plain(nk_dtype_t element_dtype) {
-    nk_block_scaled_format_t format = {element_dtype, nk_dtype_unknown_k, nk_dtype_unknown_k, 0};
-    return format;
-}
-
-NUMKONG_API_COMPTIME nk_block_scaled_format_t nk_block_scaled_format_of_dtype(nk_dtype_t dtype) {
-    switch (dtype) {
-    case nk_nvfp4_k: return nk_nvfp4();
-    case nk_mxfp4_k: return nk_mxfp4();
-    case nk_mxfp6_e2m3_k: return nk_mxfp6_e2m3();
-    case nk_mxfp6_e3m2_k: return nk_mxfp6_e3m2();
-    case nk_mxfp8_e4m3_k: return nk_mxfp8_e4m3();
-    case nk_mxfp8_e5m2_k: return nk_mxfp8_e5m2();
-    case nk_mxint8_k: return nk_mxint8();
-    default: return nk_plain(dtype);
-    }
-}
-
-NUMKONG_API_COMPTIME void nk_cast_block_scaled_serial(                                                         //
+NUMKONG_API_COMPTIME nk_status_t nk_cast_block_scaled_serial(                                                  //
     void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
     nk_block_scaled_format_t const *from_format,                                                               //
     void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
-    nk_size_t count) {
+    nk_size_t count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     int from_plain = (from_format->scale_dtype == nk_dtype_unknown_k || from_format->block_size == 0);
     int to_plain = (to_format->scale_dtype == nk_dtype_unknown_k || to_format->block_size == 0);
 
     // Plain → plain: delegate to elementwise cast hub.
     if (from_plain && to_plain) {
-        nk_cast_serial(from, from_format->element_dtype, count, to, to_format->element_dtype);
-        return;
+        return nk_cast_serial(from, from_format->element_dtype, count, to, to_format->element_dtype, stream);
     }
 
     nk_size_t from_block = from_plain ? 1u : from_format->block_size;
@@ -2833,7 +2529,7 @@ NUMKONG_API_COMPTIME void nk_cast_block_scaled_serial(                          
                 nk_size_t block_count = (i + from_block <= count) ? from_block : (count - i);
                 nk_size_t from_offset_bits = i * nk_dtype_bits(from_format->element_dtype);
                 void const *src = (nk_u8_t const *)from + (from_offset_bits / NUMKONG_BITS_PER_BYTE);
-                nk_cast_serial(src, from_format->element_dtype, block_count, block_f32, nk_f32_k);
+                nk_cast_serial(src, from_format->element_dtype, block_count, block_f32, nk_f32_k, stream);
                 nk_f32_t src_scale = 1.0f;
                 if (!from_plain) {
                     nk_u8_t raw = ((nk_u8_t const *)from_scales)[i / from_block];
@@ -2866,7 +2562,7 @@ NUMKONG_API_COMPTIME void nk_cast_block_scaled_serial(                          
         // Decode the source chunk into scratch[0..chunk_count) as f32.
         if (from_plain) {
             void const *src = (nk_u8_t const *)from + (chunk_start * from_bits_per_element / NUMKONG_BITS_PER_BYTE);
-            nk_cast_serial(src, from_format->element_dtype, chunk_count, scratch, nk_f32_k);
+            nk_cast_serial(src, from_format->element_dtype, chunk_count, scratch, nk_f32_k, stream);
         }
         else {
             for (nk_size_t b = 0; b < chunk_count; b += from_block) {
@@ -2877,7 +2573,7 @@ NUMKONG_API_COMPTIME void nk_cast_block_scaled_serial(                          
                                      from_tensor_scale_f32;
                 void const *src = (nk_u8_t const *)from +
                                   ((chunk_start + b) * from_bits_per_element / NUMKONG_BITS_PER_BYTE);
-                nk_cast_serial(src, from_format->element_dtype, valid, scratch + b, nk_f32_k);
+                nk_cast_serial(src, from_format->element_dtype, valid, scratch + b, nk_f32_k, stream);
                 for (nk_size_t k = 0; k < valid; ++k) scratch[b + k] *= scale_f32;
             }
         }
@@ -2885,7 +2581,7 @@ NUMKONG_API_COMPTIME void nk_cast_block_scaled_serial(                          
         // Encode scratch[0..chunk_count) as f32 into the destination chunk.
         if (to_plain) {
             void *dst = (nk_u8_t *)to + (chunk_start * to_bits_per_element / NUMKONG_BITS_PER_BYTE);
-            nk_cast_serial(scratch, nk_f32_k, chunk_count, dst, to_format->element_dtype);
+            nk_cast_serial(scratch, nk_f32_k, chunk_count, dst, to_format->element_dtype, stream);
         }
         else {
             nk_f32_t element_max = nk_element_max_representable_(to_format->element_dtype);
@@ -2912,10 +2608,11 @@ NUMKONG_API_COMPTIME void nk_cast_block_scaled_serial(                          
                     else if (encoded_scratch[saturate_index] < -element_max)
                         encoded_scratch[saturate_index] = -element_max;
                 }
-                nk_cast_serial(encoded_scratch, nk_f32_k, valid, dst, to_format->element_dtype);
+                nk_cast_serial(encoded_scratch, nk_f32_k, valid, dst, to_format->element_dtype, stream);
             }
         }
     }
+    return nk_success_k;
 }
 
 #pragma endregion Public API

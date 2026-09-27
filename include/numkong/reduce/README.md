@@ -51,6 +51,7 @@ Mini-float reductions:
 | `e4m3`     | `f32`       | 8-bit Float8: 4 exponent, 3 mantissa bits    |
 | `e3m2`     | `f32`       | 8-bit MX format: 3 exponent, 2 mantissa bits |
 | `e2m3`     | `f32`       | 8-bit MX format: 2 exponent, 3 mantissa bits |
+| `e2m1`     | `f32`       | 4-bit MX format: 2 exponent, 1 mantissa bit  |
 
 Integer reductions:
 
@@ -131,13 +132,9 @@ The final horizontal reduction across lanes uses pairwise `VSHUFPS` + `VMINPS` c
 
 ## Performance
 
-The following performance tables are produced by manually re-running `numkong_test` and `numkong_bench` included internal tools to measure both accuracy and throughput at different input shapes.
+The tables below follow the [benchmark methodology](../../../bench/README.md#methodology).
 The input size is controlled by the `NUMWARS_DIMS` environment variable and set to 256, 1024, and 4096 elements.
 The throughput is measured in GB/s as the number of input bytes per second.
-Accuracy is reported as mean ULP (units in last place) unless noted otherwise — the average number of representable floating-point values between the result and the exact answer.
-Each kernel runs for at least 20 seconds per configuration.
-Benchmark threads are pinned to specific cores; on machines with heterogeneous core types (e.g., Apple P/E cores), only the fastest cores are used.
-Workloads that significantly degrade CPU frequencies (Intel AMX, Apple SME) run in separate passes to avoid affecting throughput measurements of other kernels.
 
 ### Intel Sapphire Rapids
 
@@ -395,7 +392,7 @@ Measured with Wasmtime v42 (Cranelift backend).
 | __f16__                            | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_reduce_moments_f16_serial`     |         1.46 gb/s, 0 ulp |         1.55 gb/s, 0 ulp |         1.51 gb/s, 0 ulp |
 | `nk_reduce_minmax_f16_serial`      |         1.62 gb/s, 0 ulp |         1.87 gb/s, 0 ulp |         2.02 gb/s, 0 ulp |
-| `nk_reduce_moments_f16_neonhalf`   |       21.2 gb/s, 0.1 ulp |       15.4 gb/s, 0.1 ulp |       10.6 gb/s, 0.8 ulp |
+| `nk_reduce_moments_f16_neon`       |       21.2 gb/s, 0.1 ulp |       15.4 gb/s, 0.1 ulp |       10.6 gb/s, 0.8 ulp |
 | __e5m2__                           | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_reduce_moments_e5m2_serial`    |        0.750 gb/s, 0 ulp |        0.830 gb/s, 0 ulp |        0.758 gb/s, 0 ulp |
 | `nk_reduce_minmax_e5m2_serial`     |         1.10 gb/s, 0 ulp |         1.34 gb/s, 0 ulp |         1.39 gb/s, 0 ulp |

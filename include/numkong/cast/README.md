@@ -53,6 +53,8 @@ Float-to-Float8 conversions:
 | `e2m3`     | `f32`       | MX to 32-bit, exact via lookup table          |
 | `f32`      | `e3m2`      | 32-bit to MX: 3 exponent, 2 mantissa bits     |
 | `e3m2`     | `f32`       | MX to 32-bit, exact via lookup table          |
+| `f32`      | `e2m1`      | 32-bit to MX: 2 exponent, 1 mantissa bit      |
+| `e2m1`     | `f32`       | MX to 32-bit, exact                           |
 
 Float-to-integer conversions:
 
@@ -73,6 +75,18 @@ Packed sub-byte conversions:
 | :--------- | :---------- | :----------------------------------------------- |
 | `i4x2`     | `i8`        | Signed 4-bit pair to two signed 8-bit values     |
 | `u4x2`     | `u8`        | Unsigned 4-bit pair to two unsigned 8-bit values |
+
+Block-scaled conversions go through `nk_cast_block_scaled_best`, between plain buffers and the layouts `nk_block_scaled_format_of_dtype` describes, deriving the scales on encode and applying them on decode:
+
+| Format       | Elements | Scale per Block     | Tensor Scale |
+| :----------- | :------- | :------------------ | :----------- |
+| `nvfp4`      | `e2m1`   | `ue4m3` per 16      | `f32`        |
+| `mxfp4`      | `e2m1`   | `ue8m0` per 32      | …            |
+| `mxfp6_e2m3` | `e2m3`   | `ue8m0` per 32      | …            |
+| `mxfp6_e3m2` | `e3m2`   | `ue8m0` per 32      | …            |
+| `mxfp8_e4m3` | `e4m3`   | `ue8m0` per 32      | …            |
+| `mxfp8_e5m2` | `e5m2`   | `ue8m0` per 32      | …            |
+| `mxint8`     | `i8`     | `ue8m0` per 32      | …            |
 
 ## Optimizations
 
@@ -101,12 +115,10 @@ For E4M3 GEMM specifically, `nk_e4m3x16_to_f16x16_skylake_` produces TRUE F16 (b
 
 ## Performance
 
-The following performance tables are produced by manually running `numkong_bench` included internal tools to measure the throughput at different input shapes.
+The tables below follow the [benchmark methodology](../../../bench/README.md#methodology), measuring throughput alone.
 The input size is controlled by the `NUMWARS_DIMS` environment variable and set to 256, 1024, and 4096 elements.
 The throughput is measured in GB/s as the number of bytes read and written per second, with ↓ for downcasts and ↑ for upcasts.
 Each kernel runs for at least 5 seconds per configuration.
-Benchmark threads are pinned to specific cores; on machines with heterogeneous core types (e.g., Apple P/E cores), only the fastest cores are used.
-Workloads that significantly degrade CPU frequencies (Intel AMX, Apple SME) run in separate passes to avoid affecting throughput measurements of other kernels.
 
 ### Intel Sapphire Rapids
 

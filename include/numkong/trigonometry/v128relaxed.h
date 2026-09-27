@@ -194,7 +194,6 @@ NUMKONG_HELPER_INLINE v128_t nk_f32x4_atan2_v128relaxed_(v128_t const ys_inputs,
     v128_t const coeff_3_f32x4 = wasm_f32x4_splat(+0.0425049886107444763183594f);
     v128_t const coeff_2_f32x4 = wasm_f32x4_splat(-0.0159569028764963150024414f);
     v128_t const coeff_1_f32x4 = wasm_f32x4_splat(+0.00282363896258175373077393f);
-    v128_t const pi_f32x4 = wasm_f32x4_splat(3.14159265358979323846f);
     v128_t const half_pi_f32x4 = wasm_f32x4_splat(1.5707963267948966f);
     v128_t const zeros_f32x4 = wasm_f32x4_splat(0);
 
@@ -479,7 +478,6 @@ NUMKONG_HELPER_INLINE v128_t nk_f64x2_atan2_v128relaxed_(v128_t const ys_inputs,
     v128_t const coeff_3_f64x2 = wasm_f64x2_splat(-0.14285714266771329383765);
     v128_t const coeff_2_f64x2 = wasm_f64x2_splat(+0.199999999996591265594148);
     v128_t const coeff_1_f64x2 = wasm_f64x2_splat(-0.333333333333311110369124);
-    v128_t const pi_f64x2 = wasm_f64x2_splat(3.14159265358979323846);
     v128_t const half_pi_f64x2 = wasm_f64x2_splat(1.5707963267948966);
     v128_t const zeros_f64x2 = wasm_f64x2_splat(0);
 
@@ -552,7 +550,9 @@ NUMKONG_HELPER_INLINE v128_t nk_f64x2_atan2_v128relaxed_(v128_t const ys_inputs,
  *  wasm_v128_load and wasm_v128_store, while tails use nk_partial_load_b32x4_serial_ and
  *  nk_partial_store_b32x4_serial_ through the .v128 union member. */
 
-NUMKONG_API_COMPTIME void nk_trig_sin_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
+                                                             void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         v128_t angles_f32x4 = wasm_v128_load(ins + i);
@@ -567,9 +567,12 @@ NUMKONG_API_COMPTIME void nk_trig_sin_f32_v128relaxed(nk_f32_t const *ins, nk_si
         results_vec.v128 = nk_f32x4_sin_v128relaxed_(angles_vec.v128);
         nk_partial_store_b32x4_serial_(&results_vec, outs + i, remaining);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_cos_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
+                                                             void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         v128_t angles_f32x4 = wasm_v128_load(ins + i);
@@ -584,9 +587,12 @@ NUMKONG_API_COMPTIME void nk_trig_cos_f32_v128relaxed(nk_f32_t const *ins, nk_si
         results_vec.v128 = nk_f32x4_cos_v128relaxed_(angles_vec.v128);
         nk_partial_store_b32x4_serial_(&results_vec, outs + i, remaining);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_atan_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
+                                                              void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         v128_t values_f32x4 = wasm_v128_load(ins + i);
@@ -601,9 +607,12 @@ NUMKONG_API_COMPTIME void nk_trig_atan_f32_v128relaxed(nk_f32_t const *ins, nk_s
         results_vec.v128 = nk_f32x4_atan_v128relaxed_(values_vec.v128);
         nk_partial_store_b32x4_serial_(&results_vec, outs + i, remaining);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_sin_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
+                                                             void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 2 <= n; i += 2) {
         v128_t angles_f64x2 = wasm_v128_load(ins + i);
@@ -618,9 +627,12 @@ NUMKONG_API_COMPTIME void nk_trig_sin_f64_v128relaxed(nk_f64_t const *ins, nk_si
         results_vec.v128 = nk_f64x2_sin_v128relaxed_(angles_vec.v128);
         nk_partial_store_b64x2_serial_(&results_vec, outs + i, remaining);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_cos_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
+                                                             void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 2 <= n; i += 2) {
         v128_t angles_f64x2 = wasm_v128_load(ins + i);
@@ -635,9 +647,12 @@ NUMKONG_API_COMPTIME void nk_trig_cos_f64_v128relaxed(nk_f64_t const *ins, nk_si
         results_vec.v128 = nk_f64x2_cos_v128relaxed_(angles_vec.v128);
         nk_partial_store_b64x2_serial_(&results_vec, outs + i, remaining);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_atan_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
+                                                              void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 2 <= n; i += 2) {
         v128_t values_f64x2 = wasm_v128_load(ins + i);
@@ -652,6 +667,7 @@ NUMKONG_API_COMPTIME void nk_trig_atan_f64_v128relaxed(nk_f64_t const *ins, nk_s
         results_vec.v128 = nk_f64x2_atan_v128relaxed_(values_vec.v128);
         nk_partial_store_b64x2_serial_(&results_vec, outs + i, remaining);
     }
+    return nk_success_k;
 }
 
 #if defined(__clang__)

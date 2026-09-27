@@ -38,8 +38,9 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512fp16", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NUMKONG_API_COMPTIME void nk_each_sum_f16_sapphire(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
-                                                   nk_f16_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_sum_f16_sapphire(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                          nk_f16_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __mmask32 mask_m32 = 0xFFFFFFFF;
     __m512h a_f16_vec, b_f16_vec;
     __m512h sum_f16_vec;
@@ -59,10 +60,12 @@ nk_each_sum_f16_sapphire_cycle:
     _mm512_mask_storeu_epi16(result, mask_m32, _mm512_castph_si512(sum_f16_vec));
     result += 32;
     if (n) goto nk_each_sum_f16_sapphire_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_sum_e4m3_sapphire(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
-                                                    nk_e4m3_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_sum_e4m3_sapphire(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                           nk_e4m3_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256i a_e4m3x32, b_e4m3x32;
     __m256h a_low_f16x16, a_high_f16x16, b_low_f16x16, b_high_f16x16;
     __m256h sum_low_f16x16, sum_high_f16x16;
@@ -101,6 +104,7 @@ nk_each_sum_e4m3_sapphire_cycle:
     _mm256_mask_storeu_epi8(result, mask_m32, result_e4m3x32);
     result += 32;
     if (n) goto nk_each_sum_e4m3_sapphire_cycle;
+    return nk_success_k;
 }
 
 #if defined(__clang__)

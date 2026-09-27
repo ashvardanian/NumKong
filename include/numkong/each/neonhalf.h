@@ -39,8 +39,9 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+simd+fp16")
 #endif
 
-NUMKONG_API_COMPTIME void nk_each_sum_f16_neonhalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
-                                                   nk_f16_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_sum_f16_neonhalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                          nk_f16_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // The main loop:
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
@@ -52,6 +53,7 @@ NUMKONG_API_COMPTIME void nk_each_sum_f16_neonhalf(nk_f16_t const *a, nk_f16_t c
 
     // The tail:
     for (; i < n; ++i) ((float16_t *)result)[i] = ((float16_t const *)a)[i] + ((float16_t const *)b)[i];
+    return nk_success_k;
 }
 
 #if defined(__clang__)

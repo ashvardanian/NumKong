@@ -351,6 +351,434 @@ NUMKONG_API_COMPTIME int nk_f16_order_serial(nk_f16_t a, nk_f16_t b) {
 #pragma GCC pop_options
 #endif
 
+NUMKONG_API_COMPTIME nk_f32_t nk_f32_sin_serial(nk_f32_t const angle_radians) {
+
+    // Cody-Waite constants for argument reduction, π split into high and low parts
+    nk_f32_t const pi_high = 3.1415927f;
+    nk_f32_t const pi_low = -8.742278e-8f;
+    nk_f32_t const pi_reciprocal = 0.31830988618379067154f; // 1/π
+
+    // Degree-9 minimax coefficients: sin(x) ≈ x + c3*x³ + c5*x⁵ + c7*x⁷ + c9*x⁹
+    nk_f32_t const coeff_9 = +2.7557319224e-6f;
+    nk_f32_t const coeff_7 = -1.9841269841e-4f;
+    nk_f32_t const coeff_5 = +8.3333293855e-3f;
+    nk_f32_t const coeff_3 = -1.6666666641e-1f;
+
+    // Compute (multiple_of_pi) = round(angle / π)
+    nk_f32_t const quotient = angle_radians * pi_reciprocal;
+    int const multiple_of_pi = (int)(quotient < 0 ? quotient - 0.5f : quotient + 0.5f);
+
+    // Cody-Waite range reduction: angle = angle_radians - multiple * (pi_high + pi_low)
+    nk_f32_t angle = angle_radians - (nk_f32_t)multiple_of_pi * pi_high;
+    angle -= (nk_f32_t)multiple_of_pi * pi_low;
+    nk_f32_t const angle_squared = angle * angle;
+    nk_f32_t const angle_cubed = angle * angle_squared;
+
+    // Degree-9 polynomial via Horner's method
+    nk_f32_t polynomial = coeff_9;
+    polynomial = polynomial * angle_squared + coeff_7;
+    polynomial = polynomial * angle_squared + coeff_5;
+    polynomial = polynomial * angle_squared + coeff_3;
+    nk_f32_t result = polynomial * angle_cubed + angle;
+
+    // If multiple_of_pi is odd, flip the sign of the result
+    if ((multiple_of_pi & 1) != 0) result = -result;
+    return result;
+}
+
+NUMKONG_API_COMPTIME nk_f32_t nk_f32_cos_serial(nk_f32_t const angle_radians) {
+
+    // Cody-Waite constants for argument reduction, π split into high and low parts
+    nk_f32_t const pi_high = 3.1415927f;
+    nk_f32_t const pi_low = -8.742278e-8f;
+    nk_f32_t const pi_half = 1.57079632679489661923f;       // π/2
+    nk_f32_t const pi_reciprocal = 0.31830988618379067154f; // 1/π
+
+    // Degree-9 minimax coefficients: sin(x) ≈ x + c3*x³ + c5*x⁵ + c7*x⁷ + c9*x⁹
+    nk_f32_t const coeff_9 = +2.7557319224e-6f;
+    nk_f32_t const coeff_7 = -1.9841269841e-4f;
+    nk_f32_t const coeff_5 = +8.3333293855e-3f;
+    nk_f32_t const coeff_3 = -1.6666666641e-1f;
+
+    // Compute (multiple_of_pi) = round(angle / π - 0.5)
+    nk_f32_t const quotient = angle_radians * pi_reciprocal - 0.5f;
+    int const multiple_of_pi = (int)(quotient < 0 ? quotient - 0.5f : quotient + 0.5f);
+
+    // Cody-Waite range reduction: angle = angle_radians - (multiple * pi + pi/2)
+    nk_f32_t const offset = pi_half + (nk_f32_t)multiple_of_pi * pi_high;
+    nk_f32_t angle = angle_radians - offset;
+    angle -= (nk_f32_t)multiple_of_pi * pi_low;
+    nk_f32_t const angle_squared = angle * angle;
+    nk_f32_t const angle_cubed = angle * angle_squared;
+
+    // Degree-9 polynomial via Horner's method
+    nk_f32_t polynomial = coeff_9;
+    polynomial = polynomial * angle_squared + coeff_7;
+    polynomial = polynomial * angle_squared + coeff_5;
+    polynomial = polynomial * angle_squared + coeff_3;
+    nk_f32_t result = polynomial * angle_cubed + angle;
+
+    // If multiple_of_pi is even, flip the sign of the result
+    if ((multiple_of_pi & 1) == 0) result = -result;
+    return result;
+}
+
+NUMKONG_API_COMPTIME nk_f32_t nk_f32_atan_serial(nk_f32_t const input) {
+    // Polynomial coefficients for atan approximation
+    nk_f32_t const coeff_8 = -0.333331018686294555664062f;
+    nk_f32_t const coeff_7 = +0.199926957488059997558594f;
+    nk_f32_t const coeff_6 = -0.142027363181114196777344f;
+    nk_f32_t const coeff_5 = +0.106347933411598205566406f;
+    nk_f32_t const coeff_4 = -0.0748900920152664184570312f;
+    nk_f32_t const coeff_3 = +0.0425049886107444763183594f;
+    nk_f32_t const coeff_2 = -0.0159569028764963150024414f;
+    nk_f32_t const coeff_1 = +0.00282363896258175373077393f;
+
+    // Quadrant adjustment
+    int quadrant = 0;
+    nk_f32_t value = input;
+    if (value < 0.0f) value = -value, quadrant |= 2;
+    if (value > 1.0f) value = 1.0f / value, quadrant |= 1;
+
+    // Argument reduction
+    nk_f32_t const value_squared = value * value;
+    nk_f32_t const value_cubed = value * value_squared;
+
+    // Polynomial evaluation using FMA for improved precision
+    nk_f32_t polynomial = coeff_1;
+    polynomial = nk_f32_fma_serial(polynomial, value_squared, coeff_2);
+    polynomial = nk_f32_fma_serial(polynomial, value_squared, coeff_3);
+    polynomial = nk_f32_fma_serial(polynomial, value_squared, coeff_4);
+    polynomial = nk_f32_fma_serial(polynomial, value_squared, coeff_5);
+    polynomial = nk_f32_fma_serial(polynomial, value_squared, coeff_6);
+    polynomial = nk_f32_fma_serial(polynomial, value_squared, coeff_7);
+    polynomial = nk_f32_fma_serial(polynomial, value_squared, coeff_8);
+
+    // Adjust for quadrant
+    nk_f32_t result = nk_f32_fma_serial(polynomial, value_cubed, value);
+    nk_f32_t const pi_half = 1.5707963267948966f; // π/2
+    if ((quadrant & 1) != 0) result = pi_half - result;
+    if ((quadrant & 2) != 0) result = -result;
+    return result;
+}
+
+NUMKONG_API_COMPTIME nk_f32_t nk_f32_atan2_serial(nk_f32_t const y_input, nk_f32_t const x_input) {
+
+    // Polynomial coefficients for atan2 approximation
+    nk_f32_t const coeff_8 = -0.333331018686294555664062f;
+    nk_f32_t const coeff_7 = +0.199926957488059997558594f;
+    nk_f32_t const coeff_6 = -0.142027363181114196777344f;
+    nk_f32_t const coeff_5 = +0.106347933411598205566406f;
+    nk_f32_t const coeff_4 = -0.0748900920152664184570312f;
+    nk_f32_t const coeff_3 = +0.0425049886107444763183594f;
+    nk_f32_t const coeff_2 = -0.0159569028764963150024414f;
+    nk_f32_t const coeff_1 = +0.00282363896258175373077393f;
+
+    // Convert to bit representation
+    nk_fui32_t const x_bits = *(nk_fui32_t *)&x_input;
+    nk_fui32_t const y_bits = *(nk_fui32_t *)&y_input;
+    nk_fui32_t x_abs, y_abs;
+    y_abs.u = y_bits.u & 0x7FFFFFFFu;
+
+    // Quadrant adjustment
+    int quadrant = 0;
+    if (x_input < 0.0f) { x_abs.f = -x_input, quadrant = -2; }
+    else { x_abs.f = x_input; }
+    // Ensure proper fraction where the numerator is smaller than the denominator
+    if (y_abs.f > x_abs.f) {
+        nk_f32_t const previous_x_abs = x_abs.f;
+        x_abs.f = y_abs.f;
+        y_abs.f = -previous_x_abs;
+        quadrant += 1;
+    }
+
+    // Argument reduction
+    nk_f32_t const ratio = y_abs.f / x_abs.f;
+    nk_f32_t const ratio_squared = ratio * ratio;
+    nk_f32_t const ratio_cubed = ratio * ratio_squared;
+
+    // Polynomial evaluation using FMA for improved precision
+    nk_f32_t polynomial = coeff_1;
+    polynomial = nk_f32_fma_serial(polynomial, ratio_squared, coeff_2);
+    polynomial = nk_f32_fma_serial(polynomial, ratio_squared, coeff_3);
+    polynomial = nk_f32_fma_serial(polynomial, ratio_squared, coeff_4);
+    polynomial = nk_f32_fma_serial(polynomial, ratio_squared, coeff_5);
+    polynomial = nk_f32_fma_serial(polynomial, ratio_squared, coeff_6);
+    polynomial = nk_f32_fma_serial(polynomial, ratio_squared, coeff_7);
+    polynomial = nk_f32_fma_serial(polynomial, ratio_squared, coeff_8);
+
+    // Compute the result using FMA
+    nk_f32_t const pi_half = 1.5707963267948966f; // π/2
+    nk_f32_t result = nk_f32_fma_serial(polynomial, ratio_cubed, ratio);
+    result = nk_f32_fma_serial((nk_f32_t)quadrant, pi_half, result); // quadrant * (π/2)
+
+    // Adjust sign
+    nk_i32_t const negative_zero = 0x80000000;
+    nk_fui32_t result_bits;
+    result_bits.f = result;
+    result_bits.u ^= x_bits.u & negative_zero;
+    result_bits.u ^= y_bits.u & negative_zero;
+    return result_bits.f;
+}
+
+NUMKONG_API_COMPTIME nk_f64_t nk_f64_sin_serial(nk_f64_t const angle_radians) {
+
+    // Constants for argument reduction
+    nk_f64_t const pi_high = 3.141592653589793116;                         // High-digits part of π
+    nk_f64_t const pi_low = 1.2246467991473532072e-16;                     // Low-digits part of π
+    nk_f64_t const pi_reciprocal = 0.318309886183790671537767526745028724; // 1/π
+    nk_i64_t const negative_zero = 0x8000000000000000LL;                   // Hexadecimal value of -0.0 in IEEE 754
+
+    // Polynomial coefficients for sine/cosine approximation (minimax polynomial)
+    nk_f64_t const coeff_0 = +0.00833333333333332974823815;
+    nk_f64_t const coeff_1 = -0.000198412698412696162806809;
+    nk_f64_t const coeff_2 = +2.75573192239198747630416e-06;
+    nk_f64_t const coeff_3 = -2.50521083763502045810755e-08;
+    nk_f64_t const coeff_4 = +1.60590430605664501629054e-10;
+    nk_f64_t const coeff_5 = -7.64712219118158833288484e-13;
+    nk_f64_t const coeff_6 = +2.81009972710863200091251e-15;
+    nk_f64_t const coeff_7 = -7.97255955009037868891952e-18;
+    nk_f64_t const coeff_8 = -0.166666666666666657414808;
+
+    // Compute (multiple_of_pi) = round(angle / π)
+    nk_f64_t const quotient = angle_radians * pi_reciprocal;
+    int const multiple_of_pi = (int)(quotient < 0 ? quotient - 0.5 : quotient + 0.5);
+
+    // Reduce the angle to: (angle - (multiple_of_pi * π)) ∈ [0, π]
+    nk_f64_t angle = angle_radians;
+    angle = angle - (multiple_of_pi * pi_high);
+    angle = angle - (multiple_of_pi * pi_low);
+    if ((multiple_of_pi & 1) != 0) angle = -angle;
+    nk_f64_t const angle_squared = angle * angle;
+    nk_f64_t const angle_cubed = angle * angle_squared;
+    nk_f64_t const angle_quartic = angle_squared * angle_squared;
+    nk_f64_t const angle_octic = angle_quartic * angle_quartic;
+
+    // Compute higher-degree polynomial terms using FMA
+    nk_f64_t const poly_67 = nk_f64_fma_serial(angle_squared, coeff_7, coeff_6);
+    nk_f64_t const poly_45 = nk_f64_fma_serial(angle_squared, coeff_5, coeff_4);
+    nk_f64_t const poly_4567 = nk_f64_fma_serial(angle_quartic, poly_67, poly_45);
+
+    // Compute lower-degree polynomial terms using FMA
+    nk_f64_t const poly_23 = nk_f64_fma_serial(angle_squared, coeff_3, coeff_2);
+    nk_f64_t const poly_01 = nk_f64_fma_serial(angle_squared, coeff_1, coeff_0);
+    nk_f64_t const poly_0123 = nk_f64_fma_serial(angle_quartic, poly_23, poly_01);
+
+    // Combine polynomial terms using FMA
+    nk_f64_t result = nk_f64_fma_serial(angle_octic, poly_4567, poly_0123);
+    result = nk_f64_fma_serial(result, angle_squared, coeff_8);
+    result = nk_f64_fma_serial(result, angle_cubed, angle);
+
+    // Handle the special case of negative zero input
+    nk_fui64_t converter;
+    converter.f = angle_radians;
+    if ((nk_i64_t)converter.u == negative_zero) result = angle;
+    return result;
+}
+
+NUMKONG_API_COMPTIME nk_f64_t nk_f64_cos_serial(nk_f64_t const angle_radians) {
+
+    // Constants for argument reduction
+    nk_f64_t const pi_high_half = 3.141592653589793116 * 0.5;              // High-digits part of π
+    nk_f64_t const pi_low_half = 1.2246467991473532072e-16 * 0.5;          // Low-digits part of π
+    nk_f64_t const pi_reciprocal = 0.318309886183790671537767526745028724; // 1/π
+
+    // Polynomial coefficients for sine/cosine approximation (minimax polynomial)
+    nk_f64_t const coeff_0 = +0.00833333333333332974823815;
+    nk_f64_t const coeff_1 = -0.000198412698412696162806809;
+    nk_f64_t const coeff_2 = +2.75573192239198747630416e-06;
+    nk_f64_t const coeff_3 = -2.50521083763502045810755e-08;
+    nk_f64_t const coeff_4 = +1.60590430605664501629054e-10;
+    nk_f64_t const coeff_5 = -7.64712219118158833288484e-13;
+    nk_f64_t const coeff_6 = +2.81009972710863200091251e-15;
+    nk_f64_t const coeff_7 = -7.97255955009037868891952e-18;
+    nk_f64_t const coeff_8 = -0.166666666666666657414808;
+
+    // Compute (multiple_of_pi) = 2 * round(angle / π - 0.5) + 1
+    nk_f64_t const quotient = angle_radians * pi_reciprocal - 0.5;
+    int const multiple_of_pi = 2 * (int)(quotient < 0 ? quotient - 0.5 : quotient + 0.5) + 1;
+
+    // Reduce the angle to: (angle - (multiple_of_pi * π)) in [-π/2, π/2]
+    nk_f64_t angle = angle_radians;
+    angle = angle - (multiple_of_pi * pi_high_half);
+    angle = angle - (multiple_of_pi * pi_low_half);
+    if ((multiple_of_pi & 2) == 0) angle = -angle;
+    nk_f64_t const angle_squared = angle * angle;
+    nk_f64_t const angle_cubed = angle * angle_squared;
+    nk_f64_t const angle_quartic = angle_squared * angle_squared;
+    nk_f64_t const angle_octic = angle_quartic * angle_quartic;
+
+    // Compute higher-degree polynomial terms using FMA
+    nk_f64_t const poly_67 = nk_f64_fma_serial(angle_squared, coeff_7, coeff_6);
+    nk_f64_t const poly_45 = nk_f64_fma_serial(angle_squared, coeff_5, coeff_4);
+    nk_f64_t const poly_4567 = nk_f64_fma_serial(angle_quartic, poly_67, poly_45);
+
+    // Compute lower-degree polynomial terms using FMA
+    nk_f64_t const poly_23 = nk_f64_fma_serial(angle_squared, coeff_3, coeff_2);
+    nk_f64_t const poly_01 = nk_f64_fma_serial(angle_squared, coeff_1, coeff_0);
+    nk_f64_t const poly_0123 = nk_f64_fma_serial(angle_quartic, poly_23, poly_01);
+
+    // Combine polynomial terms using FMA
+    nk_f64_t result = nk_f64_fma_serial(angle_octic, poly_4567, poly_0123);
+    result = nk_f64_fma_serial(result, angle_squared, coeff_8);
+    result = nk_f64_fma_serial(result, angle_cubed, angle);
+    return result;
+}
+
+NUMKONG_API_COMPTIME nk_f64_t nk_f64_atan_serial(nk_f64_t const input) {
+    // Polynomial coefficients for atan approximation
+    nk_f64_t const coeff_19 = -1.88796008463073496563746e-05;
+    nk_f64_t const coeff_18 = +0.000209850076645816976906797;
+    nk_f64_t const coeff_17 = -0.00110611831486672482563471;
+    nk_f64_t const coeff_16 = +0.00370026744188713119232403;
+    nk_f64_t const coeff_15 = -0.00889896195887655491740809;
+    nk_f64_t const coeff_14 = +0.016599329773529201970117;
+    nk_f64_t const coeff_13 = -0.0254517624932312641616861;
+    nk_f64_t const coeff_12 = +0.0337852580001353069993897;
+    nk_f64_t const coeff_11 = -0.0407629191276836500001934;
+    nk_f64_t const coeff_10 = +0.0466667150077840625632675;
+    nk_f64_t const coeff_9 = -0.0523674852303482457616113;
+    nk_f64_t const coeff_8 = +0.0587666392926673580854313;
+    nk_f64_t const coeff_7 = -0.0666573579361080525984562;
+    nk_f64_t const coeff_6 = +0.0769219538311769618355029;
+    nk_f64_t const coeff_5 = -0.090908995008245008229153;
+    nk_f64_t const coeff_4 = +0.111111105648261418443745;
+    nk_f64_t const coeff_3 = -0.14285714266771329383765;
+    nk_f64_t const coeff_2 = +0.199999999996591265594148;
+    nk_f64_t const coeff_1 = -0.333333333333311110369124;
+
+    // Quadrant adjustment
+    int quadrant = 0;
+    nk_f64_t value = input;
+    if (value < 0) value = -value, quadrant |= 2;
+    if (value > 1) value = 1.0 / value, quadrant |= 1;
+    nk_f64_t const value_squared = value * value;
+    nk_f64_t const value_cubed = value * value_squared;
+
+    // Polynomial evaluation using FMA for improved precision
+    nk_f64_t polynomial = coeff_19;
+    polynomial = nk_f64_fma_serial(polynomial, value_squared, coeff_18);
+    polynomial = nk_f64_fma_serial(polynomial, value_squared, coeff_17);
+    polynomial = nk_f64_fma_serial(polynomial, value_squared, coeff_16);
+    polynomial = nk_f64_fma_serial(polynomial, value_squared, coeff_15);
+    polynomial = nk_f64_fma_serial(polynomial, value_squared, coeff_14);
+    polynomial = nk_f64_fma_serial(polynomial, value_squared, coeff_13);
+    polynomial = nk_f64_fma_serial(polynomial, value_squared, coeff_12);
+    polynomial = nk_f64_fma_serial(polynomial, value_squared, coeff_11);
+    polynomial = nk_f64_fma_serial(polynomial, value_squared, coeff_10);
+    polynomial = nk_f64_fma_serial(polynomial, value_squared, coeff_9);
+    polynomial = nk_f64_fma_serial(polynomial, value_squared, coeff_8);
+    polynomial = nk_f64_fma_serial(polynomial, value_squared, coeff_7);
+    polynomial = nk_f64_fma_serial(polynomial, value_squared, coeff_6);
+    polynomial = nk_f64_fma_serial(polynomial, value_squared, coeff_5);
+    polynomial = nk_f64_fma_serial(polynomial, value_squared, coeff_4);
+    polynomial = nk_f64_fma_serial(polynomial, value_squared, coeff_3);
+    polynomial = nk_f64_fma_serial(polynomial, value_squared, coeff_2);
+    polynomial = nk_f64_fma_serial(polynomial, value_squared, coeff_1);
+
+    // Adjust for quadrant
+    nk_f64_t const pi_half = 1.5707963267948966; // π/2
+    nk_f64_t result = nk_f64_fma_serial(polynomial, value_cubed, value);
+    if (quadrant & 1) result = pi_half - result;
+    if (quadrant & 2) result = -result;
+
+    return result;
+}
+
+NUMKONG_API_COMPTIME nk_f64_t nk_f64_atan2_serial(nk_f64_t const y_input, nk_f64_t const x_input) {
+    // Polynomial coefficients for atan2 approximation
+    nk_f64_t const coeff_19 = -1.88796008463073496563746e-05;
+    nk_f64_t const coeff_18 = +0.000209850076645816976906797;
+    nk_f64_t const coeff_17 = -0.00110611831486672482563471;
+    nk_f64_t const coeff_16 = +0.00370026744188713119232403;
+    nk_f64_t const coeff_15 = -0.00889896195887655491740809;
+    nk_f64_t const coeff_14 = +0.016599329773529201970117;
+    nk_f64_t const coeff_13 = -0.0254517624932312641616861;
+    nk_f64_t const coeff_12 = +0.0337852580001353069993897;
+    nk_f64_t const coeff_11 = -0.0407629191276836500001934;
+    nk_f64_t const coeff_10 = +0.0466667150077840625632675;
+    nk_f64_t const coeff_9 = -0.0523674852303482457616113;
+    nk_f64_t const coeff_8 = +0.0587666392926673580854313;
+    nk_f64_t const coeff_7 = -0.0666573579361080525984562;
+    nk_f64_t const coeff_6 = +0.0769219538311769618355029;
+    nk_f64_t const coeff_5 = -0.090908995008245008229153;
+    nk_f64_t const coeff_4 = +0.111111105648261418443745;
+    nk_f64_t const coeff_3 = -0.14285714266771329383765;
+    nk_f64_t const coeff_2 = +0.199999999996591265594148;
+    nk_f64_t const coeff_1 = -0.333333333333311110369124;
+
+    nk_fui64_t x_bits, y_bits;
+    x_bits.f = x_input, y_bits.f = y_input;
+    nk_fui64_t x_abs, y_abs;
+    y_abs.u = y_bits.u & 0x7FFFFFFFFFFFFFFFull;
+
+    // Quadrant adjustment
+    int quadrant = 0;
+    if (x_input < 0) { x_abs.f = -x_input, quadrant = -2; }
+    else { x_abs.f = x_input; }
+    // Swap the absolute values into a proper fraction, the numerator below the denominator, keeping
+    // `x_bits` and `y_bits` as they are for the final quadrant adjustment.
+    if (y_abs.f > x_abs.f) {
+        nk_f64_t const previous_x_abs = x_abs.f;
+        x_abs.f = y_abs.f;
+        y_abs.f = -previous_x_abs;
+        quadrant += 1;
+    }
+
+    // Argument reduction
+    nk_f64_t const ratio = y_abs.f / x_abs.f;
+    nk_f64_t const ratio_squared = ratio * ratio;
+    nk_f64_t const ratio_cubed = ratio * ratio_squared;
+
+    // Polynomial evaluation using FMA for improved precision
+    nk_f64_t polynomial = nk_f64_fma_serial(coeff_19, ratio_squared, coeff_18);
+    polynomial = nk_f64_fma_serial(polynomial, ratio_squared, coeff_17);
+    polynomial = nk_f64_fma_serial(polynomial, ratio_squared, coeff_16);
+    polynomial = nk_f64_fma_serial(polynomial, ratio_squared, coeff_15);
+    polynomial = nk_f64_fma_serial(polynomial, ratio_squared, coeff_14);
+    polynomial = nk_f64_fma_serial(polynomial, ratio_squared, coeff_13);
+    polynomial = nk_f64_fma_serial(polynomial, ratio_squared, coeff_12);
+    polynomial = nk_f64_fma_serial(polynomial, ratio_squared, coeff_11);
+    polynomial = nk_f64_fma_serial(polynomial, ratio_squared, coeff_10);
+    polynomial = nk_f64_fma_serial(polynomial, ratio_squared, coeff_9);
+    polynomial = nk_f64_fma_serial(polynomial, ratio_squared, coeff_8);
+    polynomial = nk_f64_fma_serial(polynomial, ratio_squared, coeff_7);
+    polynomial = nk_f64_fma_serial(polynomial, ratio_squared, coeff_6);
+    polynomial = nk_f64_fma_serial(polynomial, ratio_squared, coeff_5);
+    polynomial = nk_f64_fma_serial(polynomial, ratio_squared, coeff_4);
+    polynomial = nk_f64_fma_serial(polynomial, ratio_squared, coeff_3);
+    polynomial = nk_f64_fma_serial(polynomial, ratio_squared, coeff_2);
+    polynomial = nk_f64_fma_serial(polynomial, ratio_squared, coeff_1);
+
+    // Adjust for quadrant
+    nk_f64_t const pi = 3.14159265358979323846;     // π
+    nk_f64_t const pi_half = 1.5707963267948966;    // π/2
+    nk_f64_t const pi_quarter = 0.7853981633974483; // π/4
+    nk_u64_t const negative_zero = 0x8000000000000000ull;
+    nk_u64_t const positive_infinity = 0x7FF0000000000000ull;
+    nk_u64_t const negative_infinity = 0xFFF0000000000000ull;
+    nk_f64_t result = nk_f64_fma_serial(polynomial, ratio_cubed, ratio);
+    result = nk_f64_fma_serial((nk_f64_t)quadrant, pi_half, result);
+
+    // Special cases handling using bit reinterpretation
+    int const x_is_inf = (x_bits.u == positive_infinity) | (x_bits.u == negative_infinity);
+    int const y_is_inf = (y_bits.u == positive_infinity) | (y_bits.u == negative_infinity);
+
+    // Perform the sign multiplication and infer the right quadrant
+    nk_fui64_t result_bits;
+    result_bits.f = result;
+    // Sign transfer:
+    result_bits.u ^= x_bits.u & negative_zero;
+    // Quadrant adjustments:
+    if (x_is_inf | (x_bits.f == 0)) result_bits.f = pi_half - (x_is_inf ? (x_bits.f < 0 ? pi_half : 0) : 0);
+    if (y_is_inf) result_bits.f = pi_half - (x_is_inf ? (x_bits.f < 0 ? pi_half : pi_quarter) : 0);
+    if (y_bits.f == 0) result_bits.f = (x_bits.f < 0 ? pi : 0);
+    if (x_is_inf | y_is_inf) result_bits.u = 0x7FF8000000000000ull;
+    // Sign transfer back:
+    else { result_bits.u ^= y_bits.u & negative_zero; }
+    return result_bits.f;
+}
+
 /** Scalar `2^x` via a degree-4 minimax polynomial; no libm. The lower clamp is −125 (not the F32
  *  limit) so the smallest result stays a normal float: a denormal operand in a downstream multiply
  *  costs a ~150-cycle microcode assist on most cores. Shared reference for every fused kernel

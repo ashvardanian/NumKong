@@ -690,61 +690,74 @@ NUMKONG_HELPER_INLINE vfloat32m2_t nk_f32m2_atan_rvv_(vfloat32m2_t inputs_f32m2,
     return result_f32m2;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_sin_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t vector_length; n > 0; n -= vector_length, ins += vector_length, outs += vector_length) {
         vector_length = __riscv_vsetvl_e32m4(n);
         vfloat32m4_t angles_f32m4 = __riscv_vle32_v_f32m4(ins, vector_length);
         vfloat32m4_t results_f32m4 = nk_f32m4_sin_rvv_(angles_f32m4, vector_length);
         __riscv_vse32_v_f32m4(outs, results_f32m4, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_cos_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t vector_length; n > 0; n -= vector_length, ins += vector_length, outs += vector_length) {
         vector_length = __riscv_vsetvl_e32m4(n);
         vfloat32m4_t angles_f32m4 = __riscv_vle32_v_f32m4(ins, vector_length);
         vfloat32m4_t results_f32m4 = nk_f32m4_cos_rvv_(angles_f32m4, vector_length);
         __riscv_vse32_v_f32m4(outs, results_f32m4, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_atan_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t vector_length; n > 0; n -= vector_length, ins += vector_length, outs += vector_length) {
         vector_length = __riscv_vsetvl_e32m4(n);
         vfloat32m4_t values_f32m4 = __riscv_vle32_v_f32m4(ins, vector_length);
         vfloat32m4_t results_f32m4 = nk_f32m4_atan_rvv_(values_f32m4, vector_length);
         __riscv_vse32_v_f32m4(outs, results_f32m4, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_sin_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t vector_length; n > 0; n -= vector_length, ins += vector_length, outs += vector_length) {
         vector_length = __riscv_vsetvl_e64m4(n);
         vfloat64m4_t angles_f64m4 = __riscv_vle64_v_f64m4(ins, vector_length);
         vfloat64m4_t results_f64m4 = nk_f64m4_sin_rvv_(angles_f64m4, vector_length);
         __riscv_vse64_v_f64m4(outs, results_f64m4, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_cos_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t vector_length; n > 0; n -= vector_length, ins += vector_length, outs += vector_length) {
         vector_length = __riscv_vsetvl_e64m4(n);
         vfloat64m4_t angles_f64m4 = __riscv_vle64_v_f64m4(ins, vector_length);
         vfloat64m4_t results_f64m4 = nk_f64m4_cos_rvv_(angles_f64m4, vector_length);
         __riscv_vse64_v_f64m4(outs, results_f64m4, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_atan_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t vector_length; n > 0; n -= vector_length, ins += vector_length, outs += vector_length) {
         vector_length = __riscv_vsetvl_e64m4(n);
         vfloat64m4_t values_f64m4 = __riscv_vle64_v_f64m4(ins, vector_length);
         vfloat64m4_t results_f64m4 = nk_f64m4_atan_rvv_(values_f64m4, vector_length);
         __riscv_vse64_v_f64m4(outs, results_f64m4, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_sin_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t vector_length; n > 0; n -= vector_length, ins += vector_length, outs += vector_length) {
         vector_length = __riscv_vsetvl_e16m1(n);
         vuint16m1_t f16_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)ins, vector_length);
@@ -753,9 +766,11 @@ NUMKONG_API_COMPTIME void nk_trig_sin_f16_rvv(nk_f16_t const *ins, nk_size_t n, 
         vuint16m1_t f16_results_u16m1 = nk_f32m2_to_f16m1_rvv_(results_f32m2, vector_length);
         __riscv_vse16_v_u16m1((nk_u16_t *)outs, f16_results_u16m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_cos_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t vector_length; n > 0; n -= vector_length, ins += vector_length, outs += vector_length) {
         vector_length = __riscv_vsetvl_e16m1(n);
         vuint16m1_t f16_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)ins, vector_length);
@@ -764,9 +779,11 @@ NUMKONG_API_COMPTIME void nk_trig_cos_f16_rvv(nk_f16_t const *ins, nk_size_t n, 
         vuint16m1_t f16_results_u16m1 = nk_f32m2_to_f16m1_rvv_(results_f32m2, vector_length);
         __riscv_vse16_v_u16m1((nk_u16_t *)outs, f16_results_u16m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_atan_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t vector_length; n > 0; n -= vector_length, ins += vector_length, outs += vector_length) {
         vector_length = __riscv_vsetvl_e16m1(n);
         vuint16m1_t f16_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)ins, vector_length);
@@ -775,6 +792,7 @@ NUMKONG_API_COMPTIME void nk_trig_atan_f16_rvv(nk_f16_t const *ins, nk_size_t n,
         vuint16m1_t f16_results_u16m1 = nk_f32m2_to_f16m1_rvv_(results_f32m2, vector_length);
         __riscv_vse16_v_u16m1((nk_u16_t *)outs, f16_results_u16m1, vector_length);
     }
+    return nk_success_k;
 }
 
 #if defined(__cplusplus)

@@ -70,24 +70,26 @@ NUMKONG_HELPER_INLINE void nk_reduce_moments_bf16_genoa_contiguous_( //
     *sumsq_ptr = nk_reduce_add_f32x16_skylake_(sumsq_f32x16);
 }
 
-NUMKONG_API_COMPTIME void nk_reduce_moments_bf16_genoa(                 //
+NUMKONG_API_COMPTIME nk_status_t nk_reduce_moments_bf16_genoa(          //
     nk_bf16_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
-    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
+    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride_bytes / sizeof(nk_bf16_t);
     int aligned = (stride_bytes % sizeof(nk_bf16_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) nk_reduce_moments_bf16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    else if (!aligned) nk_reduce_moments_bf16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr, stream);
     else if (count > (nk_size_t)(NUMKONG_U16_MAX + 1) * 32) {
         nk_size_t left_count = count / 2;
         nk_f32_t left_sum, left_sumsq, right_sum, right_sumsq;
-        nk_reduce_moments_bf16_genoa(data_ptr, left_count, stride_bytes, &left_sum, &left_sumsq);
+        nk_reduce_moments_bf16_genoa(data_ptr, left_count, stride_bytes, &left_sum, &left_sumsq, stream);
         nk_reduce_moments_bf16_genoa(data_ptr + left_count * stride_elements, count - left_count, stride_bytes,
-                                     &right_sum, &right_sumsq);
+                                     &right_sum, &right_sumsq, stream);
         *sum_ptr = left_sum + right_sum;
         *sumsq_ptr = left_sumsq + right_sumsq;
     }
     else if (stride_elements == 1) nk_reduce_moments_bf16_genoa_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr);
-    else nk_reduce_moments_bf16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    else nk_reduce_moments_bf16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr, stream);
+    return nk_success_k;
 }
 
 NUMKONG_HELPER_INLINE void nk_reduce_moments_e4m3_genoa_contiguous_( //
@@ -120,24 +122,26 @@ NUMKONG_HELPER_INLINE void nk_reduce_moments_e4m3_genoa_contiguous_( //
     *sumsq_ptr = nk_reduce_add_f32x16_skylake_(sumsq_f32x16);
 }
 
-NUMKONG_API_COMPTIME void nk_reduce_moments_e4m3_genoa(                 //
+NUMKONG_API_COMPTIME nk_status_t nk_reduce_moments_e4m3_genoa(          //
     nk_e4m3_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
-    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
+    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride_bytes / sizeof(nk_e4m3_t);
     int aligned = (stride_bytes % sizeof(nk_e4m3_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) nk_reduce_moments_e4m3_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    else if (!aligned) nk_reduce_moments_e4m3_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr, stream);
     else if (count > (nk_size_t)(NUMKONG_U16_MAX + 1) * 32) {
         nk_size_t left_count = count / 2;
         nk_f32_t left_sum, left_sumsq, right_sum, right_sumsq;
-        nk_reduce_moments_e4m3_genoa(data_ptr, left_count, stride_bytes, &left_sum, &left_sumsq);
+        nk_reduce_moments_e4m3_genoa(data_ptr, left_count, stride_bytes, &left_sum, &left_sumsq, stream);
         nk_reduce_moments_e4m3_genoa(data_ptr + left_count * stride_elements, count - left_count, stride_bytes,
-                                     &right_sum, &right_sumsq);
+                                     &right_sum, &right_sumsq, stream);
         *sum_ptr = left_sum + right_sum;
         *sumsq_ptr = left_sumsq + right_sumsq;
     }
     else if (stride_elements == 1) nk_reduce_moments_e4m3_genoa_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr);
-    else nk_reduce_moments_e4m3_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    else nk_reduce_moments_e4m3_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr, stream);
+    return nk_success_k;
 }
 
 NUMKONG_HELPER_INLINE void nk_reduce_moments_e5m2_genoa_contiguous_( //
@@ -170,30 +174,33 @@ NUMKONG_HELPER_INLINE void nk_reduce_moments_e5m2_genoa_contiguous_( //
     *sumsq_ptr = nk_reduce_add_f32x16_skylake_(sumsq_f32x16);
 }
 
-NUMKONG_API_COMPTIME void nk_reduce_moments_e5m2_genoa(                 //
+NUMKONG_API_COMPTIME nk_status_t nk_reduce_moments_e5m2_genoa(          //
     nk_e5m2_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
-    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
+    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride_bytes / sizeof(nk_e5m2_t);
     int aligned = (stride_bytes % sizeof(nk_e5m2_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) nk_reduce_moments_e5m2_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    else if (!aligned) nk_reduce_moments_e5m2_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr, stream);
     else if (count > (nk_size_t)(NUMKONG_U16_MAX + 1) * 32) {
         nk_size_t left_count = count / 2;
         nk_f32_t left_sum, left_sumsq, right_sum, right_sumsq;
-        nk_reduce_moments_e5m2_genoa(data_ptr, left_count, stride_bytes, &left_sum, &left_sumsq);
+        nk_reduce_moments_e5m2_genoa(data_ptr, left_count, stride_bytes, &left_sum, &left_sumsq, stream);
         nk_reduce_moments_e5m2_genoa(data_ptr + left_count * stride_elements, count - left_count, stride_bytes,
-                                     &right_sum, &right_sumsq);
+                                     &right_sum, &right_sumsq, stream);
         *sum_ptr = left_sum + right_sum;
         *sumsq_ptr = left_sumsq + right_sumsq;
     }
     else if (stride_elements == 1) nk_reduce_moments_e5m2_genoa_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr);
-    else nk_reduce_moments_e5m2_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    else nk_reduce_moments_e5m2_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr, stream);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_reduce_rmsnorm_bf16_genoa(nk_bf16_t const *x, nk_f32_t const *gamma, nk_bf16_t *y,
-                                                       nk_size_t rows, nk_size_t groups, nk_size_t cols,
-                                                       nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t eps,
-                                                       nk_f32_t input_scale) {
+NUMKONG_API_COMPTIME nk_status_t nk_reduce_rmsnorm_bf16_genoa(nk_bf16_t const *x, nk_f32_t const *gamma, nk_bf16_t *y,
+                                                              nk_size_t rows, nk_size_t groups, nk_size_t cols,
+                                                              nk_size_t x_row_stride, nk_size_t y_row_stride,
+                                                              nk_f32_t eps, nk_f32_t input_scale, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t const scale_sq = (nk_f64_t)input_scale * (nk_f64_t)input_scale;
     for (nk_size_t r = 0; r != rows; ++r) {
         nk_bf16_t const *x_row = (nk_bf16_t const *)((unsigned char const *)x + r * x_row_stride);
@@ -202,7 +209,7 @@ NUMKONG_API_COMPTIME void nk_reduce_rmsnorm_bf16_genoa(nk_bf16_t const *x, nk_f3
             nk_bf16_t const *group_input = x_row + group * cols;
             nk_bf16_t *group_output = y_row + group * cols;
             nk_f32_t sum, sumsq;
-            nk_reduce_moments_bf16_genoa(group_input, cols, sizeof(nk_bf16_t), &sum, &sumsq);
+            nk_reduce_moments_bf16_genoa(group_input, cols, sizeof(nk_bf16_t), &sum, &sumsq, stream);
             (void)sum;
             nk_f32_t mean_square = (nk_f32_t)(scale_sq * (nk_f64_t)sumsq / (nk_f64_t)cols) + eps;
             nk_f32_t gain = input_scale *
@@ -215,12 +222,14 @@ NUMKONG_API_COMPTIME void nk_reduce_rmsnorm_bf16_genoa(nk_bf16_t const *x, nk_f3
             }
         }
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_reduce_rmsnorm_e4m3_genoa(nk_e4m3_t const *x, nk_f32_t const *gamma, nk_e4m3_t *y,
-                                                       nk_size_t rows, nk_size_t groups, nk_size_t cols,
-                                                       nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t eps,
-                                                       nk_f32_t input_scale) {
+NUMKONG_API_COMPTIME nk_status_t nk_reduce_rmsnorm_e4m3_genoa(nk_e4m3_t const *x, nk_f32_t const *gamma, nk_e4m3_t *y,
+                                                              nk_size_t rows, nk_size_t groups, nk_size_t cols,
+                                                              nk_size_t x_row_stride, nk_size_t y_row_stride,
+                                                              nk_f32_t eps, nk_f32_t input_scale, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t const scale_sq = (nk_f64_t)input_scale * (nk_f64_t)input_scale;
     for (nk_size_t r = 0; r != rows; ++r) {
         nk_e4m3_t const *x_row = (nk_e4m3_t const *)((unsigned char const *)x + r * x_row_stride);
@@ -229,7 +238,7 @@ NUMKONG_API_COMPTIME void nk_reduce_rmsnorm_e4m3_genoa(nk_e4m3_t const *x, nk_f3
             nk_e4m3_t const *group_input = x_row + group * cols;
             nk_e4m3_t *group_output = y_row + group * cols;
             nk_f32_t sum, sumsq;
-            nk_reduce_moments_e4m3_genoa(group_input, cols, sizeof(nk_e4m3_t), &sum, &sumsq);
+            nk_reduce_moments_e4m3_genoa(group_input, cols, sizeof(nk_e4m3_t), &sum, &sumsq, stream);
             (void)sum;
             nk_f32_t mean_square = (nk_f32_t)(scale_sq * (nk_f64_t)sumsq / (nk_f64_t)cols) + eps;
             nk_f32_t gain = input_scale *
@@ -242,6 +251,7 @@ NUMKONG_API_COMPTIME void nk_reduce_rmsnorm_e4m3_genoa(nk_e4m3_t const *x, nk_f3
             }
         }
     }
+    return nk_success_k;
 }
 
 #if defined(__clang__)

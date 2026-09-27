@@ -228,8 +228,9 @@ NUMKONG_HELPER_INLINE __m128i nk_f16x16_to_e5m2x16_sapphire_(__m256h f16x16) {
 
 #pragma region Public API
 
-NUMKONG_API_COMPTIME void nk_cast_sapphire(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                           nk_dtype_t to_type) {
+NUMKONG_API_COMPTIME nk_status_t nk_cast_sapphire(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
+                                                  nk_dtype_t to_type, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Group 1: Conversions to f16 (e4m3 → f16, e5m2 → f16)
     if (to_type == nk_f16_k && (from_type == nk_e4m3_k || from_type == nk_e5m2_k)) {
         nk_e4m3_t const *from_ptr = (nk_e4m3_t const *)from;
@@ -259,7 +260,8 @@ NUMKONG_API_COMPTIME void nk_cast_sapphire(void const *from, nk_dtype_t from_typ
     }
 
     // Default: delegate to Ice for all other conversions
-    else nk_cast_icelake(from, from_type, n, to, to_type);
+    else nk_cast_icelake(from, from_type, n, to, to_type, stream);
+    return nk_success_k;
 }
 
 #pragma endregion Public API

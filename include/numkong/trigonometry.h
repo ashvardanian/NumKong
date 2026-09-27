@@ -118,14 +118,12 @@
 #ifndef NUMKONG_TRIGONOMETRY_H
 #define NUMKONG_TRIGONOMETRY_H
 
-#include "numkong/types.h"
+#include "numkong/capabilities.h"        // `nk_capability_kernels_t`, `nk_kernel_pick_`
+#include "numkong/trigonometry/serial.h" // `nk_rope_angle_t`
 
 #if defined(__cplusplus)
 extern "C" {
 #endif
-
-/** RoPE rotation-coefficient type for the cos/sin angle grids. */
-typedef nk_f32_t nk_rope_angle_t;
 
 /**
  *  @brief Element-wise sine over f64 inputs in radians.
@@ -133,8 +131,12 @@ typedef nk_f32_t nk_rope_angle_t;
  *  @param[in] ins Input array of angles in radians.
  *  @param[in] n Number of elements in the input/output arrays.
  *  @param[out] outs Output array of sine values.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  */
-NUMKONG_API_RUNTIME void nk_trig_sin_f64(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
+NUMKONG_API_RUNTIME nk_status_t nk_trig_sin_f64_best(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
+                                                     nk_capability_t capabilities, void *stream);
 
 /**
  *  @brief Element-wise cosine over f64 inputs in radians.
@@ -142,8 +144,12 @@ NUMKONG_API_RUNTIME void nk_trig_sin_f64(nk_f64_t const *ins, nk_size_t n, nk_f6
  *  @param[in] ins Input array of angles in radians.
  *  @param[in] n Number of elements in the input/output arrays.
  *  @param[out] outs Output array of cosine values.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  */
-NUMKONG_API_RUNTIME void nk_trig_cos_f64(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
+NUMKONG_API_RUNTIME nk_status_t nk_trig_cos_f64_best(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
+                                                     nk_capability_t capabilities, void *stream);
 
 /**
  *  @brief Element-wise arc-tangent over f64 inputs.
@@ -151,8 +157,12 @@ NUMKONG_API_RUNTIME void nk_trig_cos_f64(nk_f64_t const *ins, nk_size_t n, nk_f6
  *  @param[in] ins Input array of input values.
  *  @param[in] n Number of elements in the input/output arrays.
  *  @param[out] outs Output array of arc-tangent values.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  */
-NUMKONG_API_RUNTIME void nk_trig_atan_f64(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
+NUMKONG_API_RUNTIME nk_status_t nk_trig_atan_f64_best(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
+                                                      nk_capability_t capabilities, void *stream);
 
 /**
  *  @brief Element-wise sine over f32 inputs in radians.
@@ -160,8 +170,12 @@ NUMKONG_API_RUNTIME void nk_trig_atan_f64(nk_f64_t const *ins, nk_size_t n, nk_f
  *  @param[in] ins Input array of angles in radians.
  *  @param[in] n Number of elements in the input/output arrays.
  *  @param[out] outs Output array of sine values.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  */
-NUMKONG_API_RUNTIME void nk_trig_sin_f32(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
+NUMKONG_API_RUNTIME nk_status_t nk_trig_sin_f32_best(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
+                                                     nk_capability_t capabilities, void *stream);
 
 /**
  *  @brief Element-wise cosine over f32 inputs in radians.
@@ -169,8 +183,12 @@ NUMKONG_API_RUNTIME void nk_trig_sin_f32(nk_f32_t const *ins, nk_size_t n, nk_f3
  *  @param[in] ins Input array of angles in radians.
  *  @param[in] n Number of elements in the input/output arrays.
  *  @param[out] outs Output array of cosine values.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  */
-NUMKONG_API_RUNTIME void nk_trig_cos_f32(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
+NUMKONG_API_RUNTIME nk_status_t nk_trig_cos_f32_best(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
+                                                     nk_capability_t capabilities, void *stream);
 
 /**
  *  @brief Element-wise arc-tangent over f32 inputs.
@@ -178,8 +196,12 @@ NUMKONG_API_RUNTIME void nk_trig_cos_f32(nk_f32_t const *ins, nk_size_t n, nk_f3
  *  @param[in] ins Input array of input values.
  *  @param[in] n Number of elements in the input/output arrays.
  *  @param[out] outs Output array of arc-tangent values.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  */
-NUMKONG_API_RUNTIME void nk_trig_atan_f32(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
+NUMKONG_API_RUNTIME nk_status_t nk_trig_atan_f32_best(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
+                                                      nk_capability_t capabilities, void *stream);
 
 /**
  *  @brief Element-wise sine over f16 inputs in radians.
@@ -187,8 +209,12 @@ NUMKONG_API_RUNTIME void nk_trig_atan_f32(nk_f32_t const *ins, nk_size_t n, nk_f
  *  @param[in] ins Input array of angles in radians.
  *  @param[in] n Number of elements in the input/output arrays.
  *  @param[out] outs Output array of sine values.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  */
-NUMKONG_API_RUNTIME void nk_trig_sin_f16(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
+NUMKONG_API_RUNTIME nk_status_t nk_trig_sin_f16_best(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs,
+                                                     nk_capability_t capabilities, void *stream);
 
 /**
  *  @brief Element-wise cosine over f16 inputs in radians.
@@ -196,8 +222,12 @@ NUMKONG_API_RUNTIME void nk_trig_sin_f16(nk_f16_t const *ins, nk_size_t n, nk_f1
  *  @param[in] ins Input array of angles in radians.
  *  @param[in] n Number of elements in the input/output arrays.
  *  @param[out] outs Output array of cosine values.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  */
-NUMKONG_API_RUNTIME void nk_trig_cos_f16(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
+NUMKONG_API_RUNTIME nk_status_t nk_trig_cos_f16_best(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs,
+                                                     nk_capability_t capabilities, void *stream);
 
 /**
  *  @brief Element-wise arc-tangent over f16 inputs.
@@ -205,41 +235,48 @@ NUMKONG_API_RUNTIME void nk_trig_cos_f16(nk_f16_t const *ins, nk_size_t n, nk_f1
  *  @param[in] ins Input array of input values.
  *  @param[in] n Number of elements in the input/output arrays.
  *  @param[out] outs Output array of arc-tangent values.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  */
-NUMKONG_API_RUNTIME void nk_trig_atan_f16(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
+NUMKONG_API_RUNTIME nk_status_t nk_trig_atan_f16_best(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs,
+                                                      nk_capability_t capabilities, void *stream);
 
-/** @copydoc nk_trig_sin_f64 */
-NUMKONG_API_COMPTIME void nk_trig_sin_f64_serial(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_trig_cos_f64 */
-NUMKONG_API_COMPTIME void nk_trig_cos_f64_serial(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_trig_atan_f64 */
-NUMKONG_API_COMPTIME void nk_trig_atan_f64_serial(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_trig_sin_f32 */
-NUMKONG_API_COMPTIME void nk_trig_sin_f32_serial(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_trig_cos_f32 */
-NUMKONG_API_COMPTIME void nk_trig_cos_f32_serial(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_trig_atan_f32 */
-NUMKONG_API_COMPTIME void nk_trig_atan_f32_serial(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_trig_sin_f16 */
-NUMKONG_API_COMPTIME void nk_trig_sin_f16_serial(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
-/** @copydoc nk_trig_cos_f16 */
-NUMKONG_API_COMPTIME void nk_trig_cos_f16_serial(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
-/** @copydoc nk_trig_atan_f16 */
-NUMKONG_API_COMPTIME void nk_trig_atan_f16_serial(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
+/** @copydoc nk_trig_sin_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f64_serial(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream);
+/** @copydoc nk_trig_cos_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f64_serial(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream);
+/** @copydoc nk_trig_atan_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f64_serial(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
+                                                         void *stream);
+/** @copydoc nk_trig_sin_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f32_serial(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream);
+/** @copydoc nk_trig_cos_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f32_serial(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream);
+/** @copydoc nk_trig_atan_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f32_serial(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
+                                                         void *stream);
+/** @copydoc nk_trig_sin_f16_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f16_serial(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream);
+/** @copydoc nk_trig_cos_f16_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f16_serial(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream);
+/** @copydoc nk_trig_atan_f16_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f16_serial(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs,
+                                                         void *stream);
 
 #if NUMKONG_TARGET_NEON
-/** @copydoc nk_trig_sin_f64 */
-NUMKONG_API_COMPTIME void nk_trig_sin_f64_neon(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_trig_cos_f64 */
-NUMKONG_API_COMPTIME void nk_trig_cos_f64_neon(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_trig_atan_f64 */
-NUMKONG_API_COMPTIME void nk_trig_atan_f64_neon(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_trig_sin_f32 */
-NUMKONG_API_COMPTIME void nk_trig_sin_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_trig_cos_f32 */
-NUMKONG_API_COMPTIME void nk_trig_cos_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_trig_atan_f32 */
-NUMKONG_API_COMPTIME void nk_trig_atan_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
+/** @copydoc nk_trig_sin_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f64_neon(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream);
+/** @copydoc nk_trig_cos_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f64_neon(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream);
+/** @copydoc nk_trig_atan_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f64_neon(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream);
+/** @copydoc nk_trig_sin_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream);
+/** @copydoc nk_trig_cos_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream);
+/** @copydoc nk_trig_atan_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream);
 #endif // NUMKONG_TARGET_NEON
 
 /*  SIMD-powered backends for AVX2 CPUs of Haswell generation and newer, using 32-bit arithmetic
@@ -270,135 +307,162 @@ NUMKONG_API_COMPTIME void nk_trig_atan_f32_neon(nk_f32_t const *ins, nk_size_t n
  *  @param[in] x_row_stride Row (token) stride of x in bytes.
  *  @param[in] y_row_stride Row (token) stride of y in bytes.
  *  @param[in] input_scale Scalar folded onto every loaded element (E4M3 descale; 1.0 for BF16/F32).
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  */
-NUMKONG_API_RUNTIME void nk_trig_rope_f32(nk_f32_t const *x, nk_f32_t *y, nk_rope_angle_t const *cos,
-                                          nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
-                                          nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,
-                                          nk_f32_t input_scale);
-/** @copydoc nk_trig_rope_f32 */
-NUMKONG_API_RUNTIME void nk_trig_rope_bf16(nk_bf16_t const *x, nk_bf16_t *y, nk_rope_angle_t const *cos,
-                                           nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
-                                           nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,
-                                           nk_f32_t input_scale);
-/** @copydoc nk_trig_rope_f32 */
-NUMKONG_API_RUNTIME void nk_trig_rope_e4m3(nk_e4m3_t const *x, nk_e4m3_t *y, nk_rope_angle_t const *cos,
-                                           nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
-                                           nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,
-                                           nk_f32_t input_scale);
-/** @copydoc nk_trig_rope_f32 */
-NUMKONG_API_COMPTIME void nk_trig_rope_f32_serial(nk_f32_t const *, nk_f32_t *, nk_rope_angle_t const *,
-                                                  nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
-                                                  nk_size_t, nk_f32_t);
-/** @copydoc nk_trig_rope_f32 */
-NUMKONG_API_COMPTIME void nk_trig_rope_bf16_serial(nk_bf16_t const *, nk_bf16_t *, nk_rope_angle_t const *,
-                                                   nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
-                                                   nk_size_t, nk_f32_t);
-/** @copydoc nk_trig_rope_f32 */
-NUMKONG_API_COMPTIME void nk_trig_rope_e4m3_serial(nk_e4m3_t const *, nk_e4m3_t *, nk_rope_angle_t const *,
-                                                   nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
-                                                   nk_size_t, nk_f32_t);
+NUMKONG_API_RUNTIME nk_status_t nk_trig_rope_f32_best(nk_f32_t const *x, nk_f32_t *y, nk_rope_angle_t const *cos,
+                                                      nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
+                                                      nk_size_t half_dim, nk_size_t x_row_stride,
+                                                      nk_size_t y_row_stride, nk_f32_t input_scale,
+                                                      nk_capability_t capabilities, void *stream);
+/** @copydoc nk_trig_rope_f32_best */
+NUMKONG_API_RUNTIME nk_status_t nk_trig_rope_bf16_best(nk_bf16_t const *x, nk_bf16_t *y, nk_rope_angle_t const *cos,
+                                                       nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
+                                                       nk_size_t half_dim, nk_size_t x_row_stride,
+                                                       nk_size_t y_row_stride, nk_f32_t input_scale,
+                                                       nk_capability_t capabilities, void *stream);
+/** @copydoc nk_trig_rope_f32_best */
+NUMKONG_API_RUNTIME nk_status_t nk_trig_rope_e4m3_best(nk_e4m3_t const *x, nk_e4m3_t *y, nk_rope_angle_t const *cos,
+                                                       nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
+                                                       nk_size_t half_dim, nk_size_t x_row_stride,
+                                                       nk_size_t y_row_stride, nk_f32_t input_scale,
+                                                       nk_capability_t capabilities, void *stream);
+/** @copydoc nk_trig_rope_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_f32_serial(nk_f32_t const *, nk_f32_t *, nk_rope_angle_t const *,
+                                                         nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t,
+                                                         nk_size_t, nk_size_t, nk_f32_t, void *stream);
+/** @copydoc nk_trig_rope_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_bf16_serial(nk_bf16_t const *, nk_bf16_t *, nk_rope_angle_t const *,
+                                                          nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t,
+                                                          nk_size_t, nk_size_t, nk_f32_t, void *stream);
+/** @copydoc nk_trig_rope_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_e4m3_serial(nk_e4m3_t const *, nk_e4m3_t *, nk_rope_angle_t const *,
+                                                          nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t,
+                                                          nk_size_t, nk_size_t, nk_f32_t, void *stream);
 
 #if NUMKONG_TARGET_HASWELL
-/** @copydoc nk_trig_rope_f32 */
-NUMKONG_API_COMPTIME void nk_trig_rope_f32_haswell(nk_f32_t const *, nk_f32_t *, nk_rope_angle_t const *,
-                                                   nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
-                                                   nk_size_t, nk_f32_t);
-/** @copydoc nk_trig_rope_f32 */
-NUMKONG_API_COMPTIME void nk_trig_rope_bf16_haswell(nk_bf16_t const *, nk_bf16_t *, nk_rope_angle_t const *,
-                                                    nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
-                                                    nk_size_t, nk_f32_t);
-/** @copydoc nk_trig_rope_f32 */
-NUMKONG_API_COMPTIME void nk_trig_rope_e4m3_haswell(nk_e4m3_t const *, nk_e4m3_t *, nk_rope_angle_t const *,
-                                                    nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
-                                                    nk_size_t, nk_f32_t);
+/** @copydoc nk_trig_rope_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_f32_haswell(nk_f32_t const *, nk_f32_t *, nk_rope_angle_t const *,
+                                                          nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t,
+                                                          nk_size_t, nk_size_t, nk_f32_t, void *stream);
+/** @copydoc nk_trig_rope_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_bf16_haswell(nk_bf16_t const *, nk_bf16_t *, nk_rope_angle_t const *,
+                                                           nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t,
+                                                           nk_size_t, nk_size_t, nk_f32_t, void *stream);
+/** @copydoc nk_trig_rope_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_e4m3_haswell(nk_e4m3_t const *, nk_e4m3_t *, nk_rope_angle_t const *,
+                                                           nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t,
+                                                           nk_size_t, nk_size_t, nk_f32_t, void *stream);
 #endif // NUMKONG_TARGET_HASWELL
 #if NUMKONG_TARGET_SKYLAKE
-/** @copydoc nk_trig_rope_f32 */
-NUMKONG_API_COMPTIME void nk_trig_rope_f32_skylake(nk_f32_t const *, nk_f32_t *, nk_rope_angle_t const *,
-                                                   nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
-                                                   nk_size_t, nk_f32_t);
-/** @copydoc nk_trig_rope_f32 */
-NUMKONG_API_COMPTIME void nk_trig_rope_bf16_skylake(nk_bf16_t const *, nk_bf16_t *, nk_rope_angle_t const *,
-                                                    nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
-                                                    nk_size_t, nk_f32_t);
-/** @copydoc nk_trig_rope_f32 */
-NUMKONG_API_COMPTIME void nk_trig_rope_e4m3_skylake(nk_e4m3_t const *, nk_e4m3_t *, nk_rope_angle_t const *,
-                                                    nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
-                                                    nk_size_t, nk_f32_t);
+/** @copydoc nk_trig_rope_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_f32_skylake(nk_f32_t const *, nk_f32_t *, nk_rope_angle_t const *,
+                                                          nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t,
+                                                          nk_size_t, nk_size_t, nk_f32_t, void *stream);
+/** @copydoc nk_trig_rope_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_bf16_skylake(nk_bf16_t const *, nk_bf16_t *, nk_rope_angle_t const *,
+                                                           nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t,
+                                                           nk_size_t, nk_size_t, nk_f32_t, void *stream);
+/** @copydoc nk_trig_rope_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_e4m3_skylake(nk_e4m3_t const *, nk_e4m3_t *, nk_rope_angle_t const *,
+                                                           nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t,
+                                                           nk_size_t, nk_size_t, nk_f32_t, void *stream);
 #endif // NUMKONG_TARGET_SKYLAKE
 
 #if NUMKONG_TARGET_HASWELL
-/** @copydoc nk_trig_sin_f64 */
-NUMKONG_API_COMPTIME void nk_trig_sin_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_trig_cos_f64 */
-NUMKONG_API_COMPTIME void nk_trig_cos_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_trig_atan_f64 */
-NUMKONG_API_COMPTIME void nk_trig_atan_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_trig_sin_f32 */
-NUMKONG_API_COMPTIME void nk_trig_sin_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_trig_cos_f32 */
-NUMKONG_API_COMPTIME void nk_trig_cos_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_trig_atan_f32 */
-NUMKONG_API_COMPTIME void nk_trig_atan_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
+/** @copydoc nk_trig_sin_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
+                                                         void *stream);
+/** @copydoc nk_trig_cos_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
+                                                         void *stream);
+/** @copydoc nk_trig_atan_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
+                                                          void *stream);
+/** @copydoc nk_trig_sin_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
+                                                         void *stream);
+/** @copydoc nk_trig_cos_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
+                                                         void *stream);
+/** @copydoc nk_trig_atan_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
+                                                          void *stream);
 #endif // NUMKONG_TARGET_HASWELL
 
 /*  SIMD-powered backends for various generations of AVX512 CPUs. Skylake is handy, as it supports
  *  masked loads and other operations, avoiding the need for the tail loop. */
 #if NUMKONG_TARGET_SKYLAKE
-/** @copydoc nk_trig_sin_f64 */
-NUMKONG_API_COMPTIME void nk_trig_sin_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_trig_cos_f64 */
-NUMKONG_API_COMPTIME void nk_trig_cos_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_trig_atan_f64 */
-NUMKONG_API_COMPTIME void nk_trig_atan_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_trig_sin_f32 */
-NUMKONG_API_COMPTIME void nk_trig_sin_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_trig_cos_f32 */
-NUMKONG_API_COMPTIME void nk_trig_cos_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_trig_atan_f32 */
-NUMKONG_API_COMPTIME void nk_trig_atan_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_trig_sin_f16 */
-NUMKONG_API_COMPTIME void nk_trig_sin_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
-/** @copydoc nk_trig_cos_f16 */
-NUMKONG_API_COMPTIME void nk_trig_cos_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
-/** @copydoc nk_trig_atan_f16 */
-NUMKONG_API_COMPTIME void nk_trig_atan_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
+/** @copydoc nk_trig_sin_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
+                                                         void *stream);
+/** @copydoc nk_trig_cos_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
+                                                         void *stream);
+/** @copydoc nk_trig_atan_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
+                                                          void *stream);
+/** @copydoc nk_trig_sin_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
+                                                         void *stream);
+/** @copydoc nk_trig_cos_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
+                                                         void *stream);
+/** @copydoc nk_trig_atan_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
+                                                          void *stream);
+/** @copydoc nk_trig_sin_f16_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs,
+                                                         void *stream);
+/** @copydoc nk_trig_cos_f16_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs,
+                                                         void *stream);
+/** @copydoc nk_trig_atan_f16_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs,
+                                                          void *stream);
 #endif // NUMKONG_TARGET_SKYLAKE
 
 #if NUMKONG_TARGET_V128RELAXED
-/** @copydoc nk_trig_sin_f64 */
-NUMKONG_API_COMPTIME void nk_trig_sin_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_trig_cos_f64 */
-NUMKONG_API_COMPTIME void nk_trig_cos_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_trig_atan_f64 */
-NUMKONG_API_COMPTIME void nk_trig_atan_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_trig_sin_f32 */
-NUMKONG_API_COMPTIME void nk_trig_sin_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_trig_cos_f32 */
-NUMKONG_API_COMPTIME void nk_trig_cos_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_trig_atan_f32 */
-NUMKONG_API_COMPTIME void nk_trig_atan_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
+/** @copydoc nk_trig_sin_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
+                                                             void *stream);
+/** @copydoc nk_trig_cos_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
+                                                             void *stream);
+/** @copydoc nk_trig_atan_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
+                                                              void *stream);
+/** @copydoc nk_trig_sin_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
+                                                             void *stream);
+/** @copydoc nk_trig_cos_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
+                                                             void *stream);
+/** @copydoc nk_trig_atan_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
+                                                              void *stream);
 #endif // NUMKONG_TARGET_V128RELAXED
 
 #if NUMKONG_TARGET_RVV
-/** @copydoc nk_trig_sin_f64 */
-NUMKONG_API_COMPTIME void nk_trig_sin_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_trig_cos_f64 */
-NUMKONG_API_COMPTIME void nk_trig_cos_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_trig_atan_f64 */
-NUMKONG_API_COMPTIME void nk_trig_atan_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs);
-/** @copydoc nk_trig_sin_f32 */
-NUMKONG_API_COMPTIME void nk_trig_sin_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_trig_cos_f32 */
-NUMKONG_API_COMPTIME void nk_trig_cos_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_trig_atan_f32 */
-NUMKONG_API_COMPTIME void nk_trig_atan_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs);
-/** @copydoc nk_trig_sin_f16 */
-NUMKONG_API_COMPTIME void nk_trig_sin_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
-/** @copydoc nk_trig_cos_f16 */
-NUMKONG_API_COMPTIME void nk_trig_cos_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
-/** @copydoc nk_trig_atan_f16 */
-NUMKONG_API_COMPTIME void nk_trig_atan_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs);
+/** @copydoc nk_trig_sin_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream);
+/** @copydoc nk_trig_cos_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream);
+/** @copydoc nk_trig_atan_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f64_rvv(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream);
+/** @copydoc nk_trig_sin_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream);
+/** @copydoc nk_trig_cos_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream);
+/** @copydoc nk_trig_atan_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream);
+/** @copydoc nk_trig_sin_f16_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream);
+/** @copydoc nk_trig_cos_f16_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream);
+/** @copydoc nk_trig_atan_f16_best */
+NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream);
 #endif // NUMKONG_TARGET_RVV
 
 #if defined(__cplusplus)
@@ -416,171 +480,402 @@ NUMKONG_API_COMPTIME void nk_trig_atan_f16_rvv(nk_f16_t const *ins, nk_size_t n,
 extern "C" {
 #endif
 
+NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_trig_sin_f64_capabilities_(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_trig_sin_f64_serial,
+#if NUMKONG_TARGET_NEON
+        (nk_kernel_punned_t)&nk_trig_sin_f64_neon,
+#endif
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_trig_sin_f64_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_trig_sin_f64_skylake,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_trig_sin_f64_rvv,
+#endif
+#if NUMKONG_TARGET_V128RELAXED
+        (nk_kernel_punned_t)&nk_trig_sin_f64_v128relaxed,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
+             nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
+             nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
+         cpu},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_trig_cos_f64_capabilities_(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_trig_cos_f64_serial,
+#if NUMKONG_TARGET_NEON
+        (nk_kernel_punned_t)&nk_trig_cos_f64_neon,
+#endif
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_trig_cos_f64_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_trig_cos_f64_skylake,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_trig_cos_f64_rvv,
+#endif
+#if NUMKONG_TARGET_V128RELAXED
+        (nk_kernel_punned_t)&nk_trig_cos_f64_v128relaxed,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
+             nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
+             nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
+         cpu},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_trig_atan_f64_capabilities_(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_trig_atan_f64_serial,
+#if NUMKONG_TARGET_NEON
+        (nk_kernel_punned_t)&nk_trig_atan_f64_neon,
+#endif
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_trig_atan_f64_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_trig_atan_f64_skylake,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_trig_atan_f64_rvv,
+#endif
+#if NUMKONG_TARGET_V128RELAXED
+        (nk_kernel_punned_t)&nk_trig_atan_f64_v128relaxed,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
+             nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
+             nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
+         cpu},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_trig_sin_f32_capabilities_(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_trig_sin_f32_serial,
+#if NUMKONG_TARGET_NEON
+        (nk_kernel_punned_t)&nk_trig_sin_f32_neon,
+#endif
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_trig_sin_f32_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_trig_sin_f32_skylake,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_trig_sin_f32_rvv,
+#endif
+#if NUMKONG_TARGET_V128RELAXED
+        (nk_kernel_punned_t)&nk_trig_sin_f32_v128relaxed,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
+             nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
+             nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
+         cpu},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_trig_cos_f32_capabilities_(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_trig_cos_f32_serial,
+#if NUMKONG_TARGET_NEON
+        (nk_kernel_punned_t)&nk_trig_cos_f32_neon,
+#endif
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_trig_cos_f32_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_trig_cos_f32_skylake,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_trig_cos_f32_rvv,
+#endif
+#if NUMKONG_TARGET_V128RELAXED
+        (nk_kernel_punned_t)&nk_trig_cos_f32_v128relaxed,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
+             nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
+             nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
+         cpu},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_trig_atan_f32_capabilities_(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_trig_atan_f32_serial,
+#if NUMKONG_TARGET_NEON
+        (nk_kernel_punned_t)&nk_trig_atan_f32_neon,
+#endif
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_trig_atan_f32_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_trig_atan_f32_skylake,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_trig_atan_f32_rvv,
+#endif
+#if NUMKONG_TARGET_V128RELAXED
+        (nk_kernel_punned_t)&nk_trig_atan_f32_v128relaxed,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
+             nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
+             nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
+         cpu},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_trig_sin_f16_capabilities_(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_trig_sin_f16_serial,
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_trig_sin_f16_skylake,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_trig_sin_f16_rvv,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV, cpu},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_trig_cos_f16_capabilities_(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_trig_cos_f16_serial,
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_trig_cos_f16_skylake,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_trig_cos_f16_rvv,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV, cpu},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_trig_atan_f16_capabilities_(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_trig_atan_f16_serial,
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_trig_atan_f16_skylake,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_trig_atan_f16_rvv,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV, cpu},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_trig_rope_f32_capabilities_(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_trig_rope_f32_serial,
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_trig_rope_f32_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_trig_rope_f32_skylake,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE, cpu},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_trig_rope_bf16_capabilities_(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_trig_rope_bf16_serial,
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_trig_rope_bf16_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_trig_rope_bf16_skylake,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE, cpu},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_trig_rope_e4m3_capabilities_(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_trig_rope_e4m3_serial,
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_trig_rope_e4m3_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_trig_rope_e4m3_skylake,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE, cpu},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
 #if !NUMKONG_RUNTIME_DISPATCH
 
-NUMKONG_API_COMPTIME void nk_trig_sin_f64(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
-#if NUMKONG_TARGET_NEON
-    nk_trig_sin_f64_neon(ins, n, outs);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_trig_sin_f64_skylake(ins, n, outs);
-#elif NUMKONG_TARGET_HASWELL
-    nk_trig_sin_f64_haswell(ins, n, outs);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_trig_sin_f64_v128relaxed(ins, n, outs);
-#elif NUMKONG_TARGET_RVV
-    nk_trig_sin_f64_rvv(ins, n, outs);
-#else
-    nk_trig_sin_f64_serial(ins, n, outs);
-#endif
+NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f64_best(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
+                                                      nk_capability_t capabilities, void *stream) {
+    nk_kernel_trig_punned_t const kernel = (nk_kernel_trig_punned_t)nk_kernel_pick_(capabilities,
+                                                                                    nk_trig_sin_f64_capabilities_());
+    return kernel ? kernel(ins, n, outs, stream) : nk_missing_kernel_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_cos_f64(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
-#if NUMKONG_TARGET_NEON
-    nk_trig_cos_f64_neon(ins, n, outs);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_trig_cos_f64_skylake(ins, n, outs);
-#elif NUMKONG_TARGET_HASWELL
-    nk_trig_cos_f64_haswell(ins, n, outs);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_trig_cos_f64_v128relaxed(ins, n, outs);
-#elif NUMKONG_TARGET_RVV
-    nk_trig_cos_f64_rvv(ins, n, outs);
-#else
-    nk_trig_cos_f64_serial(ins, n, outs);
-#endif
+NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f64_best(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
+                                                      nk_capability_t capabilities, void *stream) {
+    nk_kernel_trig_punned_t const kernel = (nk_kernel_trig_punned_t)nk_kernel_pick_(capabilities,
+                                                                                    nk_trig_cos_f64_capabilities_());
+    return kernel ? kernel(ins, n, outs, stream) : nk_missing_kernel_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_atan_f64(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
-#if NUMKONG_TARGET_NEON
-    nk_trig_atan_f64_neon(ins, n, outs);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_trig_atan_f64_skylake(ins, n, outs);
-#elif NUMKONG_TARGET_HASWELL
-    nk_trig_atan_f64_haswell(ins, n, outs);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_trig_atan_f64_v128relaxed(ins, n, outs);
-#elif NUMKONG_TARGET_RVV
-    nk_trig_atan_f64_rvv(ins, n, outs);
-#else
-    nk_trig_atan_f64_serial(ins, n, outs);
-#endif
+NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f64_best(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
+                                                       nk_capability_t capabilities, void *stream) {
+    nk_kernel_trig_punned_t const kernel = (nk_kernel_trig_punned_t)nk_kernel_pick_(capabilities,
+                                                                                    nk_trig_atan_f64_capabilities_());
+    return kernel ? kernel(ins, n, outs, stream) : nk_missing_kernel_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_sin_f32(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
-#if NUMKONG_TARGET_NEON
-    nk_trig_sin_f32_neon(ins, n, outs);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_trig_sin_f32_skylake(ins, n, outs);
-#elif NUMKONG_TARGET_HASWELL
-    nk_trig_sin_f32_haswell(ins, n, outs);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_trig_sin_f32_v128relaxed(ins, n, outs);
-#elif NUMKONG_TARGET_RVV
-    nk_trig_sin_f32_rvv(ins, n, outs);
-#else
-    nk_trig_sin_f32_serial(ins, n, outs);
-#endif
+NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f32_best(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
+                                                      nk_capability_t capabilities, void *stream) {
+    nk_kernel_trig_punned_t const kernel = (nk_kernel_trig_punned_t)nk_kernel_pick_(capabilities,
+                                                                                    nk_trig_sin_f32_capabilities_());
+    return kernel ? kernel(ins, n, outs, stream) : nk_missing_kernel_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_cos_f32(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
-#if NUMKONG_TARGET_NEON
-    nk_trig_cos_f32_neon(ins, n, outs);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_trig_cos_f32_skylake(ins, n, outs);
-#elif NUMKONG_TARGET_HASWELL
-    nk_trig_cos_f32_haswell(ins, n, outs);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_trig_cos_f32_v128relaxed(ins, n, outs);
-#elif NUMKONG_TARGET_RVV
-    nk_trig_cos_f32_rvv(ins, n, outs);
-#else
-    nk_trig_cos_f32_serial(ins, n, outs);
-#endif
+NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f32_best(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
+                                                      nk_capability_t capabilities, void *stream) {
+    nk_kernel_trig_punned_t const kernel = (nk_kernel_trig_punned_t)nk_kernel_pick_(capabilities,
+                                                                                    nk_trig_cos_f32_capabilities_());
+    return kernel ? kernel(ins, n, outs, stream) : nk_missing_kernel_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_atan_f32(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
-#if NUMKONG_TARGET_NEON
-    nk_trig_atan_f32_neon(ins, n, outs);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_trig_atan_f32_skylake(ins, n, outs);
-#elif NUMKONG_TARGET_HASWELL
-    nk_trig_atan_f32_haswell(ins, n, outs);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_trig_atan_f32_v128relaxed(ins, n, outs);
-#elif NUMKONG_TARGET_RVV
-    nk_trig_atan_f32_rvv(ins, n, outs);
-#else
-    nk_trig_atan_f32_serial(ins, n, outs);
-#endif
+NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f32_best(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
+                                                       nk_capability_t capabilities, void *stream) {
+    nk_kernel_trig_punned_t const kernel = (nk_kernel_trig_punned_t)nk_kernel_pick_(capabilities,
+                                                                                    nk_trig_atan_f32_capabilities_());
+    return kernel ? kernel(ins, n, outs, stream) : nk_missing_kernel_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_sin_f16(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
-#if NUMKONG_TARGET_SKYLAKE
-    nk_trig_sin_f16_skylake(ins, n, outs);
-#elif NUMKONG_TARGET_RVV
-    nk_trig_sin_f16_rvv(ins, n, outs);
-#else
-    nk_trig_sin_f16_serial(ins, n, outs);
-#endif
+NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f16_best(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs,
+                                                      nk_capability_t capabilities, void *stream) {
+    nk_kernel_trig_punned_t const kernel = (nk_kernel_trig_punned_t)nk_kernel_pick_(capabilities,
+                                                                                    nk_trig_sin_f16_capabilities_());
+    return kernel ? kernel(ins, n, outs, stream) : nk_missing_kernel_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_cos_f16(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
-#if NUMKONG_TARGET_SKYLAKE
-    nk_trig_cos_f16_skylake(ins, n, outs);
-#elif NUMKONG_TARGET_RVV
-    nk_trig_cos_f16_rvv(ins, n, outs);
-#else
-    nk_trig_cos_f16_serial(ins, n, outs);
-#endif
+NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f16_best(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs,
+                                                      nk_capability_t capabilities, void *stream) {
+    nk_kernel_trig_punned_t const kernel = (nk_kernel_trig_punned_t)nk_kernel_pick_(capabilities,
+                                                                                    nk_trig_cos_f16_capabilities_());
+    return kernel ? kernel(ins, n, outs, stream) : nk_missing_kernel_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_atan_f16(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
-#if NUMKONG_TARGET_SKYLAKE
-    nk_trig_atan_f16_skylake(ins, n, outs);
-#elif NUMKONG_TARGET_RVV
-    nk_trig_atan_f16_rvv(ins, n, outs);
-#else
-    nk_trig_atan_f16_serial(ins, n, outs);
-#endif
+NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f16_best(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs,
+                                                       nk_capability_t capabilities, void *stream) {
+    nk_kernel_trig_punned_t const kernel = (nk_kernel_trig_punned_t)nk_kernel_pick_(capabilities,
+                                                                                    nk_trig_atan_f16_capabilities_());
+    return kernel ? kernel(ins, n, outs, stream) : nk_missing_kernel_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_rope_f32(nk_f32_t const *x, nk_f32_t *y, nk_rope_angle_t const *cos,
-                                           nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
-                                           nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,
-                                           nk_f32_t input_scale) {
-#if NUMKONG_TARGET_SKYLAKE
-    nk_trig_rope_f32_skylake(x, y, cos, sin, rows, heads, half_dim, x_row_stride, y_row_stride, input_scale);
-#elif NUMKONG_TARGET_HASWELL
-    nk_trig_rope_f32_haswell(x, y, cos, sin, rows, heads, half_dim, x_row_stride, y_row_stride, input_scale);
-#else
-    nk_trig_rope_f32_serial(x, y, cos, sin, rows, heads, half_dim, x_row_stride, y_row_stride, input_scale);
-#endif
+NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_f32_best(nk_f32_t const *x, nk_f32_t *y, nk_rope_angle_t const *cos,
+                                                       nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
+                                                       nk_size_t half_dim, nk_size_t x_row_stride,
+                                                       nk_size_t y_row_stride, nk_f32_t input_scale,
+                                                       nk_capability_t capabilities, void *stream) {
+    nk_kernel_trig_rope_punned_t const kernel = (nk_kernel_trig_rope_punned_t)nk_kernel_pick_(
+        capabilities, nk_trig_rope_f32_capabilities_());
+    return kernel ? kernel(x, y, cos, sin, rows, heads, half_dim, x_row_stride, y_row_stride, input_scale, stream)
+                  : nk_missing_kernel_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_rope_bf16(nk_bf16_t const *x, nk_bf16_t *y, nk_rope_angle_t const *cos,
-                                            nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
-                                            nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,
-                                            nk_f32_t input_scale) {
-#if NUMKONG_TARGET_SKYLAKE
-    nk_trig_rope_bf16_skylake(x, y, cos, sin, rows, heads, half_dim, x_row_stride, y_row_stride, input_scale);
-#elif NUMKONG_TARGET_HASWELL
-    nk_trig_rope_bf16_haswell(x, y, cos, sin, rows, heads, half_dim, x_row_stride, y_row_stride, input_scale);
-#else
-    nk_trig_rope_bf16_serial(x, y, cos, sin, rows, heads, half_dim, x_row_stride, y_row_stride, input_scale);
-#endif
+NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_bf16_best(nk_bf16_t const *x, nk_bf16_t *y, nk_rope_angle_t const *cos,
+                                                        nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
+                                                        nk_size_t half_dim, nk_size_t x_row_stride,
+                                                        nk_size_t y_row_stride, nk_f32_t input_scale,
+                                                        nk_capability_t capabilities, void *stream) {
+    nk_kernel_trig_rope_punned_t const kernel = (nk_kernel_trig_rope_punned_t)nk_kernel_pick_(
+        capabilities, nk_trig_rope_bf16_capabilities_());
+    return kernel ? kernel(x, y, cos, sin, rows, heads, half_dim, x_row_stride, y_row_stride, input_scale, stream)
+                  : nk_missing_kernel_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_rope_e4m3(nk_e4m3_t const *x, nk_e4m3_t *y, nk_rope_angle_t const *cos,
-                                            nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
-                                            nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,
-                                            nk_f32_t input_scale) {
-#if NUMKONG_TARGET_SKYLAKE
-    nk_trig_rope_e4m3_skylake(x, y, cos, sin, rows, heads, half_dim, x_row_stride, y_row_stride, input_scale);
-#elif NUMKONG_TARGET_HASWELL
-    nk_trig_rope_e4m3_haswell(x, y, cos, sin, rows, heads, half_dim, x_row_stride, y_row_stride, input_scale);
-#else
-    nk_trig_rope_e4m3_serial(x, y, cos, sin, rows, heads, half_dim, x_row_stride, y_row_stride, input_scale);
-#endif
+NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_e4m3_best(nk_e4m3_t const *x, nk_e4m3_t *y, nk_rope_angle_t const *cos,
+                                                        nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
+                                                        nk_size_t half_dim, nk_size_t x_row_stride,
+                                                        nk_size_t y_row_stride, nk_f32_t input_scale,
+                                                        nk_capability_t capabilities, void *stream) {
+    nk_kernel_trig_rope_punned_t const kernel = (nk_kernel_trig_rope_punned_t)nk_kernel_pick_(
+        capabilities, nk_trig_rope_e4m3_capabilities_());
+    return kernel ? kernel(x, y, cos, sin, rows, heads, half_dim, x_row_stride, y_row_stride, input_scale, stream)
+                  : nk_missing_kernel_k;
 }
 
 #endif // !NUMKONG_RUNTIME_DISPATCH

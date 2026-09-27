@@ -30,7 +30,8 @@
 #if NUMKONG_TARGET_SKYLAKE
 
 #include "numkong/types.h"
-#include "numkong/cast/skylake.h" // `nk_load_bf16x16_to_f32x16_skylake_`
+#include "numkong/cast/skylake.h"        // `nk_load_bf16x16_to_f32x16_skylake_`
+#include "numkong/trigonometry/serial.h" // `nk_rope_angle_t`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -223,7 +224,9 @@ NUMKONG_HELPER_INLINE __m512 nk_atan2_f32x16_skylake_(__m512 const ys_inputs, __
     return results_f32x16;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_sin_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
+                                                         void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
         __m512 angles_f32x16 = _mm512_loadu_ps(ins + i);
@@ -236,8 +239,11 @@ NUMKONG_API_COMPTIME void nk_trig_sin_f32_skylake(nk_f32_t const *ins, nk_size_t
         __m512 results_f32x16 = nk_sin_f32x16_skylake_(angles_f32x16);
         _mm512_mask_storeu_ps(outs + i, mask_m16, results_f32x16);
     }
+    return nk_success_k;
 }
-NUMKONG_API_COMPTIME void nk_trig_cos_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
+                                                         void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
         __m512 angles_f32x16 = _mm512_loadu_ps(ins + i);
@@ -250,8 +256,11 @@ NUMKONG_API_COMPTIME void nk_trig_cos_f32_skylake(nk_f32_t const *ins, nk_size_t
         __m512 results_f32x16 = nk_cos_f32x16_skylake_(angles_f32x16);
         _mm512_mask_storeu_ps(outs + i, mask_m16, results_f32x16);
     }
+    return nk_success_k;
 }
-NUMKONG_API_COMPTIME void nk_trig_atan_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
+                                                          void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
         __m512 angles_f32x16 = _mm512_loadu_ps(ins + i);
@@ -264,6 +273,7 @@ NUMKONG_API_COMPTIME void nk_trig_atan_f32_skylake(nk_f32_t const *ins, nk_size_
         __m512 results_f32x16 = nk_atan_f32x16_skylake_(angles_f32x16);
         _mm512_mask_storeu_ps(outs + i, mask_m16, results_f32x16);
     }
+    return nk_success_k;
 }
 
 NUMKONG_HELPER_INLINE __m512d nk_sin_f64x8_skylake_(__m512d const angles_radians) {
@@ -524,7 +534,9 @@ NUMKONG_HELPER_INLINE __m512d nk_atan2_f64x8_skylake_(__m512d const ys_inputs, _
     return results_f64x8;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_sin_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
+                                                         void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
         __m512d angles_f64x8 = _mm512_loadu_pd(ins + i);
@@ -537,8 +549,11 @@ NUMKONG_API_COMPTIME void nk_trig_sin_f64_skylake(nk_f64_t const *ins, nk_size_t
         __m512d results_f64x8 = nk_sin_f64x8_skylake_(angles_f64x8);
         _mm512_mask_storeu_pd(outs + i, mask_m8, results_f64x8);
     }
+    return nk_success_k;
 }
-NUMKONG_API_COMPTIME void nk_trig_cos_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
+                                                         void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
         __m512d angles_f64x8 = _mm512_loadu_pd(ins + i);
@@ -551,8 +566,11 @@ NUMKONG_API_COMPTIME void nk_trig_cos_f64_skylake(nk_f64_t const *ins, nk_size_t
         __m512d results_f64x8 = nk_cos_f64x8_skylake_(angles_f64x8);
         _mm512_mask_storeu_pd(outs + i, mask_m8, results_f64x8);
     }
+    return nk_success_k;
 }
-NUMKONG_API_COMPTIME void nk_trig_atan_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
+                                                          void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
         __m512d angles_f64x8 = _mm512_loadu_pd(ins + i);
@@ -565,6 +583,7 @@ NUMKONG_API_COMPTIME void nk_trig_atan_f64_skylake(nk_f64_t const *ins, nk_size_
         __m512d results_f64x8 = nk_atan_f64x8_skylake_(angles_f64x8);
         _mm512_mask_storeu_pd(outs + i, mask_m8, results_f64x8);
     }
+    return nk_success_k;
 }
 
 /**
@@ -667,7 +686,9 @@ NUMKONG_HELPER_INLINE __m256i nk_atan_f16x16_skylake_(__m256i values_f16x16) {
     return _mm512_cvtps_ph(result_f32x16, _MM_FROUND_TO_NEAREST_INT);
 }
 
-NUMKONG_API_COMPTIME void nk_trig_sin_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs,
+                                                         void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
         __m256i angles_f16x16 = _mm256_loadu_si256((__m256i const *)(ins + i));
@@ -680,9 +701,12 @@ NUMKONG_API_COMPTIME void nk_trig_sin_f16_skylake(nk_f16_t const *ins, nk_size_t
         __m256i result_f16x16 = nk_sin_f16x16_skylake_(angles_f16x16);
         _mm256_mask_storeu_epi16(outs + i, mask_m16, result_f16x16);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_cos_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs,
+                                                         void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
         __m256i angles_f16x16 = _mm256_loadu_si256((__m256i const *)(ins + i));
@@ -695,9 +719,12 @@ NUMKONG_API_COMPTIME void nk_trig_cos_f16_skylake(nk_f16_t const *ins, nk_size_t
         __m256i result_f16x16 = nk_cos_f16x16_skylake_(angles_f16x16);
         _mm256_mask_storeu_epi16(outs + i, mask_m16, result_f16x16);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_atan_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs,
+                                                          void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
         __m256i values_f16x16 = _mm256_loadu_si256((__m256i const *)(ins + i));
@@ -710,12 +737,14 @@ NUMKONG_API_COMPTIME void nk_trig_atan_f16_skylake(nk_f16_t const *ins, nk_size_
         __m256i result_f16x16 = nk_atan_f16x16_skylake_(values_f16x16);
         _mm256_mask_storeu_epi16(outs + i, mask_m16, result_f16x16);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_rope_f32_skylake(nk_f32_t const *x, nk_f32_t *y, nk_rope_angle_t const *cos,
-                                                   nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
-                                                   nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,
-                                                   nk_f32_t input_scale) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_f32_skylake(nk_f32_t const *x, nk_f32_t *y, nk_rope_angle_t const *cos,
+                                                          nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
+                                                          nk_size_t half_dim, nk_size_t x_row_stride,
+                                                          nk_size_t y_row_stride, nk_f32_t input_scale, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m512 scale_f32x16 = _mm512_set1_ps(input_scale);
     for (nk_size_t r = 0; r != rows; ++r) {
         nk_f32_t const *cos_row = cos + r * half_dim;
@@ -749,12 +778,14 @@ NUMKONG_API_COMPTIME void nk_trig_rope_f32_skylake(nk_f32_t const *x, nk_f32_t *
             }
         }
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_rope_bf16_skylake(nk_bf16_t const *x, nk_bf16_t *y, nk_rope_angle_t const *cos,
-                                                    nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
-                                                    nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,
-                                                    nk_f32_t input_scale) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_bf16_skylake(nk_bf16_t const *x, nk_bf16_t *y, nk_rope_angle_t const *cos,
+                                                           nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
+                                                           nk_size_t half_dim, nk_size_t x_row_stride,
+                                                           nk_size_t y_row_stride, nk_f32_t input_scale, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m512 scale_f32x16 = _mm512_set1_ps(input_scale);
     for (nk_size_t r = 0; r != rows; ++r) {
         nk_f32_t const *cos_row = cos + r * half_dim;
@@ -798,12 +829,14 @@ NUMKONG_API_COMPTIME void nk_trig_rope_bf16_skylake(nk_bf16_t const *x, nk_bf16_
             }
         }
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_trig_rope_e4m3_skylake(nk_e4m3_t const *x, nk_e4m3_t *y, nk_rope_angle_t const *cos,
-                                                    nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
-                                                    nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,
-                                                    nk_f32_t input_scale) {
+NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_e4m3_skylake(nk_e4m3_t const *x, nk_e4m3_t *y, nk_rope_angle_t const *cos,
+                                                           nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
+                                                           nk_size_t half_dim, nk_size_t x_row_stride,
+                                                           nk_size_t y_row_stride, nk_f32_t input_scale, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m512 scale_f32x16 = _mm512_set1_ps(input_scale);
     for (nk_size_t r = 0; r != rows; ++r) {
         nk_f32_t const *cos_row = cos + r * half_dim;
@@ -847,6 +880,7 @@ NUMKONG_API_COMPTIME void nk_trig_rope_e4m3_skylake(nk_e4m3_t const *x, nk_e4m3_
             }
         }
     }
+    return nk_success_k;
 }
 
 #if defined(__clang__)

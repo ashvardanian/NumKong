@@ -46,7 +46,9 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NUMKONG_API_COMPTIME void nk_each_sum_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_sum_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
+                                                         nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m512d a_vec, b_vec, sum_vec;
     __mmask8 mask_m8 = 0xFF;
 nk_each_sum_f64_skylake_cycle:
@@ -65,10 +67,12 @@ nk_each_sum_f64_skylake_cycle:
     _mm512_mask_storeu_pd(result, mask_m8, sum_vec);
     result += 8;
     if (n) goto nk_each_sum_f64_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_f64_skylake(nk_f64_t const *a, nk_size_t n, nk_f64_t const *alpha,
-                                                    nk_f64_t const *beta, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_f64_skylake(nk_f64_t const *a, nk_size_t n, nk_f64_t const *alpha,
+                                                           nk_f64_t const *beta, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_val = *alpha;
     nk_f64_t beta_val = *beta;
     __m512d alpha_f64x8 = _mm512_set1_pd(alpha_val);
@@ -89,11 +93,13 @@ nk_each_scale_f64_skylake_cycle:
     _mm512_mask_storeu_pd(result, mask_m8, result_f64x8);
     result += 8;
     if (n) goto nk_each_scale_f64_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_blend_f64_skylake(   //
-    nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, //
-    nk_f64_t const *alpha, nk_f64_t const *beta, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_blend_f64_skylake( //
+    nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,      //
+    nk_f64_t const *alpha, nk_f64_t const *beta, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_val = *alpha;
     nk_f64_t beta_val = *beta;
 
@@ -101,16 +107,15 @@ NUMKONG_API_COMPTIME void nk_each_blend_f64_skylake(   //
     // 1. Simple addition, when both weights are equal to 1.0.
     if (alpha_val == 1 && beta_val == 1) {
         // In this case we can avoid expensive multiplications.
-        nk_each_sum_f64_skylake(a, b, n, result);
-        return;
+        return nk_each_sum_f64_skylake(a, b, n, result, stream);
     }
     // 2. Just scaling, when one of the weights is equal to zero.
     else if (alpha_val == 0 || beta_val == 0) {
         // In this case we can avoid half of the load instructions.
         nk_f64_t zero = 0;
-        if (beta_val == 0) { nk_each_scale_f64_skylake(a, n, alpha, &zero, result); }
-        else { nk_each_scale_f64_skylake(b, n, beta, &zero, result); }
-        return;
+        if (beta_val == 0) { nk_each_scale_f64_skylake(a, n, alpha, &zero, result, stream); }
+        else { nk_each_scale_f64_skylake(b, n, beta, &zero, result, stream); }
+        return nk_success_k;
     }
 
     // The general case.
@@ -135,9 +140,12 @@ nk_each_blend_f64_skylake_cycle:
     _mm512_mask_storeu_pd(result, mask_m8, result_f64x8);
     result += 8;
     if (n) goto nk_each_blend_f64_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_sum_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_sum_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
+                                                         nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m512 a_vec, b_vec, sum_vec;
     __mmask16 mask_m16 = 0xFFFF;
 
@@ -157,10 +165,12 @@ nk_each_sum_f32_skylake_cycle:
     _mm512_mask_storeu_ps(result, mask_m16, sum_vec);
     result += 16;
     if (n) goto nk_each_sum_f32_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_f32_skylake(nk_f32_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                    nk_f32_t const *beta, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_f32_skylake(nk_f32_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                           nk_f32_t const *beta, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
     __m512 alpha_f32x16 = _mm512_set1_ps(alpha_val);
@@ -182,11 +192,13 @@ nk_each_scale_f32_skylake_cycle:
     _mm512_mask_storeu_ps(result, mask_m16, result_f32x16);
     result += 16;
     if (n) goto nk_each_scale_f32_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_blend_f32_skylake(   //
-    nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, //
-    nk_f32_t const *alpha, nk_f32_t const *beta, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_blend_f32_skylake( //
+    nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,      //
+    nk_f32_t const *alpha, nk_f32_t const *beta, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
 
@@ -194,16 +206,15 @@ NUMKONG_API_COMPTIME void nk_each_blend_f32_skylake(   //
     // 1. Simple addition, when both weights are equal to 1.0.
     if (alpha_val == 1 && beta_val == 1) {
         // In this case we can avoid expensive multiplications.
-        nk_each_sum_f32_skylake(a, b, n, result);
-        return;
+        return nk_each_sum_f32_skylake(a, b, n, result, stream);
     }
     // 2. Just scaling, when one of the weights is equal to zero.
     else if (alpha_val == 0 || beta_val == 0) {
         // In this case we can avoid half of the load instructions.
         nk_f32_t zero = 0;
-        if (beta_val == 0) { nk_each_scale_f32_skylake(a, n, alpha, &zero, result); }
-        else { nk_each_scale_f32_skylake(b, n, beta, &zero, result); }
-        return;
+        if (beta_val == 0) { nk_each_scale_f32_skylake(a, n, alpha, &zero, result, stream); }
+        else { nk_each_scale_f32_skylake(b, n, beta, &zero, result, stream); }
+        return nk_success_k;
     }
 
     // The general case.
@@ -228,10 +239,12 @@ nk_each_blend_f32_skylake_cycle:
     _mm512_mask_storeu_ps(result, mask_m16, result_f32x16);
     result += 16;
     if (n) goto nk_each_blend_f32_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_sum_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                   nk_bf16_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_sum_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                          nk_bf16_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256i a_bf16_vec, b_bf16_vec, sum_bf16_vec;
     __m512 a_vec, b_vec, sum_vec;
     __mmask16 mask_m16 = 0xFFFF;
@@ -254,10 +267,12 @@ nk_each_sum_bf16_skylake_cycle:
     _mm256_mask_storeu_epi16(result, mask_m16, sum_bf16_vec);
     result += 16;
     if (n) goto nk_each_sum_bf16_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_bf16_skylake(nk_bf16_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                     nk_f32_t const *beta, nk_bf16_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_bf16_skylake(nk_bf16_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                            nk_f32_t const *beta, nk_bf16_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
     __m512 alpha_f32x16 = _mm512_set1_ps(alpha_val);
@@ -281,11 +296,13 @@ nk_each_scale_bf16_skylake_cycle:
     _mm256_mask_storeu_epi16(result, mask_m16, result_bf16x16);
     result += 16;
     if (n) goto nk_each_scale_bf16_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_blend_bf16_skylake(    //
-    nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, //
-    nk_f32_t const *alpha, nk_f32_t const *beta, nk_bf16_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_blend_bf16_skylake( //
+    nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,     //
+    nk_f32_t const *alpha, nk_f32_t const *beta, nk_bf16_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
 
@@ -293,16 +310,15 @@ NUMKONG_API_COMPTIME void nk_each_blend_bf16_skylake(    //
     // 1. Simple addition, when both weights are equal to 1.0.
     if (alpha_val == 1 && beta_val == 1) {
         // In this case we can avoid expensive multiplications.
-        nk_each_sum_bf16_skylake(a, b, n, result);
-        return;
+        return nk_each_sum_bf16_skylake(a, b, n, result, stream);
     }
     // 2. Just scaling, when one of the weights is equal to zero.
     else if (alpha_val == 0 || beta_val == 0) {
         // In this case we can avoid half of the load instructions.
         nk_f32_t zero = 0;
-        if (beta_val == 0) { nk_each_scale_bf16_skylake(a, n, alpha, &zero, result); }
-        else { nk_each_scale_bf16_skylake(b, n, beta, &zero, result); }
-        return;
+        if (beta_val == 0) { nk_each_scale_bf16_skylake(a, n, alpha, &zero, result, stream); }
+        else { nk_each_scale_bf16_skylake(b, n, beta, &zero, result, stream); }
+        return nk_success_k;
     }
 
     // The general case.
@@ -331,11 +347,13 @@ nk_each_blend_bf16_skylake_cycle:
     _mm256_mask_storeu_epi16(result, mask_m16, result_bf16x16);
     result += 16;
     if (n) goto nk_each_blend_bf16_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_f64_skylake(                        //
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_f64_skylake(                 //
     nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n, //
-    nk_f64_t const *alpha, nk_f64_t const *beta, nk_f64_t *result) {
+    nk_f64_t const *alpha, nk_f64_t const *beta, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_val = *alpha;
     nk_f64_t beta_val = *beta;
     __m512d alpha_f64x8 = _mm512_set1_pd(alpha_val);
@@ -362,11 +380,13 @@ nk_each_fma_f64_skylake_cycle:
     _mm512_mask_storeu_pd(result, mask_m8, result_f64x8);
     result += 8;
     if (n) goto nk_each_fma_f64_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_f32_skylake(                        //
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_f32_skylake(                 //
     nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n, //
-    nk_f32_t const *alpha, nk_f32_t const *beta, nk_f32_t *result) {
+    nk_f32_t const *alpha, nk_f32_t const *beta, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
     __m512 alpha_f32x16 = _mm512_set1_ps(alpha_val);
@@ -393,11 +413,13 @@ nk_each_fma_f32_skylake_cycle:
     _mm512_mask_storeu_ps(result, mask_m16, result_f32x16);
     result += 16;
     if (n) goto nk_each_fma_f32_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_bf16_skylake(                          //
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_bf16_skylake(                   //
     nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n, //
-    nk_f32_t const *alpha, nk_f32_t const *beta, nk_bf16_t *result) {
+    nk_f32_t const *alpha, nk_f32_t const *beta, nk_bf16_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
     __m512 alpha_f32x16 = _mm512_set1_ps(alpha_val);
@@ -429,10 +451,12 @@ nk_each_fma_bf16_skylake_cycle:
     _mm256_mask_storeu_epi16(result, mask_m16, result_bf16x16);
     result += 16;
     if (n) goto nk_each_fma_bf16_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_i8_skylake(nk_i8_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                   nk_f32_t const *beta, nk_i8_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_i8_skylake(nk_i8_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                          nk_f32_t const *beta, nk_i8_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
     __m512 alpha_f32x16 = _mm512_set1_ps(alpha_val);
@@ -464,10 +488,13 @@ nk_each_scale_i8_skylake_cycle:
     _mm_mask_storeu_epi8(result, mask_m16, result_i8x16);
     result += 16;
     if (n) goto nk_each_scale_i8_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_blend_i8_skylake(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n,
-                                                   nk_f32_t const *alpha, nk_f32_t const *beta, nk_i8_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_blend_i8_skylake(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n,
+                                                          nk_f32_t const *alpha, nk_f32_t const *beta, nk_i8_t *result,
+                                                          void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
     __m512 alpha_f32x16 = _mm512_set1_ps(alpha_val);
@@ -503,11 +530,13 @@ nk_each_blend_i8_skylake_cycle:
     _mm_mask_storeu_epi8(result, mask_m16, result_i8x16);
     result += 16;
     if (n) goto nk_each_blend_i8_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_i8_skylake(                      //
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_i8_skylake(               //
     nk_i8_t const *a, nk_i8_t const *b, nk_i8_t const *c, nk_size_t n, //
-    nk_f32_t const *alpha, nk_f32_t const *beta, nk_i8_t *result) {
+    nk_f32_t const *alpha, nk_f32_t const *beta, nk_i8_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
     __m512 alpha_f32x16 = _mm512_set1_ps(alpha_val);
@@ -547,10 +576,12 @@ nk_each_fma_i8_skylake_cycle:
     _mm_mask_storeu_epi8(result, mask_m16, result_i8x16);
     result += 16;
     if (n) goto nk_each_fma_i8_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_u8_skylake(nk_u8_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                   nk_f32_t const *beta, nk_u8_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_u8_skylake(nk_u8_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                          nk_f32_t const *beta, nk_u8_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
     __m512 alpha_f32x16 = _mm512_set1_ps(alpha_val);
@@ -581,10 +612,13 @@ nk_each_scale_u8_skylake_cycle:
     _mm_mask_storeu_epi8(result, mask_m16, result_u8x16);
     result += 16;
     if (n) goto nk_each_scale_u8_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_blend_u8_skylake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
-                                                   nk_f32_t const *alpha, nk_f32_t const *beta, nk_u8_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_blend_u8_skylake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
+                                                          nk_f32_t const *alpha, nk_f32_t const *beta, nk_u8_t *result,
+                                                          void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
     __m512 alpha_f32x16 = _mm512_set1_ps(alpha_val);
@@ -619,11 +653,13 @@ nk_each_blend_u8_skylake_cycle:
     _mm_mask_storeu_epi8(result, mask_m16, result_u8x16);
     result += 16;
     if (n) goto nk_each_blend_u8_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_u8_skylake(                      //
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_u8_skylake(               //
     nk_u8_t const *a, nk_u8_t const *b, nk_u8_t const *c, nk_size_t n, //
-    nk_f32_t const *alpha, nk_f32_t const *beta, nk_u8_t *result) {
+    nk_f32_t const *alpha, nk_f32_t const *beta, nk_u8_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
     __m512 alpha_f32x16 = _mm512_set1_ps(alpha_val);
@@ -662,10 +698,12 @@ nk_each_fma_u8_skylake_cycle:
     _mm_mask_storeu_epi8(result, mask_m16, result_u8x16);
     result += 16;
     if (n) goto nk_each_fma_u8_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_i16_skylake(nk_i16_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                    nk_f32_t const *beta, nk_i16_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_i16_skylake(nk_i16_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                           nk_f32_t const *beta, nk_i16_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_f32 = *alpha;
     nk_f32_t beta_f32 = *beta;
     __m512 alpha_f32x16 = _mm512_set1_ps(alpha_f32);
@@ -697,11 +735,13 @@ nk_each_scale_i16_skylake_cycle:
     _mm256_mask_storeu_epi16(result, mask_m16, result_i16x16);
     result += 16;
     if (n) goto nk_each_scale_i16_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_i16_skylake(                        //
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_i16_skylake(                 //
     nk_i16_t const *a, nk_i16_t const *b, nk_i16_t const *c, nk_size_t n, //
-    nk_f32_t const *alpha, nk_f32_t const *beta, nk_i16_t *result) {
+    nk_f32_t const *alpha, nk_f32_t const *beta, nk_i16_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_f32 = *alpha;
     nk_f32_t beta_f32 = *beta;
     __m512 alpha_f32x16 = _mm512_set1_ps(alpha_f32);
@@ -741,10 +781,12 @@ nk_each_fma_i16_skylake_cycle:
     _mm256_mask_storeu_epi16(result, mask_m16, result_i16x16);
     result += 16;
     if (n) goto nk_each_fma_i16_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_u16_skylake(nk_u16_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                    nk_f32_t const *beta, nk_u16_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_u16_skylake(nk_u16_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                           nk_f32_t const *beta, nk_u16_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_f32 = *alpha;
     nk_f32_t beta_f32 = *beta;
     __m512 alpha_f32x16 = _mm512_set1_ps(alpha_f32);
@@ -775,11 +817,13 @@ nk_each_scale_u16_skylake_cycle:
     _mm256_mask_storeu_epi16(result, mask_m16, result_u16x16);
     result += 16;
     if (n) goto nk_each_scale_u16_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_u16_skylake(                        //
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_u16_skylake(                 //
     nk_u16_t const *a, nk_u16_t const *b, nk_u16_t const *c, nk_size_t n, //
-    nk_f32_t const *alpha, nk_f32_t const *beta, nk_u16_t *result) {
+    nk_f32_t const *alpha, nk_f32_t const *beta, nk_u16_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_f32 = *alpha;
     nk_f32_t beta_f32 = *beta;
     __m512 alpha_f32x16 = _mm512_set1_ps(alpha_f32);
@@ -818,10 +862,12 @@ nk_each_fma_u16_skylake_cycle:
     _mm256_mask_storeu_epi16(result, mask_m16, result_u16x16);
     result += 16;
     if (n) goto nk_each_fma_u16_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_i32_skylake(nk_i32_t const *a, nk_size_t n, nk_f64_t const *alpha,
-                                                    nk_f64_t const *beta, nk_i32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_i32_skylake(nk_i32_t const *a, nk_size_t n, nk_f64_t const *alpha,
+                                                           nk_f64_t const *beta, nk_i32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_val = *alpha;
     nk_f64_t beta_val = *beta;
     __m512d alpha_f64x8 = _mm512_set1_pd(alpha_val);
@@ -851,11 +897,13 @@ nk_each_scale_i32_skylake_cycle:
     _mm256_mask_storeu_epi32(result, mask_m8, result_i32x8);
     result += 8;
     if (n) goto nk_each_scale_i32_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_i32_skylake(                        //
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_i32_skylake(                 //
     nk_i32_t const *a, nk_i32_t const *b, nk_i32_t const *c, nk_size_t n, //
-    nk_f64_t const *alpha, nk_f64_t const *beta, nk_i32_t *result) {
+    nk_f64_t const *alpha, nk_f64_t const *beta, nk_i32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_val = *alpha;
     nk_f64_t beta_val = *beta;
     __m512d alpha_f64x8 = _mm512_set1_pd(alpha_val);
@@ -893,10 +941,12 @@ nk_each_fma_i32_skylake_cycle:
     _mm256_mask_storeu_epi32(result, mask_m8, result_i32x8);
     result += 8;
     if (n) goto nk_each_fma_i32_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_u32_skylake(nk_u32_t const *a, nk_size_t n, nk_f64_t const *alpha,
-                                                    nk_f64_t const *beta, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_u32_skylake(nk_u32_t const *a, nk_size_t n, nk_f64_t const *alpha,
+                                                           nk_f64_t const *beta, nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_val = *alpha;
     nk_f64_t beta_val = *beta;
     __m512d alpha_f64x8 = _mm512_set1_pd(alpha_val);
@@ -925,11 +975,13 @@ nk_each_scale_u32_skylake_cycle:
     _mm256_mask_storeu_epi32(result, mask_m8, result_u32x8);
     result += 8;
     if (n) goto nk_each_scale_u32_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_u32_skylake(                        //
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_u32_skylake(                 //
     nk_u32_t const *a, nk_u32_t const *b, nk_u32_t const *c, nk_size_t n, //
-    nk_f64_t const *alpha, nk_f64_t const *beta, nk_u32_t *result) {
+    nk_f64_t const *alpha, nk_f64_t const *beta, nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_val = *alpha;
     nk_f64_t beta_val = *beta;
     __m512d alpha_f64x8 = _mm512_set1_pd(alpha_val);
@@ -966,10 +1018,12 @@ nk_each_fma_u32_skylake_cycle:
     _mm256_mask_storeu_epi32(result, mask_m8, result_u32x8);
     result += 8;
     if (n) goto nk_each_fma_u32_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_i64_skylake(nk_i64_t const *a, nk_size_t n, nk_f64_t const *alpha,
-                                                    nk_f64_t const *beta, nk_i64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_i64_skylake(nk_i64_t const *a, nk_size_t n, nk_f64_t const *alpha,
+                                                           nk_f64_t const *beta, nk_i64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_val = *alpha;
     nk_f64_t beta_val = *beta;
     __m512d alpha_f64x8 = _mm512_set1_pd(alpha_val);
@@ -999,11 +1053,13 @@ nk_each_scale_i64_skylake_cycle:
     _mm512_mask_storeu_epi64(result, mask_m8, result_i64x8);
     result += 8;
     if (n) goto nk_each_scale_i64_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_i64_skylake(                        //
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_i64_skylake(                 //
     nk_i64_t const *a, nk_i64_t const *b, nk_i64_t const *c, nk_size_t n, //
-    nk_f64_t const *alpha, nk_f64_t const *beta, nk_i64_t *result) {
+    nk_f64_t const *alpha, nk_f64_t const *beta, nk_i64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_val = *alpha;
     nk_f64_t beta_val = *beta;
     __m512d alpha_f64x8 = _mm512_set1_pd(alpha_val);
@@ -1039,10 +1095,12 @@ nk_each_fma_i64_skylake_cycle:
     _mm512_mask_storeu_epi64(result, mask_m8, result_i64x8);
     result += 8;
     if (n) goto nk_each_fma_i64_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_u64_skylake(nk_u64_t const *a, nk_size_t n, nk_f64_t const *alpha,
-                                                    nk_f64_t const *beta, nk_u64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_u64_skylake(nk_u64_t const *a, nk_size_t n, nk_f64_t const *alpha,
+                                                           nk_f64_t const *beta, nk_u64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_val = *alpha;
     nk_f64_t beta_val = *beta;
     __m512d alpha_f64x8 = _mm512_set1_pd(alpha_val);
@@ -1069,11 +1127,13 @@ nk_each_scale_u64_skylake_cycle:
     _mm512_mask_storeu_epi64(result, mask_m8, result_u64x8);
     result += 8;
     if (n) goto nk_each_scale_u64_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_u64_skylake(                        //
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_u64_skylake(                 //
     nk_u64_t const *a, nk_u64_t const *b, nk_u64_t const *c, nk_size_t n, //
-    nk_f64_t const *alpha, nk_f64_t const *beta, nk_u64_t *result) {
+    nk_f64_t const *alpha, nk_f64_t const *beta, nk_u64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_val = *alpha;
     nk_f64_t beta_val = *beta;
     __m512d alpha_f64x8 = _mm512_set1_pd(alpha_val);
@@ -1106,10 +1166,12 @@ nk_each_fma_u64_skylake_cycle:
     _mm512_mask_storeu_epi64(result, mask_m8, result_u64x8);
     result += 8;
     if (n) goto nk_each_fma_u64_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_sum_e4m3_skylake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
-                                                   nk_e4m3_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_sum_e4m3_skylake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                          nk_e4m3_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m128i a_e4m3x16, b_e4m3x16, result_e4m3x16;
     __m512 a_f32x16, b_f32x16, result_f32x16;
     __mmask16 mask_m16 = 0xFFFF;
@@ -1132,10 +1194,12 @@ nk_each_sum_e4m3_skylake_cycle:
     _mm_mask_storeu_epi8(result, mask_m16, result_e4m3x16);
     result += 16;
     if (n) goto nk_each_sum_e4m3_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_sum_e5m2_skylake(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
-                                                   nk_e5m2_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_sum_e5m2_skylake(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                          nk_e5m2_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m128i a_e5m2x16, b_e5m2x16, result_e5m2x16;
     __m512 a_f32x16, b_f32x16, result_f32x16;
     __mmask16 mask_m16 = 0xFFFF;
@@ -1158,10 +1222,12 @@ nk_each_sum_e5m2_skylake_cycle:
     _mm_mask_storeu_epi8(result, mask_m16, result_e5m2x16);
     result += 16;
     if (n) goto nk_each_sum_e5m2_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_e4m3_skylake(nk_e4m3_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                     nk_f32_t const *beta, nk_e4m3_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_e4m3_skylake(nk_e4m3_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                            nk_f32_t const *beta, nk_e4m3_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m512 alpha_f32x16 = _mm512_set1_ps(*alpha);
     __m512 beta_f32x16 = _mm512_set1_ps(*beta);
     __m128i a_e4m3x16, result_e4m3x16;
@@ -1185,10 +1251,12 @@ nk_each_scale_e4m3_skylake_cycle:
     _mm_mask_storeu_epi8(result, mask_m16, result_e4m3x16);
     result += 16;
     if (n) goto nk_each_scale_e4m3_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_e5m2_skylake(nk_e5m2_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                     nk_f32_t const *beta, nk_e5m2_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_e5m2_skylake(nk_e5m2_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                            nk_f32_t const *beta, nk_e5m2_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m512 alpha_f32x16 = _mm512_set1_ps(*alpha);
     __m512 beta_f32x16 = _mm512_set1_ps(*beta);
     __m128i a_e5m2x16, result_e5m2x16;
@@ -1212,10 +1280,13 @@ nk_each_scale_e5m2_skylake_cycle:
     _mm_mask_storeu_epi8(result, mask_m16, result_e5m2x16);
     result += 16;
     if (n) goto nk_each_scale_e5m2_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_blend_e4m3_skylake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
-                                                     nk_f32_t const *alpha, nk_f32_t const *beta, nk_e4m3_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_blend_e4m3_skylake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                            nk_f32_t const *alpha, nk_f32_t const *beta,
+                                                            nk_e4m3_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m512 alpha_f32x16 = _mm512_set1_ps(*alpha);
     __m512 beta_f32x16 = _mm512_set1_ps(*beta);
     __m128i a_e4m3x16, b_e4m3x16, result_e4m3x16;
@@ -1241,10 +1312,13 @@ nk_each_blend_e4m3_skylake_cycle:
     _mm_mask_storeu_epi8(result, mask_m16, result_e4m3x16);
     result += 16;
     if (n) goto nk_each_blend_e4m3_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_blend_e5m2_skylake(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
-                                                     nk_f32_t const *alpha, nk_f32_t const *beta, nk_e5m2_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_blend_e5m2_skylake(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                            nk_f32_t const *alpha, nk_f32_t const *beta,
+                                                            nk_e5m2_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m512 alpha_f32x16 = _mm512_set1_ps(*alpha);
     __m512 beta_f32x16 = _mm512_set1_ps(*beta);
     __m128i a_e5m2x16, b_e5m2x16, result_e5m2x16;
@@ -1270,11 +1344,13 @@ nk_each_blend_e5m2_skylake_cycle:
     _mm_mask_storeu_epi8(result, mask_m16, result_e5m2x16);
     result += 16;
     if (n) goto nk_each_blend_e5m2_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_e4m3_skylake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_e4m3_t const *c,
-                                                   nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
-                                                   nk_e4m3_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_e4m3_skylake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_e4m3_t const *c,
+                                                          nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
+                                                          nk_e4m3_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m512 alpha_f32x16 = _mm512_set1_ps(*alpha);
     __m512 beta_f32x16 = _mm512_set1_ps(*beta);
     __m128i a_e4m3x16, b_e4m3x16, c_e4m3x16, result_e4m3x16;
@@ -1307,11 +1383,13 @@ nk_each_fma_e4m3_skylake_cycle:
     _mm_mask_storeu_epi8(result, mask_m16, result_e4m3x16);
     result += 16;
     if (n) goto nk_each_fma_e4m3_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_e5m2_skylake(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_e5m2_t const *c,
-                                                   nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
-                                                   nk_e5m2_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_e5m2_skylake(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_e5m2_t const *c,
+                                                          nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
+                                                          nk_e5m2_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m512 alpha_f32x16 = _mm512_set1_ps(*alpha);
     __m512 beta_f32x16 = _mm512_set1_ps(*beta);
     __m128i a_e5m2x16, b_e5m2x16, c_e5m2x16, result_e5m2x16;
@@ -1344,10 +1422,12 @@ nk_each_fma_e5m2_skylake_cycle:
     _mm_mask_storeu_epi8(result, mask_m16, result_e5m2x16);
     result += 16;
     if (n) goto nk_each_fma_e5m2_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_f32c_skylake(nk_f32c_t const *a, nk_size_t n, nk_f32c_t const *alpha,
-                                                     nk_f32c_t const *beta, nk_f32c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_f32c_skylake(nk_f32c_t const *a, nk_size_t n, nk_f32c_t const *alpha,
+                                                            nk_f32c_t const *beta, nk_f32c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t const *a_f32 = (nk_f32_t const *)a;
     nk_f32_t *result_f32 = (nk_f32_t *)result;
     __m512 alpha_real_f32x16 = _mm512_set1_ps(alpha->real);
@@ -1369,10 +1449,12 @@ NUMKONG_API_COMPTIME void nk_each_scale_f32c_skylake(nk_f32c_t const *a, nk_size
         result[i].real = alpha->real * a_real - alpha->imag * a_imag + beta->real;
         result[i].imag = alpha->real * a_imag + alpha->imag * a_real + beta->imag;
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_f64c_skylake(nk_f64c_t const *a, nk_size_t n, nk_f64c_t const *alpha,
-                                                     nk_f64c_t const *beta, nk_f64c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_f64c_skylake(nk_f64c_t const *a, nk_size_t n, nk_f64c_t const *alpha,
+                                                            nk_f64c_t const *beta, nk_f64c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t const *a_f64 = (nk_f64_t const *)a;
     nk_f64_t *result_f64 = (nk_f64_t *)result;
     __m512d alpha_real_f64x8 = _mm512_set1_pd(alpha->real);
@@ -1393,10 +1475,13 @@ NUMKONG_API_COMPTIME void nk_each_scale_f64c_skylake(nk_f64c_t const *a, nk_size
         result[i].real = alpha->real * a_real - alpha->imag * a_imag + beta->real;
         result[i].imag = alpha->real * a_imag + alpha->imag * a_real + beta->imag;
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_blend_f32c_skylake(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n,
-                                                     nk_f32c_t const *alpha, nk_f32c_t const *beta, nk_f32c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_blend_f32c_skylake(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n,
+                                                            nk_f32c_t const *alpha, nk_f32c_t const *beta,
+                                                            nk_f32c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t const *a_f32 = (nk_f32_t const *)a;
     nk_f32_t const *b_f32 = (nk_f32_t const *)b;
     nk_f32_t *result_f32 = (nk_f32_t *)result;
@@ -1426,10 +1511,13 @@ NUMKONG_API_COMPTIME void nk_each_blend_f32c_skylake(nk_f32c_t const *a, nk_f32c
         result[i].real = ar + br;
         result[i].imag = ai + bi;
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_blend_f64c_skylake(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n,
-                                                     nk_f64c_t const *alpha, nk_f64c_t const *beta, nk_f64c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_blend_f64c_skylake(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n,
+                                                            nk_f64c_t const *alpha, nk_f64c_t const *beta,
+                                                            nk_f64c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t const *a_f64 = (nk_f64_t const *)a;
     nk_f64_t const *b_f64 = (nk_f64_t const *)b;
     nk_f64_t *result_f64 = (nk_f64_t *)result;
@@ -1459,11 +1547,13 @@ NUMKONG_API_COMPTIME void nk_each_blend_f64c_skylake(nk_f64c_t const *a, nk_f64c
         result[i].real = ar + br;
         result[i].imag = ai + bi;
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_f32c_skylake(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c,
-                                                   nk_size_t n, nk_f32c_t const *alpha, nk_f32c_t const *beta,
-                                                   nk_f32c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_f32c_skylake(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c,
+                                                          nk_size_t n, nk_f32c_t const *alpha, nk_f32c_t const *beta,
+                                                          nk_f32c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t const *a_f32 = (nk_f32_t const *)a;
     nk_f32_t const *b_f32 = (nk_f32_t const *)b;
     nk_f32_t const *c_f32 = (nk_f32_t const *)c;
@@ -1503,11 +1593,13 @@ NUMKONG_API_COMPTIME void nk_each_fma_f32c_skylake(nk_f32c_t const *a, nk_f32c_t
         result[i].real = aab_real + bc_real;
         result[i].imag = aab_imag + bc_imag;
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_f64c_skylake(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c,
-                                                   nk_size_t n, nk_f64c_t const *alpha, nk_f64c_t const *beta,
-                                                   nk_f64c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_f64c_skylake(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c,
+                                                          nk_size_t n, nk_f64c_t const *alpha, nk_f64c_t const *beta,
+                                                          nk_f64c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t const *a_f64 = (nk_f64_t const *)a;
     nk_f64_t const *b_f64 = (nk_f64_t const *)b;
     nk_f64_t const *c_f64 = (nk_f64_t const *)c;
@@ -1547,10 +1639,12 @@ NUMKONG_API_COMPTIME void nk_each_fma_f64c_skylake(nk_f64c_t const *a, nk_f64c_t
         result[i].real = aab_real + bc_real;
         result[i].imag = aab_imag + bc_imag;
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_f16_skylake(nk_f16_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                    nk_f32_t const *beta, nk_f16_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_f16_skylake(nk_f16_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                           nk_f32_t const *beta, nk_f16_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m512 alpha_f32x16 = _mm512_set1_ps(*alpha);
     __m512 beta_f32x16 = _mm512_set1_ps(*beta);
     __m512 a_f32x16;
@@ -1569,11 +1663,13 @@ nk_each_scale_f16_skylake_cycle:
         a += 16, result += 16, n -= 16;
     }
     if (n) goto nk_each_scale_f16_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_blend_f16_skylake(   //
-    nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, //
-    nk_f32_t const *alpha, nk_f32_t const *beta, nk_f16_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_blend_f16_skylake( //
+    nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,      //
+    nk_f32_t const *alpha, nk_f32_t const *beta, nk_f16_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
@@ -1582,16 +1678,15 @@ NUMKONG_API_COMPTIME void nk_each_blend_f16_skylake(   //
     // 1. Simple addition, when both weights are equal to 1.0.
     if (alpha_val == 1 && beta_val == 1) {
         // In this case we can avoid expensive multiplications.
-        nk_each_sum_f16_haswell(a, b, n, result);
-        return;
+        return nk_each_sum_f16_haswell(a, b, n, result, stream);
     }
     // 2. Just scaling, when one of the weights is equal to zero.
     else if (alpha_val == 0 || beta_val == 0) {
         // In this case we can avoid half of the load instructions.
         nk_f32_t zero = 0;
-        if (beta_val == 0) { nk_each_scale_f16_skylake(a, n, alpha, &zero, result); }
-        else { nk_each_scale_f16_skylake(b, n, beta, &zero, result); }
-        return;
+        if (beta_val == 0) { nk_each_scale_f16_skylake(a, n, alpha, &zero, result, stream); }
+        else { nk_each_scale_f16_skylake(b, n, beta, &zero, result, stream); }
+        return nk_success_k;
     }
 
     // The general case: compute in f32 for precision (f16 products overflow at 127x127=16129)
@@ -1617,11 +1712,13 @@ nk_each_blend_f16_skylake_cycle:
         a += 16, b += 16, result += 16, n -= 16;
     }
     if (n) goto nk_each_blend_f16_skylake_cycle;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_f16_skylake(                        //
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_f16_skylake(                 //
     nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n, //
-    nk_f32_t const *alpha, nk_f32_t const *beta, nk_f16_t *result) {
+    nk_f32_t const *alpha, nk_f32_t const *beta, nk_f16_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     // Compute in f32 for precision (f16 products overflow at 127x127=16129)
     __m512 alpha_f32x16 = _mm512_set1_ps(*alpha);
@@ -1650,6 +1747,7 @@ nk_each_fma_f16_skylake_cycle:
         a += 16, b += 16, c += 16, result += 16, n -= 16;
     }
     if (n) goto nk_each_fma_f16_skylake_cycle;
+    return nk_success_k;
 }
 
 /** Vectorized `2^x` (Skylake AVX-512); matches @c nk_f32_exp2_serial_ to polynomial precision. */
@@ -1693,10 +1791,11 @@ NUMKONG_HELPER_INLINE __m512 nk_silu_f32x16_skylake_(__m512 x_f32x16) {
     return _mm512_div_ps(x_f32x16, _mm512_add_ps(_mm512_set1_ps(1.0f), e_f32x16));
 }
 
-NUMKONG_API_COMPTIME void nk_each_swiglu_f32_skylake(nk_f32_t const *gate, nk_f32_t const *up, nk_f32_t *y,
-                                                     nk_size_t rows, nk_size_t cols, nk_size_t gate_row_stride,
-                                                     nk_size_t up_row_stride, nk_size_t y_row_stride,
-                                                     nk_f32_t input_scale) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_swiglu_f32_skylake(nk_f32_t const *gate, nk_f32_t const *up, nk_f32_t *y,
+                                                            nk_size_t rows, nk_size_t cols, nk_size_t gate_row_stride,
+                                                            nk_size_t up_row_stride, nk_size_t y_row_stride,
+                                                            nk_f32_t input_scale, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m512 scale_f32x16 = _mm512_set1_ps(input_scale);
     for (nk_size_t row = 0; row != rows; ++row) {
         nk_f32_t const *gate_row = (nk_f32_t const *)((unsigned char const *)gate + row * gate_row_stride);
@@ -1722,12 +1821,14 @@ NUMKONG_API_COMPTIME void nk_each_swiglu_f32_skylake(nk_f32_t const *gate, nk_f3
             _mm512_mask_storeu_ps(y_row + col, mask_m16, result_f32x16);
         }
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_swiglu_bf16_skylake(nk_bf16_t const *gate, nk_bf16_t const *up, nk_bf16_t *y,
-                                                      nk_size_t rows, nk_size_t cols, nk_size_t gate_row_stride,
-                                                      nk_size_t up_row_stride, nk_size_t y_row_stride,
-                                                      nk_f32_t input_scale) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_swiglu_bf16_skylake(nk_bf16_t const *gate, nk_bf16_t const *up, nk_bf16_t *y,
+                                                             nk_size_t rows, nk_size_t cols, nk_size_t gate_row_stride,
+                                                             nk_size_t up_row_stride, nk_size_t y_row_stride,
+                                                             nk_f32_t input_scale, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m512 scale_f32x16 = _mm512_set1_ps(input_scale);
     for (nk_size_t row = 0; row != rows; ++row) {
         nk_bf16_t const *gate_row = (nk_bf16_t const *)((unsigned char const *)gate + row * gate_row_stride);
@@ -1760,12 +1861,14 @@ NUMKONG_API_COMPTIME void nk_each_swiglu_bf16_skylake(nk_bf16_t const *gate, nk_
             _mm256_mask_storeu_epi16((void *)(y_row + col), mask_m16, nk_f32x16_to_bf16x16_skylake_(result_f32x16));
         }
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_swiglu_e4m3_skylake(nk_e4m3_t const *gate, nk_e4m3_t const *up, nk_e4m3_t *y,
-                                                      nk_size_t rows, nk_size_t cols, nk_size_t gate_row_stride,
-                                                      nk_size_t up_row_stride, nk_size_t y_row_stride,
-                                                      nk_f32_t input_scale) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_swiglu_e4m3_skylake(nk_e4m3_t const *gate, nk_e4m3_t const *up, nk_e4m3_t *y,
+                                                             nk_size_t rows, nk_size_t cols, nk_size_t gate_row_stride,
+                                                             nk_size_t up_row_stride, nk_size_t y_row_stride,
+                                                             nk_f32_t input_scale, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m512 scale_f32x16 = _mm512_set1_ps(input_scale);
     for (nk_size_t row = 0; row != rows; ++row) {
         nk_e4m3_t const *gate_row = (nk_e4m3_t const *)((unsigned char const *)gate + row * gate_row_stride);
@@ -1798,6 +1901,7 @@ NUMKONG_API_COMPTIME void nk_each_swiglu_e4m3_skylake(nk_e4m3_t const *gate, nk_
             _mm_mask_storeu_epi8((void *)(y_row + col), mask_m16, nk_f32x16_to_e4m3x16_skylake_(result_f32x16));
         }
     }
+    return nk_success_k;
 }
 
 #if defined(__clang__)

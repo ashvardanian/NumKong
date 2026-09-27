@@ -100,14 +100,9 @@ FMA requires cross-lane operations for the imaginary part: `re(a*b) = re(a)*re(b
 
 ## Performance
 
-The following performance tables are produced by manually re-running `numkong_test` and `numkong_bench` included internal tools to measure both accuracy and throughput at different input shapes.
+The tables below follow the [benchmark methodology](../../../bench/README.md#methodology).
 The input size is controlled by the `NUMWARS_DIMS` environment variable and set to 256, 1024, and 4096 elements.
 The throughput is measured in GB/s as the number of input bytes read per second.
-Accuracy is reported as mean ULP (units in last place) unless noted otherwise — the average number of representable floating-point values between the result and the exact answer.
-Rows marked `🧩` use external BLAS baselines rather than NumKong kernels.
-Each kernel runs for at least 20 seconds per configuration.
-Benchmark threads are pinned to specific cores; on machines with heterogeneous core types (e.g., Apple P/E cores), only the fastest cores are used.
-Workloads that significantly degrade CPU frequencies (Intel AMX, Apple SME) run in separate passes to avoid affecting throughput measurements of other kernels.
 
 ### Intel Sapphire Rapids
 

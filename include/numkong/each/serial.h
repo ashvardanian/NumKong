@@ -18,9 +18,10 @@ extern "C" {
 #endif
 
 #define nk_define_each_scale_(input_type, accumulator_type, load_and_convert, convert_and_store) \
-    NUMKONG_API_COMPTIME void nk_each_scale_##input_type##_serial(                               \
+    NUMKONG_API_COMPTIME nk_status_t nk_each_scale_##input_type##_serial(                        \
         nk_##input_type##_t const *a, nk_size_t n, nk_##accumulator_type##_t const *alpha,       \
-        nk_##accumulator_type##_t const *beta, nk_##input_type##_t *result) {                    \
+        nk_##accumulator_type##_t const *beta, nk_##input_type##_t *result, void *stream) {      \
+        nk_assert_(stream == NUMKONG_NULL);                                                      \
         nk_##accumulator_type##_t alpha_val = *alpha;                                            \
         nk_##accumulator_type##_t beta_val = *beta;                                              \
         nk_##accumulator_type##_t ai, sum;                                                       \
@@ -29,52 +30,62 @@ extern "C" {
             sum = (nk_##accumulator_type##_t)(alpha_val * ai + beta_val);                        \
             convert_and_store(&sum, result + i);                                                 \
         }                                                                                        \
+        return nk_success_k;                                                                     \
     }
-#define nk_define_each_sum_(input_type, accumulator_type, load_and_convert, convert_and_store)                  \
-    NUMKONG_API_COMPTIME void nk_each_sum_##input_type##_serial(                                                \
-        nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_size_t n, nk_##input_type##_t *result) { \
-        nk_##accumulator_type##_t ai, bi, sum;                                                                  \
-        for (nk_size_t i = 0; i != n; ++i) {                                                                    \
-            load_and_convert(a + i, &ai);                                                                       \
-            load_and_convert(b + i, &bi);                                                                       \
-            sum = ai + bi;                                                                                      \
-            convert_and_store(&sum, result + i);                                                                \
-        }                                                                                                       \
-    }
-
-#define nk_define_each_blend_(input_type, accumulator_type, load_and_convert, convert_and_store)                      \
-    NUMKONG_API_COMPTIME void nk_each_blend_##input_type##_serial(                                                    \
-        nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_size_t n,                                      \
-        nk_##accumulator_type##_t const *alpha, nk_##accumulator_type##_t const *beta, nk_##input_type##_t *result) { \
-        nk_##accumulator_type##_t alpha_val = *alpha;                                                                 \
-        nk_##accumulator_type##_t beta_val = *beta;                                                                   \
-        nk_##accumulator_type##_t ai, bi, ai_scaled, bi_scaled, sum;                                                  \
-        for (nk_size_t i = 0; i != n; ++i) {                                                                          \
-            load_and_convert(a + i, &ai);                                                                             \
-            load_and_convert(b + i, &bi);                                                                             \
-            ai_scaled = ai * alpha_val;                                                                               \
-            bi_scaled = bi * beta_val;                                                                                \
-            sum = ai_scaled + bi_scaled;                                                                              \
-            convert_and_store(&sum, result + i);                                                                      \
-        }                                                                                                             \
+#define nk_define_each_sum_(input_type, accumulator_type, load_and_convert, convert_and_store)                      \
+    NUMKONG_API_COMPTIME nk_status_t nk_each_sum_##input_type##_serial(nk_##input_type##_t const *a,                \
+                                                                       nk_##input_type##_t const *b, nk_size_t n,   \
+                                                                       nk_##input_type##_t *result, void *stream) { \
+        nk_assert_(stream == NUMKONG_NULL);                                                                         \
+        nk_##accumulator_type##_t ai, bi, sum;                                                                      \
+        for (nk_size_t i = 0; i != n; ++i) {                                                                        \
+            load_and_convert(a + i, &ai);                                                                           \
+            load_and_convert(b + i, &bi);                                                                           \
+            sum = ai + bi;                                                                                          \
+            convert_and_store(&sum, result + i);                                                                    \
+        }                                                                                                           \
+        return nk_success_k;                                                                                        \
     }
 
-#define nk_define_each_fma_(input_type, accumulator_type, load_and_convert, convert_and_store)                        \
-    NUMKONG_API_COMPTIME void nk_each_fma_##input_type##_serial(                                                      \
-        nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_##input_type##_t const *c, nk_size_t n,        \
-        nk_##accumulator_type##_t const *alpha, nk_##accumulator_type##_t const *beta, nk_##input_type##_t *result) { \
-        nk_##accumulator_type##_t alpha_val = *alpha;                                                                 \
-        nk_##accumulator_type##_t beta_val = *beta;                                                                   \
-        nk_##accumulator_type##_t ai, bi, ci, abi_scaled, ci_scaled, sum;                                             \
-        for (nk_size_t i = 0; i != n; ++i) {                                                                          \
-            load_and_convert(a + i, &ai);                                                                             \
-            load_and_convert(b + i, &bi);                                                                             \
-            load_and_convert(c + i, &ci);                                                                             \
-            abi_scaled = ai * bi * alpha_val;                                                                         \
-            ci_scaled = ci * beta_val;                                                                                \
-            sum = abi_scaled + ci_scaled;                                                                             \
-            convert_and_store(&sum, result + i);                                                                      \
-        }                                                                                                             \
+#define nk_define_each_blend_(input_type, accumulator_type, load_and_convert, convert_and_store)                    \
+    NUMKONG_API_COMPTIME nk_status_t nk_each_blend_##input_type##_serial(                                           \
+        nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_size_t n,                                    \
+        nk_##accumulator_type##_t const *alpha, nk_##accumulator_type##_t const *beta, nk_##input_type##_t *result, \
+        void *stream) {                                                                                             \
+        nk_assert_(stream == NUMKONG_NULL);                                                                         \
+        nk_##accumulator_type##_t alpha_val = *alpha;                                                               \
+        nk_##accumulator_type##_t beta_val = *beta;                                                                 \
+        nk_##accumulator_type##_t ai, bi, ai_scaled, bi_scaled, sum;                                                \
+        for (nk_size_t i = 0; i != n; ++i) {                                                                        \
+            load_and_convert(a + i, &ai);                                                                           \
+            load_and_convert(b + i, &bi);                                                                           \
+            ai_scaled = ai * alpha_val;                                                                             \
+            bi_scaled = bi * beta_val;                                                                              \
+            sum = ai_scaled + bi_scaled;                                                                            \
+            convert_and_store(&sum, result + i);                                                                    \
+        }                                                                                                           \
+        return nk_success_k;                                                                                        \
+    }
+
+#define nk_define_each_fma_(input_type, accumulator_type, load_and_convert, convert_and_store)                      \
+    NUMKONG_API_COMPTIME nk_status_t nk_each_fma_##input_type##_serial(                                             \
+        nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_##input_type##_t const *c, nk_size_t n,      \
+        nk_##accumulator_type##_t const *alpha, nk_##accumulator_type##_t const *beta, nk_##input_type##_t *result, \
+        void *stream) {                                                                                             \
+        nk_assert_(stream == NUMKONG_NULL);                                                                         \
+        nk_##accumulator_type##_t alpha_val = *alpha;                                                               \
+        nk_##accumulator_type##_t beta_val = *beta;                                                                 \
+        nk_##accumulator_type##_t ai, bi, ci, abi_scaled, ci_scaled, sum;                                           \
+        for (nk_size_t i = 0; i != n; ++i) {                                                                        \
+            load_and_convert(a + i, &ai);                                                                           \
+            load_and_convert(b + i, &bi);                                                                           \
+            load_and_convert(c + i, &ci);                                                                           \
+            abi_scaled = ai * bi * alpha_val;                                                                       \
+            ci_scaled = ci * beta_val;                                                                              \
+            sum = abi_scaled + ci_scaled;                                                                           \
+            convert_and_store(&sum, result + i);                                                                    \
+        }                                                                                                           \
+        return nk_success_k;                                                                                        \
     }
 
 /*  Keep the serial instantiations below actually scalar, regardless of build type. Without this,
@@ -172,22 +183,21 @@ nk_define_each_fma_(u64, f64, nk_f64_from_u64_, nk_f64_to_u64_serial)        // 
 #undef nk_define_each_blend_
 #undef nk_define_each_fma_
 
-NUMKONG_API_RUNTIME void nk_each_sum_f32(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result);
-
-NUMKONG_API_COMPTIME void nk_each_sum_f32c_serial(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n,
-                                                  nk_f32c_t *result) {
-    nk_each_sum_f32((nk_f32_t const *)a, (nk_f32_t const *)b, 2 * n, (nk_f32_t *)result);
+NUMKONG_API_COMPTIME nk_status_t nk_each_sum_f32c_serial(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n,
+                                                         nk_f32c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    return nk_each_sum_f32_serial((nk_f32_t const *)a, (nk_f32_t const *)b, 2 * n, (nk_f32_t *)result, stream);
 }
 
-NUMKONG_API_COMPTIME void nk_each_sum_f64c_serial(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n,
-                                                  nk_f64c_t *result) {
-    nk_each_sum_f64((nk_f64_t const *)a, (nk_f64_t const *)b, 2 * n, (nk_f64_t *)result);
+NUMKONG_API_COMPTIME nk_status_t nk_each_sum_f64c_serial(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n,
+                                                         nk_f64c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    return nk_each_sum_f64_serial((nk_f64_t const *)a, (nk_f64_t const *)b, 2 * n, (nk_f64_t *)result, stream);
 }
 
-NUMKONG_API_RUNTIME void nk_each_sum_f64(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
-
-NUMKONG_API_COMPTIME void nk_each_scale_f32c_serial(nk_f32c_t const *a, nk_size_t n, nk_f32c_t const *alpha,
-                                                    nk_f32c_t const *beta, nk_f32c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_f32c_serial(nk_f32c_t const *a, nk_size_t n, nk_f32c_t const *alpha,
+                                                           nk_f32c_t const *beta, nk_f32c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_real = alpha->real, alpha_imag = alpha->imag;
     nk_f32_t beta_real = beta->real, beta_imag = beta->imag;
     for (nk_size_t i = 0; i != n; ++i) {
@@ -195,10 +205,12 @@ NUMKONG_API_COMPTIME void nk_each_scale_f32c_serial(nk_f32c_t const *a, nk_size_
         result[i].real = alpha_real * a_real - alpha_imag * a_imag + beta_real;
         result[i].imag = alpha_real * a_imag + alpha_imag * a_real + beta_imag;
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_f64c_serial(nk_f64c_t const *a, nk_size_t n, nk_f64c_t const *alpha,
-                                                    nk_f64c_t const *beta, nk_f64c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_f64c_serial(nk_f64c_t const *a, nk_size_t n, nk_f64c_t const *alpha,
+                                                           nk_f64c_t const *beta, nk_f64c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_real = alpha->real, alpha_imag = alpha->imag;
     nk_f64_t beta_real = beta->real, beta_imag = beta->imag;
     for (nk_size_t i = 0; i != n; ++i) {
@@ -206,10 +218,13 @@ NUMKONG_API_COMPTIME void nk_each_scale_f64c_serial(nk_f64c_t const *a, nk_size_
         result[i].real = alpha_real * a_real - alpha_imag * a_imag + beta_real;
         result[i].imag = alpha_real * a_imag + alpha_imag * a_real + beta_imag;
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_blend_f32c_serial(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n,
-                                                    nk_f32c_t const *alpha, nk_f32c_t const *beta, nk_f32c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_blend_f32c_serial(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n,
+                                                           nk_f32c_t const *alpha, nk_f32c_t const *beta,
+                                                           nk_f32c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_real = alpha->real, alpha_imag = alpha->imag;
     nk_f32_t beta_real = beta->real, beta_imag = beta->imag;
     for (nk_size_t i = 0; i != n; ++i) {
@@ -222,10 +237,13 @@ NUMKONG_API_COMPTIME void nk_each_blend_f32c_serial(nk_f32c_t const *a, nk_f32c_
         result[i].real = alpha_a_real + beta_b_real;
         result[i].imag = alpha_a_imag + beta_b_imag;
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_blend_f64c_serial(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n,
-                                                    nk_f64c_t const *alpha, nk_f64c_t const *beta, nk_f64c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_blend_f64c_serial(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n,
+                                                           nk_f64c_t const *alpha, nk_f64c_t const *beta,
+                                                           nk_f64c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_real = alpha->real, alpha_imag = alpha->imag;
     nk_f64_t beta_real = beta->real, beta_imag = beta->imag;
     for (nk_size_t i = 0; i != n; ++i) {
@@ -238,11 +256,13 @@ NUMKONG_API_COMPTIME void nk_each_blend_f64c_serial(nk_f64c_t const *a, nk_f64c_
         result[i].real = alpha_a_real + beta_b_real;
         result[i].imag = alpha_a_imag + beta_b_imag;
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_f32c_serial(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c,
-                                                  nk_size_t n, nk_f32c_t const *alpha, nk_f32c_t const *beta,
-                                                  nk_f32c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_f32c_serial(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c,
+                                                         nk_size_t n, nk_f32c_t const *alpha, nk_f32c_t const *beta,
+                                                         nk_f32c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_real = alpha->real, alpha_imag = alpha->imag;
     nk_f32_t beta_real = beta->real, beta_imag = beta->imag;
     for (nk_size_t i = 0; i != n; ++i) {
@@ -258,11 +278,13 @@ NUMKONG_API_COMPTIME void nk_each_fma_f32c_serial(nk_f32c_t const *a, nk_f32c_t 
         result[i].real = alpha_product_real + beta_c_real;
         result[i].imag = alpha_product_imag + beta_c_imag;
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_f64c_serial(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c,
-                                                  nk_size_t n, nk_f64c_t const *alpha, nk_f64c_t const *beta,
-                                                  nk_f64c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_f64c_serial(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c,
+                                                         nk_size_t n, nk_f64c_t const *alpha, nk_f64c_t const *beta,
+                                                         nk_f64c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_real = alpha->real, alpha_imag = alpha->imag;
     nk_f64_t beta_real = beta->real, beta_imag = beta->imag;
     for (nk_size_t i = 0; i != n; ++i) {
@@ -278,6 +300,7 @@ NUMKONG_API_COMPTIME void nk_each_fma_f64c_serial(nk_f64c_t const *a, nk_f64c_t 
         result[i].real = alpha_product_real + beta_c_real;
         result[i].imag = alpha_product_imag + beta_c_imag;
     }
+    return nk_success_k;
 }
 
 #if defined(NDEBUG)
@@ -296,10 +319,11 @@ NUMKONG_API_COMPTIME void nk_each_fma_f64c_serial(nk_f64c_t const *a, nk_f64c_t 
  *  other split-weight models fit without a v2, and let the FFN head's fc1 → SiLU → fc2 pass a NULL
  *  @c up. @c input_scale folds an E4M3 descale onto the load, and is 1.0 for BF16 and F32. */
 #define nk_define_each_swiglu_(input_type, load_and_convert, convert_and_store)                                     \
-    NUMKONG_API_COMPTIME void nk_each_swiglu_##input_type##_serial(                                                 \
+    NUMKONG_API_COMPTIME nk_status_t nk_each_swiglu_##input_type##_serial(                                          \
         nk_##input_type##_t const *gate, nk_##input_type##_t const *up, nk_##input_type##_t *y, nk_size_t rows,     \
         nk_size_t cols, nk_size_t gate_row_stride, nk_size_t up_row_stride, nk_size_t y_row_stride,                 \
-        nk_f32_t input_scale) {                                                                                     \
+        nk_f32_t input_scale, void *stream) {                                                                       \
+        nk_assert_(stream == NUMKONG_NULL);                                                                         \
         for (nk_size_t row = 0; row != rows; ++row) {                                                               \
             nk_##input_type##_t const *gate_row = /**/                                                              \
                 (nk_##input_type##_t const *)((unsigned char const *)gate + row * gate_row_stride);                 \
@@ -319,6 +343,7 @@ NUMKONG_API_COMPTIME void nk_each_fma_f64c_serial(nk_f64c_t const *a, nk_f64c_t 
                 convert_and_store(&result, y_row + col);                                                            \
             }                                                                                                       \
         }                                                                                                           \
+        return nk_success_k;                                                                                        \
     }
 
 nk_define_each_swiglu_(f32, nk_assign_from_to_, nk_assign_from_to_)

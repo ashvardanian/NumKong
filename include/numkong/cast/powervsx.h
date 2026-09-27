@@ -84,14 +84,7 @@
 #if NUMKONG_TARGET_POWERVSX
 
 #include "numkong/types.h"
-#include "numkong/cast/serial.h"   // `nk_cast_serial`, `nk_dtype_bits`
-#include "numkong/reduce/serial.h" // `nk_reduce_moments_f32_serial`
-
-/** Power VSX vector typedefs, wrapping altivec built-in vector types, may move to `numkong/types.h`
- *  in the future. */
-#ifndef NUMKONG_POWERVSX_TYPES_DEFINED_
-#define NUMKONG_POWERVSX_TYPES_DEFINED_
-#endif // NUMKONG_POWERVSX_TYPES_DEFINED_
+#include "numkong/cast/serial.h" // `nk_cast_serial`, `nk_dtype_bits`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -205,31 +198,6 @@ NUMKONG_HELPER_INLINE void nk_partial_store_b32x4_powervsx_(nk_b128_vec_t const 
     vec_xst_len(source->vu8x16, (nk_u8_t *)destination, n * 4);
 }
 
-/** Convert 4x f16 → f32x4 via POWER9 hardware (xvcvhpsp, 1 instruction!). Loads 4 f16 values into a
- *  u16x8 register and uses @c vec_extract_fp32_from_shorth. */
-NUMKONG_HELPER_INLINE nk_vf32x4_t nk_f16x4_to_f32x4_powervsx_(nk_f16_t const *source) {
-    nk_vu16x8_t values_u16x8 = (nk_vu16x8_t)vec_xl_len((nk_u8_t *)source, 8);
-    return vec_extract_fp32_from_shorth(values_u16x8);
-}
-
-/** Convert f32x4 → 4x f16 via POWER9 hardware (xvcvsphp, 1 instruction!). Uses
- *  @c vec_pack_to_short_fp32 to pack 4 f32 values into 4 f16 values. */
-NUMKONG_HELPER_INLINE nk_b64_vec_t nk_f32x4_to_f16x4_powervsx_(nk_vf32x4_t values_f32x4) {
-    nk_vu16x8_t packed_u16x8 = vec_pack_to_short_fp32(values_f32x4, values_f32x4);
-    nk_b64_vec_t result_vec;
-    result_vec.u64 = vec_extract((nk_vu64x2_t)packed_u16x8, 0);
-    return result_vec;
-}
-
-/** Convert 4x bf16 → f32x4 via branchless bit manipulation (Power VSX). BF16 format: upper 16 bits
- *  of f32. Conversion is zero-extend via vec_mergeh, reinterpret. */
-NUMKONG_HELPER_INLINE nk_vf32x4_t nk_bf16x4_to_f32x4_powervsx_(nk_bf16_t const *source) {
-    nk_vu16x8_t values_u16x8 = (nk_vu16x8_t)vec_xl_len((nk_u8_t *)source, 8);
-    nk_vu16x8_t zero_u16x8 = vec_splats((nk_u16_t)0);
-    nk_vu32x4_t bits_u32x4 = (nk_vu32x4_t)vec_mergeh(zero_u16x8, values_u16x8);
-    return (nk_vf32x4_t)bits_u32x4;
-}
-
 /** Convert f32x4 → bf16 packed in u16x8 with RNE rounding (Power VSX). Round-to-nearest-even: add
  *  (0x7FFF + lsb) before truncation. Uses vec_sr by 16, then vec_pack to narrow u32x4 → u16x8.
  *  Result is in low 4 lanes of the returned u16x8. */
@@ -251,124 +219,14 @@ NUMKONG_HELPER_INLINE nk_vu16x8_t nk_f32x4_to_bf16_pack_powervsx_(nk_vf32x4_t va
     return vec_pack(rounded_u32x4, rounded_u32x4);
 }
 
-/** Convert f32x4 → 4x bf16 with RNE rounding (Power VSX). Returns nk_b64_vec_t. */
-NUMKONG_HELPER_INLINE nk_b64_vec_t nk_f32x4_to_bf16x4_powervsx_(nk_vf32x4_t values_f32x4) {
-    nk_b64_vec_t result_vec;
-    result_vec.u64 = vec_extract((nk_vu64x2_t)nk_f32x4_to_bf16_pack_powervsx_(values_f32x4), 0);
-    return result_vec;
-}
-
-/** Convert 4x i16 → f32x4 (Power VSX). Sign-extend via vec_unpackh, then vec_ctf. */
-NUMKONG_HELPER_INLINE nk_vf32x4_t nk_i16x4_to_f32x4_powervsx_(nk_i16_t const *source) {
-    nk_vi16x8_t values_i16x8 = (nk_vi16x8_t)vec_xl_len((nk_u8_t *)source, 8);
-    nk_vi32x4_t values_i32x4 = vec_unpackh(values_i16x8);
-    return vec_ctf(values_i32x4, 0);
-}
-
-/** Convert 4x u16 → f32x4 (Power VSX). Zero-extend via vec_mergeh with zero, then vec_ctf. */
-NUMKONG_HELPER_INLINE nk_vf32x4_t nk_u16x4_to_f32x4_powervsx_(nk_u16_t const *source) {
-    nk_vu16x8_t values_u16x8 = (nk_vu16x8_t)vec_xl_len((nk_u8_t *)source, 8);
-    nk_vu16x8_t zero_u16x8 = vec_splats((nk_u16_t)0);
-    nk_vu32x4_t values_u32x4 = (nk_vu32x4_t)vec_mergeh(values_u16x8, zero_u16x8);
-    return vec_ctf(values_u32x4, 0);
-}
-
-/** Convert 4x i8 → f32x4 (Power VSX). Double unpack via vec_unpackh (i8 → i16 → i32), then
- *  vec_ctf. */
-NUMKONG_HELPER_INLINE nk_vf32x4_t nk_i8x4_to_f32x4_powervsx_(void const *source) {
-    nk_vi8x16_t values_i8x16 = (nk_vi8x16_t)vec_xl_len((nk_u8_t *)source, 4);
-    nk_vi16x8_t values_i16x8 = vec_unpackh(values_i8x16);
-    nk_vi32x4_t values_i32x4 = vec_unpackh(values_i16x8);
-    return vec_ctf(values_i32x4, 0);
-}
-
-/** Convert 4x u8 → f32x4 (Power VSX). Double merge with zero (u8 → u16 → u32), then vec_ctf. */
-NUMKONG_HELPER_INLINE nk_vf32x4_t nk_u8x4_to_f32x4_powervsx_(void const *source) {
-    nk_vu8x16_t values_u8x16 = (nk_vu8x16_t)vec_xl_len((nk_u8_t *)source, 4);
-    nk_vu8x16_t zero_u8x16 = vec_splats((nk_u8_t)0);
-    nk_vu16x8_t values_u16x8 = (nk_vu16x8_t)vec_mergeh(values_u8x16, zero_u8x16);
-    nk_vu16x8_t zero_u16x8 = vec_splats((nk_u16_t)0);
-    nk_vu32x4_t values_u32x4 = (nk_vu32x4_t)vec_mergeh(values_u16x8, zero_u16x8);
-    return vec_ctf(values_u32x4, 0);
-}
-
-/** Convert f32x4 → 4x i16 with vector saturation (Power VSX). Uses vec_cts + vec_min/vec_max for
- *  clamping, then vec_packs to narrow. */
-NUMKONG_HELPER_INLINE nk_b64_vec_t nk_f32x4_to_i16x4_powervsx_(nk_vf32x4_t values_f32x4) {
-    nk_vi32x4_t min_i32x4 = vec_splats((nk_i32_t)-32768);
-    nk_vi32x4_t max_i32x4 = vec_splats((nk_i32_t)32767);
-
-    nk_vi32x4_t values_i32x4 = vec_cts(vec_round(values_f32x4), 0);
-    values_i32x4 = vec_max(values_i32x4, min_i32x4);
-    values_i32x4 = vec_min(values_i32x4, max_i32x4);
-
-    // Signed saturating pack: i32x4 → i16x8, extract low 8 bytes
-    nk_vi16x8_t packed_i16x8 = vec_packs(values_i32x4, values_i32x4);
-    nk_b64_vec_t result_vec;
-    result_vec.u64 = vec_extract((nk_vu64x2_t)packed_i16x8, 0);
-    return result_vec;
-}
-
-/** Convert f32x4 → 4x u16 with vector saturation (Power VSX). Uses vec_ctu + vec_round/vec_max for
- *  clamping, then vec_pack to narrow. */
-NUMKONG_HELPER_INLINE nk_b64_vec_t nk_f32x4_to_u16x4_powervsx_(nk_vf32x4_t values_f32x4) {
-    nk_vf32x4_t zero_f32x4 = vec_splats(0.0f);
-    nk_vu32x4_t max_u32x4 = vec_splats((nk_u32_t)65535);
-
-    values_f32x4 = vec_max(values_f32x4, zero_f32x4);
-    nk_vu32x4_t values_u32x4 = vec_ctu(vec_round(values_f32x4), 0);
-    values_u32x4 = vec_min(values_u32x4, max_u32x4);
-
-    // Pack u32x4 → u16x8, extract low 8 bytes
-    nk_vu16x8_t packed_u16x8 = vec_pack(values_u32x4, values_u32x4);
-    nk_b64_vec_t result_vec;
-    result_vec.u64 = vec_extract((nk_vu64x2_t)packed_u16x8, 0);
-    return result_vec;
-}
-
-/** Convert f32x4 → 4x i8 with vector saturation (Power VSX). Uses vec_cts + vec_min/vec_max for
- *  clamping, then vec_packs twice to narrow. */
-NUMKONG_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_i8x4_powervsx_(nk_vf32x4_t values_f32x4) {
-    nk_vi32x4_t min_i32x4 = vec_splats((nk_i32_t)-128);
-    nk_vi32x4_t max_i32x4 = vec_splats((nk_i32_t)127);
-
-    nk_vi32x4_t values_i32x4 = vec_cts(vec_round(values_f32x4), 0);
-    values_i32x4 = vec_max(values_i32x4, min_i32x4);
-    values_i32x4 = vec_min(values_i32x4, max_i32x4);
-
-    // Narrow: i32x4 → i16x8 → i8x16, extract low 4 bytes
-    nk_vi16x8_t packed_i16x8 = vec_packs(values_i32x4, values_i32x4);
-    nk_vi8x16_t packed_i8x16 = vec_packs(packed_i16x8, packed_i16x8);
-    nk_b32_vec_t result_vec;
-    result_vec.u32 = vec_extract((nk_vu32x4_t)packed_i8x16, 0);
-    return result_vec;
-}
-
-/** Convert f32x4 → 4x u8 with vector saturation (Power VSX). Uses vec_ctu + vec_min/vec_max for
- *  clamping, then vec_pack twice to narrow. */
-NUMKONG_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_u8x4_powervsx_(nk_vf32x4_t values_f32x4) {
-    nk_vf32x4_t zero_f32x4 = vec_splats(0.0f);
-    nk_vu32x4_t max_u32x4 = vec_splats((nk_u32_t)255);
-
-    values_f32x4 = vec_max(values_f32x4, zero_f32x4);
-    nk_vu32x4_t values_u32x4 = vec_ctu(vec_round(values_f32x4), 0);
-    values_u32x4 = vec_min(values_u32x4, max_u32x4);
-
-    // Narrow: u32x4 → u16x8 → u8x16, extract low 4 bytes
-    nk_vu16x8_t packed_u16x8 = vec_pack(values_u32x4, values_u32x4);
-    nk_vu8x16_t packed_u8x16 = vec_pack(packed_u16x8, packed_u16x8);
-    nk_b32_vec_t result_vec;
-    result_vec.u32 = vec_extract((nk_vu32x4_t)packed_u8x16, 0);
-    return result_vec;
-}
-
-NUMKONG_API_COMPTIME void nk_cast_powervsx(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                           nk_dtype_t to_type) {
+NUMKONG_API_COMPTIME nk_status_t nk_cast_powervsx(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
+                                                  nk_dtype_t to_type, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Same-type fast path
     if (from_type == to_type) {
         nk_size_t size_bits = nk_dtype_bits(from_type);
         if (size_bits > 0) nk_copy_bytes_(to, from, n * size_bits / 8);
-        return;
+        return nk_success_k;
     }
 
     // Validate supported types (f32 and smaller, no FP8 vectorization on Power)
@@ -382,8 +240,7 @@ NUMKONG_API_COMPTIME void nk_cast_powervsx(void const *from, nk_dtype_t from_typ
     // Fall back to serial for unsupported types or i32 ↔ u32 (loses precision through f32)
     if (!from_ok || !to_ok || (from_type == nk_i32_k && to_type == nk_u32_k) ||
         (from_type == nk_u32_k && to_type == nk_i32_k)) {
-        nk_cast_serial(from, from_type, n, to, to_type);
-        return;
+        return nk_cast_serial(from, from_type, n, to, to_type, stream);
     }
 
     // F32 hub with predicated loads/stores — no serial fallback needed
@@ -456,6 +313,7 @@ NUMKONG_API_COMPTIME void nk_cast_powervsx(void const *from, nk_dtype_t from_typ
         from_ptr += from_bytes;
         to_ptr += to_bytes;
     }
+    return nk_success_k;
 }
 
 #if defined(__clang__)

@@ -26,7 +26,9 @@
 extern "C" {
 #endif
 
-NUMKONG_API_COMPTIME void nk_each_sum_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_sum_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
+                                                     nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, result += vector_length) {
         vector_length = __riscv_vsetvl_e64m4(n);
@@ -34,9 +36,12 @@ NUMKONG_API_COMPTIME void nk_each_sum_f64_rvv(nk_f64_t const *a, nk_f64_t const 
         vfloat64m4_t b_f64m4 = __riscv_vle64_v_f64m4(b, vector_length);
         __riscv_vse64_v_f64m4(result, __riscv_vfadd_vv_f64m4(a_f64m4, b_f64m4, vector_length), vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_sum_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_sum_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
+                                                     nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, result += vector_length) {
         vector_length = __riscv_vsetvl_e32m4(n);
@@ -44,9 +49,12 @@ NUMKONG_API_COMPTIME void nk_each_sum_f32_rvv(nk_f32_t const *a, nk_f32_t const 
         vfloat32m4_t b_f32m4 = __riscv_vle32_v_f32m4(b, vector_length);
         __riscv_vse32_v_f32m4(result, __riscv_vfadd_vv_f32m4(a_f32m4, b_f32m4, vector_length), vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_sum_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f16_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_sum_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                     nk_f16_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, result += vector_length) {
         vector_length = __riscv_vsetvl_e16m1(n);
@@ -58,9 +66,12 @@ NUMKONG_API_COMPTIME void nk_each_sum_f16_rvv(nk_f16_t const *a, nk_f16_t const 
         vuint16m1_t result_u16m1 = nk_f32m2_to_f16m1_rvv_(result_f32m2, vector_length);
         __riscv_vse16_v_u16m1((nk_u16_t *)result, result_u16m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_sum_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_bf16_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_sum_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                      nk_bf16_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, result += vector_length) {
         vector_length = __riscv_vsetvl_e16m1(n);
@@ -72,9 +83,12 @@ NUMKONG_API_COMPTIME void nk_each_sum_bf16_rvv(nk_bf16_t const *a, nk_bf16_t con
         vuint16m1_t result_u16m1 = nk_f32m2_to_bf16m1_rvv_(result_f32m2, vector_length);
         __riscv_vse16_v_u16m1((nk_u16_t *)result, result_u16m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_sum_i8_rvv(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i8_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_sum_i8_rvv(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i8_t *result,
+                                                    void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, result += vector_length) {
         vector_length = __riscv_vsetvl_e8m4(n);
@@ -82,9 +96,12 @@ NUMKONG_API_COMPTIME void nk_each_sum_i8_rvv(nk_i8_t const *a, nk_i8_t const *b,
         vint8m4_t b_i8m4 = __riscv_vle8_v_i8m4(b, vector_length);
         __riscv_vse8_v_i8m4(result, __riscv_vsadd_vv_i8m4(a_i8m4, b_i8m4, vector_length), vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_sum_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u8_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_sum_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u8_t *result,
+                                                    void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, result += vector_length) {
         vector_length = __riscv_vsetvl_e8m4(n);
@@ -92,9 +109,12 @@ NUMKONG_API_COMPTIME void nk_each_sum_u8_rvv(nk_u8_t const *a, nk_u8_t const *b,
         vuint8m4_t b_u8m4 = __riscv_vle8_v_u8m4(b, vector_length);
         __riscv_vse8_v_u8m4(result, __riscv_vsaddu_vv_u8m4(a_u8m4, b_u8m4, vector_length), vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_sum_i16_rvv(nk_i16_t const *a, nk_i16_t const *b, nk_size_t n, nk_i16_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_sum_i16_rvv(nk_i16_t const *a, nk_i16_t const *b, nk_size_t n,
+                                                     nk_i16_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, result += vector_length) {
         vector_length = __riscv_vsetvl_e16m4(n);
@@ -102,9 +122,12 @@ NUMKONG_API_COMPTIME void nk_each_sum_i16_rvv(nk_i16_t const *a, nk_i16_t const 
         vint16m4_t b_i16m4 = __riscv_vle16_v_i16m4(b, vector_length);
         __riscv_vse16_v_i16m4(result, __riscv_vsadd_vv_i16m4(a_i16m4, b_i16m4, vector_length), vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_sum_u16_rvv(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_u16_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_sum_u16_rvv(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n,
+                                                     nk_u16_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, result += vector_length) {
         vector_length = __riscv_vsetvl_e16m4(n);
@@ -112,9 +135,12 @@ NUMKONG_API_COMPTIME void nk_each_sum_u16_rvv(nk_u16_t const *a, nk_u16_t const 
         vuint16m4_t b_u16m4 = __riscv_vle16_v_u16m4(b, vector_length);
         __riscv_vse16_v_u16m4(result, __riscv_vsaddu_vv_u16m4(a_u16m4, b_u16m4, vector_length), vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_sum_i32_rvv(nk_i32_t const *a, nk_i32_t const *b, nk_size_t n, nk_i32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_sum_i32_rvv(nk_i32_t const *a, nk_i32_t const *b, nk_size_t n,
+                                                     nk_i32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, result += vector_length) {
         vector_length = __riscv_vsetvl_e32m4(n);
@@ -122,9 +148,12 @@ NUMKONG_API_COMPTIME void nk_each_sum_i32_rvv(nk_i32_t const *a, nk_i32_t const 
         vint32m4_t b_i32m4 = __riscv_vle32_v_i32m4(b, vector_length);
         __riscv_vse32_v_i32m4(result, __riscv_vsadd_vv_i32m4(a_i32m4, b_i32m4, vector_length), vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_sum_u32_rvv(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_sum_u32_rvv(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n,
+                                                     nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, result += vector_length) {
         vector_length = __riscv_vsetvl_e32m4(n);
@@ -132,9 +161,12 @@ NUMKONG_API_COMPTIME void nk_each_sum_u32_rvv(nk_u32_t const *a, nk_u32_t const 
         vuint32m4_t b_u32m4 = __riscv_vle32_v_u32m4(b, vector_length);
         __riscv_vse32_v_u32m4(result, __riscv_vsaddu_vv_u32m4(a_u32m4, b_u32m4, vector_length), vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_sum_i64_rvv(nk_i64_t const *a, nk_i64_t const *b, nk_size_t n, nk_i64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_sum_i64_rvv(nk_i64_t const *a, nk_i64_t const *b, nk_size_t n,
+                                                     nk_i64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, result += vector_length) {
         vector_length = __riscv_vsetvl_e64m4(n);
@@ -142,9 +174,12 @@ NUMKONG_API_COMPTIME void nk_each_sum_i64_rvv(nk_i64_t const *a, nk_i64_t const 
         vint64m4_t b_i64m4 = __riscv_vle64_v_i64m4(b, vector_length);
         __riscv_vse64_v_i64m4(result, __riscv_vsadd_vv_i64m4(a_i64m4, b_i64m4, vector_length), vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_sum_u64_rvv(nk_u64_t const *a, nk_u64_t const *b, nk_size_t n, nk_u64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_sum_u64_rvv(nk_u64_t const *a, nk_u64_t const *b, nk_size_t n,
+                                                     nk_u64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, result += vector_length) {
         vector_length = __riscv_vsetvl_e64m4(n);
@@ -152,9 +187,12 @@ NUMKONG_API_COMPTIME void nk_each_sum_u64_rvv(nk_u64_t const *a, nk_u64_t const 
         vuint64m4_t b_u64m4 = __riscv_vle64_v_u64m4(b, vector_length);
         __riscv_vse64_v_u64m4(result, __riscv_vsaddu_vv_u64m4(a_u64m4, b_u64m4, vector_length), vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_sum_e4m3_rvv(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_e4m3_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_sum_e4m3_rvv(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                      nk_e4m3_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, result += vector_length) {
         vector_length = __riscv_vsetvl_e8m1(n);
@@ -166,9 +204,12 @@ NUMKONG_API_COMPTIME void nk_each_sum_e4m3_rvv(nk_e4m3_t const *a, nk_e4m3_t con
         vuint8m1_t result_u8m1 = nk_f32m4_to_e4m3m1_rvv_(result_f32m4, vector_length);
         __riscv_vse8_v_u8m1((nk_u8_t *)result, result_u8m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_sum_e5m2_rvv(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_e5m2_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_sum_e5m2_rvv(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                      nk_e5m2_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, result += vector_length) {
         vector_length = __riscv_vsetvl_e8m1(n);
@@ -180,10 +221,12 @@ NUMKONG_API_COMPTIME void nk_each_sum_e5m2_rvv(nk_e5m2_t const *a, nk_e5m2_t con
         vuint8m1_t result_u8m1 = nk_f32m4_to_e5m2m1_rvv_(result_f32m4, vector_length);
         __riscv_vse8_v_u8m1((nk_u8_t *)result, result_u8m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_f64_rvv(nk_f64_t const *a, nk_size_t n, nk_f64_t const *alpha,
-                                                nk_f64_t const *beta, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_f64_rvv(nk_f64_t const *a, nk_size_t n, nk_f64_t const *alpha,
+                                                       nk_f64_t const *beta, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_val = *alpha, beta_val = *beta;
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
     vfloat64m4_t beta_f64m4 = __riscv_vfmv_v_f_f64m4(beta_val, max_vector_length);
@@ -193,10 +236,12 @@ NUMKONG_API_COMPTIME void nk_each_scale_f64_rvv(nk_f64_t const *a, nk_size_t n, 
         a_f64m4 = __riscv_vfmadd_vf_f64m4(a_f64m4, alpha_val, beta_f64m4, vector_length);
         __riscv_vse64_v_f64m4(result, a_f64m4, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_f32_rvv(nk_f32_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                nk_f32_t const *beta, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_f32_rvv(nk_f32_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                       nk_f32_t const *beta, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha, beta_val = *beta;
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
     vfloat32m4_t beta_f32m4 = __riscv_vfmv_v_f_f32m4(beta_val, max_vector_length);
@@ -206,10 +251,12 @@ NUMKONG_API_COMPTIME void nk_each_scale_f32_rvv(nk_f32_t const *a, nk_size_t n, 
         a_f32m4 = __riscv_vfmadd_vf_f32m4(a_f32m4, alpha_val, beta_f32m4, vector_length);
         __riscv_vse32_v_f32m4(result, a_f32m4, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_f16_rvv(nk_f16_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                nk_f32_t const *beta, nk_f16_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_f16_rvv(nk_f16_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                       nk_f32_t const *beta, nk_f16_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha, beta_val = *beta;
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m2_t beta_f32m2 = __riscv_vfmv_v_f_f32m2(beta_val, max_vector_length);
@@ -221,10 +268,12 @@ NUMKONG_API_COMPTIME void nk_each_scale_f16_rvv(nk_f16_t const *a, nk_size_t n, 
         vuint16m1_t result_u16m1 = nk_f32m2_to_f16m1_rvv_(a_f32m2, vector_length);
         __riscv_vse16_v_u16m1((nk_u16_t *)result, result_u16m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_bf16_rvv(nk_bf16_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                 nk_f32_t const *beta, nk_bf16_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_bf16_rvv(nk_bf16_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                        nk_f32_t const *beta, nk_bf16_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha, beta_val = *beta;
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m2_t beta_f32m2 = __riscv_vfmv_v_f_f32m2(beta_val, max_vector_length);
@@ -236,10 +285,12 @@ NUMKONG_API_COMPTIME void nk_each_scale_bf16_rvv(nk_bf16_t const *a, nk_size_t n
         vuint16m1_t result_u16m1 = nk_f32m2_to_bf16m1_rvv_(a_f32m2, vector_length);
         __riscv_vse16_v_u16m1((nk_u16_t *)result, result_u16m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_i8_rvv(nk_i8_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                               nk_f32_t const *beta, nk_i8_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_i8_rvv(nk_i8_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                      nk_f32_t const *beta, nk_i8_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha, beta_val = *beta;
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
     vfloat32m4_t beta_f32m4 = __riscv_vfmv_v_f_f32m4(beta_val, max_vector_length);
@@ -260,10 +311,12 @@ NUMKONG_API_COMPTIME void nk_each_scale_i8_rvv(nk_i8_t const *a, nk_size_t n, nk
         vint8m1_t result_i8m1 = __riscv_vncvt_x_x_w_i8m1(result_i16m2, vector_length);
         __riscv_vse8_v_i8m1(result, result_i8m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_u8_rvv(nk_u8_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                               nk_f32_t const *beta, nk_u8_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_u8_rvv(nk_u8_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                      nk_f32_t const *beta, nk_u8_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha, beta_val = *beta;
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
     vfloat32m4_t beta_f32m4 = __riscv_vfmv_v_f_f32m4(beta_val, max_vector_length);
@@ -282,10 +335,12 @@ NUMKONG_API_COMPTIME void nk_each_scale_u8_rvv(nk_u8_t const *a, nk_size_t n, nk
         vuint8m1_t result_u8m1 = __riscv_vncvt_x_x_w_u8m1(result_u16m2, vector_length);
         __riscv_vse8_v_u8m1(result, result_u8m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_i16_rvv(nk_i16_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                nk_f32_t const *beta, nk_i16_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_i16_rvv(nk_i16_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                       nk_f32_t const *beta, nk_i16_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha, beta_val = *beta;
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m2_t beta_f32m2 = __riscv_vfmv_v_f_f32m2(beta_val, max_vector_length);
@@ -304,10 +359,12 @@ NUMKONG_API_COMPTIME void nk_each_scale_i16_rvv(nk_i16_t const *a, nk_size_t n, 
         vint16m1_t result_i16m1 = __riscv_vncvt_x_x_w_i16m1(result_i32m2, vector_length);
         __riscv_vse16_v_i16m1(result, result_i16m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_u16_rvv(nk_u16_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                nk_f32_t const *beta, nk_u16_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_u16_rvv(nk_u16_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                       nk_f32_t const *beta, nk_u16_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha, beta_val = *beta;
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m2_t beta_f32m2 = __riscv_vfmv_v_f_f32m2(beta_val, max_vector_length);
@@ -324,10 +381,12 @@ NUMKONG_API_COMPTIME void nk_each_scale_u16_rvv(nk_u16_t const *a, nk_size_t n, 
         vuint16m1_t result_u16m1 = __riscv_vncvt_x_x_w_u16m1(result_u32m2, vector_length);
         __riscv_vse16_v_u16m1(result, result_u16m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_i32_rvv(nk_i32_t const *a, nk_size_t n, nk_f64_t const *alpha,
-                                                nk_f64_t const *beta, nk_i32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_i32_rvv(nk_i32_t const *a, nk_size_t n, nk_f64_t const *alpha,
+                                                       nk_f64_t const *beta, nk_i32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_val = *alpha, beta_val = *beta;
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m2();
     vfloat64m2_t beta_f64m2 = __riscv_vfmv_v_f_f64m2(beta_val, max_vector_length);
@@ -344,10 +403,12 @@ NUMKONG_API_COMPTIME void nk_each_scale_i32_rvv(nk_i32_t const *a, nk_size_t n, 
         vint32m1_t result_i32m1 = __riscv_vfncvt_x_f_w_i32m1(a_f64m2, vector_length);
         __riscv_vse32_v_i32m1(result, result_i32m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_u32_rvv(nk_u32_t const *a, nk_size_t n, nk_f64_t const *alpha,
-                                                nk_f64_t const *beta, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_u32_rvv(nk_u32_t const *a, nk_size_t n, nk_f64_t const *alpha,
+                                                       nk_f64_t const *beta, nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_val = *alpha, beta_val = *beta;
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m2();
     vfloat64m2_t beta_f64m2 = __riscv_vfmv_v_f_f64m2(beta_val, max_vector_length);
@@ -361,10 +422,12 @@ NUMKONG_API_COMPTIME void nk_each_scale_u32_rvv(nk_u32_t const *a, nk_size_t n, 
         vuint32m1_t result_u32m1 = __riscv_vfncvt_xu_f_w_u32m1(a_f64m2, vector_length);
         __riscv_vse32_v_u32m1(result, result_u32m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_i64_rvv(nk_i64_t const *a, nk_size_t n, nk_f64_t const *alpha,
-                                                nk_f64_t const *beta, nk_i64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_i64_rvv(nk_i64_t const *a, nk_size_t n, nk_f64_t const *alpha,
+                                                       nk_f64_t const *beta, nk_i64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_val = *alpha, beta_val = *beta;
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
     vfloat64m4_t beta_f64m4 = __riscv_vfmv_v_f_f64m4(beta_val, max_vector_length);
@@ -379,10 +442,12 @@ NUMKONG_API_COMPTIME void nk_each_scale_i64_rvv(nk_i64_t const *a, nk_size_t n, 
         vint64m4_t result_i64m4 = __riscv_vfcvt_x_f_v_i64m4(a_f64m4, vector_length);
         __riscv_vse64_v_i64m4(result, result_i64m4, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_u64_rvv(nk_u64_t const *a, nk_size_t n, nk_f64_t const *alpha,
-                                                nk_f64_t const *beta, nk_u64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_u64_rvv(nk_u64_t const *a, nk_size_t n, nk_f64_t const *alpha,
+                                                       nk_f64_t const *beta, nk_u64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_val = *alpha, beta_val = *beta;
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
     vfloat64m4_t beta_f64m4 = __riscv_vfmv_v_f_f64m4(beta_val, max_vector_length);
@@ -395,10 +460,12 @@ NUMKONG_API_COMPTIME void nk_each_scale_u64_rvv(nk_u64_t const *a, nk_size_t n, 
         vuint64m4_t result_u64m4 = __riscv_vfcvt_xu_f_v_u64m4(a_f64m4, vector_length);
         __riscv_vse64_v_u64m4(result, result_u64m4, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_e4m3_rvv(nk_e4m3_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                 nk_f32_t const *beta, nk_e4m3_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_e4m3_rvv(nk_e4m3_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                        nk_f32_t const *beta, nk_e4m3_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha, beta_val = *beta;
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
     vfloat32m4_t beta_f32m4 = __riscv_vfmv_v_f_f32m4(beta_val, max_vector_length);
@@ -410,10 +477,12 @@ NUMKONG_API_COMPTIME void nk_each_scale_e4m3_rvv(nk_e4m3_t const *a, nk_size_t n
         vuint8m1_t result_u8m1 = nk_f32m4_to_e4m3m1_rvv_(a_f32m4, vector_length);
         __riscv_vse8_v_u8m1((nk_u8_t *)result, result_u8m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_e5m2_rvv(nk_e5m2_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                 nk_f32_t const *beta, nk_e5m2_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_e5m2_rvv(nk_e5m2_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                        nk_f32_t const *beta, nk_e5m2_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha, beta_val = *beta;
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
     vfloat32m4_t beta_f32m4 = __riscv_vfmv_v_f_f32m4(beta_val, max_vector_length);
@@ -425,20 +494,20 @@ NUMKONG_API_COMPTIME void nk_each_scale_e5m2_rvv(nk_e5m2_t const *a, nk_size_t n
         vuint8m1_t result_u8m1 = nk_f32m4_to_e5m2m1_rvv_(a_f32m4, vector_length);
         __riscv_vse8_v_u8m1((nk_u8_t *)result, result_u8m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_blend_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
-                                                nk_f64_t const *alpha, nk_f64_t const *beta, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_blend_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
+                                                       nk_f64_t const *alpha, nk_f64_t const *beta, nk_f64_t *result,
+                                                       void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_val = *alpha, beta_val = *beta;
-    if (alpha_val == 1 && beta_val == 1) {
-        nk_each_sum_f64_rvv(a, b, n, result);
-        return;
-    }
+    if (alpha_val == 1 && beta_val == 1) { return nk_each_sum_f64_rvv(a, b, n, result, stream); }
     else if (alpha_val == 0 || beta_val == 0) {
         nk_f64_t zero = 0;
-        if (beta_val == 0) { nk_each_scale_f64_rvv(a, n, alpha, &zero, result); }
-        else { nk_each_scale_f64_rvv(b, n, beta, &zero, result); }
-        return;
+        if (beta_val == 0) { nk_each_scale_f64_rvv(a, n, alpha, &zero, result, stream); }
+        else { nk_each_scale_f64_rvv(b, n, beta, &zero, result, stream); }
+        return nk_success_k;
     }
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, result += vector_length) {
@@ -449,20 +518,20 @@ NUMKONG_API_COMPTIME void nk_each_blend_f64_rvv(nk_f64_t const *a, nk_f64_t cons
         result_f64m4 = __riscv_vfmacc_vf_f64m4(result_f64m4, beta_val, b_f64m4, vector_length);
         __riscv_vse64_v_f64m4(result, result_f64m4, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_blend_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
-                                                nk_f32_t const *alpha, nk_f32_t const *beta, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_blend_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
+                                                       nk_f32_t const *alpha, nk_f32_t const *beta, nk_f32_t *result,
+                                                       void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha, beta_val = *beta;
-    if (alpha_val == 1 && beta_val == 1) {
-        nk_each_sum_f32_rvv(a, b, n, result);
-        return;
-    }
+    if (alpha_val == 1 && beta_val == 1) { return nk_each_sum_f32_rvv(a, b, n, result, stream); }
     else if (alpha_val == 0 || beta_val == 0) {
         nk_f32_t zero = 0;
-        if (beta_val == 0) { nk_each_scale_f32_rvv(a, n, alpha, &zero, result); }
-        else { nk_each_scale_f32_rvv(b, n, beta, &zero, result); }
-        return;
+        if (beta_val == 0) { nk_each_scale_f32_rvv(a, n, alpha, &zero, result, stream); }
+        else { nk_each_scale_f32_rvv(b, n, beta, &zero, result, stream); }
+        return nk_success_k;
     }
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, result += vector_length) {
@@ -473,20 +542,20 @@ NUMKONG_API_COMPTIME void nk_each_blend_f32_rvv(nk_f32_t const *a, nk_f32_t cons
         vfloat32m4_t result_f32m4 = __riscv_vfmacc_vf_f32m4(a_scaled_f32m4, beta_val, b_f32m4, vector_length);
         __riscv_vse32_v_f32m4(result, result_f32m4, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_blend_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
-                                                nk_f32_t const *alpha, nk_f32_t const *beta, nk_f16_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_blend_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                       nk_f32_t const *alpha, nk_f32_t const *beta, nk_f16_t *result,
+                                                       void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha, beta_val = *beta;
-    if (alpha_val == 1 && beta_val == 1) {
-        nk_each_sum_f16_rvv(a, b, n, result);
-        return;
-    }
+    if (alpha_val == 1 && beta_val == 1) { return nk_each_sum_f16_rvv(a, b, n, result, stream); }
     else if (alpha_val == 0 || beta_val == 0) {
         nk_f32_t zero = 0;
-        if (beta_val == 0) { nk_each_scale_f16_rvv(a, n, alpha, &zero, result); }
-        else { nk_each_scale_f16_rvv(b, n, beta, &zero, result); }
-        return;
+        if (beta_val == 0) { nk_each_scale_f16_rvv(a, n, alpha, &zero, result, stream); }
+        else { nk_each_scale_f16_rvv(b, n, beta, &zero, result, stream); }
+        return nk_success_k;
     }
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, result += vector_length) {
@@ -500,20 +569,20 @@ NUMKONG_API_COMPTIME void nk_each_blend_f16_rvv(nk_f16_t const *a, nk_f16_t cons
         vuint16m1_t result_u16m1 = nk_f32m2_to_f16m1_rvv_(result_f32m2, vector_length);
         __riscv_vse16_v_u16m1((nk_u16_t *)result, result_u16m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_blend_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                 nk_f32_t const *alpha, nk_f32_t const *beta, nk_bf16_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_blend_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                        nk_f32_t const *alpha, nk_f32_t const *beta, nk_bf16_t *result,
+                                                        void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha, beta_val = *beta;
-    if (alpha_val == 1 && beta_val == 1) {
-        nk_each_sum_bf16_rvv(a, b, n, result);
-        return;
-    }
+    if (alpha_val == 1 && beta_val == 1) { return nk_each_sum_bf16_rvv(a, b, n, result, stream); }
     else if (alpha_val == 0 || beta_val == 0) {
         nk_f32_t zero = 0;
-        if (beta_val == 0) { nk_each_scale_bf16_rvv(a, n, alpha, &zero, result); }
-        else { nk_each_scale_bf16_rvv(b, n, beta, &zero, result); }
-        return;
+        if (beta_val == 0) { nk_each_scale_bf16_rvv(a, n, alpha, &zero, result, stream); }
+        else { nk_each_scale_bf16_rvv(b, n, beta, &zero, result, stream); }
+        return nk_success_k;
     }
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, result += vector_length) {
@@ -527,20 +596,20 @@ NUMKONG_API_COMPTIME void nk_each_blend_bf16_rvv(nk_bf16_t const *a, nk_bf16_t c
         vuint16m1_t result_u16m1 = nk_f32m2_to_bf16m1_rvv_(result_f32m2, vector_length);
         __riscv_vse16_v_u16m1((nk_u16_t *)result, result_u16m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_blend_i8_rvv(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t const *alpha,
-                                               nk_f32_t const *beta, nk_i8_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_blend_i8_rvv(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n,
+                                                      nk_f32_t const *alpha, nk_f32_t const *beta, nk_i8_t *result,
+                                                      void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha, beta_val = *beta;
-    if (alpha_val == 1 && beta_val == 1) {
-        nk_each_sum_i8_rvv(a, b, n, result);
-        return;
-    }
+    if (alpha_val == 1 && beta_val == 1) { return nk_each_sum_i8_rvv(a, b, n, result, stream); }
     else if (alpha_val == 0 || beta_val == 0) {
         nk_f32_t zero = 0;
-        if (beta_val == 0) { nk_each_scale_i8_rvv(a, n, alpha, &zero, result); }
-        else { nk_each_scale_i8_rvv(b, n, beta, &zero, result); }
-        return;
+        if (beta_val == 0) { nk_each_scale_i8_rvv(a, n, alpha, &zero, result, stream); }
+        else { nk_each_scale_i8_rvv(b, n, beta, &zero, result, stream); }
+        return nk_success_k;
     }
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, result += vector_length) {
@@ -565,20 +634,20 @@ NUMKONG_API_COMPTIME void nk_each_blend_i8_rvv(nk_i8_t const *a, nk_i8_t const *
         vint8m1_t result_i8m1 = __riscv_vncvt_x_x_w_i8m1(result_i16m2, vector_length);
         __riscv_vse8_v_i8m1(result, result_i8m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_blend_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t const *alpha,
-                                               nk_f32_t const *beta, nk_u8_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_blend_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
+                                                      nk_f32_t const *alpha, nk_f32_t const *beta, nk_u8_t *result,
+                                                      void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha, beta_val = *beta;
-    if (alpha_val == 1 && beta_val == 1) {
-        nk_each_sum_u8_rvv(a, b, n, result);
-        return;
-    }
+    if (alpha_val == 1 && beta_val == 1) { return nk_each_sum_u8_rvv(a, b, n, result, stream); }
     else if (alpha_val == 0 || beta_val == 0) {
         nk_f32_t zero = 0;
-        if (beta_val == 0) { nk_each_scale_u8_rvv(a, n, alpha, &zero, result); }
-        else { nk_each_scale_u8_rvv(b, n, beta, &zero, result); }
-        return;
+        if (beta_val == 0) { nk_each_scale_u8_rvv(a, n, alpha, &zero, result, stream); }
+        else { nk_each_scale_u8_rvv(b, n, beta, &zero, result, stream); }
+        return nk_success_k;
     }
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, result += vector_length) {
@@ -601,10 +670,13 @@ NUMKONG_API_COMPTIME void nk_each_blend_u8_rvv(nk_u8_t const *a, nk_u8_t const *
         vuint8m1_t result_u8m1 = __riscv_vncvt_x_x_w_u8m1(result_u16m2, vector_length);
         __riscv_vse8_v_u8m1(result, result_u8m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_blend_e4m3_rvv(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
-                                                 nk_f32_t const *alpha, nk_f32_t const *beta, nk_e4m3_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_blend_e4m3_rvv(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                        nk_f32_t const *alpha, nk_f32_t const *beta, nk_e4m3_t *result,
+                                                        void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha, beta_val = *beta;
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, result += vector_length) {
@@ -618,10 +690,13 @@ NUMKONG_API_COMPTIME void nk_each_blend_e4m3_rvv(nk_e4m3_t const *a, nk_e4m3_t c
         vuint8m1_t result_u8m1 = nk_f32m4_to_e4m3m1_rvv_(result_f32m4, vector_length);
         __riscv_vse8_v_u8m1((nk_u8_t *)result, result_u8m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_blend_e5m2_rvv(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
-                                                 nk_f32_t const *alpha, nk_f32_t const *beta, nk_e5m2_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_blend_e5m2_rvv(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                        nk_f32_t const *alpha, nk_f32_t const *beta, nk_e5m2_t *result,
+                                                        void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha, beta_val = *beta;
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, result += vector_length) {
@@ -635,10 +710,13 @@ NUMKONG_API_COMPTIME void nk_each_blend_e5m2_rvv(nk_e5m2_t const *a, nk_e5m2_t c
         vuint8m1_t result_u8m1 = nk_f32m4_to_e5m2m1_rvv_(result_f32m4, vector_length);
         __riscv_vse8_v_u8m1((nk_u8_t *)result, result_u8m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                              nk_f64_t const *alpha, nk_f64_t const *beta, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c,
+                                                     nk_size_t n, nk_f64_t const *alpha, nk_f64_t const *beta,
+                                                     nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_val = *alpha, beta_val = *beta;
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, c += vector_length, result += vector_length) {
@@ -651,10 +729,13 @@ NUMKONG_API_COMPTIME void nk_each_fma_f64_rvv(nk_f64_t const *a, nk_f64_t const 
         vfloat64m4_t result_f64m4 = __riscv_vfmacc_vf_f64m4(scaled_product_f64m4, beta_val, c_f64m4, vector_length);
         __riscv_vse64_v_f64m4(result, result_f64m4, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                              nk_f32_t const *alpha, nk_f32_t const *beta, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c,
+                                                     nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
+                                                     nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha, beta_val = *beta;
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, c += vector_length, result += vector_length) {
@@ -667,10 +748,13 @@ NUMKONG_API_COMPTIME void nk_each_fma_f32_rvv(nk_f32_t const *a, nk_f32_t const 
         vfloat32m4_t result_f32m4 = __riscv_vfmacc_vf_f32m4(scaled_product_f32m4, beta_val, c_f32m4, vector_length);
         __riscv_vse32_v_f32m4(result, result_f32m4, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                              nk_f32_t const *alpha, nk_f32_t const *beta, nk_f16_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c,
+                                                     nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
+                                                     nk_f16_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha, beta_val = *beta;
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, c += vector_length, result += vector_length) {
@@ -687,10 +771,13 @@ NUMKONG_API_COMPTIME void nk_each_fma_f16_rvv(nk_f16_t const *a, nk_f16_t const 
         vuint16m1_t result_u16m1 = nk_f32m2_to_f16m1_rvv_(result_f32m2, vector_length);
         __riscv_vse16_v_u16m1((nk_u16_t *)result, result_u16m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                               nk_f32_t const *alpha, nk_f32_t const *beta, nk_bf16_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
+                                                      nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
+                                                      nk_bf16_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha, beta_val = *beta;
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, c += vector_length, result += vector_length) {
@@ -707,10 +794,13 @@ NUMKONG_API_COMPTIME void nk_each_fma_bf16_rvv(nk_bf16_t const *a, nk_bf16_t con
         vuint16m1_t result_u16m1 = nk_f32m2_to_bf16m1_rvv_(result_f32m2, vector_length);
         __riscv_vse16_v_u16m1((nk_u16_t *)result, result_u16m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_i8_rvv(nk_i8_t const *a, nk_i8_t const *b, nk_i8_t const *c, nk_size_t n,
-                                             nk_f32_t const *alpha, nk_f32_t const *beta, nk_i8_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_i8_rvv(nk_i8_t const *a, nk_i8_t const *b, nk_i8_t const *c, nk_size_t n,
+                                                    nk_f32_t const *alpha, nk_f32_t const *beta, nk_i8_t *result,
+                                                    void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha, beta_val = *beta;
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, c += vector_length, result += vector_length) {
@@ -740,10 +830,13 @@ NUMKONG_API_COMPTIME void nk_each_fma_i8_rvv(nk_i8_t const *a, nk_i8_t const *b,
         vint8m1_t result_i8m1 = __riscv_vncvt_x_x_w_i8m1(result_i16m2, vector_length);
         __riscv_vse8_v_i8m1(result, result_i8m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, nk_u8_t const *c, nk_size_t n,
-                                             nk_f32_t const *alpha, nk_f32_t const *beta, nk_u8_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, nk_u8_t const *c, nk_size_t n,
+                                                    nk_f32_t const *alpha, nk_f32_t const *beta, nk_u8_t *result,
+                                                    void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha, beta_val = *beta;
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, c += vector_length, result += vector_length) {
@@ -771,10 +864,13 @@ NUMKONG_API_COMPTIME void nk_each_fma_u8_rvv(nk_u8_t const *a, nk_u8_t const *b,
         vuint8m1_t result_u8m1 = __riscv_vncvt_x_x_w_u8m1(result_u16m2, vector_length);
         __riscv_vse8_v_u8m1(result, result_u8m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_i16_rvv(nk_i16_t const *a, nk_i16_t const *b, nk_i16_t const *c, nk_size_t n,
-                                              nk_f32_t const *alpha, nk_f32_t const *beta, nk_i16_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_i16_rvv(nk_i16_t const *a, nk_i16_t const *b, nk_i16_t const *c,
+                                                     nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
+                                                     nk_i16_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha, beta_val = *beta;
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, c += vector_length, result += vector_length) {
@@ -800,10 +896,13 @@ NUMKONG_API_COMPTIME void nk_each_fma_i16_rvv(nk_i16_t const *a, nk_i16_t const 
         vint16m1_t result_i16m1 = __riscv_vncvt_x_x_w_i16m1(result_i32m2, vector_length);
         __riscv_vse16_v_i16m1(result, result_i16m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_u16_rvv(nk_u16_t const *a, nk_u16_t const *b, nk_u16_t const *c, nk_size_t n,
-                                              nk_f32_t const *alpha, nk_f32_t const *beta, nk_u16_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_u16_rvv(nk_u16_t const *a, nk_u16_t const *b, nk_u16_t const *c,
+                                                     nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
+                                                     nk_u16_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha, beta_val = *beta;
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, c += vector_length, result += vector_length) {
@@ -827,10 +926,13 @@ NUMKONG_API_COMPTIME void nk_each_fma_u16_rvv(nk_u16_t const *a, nk_u16_t const 
         vuint16m1_t result_u16m1 = __riscv_vncvt_x_x_w_u16m1(result_u32m2, vector_length);
         __riscv_vse16_v_u16m1(result, result_u16m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_i32_rvv(nk_i32_t const *a, nk_i32_t const *b, nk_i32_t const *c, nk_size_t n,
-                                              nk_f64_t const *alpha, nk_f64_t const *beta, nk_i32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_i32_rvv(nk_i32_t const *a, nk_i32_t const *b, nk_i32_t const *c,
+                                                     nk_size_t n, nk_f64_t const *alpha, nk_f64_t const *beta,
+                                                     nk_i32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_val = *alpha, beta_val = *beta;
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, c += vector_length, result += vector_length) {
@@ -852,10 +954,13 @@ NUMKONG_API_COMPTIME void nk_each_fma_i32_rvv(nk_i32_t const *a, nk_i32_t const 
         vint32m1_t result_i32m1 = __riscv_vfncvt_x_f_w_i32m1(result_f64m2, vector_length);
         __riscv_vse32_v_i32m1(result, result_i32m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_u32_rvv(nk_u32_t const *a, nk_u32_t const *b, nk_u32_t const *c, nk_size_t n,
-                                              nk_f64_t const *alpha, nk_f64_t const *beta, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_u32_rvv(nk_u32_t const *a, nk_u32_t const *b, nk_u32_t const *c,
+                                                     nk_size_t n, nk_f64_t const *alpha, nk_f64_t const *beta,
+                                                     nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_val = *alpha, beta_val = *beta;
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, c += vector_length, result += vector_length) {
@@ -874,10 +979,13 @@ NUMKONG_API_COMPTIME void nk_each_fma_u32_rvv(nk_u32_t const *a, nk_u32_t const 
         vuint32m1_t result_u32m1 = __riscv_vfncvt_xu_f_w_u32m1(result_f64m2, vector_length);
         __riscv_vse32_v_u32m1(result, result_u32m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_i64_rvv(nk_i64_t const *a, nk_i64_t const *b, nk_i64_t const *c, nk_size_t n,
-                                              nk_f64_t const *alpha, nk_f64_t const *beta, nk_i64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_i64_rvv(nk_i64_t const *a, nk_i64_t const *b, nk_i64_t const *c,
+                                                     nk_size_t n, nk_f64_t const *alpha, nk_f64_t const *beta,
+                                                     nk_i64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_val = *alpha, beta_val = *beta;
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, c += vector_length, result += vector_length) {
@@ -897,10 +1005,13 @@ NUMKONG_API_COMPTIME void nk_each_fma_i64_rvv(nk_i64_t const *a, nk_i64_t const 
         vint64m4_t result_i64m4 = __riscv_vfcvt_x_f_v_i64m4(result_f64m4, vector_length);
         __riscv_vse64_v_i64m4(result, result_i64m4, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_u64_rvv(nk_u64_t const *a, nk_u64_t const *b, nk_u64_t const *c, nk_size_t n,
-                                              nk_f64_t const *alpha, nk_f64_t const *beta, nk_u64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_u64_rvv(nk_u64_t const *a, nk_u64_t const *b, nk_u64_t const *c,
+                                                     nk_size_t n, nk_f64_t const *alpha, nk_f64_t const *beta,
+                                                     nk_u64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_val = *alpha, beta_val = *beta;
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, c += vector_length, result += vector_length) {
@@ -918,10 +1029,13 @@ NUMKONG_API_COMPTIME void nk_each_fma_u64_rvv(nk_u64_t const *a, nk_u64_t const 
         vuint64m4_t result_u64m4 = __riscv_vfcvt_xu_f_v_u64m4(result_f64m4, vector_length);
         __riscv_vse64_v_u64m4(result, result_u64m4, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_e4m3_rvv(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_e4m3_t const *c, nk_size_t n,
-                                               nk_f32_t const *alpha, nk_f32_t const *beta, nk_e4m3_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_e4m3_rvv(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_e4m3_t const *c,
+                                                      nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
+                                                      nk_e4m3_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha, beta_val = *beta;
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, c += vector_length, result += vector_length) {
@@ -938,10 +1052,13 @@ NUMKONG_API_COMPTIME void nk_each_fma_e4m3_rvv(nk_e4m3_t const *a, nk_e4m3_t con
         vuint8m1_t result_u8m1 = nk_f32m4_to_e4m3m1_rvv_(result_f32m4, vector_length);
         __riscv_vse8_v_u8m1((nk_u8_t *)result, result_u8m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_e5m2_rvv(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_e5m2_t const *c, nk_size_t n,
-                                               nk_f32_t const *alpha, nk_f32_t const *beta, nk_e5m2_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_e5m2_rvv(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_e5m2_t const *c,
+                                                      nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
+                                                      nk_e5m2_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha, beta_val = *beta;
     for (nk_size_t vector_length; n > 0;
          n -= vector_length, a += vector_length, b += vector_length, c += vector_length, result += vector_length) {
@@ -958,10 +1075,12 @@ NUMKONG_API_COMPTIME void nk_each_fma_e5m2_rvv(nk_e5m2_t const *a, nk_e5m2_t con
         vuint8m1_t result_u8m1 = nk_f32m4_to_e5m2m1_rvv_(result_f32m4, vector_length);
         __riscv_vse8_v_u8m1((nk_u8_t *)result, result_u8m1, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_f32c_rvv(nk_f32c_t const *a, nk_size_t n, nk_f32c_t const *alpha,
-                                                 nk_f32c_t const *beta, nk_f32c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_f32c_rvv(nk_f32c_t const *a, nk_size_t n, nk_f32c_t const *alpha,
+                                                        nk_f32c_t const *beta, nk_f32c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_real = alpha->real, alpha_imag = alpha->imag;
     nk_f32_t beta_real = beta->real, beta_imag = beta->imag;
     nk_f32_t const *a_f32 = (nk_f32_t const *)a;
@@ -981,10 +1100,12 @@ NUMKONG_API_COMPTIME void nk_each_scale_f32c_rvv(nk_f32c_t const *a, nk_size_t n
         vfloat32m2x2_t out_f32m2x2 = __riscv_vcreate_v_f32m2x2(y_real_f32m2, y_imag_f32m2);
         __riscv_vsseg2e32_v_f32m2x2(result_f32, out_f32m2x2, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_scale_f64c_rvv(nk_f64c_t const *a, nk_size_t n, nk_f64c_t const *alpha,
-                                                 nk_f64c_t const *beta, nk_f64c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_scale_f64c_rvv(nk_f64c_t const *a, nk_size_t n, nk_f64c_t const *alpha,
+                                                        nk_f64c_t const *beta, nk_f64c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_real = alpha->real, alpha_imag = alpha->imag;
     nk_f64_t beta_real = beta->real, beta_imag = beta->imag;
     nk_f64_t const *a_f64 = (nk_f64_t const *)a;
@@ -1004,10 +1125,13 @@ NUMKONG_API_COMPTIME void nk_each_scale_f64c_rvv(nk_f64c_t const *a, nk_size_t n
         vfloat64m2x2_t out_f64m2x2 = __riscv_vcreate_v_f64m2x2(y_real_f64m2, y_imag_f64m2);
         __riscv_vsseg2e64_v_f64m2x2(result_f64, out_f64m2x2, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_blend_f32c_rvv(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n,
-                                                 nk_f32c_t const *alpha, nk_f32c_t const *beta, nk_f32c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_blend_f32c_rvv(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n,
+                                                        nk_f32c_t const *alpha, nk_f32c_t const *beta,
+                                                        nk_f32c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_real = alpha->real, alpha_imag = alpha->imag;
     nk_f32_t beta_real = beta->real, beta_imag = beta->imag;
     nk_f32_t const *a_f32 = (nk_f32_t const *)a;
@@ -1033,10 +1157,13 @@ NUMKONG_API_COMPTIME void nk_each_blend_f32c_rvv(nk_f32c_t const *a, nk_f32c_t c
         vfloat32m2x2_t out_f32m2x2 = __riscv_vcreate_v_f32m2x2(y_real_f32m2, y_imag_f32m2);
         __riscv_vsseg2e32_v_f32m2x2(result_f32, out_f32m2x2, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_blend_f64c_rvv(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n,
-                                                 nk_f64c_t const *alpha, nk_f64c_t const *beta, nk_f64c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_blend_f64c_rvv(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n,
+                                                        nk_f64c_t const *alpha, nk_f64c_t const *beta,
+                                                        nk_f64c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_real = alpha->real, alpha_imag = alpha->imag;
     nk_f64_t beta_real = beta->real, beta_imag = beta->imag;
     nk_f64_t const *a_f64 = (nk_f64_t const *)a;
@@ -1062,10 +1189,13 @@ NUMKONG_API_COMPTIME void nk_each_blend_f64c_rvv(nk_f64c_t const *a, nk_f64c_t c
         vfloat64m2x2_t out_f64m2x2 = __riscv_vcreate_v_f64m2x2(y_real_f64m2, y_imag_f64m2);
         __riscv_vsseg2e64_v_f64m2x2(result_f64, out_f64m2x2, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_f32c_rvv(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c, nk_size_t n,
-                                               nk_f32c_t const *alpha, nk_f32c_t const *beta, nk_f32c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_f32c_rvv(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c,
+                                                      nk_size_t n, nk_f32c_t const *alpha, nk_f32c_t const *beta,
+                                                      nk_f32c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_real = alpha->real, alpha_imag = alpha->imag;
     nk_f32_t beta_real = beta->real, beta_imag = beta->imag;
     nk_f32_t const *a_f32 = (nk_f32_t const *)a;
@@ -1099,10 +1229,13 @@ NUMKONG_API_COMPTIME void nk_each_fma_f32c_rvv(nk_f32c_t const *a, nk_f32c_t con
         vfloat32m2x2_t out_f32m2x2 = __riscv_vcreate_v_f32m2x2(y_real_f32m2, y_imag_f32m2);
         __riscv_vsseg2e32_v_f32m2x2(result_f32, out_f32m2x2, vector_length);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_each_fma_f64c_rvv(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c, nk_size_t n,
-                                               nk_f64c_t const *alpha, nk_f64c_t const *beta, nk_f64c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_fma_f64c_rvv(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c,
+                                                      nk_size_t n, nk_f64c_t const *alpha, nk_f64c_t const *beta,
+                                                      nk_f64c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_real = alpha->real, alpha_imag = alpha->imag;
     nk_f64_t beta_real = beta->real, beta_imag = beta->imag;
     nk_f64_t const *a_f64 = (nk_f64_t const *)a;
@@ -1136,6 +1269,7 @@ NUMKONG_API_COMPTIME void nk_each_fma_f64c_rvv(nk_f64c_t const *a, nk_f64c_t con
         vfloat64m2x2_t out_f64m2x2 = __riscv_vcreate_v_f64m2x2(y_real_f64m2, y_imag_f64m2);
         __riscv_vsseg2e64_v_f64m2x2(result_f64, out_f64m2x2, vector_length);
     }
+    return nk_success_k;
 }
 
 /** Vectorized `2^x` at e32m4 (RVV); matches @c nk_f32_exp2_serial_ to polynomial precision. */

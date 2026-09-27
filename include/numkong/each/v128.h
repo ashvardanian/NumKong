@@ -30,7 +30,9 @@ extern "C" {
 
 #pragma region F32 Floats
 
-NUMKONG_API_COMPTIME void nk_each_sum_f32_v128(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_sum_f32_v128(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
+                                                      nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         v128_t a_f32x4 = wasm_v128_load(a + i);
@@ -38,13 +40,15 @@ NUMKONG_API_COMPTIME void nk_each_sum_f32_v128(nk_f32_t const *a, nk_f32_t const
         wasm_v128_store(result + i, wasm_f32x4_add(a_f32x4, b_f32x4));
     }
     for (; i < n; ++i) result[i] = a[i] + b[i];
+    return nk_success_k;
 }
 
 #pragma endregion F32 Floats
 #pragma region BF16 Floats
 
-NUMKONG_API_COMPTIME void nk_each_sum_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                nk_bf16_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_sum_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                       nk_bf16_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         nk_b64_vec_t a_bf16_vec, b_bf16_vec;
@@ -64,6 +68,7 @@ NUMKONG_API_COMPTIME void nk_each_sum_bf16_v128(nk_bf16_t const *a, nk_bf16_t co
         nk_f32_t sum = ai + bi;
         nk_f32_to_bf16_serial(&sum, result + i);
     }
+    return nk_success_k;
 }
 
 #pragma endregion BF16 Floats
@@ -106,7 +111,9 @@ NUMKONG_HELPER_INLINE v128_t nk_exp2_u8_i32x4_v128_(v128_t t_q15_i32x4) {
 #pragma endregion I32 Integers
 #pragma region I8 Integers
 
-NUMKONG_API_COMPTIME void nk_each_sum_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i8_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_sum_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i8_t *result,
+                                                     void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
         v128_t a_i8x16 = wasm_v128_load(a + i);
@@ -117,12 +124,15 @@ NUMKONG_API_COMPTIME void nk_each_sum_i8_v128(nk_i8_t const *a, nk_i8_t const *b
         nk_f32_t sum = (nk_f32_t)a[i] + b[i];
         nk_f32_to_i8_serial(&sum, result + i);
     }
+    return nk_success_k;
 }
 
 #pragma endregion I8 Integers
 #pragma region U8 Integers
 
-NUMKONG_API_COMPTIME void nk_each_sum_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u8_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_each_sum_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u8_t *result,
+                                                     void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
         v128_t a_u8x16 = wasm_v128_load(a + i);
@@ -133,6 +143,7 @@ NUMKONG_API_COMPTIME void nk_each_sum_u8_v128(nk_u8_t const *a, nk_u8_t const *b
         nk_f32_t sum = (nk_f32_t)a[i] + b[i];
         nk_f32_to_u8_serial(&sum, result + i);
     }
+    return nk_success_k;
 }
 
 #pragma endregion U8 Integers

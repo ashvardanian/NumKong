@@ -736,11 +736,6 @@ NUMKONG_HELPER_INLINE void nk_partial_load_e4m3x16_to_f16x16_skylake_(void const
     dst->ymm = nk_e4m3x16_to_f16x16_skylake_(e4m3_partial.xmm);
 }
 
-/** Load 16 e5m2 values and convert to 16 f32 (Skylake AVX-512). */
-NUMKONG_HELPER_INLINE void nk_load_e5m2x16_to_f32x16_skylake_(void const *src, nk_b512_vec_t *dst) {
-    dst->zmm_ps = nk_e5m2x16_to_f32x16_skylake_(_mm_loadu_si128((__m128i const *)src));
-}
-
 /** Partial load of up to 16 e5m2 values with conversion to f32 (Skylake AVX-512). */
 NUMKONG_HELPER_INLINE void nk_partial_load_e5m2x16_to_f32x16_skylake_(void const *src, nk_b512_vec_t *dst,
                                                                       nk_size_t n) {
@@ -749,22 +744,12 @@ NUMKONG_HELPER_INLINE void nk_partial_load_e5m2x16_to_f32x16_skylake_(void const
     dst->zmm_ps = nk_e5m2x16_to_f32x16_skylake_(e5m2_partial.xmm);
 }
 
-/** Load 16 e2m3 values and convert to 16 f32 (Skylake AVX-512). */
-NUMKONG_HELPER_INLINE void nk_load_e2m3x16_to_f32x16_skylake_(void const *src, nk_b512_vec_t *dst) {
-    dst->zmm_ps = nk_e2m3x16_to_f32x16_skylake_(_mm_loadu_si128((__m128i const *)src));
-}
-
 /** Partial load of up to 16 e2m3 values with conversion to f32 (Skylake AVX-512). */
 NUMKONG_HELPER_INLINE void nk_partial_load_e2m3x16_to_f32x16_skylake_(void const *src, nk_b512_vec_t *dst,
                                                                       nk_size_t n) {
     nk_b128_vec_t e2m3_partial;
     nk_partial_load_b8x16_skylake_(src, &e2m3_partial, n);
     dst->zmm_ps = nk_e2m3x16_to_f32x16_skylake_(e2m3_partial.xmm);
-}
-
-/** Load 16 e3m2 values and convert to 16 f32 (Skylake AVX-512). */
-NUMKONG_HELPER_INLINE void nk_load_e3m2x16_to_f32x16_skylake_(void const *src, nk_b512_vec_t *dst) {
-    dst->zmm_ps = nk_e3m2x16_to_f32x16_skylake_(_mm_loadu_si128((__m128i const *)src));
 }
 
 /** Partial load of up to 16 e3m2 values with conversion to f32 (Skylake AVX-512). */
@@ -779,13 +764,14 @@ NUMKONG_HELPER_INLINE void nk_partial_load_e3m2x16_to_f32x16_skylake_(void const
 
 #pragma region Public API
 
-NUMKONG_API_COMPTIME void nk_cast_skylake(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                          nk_dtype_t to_type) {
+NUMKONG_API_COMPTIME nk_status_t nk_cast_skylake(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
+                                                 nk_dtype_t to_type, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Same-type fast path
     if (from_type == to_type) {
         nk_size_t size_bits = nk_dtype_bits(from_type);
         if (size_bits > 0) nk_copy_bytes_(to, from, n * size_bits / 8);
-        return;
+        return nk_success_k;
     }
 
     // Type classification for hub selection
@@ -866,7 +852,7 @@ NUMKONG_API_COMPTIME void nk_cast_skylake(void const *from, nk_dtype_t from_type
             to_ptr += batch * to_bytes;
             n -= batch;
         }
-        return;
+        return nk_success_k;
     }
 
     // Hub 2: u64x8 - unsigned ↔ unsigned integers (8 elements/batch)
@@ -898,7 +884,7 @@ NUMKONG_API_COMPTIME void nk_cast_skylake(void const *from, nk_dtype_t from_type
             to_ptr += batch * to_bytes;
             n -= batch;
         }
-        return;
+        return nk_success_k;
     }
 
     // Hub 3: i64x8 - signed/mixed integer conversions (8 elements/batch)
@@ -945,7 +931,7 @@ NUMKONG_API_COMPTIME void nk_cast_skylake(void const *from, nk_dtype_t from_type
             to_ptr += batch * to_bytes;
             n -= batch;
         }
-        return;
+        return nk_success_k;
     }
 
     // Hub 4: f64x8 - f64 conversions (8 elements/batch)
@@ -983,89 +969,11 @@ NUMKONG_API_COMPTIME void nk_cast_skylake(void const *from, nk_dtype_t from_type
             to_ptr += batch * to_bytes;
             n -= batch;
         }
-        return;
+        return nk_success_k;
     }
 
     // Fallback: complex types, i4/u4/u1, unsupported combinations
-    nk_cast_serial(from, from_type, n, to, to_type);
-}
-
-/**
- *  @brief Convert 16× e2m1 → 16× f32 via 8-magnitude LUT + sign flip (AVX-512).
- *
- *  Input: 8 bytes (low 64 bits of @p packed) holding 16 nibbles, high nibble of byte → even lane.
- *  E2M1 magnitudes {0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0} are indexed by nibble bits 2..0, and
- *  bit 3 carries the sign.
- */
-NUMKONG_HELPER_INLINE __m512 nk_e2m1x16_to_f32x16_skylake_(__m128i packed) {
-    // Expand 8 packed bytes to 16 nibble bytes via shift + mask + unpack interleave
-    __m128i low_nibbles_u8x16 = _mm_and_si128(packed, _mm_set1_epi8(0x0F));
-    __m128i high_nibbles_u8x16 = _mm_and_si128(_mm_srli_epi32(packed, 4), _mm_set1_epi8(0x0F));
-    __m128i nibbles_b8x16 = _mm_unpacklo_epi8(high_nibbles_u8x16, low_nibbles_u8x16);
-    __m512i nibbles_i32x16 = _mm512_cvtepu8_epi32(nibbles_b8x16);
-
-    // Magnitude LUT indexed by bits 2..0 (8 entries, broadcast to low half of __m512 via permutexvar)
-    __m512 magnitude_lut_f32x16 = _mm512_set_ps(0, 0, 0, 0, 0, 0, 0, 0, //
-                                                6.0f, 4.0f, 3.0f, 2.0f, 1.5f, 1.0f, 0.5f, 0.0f);
-    __m512i magnitude_index_i32x16 = _mm512_and_si512(nibbles_i32x16, _mm512_set1_epi32(0x07));
-    __m512 magnitudes_f32x16 = _mm512_permutexvar_ps(magnitude_index_i32x16, magnitude_lut_f32x16);
-
-    // Sign: bit 3 of the nibble → bit 31 of the f32
-    __m512i sign_f32_i32x16 = _mm512_slli_epi32(_mm512_and_si512(nibbles_i32x16, _mm512_set1_epi32(0x08)), 28);
-    return _mm512_castsi512_ps(_mm512_xor_si512(_mm512_castps_si512(magnitudes_f32x16), sign_f32_i32x16));
-}
-
-/**
- *  @brief Convert 16× f32 → 16× e2m1 via bit manipulation, packed to 8 bytes (AVX-512).
- *
- *  Output: 8 bytes in the low 64 bits of the result.
- *  Lane 0 lands in the high nibble of byte 0, and lane 1 in its low nibble.
- */
-NUMKONG_HELPER_INLINE __m128i nk_f32x16_to_e2m1x16_skylake_(__m512 f32x16) {
-    __m512i bits_i32x16 = _mm512_castps_si512(f32x16);
-    __m512i sign_i32x16 = _mm512_srli_epi32(bits_i32x16, 31);
-    __m512i f32_exponent_i32x16 = _mm512_and_si512(_mm512_srli_epi32(bits_i32x16, 23), _mm512_set1_epi32(0xFF));
-
-    // Normal path: round 23-bit mantissa to 1 bit using RNE (cut at bit 22).
-    __m512i significand_i32x16 = _mm512_or_si512(_mm512_and_si512(bits_i32x16, _mm512_set1_epi32(0x007FFFFF)),
-                                                 _mm512_set1_epi32(0x00800000));
-    __m512i lsb_i32x16 = _mm512_and_si512(_mm512_srli_epi32(significand_i32x16, 22), _mm512_set1_epi32(1));
-    __m512i rounding_bias_i32x16 = _mm512_add_epi32(_mm512_set1_epi32(0x001FFFFF), lsb_i32x16);
-    __m512i rounded_sig_i32x16 = _mm512_add_epi32(significand_i32x16, rounding_bias_i32x16);
-    __m512i carry_i32x16 = _mm512_srli_epi32(rounded_sig_i32x16, 24);
-    __m512i normal_mantissa_i32x16 = _mm512_and_si512(_mm512_srli_epi32(rounded_sig_i32x16, 22),
-                                                      _mm512_set1_epi32(0x01));
-    __m512i e2m1_exponent_i32x16 = _mm512_sub_epi32(_mm512_add_epi32(f32_exponent_i32x16, carry_i32x16),
-                                                    _mm512_set1_epi32(126));
-
-    __mmask16 is_subnormal_m16 = _mm512_cmpgt_epi32_mask(_mm512_set1_epi32(1), e2m1_exponent_i32x16);
-    __mmask16 overflow_m16 = _mm512_cmpgt_epi32_mask(e2m1_exponent_i32x16, _mm512_set1_epi32(3));
-
-    __m512i clamped_exponent_i32x16 = _mm512_max_epi32(e2m1_exponent_i32x16, _mm512_set1_epi32(1));
-    clamped_exponent_i32x16 = _mm512_min_epi32(clamped_exponent_i32x16, _mm512_set1_epi32(3));
-    normal_mantissa_i32x16 = _mm512_mask_blend_epi32(overflow_m16, normal_mantissa_i32x16, _mm512_set1_epi32(0x01));
-    __m512i normal_nibble_i32x16 = _mm512_ternarylogic_epi32(
-        _mm512_slli_epi32(sign_i32x16, 3), _mm512_slli_epi32(clamped_exponent_i32x16, 1), normal_mantissa_i32x16, 0xFE);
-
-    // Subnormal path: round(|x| * 2), clamp to {0, 1}. Promotion to first normal (0x02) when it rounds up to 2.
-    __m512 abs_f32x16 = _mm512_and_ps(f32x16, _mm512_castsi512_ps(_mm512_set1_epi32(0x7FFFFFFF)));
-    __m512 scaled_f32x16 = _mm512_mul_ps(abs_f32x16, _mm512_set1_ps(2.0f));
-    __m512i subnorm_mantissa_i32x16 = _mm512_cvtps_epi32(scaled_f32x16);
-    __mmask16 promotes_to_normal_m16 = _mm512_cmpgt_epi32_mask(subnorm_mantissa_i32x16, _mm512_set1_epi32(1));
-    subnorm_mantissa_i32x16 = _mm512_max_epi32(_mm512_min_epi32(subnorm_mantissa_i32x16, _mm512_set1_epi32(1)),
-                                               _mm512_setzero_si512());
-    __m512i subnorm_nibble_i32x16 = _mm512_or_si512(_mm512_slli_epi32(sign_i32x16, 3), subnorm_mantissa_i32x16);
-    __m512i first_normal_nibble_i32x16 = _mm512_or_si512(_mm512_slli_epi32(sign_i32x16, 3), _mm512_set1_epi32(0x02));
-    subnorm_nibble_i32x16 = _mm512_mask_blend_epi32(promotes_to_normal_m16, subnorm_nibble_i32x16,
-                                                    first_normal_nibble_i32x16);
-
-    __m512i nibble_i32x16 = _mm512_mask_blend_epi32(is_subnormal_m16, normal_nibble_i32x16, subnorm_nibble_i32x16);
-
-    // Pack 16 nibbles (each in low 4 bits of a byte) to 8 bytes: even idx → high nibble, odd → low.
-    __m128i nibble_b8x16 = _mm512_cvtepi32_epi8(nibble_i32x16);
-    __m128i pack_coeff_i16x8 = _mm_set1_epi16(0x0110); // byte 0 coefficient 0x10, byte 1 coefficient 0x01
-    __m128i packed_i16x8 = _mm_maddubs_epi16(nibble_b8x16, pack_coeff_i16x8);
-    return _mm_packus_epi16(packed_i16x8, _mm_setzero_si128());
+    return nk_cast_serial(from, from_type, n, to, to_type, stream);
 }
 
 /** Reduce a block of @p block_count f32s to `amax = max(|x|)`. @p block_count ≤ 32. */
@@ -1086,18 +994,18 @@ NUMKONG_HELPER_INLINE nk_f32_t nk_block_amax_f32_skylake_(nk_f32_t const *block,
     return _mm512_reduce_max_ps(_mm512_max_ps(abs_low_f32x16, abs_high_f32x16));
 }
 
-NUMKONG_API_COMPTIME void nk_cast_block_scaled_skylake(                                                        //
+NUMKONG_API_COMPTIME nk_status_t nk_cast_block_scaled_skylake(                                                 //
     void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
     nk_block_scaled_format_t const *from_format,                                                               //
     void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
-    nk_size_t count) {
+    nk_size_t count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     int from_plain = (from_format->scale_dtype == nk_dtype_unknown_k || from_format->block_size == 0);
     int to_plain = (to_format->scale_dtype == nk_dtype_unknown_k || to_format->block_size == 0);
 
     if (from_plain && to_plain) {
-        nk_cast_skylake(from, from_format->element_dtype, count, to, to_format->element_dtype);
-        return;
+        return nk_cast_skylake(from, from_format->element_dtype, count, to, to_format->element_dtype, stream);
     }
 
     nk_size_t from_block = from_plain ? 1u : from_format->block_size;
@@ -1115,9 +1023,8 @@ NUMKONG_API_COMPTIME void nk_cast_block_scaled_skylake(                         
         to_tensor_scale_f32 = to_tensor_scale->f32;
         if (to_tensor_scale_f32 == 0.0f) {
             // Fall back to serial for auto-derive (needs a full tensor scan; rare calibration path).
-            nk_cast_block_scaled_serial(from, from_scales, from_tensor_scale, from_format, to, to_scales,
-                                        to_tensor_scale, to_format, count);
-            return;
+            return nk_cast_block_scaled_serial(from, from_scales, from_tensor_scale, from_format, to, to_scales,
+                                               to_tensor_scale, to_format, count, stream);
         }
     }
 
@@ -1133,7 +1040,7 @@ NUMKONG_API_COMPTIME void nk_cast_block_scaled_skylake(                         
         // Decode source chunk into f32 scratch.
         if (from_plain) {
             void const *src = (nk_u8_t const *)from + (chunk_start * from_bits_per_element / NUMKONG_BITS_PER_BYTE);
-            nk_cast_skylake(src, from_format->element_dtype, chunk_count, scratch, nk_f32_k);
+            nk_cast_skylake(src, from_format->element_dtype, chunk_count, scratch, nk_f32_k, stream);
         }
         else {
             for (nk_size_t b = 0; b < chunk_count; b += from_block) {
@@ -1144,7 +1051,7 @@ NUMKONG_API_COMPTIME void nk_cast_block_scaled_skylake(                         
                                      from_tensor_scale_f32;
                 void const *src = (nk_u8_t const *)from +
                                   ((chunk_start + b) * from_bits_per_element / NUMKONG_BITS_PER_BYTE);
-                nk_cast_skylake(src, from_format->element_dtype, valid, scratch + b, nk_f32_k);
+                nk_cast_skylake(src, from_format->element_dtype, valid, scratch + b, nk_f32_k, stream);
                 __m512 scale_bcast_f32x16 = _mm512_set1_ps(scale_f32);
                 __m512 v_low_f32x16 = _mm512_maskz_loadu_ps(valid >= 16 ? 0xFFFF : (1u << valid) - 1u, scratch + b);
                 _mm512_mask_storeu_ps(scratch + b, valid >= 16 ? 0xFFFF : (1u << valid) - 1u,
@@ -1160,7 +1067,7 @@ NUMKONG_API_COMPTIME void nk_cast_block_scaled_skylake(                         
         // Encode f32 scratch into destination chunk.
         if (to_plain) {
             void *dst = (nk_u8_t *)to + (chunk_start * to_bits_per_element / NUMKONG_BITS_PER_BYTE);
-            nk_cast_skylake(scratch, nk_f32_k, chunk_count, dst, to_format->element_dtype);
+            nk_cast_skylake(scratch, nk_f32_k, chunk_count, dst, to_format->element_dtype, stream);
         }
         else {
             nk_f32_t element_max = nk_element_max_representable_(to_format->element_dtype);
@@ -1192,10 +1099,11 @@ NUMKONG_API_COMPTIME void nk_cast_block_scaled_skylake(                         
                     else if (encoded_scratch[saturate_index] < -element_max)
                         encoded_scratch[saturate_index] = -element_max;
                 }
-                nk_cast_skylake(encoded_scratch, nk_f32_k, valid, dst, to_format->element_dtype);
+                nk_cast_skylake(encoded_scratch, nk_f32_k, valid, dst, to_format->element_dtype, stream);
             }
         }
     }
+    return nk_success_k;
 }
 
 #pragma endregion Public API

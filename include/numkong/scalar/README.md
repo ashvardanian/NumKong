@@ -1,8 +1,9 @@
 # Scalar Math Primitives in NumKong
 
 NumKong provides single-element math operations — square root, reciprocal square root, fused multiply-add, and saturating integer arithmetic — with per-ISA implementations.
-These primitives serve as building blocks for vectorized kernels: distance finalizers call `nk_f32_rsqrt` for angular normalization, packing routines call `nk_f32_sqrt` for norm computation.
-Ordering functions (`nk_f16_order`, `nk_bf16_order`, `nk_e4m3_order`) compare two values through their bit patterns, returning a negative, zero, or positive `int` like `strcmp`.
+These primitives serve as building blocks for vectorized kernels: distance finalizers call one of the `nk_f32_rsqrt_*` kernels for angular normalization, packing routines call one of the `nk_f32_sqrt_*` kernels for norm computation.
+Each also has a dispatch point, like `nk_f32_rsqrt_best`, which takes the CPU capability mask alone, returns the value itself instead of a status, and always falls back to `serial`.
+Ordering functions (`nk_f16_order_best`, `nk_bf16_order_best`, `nk_e4m3_order_best`) compare two values through their bit patterns, returning a negative, zero, or positive `int` like `strcmp`.
 
 Reciprocal square root:
 

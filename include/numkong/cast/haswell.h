@@ -682,11 +682,6 @@ NUMKONG_HELPER_INLINE void nk_partial_load_e4m3x8_to_f32x8_haswell_(nk_e4m3_t co
     dst->ymm_ps = nk_e4m3x8_to_f32x8_haswell_(_mm_cvtsi64_si128(vec.u64));
 }
 
-/** Full load for e5m2 elements (8) with conversion to f32. */
-NUMKONG_HELPER_INLINE void nk_load_e5m2x8_to_f32x8_haswell_(void const *src, nk_b256_vec_t *dst) {
-    dst->ymm_ps = nk_e5m2x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)src));
-}
-
 /** Partial load for e5m2 elements (up to 8) with conversion to f32. */
 NUMKONG_HELPER_INLINE void nk_partial_load_e5m2x8_to_f32x8_haswell_(nk_e5m2_t const *src, nk_b256_vec_t *dst,
                                                                     nk_size_t n) {
@@ -695,22 +690,12 @@ NUMKONG_HELPER_INLINE void nk_partial_load_e5m2x8_to_f32x8_haswell_(nk_e5m2_t co
     dst->ymm_ps = nk_e5m2x8_to_f32x8_haswell_(_mm_cvtsi64_si128(vec.u64));
 }
 
-/** Full load for e2m3 elements (8) with conversion to f32. */
-NUMKONG_HELPER_INLINE void nk_load_e2m3x8_to_f32x8_haswell_(void const *src, nk_b256_vec_t *dst) {
-    dst->ymm_ps = nk_e2m3x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)src));
-}
-
 /** Partial load for e2m3 elements (up to 8) with conversion to f32. */
 NUMKONG_HELPER_INLINE void nk_partial_load_e2m3x8_to_f32x8_haswell_(nk_e2m3_t const *src, nk_b256_vec_t *dst,
                                                                     nk_size_t n) {
     nk_b64_vec_t vec;
     nk_partial_load_b8x8_serial_(src, &vec, n);
     dst->ymm_ps = nk_e2m3x8_to_f32x8_haswell_(_mm_cvtsi64_si128(vec.u64));
-}
-
-/** Full load for e3m2 elements (8) with conversion to f32. */
-NUMKONG_HELPER_INLINE void nk_load_e3m2x8_to_f32x8_haswell_(void const *src, nk_b256_vec_t *dst) {
-    dst->ymm_ps = nk_e3m2x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)src));
 }
 
 /** Partial load for e3m2 elements (up to 8) with conversion to f32. */
@@ -771,13 +756,14 @@ NUMKONG_HELPER_INLINE void nk_partial_load_u32x8_to_f32x8_haswell_(nk_u32_t cons
 
 #pragma region Public API
 
-NUMKONG_API_COMPTIME void nk_cast_haswell(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                          nk_dtype_t to_type) {
+NUMKONG_API_COMPTIME nk_status_t nk_cast_haswell(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
+                                                 nk_dtype_t to_type, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Same-type fast path
     if (from_type == to_type) {
         nk_size_t size_bits = nk_dtype_bits(from_type);
         if (size_bits > 0) nk_copy_bytes_(to, from, n * size_bits / NUMKONG_BITS_PER_BYTE);
-        return;
+        return nk_success_k;
     }
 
     // E2M1 (4-bit) ↔ f32 — sub-byte, so it rides a dedicated 8-wide loop instead of the byte-stride
@@ -800,8 +786,8 @@ NUMKONG_API_COMPTIME void nk_cast_haswell(void const *from, nk_dtype_t from_type
         }
         // Tail (< 8): delegate to serial so packed-nibble writes match the serial reference byte-for-byte.
         nk_size_t tail = n % 8;
-        if (tail) nk_cast_serial(from_ptr, from_type, tail, to_ptr, to_type);
-        return;
+        if (tail) nk_cast_serial(from_ptr, from_type, tail, to_ptr, to_type, stream);
+        return nk_success_k;
     }
 
     // Supported types: floats (f32, f16, bf16, e4m3, e5m2, e2m3, e3m2) and integers (i8, u8, i16, u16, i32, u32)
@@ -814,18 +800,12 @@ NUMKONG_API_COMPTIME void nk_cast_haswell(void const *from, nk_dtype_t from_type
                         to_type == nk_e5m2_k || to_type == nk_e2m3_k || to_type == nk_e3m2_k || to_type == nk_i8_k ||
                         to_type == nk_u8_k || to_type == nk_i16_k || to_type == nk_u16_k || to_type == nk_i32_k ||
                         to_type == nk_u32_k);
-    if (!from_supported || !to_supported) {
-        nk_cast_serial(from, from_type, n, to, to_type);
-        return;
-    }
+    if (!from_supported || !to_supported) { return nk_cast_serial(from, from_type, n, to, to_type, stream); }
 
     // Fall back to serial for i32/u32↔i32/u32 (f32 intermediate loses precision for large values)
     int from_32bit_int = (from_type == nk_i32_k || from_type == nk_u32_k);
     int to_32bit_int = (to_type == nk_i32_k || to_type == nk_u32_k);
-    if (from_32bit_int && to_32bit_int) {
-        nk_cast_serial(from, from_type, n, to, to_type);
-        return;
-    }
+    if (from_32bit_int && to_32bit_int) { return nk_cast_serial(from, from_type, n, to, to_type, stream); }
 
     // Byte steps per 8 elements
     nk_size_t from_step = nk_size_divide_round_up_(8 * nk_dtype_bits(from_type), NUMKONG_BITS_PER_BYTE);
@@ -954,6 +934,7 @@ NUMKONG_API_COMPTIME void nk_cast_haswell(void const *from, nk_dtype_t from_type
             nk_partial_store_b32x8_serial_(&hub, to_ptr, tail);
         }
     }
+    return nk_success_k;
 }
 
 /** Build an AVX2 lane mask selecting the low @p valid (≤ 8) f32 lanes. */
@@ -962,18 +943,18 @@ NUMKONG_HELPER_INLINE __m256i nk_lane_mask_f32x8_haswell_(nk_size_t valid) {
     return _mm256_cmpgt_epi32(_mm256_set1_epi32((int)valid), index_i32x8);
 }
 
-NUMKONG_API_COMPTIME void nk_cast_block_scaled_haswell(                                                        //
+NUMKONG_API_COMPTIME nk_status_t nk_cast_block_scaled_haswell(                                                 //
     void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
     nk_block_scaled_format_t const *from_format,                                                               //
     void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
-    nk_size_t count) {
+    nk_size_t count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     int from_plain = (from_format->scale_dtype == nk_dtype_unknown_k || from_format->block_size == 0);
     int to_plain = (to_format->scale_dtype == nk_dtype_unknown_k || to_format->block_size == 0);
 
     if (from_plain && to_plain) {
-        nk_cast_haswell(from, from_format->element_dtype, count, to, to_format->element_dtype);
-        return;
+        return nk_cast_haswell(from, from_format->element_dtype, count, to, to_format->element_dtype, stream);
     }
 
     nk_size_t from_block = from_plain ? 1u : from_format->block_size;
@@ -991,9 +972,8 @@ NUMKONG_API_COMPTIME void nk_cast_block_scaled_haswell(                         
         to_tensor_scale_f32 = to_tensor_scale->f32;
         if (to_tensor_scale_f32 == 0.0f) {
             // Fall back to serial for auto-derive (needs a full tensor scan; rare calibration path).
-            nk_cast_block_scaled_serial(from, from_scales, from_tensor_scale, from_format, to, to_scales,
-                                        to_tensor_scale, to_format, count);
-            return;
+            return nk_cast_block_scaled_serial(from, from_scales, from_tensor_scale, from_format, to, to_scales,
+                                               to_tensor_scale, to_format, count, stream);
         }
     }
 
@@ -1009,7 +989,7 @@ NUMKONG_API_COMPTIME void nk_cast_block_scaled_haswell(                         
         // Decode source chunk into f32 scratch.
         if (from_plain) {
             void const *src = (nk_u8_t const *)from + (chunk_start * from_bits_per_element / NUMKONG_BITS_PER_BYTE);
-            nk_cast_haswell(src, from_format->element_dtype, chunk_count, scratch, nk_f32_k);
+            nk_cast_haswell(src, from_format->element_dtype, chunk_count, scratch, nk_f32_k, stream);
         }
         else {
             for (nk_size_t b = 0; b < chunk_count; b += from_block) {
@@ -1020,7 +1000,7 @@ NUMKONG_API_COMPTIME void nk_cast_block_scaled_haswell(                         
                                      from_tensor_scale_f32;
                 void const *src = (nk_u8_t const *)from +
                                   ((chunk_start + b) * from_bits_per_element / NUMKONG_BITS_PER_BYTE);
-                nk_cast_haswell(src, from_format->element_dtype, valid, scratch + b, nk_f32_k);
+                nk_cast_haswell(src, from_format->element_dtype, valid, scratch + b, nk_f32_k, stream);
                 __m256 scale_bcast_f32x8 = _mm256_set1_ps(scale_f32);
                 for (nk_size_t e = 0; e < valid; e += 8) {
                     nk_size_t lanes = (valid - e) < 8 ? (valid - e) : 8;
@@ -1034,7 +1014,7 @@ NUMKONG_API_COMPTIME void nk_cast_block_scaled_haswell(                         
         // Encode f32 scratch into destination chunk.
         if (to_plain) {
             void *dst = (nk_u8_t *)to + (chunk_start * to_bits_per_element / NUMKONG_BITS_PER_BYTE);
-            nk_cast_haswell(scratch, nk_f32_k, chunk_count, dst, to_format->element_dtype);
+            nk_cast_haswell(scratch, nk_f32_k, chunk_count, dst, to_format->element_dtype, stream);
         }
         else {
             nk_f32_t element_max = nk_element_max_representable_(to_format->element_dtype);
@@ -1065,10 +1045,11 @@ NUMKONG_API_COMPTIME void nk_cast_block_scaled_haswell(                         
                     else if (encoded_scratch[saturate_index] < -element_max)
                         encoded_scratch[saturate_index] = -element_max;
                 }
-                nk_cast_haswell(encoded_scratch, nk_f32_k, valid, dst, to_format->element_dtype);
+                nk_cast_haswell(encoded_scratch, nk_f32_k, valid, dst, to_format->element_dtype, stream);
             }
         }
     }
+    return nk_success_k;
 }
 
 #pragma endregion Public API

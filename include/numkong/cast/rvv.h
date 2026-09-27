@@ -765,8 +765,9 @@ NUMKONG_HELPER_INLINE vuint8m1_t nk_f32m4_to_e5m2m1_rvv_(vfloat32m4_t f32_f32m4,
 
 #pragma region Unified Cast Dispatcher
 
-NUMKONG_API_COMPTIME void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_size_t count, void *to,
-                                      nk_dtype_t to_type) {
+NUMKONG_API_COMPTIME nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_size_t count, void *to,
+                                             nk_dtype_t to_type, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // bf16 → f32
     if (from_type == nk_bf16_k && to_type == nk_f32_k) {
         nk_bf16_t const *source = (nk_bf16_t const *)from;
@@ -778,7 +779,7 @@ NUMKONG_API_COMPTIME void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk
             vfloat32m2_t f32_f32m2 = nk_bf16m1_to_f32m2_rvv_(bf16_u16m1, vector_length);
             __riscv_vse32_v_f32m2(destination, f32_f32m2, vector_length);
         }
-        return;
+        return nk_success_k;
     }
 
     // f32 → bf16
@@ -792,7 +793,7 @@ NUMKONG_API_COMPTIME void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk
             vuint16m1_t bf16_u16m1 = nk_f32m2_to_bf16m1_rvv_(f32_f32m2, vector_length);
             __riscv_vse16_v_u16m1((nk_u16_t *)destination, bf16_u16m1, vector_length);
         }
-        return;
+        return nk_success_k;
     }
 
     // f16 → f32
@@ -806,7 +807,7 @@ NUMKONG_API_COMPTIME void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk
             vfloat32m2_t f32_f32m2 = nk_f16m1_to_f32m2_rvv_(f16_u16m1, vector_length);
             __riscv_vse32_v_f32m2(destination, f32_f32m2, vector_length);
         }
-        return;
+        return nk_success_k;
     }
 
     // f32 → f16
@@ -820,7 +821,7 @@ NUMKONG_API_COMPTIME void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk
             vuint16m1_t f16_u16m1 = nk_f32m2_to_f16m1_rvv_(f32_f32m2, vector_length);
             __riscv_vse16_v_u16m1((nk_u16_t *)destination, f16_u16m1, vector_length);
         }
-        return;
+        return nk_success_k;
     }
 
     // e4m3 → f32
@@ -834,7 +835,7 @@ NUMKONG_API_COMPTIME void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk
             vfloat32m4_t f32_f32m4 = nk_e4m3m1_to_f32m4_rvv_(e4m3_u8m1, vector_length);
             __riscv_vse32_v_f32m4(destination, f32_f32m4, vector_length);
         }
-        return;
+        return nk_success_k;
     }
 
     // e5m2 → f32
@@ -848,7 +849,7 @@ NUMKONG_API_COMPTIME void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk
             vfloat32m4_t f32_f32m4 = nk_e5m2m1_to_f32m4_rvv_(e5m2_u8m1, vector_length);
             __riscv_vse32_v_f32m4(destination, f32_f32m4, vector_length);
         }
-        return;
+        return nk_success_k;
     }
 
     // e2m3 → f32
@@ -862,7 +863,7 @@ NUMKONG_API_COMPTIME void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk
             vfloat32m4_t f32_f32m4 = nk_e2m3m1_to_f32m4_rvv_(e2m3_u8m1, vector_length);
             __riscv_vse32_v_f32m4(destination, f32_f32m4, vector_length);
         }
-        return;
+        return nk_success_k;
     }
 
     // e3m2 → f32
@@ -876,7 +877,7 @@ NUMKONG_API_COMPTIME void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk
             vfloat32m4_t f32_f32m4 = nk_e3m2m1_to_f32m4_rvv_(e3m2_u8m1, vector_length);
             __riscv_vse32_v_f32m4(destination, f32_f32m4, vector_length);
         }
-        return;
+        return nk_success_k;
     }
 
     // e4m3 → bf16
@@ -890,7 +891,7 @@ NUMKONG_API_COMPTIME void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk
             vuint16m2_t bf16_u16m2 = nk_e4m3m1_to_bf16m2_rvv_(e4m3_u8m1, vector_length);
             __riscv_vse16_v_u16m2((nk_u16_t *)destination, bf16_u16m2, vector_length);
         }
-        return;
+        return nk_success_k;
     }
 
     // e5m2 → bf16
@@ -904,7 +905,7 @@ NUMKONG_API_COMPTIME void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk
             vuint16m2_t bf16_u16m2 = nk_e5m2m1_to_bf16m2_rvv_(e5m2_u8m1, vector_length);
             __riscv_vse16_v_u16m2((nk_u16_t *)destination, bf16_u16m2, vector_length);
         }
-        return;
+        return nk_success_k;
     }
 
     // e2m3 → bf16
@@ -918,7 +919,7 @@ NUMKONG_API_COMPTIME void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk
             vuint16m2_t bf16_u16m2 = nk_e2m3m1_to_bf16m2_rvv_(e2m3_u8m1, vector_length);
             __riscv_vse16_v_u16m2((nk_u16_t *)destination, bf16_u16m2, vector_length);
         }
-        return;
+        return nk_success_k;
     }
 
     // e3m2 → bf16
@@ -932,7 +933,7 @@ NUMKONG_API_COMPTIME void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk
             vuint16m2_t bf16_u16m2 = nk_e3m2m1_to_bf16m2_rvv_(e3m2_u8m1, vector_length);
             __riscv_vse16_v_u16m2((nk_u16_t *)destination, bf16_u16m2, vector_length);
         }
-        return;
+        return nk_success_k;
     }
 
     // e4m3 → f16
@@ -946,7 +947,7 @@ NUMKONG_API_COMPTIME void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk
             vuint16m2_t f16_u16m2 = nk_e4m3m1_to_f16m2_rvv_(e4m3_u8m1, vector_length);
             __riscv_vse16_v_u16m2((nk_u16_t *)destination, f16_u16m2, vector_length);
         }
-        return;
+        return nk_success_k;
     }
 
     // e2m3 → f16
@@ -960,7 +961,7 @@ NUMKONG_API_COMPTIME void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk
             vuint16m2_t f16_u16m2 = nk_e2m3m1_to_f16m2_rvv_(e2m3_u8m1, vector_length);
             __riscv_vse16_v_u16m2((nk_u16_t *)destination, f16_u16m2, vector_length);
         }
-        return;
+        return nk_success_k;
     }
 
     // e3m2 → f16
@@ -974,7 +975,7 @@ NUMKONG_API_COMPTIME void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk
             vuint16m2_t f16_u16m2 = nk_e3m2m1_to_f16m2_rvv_(e3m2_u8m1, vector_length);
             __riscv_vse16_v_u16m2((nk_u16_t *)destination, f16_u16m2, vector_length);
         }
-        return;
+        return nk_success_k;
     }
 
     // i4 → i8
@@ -989,7 +990,7 @@ NUMKONG_API_COMPTIME void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk
             vint8m1x2_t unpacked_i8m1x2 = nk_i4m1_to_i8m2_rvv_(packed_u8m1, vector_length);
             __riscv_vsseg2e8_v_i8m1x2(destination, unpacked_i8m1x2, vector_length);
         }
-        return;
+        return nk_success_k;
     }
 
     // u4 → u8
@@ -1004,7 +1005,7 @@ NUMKONG_API_COMPTIME void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk
             vuint8m1x2_t unpacked_u8m1x2 = nk_u4m1_to_u8m2_rvv_(packed_u8m1, vector_length);
             __riscv_vsseg2e8_v_u8m1x2(destination, unpacked_u8m1x2, vector_length);
         }
-        return;
+        return nk_success_k;
     }
 
     // i8 → i4
@@ -1021,7 +1022,7 @@ NUMKONG_API_COMPTIME void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk
             vuint8m1_t packed_u8m1 = nk_i8m2_to_i4m1_rvv_(high_i8m1, low_i8m1, vector_length);
             __riscv_vse8_v_u8m1((nk_u8_t *)destination, packed_u8m1, vector_length);
         }
-        return;
+        return nk_success_k;
     }
 
     // u8 → u4
@@ -1038,11 +1039,11 @@ NUMKONG_API_COMPTIME void nk_cast_rvv(void const *from, nk_dtype_t from_type, nk
             vuint8m1_t packed_u8m1 = nk_u8m2_to_u4m1_rvv_(high_u8m1, low_u8m1, vector_length);
             __riscv_vse8_v_u8m1((nk_u8_t *)destination, packed_u8m1, vector_length);
         }
-        return;
+        return nk_success_k;
     }
 
     // Fallback to serial for unimplemented conversions
-    nk_cast_serial(from, from_type, count, to, to_type);
+    return nk_cast_serial(from, from_type, count, to, to_type, stream);
 }
 
 #pragma endregion Unified Cast Dispatcher
