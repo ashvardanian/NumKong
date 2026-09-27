@@ -128,8 +128,9 @@ NUMKONG_HELPER_INLINE nk_f64_t nk_dot_stable_sum_f64x2_powervsx_(nk_vf64x2_t sum
 
 #pragma region F32 and F64 Floats
 
-NUMKONG_API_COMPTIME void nk_dot_f32_powervsx(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,
-                                              nk_size_t count_scalars, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_f32_powervsx(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,
+                                                     nk_size_t count_scalars, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Upcast f32 → f64 for accumulation via vec_doublee (even lanes) and vec_doubleo (odd lanes)
     nk_vf64x2_t sum_even_f64x2 = vec_splats((nk_f64_t)0);
     nk_vf64x2_t sum_odd_f64x2 = vec_splats((nk_f64_t)0);
@@ -161,10 +162,12 @@ nk_dot_f32_powervsx_cycle:
     // Combine even and odd accumulators → final scalar
     nk_vf64x2_t total_f64x2 = vec_add(sum_even_f64x2, sum_odd_f64x2);
     *result = nk_hsum_f64x2_powervsx_(total_f64x2);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_f64_powervsx(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars,
-                                              nk_size_t count_scalars, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_f64_powervsx(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars,
+                                                     nk_size_t count_scalars, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Dot2 algorithm (Ogita-Rump-Oishi 2005) for compensated dot product
     nk_vf64x2_t sum_f64x2 = vec_splats((nk_f64_t)0);
     nk_vf64x2_t compensation_f64x2 = vec_splats((nk_f64_t)0);
@@ -199,13 +202,15 @@ nk_dot_f64_powervsx_cycle:
     if (count_scalars) goto nk_dot_f64_powervsx_cycle;
     // Compensated horizontal reduction preserving Dot2 error tracking
     *result = nk_dot_stable_sum_f64x2_powervsx_(sum_f64x2, compensation_f64x2);
+    return nk_success_k;
 }
 
 #pragma endregion F32 and F64 Floats
 #pragma region F16 and BF16 Floats
 
-NUMKONG_API_COMPTIME void nk_dot_bf16_powervsx(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                               nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_bf16_powervsx(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
+                                                      nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // bf16 → f32 via mergeh/mergel with zero: shift 16 bits into f32 upper half
     nk_vu16x8_t zero_u16x8 = vec_splats((nk_u16_t)0);
     nk_vf32x4_t sum_f32x4 = vec_splats((nk_f32_t)0);
@@ -235,10 +240,12 @@ nk_dot_bf16_powervsx_cycle:
 
     if (count_scalars) goto nk_dot_bf16_powervsx_cycle;
     *result = nk_hsum_f32x4_powervsx_(sum_f32x4);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_f16_powervsx(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
-                                              nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_f16_powervsx(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
+                                                     nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // f16 → f32 via vec_extract_fp32_from_shorth/shortl (Power9 XVCVHPSP)
     nk_vf32x4_t sum_f32x4 = vec_splats((nk_f32_t)0);
     nk_vu16x8_t a_u16x8, b_u16x8;
@@ -267,13 +274,15 @@ nk_dot_f16_powervsx_cycle:
 
     if (count_scalars) goto nk_dot_f16_powervsx_cycle;
     *result = nk_hsum_f32x4_powervsx_(sum_f32x4);
+    return nk_success_k;
 }
 
 #pragma endregion F16 and BF16 Floats
 #pragma region I8 and U8 Integers
 
-NUMKONG_API_COMPTIME void nk_dot_i8_powervsx(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars,
-                                             nk_size_t count_scalars, nk_i32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_i8_powervsx(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars,
+                                                    nk_size_t count_scalars, nk_i32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Algebraic transform for i8 × i8 using VMSUMMBM (i8 × u8 → i32):
     //     b' = b ⊕ 0x80  (reinterpret signed as unsigned)
     //     a · b = a · b' − 128 · Σa
@@ -315,10 +324,12 @@ nk_dot_i8_powervsx_cycle:
     nk_i64_t correction = 128LL * (nk_i64_t)nk_hsum_u32x4_powervsx_(sum_a_biased_u32x4) -
                           16384LL * (nk_i64_t)count_padded;
     *result = (nk_i32_t)((nk_i64_t)biased_dot - correction);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_u8_powervsx(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars,
-                                             nk_size_t count_scalars, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_u8_powervsx(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars,
+                                                    nk_size_t count_scalars, nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // vec_msum: multiply u8 × u8 pairs and accumulate 16 products → 4 u32 lanes per call
     nk_vu32x4_t accumulator_u32x4 = vec_splats((nk_u32_t)0);
     nk_vu8x16_t a_u8x16, b_u8x16;
@@ -342,13 +353,15 @@ nk_dot_u8_powervsx_cycle:
 
     if (count_scalars) goto nk_dot_u8_powervsx_cycle;
     *result = nk_hsum_u32x4_powervsx_(accumulator_u32x4);
+    return nk_success_k;
 }
 
 #pragma endregion I8 and U8 Integers
 #pragma region Binary
 
-NUMKONG_API_COMPTIME void nk_dot_u1_powervsx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits,
-                                             nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_u1_powervsx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits,
+                                                    nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n_bits / NUMKONG_BITS_PER_BYTE;
     nk_vu64x2_t accumulator_u64x2 = vec_splats((nk_u64_t)0);
     nk_vu8x16_t a_u8x16, b_u8x16;
@@ -372,6 +385,7 @@ nk_dot_u1_powervsx_cycle:
 
     if (n_bytes) goto nk_dot_u1_powervsx_cycle;
     *result = (nk_u32_t)nk_hsum_u64x2_powervsx_(accumulator_u64x2);
+    return nk_success_k;
 }
 
 #pragma endregion Binary

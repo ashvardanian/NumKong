@@ -101,8 +101,9 @@ NUMKONG_HELPER_INLINE nk_f64_t nk_dot_stable_sum_f64_sve_(svbool_t predicate_b64
            svlastb_f64(predicate_first_b64x, accumulated_error_f64x);
 }
 
-NUMKONG_API_COMPTIME void nk_dot_f32_sve(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars, nk_size_t count_scalars,
-                                         nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_f32_sve(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,
+                                                nk_size_t count_scalars, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t idx_scalars = 0;
     svfloat64_t ab_f64x = svdup_f64(0.);
     for (; idx_scalars < count_scalars; idx_scalars += svcntw()) {
@@ -121,10 +122,12 @@ NUMKONG_API_COMPTIME void nk_dot_f32_sve(nk_f32_t const *a_scalars, nk_f32_t con
                               svcvt_f64_f32_x(pred_odd_b64x, svext_f32(b_f32x, b_f32x, 1)));
     }
     *result = nk_svaddv_f64_(svptrue_b64(), ab_f64x);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_f32c_sve(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_size_t count_pairs,
-                                          nk_f64c_t *results) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_f32c_sve(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs,
+                                                 nk_size_t count_pairs, nk_f64c_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t idx_pairs = 0;
     svfloat64_t ab_real_f64x = svdup_f64(0.);
     svfloat64_t ab_imag_f64x = svdup_f64(0.);
@@ -161,10 +164,12 @@ NUMKONG_API_COMPTIME void nk_dot_f32c_sve(nk_f32c_t const *a_pairs, nk_f32c_t co
     }
     results->real = nk_svaddv_f64_(svptrue_b64(), ab_real_f64x);
     results->imag = nk_svaddv_f64_(svptrue_b64(), ab_imag_f64x);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_vdot_f32c_sve(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_size_t count_pairs,
-                                           nk_f64c_t *results) {
+NUMKONG_API_COMPTIME nk_status_t nk_vdot_f32c_sve(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs,
+                                                  nk_size_t count_pairs, nk_f64c_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t idx_pairs = 0;
     svfloat64_t ab_real_f64x = svdup_f64(0.);
     svfloat64_t ab_imag_f64x = svdup_f64(0.);
@@ -201,10 +206,12 @@ NUMKONG_API_COMPTIME void nk_vdot_f32c_sve(nk_f32c_t const *a_pairs, nk_f32c_t c
     }
     results->real = nk_svaddv_f64_(svptrue_b64(), ab_real_f64x);
     results->imag = nk_svaddv_f64_(svptrue_b64(), ab_imag_f64x);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_f64_sve(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars, nk_size_t count_scalars,
-                                         nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_f64_sve(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars,
+                                                nk_size_t count_scalars, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Dot2 (Ogita-Rump-Oishi) compensated accumulation via TwoProd + TwoSum
     nk_size_t idx_scalars = 0;
     svfloat64_t sum_f64x = svdup_f64(0.);
@@ -229,10 +236,12 @@ NUMKONG_API_COMPTIME void nk_dot_f64_sve(nk_f64_t const *a_scalars, nk_f64_t con
         idx_scalars += svcntd();
     } while (idx_scalars < count_scalars);
     *result = nk_dot_stable_sum_f64_sve_(svptrue_b64(), sum_f64x, compensation_f64x);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_f64c_sve(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
-                                          nk_f64c_t *results) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_f64c_sve(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs,
+                                                 nk_size_t count_pairs, nk_f64c_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Dot2 compensated accumulation for complex dot product: (a_real + i*a_imag)(b_real + i*b_imag)
     // real = a_real*b_real - a_imag*b_imag, imag = a_real*b_imag + a_imag*b_real
     nk_size_t idx_pairs = 0;
@@ -316,10 +325,12 @@ NUMKONG_API_COMPTIME void nk_dot_f64c_sve(nk_f64c_t const *a_pairs, nk_f64c_t co
     svbool_t predicate_all_b64x = svptrue_b64();
     results->real = nk_dot_stable_sum_f64_sve_(predicate_all_b64x, sum_real_f64x, comp_real_f64x);
     results->imag = nk_dot_stable_sum_f64_sve_(predicate_all_b64x, sum_imag_f64x, comp_imag_f64x);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_vdot_f64c_sve(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
-                                           nk_f64c_t *results) {
+NUMKONG_API_COMPTIME nk_status_t nk_vdot_f64c_sve(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs,
+                                                  nk_size_t count_pairs, nk_f64c_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Dot2 compensated conjugate dot product: conj(a) · b = (a_real - i*a_imag)(b_real + i*b_imag)
     // real = a_real*b_real + a_imag*b_imag, imag = a_real*b_imag - a_imag*b_real
     nk_size_t idx_pairs = 0;
@@ -403,6 +414,7 @@ NUMKONG_API_COMPTIME void nk_vdot_f64c_sve(nk_f64c_t const *a_pairs, nk_f64c_t c
     svbool_t predicate_all_b64x = svptrue_b64();
     results->real = nk_dot_stable_sum_f64_sve_(predicate_all_b64x, sum_real_f64x, comp_real_f64x);
     results->imag = nk_dot_stable_sum_f64_sve_(predicate_all_b64x, sum_imag_f64x, comp_imag_f64x);
+    return nk_success_k;
 }
 
 #if defined(__clang__)

@@ -107,8 +107,9 @@ extern "C" {
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2", "avxvnni")
 #endif
 
-NUMKONG_API_COMPTIME void nk_dot_i8_alder(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
-                                          nk_i32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_i8_alder(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars,
+                                                 nk_size_t count_scalars, nk_i32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Optimized i8 × i8 dot product using algebraic transformation with DPBUSD
     //
     // Algebraic transformation:
@@ -171,6 +172,7 @@ nk_dot_i8_alder_cycle:
     nk_i64_t correction = 128LL * sum_b_biased - 16384LL * (nk_i64_t)elements_rounded;
 
     *result = (nk_i32_t)(ab_sum - correction);
+    return nk_success_k;
 }
 
 typedef struct nk_dot_i8x32_state_alder_t {
@@ -225,8 +227,9 @@ NUMKONG_HELPER_INLINE void nk_dot_i8x32_finalize_alder(                         
     result_vec->xmm = _mm_sub_epi32(biased_i32x4, correction_i32x4);
 }
 
-NUMKONG_API_COMPTIME void nk_dot_u8_alder(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
-                                          nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_u8_alder(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars,
+                                                 nk_size_t count_scalars, nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Optimized u8 × u8 dot product using algebraic transformation with DPBUSD
     //
     // Algebraic transformation:
@@ -292,6 +295,7 @@ nk_dot_u8_alder_cycle:
     nk_i64_t correction = 128LL * sum_a;
 
     *result = (nk_u32_t)(ab_dot_signed + correction);
+    return nk_success_k;
 }
 
 typedef struct nk_dot_u8x32_state_alder_t {
@@ -398,8 +402,9 @@ NUMKONG_HELPER_INLINE nk_u32_t nk_sum_u8x32_finalize_alder(nk_sum_u8x32_state_al
     return (nk_u32_t)_mm_cvtsi128_si64(total_u64x2);
 }
 
-NUMKONG_API_COMPTIME void nk_dot_e2m3_alder(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
-                                            nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_e2m3_alder(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
+                                                   nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Integer dot product for e2m3 using dual-VPSHUFB (LUT) + VPDPBUSD (unsigned × signed).
     // Every e2m3 value × 16 is an exact integer in [-120, +120].
     // Result = i32_dot / 256.0f (exact, no rounding error).
@@ -464,6 +469,7 @@ nk_dot_e2m3_alder_cycle:
 
     if (count_scalars) goto nk_dot_e2m3_alder_cycle;
     *result = (nk_f32_t)nk_reduce_add_i32x8_haswell_(sum_i32x8) / 256.0f;
+    return nk_success_k;
 }
 
 typedef struct nk_dot_e2m3x32_state_alder_t {
@@ -611,7 +617,9 @@ NUMKONG_HELPER_INLINE void nk_dot_e2m1x64_finalize_alder(                       
     results->xmm = _mm_castps_si128(_mm_mul_ps(_mm_cvtepi32_ps(sum_i32x4), _mm_set1_ps(0.25f)));
 }
 
-NUMKONG_API_COMPTIME void nk_dot_e2m1_alder(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_e2m1_alder(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n,
+                                                   nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_dot_e2m1x64_state_alder_t state;
     nk_dot_e2m1x64_init_alder(&state);
     nk_b256_vec_t a_vec, b_vec;
@@ -626,6 +634,7 @@ NUMKONG_API_COMPTIME void nk_dot_e2m1_alder(nk_e2m1x2_t const *a, nk_e2m1x2_t co
         nk_dot_e2m1x64_update_alder(&state, a_vec, b_vec, 0, n);
     }
     *result = (nk_f32_t)nk_reduce_add_i32x8_haswell_(state.sum_i32x8) * 0.25f;
+    return nk_success_k;
 }
 
 #if defined(__clang__)

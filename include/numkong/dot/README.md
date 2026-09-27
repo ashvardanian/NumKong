@@ -56,6 +56,7 @@ Real and integer dot products:
 | `e5m2`     | `f32`       | 8-bit Float8: 5 exponent, 2 mantissa bits        |
 | `e2m3`     | `f32`       | 8-bit MX format: 2 exponent, 3 mantissa bits     |
 | `e3m2`     | `f32`       | 8-bit MX format: 3 exponent, 2 mantissa bits     |
+| `e2m1`     | `f32`       | 4-bit MX format: 2 exponent, 1 mantissa bit      |
 | `i8`       | `i32`       | 8-bit signed integers                            |
 | `u8`       | `u32`       | 8-bit unsigned integers                          |
 | `i4`       | `i32`       | 4-bit signed integers, packed nibble pairs       |
@@ -85,8 +86,6 @@ Dot2 avoids those branches entirely — TwoProd and TwoSum are pure arithmetic w
 
 `nk_dot_e2m3_haswell`, `nk_dot_e3m2_haswell`, `nk_dot_e2m3_skylake`, `nk_dot_e3m2_skylake` encode 32 MX format values into scaled integers via dual 16-entry LUTs loaded into vector registers.
 The low 4 magnitude bits index `VPSHUFB`, bit 4 selects between the lower and upper table via blending, and the results feed into `VPMADDUBSW` + `VPMADDWD` chains with a final $\div 256$ scaling.
-The Sapphire-specific MX implementation in `sapphire.h` replaces this with a single 64-entry signed LUT via `VPERMUTEX2VAR`, where the sign bit naturally selects between positive and negative tables.
-That path accumulates in native Float16 via `VFMADD_PH` and flushes to Float32 every 128 elements to avoid overflow.
 
 ### Algebraic Domain Shifting
 
@@ -137,14 +136,9 @@ For complex dot products, `FMLSL` provides the subtraction path $a_{re} b_{im} -
 
 ## Performance
 
-The following performance tables are produced by manually re-running `numkong_test` and `numkong_bench` included internal tools to measure both accuracy and throughput at different input shapes.
+The tables below follow the [benchmark methodology](../../../bench/README.md#methodology).
 The input size is controlled by the `NUMWARS_DIMS` environment variable and set to 256, 1024, and 4096 elements.
 The throughput is measured in gb/s as the number of bytes read per second amortized for a large batch of vector pairs.
-Accuracy is reported as mean ULP (units in last place) unless noted otherwise — the average number of representable floating-point values between the result and the exact answer.
-Rows marked `🧩` use external BLAS baselines rather than NumKong kernels.
-Each kernel runs for at least 20 seconds per configuration.
-Benchmark threads are pinned to specific cores; on machines with heterogeneous core types (e.g., Apple P/E cores), only the fastest cores are used.
-Workloads that significantly degrade CPU frequencies (Intel AMX, Apple SME) run in separate passes to avoid affecting throughput measurements of other kernels.
 
 ### Intel Sapphire Rapids
 

@@ -95,8 +95,9 @@ extern "C" {
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2", "avxvnni", "avxvnniint8")
 #endif
 
-NUMKONG_API_COMPTIME void nk_dot_i8_sierra(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
-                                           nk_i32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_i8_sierra(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars,
+                                                  nk_size_t count_scalars, nk_i32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Native i8 × i8 dot product using DPBSSD (signed × signed → i32).
     // No algebraic transformation needed - dpbssd handles signed*signed directly.
     __m256i sum_i32x8 = _mm256_setzero_si256();
@@ -123,6 +124,7 @@ nk_dot_i8_sierra_cycle:
     if (count_scalars) goto nk_dot_i8_sierra_cycle;
 
     *result = nk_reduce_add_i32x8_haswell_(sum_i32x8);
+    return nk_success_k;
 }
 
 typedef struct nk_dot_i8x32_state_sierra_t {
@@ -169,8 +171,9 @@ NUMKONG_HELPER_INLINE void nk_dot_i8x32_finalize_sierra(                        
     results->xmm = _mm_add_epi32(_mm_add_epi32(lane0_i32x4, lane1_i32x4), _mm_add_epi32(lane2_i32x4, lane3_i32x4));
 }
 
-NUMKONG_API_COMPTIME void nk_dot_u8_sierra(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
-                                           nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_u8_sierra(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars,
+                                                  nk_size_t count_scalars, nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Native u8 × u8 dot product using DPBUUD (unsigned × unsigned → u32).
     // No algebraic transformation needed - dpbuud handles unsigned*unsigned directly.
     __m256i sum_u32x8 = _mm256_setzero_si256();
@@ -198,6 +201,7 @@ nk_dot_u8_sierra_cycle:
 
     // Reduce u32x8 to scalar - reinterpret as i32 for reduction, cast back
     *result = (nk_u32_t)(nk_i32_t)nk_reduce_add_i32x8_haswell_(sum_u32x8);
+    return nk_success_k;
 }
 
 typedef struct nk_dot_u8x32_state_sierra_t {
@@ -243,8 +247,9 @@ NUMKONG_HELPER_INLINE void nk_dot_u8x32_finalize_sierra(                        
     result->xmm = _mm_add_epi32(_mm_add_epi32(lane0_i32x4, lane1_i32x4), _mm_add_epi32(lane2_i32x4, lane3_i32x4));
 }
 
-NUMKONG_API_COMPTIME void nk_dot_e2m3_sierra(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
-                                             nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_e2m3_sierra(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
+                                                    nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Integer dot product for e2m3 using dual-VPSHUFB (LUT) + VPDPBSSD (signed*signed).
     // Every e2m3 value * 16 is an exact integer in [-120, +120].
     // Result = i32_dot / 256.0f (exact, no rounding error).
@@ -307,6 +312,7 @@ nk_dot_e2m3_sierra_cycle:
 
     if (count_scalars) goto nk_dot_e2m3_sierra_cycle;
     *result = (nk_f32_t)nk_reduce_add_i32x8_haswell_(sum_i32x8) / 256.0f;
+    return nk_success_k;
 }
 
 typedef struct nk_dot_e2m3x32_state_sierra_t {
@@ -451,8 +457,9 @@ NUMKONG_HELPER_INLINE void nk_dot_e2m1x64_finalize_sierra(                      
     results->xmm = _mm_castps_si128(_mm_mul_ps(_mm_cvtepi32_ps(sum_i32x4), _mm_set1_ps(0.25f)));
 }
 
-NUMKONG_API_COMPTIME void nk_dot_e2m1_sierra(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n,
-                                             nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_e2m1_sierra(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n,
+                                                    nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_dot_e2m1x64_state_sierra_t state;
     nk_dot_e2m1x64_init_sierra(&state);
     nk_b256_vec_t a_vec, b_vec;
@@ -467,6 +474,7 @@ NUMKONG_API_COMPTIME void nk_dot_e2m1_sierra(nk_e2m1x2_t const *a, nk_e2m1x2_t c
         nk_dot_e2m1x64_update_sierra(&state, a_vec, b_vec, 0, n);
     }
     *result = (nk_f32_t)nk_reduce_add_i32x8_haswell_(state.sum_i32x8) * 0.25f;
+    return nk_success_k;
 }
 
 #if defined(__clang__)

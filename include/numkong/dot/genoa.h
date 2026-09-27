@@ -99,8 +99,9 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "avx512bf16", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NUMKONG_API_COMPTIME void nk_dot_bf16_genoa(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                            nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_bf16_genoa(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
+                                                   nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m512i a_bf16x32, b_bf16x32;
     __m512 sum_f32x16 = _mm512_setzero_ps();
 
@@ -120,10 +121,12 @@ nk_dot_bf16_genoa_cycle:
     if (count_scalars) goto nk_dot_bf16_genoa_cycle;
 
     *result = nk_reduce_add_f32x16_skylake_(sum_f32x16);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_bf16c_genoa(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs,
-                                             nk_size_t count_pairs, nk_f32c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_bf16c_genoa(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs,
+                                                    nk_size_t count_pairs, nk_f32c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m512i a_bf16x32, b_bf16x32;
     __m512 sum_real_f32x16 = _mm512_setzero_ps();
     __m512 sum_imag_f32x16 = _mm512_setzero_ps();
@@ -164,10 +167,12 @@ nk_dot_bf16c_genoa_cycle:
     // Reduce horizontal sums:
     result->real = nk_reduce_add_f32x16_skylake_(sum_real_f32x16);
     result->imag = nk_reduce_add_f32x16_skylake_(sum_imag_f32x16);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_vdot_bf16c_genoa(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs,
-                                              nk_size_t count_pairs, nk_f32c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_vdot_bf16c_genoa(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs,
+                                                     nk_size_t count_pairs, nk_f32c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m512i a_bf16x32, b_bf16x32;
     __m512 sum_real_f32x16 = _mm512_setzero_ps();
     __m512 sum_imag_f32x16 = _mm512_setzero_ps();
@@ -208,10 +213,12 @@ nk_vdot_bf16c_genoa_cycle:
     // Reduce horizontal sums:
     result->real = nk_reduce_add_f32x16_skylake_(sum_real_f32x16);
     result->imag = nk_reduce_add_f32x16_skylake_(sum_imag_f32x16);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_e5m2_genoa(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
-                                            nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_e5m2_genoa(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
+                                                   nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256i a_e5m2x32, b_e5m2x32;
     __m512 sum_f32x16 = _mm512_setzero_ps();
 
@@ -234,6 +241,7 @@ nk_dot_e5m2_genoa_cycle:
     if (count_scalars) goto nk_dot_e5m2_genoa_cycle;
 
     *result = nk_reduce_add_f32x16_skylake_(sum_f32x16);
+    return nk_success_k;
 }
 
 typedef nk_dot_through_f32_state_skylake_t_ nk_dot_through_bf16_state_genoa_t_;

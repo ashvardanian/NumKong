@@ -7,8 +7,8 @@
  *  @sa include/numkong/dot.h
  *
  *  Zvbb, the Vector Basic Bit-manipulation extension, adds a per-element popcount, `vcpop.v`, which
- *  replaces the 11-instruction SWAR sequence with one instruction. Only @c nk_dot_u1 benefits, as
- *  it needs a byte-level popcount of AND results.
+ *  replaces the 11-instruction SWAR sequence with one instruction. Only @c nk_dot_u1_rvvbb
+ *  benefits, as it needs a byte-level popcount of AND results.
  *
  *  Requires RVV 1.0 with Zvbb, from GCC 14 or Clang 18.
  */
@@ -32,7 +32,9 @@
 extern "C" {
 #endif
 
-NUMKONG_API_COMPTIME void nk_dot_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits,
+                                                 nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t count_bytes = n_bits / NUMKONG_BITS_PER_BYTE;
 
     vuint32m1_t sum_u32m1 = __riscv_vmv_v_x_u32m1(0, 1);
@@ -55,6 +57,7 @@ NUMKONG_API_COMPTIME void nk_dot_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b
     }
 
     *result = __riscv_vmv_x_s_u32m1_u32(sum_u32m1);
+    return nk_success_k;
 }
 
 #if defined(__cplusplus)

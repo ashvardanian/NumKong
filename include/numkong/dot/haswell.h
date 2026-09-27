@@ -63,7 +63,7 @@
  *  with native FMA instructions, sharing the @c nk_dot_through_f32 accumulation logic:
  *
  *  @code{.c}
- *  nk_dot_e4m3x16_state_haswell_t state_first, state_second, state_third, state_fourth;
+ *  nk_dot_through_f32_state_haswell_t_ state_first, state_second, state_third, state_fourth;
  *  nk_b256_vec_t query_f32x8, target_first_f32x8, target_second_f32x8, target_third_f32x8, target_fourth_f32x8;
  *  nk_dot_through_f32_init_haswell_(&state_first);
  *  nk_dot_through_f32_init_haswell_(&state_second);
@@ -146,8 +146,9 @@ NUMKONG_HELPER_INLINE nk_f64_t nk_dot_stable_sum_f64x4_haswell_(__m256d sum_f64x
 
 #pragma region F32 and F64 Floats
 
-NUMKONG_API_COMPTIME void nk_dot_f32_haswell(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,
-                                             nk_size_t count_scalars, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_f32_haswell(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,
+                                                    nk_size_t count_scalars, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256d sum_f64x4 = _mm256_setzero_pd();
     nk_size_t idx_scalars = 0;
     for (; idx_scalars + 4 <= count_scalars; idx_scalars += 4) {
@@ -160,10 +161,12 @@ NUMKONG_API_COMPTIME void nk_dot_f32_haswell(nk_f32_t const *a_scalars, nk_f32_t
     nk_f64_t sum = nk_reduce_add_f64x4_haswell_(sum_f64x4);
     for (; idx_scalars < count_scalars; ++idx_scalars) sum += (nk_f64_t)a_scalars[idx_scalars] * b_scalars[idx_scalars];
     *result = sum;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_f32c_haswell(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_size_t count_pairs,
-                                              nk_f64c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_f32c_haswell(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs,
+                                                     nk_size_t count_pairs, nk_f64c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Using XOR to flip sign bits is cheaper than separate FMA/FMS. Throughput doubles from 2.5 GB/s to 5 GB/s.
     __m256d sum_real_f64x4 = _mm256_setzero_pd();
     __m256d sum_imag_f64x4 = _mm256_setzero_pd();
@@ -189,10 +192,12 @@ NUMKONG_API_COMPTIME void nk_dot_f32c_haswell(nk_f32c_t const *a_pairs, nk_f32c_
     }
     result->real = sum_real;
     result->imag = sum_imag;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_vdot_f32c_haswell(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs,
-                                               nk_size_t count_pairs, nk_f64c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_vdot_f32c_haswell(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs,
+                                                      nk_size_t count_pairs, nk_f64c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256d sum_real_f64x4 = _mm256_setzero_pd();
     __m256d sum_imag_f64x4 = _mm256_setzero_pd();
     __m256i sign_flip_i64x4 = _mm256_set_epi64x(0x8000000000000000, 0, 0x8000000000000000, 0);
@@ -217,10 +222,12 @@ NUMKONG_API_COMPTIME void nk_vdot_f32c_haswell(nk_f32c_t const *a_pairs, nk_f32c
     }
     result->real = sum_real;
     result->imag = sum_imag;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_f64_haswell(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars,
-                                             nk_size_t count_scalars, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_f64_haswell(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars,
+                                                    nk_size_t count_scalars, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Dot2 algorithm (Ogita-Rump-Oishi 2005) for compensated dot product
     __m256d sum_f64x4 = _mm256_setzero_pd();
     __m256d compensation_f64x4 = _mm256_setzero_pd();
@@ -257,10 +264,12 @@ nk_dot_f64_haswell_cycle:
     if (count_scalars) goto nk_dot_f64_haswell_cycle;
     // Compensated horizontal reduction preserving Dot2 error tracking
     *result = nk_dot_stable_sum_f64x4_haswell_(sum_f64x4, compensation_f64x4);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_f64c_haswell(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
-                                              nk_f64c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_f64c_haswell(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs,
+                                                     nk_size_t count_pairs, nk_f64c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Dot2 algorithm (Ogita-Rump-Oishi 2005) for compensated complex dot product
     __m256d sum_real_f64x4 = _mm256_setzero_pd();
     __m256d sum_imag_f64x4 = _mm256_setzero_pd();
@@ -320,10 +329,12 @@ nk_dot_f64c_haswell_cycle:
     // Compensated horizontal reduction preserving Dot2 error tracking
     result->real = nk_dot_stable_sum_f64x4_haswell_(sum_real_f64x4, compensation_real_f64x4);
     result->imag = nk_dot_stable_sum_f64x4_haswell_(sum_imag_f64x4, compensation_imag_f64x4);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_vdot_f64c_haswell(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs,
-                                               nk_size_t count_pairs, nk_f64c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_vdot_f64c_haswell(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs,
+                                                      nk_size_t count_pairs, nk_f64c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Dot2 algorithm (Ogita-Rump-Oishi 2005) for compensated conjugate dot product
     __m256d sum_real_f64x4 = _mm256_setzero_pd();
     __m256d sum_imag_f64x4 = _mm256_setzero_pd();
@@ -383,6 +394,7 @@ nk_vdot_f64c_haswell_cycle:
     // Compensated horizontal reduction preserving Dot2 error tracking
     result->real = nk_dot_stable_sum_f64x4_haswell_(sum_real_f64x4, compensation_real_f64x4);
     result->imag = nk_dot_stable_sum_f64x4_haswell_(sum_imag_f64x4, compensation_imag_f64x4);
+    return nk_success_k;
 }
 
 /**
@@ -488,8 +500,9 @@ NUMKONG_HELPER_INLINE void nk_dot_f32x4_finalize_haswell(                       
 
 #pragma region F16 and BF16 Floats
 
-NUMKONG_API_COMPTIME void nk_dot_bf16_haswell(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                              nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_bf16_haswell(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
+                                                     nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256i a_bf16_i16x16, b_bf16_i16x16;
     __m256 sum_f32x8 = _mm256_setzero_ps();
     __m256i mask_high_u32x8 = _mm256_set1_epi32((int)0xFFFF0000);
@@ -515,10 +528,12 @@ nk_dot_bf16_haswell_cycle:
     sum_f32x8 = _mm256_fmadd_ps(a_odd_f32x8, b_odd_f32x8, sum_f32x8);
     if (count_scalars) goto nk_dot_bf16_haswell_cycle;
     *result = (nk_f32_t)nk_reduce_add_f32x8_haswell_(sum_f32x8);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_f16_haswell(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
-                                             nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_f16_haswell(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
+                                                    nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256 a_f32x8, b_f32x8;
     __m256 sum_f32x8 = _mm256_setzero_ps();
 nk_dot_f16_haswell_cycle:
@@ -538,10 +553,12 @@ nk_dot_f16_haswell_cycle:
     sum_f32x8 = _mm256_fmadd_ps(a_f32x8, b_f32x8, sum_f32x8);
     if (count_scalars) goto nk_dot_f16_haswell_cycle;
     *result = (nk_f32_t)nk_reduce_add_f32x8_haswell_(sum_f32x8);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_bf16c_haswell(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs,
-                                               nk_size_t count_pairs, nk_f32c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_bf16c_haswell(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs,
+                                                      nk_size_t count_pairs, nk_f32c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Convert BF16 to F32, then use F32 complex dot product with sign-flipping optimization.
     // Uses same XOR trick as f32c to double throughput by deferring sign flips until after loop.
     __m128i a_bf16_i16x8, b_bf16_i16x8;
@@ -584,10 +601,12 @@ nk_dot_bf16c_haswell_cycle:
 
     result->real = nk_reduce_add_f32x8_haswell_(sum_real_f32x8);
     result->imag = nk_reduce_add_f32x8_haswell_(sum_imag_f32x8);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_vdot_bf16c_haswell(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs,
-                                                nk_size_t count_pairs, nk_f32c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_vdot_bf16c_haswell(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs,
+                                                       nk_size_t count_pairs, nk_f32c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Conjugate complex dot product: conj(a) * b
     __m128i a_bf16_i16x8, b_bf16_i16x8;
     __m256 sum_real_f32x8 = _mm256_setzero_ps();
@@ -629,10 +648,12 @@ nk_vdot_bf16c_haswell_cycle:
 
     result->real = nk_reduce_add_f32x8_haswell_(sum_real_f32x8);
     result->imag = nk_reduce_add_f32x8_haswell_(sum_imag_f32x8);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_f16c_haswell(nk_f16c_t const *a_pairs, nk_f16c_t const *b_pairs, nk_size_t count_pairs,
-                                              nk_f32c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_f16c_haswell(nk_f16c_t const *a_pairs, nk_f16c_t const *b_pairs,
+                                                     nk_size_t count_pairs, nk_f32c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256 sum_real_f32x8 = _mm256_setzero_ps();
     __m256 sum_imag_f32x8 = _mm256_setzero_ps();
     __m256i sign_flip_i64x4 = _mm256_set1_epi64x(0x8000000000000000);
@@ -650,13 +671,15 @@ NUMKONG_API_COMPTIME void nk_dot_f16c_haswell(nk_f16c_t const *a_pairs, nk_f16c_
     // Flip the sign bit in every second scalar before accumulation:
     sum_real_f32x8 = _mm256_castsi256_ps(_mm256_xor_si256(_mm256_castps_si256(sum_real_f32x8), sign_flip_i64x4));
     nk_f32c_t tail_result;
-    nk_dot_f16c_serial(a_pairs, b_pairs, count_pairs, &tail_result);
+    nk_dot_f16c_serial(a_pairs, b_pairs, count_pairs, &tail_result, stream);
     result->real = tail_result.real + (nk_f32_t)nk_reduce_add_f32x8_haswell_(sum_real_f32x8);
     result->imag = tail_result.imag + (nk_f32_t)nk_reduce_add_f32x8_haswell_(sum_imag_f32x8);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_vdot_f16c_haswell(nk_f16c_t const *a_pairs, nk_f16c_t const *b_pairs,
-                                               nk_size_t count_pairs, nk_f32c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_vdot_f16c_haswell(nk_f16c_t const *a_pairs, nk_f16c_t const *b_pairs,
+                                                      nk_size_t count_pairs, nk_f32c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256 sum_real_f32x8 = _mm256_setzero_ps();
     __m256 sum_imag_f32x8 = _mm256_setzero_ps();
     __m256i sign_flip_i64x4 = _mm256_set1_epi64x(0x8000000000000000);
@@ -673,13 +696,15 @@ NUMKONG_API_COMPTIME void nk_vdot_f16c_haswell(nk_f16c_t const *a_pairs, nk_f16c
     // Flip the sign bit in every second scalar before accumulation:
     sum_imag_f32x8 = _mm256_castsi256_ps(_mm256_xor_si256(_mm256_castps_si256(sum_imag_f32x8), sign_flip_i64x4));
     nk_f32c_t tail_result;
-    nk_vdot_f16c_serial(a_pairs, b_pairs, count_pairs, &tail_result);
+    nk_vdot_f16c_serial(a_pairs, b_pairs, count_pairs, &tail_result, stream);
     result->real = tail_result.real + (nk_f32_t)nk_reduce_add_f32x8_haswell_(sum_real_f32x8);
     result->imag = tail_result.imag + (nk_f32_t)nk_reduce_add_f32x8_haswell_(sum_imag_f32x8);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_e4m3_haswell(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
-                                              nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_e4m3_haswell(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
+                                                     nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256 a_f32x8, b_f32x8;
     __m256 sum_f32x8 = _mm256_setzero_ps();
 nk_dot_e4m3_haswell_cycle:
@@ -699,10 +724,12 @@ nk_dot_e4m3_haswell_cycle:
     sum_f32x8 = _mm256_fmadd_ps(a_f32x8, b_f32x8, sum_f32x8);
     if (count_scalars) goto nk_dot_e4m3_haswell_cycle;
     *result = (nk_f32_t)nk_reduce_add_f32x8_haswell_(sum_f32x8);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_e5m2_haswell(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
-                                              nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_e5m2_haswell(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
+                                                     nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // E5M2 shares F16 bias; inline the free-shift unpack for the two 8-lane halves.
     __m256 first_chain_f32x8 = _mm256_setzero_ps();
     __m256 second_chain_f32x8 = _mm256_setzero_ps();
@@ -736,10 +763,12 @@ nk_dot_e5m2_haswell_cycle:
     if (count_scalars) goto nk_dot_e5m2_haswell_cycle;
 
     *result = (nk_f32_t)nk_reduce_add_f32x8_haswell_(_mm256_add_ps(first_chain_f32x8, second_chain_f32x8));
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_e2m3_haswell(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
-                                              nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_e2m3_haswell(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
+                                                     nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Integer dot product for e2m3 using dual-VPSHUFB (LUT) + VPMADDUBSW (unsigned × signed).
     // Every e2m3 value × 16 is an exact integer in [-120, +120].
     // Result = i32_dot / 256.0f (exact, no rounding error).
@@ -806,10 +835,12 @@ nk_dot_e2m3_haswell_cycle:
 
     if (count_scalars) goto nk_dot_e2m3_haswell_cycle;
     *result = (nk_f32_t)nk_reduce_add_i32x8_haswell_(sum_i32x8) / 256.0f;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_e3m2_haswell(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
-                                              nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_e3m2_haswell(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
+                                                     nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Integer dot product for e3m2 using dual-VPSHUFB (low-byte LUT) + VPMADDWD (i16 × i16 → i32).
     // Every e3m2 value × 16 is an exact integer, but magnitudes reach 448, requiring i16.
     // Result = i32_dot / 256.0f (exact, no rounding error).
@@ -896,13 +927,13 @@ nk_dot_e3m2_haswell_cycle:
 
     if (count_scalars) goto nk_dot_e3m2_haswell_cycle;
     *result = (nk_f32_t)nk_reduce_add_i32x8_haswell_(sum_i32x8) / 256.0f;
+    return nk_success_k;
 }
 
 /**
  *  @brief Internal helper state for dot-products of low-precision types, where 32-bit
  *      accumulation is enough.
- *  @sa nk_dot_f16x8_state_haswell_t, nk_dot_bf16x16_state_haswell_t
- *  @sa nk_dot_e4m3x16_state_haswell_t, nk_dot_e5m2x16_state_haswell_t
+ *  @sa nk_dot_bf16x16_state_haswell_t
  */
 typedef struct nk_dot_through_f32_state_haswell_t_ {
     __m256 sum_f32x8;
@@ -910,8 +941,7 @@ typedef struct nk_dot_through_f32_state_haswell_t_ {
 
 /**
  *  @brief Initializes 32-bit accumulators for low-precision dot-products.
- *  @sa nk_dot_f16x8_init_haswell, nk_dot_bf16x16_init_haswell
- *  @sa nk_dot_e4m3x16_init_haswell, nk_dot_e5m2x16_init_haswell
+ *  @sa nk_dot_bf16x16_init_haswell
  */
 NUMKONG_HELPER_INLINE void nk_dot_through_f32_init_haswell_(nk_dot_through_f32_state_haswell_t_ *state) {
     state->sum_f32x8 = _mm256_setzero_ps();
@@ -919,8 +949,8 @@ NUMKONG_HELPER_INLINE void nk_dot_through_f32_init_haswell_(nk_dot_through_f32_s
 
 /**
  *  @brief Fuses 32-bit multiplication and accumulation for low-precision dot-products.
- *  @sa nk_dot_f16x8_update_haswell, nk_dot_bf16x16_update_haswell
- *  @sa nk_dot_e4m3x16_update_haswell, nk_dot_e5m2x16_update_haswell
+ *  @sa nk_dot_bf16x16_update_haswell, nk_dot_e4m3x32_update_haswell_,
+ *      nk_dot_e5m2x32_update_haswell_
  */
 NUMKONG_HELPER_INLINE void nk_dot_through_f32_update_haswell_(nk_dot_through_f32_state_haswell_t_ *state,
                                                               nk_b256_vec_t a, nk_b256_vec_t b, nk_size_t depth_offset,
@@ -993,8 +1023,7 @@ NUMKONG_HELPER_INLINE void nk_dot_e4m3x32_update_haswell_(nk_dot_through_f32_sta
 
 /**
  *  @brief Finalizes 4x low-precision dot-products placing them into 4x consecutive 32-bit slots.
- *  @sa nk_dot_f16x8_finalize_haswell, nk_dot_bf16x16_finalize_haswell
- *  @sa nk_dot_e4m3x16_finalize_haswell, nk_dot_e5m2x16_finalize_haswell
+ *  @sa nk_dot_bf16x16_finalize_haswell
  *
  *  The goal of this kernel is simple - compute 4x horizontal reductions, each involving 8x
  *  floats. The lack of vectorized horizontal instruction implies many consecutive shuffles
@@ -1029,12 +1058,6 @@ NUMKONG_HELPER_INLINE void nk_dot_through_f32_finalize_haswell_(                
 }
 
 /**
- *  @brief Running state for 128-bit dot accumulation over f16 scalars on Haswell.
- *  @note Alias of nk_dot_through_f32_state_haswell_t_
- */
-typedef struct nk_dot_through_f32_state_haswell_t_ nk_dot_f16x8_state_haswell_t;
-
-/**
  *  @brief Running state for 256-bit dot accumulation over bf16 scalars on Haswell.
  *  @note Processes 16 bf16 per tile step via unpack(zero, bf16) → 2×8 f32 FMA.
  */
@@ -1064,30 +1087,6 @@ NUMKONG_HELPER_INLINE void nk_dot_bf16x16_finalize_haswell(                     
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
     nk_dot_through_f32_finalize_haswell_(state_a, state_b, state_c, state_d, total_dimensions, result);
 }
-
-/**
- *  @brief Running state for 128-bit dot accumulation over e4m3 scalars on Haswell.
- *  @note Alias of nk_dot_through_f32_state_haswell_t_
- */
-typedef struct nk_dot_through_f32_state_haswell_t_ nk_dot_e4m3x16_state_haswell_t;
-
-/**
- *  @brief Running state for 128-bit dot accumulation over e5m2 scalars on Haswell.
- *  @note Alias of nk_dot_through_f32_state_haswell_t_
- */
-typedef struct nk_dot_through_f32_state_haswell_t_ nk_dot_e5m2x16_state_haswell_t;
-
-/**
- *  @brief Running state for 128-bit dot accumulation over e2m3 scalars on Haswell.
- *  @note Alias of nk_dot_through_f32_state_haswell_t_
- */
-typedef struct nk_dot_through_f32_state_haswell_t_ nk_dot_e2m3x16_state_haswell_t;
-
-/**
- *  @brief Running state for 128-bit dot accumulation over e3m2 scalars on Haswell.
- *  @note Alias of nk_dot_through_f32_state_haswell_t_
- */
-typedef struct nk_dot_through_f32_state_haswell_t_ nk_dot_e3m2x16_state_haswell_t;
 
 /** Integer LUT batch state for e2m3 dot-products on Haswell (AVX2). Uses VPMADDUBSW (u8 × i8 → i16)
  *  + VPMADDWD (i16 → i32) instead of Sierra's VPDPBUSD. */
@@ -1239,8 +1238,9 @@ NUMKONG_HELPER_INLINE void nk_dot_e2m1x64_finalize_haswell(                     
     results->xmm = _mm_castps_si128(_mm_mul_ps(_mm_cvtepi32_ps(sum_i32x4), _mm_set1_ps(0.25f)));
 }
 
-NUMKONG_API_COMPTIME void nk_dot_e2m1_haswell(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n,
-                                              nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_e2m1_haswell(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n,
+                                                     nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_dot_e2m1x64_state_haswell_t state;
     nk_dot_e2m1x64_init_haswell(&state);
     nk_b256_vec_t a_vec, b_vec;
@@ -1255,6 +1255,7 @@ NUMKONG_API_COMPTIME void nk_dot_e2m1_haswell(nk_e2m1x2_t const *a, nk_e2m1x2_t 
         nk_dot_e2m1x64_update_haswell(&state, a_vec, b_vec, 0, n);
     }
     *result = (nk_f32_t)nk_reduce_add_i32x8_haswell_(state.sum_i32x8) * 0.25f;
+    return nk_success_k;
 }
 
 /** Integer LUT batch state for e3m2 dot-products on Haswell (AVX2). Uses i16 widening via VPMADDWD
@@ -1374,8 +1375,9 @@ NUMKONG_HELPER_INLINE void nk_dot_e3m2x32_finalize_haswell(                     
 
 #pragma region I8 and U8 Integers
 
-NUMKONG_API_COMPTIME void nk_dot_i8_haswell(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
-                                            nk_i32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_i8_haswell(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars,
+                                                   nk_size_t count_scalars, nk_i32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256i sum_low_i32x8 = _mm256_setzero_si256();
     __m256i sum_high_i32x8 = _mm256_setzero_si256();
     nk_size_t idx_scalars = 0;
@@ -1398,10 +1400,12 @@ NUMKONG_API_COMPTIME void nk_dot_i8_haswell(nk_i8_t const *a_scalars, nk_i8_t co
     nk_i32_t sum = nk_reduce_add_i32x8_haswell_(_mm256_add_epi32(sum_low_i32x8, sum_high_i32x8));
     for (; idx_scalars < count_scalars; ++idx_scalars) sum += (nk_i32_t)a_scalars[idx_scalars] * b_scalars[idx_scalars];
     *result = sum;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_u8_haswell(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
-                                            nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_u8_haswell(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars,
+                                                   nk_size_t count_scalars, nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256i sum_low_i32x8 = _mm256_setzero_si256();
     __m256i sum_high_i32x8 = _mm256_setzero_si256();
     __m256i const zeros_i8x32 = _mm256_setzero_si256();
@@ -1421,9 +1425,12 @@ NUMKONG_API_COMPTIME void nk_dot_u8_haswell(nk_u8_t const *a_scalars, nk_u8_t co
     nk_u32_t sum = (nk_u32_t)nk_reduce_add_i32x8_haswell_(_mm256_add_epi32(sum_low_i32x8, sum_high_i32x8));
     for (; idx_scalars < count_scalars; ++idx_scalars) sum += (nk_u32_t)a_scalars[idx_scalars] * b_scalars[idx_scalars];
     *result = sum;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_i4_haswell(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_i32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_i4_haswell(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n,
+                                                   nk_i32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // i4 values are packed as nibbles: two 4-bit signed values per byte.
     //
     // Algorithm: For signed i4, we use an algebraic transformation (similar to Ice Lake).
@@ -1505,9 +1512,12 @@ nk_dot_i4_haswell_cycle:
     nk_i64_t dx_sum = (nk_i64_t)_mm_extract_epi64(sum_dx_i64x2, 0) + (nk_i64_t)_mm_extract_epi64(sum_dx_i64x2, 1);
 
     *result = (nk_i32_t)(cd_dot - 8 * (cx_sum + dx_sum) + 64 * (nk_i64_t)n);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_u4_haswell(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_u4_haswell(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n,
+                                                   nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // u4 values are packed as nibbles: two 4-bit unsigned values per byte.
     // Values are ∈ [0,15], so we can use direct unpacking and multiplication.
     //
@@ -1555,6 +1565,7 @@ nk_dot_u4_haswell_cycle:
     if (n_bytes) goto nk_dot_u4_haswell_cycle;
 
     *result = (nk_u32_t)nk_reduce_add_i32x8_haswell_(sum_i32x8);
+    return nk_success_k;
 }
 
 /**
@@ -1831,14 +1842,16 @@ NUMKONG_HELPER_INLINE void nk_dot_u4x32_finalize_haswell(                       
 
 #pragma region Binary
 
-NUMKONG_API_COMPTIME void nk_dot_u1_haswell(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits,
-                                            nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_u1_haswell(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits,
+                                                   nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n_bits / NUMKONG_BITS_PER_BYTE;
     nk_u32_t dot = 0;
     for (; n_bytes >= 8; n_bytes -= 8, a += 8, b += 8)
         dot += (nk_u32_t)_mm_popcnt_u64(*(nk_u64_t const *)a & *(nk_u64_t const *)b);
     for (; n_bytes; --n_bytes, ++a, ++b) dot += (nk_u32_t)_mm_popcnt_u32(*a & *b);
     *result = dot;
+    return nk_success_k;
 }
 
 typedef struct nk_dot_u1x128_state_haswell_t {

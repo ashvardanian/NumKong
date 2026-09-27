@@ -117,8 +117,9 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+dotprod")
 #endif
 
-NUMKONG_API_COMPTIME void nk_dot_i8_neonsdot(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars,
-                                             nk_size_t count_scalars, nk_i32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_i8_neonsdot(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars,
+                                                    nk_size_t count_scalars, nk_i32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     int32x4_t sum_i32x4 = vdupq_n_s32(0);
     nk_size_t idx_scalars = 0;
     for (; idx_scalars + 16 <= count_scalars; idx_scalars += 16) {
@@ -129,10 +130,12 @@ NUMKONG_API_COMPTIME void nk_dot_i8_neonsdot(nk_i8_t const *a_scalars, nk_i8_t c
     nk_i32_t sum = vaddvq_s32(sum_i32x4);
     for (; idx_scalars < count_scalars; ++idx_scalars) sum += (nk_i32_t)a_scalars[idx_scalars] * b_scalars[idx_scalars];
     *result = sum;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_u8_neonsdot(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars,
-                                             nk_size_t count_scalars, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_u8_neonsdot(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars,
+                                                    nk_size_t count_scalars, nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     uint32x4_t sum_u32x4 = vdupq_n_u32(0);
     nk_size_t idx_scalars = 0;
     for (; idx_scalars + 16 <= count_scalars; idx_scalars += 16) {
@@ -143,6 +146,7 @@ NUMKONG_API_COMPTIME void nk_dot_u8_neonsdot(nk_u8_t const *a_scalars, nk_u8_t c
     nk_u32_t sum = vaddvq_u32(sum_u32x4);
     for (; idx_scalars < count_scalars; ++idx_scalars) sum += (nk_u32_t)a_scalars[idx_scalars] * b_scalars[idx_scalars];
     *result = sum;
+    return nk_success_k;
 }
 
 /** Running state for 128-bit dot accumulation over i8 scalars on NEON. */
@@ -203,7 +207,9 @@ NUMKONG_HELPER_INLINE void nk_dot_u8x16_finalize_neonsdot(                      
     result->u32x4 = vpaddq_u32(ab_u32x4, cd_u32x4);
 }
 
-NUMKONG_API_COMPTIME void nk_dot_i4_neonsdot(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_i32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_i4_neonsdot(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n,
+                                                    nk_i32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // i4 values are packed as nibbles: two 4-bit signed values per byte.
     //
     // ARM NEON SDOT handles signed × signed directly, so we use direct sign-extension:
@@ -248,9 +254,12 @@ nk_dot_i4_neonsdot_cycle:
     if (n_bytes) goto nk_dot_i4_neonsdot_cycle;
 
     *result = vaddvq_s32(sum_i32x4);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_u4_neonsdot(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_u4_neonsdot(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n,
+                                                    nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // u4 values are packed as nibbles: two 4-bit unsigned values per byte.
     // Values are ∈ [0,15], so UDOT can be used directly.
     //
@@ -292,6 +301,7 @@ nk_dot_u4_neonsdot_cycle:
     if (n_bytes) goto nk_dot_u4_neonsdot_cycle;
 
     *result = vaddvq_u32(sum_u32x4);
+    return nk_success_k;
 }
 
 typedef struct nk_dot_i4x32_state_neonsdot_t {
@@ -372,8 +382,9 @@ NUMKONG_HELPER_INLINE void nk_dot_u4x32_finalize_neonsdot(                      
     result->u32x4 = vpaddq_u32(ab_u32x4, cd_u32x4);
 }
 
-NUMKONG_API_COMPTIME void nk_dot_e2m3_neonsdot(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
-                                               nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_e2m3_neonsdot(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
+                                                      nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Integer dot product for e2m3 using SDOT (signed × signed i8 → i32).
     // Every e2m3 value × 16 is an exact integer in [-120, +120], fits signed i8.
     // Result = i32_dot / 256.0f (exact, no rounding error).
@@ -421,10 +432,12 @@ nk_dot_e2m3_neonsdot_cycle:
 
     if (count_scalars) goto nk_dot_e2m3_neonsdot_cycle;
     *result = (nk_f32_t)vaddvq_s32(sum_i32x4) / 256.0f;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_e3m2_neonsdot(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
-                                               nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_e3m2_neonsdot(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
+                                                      nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Integer dot product for e3m2 using i16 LUT via vqtbl2q_u8 (low bytes) + comparison (high byte) + SMLAL.
     // Every e3m2 value × 16 is an exact integer, but magnitudes reach 448, requiring i16.
     // Result = i32_dot / 256.0f (exact, no rounding error).
@@ -489,6 +502,7 @@ nk_dot_e3m2_neonsdot_cycle:
     if (count_scalars) goto nk_dot_e3m2_neonsdot_cycle;
     int32x4_t total_i32x4 = vaddq_s32(sum0_i32x4, sum1_i32x4);
     *result = (nk_f32_t)vaddvq_s32(total_i32x4) / 256.0f;
+    return nk_success_k;
 }
 
 /**
@@ -542,8 +556,9 @@ NUMKONG_HELPER_INLINE void nk_dot_e2m3x16_finalize_neonsdot(                    
     result->f32x4 = vmulq_n_f32(vcvtq_f32_s32(sums_i32x4), scale);
 }
 
-NUMKONG_API_COMPTIME void nk_dot_e2m1_neonsdot(nk_e2m1x2_t const *a_pairs, nk_e2m1x2_t const *b_pairs,
-                                               nk_size_t count_dimensions, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_e2m1_neonsdot(nk_e2m1x2_t const *a_pairs, nk_e2m1x2_t const *b_pairs,
+                                                      nk_size_t count_dimensions, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Twice every E2M1 value is an exact i8 in [-12, +12], so one signed LUT feeds SDOT directly.
     static nk_i8_t const lut_data[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12};
     int8x16_t lut_i8x16 = vld1q_s8(lut_data);
@@ -575,6 +590,7 @@ nk_dot_e2m1_neonsdot_cycle:
 
     if (count_dimensions) goto nk_dot_e2m1_neonsdot_cycle;
     *result = (nk_f32_t)vaddvq_s32(sum_i32x4) * 0.25f;
+    return nk_success_k;
 }
 
 /**

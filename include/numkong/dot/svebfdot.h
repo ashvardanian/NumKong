@@ -46,8 +46,9 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+sve+bf16")
 #endif
 
-NUMKONG_API_COMPTIME void nk_dot_bf16_svebfdot(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                               nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_bf16_svebfdot(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
+                                                      nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t idx_scalars = 0;
     svfloat32_t sum_f32x = svdup_f32(0);
     nk_bf16_for_arm_simd_t const *a = (nk_bf16_for_arm_simd_t const *)(a_scalars);
@@ -60,6 +61,7 @@ NUMKONG_API_COMPTIME void nk_dot_bf16_svebfdot(nk_bf16_t const *a_scalars, nk_bf
         idx_scalars += svcnth();
     } while (idx_scalars < count_scalars);
     *result = nk_svaddv_f32_(svptrue_b32(), sum_f32x);
+    return nk_success_k;
 }
 
 #if defined(__clang__)

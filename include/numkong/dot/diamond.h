@@ -55,8 +55,9 @@ extern "C" {
                    "bmi", "bmi2")
 #endif
 
-NUMKONG_API_COMPTIME void nk_dot_e4m3_diamond(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
-                                              nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_e4m3_diamond(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
+                                                     nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256i a_e4m3x32, b_e4m3x32;
     __m512 sum_f32x16 = _mm512_setzero_ps();
 
@@ -78,10 +79,12 @@ nk_dot_e4m3_diamond_cycle:
     if (count_scalars) goto nk_dot_e4m3_diamond_cycle;
 
     *result = nk_reduce_add_f32x16_skylake_(sum_f32x16);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_e5m2_diamond(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
-                                              nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_e5m2_diamond(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
+                                                     nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256i a_e5m2x32, b_e5m2x32;
     __m512 sum_f32x16 = _mm512_setzero_ps();
 
@@ -103,10 +106,12 @@ nk_dot_e5m2_diamond_cycle:
     if (count_scalars) goto nk_dot_e5m2_diamond_cycle;
 
     *result = nk_reduce_add_f32x16_skylake_(sum_f32x16);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_f16_diamond(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
-                                             nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_f16_diamond(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
+                                                    nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m512h a_f16x32, b_f16x32;
     __m512 sum_f32x16 = _mm512_setzero_ps();
 
@@ -126,6 +131,7 @@ nk_dot_f16_diamond_cycle:
     if (count_scalars) goto nk_dot_f16_diamond_cycle;
 
     *result = nk_reduce_add_f32x16_skylake_(sum_f32x16);
+    return nk_success_k;
 }
 
 typedef nk_dot_through_f32_state_skylake_t_ nk_dot_through_f16_state_diamond_t_;

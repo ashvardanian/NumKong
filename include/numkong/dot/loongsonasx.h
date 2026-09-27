@@ -30,7 +30,7 @@
 
 #include "numkong/types.h"
 #include "numkong/dot/serial.h"
-#include "numkong/cast/loongsonasx.h" // `nk_bf16x8_to_f32x8_loongsonasx_`
+#include "numkong/cast/loongsonasx.h" // `nk_f16x8_to_f32x8_loongsonasx_`, `nk_lasx_castsi256_si128_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -108,8 +108,9 @@ NUMKONG_HELPER_INLINE nk_f64_t nk_dot_stable_sum_f64x4_loongsonasx_(__m256d sum_
 
 #pragma region F32 and F64 Floats
 
-NUMKONG_API_COMPTIME void nk_dot_f32_loongsonasx(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,
-                                                 nk_size_t count_scalars, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_f32_loongsonasx(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,
+                                                        nk_size_t count_scalars, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // LASX is 256-bit = 8 × f32. Load 8 f32, split into low/high 4, widen each to f64, FMA in f64.
     __m256d sum_low_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);  // 4 f64 accumulators (from low 4 f32)
     __m256d sum_high_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0); // 4 f64 accumulators (from high 4 f32)
@@ -132,10 +133,12 @@ NUMKONG_API_COMPTIME void nk_dot_f32_loongsonasx(nk_f32_t const *a_scalars, nk_f
     for (; index_scalars < count_scalars; ++index_scalars)
         sum += (nk_f64_t)a_scalars[index_scalars] * b_scalars[index_scalars];
     *result = sum;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_f64_loongsonasx(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars,
-                                                 nk_size_t count_scalars, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_f64_loongsonasx(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars,
+                                                        nk_size_t count_scalars, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Dot2 algorithm (Ogita-Rump-Oishi 2005) for compensated dot product
     __m256d sum_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
     __m256d compensation_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
@@ -164,10 +167,12 @@ NUMKONG_API_COMPTIME void nk_dot_f64_loongsonasx(nk_f64_t const *a_scalars, nk_f
     for (; index_scalars < count_scalars; ++index_scalars)
         sum += (nk_f64_t)a_scalars[index_scalars] * b_scalars[index_scalars];
     *result = sum;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_i8_loongsonasx(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars,
-                                                nk_size_t count_scalars, nk_i32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_i8_loongsonasx(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars,
+                                                       nk_size_t count_scalars, nk_i32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256i sum_i32x8 = __lasx_xvreplgr2vr_w(0);
     nk_size_t index_scalars = 0;
     for (; index_scalars + 32 <= count_scalars; index_scalars += 32) {
@@ -185,10 +190,12 @@ NUMKONG_API_COMPTIME void nk_dot_i8_loongsonasx(nk_i8_t const *a_scalars, nk_i8_
     for (; index_scalars < count_scalars; ++index_scalars)
         sum += (nk_i32_t)a_scalars[index_scalars] * b_scalars[index_scalars];
     *result = sum;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_u8_loongsonasx(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars,
-                                                nk_size_t count_scalars, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_u8_loongsonasx(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars,
+                                                       nk_size_t count_scalars, nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256i sum_i32x8 = __lasx_xvreplgr2vr_w(0);
     nk_size_t index_scalars = 0;
     for (; index_scalars + 32 <= count_scalars; index_scalars += 32) {
@@ -206,10 +213,12 @@ NUMKONG_API_COMPTIME void nk_dot_u8_loongsonasx(nk_u8_t const *a_scalars, nk_u8_
     for (; index_scalars < count_scalars; ++index_scalars)
         sum += (nk_u32_t)a_scalars[index_scalars] * b_scalars[index_scalars];
     *result = sum;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_bf16_loongsonasx(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                                  nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_bf16_loongsonasx(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
+                                                         nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256 sum_f32x8 = (__m256)__lasx_xvreplgr2vr_w(0);
     __m256i mask_high_u32x8 = __lasx_xvreplgr2vr_w((int)0xFFFF0000);
     nk_size_t index_scalars = 0;
@@ -240,6 +249,7 @@ NUMKONG_API_COMPTIME void nk_dot_bf16_loongsonasx(nk_bf16_t const *a_scalars, nk
         sum += a_value * b_value;
     }
     *result = sum;
+    return nk_success_k;
 }
 
 typedef struct nk_dot_f64x4_state_loongsonasx_t {
@@ -563,8 +573,9 @@ NUMKONG_HELPER_INLINE void nk_dot_bf16x16_finalize_loongsonasx(                 
     nk_dot_through_f32_finalize_loongsonasx_(state_a, state_b, state_c, state_d, total_dimensions, result);
 }
 
-NUMKONG_API_COMPTIME void nk_dot_f16_loongsonasx(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
-                                                 nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_f16_loongsonasx(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
+                                                        nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256 sum_f32x8 = (__m256)__lasx_xvreplgr2vr_w(0);
     nk_size_t index_scalars = 0;
     for (; index_scalars + 8 <= count_scalars; index_scalars += 8) {
@@ -590,6 +601,7 @@ NUMKONG_API_COMPTIME void nk_dot_f16_loongsonasx(nk_f16_t const *a_scalars, nk_f
         sum += a_value * b_value;
     }
     *result = sum;
+    return nk_success_k;
 }
 
 /**

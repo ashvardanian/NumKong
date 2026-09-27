@@ -46,7 +46,34 @@ NUMKONG_HELPER_INLINE nk_f64_t nk_dot_stable_sum_f64x2_v128_(v128_t sum_f64x2, v
     return tentative_sum + (lower_error + upper_error + rounding_error);
 }
 
-NUMKONG_API_COMPTIME void nk_dot_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
+/** Dot2 step, sum += a × b, mirroring @c nk_f64_dot2_. TwoProd uses Veltkamp splitting, since
+ *  @c relaxed_madd may round twice and SIMD128 has no guaranteed fused multiply-add. */
+NUMKONG_HELPER_INLINE void nk_dot2_f64x2_v128_(v128_t *sum_f64x2, v128_t *compensation_f64x2, v128_t a_f64x2,
+                                               v128_t b_f64x2) {
+    v128_t split_f64x2 = wasm_f64x2_splat(134217729.0); // 2^27 + 1
+    v128_t a_scaled_f64x2 = wasm_f64x2_mul(split_f64x2, a_f64x2);
+    v128_t a_high_f64x2 = wasm_f64x2_sub(a_scaled_f64x2, wasm_f64x2_sub(a_scaled_f64x2, a_f64x2));
+    v128_t a_low_f64x2 = wasm_f64x2_sub(a_f64x2, a_high_f64x2);
+    v128_t b_scaled_f64x2 = wasm_f64x2_mul(split_f64x2, b_f64x2);
+    v128_t b_high_f64x2 = wasm_f64x2_sub(b_scaled_f64x2, wasm_f64x2_sub(b_scaled_f64x2, b_f64x2));
+    v128_t b_low_f64x2 = wasm_f64x2_sub(b_f64x2, b_high_f64x2);
+    v128_t product_f64x2 = wasm_f64x2_mul(a_f64x2, b_f64x2);
+    v128_t product_error_f64x2 = wasm_f64x2_sub(wasm_f64x2_mul(a_high_f64x2, b_high_f64x2), product_f64x2);
+    product_error_f64x2 = wasm_f64x2_add(product_error_f64x2, wasm_f64x2_mul(a_high_f64x2, b_low_f64x2));
+    product_error_f64x2 = wasm_f64x2_add(product_error_f64x2, wasm_f64x2_mul(a_low_f64x2, b_high_f64x2));
+    product_error_f64x2 = wasm_f64x2_add(product_error_f64x2, wasm_f64x2_mul(a_low_f64x2, b_low_f64x2));
+    v128_t tentative_sum_f64x2 = wasm_f64x2_add(*sum_f64x2, product_f64x2);
+    v128_t virtual_addend_f64x2 = wasm_f64x2_sub(tentative_sum_f64x2, *sum_f64x2);
+    v128_t sum_error_f64x2 = wasm_f64x2_add(
+        wasm_f64x2_sub(*sum_f64x2, wasm_f64x2_sub(tentative_sum_f64x2, virtual_addend_f64x2)),
+        wasm_f64x2_sub(product_f64x2, virtual_addend_f64x2));
+    *sum_f64x2 = tentative_sum_f64x2;
+    *compensation_f64x2 = wasm_f64x2_add(*compensation_f64x2, wasm_f64x2_add(sum_error_f64x2, product_error_f64x2));
+}
+
+NUMKONG_API_COMPTIME nk_status_t nk_dot_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                  void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     v128_t sum_f32x4 = wasm_f32x4_splat(0.0f);
     v128_t mask_high_u32x4 = wasm_i32x4_splat((int)0xFFFF0000);
     nk_bf16_t const *a_scalars = a, *b_scalars = b;
@@ -73,9 +100,12 @@ nk_dot_bf16_v128_cycle:
     if (count_scalars) goto nk_dot_bf16_v128_cycle;
 
     *result = nk_reduce_add_f32x4_v128_(sum_f32x4);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i32_t *result,
+                                                void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_i64_t sum_total = 0;
     nk_size_t i = 0;
 
@@ -105,9 +135,12 @@ NUMKONG_API_COMPTIME void nk_dot_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_
     for (; i < n; i++) { sum_total += (nk_i32_t)a[i] * (nk_i32_t)b[i]; }
 
     *result = (nk_i32_t)sum_total;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
+                                                void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_u64_t sum_total = 0;
     nk_size_t i = 0;
 
@@ -137,9 +170,12 @@ NUMKONG_API_COMPTIME void nk_dot_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_
     for (; i < n; i++) { sum_total += (nk_u32_t)a[i] * (nk_u32_t)b[i]; }
 
     *result = (nk_u32_t)sum_total;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits,
+                                                nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_u8_t const *a_bytes = (nk_u8_t const *)a;
     nk_u8_t const *b_bytes = (nk_u8_t const *)b;
     nk_size_t n_bytes = n_bits / NUMKONG_BITS_PER_BYTE;
@@ -172,6 +208,7 @@ NUMKONG_API_COMPTIME void nk_dot_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const *b,
     }
 
     *result = dot;
+    return nk_success_k;
 }
 
 NUMKONG_HELPER_INLINE void nk_load_e5m2x4_to_f32x4_v128_(void const *src, nk_b128_vec_t *dst) {

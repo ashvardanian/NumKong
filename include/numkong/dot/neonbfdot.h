@@ -78,8 +78,9 @@ extern "C" {
 #pragma GCC target("arch=armv8.6-a+simd+bf16")
 #endif
 
-NUMKONG_API_COMPTIME void nk_dot_bf16_neonbfdot(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                                nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_bf16_neonbfdot(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
+                                                       nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     bfloat16x8_t a_bf16x8, b_bf16x8;
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
 nk_dot_bf16_neonbfdot_cycle:
@@ -99,10 +100,12 @@ nk_dot_bf16_neonbfdot_cycle:
     sum_f32x4 = vbfdotq_f32(sum_f32x4, a_bf16x8, b_bf16x8);
     if (count_scalars) goto nk_dot_bf16_neonbfdot_cycle;
     *result = vaddvq_f32(sum_f32x4);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_bf16c_neonbfdot(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs,
-                                                 nk_size_t count_pairs, nk_f32c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_bf16c_neonbfdot(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs,
+                                                        nk_size_t count_pairs, nk_f32c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     float32x4_t sum_real_f32x4 = vdupq_n_f32(0);
     float32x4_t sum_imag_f32x4 = vdupq_n_f32(0);
     while (count_pairs >= 4) {
@@ -123,13 +126,15 @@ NUMKONG_API_COMPTIME void nk_dot_bf16c_neonbfdot(nk_bf16c_t const *a_pairs, nk_b
     }
     // Reduce horizontal sums and aggregate with the tail:
     nk_f32c_t tail_result;
-    nk_dot_bf16c_serial(a_pairs, b_pairs, count_pairs, &tail_result);
+    nk_dot_bf16c_serial(a_pairs, b_pairs, count_pairs, &tail_result, stream);
     result->real = tail_result.real + vaddvq_f32(sum_real_f32x4);
     result->imag = tail_result.imag + vaddvq_f32(sum_imag_f32x4);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_vdot_bf16c_neonbfdot(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs,
-                                                  nk_size_t count_pairs, nk_f32c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_vdot_bf16c_neonbfdot(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs,
+                                                         nk_size_t count_pairs, nk_f32c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     float32x4_t sum_real_f32x4 = vdupq_n_f32(0);
     float32x4_t sum_imag_f32x4 = vdupq_n_f32(0);
     while (count_pairs >= 4) {
@@ -150,13 +155,15 @@ NUMKONG_API_COMPTIME void nk_vdot_bf16c_neonbfdot(nk_bf16c_t const *a_pairs, nk_
     }
     // Reduce horizontal sums and aggregate with the tail:
     nk_f32c_t tail_result;
-    nk_vdot_bf16c_serial(a_pairs, b_pairs, count_pairs, &tail_result);
+    nk_vdot_bf16c_serial(a_pairs, b_pairs, count_pairs, &tail_result, stream);
     result->real = tail_result.real + vaddvq_f32(sum_real_f32x4);
     result->imag = tail_result.imag + vaddvq_f32(sum_imag_f32x4);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_e4m3_neonbfdot(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
-                                                nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_e4m3_neonbfdot(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
+                                                       nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     bfloat16x8_t a_bf16x8, b_bf16x8;
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
 nk_dot_e4m3_neonbfdot_cycle:
@@ -176,10 +183,12 @@ nk_dot_e4m3_neonbfdot_cycle:
     sum_f32x4 = vbfdotq_f32(sum_f32x4, a_bf16x8, b_bf16x8);
     if (count_scalars) goto nk_dot_e4m3_neonbfdot_cycle;
     *result = vaddvq_f32(sum_f32x4);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_e5m2_neonbfdot(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
-                                                nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_e5m2_neonbfdot(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
+                                                       nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     bfloat16x8_t a_bf16x8, b_bf16x8;
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
 nk_dot_e5m2_neonbfdot_cycle:
@@ -199,6 +208,7 @@ nk_dot_e5m2_neonbfdot_cycle:
     sum_f32x4 = vbfdotq_f32(sum_f32x4, a_bf16x8, b_bf16x8);
     if (count_scalars) goto nk_dot_e5m2_neonbfdot_cycle;
     *result = vaddvq_f32(sum_f32x4);
+    return nk_success_k;
 }
 
 /** Running state for 128-bit dot accumulation over bf16 scalars on NEON. */

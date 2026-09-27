@@ -27,7 +27,7 @@
 #if NUMKONG_TARGET_V128RELAXED
 
 #include "numkong/types.h"
-#include "numkong/dot/v128.h" // `nk_dot_stable_sum_f64x2_v128_`, `nk_load_e5m2x4_to_f32x4_v128_`
+#include "numkong/dot/v128.h" // `nk_dot2_f64x2_v128_`, `nk_dot_stable_sum_f64x2_v128_`, `nk_load_e5m2x4_to_f32x4_v128_`
 #include "numkong/reduce/v128.h"
 #include "numkong/reduce/v128relaxed.h"
 #include "numkong/cast/serial.h"
@@ -42,7 +42,9 @@ extern "C" {
 #pragma clang attribute push(__attribute__((target("relaxed-simd"))), apply_to = function)
 #endif
 
-NUMKONG_API_COMPTIME void nk_dot_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
+                                                        nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     v128_t sum_f64x2 = wasm_f64x2_splat(0.0);
     nk_f32_t const *a_scalars = a, *b_scalars = b;
     nk_size_t count_scalars = n;
@@ -67,9 +69,12 @@ nk_dot_f32_v128relaxed_cycle:
     if (count_scalars) goto nk_dot_f32_v128relaxed_cycle;
 
     *result = nk_reduce_add_f64x2_v128_(sum_f64x2);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_f16_v128relaxed(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_f16_v128relaxed(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                        nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     v128_t sum_f32x4 = wasm_f32x4_splat(0.0f);
     nk_f16_t const *a_scalars = a, *b_scalars = b;
     nk_size_t count_scalars = n;
@@ -92,10 +97,12 @@ nk_dot_f16_v128relaxed_cycle:
     if (count_scalars) goto nk_dot_f16_v128relaxed_cycle;
 
     *result = nk_reduce_add_f32x4_v128_(sum_f32x4);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_bf16_v128relaxed(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                  nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_bf16_v128relaxed(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                         nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     v128_t sum_f32x4 = wasm_f32x4_splat(0.0f);
     v128_t mask_high_u32x4 = wasm_i32x4_splat((int)0xFFFF0000);
     nk_bf16_t const *a_scalars = a, *b_scalars = b;
@@ -122,9 +129,12 @@ nk_dot_bf16_v128relaxed_cycle:
     if (count_scalars) goto nk_dot_bf16_v128relaxed_cycle;
 
     *result = nk_reduce_add_f32x4_v128_(sum_f32x4);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
+                                                        nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     v128_t sum_f64x2 = wasm_f64x2_splat(0.0);
     v128_t compensation_f64x2 = wasm_f64x2_splat(0.0);
     nk_f64_t const *a_scalars = a, *b_scalars = b;
@@ -142,22 +152,16 @@ nk_dot_f64_v128relaxed_cycle:
         nk_load_b128_serial_(b_scalars, &b_vec);
         a_scalars += 2, b_scalars += 2, count_scalars -= 2;
     }
-    v128_t product_f64x2 = wasm_f64x2_mul(a_vec.v128, b_vec.v128);
-    v128_t product_error_f64x2 = wasm_f64x2_sub(wasm_f64x2_relaxed_madd(a_vec.v128, b_vec.v128, wasm_f64x2_splat(0.0)),
-                                                product_f64x2);
-    v128_t tentative_sum_f64x2 = wasm_f64x2_add(sum_f64x2, product_f64x2);
-    v128_t virtual_addend_f64x2 = wasm_f64x2_sub(tentative_sum_f64x2, sum_f64x2);
-    v128_t sum_error_f64x2 = wasm_f64x2_add(
-        wasm_f64x2_sub(sum_f64x2, wasm_f64x2_sub(tentative_sum_f64x2, virtual_addend_f64x2)),
-        wasm_f64x2_sub(product_f64x2, virtual_addend_f64x2));
-    sum_f64x2 = tentative_sum_f64x2;
-    compensation_f64x2 = wasm_f64x2_add(compensation_f64x2, wasm_f64x2_add(sum_error_f64x2, product_error_f64x2));
+    nk_dot2_f64x2_v128_(&sum_f64x2, &compensation_f64x2, a_vec.v128, b_vec.v128);
     if (count_scalars) goto nk_dot_f64_v128relaxed_cycle;
 
     *result = nk_dot_stable_sum_f64x2_v128_(sum_f64x2, compensation_f64x2);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_i8_v128relaxed(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_i8_v128relaxed(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n,
+                                                       nk_i32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_i64_t sum_total = 0;
     nk_size_t i = 0;
 
@@ -202,9 +206,12 @@ NUMKONG_API_COMPTIME void nk_dot_i8_v128relaxed(nk_i8_t const *a, nk_i8_t const 
     for (; i < n; i++) { sum_total += (nk_i32_t)a[i] * (nk_i32_t)b[i]; }
 
     *result = (nk_i32_t)sum_total;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
+                                                       nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_i64_t biased_sum_total = 0;
     nk_i64_t sum_a_total = 0;
     nk_i64_t sum_b_total = 0;
@@ -255,10 +262,12 @@ NUMKONG_API_COMPTIME void nk_dot_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const 
 
     biased_sum_total += 128LL * (sum_a_total + sum_b_total) - (nk_i64_t)n * 16384LL;
     *result = (nk_u32_t)biased_sum_total;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_e2m3_v128relaxed(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
-                                                  nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_e2m3_v128relaxed(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
+                                                         nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Integer dot product for e2m3 using relaxed SIMD: wasm_i32x4_relaxed_dot_i8x16_i7x16_add.
     // Every e2m3 value × 16 is an exact integer in [-120, +120].
     // The relaxed dot takes i8 × u7 (first signed, second unsigned [0,127]). Our magnitudes [0,120] fit.
@@ -319,10 +328,12 @@ nk_dot_e2m3_v128relaxed_cycle:
 
     if (count_scalars) goto nk_dot_e2m3_v128relaxed_cycle;
     *result = (nk_f32_t)nk_reduce_add_i32x4_v128_(sum_i32x4) / 256.0f;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_e3m2_v128relaxed(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
-                                                  nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_e3m2_v128relaxed(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
+                                                         nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Integer dot product for e3m2 using i16 arithmetic with widening multiply.
     // Every e3m2 value × 16 is an exact integer, but magnitudes reach 448, requiring i16.
     // Result = i32_dot / 256.0f (exact, no rounding error).
@@ -416,6 +427,7 @@ nk_dot_e3m2_v128relaxed_cycle:
 
     if (count_scalars) goto nk_dot_e3m2_v128relaxed_cycle;
     *result = (nk_f32_t)nk_reduce_add_i32x4_v128_(sum_i32x4) / 256.0f;
+    return nk_success_k;
 }
 
 /*  Stateful GEMM kernels for batched dot products (4-way parallel accumulation).
@@ -522,17 +534,7 @@ NUMKONG_HELPER_INLINE void nk_dot_f64x2_update_v128relaxed(nk_dot_f64x2_state_v1
                                                            nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
-    v128_t product_f64x2 = wasm_f64x2_mul(a.v128, b.v128);
-    v128_t product_error_f64x2 = wasm_f64x2_sub(wasm_f64x2_relaxed_madd(a.v128, b.v128, wasm_f64x2_splat(0.0)),
-                                                product_f64x2);
-    v128_t tentative_sum_f64x2 = wasm_f64x2_add(state->sum_f64x2, product_f64x2);
-    v128_t virtual_addend_f64x2 = wasm_f64x2_sub(tentative_sum_f64x2, state->sum_f64x2);
-    v128_t sum_error_f64x2 = wasm_f64x2_add(
-        wasm_f64x2_sub(state->sum_f64x2, wasm_f64x2_sub(tentative_sum_f64x2, virtual_addend_f64x2)),
-        wasm_f64x2_sub(product_f64x2, virtual_addend_f64x2));
-    state->sum_f64x2 = tentative_sum_f64x2;
-    state->compensation_f64x2 = wasm_f64x2_add(state->compensation_f64x2,
-                                               wasm_f64x2_add(sum_error_f64x2, product_error_f64x2));
+    nk_dot2_f64x2_v128_(&state->sum_f64x2, &state->compensation_f64x2, a.v128, b.v128);
 }
 
 NUMKONG_HELPER_INLINE void nk_dot_f64x2_finalize_v128relaxed(                                         //
@@ -554,7 +556,7 @@ NUMKONG_HELPER_INLINE void nk_load_f16x4_to_f32x4_v128relaxed_(void const *src, 
 
 NUMKONG_HELPER_INLINE void nk_partial_load_f16x4_to_f32x4_v128relaxed_(void const *src, nk_b128_vec_t *dst,
                                                                        nk_size_t n) {
-    nk_b64_vec_t raw = {0};
+    nk_b64_vec_t raw = {{0}};
     nk_copy_bytes_(&raw, src, n * sizeof(nk_f16_t));
     *dst = nk_f16x4_to_f32x4_v128relaxed_(raw);
 }
@@ -758,8 +760,9 @@ NUMKONG_HELPER_INLINE void nk_dot_e2m1x32_finalize_v128relaxed(                 
     result->f32s[3] = (nk_f32_t)nk_reduce_add_i32x4_v128_(state_d->sum_i32x4) * 0.25f;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_e2m1_v128relaxed(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n,
-                                                  nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_e2m1_v128relaxed(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n,
+                                                         nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_dot_e2m1x32_state_v128relaxed_t state;
     nk_dot_e2m1x32_init_v128relaxed(&state);
     nk_b128_vec_t a_vec, b_vec;
@@ -775,6 +778,7 @@ NUMKONG_API_COMPTIME void nk_dot_e2m1_v128relaxed(nk_e2m1x2_t const *a, nk_e2m1x
         nk_dot_e2m1x32_update_v128relaxed(&state, a_vec, b_vec, dimension, n - dimension);
     }
     *result = (nk_f32_t)nk_reduce_add_i32x4_v128_(state.sum_i32x4) * 0.25f;
+    return nk_success_k;
 }
 
 typedef struct nk_dot_e3m2x16_state_v128relaxed_t {
@@ -855,8 +859,9 @@ NUMKONG_HELPER_INLINE void nk_partial_load_e4m3x4_to_f32x4_v128relaxed_(void con
     *dst = nk_e4m3x4_to_f32x4_v128relaxed_(raw);
 }
 
-NUMKONG_API_COMPTIME void nk_dot_e4m3_v128relaxed(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
-                                                  nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_e4m3_v128relaxed(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
+                                                         nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     v128_t sum_f32x4 = wasm_f32x4_splat(0.0f);
 
 nk_dot_e4m3_v128relaxed_cycle:
@@ -877,10 +882,12 @@ nk_dot_e4m3_v128relaxed_cycle:
     if (count_scalars) goto nk_dot_e4m3_v128relaxed_cycle;
 
     *result = nk_reduce_add_f32x4_v128_(sum_f32x4);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_e5m2_v128relaxed(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
-                                                  nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_e5m2_v128relaxed(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
+                                                         nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     v128_t sum_f32x4 = wasm_f32x4_splat(0.0f);
 
 nk_dot_e5m2_v128relaxed_cycle:
@@ -901,9 +908,12 @@ nk_dot_e5m2_v128relaxed_cycle:
     if (count_scalars) goto nk_dot_e5m2_v128relaxed_cycle;
 
     *result = nk_reduce_add_f32x4_v128_(sum_f32x4);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_u4_v128relaxed(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_u4_v128relaxed(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n,
+                                                       nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
     v128_t nibble_mask_u8x16 = wasm_u8x16_splat(0x0F);
     v128_t sum_i32x4 = wasm_i32x4_splat(0);
@@ -938,6 +948,7 @@ nk_dot_u4_v128relaxed_cycle:
     if (n_bytes) goto nk_dot_u4_v128relaxed_cycle;
 
     *result = (nk_u32_t)nk_reduce_add_i32x4_v128_(sum_i32x4);
+    return nk_success_k;
 }
 
 typedef struct nk_dot_u4x32_state_v128relaxed_t {
@@ -973,7 +984,9 @@ NUMKONG_HELPER_INLINE void nk_dot_u4x32_finalize_v128relaxed(                   
     result->u32s[3] = (nk_u32_t)nk_reduce_add_i32x4_v128_(state_d->sum_i32x4);
 }
 
-NUMKONG_API_COMPTIME void nk_dot_i4_v128relaxed(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_i32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_i4_v128relaxed(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n,
+                                                       nk_i32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
     nk_u8_t const *a_bytes = (nk_u8_t const *)a;
     nk_u8_t const *b_bytes = (nk_u8_t const *)b;
@@ -1044,6 +1057,7 @@ NUMKONG_API_COMPTIME void nk_dot_i4_v128relaxed(nk_i4x2_t const *a, nk_i4x2_t co
 
     // Apply algebraic correction to SIMD portion only, add unbiased scalar tail
     *result = (nk_i32_t)(cd_total - 8 * (cx_total + dx_total) + 64 * n_simd_elements + tail_dot);
+    return nk_success_k;
 }
 
 typedef struct nk_dot_i4x32_state_v128relaxed_t {
@@ -1090,8 +1104,9 @@ NUMKONG_HELPER_INLINE void nk_dot_i4x32_finalize_v128relaxed(                   
                           8 * ((nk_i64_t)a_sum + (nk_i64_t)b_sums_vec->i32s[3]) - 64 * depth_padded;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_f32c_v128relaxed(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs,
-                                                  nk_size_t count_pairs, nk_f64c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_f32c_v128relaxed(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs,
+                                                         nk_size_t count_pairs, nk_f64c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     v128_t sum_real_f64x2 = wasm_f64x2_splat(0.0);
     v128_t sum_imag_f64x2 = wasm_f64x2_splat(0.0);
     v128_t sign_flip_i64x2 = wasm_i64x2_const(0, 0x8000000000000000ULL);
@@ -1120,10 +1135,12 @@ NUMKONG_API_COMPTIME void nk_dot_f32c_v128relaxed(nk_f32c_t const *a_pairs, nk_f
     nk_f64_t imag_part = wasm_f64x2_extract_lane(sum_imag_f64x2, 0) + wasm_f64x2_extract_lane(sum_imag_f64x2, 1);
     result->real = real_part;
     result->imag = imag_part;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_vdot_f32c_v128relaxed(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs,
-                                                   nk_size_t count_pairs, nk_f64c_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_vdot_f32c_v128relaxed(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs,
+                                                          nk_size_t count_pairs, nk_f64c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     v128_t sum_real_f64x2 = wasm_f64x2_splat(0.0);
     v128_t sum_imag_f64x2 = wasm_f64x2_splat(0.0);
     v128_t sign_flip_i64x2 = wasm_i64x2_const(0, 0x8000000000000000ULL);
@@ -1147,12 +1164,14 @@ NUMKONG_API_COMPTIME void nk_vdot_f32c_v128relaxed(nk_f32c_t const *a_pairs, nk_
     nk_f64_t imag_part = wasm_f64x2_extract_lane(sum_imag_f64x2, 0) + wasm_f64x2_extract_lane(sum_imag_f64x2, 1);
     result->real = real_part;
     result->imag = imag_part;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_f64c_v128relaxed(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs,
-                                                  nk_size_t count_pairs, nk_f64c_t *result) {
-    v128_t sum_real_f64x2 = wasm_f64x2_splat(0.0);
-    v128_t sum_imag_f64x2 = wasm_f64x2_splat(0.0);
+NUMKONG_API_COMPTIME nk_status_t nk_dot_f64c_v128relaxed(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs,
+                                                         nk_size_t count_pairs, nk_f64c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    v128_t sum_real_f64x2 = wasm_f64x2_splat(0.0), compensation_real_f64x2 = wasm_f64x2_splat(0.0);
+    v128_t sum_imag_f64x2 = wasm_f64x2_splat(0.0), compensation_imag_f64x2 = wasm_f64x2_splat(0.0);
     v128_t sign_flip_i64x2 = wasm_i64x2_const(0, 0x8000000000000000ULL);
 
     nk_size_t idx_pairs = 0;
@@ -1160,21 +1179,22 @@ NUMKONG_API_COMPTIME void nk_dot_f64c_v128relaxed(nk_f64c_t const *a_pairs, nk_f
         v128_t a_real_imag_f64x2 = wasm_v128_load((nk_f64_t const *)(a_pairs + idx_pairs));
         v128_t b_real_imag_f64x2 = wasm_v128_load((nk_f64_t const *)(b_pairs + idx_pairs));
         v128_t b_swapped_f64x2 = wasm_i64x2_shuffle(b_real_imag_f64x2, b_real_imag_f64x2, 1, 0);
-
-        sum_real_f64x2 = wasm_f64x2_relaxed_madd(a_real_imag_f64x2, b_real_imag_f64x2, sum_real_f64x2);
-        sum_imag_f64x2 = wasm_f64x2_relaxed_madd(a_real_imag_f64x2, b_swapped_f64x2, sum_imag_f64x2);
+        // Negating bᵢ is exact, so −aᵢ × bᵢ joins the compensated real sum
+        v128_t b_real_negated_imag_f64x2 = wasm_v128_xor(b_real_imag_f64x2, sign_flip_i64x2);
+        nk_dot2_f64x2_v128_(&sum_real_f64x2, &compensation_real_f64x2, a_real_imag_f64x2, b_real_negated_imag_f64x2);
+        nk_dot2_f64x2_v128_(&sum_imag_f64x2, &compensation_imag_f64x2, a_real_imag_f64x2, b_swapped_f64x2);
     }
 
-    sum_real_f64x2 = wasm_v128_xor(sum_real_f64x2, sign_flip_i64x2);
-
-    result->real = wasm_f64x2_extract_lane(sum_real_f64x2, 0) + wasm_f64x2_extract_lane(sum_real_f64x2, 1);
-    result->imag = wasm_f64x2_extract_lane(sum_imag_f64x2, 0) + wasm_f64x2_extract_lane(sum_imag_f64x2, 1);
+    result->real = nk_dot_stable_sum_f64x2_v128_(sum_real_f64x2, compensation_real_f64x2);
+    result->imag = nk_dot_stable_sum_f64x2_v128_(sum_imag_f64x2, compensation_imag_f64x2);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_vdot_f64c_v128relaxed(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs,
-                                                   nk_size_t count_pairs, nk_f64c_t *result) {
-    v128_t sum_real_f64x2 = wasm_f64x2_splat(0.0);
-    v128_t sum_imag_f64x2 = wasm_f64x2_splat(0.0);
+NUMKONG_API_COMPTIME nk_status_t nk_vdot_f64c_v128relaxed(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs,
+                                                          nk_size_t count_pairs, nk_f64c_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    v128_t sum_real_f64x2 = wasm_f64x2_splat(0.0), compensation_real_f64x2 = wasm_f64x2_splat(0.0);
+    v128_t sum_imag_f64x2 = wasm_f64x2_splat(0.0), compensation_imag_f64x2 = wasm_f64x2_splat(0.0);
     v128_t sign_flip_i64x2 = wasm_i64x2_const(0, 0x8000000000000000ULL);
 
     nk_size_t idx_pairs = 0;
@@ -1182,15 +1202,15 @@ NUMKONG_API_COMPTIME void nk_vdot_f64c_v128relaxed(nk_f64c_t const *a_pairs, nk_
         v128_t a_real_imag_f64x2 = wasm_v128_load((nk_f64_t const *)(a_pairs + idx_pairs));
         v128_t b_real_imag_f64x2 = wasm_v128_load((nk_f64_t const *)(b_pairs + idx_pairs));
         v128_t b_swapped_f64x2 = wasm_i64x2_shuffle(b_real_imag_f64x2, b_real_imag_f64x2, 1, 0);
-
-        sum_real_f64x2 = wasm_f64x2_relaxed_madd(a_real_imag_f64x2, b_real_imag_f64x2, sum_real_f64x2);
-        sum_imag_f64x2 = wasm_f64x2_relaxed_madd(a_real_imag_f64x2, b_swapped_f64x2, sum_imag_f64x2);
+        // Negating bᵣ is exact, so −aᵢ × bᵣ joins the compensated imaginary sum
+        v128_t b_imag_negated_real_f64x2 = wasm_v128_xor(b_swapped_f64x2, sign_flip_i64x2);
+        nk_dot2_f64x2_v128_(&sum_real_f64x2, &compensation_real_f64x2, a_real_imag_f64x2, b_real_imag_f64x2);
+        nk_dot2_f64x2_v128_(&sum_imag_f64x2, &compensation_imag_f64x2, a_real_imag_f64x2, b_imag_negated_real_f64x2);
     }
 
-    sum_imag_f64x2 = wasm_v128_xor(sum_imag_f64x2, sign_flip_i64x2);
-
-    result->real = wasm_f64x2_extract_lane(sum_real_f64x2, 0) + wasm_f64x2_extract_lane(sum_real_f64x2, 1);
-    result->imag = wasm_f64x2_extract_lane(sum_imag_f64x2, 0) + wasm_f64x2_extract_lane(sum_imag_f64x2, 1);
+    result->real = nk_dot_stable_sum_f64x2_v128_(sum_real_f64x2, compensation_real_f64x2);
+    result->imag = nk_dot_stable_sum_f64x2_v128_(sum_imag_f64x2, compensation_imag_f64x2);
+    return nk_success_k;
 }
 
 #if defined(__clang__)

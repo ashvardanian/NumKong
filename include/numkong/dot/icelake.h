@@ -98,8 +98,9 @@ extern "C" {
                    "avx512vpopcntdq", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NUMKONG_API_COMPTIME void nk_dot_i8_icelake(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
-                                            nk_i32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_i8_icelake(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars,
+                                                   nk_size_t count_scalars, nk_i32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Optimized i8 × i8 dot product using algebraic transformation with DPBUSD
     //
     // Old approach (Haswell/Skylake):
@@ -156,10 +157,12 @@ nk_dot_i8_icelake_cycle:
     nk_i64_t correction = 128LL * sum_b_biased - 16384LL * (nk_i64_t)count_rounded;
 
     *result = (nk_i32_t)(ab_sum - correction);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_u8_icelake(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
-                                            nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_u8_icelake(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars,
+                                                   nk_size_t count_scalars, nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Optimized u8 × u8 dot product using algebraic transformation with DPBUSD
     //
     // Algebraic transformation:
@@ -215,6 +218,7 @@ nk_dot_u8_icelake_cycle:
     nk_i64_t correction = 128LL * sum_a;
 
     *result = (nk_u32_t)(ab_dot_signed + correction);
+    return nk_success_k;
 }
 
 typedef struct nk_dot_i8x64_state_icelake_t {
@@ -426,7 +430,9 @@ NUMKONG_HELPER_INLINE nk_i32_t nk_sum_i4x128_finalize_icelake(nk_sum_i4x128_stat
     return (nk_i32_t)(unsigned_sum - 8 * (nk_i64_t)count);
 }
 
-NUMKONG_API_COMPTIME void nk_dot_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_i32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n,
+                                                   nk_i32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // i4 values are packed as nibbles: two 4-bit signed values per byte.
     //
     // Algorithm: For signed i4, we use an algebraic transformation.
@@ -487,9 +493,12 @@ nk_dot_i4_icelake_cycle:
     nk_i64_t sum_cx = _mm512_reduce_add_epi64(sum_cx_i64x8);
     nk_i64_t sum_dx = _mm512_reduce_add_epi64(sum_dx_i64x8);
     *result = (nk_i32_t)(cd_dot - 8 * (sum_cx + sum_dx) + 64 * (nk_i64_t)n);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n,
+                                                   nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // u4 values are packed as nibbles: two 4-bit unsigned values per byte.
     // Values are ∈ [0,15], so DPBUSD can be used directly.
     //
@@ -525,6 +534,7 @@ nk_dot_u4_icelake_cycle:
     if (n_bytes) goto nk_dot_u4_icelake_cycle;
 
     *result = (nk_u32_t)_mm512_reduce_add_epi32(sum_i32x16);
+    return nk_success_k;
 }
 
 typedef struct nk_dot_i4x128_state_icelake_t {
@@ -688,8 +698,9 @@ NUMKONG_HELPER_INLINE void nk_dot_u4x128_finalize_icelake(                      
     result->xmm = final_i32x4;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_e2m3_icelake(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
-                                              nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_e2m3_icelake(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
+                                                     nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Integer dot product for e2m3 using VPERMB (LUT) + VPDPBUSD (unsigned × signed multiply-add).
     // Every e2m3 value × 16 is an exact integer in [-120, +120].
     // Result = i32_dot / 256.0f (exact, no rounding error).
@@ -745,10 +756,12 @@ nk_dot_e2m3_icelake_cycle:
 
     if (count_scalars) goto nk_dot_e2m3_icelake_cycle;
     *result = (nk_f32_t)_mm512_reduce_add_epi32(sum_i32x16) / 256.0f;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_e3m2_icelake(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
-                                              nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_e3m2_icelake(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
+                                                     nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Integer dot product for e3m2 using VPERMW (i16 LUT) + VPMADDWD (i16 × i16 → i32).
     // Every e3m2 value × 16 is an exact integer, but magnitudes reach 448, requiring i16.
     // Result = i32_dot / 256.0f (exact, no rounding error).
@@ -807,12 +820,14 @@ nk_dot_e3m2_icelake_cycle:
 
     if (count_scalars) goto nk_dot_e3m2_icelake_cycle;
     *result = (nk_f32_t)_mm512_reduce_add_epi32(sum_i32x16) / 256.0f;
+    return nk_success_k;
 }
 
 #pragma region F16 and BF16 Floats
 
-NUMKONG_API_COMPTIME void nk_dot_e4m3_icelake(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
-                                              nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_e4m3_icelake(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
+                                                     nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // E4M3 dot product via octave decomposition + VPDPBUSD integer MAC.
     // Splits 4-bit exponent into 2 octave bits + 2 remainder bits, maps low 5 bits via VPERMB
     // to u8 integers [0, 120], then 16 VPDPBUSD cross-products across 4×4 octave pairs.
@@ -918,14 +933,16 @@ nk_dot_e4m3_icelake_cycle:
     sum_f32x16 = _mm512_fmadd_ps(_mm512_cvtepi32_ps(dot5_i32x16), _mm512_set1_ps(1.0f), sum_f32x16);
     sum_f32x16 = _mm512_fmadd_ps(_mm512_cvtepi32_ps(dot6_i32x16), _mm512_set1_ps(16.0f), sum_f32x16);
     *result = nk_reduce_add_f32x16_skylake_(sum_f32x16);
+    return nk_success_k;
 }
 
 #pragma endregion F16 and BF16 Floats
 
 #pragma region Binary
 
-NUMKONG_API_COMPTIME void nk_dot_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits,
-                                            nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits,
+                                                   nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n_bits / NUMKONG_BITS_PER_BYTE;
     __m512i and_popcount_u64x8 = _mm512_setzero_si512();
     __m512i a_u8x64, b_u8x64;
@@ -946,6 +963,7 @@ nk_dot_u1_icelake_cycle:
     if (n_bytes) goto nk_dot_u1_icelake_cycle;
 
     *result = (nk_u32_t)_mm512_reduce_add_epi64(and_popcount_u64x8);
+    return nk_success_k;
 }
 
 typedef struct nk_dot_u1x512_state_icelake_t {

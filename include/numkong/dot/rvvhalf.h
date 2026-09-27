@@ -23,7 +23,7 @@
 #if NUMKONG_TARGET_RVVHALF
 
 #include "numkong/types.h"
-#include "numkong/cast/rvv.h" // `nk_e4m3m1_to_f16m2_rvv_`, `nk_e2m3m1_to_f16m2_rvv_`
+#include "numkong/cast/rvv.h" // `nk_e4m3m1_to_f16m2_rvv_`
 
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=+v,+zvfh"))), apply_to = function)
@@ -36,8 +36,9 @@
 extern "C" {
 #endif
 
-NUMKONG_API_COMPTIME void nk_dot_f16_rvvhalf(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
-                                             nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_f16_rvvhalf(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
+                                                    nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m2_t sum_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
     for (nk_size_t vector_length; count_scalars > 0;
@@ -53,16 +54,7 @@ NUMKONG_API_COMPTIME void nk_dot_f16_rvvhalf(nk_f16_t const *a_scalars, nk_f16_t
     // Single horizontal reduction at the end
     vfloat32m1_t zero_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, max_vector_length);
     *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m2_f32m1(sum_f32m2, zero_f32m1, max_vector_length));
-}
-
-/** Convert e2m3 to f16 via 256-entry LUT in cast/rvv.h + reinterpret. */
-NUMKONG_HELPER_INLINE vfloat16m2_t nk_e2m3m1_to_f16m2_rvvhalf_(vuint8m1_t raw_u8m1, nk_size_t vector_length) {
-    return __riscv_vreinterpret_v_u16m2_f16m2(nk_e2m3m1_to_f16m2_rvv_(raw_u8m1, vector_length));
-}
-
-/** Convert e3m2 to f16 via 256-entry LUT in cast/rvv.h + reinterpret. */
-NUMKONG_HELPER_INLINE vfloat16m2_t nk_e3m2m1_to_f16m2_rvvhalf_(vuint8m1_t raw_u8m1, nk_size_t vector_length) {
-    return __riscv_vreinterpret_v_u16m2_f16m2(nk_e3m2m1_to_f16m2_rvv_(raw_u8m1, vector_length));
+    return nk_success_k;
 }
 
 /** Convert e4m3 to f16 via 256-entry LUT in cast/rvv.h + reinterpret. */
@@ -78,8 +70,9 @@ NUMKONG_HELPER_INLINE vfloat16m2_t nk_e5m2m1_to_f16m2_rvvhalf_(vuint8m1_t raw_u8
     return __riscv_vreinterpret_v_u16m2_f16m2(result_u16m2);
 }
 
-NUMKONG_API_COMPTIME void nk_dot_e4m3_rvvhalf(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
-                                              nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_e4m3_rvvhalf(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
+                                                     nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
     vfloat32m4_t sum_f32m4 = __riscv_vfmv_v_f_f32m4(0.0f, max_vector_length);
     for (nk_size_t vector_length; count_scalars > 0;
@@ -93,10 +86,12 @@ NUMKONG_API_COMPTIME void nk_dot_e4m3_rvvhalf(nk_e4m3_t const *a_scalars, nk_e4m
     }
     vfloat32m1_t zero_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, max_vector_length);
     *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m4_f32m1(sum_f32m4, zero_f32m1, max_vector_length));
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dot_e5m2_rvvhalf(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
-                                              nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_dot_e5m2_rvvhalf(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
+                                                     nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
     vfloat32m4_t sum_f32m4 = __riscv_vfmv_v_f_f32m4(0.0f, max_vector_length);
     for (nk_size_t vector_length; count_scalars > 0;
@@ -110,6 +105,7 @@ NUMKONG_API_COMPTIME void nk_dot_e5m2_rvvhalf(nk_e5m2_t const *a_scalars, nk_e5m
     }
     vfloat32m1_t zero_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, max_vector_length);
     *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m4_f32m1(sum_f32m4, zero_f32m1, max_vector_length));
+    return nk_success_k;
 }
 
 #if defined(__cplusplus)
