@@ -67,6 +67,10 @@
 #ifndef NUMKONG_TYPES_H
 #define NUMKONG_TYPES_H
 
+#define NUMKONG_VERSION_MAJOR 7
+#define NUMKONG_VERSION_MINOR 8
+#define NUMKONG_VERSION_PATCH 2
+
 /** On Linux, @c _GNU_SOURCE must be defined before any system headers to expose @c syscall and
  *  other GNU extensions when C extensions are disabled. */
 #if defined(__linux__) && !defined(_GNU_SOURCE)
@@ -127,12 +131,10 @@
 #endif
 
 /** Base of function annotations, which run on two axes — role and, for helpers, inlining policy:
- *  - @c NUMKONG_API_COMPTIME    public API, ISA tier resolved at compile time, header-inline.
- *  - @c NUMKONG_API_RUNTIME     public API dispatched at runtime, the only role linked across TUs.
- *  - @c NUMKONG_HELPER_AUTO     internal helper; the compiler decides inlining, as for the API.
- *  - @c NUMKONG_HELPER_INLINE   internal helper forced inline, for devirtualizing driver loops.
- *  - @c NUMKONG_HELPER_NOINLINE internal helper forced out-of-line; omits @c inline since GCC
- *    ignores @c noinline on an @c inline function. */
+ *  - @c NUMKONG_API_COMPTIME  public API, capability resolved at compile time, header-inline.
+ *  - @c NUMKONG_API_RUNTIME   public API dispatched at runtime, the only role linked across TUs.
+ *  - @c NUMKONG_HELPER_AUTO   internal helper; the compiler decides inlining, as for the API.
+ *  - @c NUMKONG_HELPER_INLINE internal helper forced inline, for devirtualizing driver loops. */
 #define NUMKONG_C_INLINE_ inline static
 
 #if defined(__GNUC__) || defined(__clang__)
@@ -142,17 +144,31 @@
 #endif
 
 #if defined(_MSC_VER)
-#define NUMKONG_HELPER_INLINE   __forceinline static
-#define NUMKONG_HELPER_NOINLINE __declspec(noinline) static
+#define NUMKONG_HELPER_INLINE __forceinline static
 #else
-#define NUMKONG_HELPER_INLINE   __attribute__((always_inline)) NUMKONG_C_INLINE_
-#define NUMKONG_HELPER_NOINLINE static __attribute__((noinline))
+#define NUMKONG_HELPER_INLINE NUMKONG_MAYBE_UNUSED_ __attribute__((always_inline)) NUMKONG_C_INLINE_
 #endif
 
 #define NUMKONG_API_COMPTIME NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_
-#define NUMKONG_HELPER_AUTO  NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_
 
-/** Exported symbol under runtime dispatch; otherwise the header-inline tier. */
+/** @c NUMKONG_HELPER_AUTO is @c constexpr from C++20, so callers can fold it at compile time and
+ *  CUDA kernels reach it through @c --expt-relaxed-constexpr. A helper that touches an intrinsic,
+ *  @c asm or a runtime can never be constant-evaluated, so it takes @c NUMKONG_HELPER_INLINE
+ *  instead, and MSVC gets the plain helper, as it rejects its own intrinsics in @c constexpr. */
+#if defined(__cplusplus) && __cplusplus >= 202002L && !(defined(_MSC_VER) && !defined(__clang__))
+#define NUMKONG_HELPER_AUTO NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ constexpr
+#else
+#define NUMKONG_HELPER_AUTO NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_
+#endif
+
+/** Links the dispatch points, like @c nk_dot_f32_best, from the NumKong library, which compiles
+ *  every capability its toolchain builds, instead of defining them inline over the capabilities
+ *  this translation unit's compiler flags enable. */
+#if !defined(NUMKONG_RUNTIME_DISPATCH)
+#define NUMKONG_RUNTIME_DISPATCH (0) // true or false
+#endif
+
+/** Exported symbol under runtime dispatch; otherwise header-inline. */
 #if NUMKONG_RUNTIME_DISPATCH
 #if defined(_WIN32) || defined(__CYGWIN__)
 #define NUMKONG_API_RUNTIME __declspec(dllexport)
@@ -250,27 +266,30 @@
 #endif
 #endif // !defined(NUMKONG_ARCH_WASM_)
 
-/* Compiling for NVIDIA GPUs: NUMKONG_TARGET_CUDA, set by both NVCC and Clang CUDA */
-#if !defined(NUMKONG_TARGET_CUDA)
-#if defined(__CUDACC__) && !defined(__HIP_PLATFORM_AMD__)
-#define NUMKONG_TARGET_CUDA 1
+/*  Compiling as CUDA, by NVCC or Clang, HIP on NVIDIA included: NUMKONG_ARCH_CUDA_. The library
+ *  also sets it for its host-only units, which link the kernels of its one CUDA unit. */
+#if !defined(NUMKONG_ARCH_CUDA_)
+#if defined(__CUDACC__) && !defined(__HIP__)
+#define NUMKONG_ARCH_CUDA_ 1
 #else
-#define NUMKONG_TARGET_CUDA 0
-#endif // defined(__CUDACC__) && !defined(__HIP_PLATFORM_AMD__)
-#endif // !defined(NUMKONG_TARGET_CUDA)
-/* Compiling for AMD GPUs: NUMKONG_TARGET_ROCM, set by HIP-Clang */
-#if !defined(NUMKONG_TARGET_ROCM)
-#if defined(__HIP__) && defined(__HIP_PLATFORM_AMD__)
-#define NUMKONG_TARGET_ROCM 1
-#else
-#define NUMKONG_TARGET_ROCM 0
-#endif // defined(__HIP__) && defined(__HIP_PLATFORM_AMD__)
-#endif // !defined(NUMKONG_TARGET_ROCM)
+#define NUMKONG_ARCH_CUDA_ 0
+#endif // defined(__CUDACC__) && !defined(__HIP__)
+#endif // !defined(NUMKONG_ARCH_CUDA_)
 
-/** Compiling for Apple GPUs: set by the build, since no C compiler predefines it. */
-#if !defined(NUMKONG_TARGET_METAL)
-#define NUMKONG_TARGET_METAL 0
-#endif // !defined(NUMKONG_TARGET_METAL)
+/*  Compiling as HIP for AMD GPUs, keyed on Clang's own @c __HIP__: NUMKONG_ARCH_ROCM_. The library
+ *  also sets it for its host-only units, which link the kernels of its one HIP unit. */
+#if !defined(NUMKONG_ARCH_ROCM_)
+#if defined(__HIP__)
+#define NUMKONG_ARCH_ROCM_ 1
+#else
+#define NUMKONG_ARCH_ROCM_ 0
+#endif // defined(__HIP__)
+#endif // !defined(NUMKONG_ARCH_ROCM_)
+
+/** Linking the Metal host API, set by the build alone: NUMKONG_WITH_METAL */
+#if !defined(NUMKONG_WITH_METAL)
+#define NUMKONG_WITH_METAL 0
+#endif // !defined(NUMKONG_WITH_METAL)
 
 /** WASI hosted mode, NUMKONG_WASI_HOSTED:
  *  When NUMKONG_WASI_HOSTED=ON in CMake, this is predefined to 1 so the library imports capability
@@ -286,7 +305,7 @@
 #endif // !defined(NUMKONG_PYODIDE_SIDE_MODULE_)
 
 /*  Compiling for WASM with SIMD128, NUMKONG_TARGET_V128:
- *  A module carries one SIMD tier, chosen by the toolchain's `-msimd128` flag alone. */
+ *  A module carries one SIMD capability, chosen by the toolchain's `-msimd128` flag alone. */
 #undef NUMKONG_TARGET_V128
 #if NUMKONG_ARCH_WASM_ && defined(__wasm_simd128__)
 #define NUMKONG_TARGET_V128 1
@@ -487,12 +506,6 @@
 #endif // defined(__ARM_FEATURE_SVE2)
 #endif // !defined(NUMKONG_TARGET_SVE2) || ...
 
-/* Compiling for Arm: NUMKONG_TARGET_SVE2P1 */
-#if !defined(NUMKONG_TARGET_SVE2P1) || (NUMKONG_TARGET_SVE2P1 && !NUMKONG_ARCH_ARM64_)
-#undef NUMKONG_TARGET_SVE2P1
-#define NUMKONG_TARGET_SVE2P1 0
-#endif // !defined(NUMKONG_TARGET_SVE2P1) || ...
-
 /* Compiling for Arm: NUMKONG_TARGET_SME, the Scalable Matrix Extension. */
 #if !defined(NUMKONG_TARGET_SME) || (NUMKONG_TARGET_SME && !NUMKONG_ARCH_ARM64_)
 #if defined(__ARM_FEATURE_SME)
@@ -502,26 +515,6 @@
 #define NUMKONG_TARGET_SME 0
 #endif // defined(__ARM_FEATURE_SME)
 #endif // !defined(NUMKONG_TARGET_SME) || ...
-
-#if !defined(NUMKONG_TARGET_SME2) || (NUMKONG_TARGET_SME2 && !NUMKONG_ARCH_ARM64_)
-#if defined(__ARM_FEATURE_SME2)
-#define NUMKONG_TARGET_SME2 1
-#else
-#undef NUMKONG_TARGET_SME2
-#define NUMKONG_TARGET_SME2 0
-#endif // defined(__ARM_FEATURE_SME2)
-#endif // !defined(NUMKONG_TARGET_SME2) || ...
-
-/*  Compiling for Arm: NUMKONG_TARGET_SME2P1, FEAT_SME2p1. ACLE macro: __ARM_FEATURE_SME2p1 — note
- *  the lowercase 'p'. */
-#if !defined(NUMKONG_TARGET_SME2P1) || (NUMKONG_TARGET_SME2P1 && !NUMKONG_ARCH_ARM64_)
-#if defined(__ARM_FEATURE_SME2p1)
-#define NUMKONG_TARGET_SME2P1 1
-#else
-#undef NUMKONG_TARGET_SME2P1
-#define NUMKONG_TARGET_SME2P1 0
-#endif // defined(__ARM_FEATURE_SME2p1)
-#endif // !defined(NUMKONG_TARGET_SME2P1) || ...
 
 /*  AppleClang 17 exposes SME sub-features through `arm_sme.h` builtin aliases, not dedicated
  *  `__ARM_FEATURE_*` predefines for every matrix subtype. */
@@ -542,43 +535,6 @@
 #define NUMKONG_TARGET_SMEBI32 0
 #endif // nk_has_builtin_(__builtin_sme_svbmopa_za32_u32_m)
 #endif // !defined(NUMKONG_TARGET_SMEBI32) || ...
-
-#if !defined(NUMKONG_TARGET_SMEHALF) || (NUMKONG_TARGET_SMEHALF && !NUMKONG_ARCH_ARM64_)
-#if defined(__ARM_FEATURE_SME_F16F16) || nk_has_builtin_(__builtin_sme_svmopa_za16_f16_m)
-#define NUMKONG_TARGET_SMEHALF 1
-#else
-#undef NUMKONG_TARGET_SMEHALF
-#define NUMKONG_TARGET_SMEHALF 0
-#endif // nk_has_builtin_(__builtin_sme_svmopa_za16_f16_m)
-#endif // !defined(NUMKONG_TARGET_SMEHALF) || ...
-
-#if !defined(NUMKONG_TARGET_SMEBF16) || (NUMKONG_TARGET_SMEBF16 && !NUMKONG_ARCH_ARM64_)
-#if defined(__ARM_FEATURE_SME_B16B16) || nk_has_builtin_(__builtin_sme_svmopa_za16_bf16_m)
-#define NUMKONG_TARGET_SMEBF16 1
-#else
-#undef NUMKONG_TARGET_SMEBF16
-#define NUMKONG_TARGET_SMEBF16 0
-#endif // nk_has_builtin_(__builtin_sme_svmopa_za16_bf16_m)
-#endif // !defined(NUMKONG_TARGET_SMEBF16) || ...
-
-#if !defined(NUMKONG_TARGET_SMELUT2) || (NUMKONG_TARGET_SMELUT2 && !NUMKONG_ARCH_ARM64_)
-#if nk_has_builtin_(__builtin_sme_svluti4_zt_u8_x4)
-#define NUMKONG_TARGET_SMELUT2 1
-#else
-#undef NUMKONG_TARGET_SMELUT2
-#define NUMKONG_TARGET_SMELUT2 0
-#endif // nk_has_builtin_(__builtin_sme_svluti4_zt_u8_x4)
-#endif // !defined(NUMKONG_TARGET_SMELUT2) || ...
-
-/* Compiling for Arm: NUMKONG_TARGET_SMEFA64, FEAT_SME_FA64, full SVE2 in streaming mode. */
-#if !defined(NUMKONG_TARGET_SMEFA64) || (NUMKONG_TARGET_SMEFA64 && !NUMKONG_ARCH_ARM64_)
-#if defined(__ARM_FEATURE_SME_FA64)
-#define NUMKONG_TARGET_SMEFA64 1
-#else
-#undef NUMKONG_TARGET_SMEFA64
-#define NUMKONG_TARGET_SMEFA64 0
-#endif // defined(__ARM_FEATURE_SME_FA64)
-#endif // !defined(NUMKONG_TARGET_SMEFA64) || ...
 
 /*  Compiling for x86: NUMKONG_TARGET_HASWELL
  *
@@ -732,84 +688,91 @@
 #endif
 #endif // !defined(NUMKONG_TARGET_SIERRA) || ...
 
+/** The lowest architecture NVCC compiles this translation unit for, from its ascending
+ *  @c __CUDA_ARCH_LIST__, or zero where no compiler says. Like @c __AVX2__ on the CPU, it lets a
+ *  header-only build enable a GPU capability only when every device it targets runs it. The
+ *  runtime-dispatch library enables every capability it compiles and asks each device instead. */
+#define nk_first_of_(first, ...) first
+#define nk_first_(...)           nk_first_of_(__VA_ARGS__)
+#if defined(__CUDA_ARCH_LIST__)
+#define NUMKONG_CUDA_ARCH_FLOOR_ nk_first_(__CUDA_ARCH_LIST__)
+#else
+#define NUMKONG_CUDA_ARCH_FLOOR_ 0
+#endif
+
 /* Compiling for NVIDIA GPUs from compute capability 8.0, `mma.sync`: NUMKONG_TARGET_AMPERE */
-#if !defined(NUMKONG_TARGET_AMPERE) || (NUMKONG_TARGET_AMPERE && !NUMKONG_TARGET_CUDA)
-#if NUMKONG_TARGET_CUDA
+#if !defined(NUMKONG_TARGET_AMPERE) || (NUMKONG_TARGET_AMPERE && !NUMKONG_ARCH_CUDA_)
+#if NUMKONG_ARCH_CUDA_ && NUMKONG_CUDA_ARCH_FLOOR_ >= 800
 #define NUMKONG_TARGET_AMPERE 1
 #else
 #undef NUMKONG_TARGET_AMPERE
 #define NUMKONG_TARGET_AMPERE 0
-#endif // NUMKONG_TARGET_CUDA
+#endif // NUMKONG_ARCH_CUDA_ && NUMKONG_CUDA_ARCH_FLOOR_ >= 800
 #endif // !defined(NUMKONG_TARGET_AMPERE) || ...
 
-/* Compiling for NVIDIA GPUs of compute capability 9.0, warpgroup MMA: NUMKONG_TARGET_HOPPER */
-#if !defined(NUMKONG_TARGET_HOPPER) || (NUMKONG_TARGET_HOPPER && !NUMKONG_TARGET_CUDA)
-#if NUMKONG_TARGET_CUDA
-#define NUMKONG_TARGET_HOPPER 1
+/* Compiling for NVIDIA GPUs from compute capability 8.9, FP8 `mma.sync`: NUMKONG_TARGET_ADA */
+#if !defined(NUMKONG_TARGET_ADA) || (NUMKONG_TARGET_ADA && !NUMKONG_ARCH_CUDA_)
+#if NUMKONG_ARCH_CUDA_ && NUMKONG_CUDA_ARCH_FLOOR_ >= 890
+#define NUMKONG_TARGET_ADA 1
 #else
+#undef NUMKONG_TARGET_ADA
+#define NUMKONG_TARGET_ADA 0
+#endif // NUMKONG_ARCH_CUDA_ && NUMKONG_CUDA_ARCH_FLOOR_ >= 890
+#endif // !defined(NUMKONG_TARGET_ADA) || ...
+
+#undef NUMKONG_CUDA_ARCH_FLOOR_
+#undef nk_first_
+#undef nk_first_of_
+
+/*  Compiling for NVIDIA Hopper, "90a" code, @c wgmma: NUMKONG_TARGET_HOPPER. The host pass reads
+ *  "90a" and "90" alike, so a build targeting only "90a" sets it. */
+#if !defined(NUMKONG_TARGET_HOPPER) || (NUMKONG_TARGET_HOPPER && !NUMKONG_ARCH_CUDA_)
 #undef NUMKONG_TARGET_HOPPER
 #define NUMKONG_TARGET_HOPPER 0
-#endif // NUMKONG_TARGET_CUDA
 #endif // !defined(NUMKONG_TARGET_HOPPER) || ...
 
-/* Compiling for NVIDIA GPUs of compute capability 10.x, tensor memory: NUMKONG_TARGET_BLACKWELL */
-#if !defined(NUMKONG_TARGET_BLACKWELL) || (NUMKONG_TARGET_BLACKWELL && !NUMKONG_TARGET_CUDA)
-#if NUMKONG_TARGET_CUDA
-#define NUMKONG_TARGET_BLACKWELL 1
-#else
+/*  Compiling for NVIDIA datacenter Blackwell, "100f" code, @c tcgen05: NUMKONG_TARGET_BLACKWELL.
+ *  The host pass reads "100f" and "100" alike, so a build whose every architecture is in the 10.x
+ *  family sets it. */
+#if !defined(NUMKONG_TARGET_BLACKWELL) || (NUMKONG_TARGET_BLACKWELL && !NUMKONG_ARCH_CUDA_)
 #undef NUMKONG_TARGET_BLACKWELL
 #define NUMKONG_TARGET_BLACKWELL 0
-#endif // NUMKONG_TARGET_CUDA
 #endif // !defined(NUMKONG_TARGET_BLACKWELL) || ...
 
-/* Compiling for NVIDIA GPUs, compute capability 12.x, FP6/FP4 MMA: NUMKONG_TARGET_BLACKWELLRTX */
-#if !defined(NUMKONG_TARGET_BLACKWELLRTX) || (NUMKONG_TARGET_BLACKWELLRTX && !NUMKONG_TARGET_CUDA)
-#if NUMKONG_TARGET_CUDA
-#define NUMKONG_TARGET_BLACKWELLRTX 1
-#else
+/*  Compiling for NVIDIA GPUs of compute capability 12.x, "120f" code, FP6/FP4 MMA:
+ *  NUMKONG_TARGET_BLACKWELLRTX. The host pass reads "120f" and "120" alike, so a build targeting
+ *  only the 12.x family sets it. */
+#if !defined(NUMKONG_TARGET_BLACKWELLRTX) || (NUMKONG_TARGET_BLACKWELLRTX && !NUMKONG_ARCH_CUDA_)
 #undef NUMKONG_TARGET_BLACKWELLRTX
 #define NUMKONG_TARGET_BLACKWELLRTX 0
-#endif // NUMKONG_TARGET_CUDA
 #endif // !defined(NUMKONG_TARGET_BLACKWELLRTX) || ...
 
-/* Compiling for AMD Instinct MI350 GPUs, gfx950: NUMKONG_TARGET_CDNA4 */
-#if !defined(NUMKONG_TARGET_CDNA4) || (NUMKONG_TARGET_CDNA4 && !NUMKONG_TARGET_ROCM)
-#if NUMKONG_TARGET_ROCM
-#define NUMKONG_TARGET_CDNA4 1
-#else
+/*  Compiling for AMD Instinct MI350 GPUs, gfx950: NUMKONG_TARGET_CDNA4. The host pass never names
+ *  the AMD GPU it compiles for, so a build targeting only gfx950 sets it. */
+#if !defined(NUMKONG_TARGET_CDNA4) || (NUMKONG_TARGET_CDNA4 && !NUMKONG_ARCH_ROCM_)
 #undef NUMKONG_TARGET_CDNA4
 #define NUMKONG_TARGET_CDNA4 0
-#endif // NUMKONG_TARGET_ROCM
 #endif // !defined(NUMKONG_TARGET_CDNA4) || ...
 
-/* Compiling for AMD Instinct MI400 GPUs: NUMKONG_TARGET_CDNA5 */
-#if !defined(NUMKONG_TARGET_CDNA5) || (NUMKONG_TARGET_CDNA5 && !NUMKONG_TARGET_ROCM)
-#if NUMKONG_TARGET_ROCM
-#define NUMKONG_TARGET_CDNA5 1
-#else
+/*  Compiling for AMD Instinct MI400 GPUs: NUMKONG_TARGET_CDNA5. The host pass never names the AMD
+ *  GPU it compiles for, so a build targeting only MI400 and newer sets it. */
+#if !defined(NUMKONG_TARGET_CDNA5) || (NUMKONG_TARGET_CDNA5 && !NUMKONG_ARCH_ROCM_)
 #undef NUMKONG_TARGET_CDNA5
 #define NUMKONG_TARGET_CDNA5 0
-#endif // NUMKONG_TARGET_ROCM
 #endif // !defined(NUMKONG_TARGET_CDNA5) || ...
 
-/* Compiling for Apple GPUs of Metal family 9, M3 and M4: NUMKONG_TARGET_APPLE9 */
-#if !defined(NUMKONG_TARGET_APPLE9) || (NUMKONG_TARGET_APPLE9 && !NUMKONG_TARGET_METAL)
-#if NUMKONG_TARGET_METAL
-#define NUMKONG_TARGET_APPLE9 1
-#else
+/*  Compiling for Apple GPUs of Metal family 9, M3 and M4: NUMKONG_TARGET_APPLE9. No compiler knows
+ *  which Apple GPU a build will meet, so a build targeting only M3 and newer sets it. */
+#if !defined(NUMKONG_TARGET_APPLE9) || (NUMKONG_TARGET_APPLE9 && !NUMKONG_WITH_METAL)
 #undef NUMKONG_TARGET_APPLE9
 #define NUMKONG_TARGET_APPLE9 0
-#endif // NUMKONG_TARGET_METAL
 #endif // !defined(NUMKONG_TARGET_APPLE9) || ...
 
-/* Compiling for Apple GPUs of Metal family 10, M5: NUMKONG_TARGET_APPLE10 */
-#if !defined(NUMKONG_TARGET_APPLE10) || (NUMKONG_TARGET_APPLE10 && !NUMKONG_TARGET_METAL)
-#if NUMKONG_TARGET_METAL
-#define NUMKONG_TARGET_APPLE10 1
-#else
+/*  Compiling for Apple GPUs of Metal family 10, M5: NUMKONG_TARGET_APPLE10. No compiler knows which
+ *  Apple GPU a build will meet, so a build targeting only M5 and newer sets it. */
+#if !defined(NUMKONG_TARGET_APPLE10) || (NUMKONG_TARGET_APPLE10 && !NUMKONG_WITH_METAL)
 #undef NUMKONG_TARGET_APPLE10
 #define NUMKONG_TARGET_APPLE10 0
-#endif // NUMKONG_TARGET_METAL
 #endif // !defined(NUMKONG_TARGET_APPLE10) || ...
 
 /* Include the relevant intrinsics headers */
@@ -822,7 +785,7 @@
 #if NUMKONG_TARGET_SVE || NUMKONG_TARGET_SVE2
 #include <arm_sve.h>
 #endif
-#if NUMKONG_TARGET_SME || NUMKONG_TARGET_SME2 || NUMKONG_TARGET_SMEBI32
+#if NUMKONG_TARGET_SME || NUMKONG_TARGET_SMEBI32
 #include <arm_sme.h>
 #endif
 #if NUMKONG_TARGET_HASWELL || NUMKONG_TARGET_SKYLAKE
@@ -841,25 +804,19 @@
 #if NUMKONG_TARGET_V128
 #include <wasm_simd128.h>
 #endif
-#if NUMKONG_TARGET_CUDA
+#if NUMKONG_ARCH_CUDA_ && defined(__CUDACC__)
 #include <cuda_fp16.h>    // `__half2float`
 #include <cuda_runtime.h> // `cudaLaunchKernel`, `cudaStream_t`
+#elif NUMKONG_ARCH_CUDA_
+#include <cuda_runtime_api.h> // `cudaGetDevice`, the C API a host-only unit calls
+#elif NUMKONG_ARCH_ROCM_ && defined(__HIP__)
+#include <hip/hip_fp16.h>    // `__half2float`
+#include <hip/hip_runtime.h> // `hipLaunchKernel`, `hipStream_t`
+#elif NUMKONG_ARCH_ROCM_
+#include <hip/hip_runtime_api.h> // `hipGetDevice`, the C API a host-only unit calls
 #endif
 
-#if !defined(NUMKONG_F64_DIVISION_EPSILON)
-#define NUMKONG_F64_DIVISION_EPSILON (1e-15)
-#endif
-
-#if !defined(NUMKONG_F32_DIVISION_EPSILON)
-#define NUMKONG_F32_DIVISION_EPSILON (1e-7f)
-#endif
-
-#if !defined(NUMKONG_F16_DIVISION_EPSILON)
-#define NUMKONG_F16_DIVISION_EPSILON (1e-3f)
-#endif
-
-/** The compile-time constant defining the capacity of @c nk_tensor_position_t, matching
- *  @c PyBUF_MAX_NDIM by default. */
+/** The highest tensor rank the bindings accept, matching @c PyBUF_MAX_NDIM by default. */
 #if !defined(NUMKONG_TENSOR_MAX_RANK)
 #define NUMKONG_TENSOR_MAX_RANK (64)
 #endif
@@ -890,11 +847,10 @@
 #define NUMKONG_STREAMING_OUTLINED_ static
 #endif
 
-/** @c NUMKONG_HELPER_DEVICE_INLINE marks helpers that kernels call, forced inline on the
- *  device. CUDA and HIP share the spelling, and kernels spell their own global qualifier — the
- *  only one here. */
-#if NUMKONG_TARGET_CUDA || NUMKONG_TARGET_ROCM
-#define NUMKONG_HELPER_DEVICE_INLINE static __device__ __forceinline__
+/** @c NUMKONG_HELPER_DEVICE marks helpers that kernels call, forced inline on the device. CUDA and
+ *  HIP share the spelling, and kernels spell their own global qualifier, the only one here. */
+#if NUMKONG_ARCH_CUDA_ || NUMKONG_ARCH_ROCM_
+#define NUMKONG_HELPER_DEVICE static __device__ __forceinline__
 #endif
 
 /** Portable casts between SIMD vector types. MSVC typedefs @c __m512bh, @c __m512h, and @c __m256bh
@@ -906,13 +862,11 @@
 #define nk_m512h_from_m512i_(x)  (x)
 #define nk_m512i_from_m512h_(x)  (x)
 #define nk_m256bh_from_m256i_(x) (x)
-#define nk_m256i_from_m256bh_(x) (x)
 #else
 #define nk_m512bh_from_m512i_(x) ((__m512bh)(x))
 #define nk_m512h_from_m512i_(x)  ((__m512h)(x))
 #define nk_m512i_from_m512h_(x)  ((__m512i)(x))
 #define nk_m256bh_from_m256i_(x) ((__m256bh)(x))
-#define nk_m256i_from_m256bh_(x) ((__m256i)(x))
 #endif
 #endif
 
@@ -1097,9 +1051,6 @@ typedef nk_f64_t nk_fmax_t;
 #define NUMKONG_NULL ((void *)0)
 #endif
 
-#define NUMKONG_F64_MAX 1.7976931348623157e+308
-#define NUMKONG_F64_MIN (-1.7976931348623157e+308)
-#define NUMKONG_F32_MAX 3.402823466e+38f
 #define NUMKONG_F32_MIN (-3.402823466e+38f)
 
 /** Infinities as an overflowing product, since C names them portably only in `<math.h>`. */
@@ -1137,17 +1088,11 @@ typedef nk_f64_t nk_fmax_t;
 #define NUMKONG_U8_MAX 255U
 #define NUMKONG_U8_MIN 0x0U
 
-#define NUMKONG_F16_MAX_AS_U16 0x7BFF // IEEE 754 binary16: +65504.0
-#define NUMKONG_F16_MIN_AS_U16 0xFBFF // IEEE 754 binary16: -65504.0
+#define NUMKONG_F16_MAX nk_u16_as_f16_(0x7BFF) // IEEE 754 binary16: +65504.0
+#define NUMKONG_F16_MIN nk_u16_as_f16_(0xFBFF) // IEEE 754 binary16: -65504.0
 
-#define NUMKONG_F16_MAX nk_u16_as_f16_(0x7BFF)
-#define NUMKONG_F16_MIN nk_u16_as_f16_(0xFBFF)
-
-#define NUMKONG_BF16_MAX_AS_U16 0x7F7F // BFloat16: ~+3.39e38
-#define NUMKONG_BF16_MIN_AS_U16 0xFF7F // BFloat16: ~-3.39e38
-
-#define NUMKONG_BF16_MAX nk_u16_as_bf16_(0x7F7F)
-#define NUMKONG_BF16_MIN nk_u16_as_bf16_(0xFF7F)
+#define NUMKONG_BF16_MAX nk_u16_as_bf16_(0x7F7F) // BFloat16: ~+3.39e38
+#define NUMKONG_BF16_MIN nk_u16_as_bf16_(0xFF7F) // BFloat16: ~-3.39e38
 
 #define NUMKONG_E4M3_MAX 0x7E // FP8 E4M3: +448.0
 #define NUMKONG_E4M3_MIN 0xFE // FP8 E4M3: -448.0
@@ -1160,12 +1105,6 @@ typedef nk_f64_t nk_fmax_t;
 
 #define NUMKONG_E3M2_MAX 0x1F // FP6 E3M2: +28.0
 #define NUMKONG_E3M2_MIN 0x3F // FP6 E3M2: -28.0
-
-#define NUMKONG_E2M1_MAX 0x7 // FP4 E2M1: +6.0 (nibble)
-#define NUMKONG_E2M1_MIN 0xF // FP4 E2M1: -6.0 (nibble)
-
-#define NUMKONG_UE8M0_MAX 0xFE // UE8M0: 2^127 (0xFF is the NaN-block sentinel)
-#define NUMKONG_UE4M3_MAX 0x7E // UE4M3: +448.0 (matches NUMKONG_E4M3_MAX with sign bit forced to 0)
 
 #define NUMKONG_BITS_PER_BYTE    8
 #define NUMKONG_NIBBLES_PER_BYTE 2
@@ -1285,6 +1224,66 @@ typedef enum {
     nk_mxint8_k = nk_i8_k | nk_ue8m0_k,
 } nk_dtype_t;
 
+/** Outcome of every NumKong call that can fail: zero on success, negative when nothing was
+ *  written. Positive values are reserved for results written with a caveat. */
+typedef enum {
+
+    /** Scheduled, or finished, without error. */
+    nk_success_k = 0,
+
+    /** The queue could not take more memory, or record another block. */
+    nk_bad_alloc_k = -10,
+
+    /** Operand shapes contradict each other, like head counts that don't divide. */
+    nk_unexpected_dimensions_k = -15,
+
+    /** No GPU of the vendor this build targets answers. */
+    nk_missing_gpu_k = -16,
+
+    /** The device code lacks the kernel, or it failed to build, launch or finish. */
+    nk_device_code_mismatch_k = -17,
+
+    /** An operand lies in memory the device cannot address. */
+    nk_device_memory_mismatch_k = -18,
+
+    /** No capability in the capability mask has this kernel. */
+    nk_missing_kernel_k = -19,
+
+    /** An operand or stride breaks the alignment contract. */
+    nk_misaligned_k = -20,
+
+    /** The buffer was packed by another capability or layout than the one reading it. */
+    nk_pack_mismatch_k = -21,
+} nk_status_t;
+
+/** Static English description of @p status, behind @c nk_status_to_string. */
+NUMKONG_HELPER_AUTO char const *nk_status_to_string_(nk_status_t status) {
+    switch (status) {
+    case nk_success_k: return "success";
+    case nk_bad_alloc_k: return "out of memory";
+    case nk_unexpected_dimensions_k: return "unexpected dimensions";
+    case nk_missing_gpu_k: return "no GPU of this vendor";
+    case nk_device_code_mismatch_k: return "no kernel ran on this device";
+    case nk_device_memory_mismatch_k: return "memory the device cannot reach";
+    case nk_missing_kernel_k: return "no kernel for these capabilities";
+    case nk_misaligned_k: return "misaligned operand";
+    case nk_pack_mismatch_k: return "packed by another capability";
+    }
+    return "an unrecognized status";
+}
+
+#if NUMKONG_RUNTIME_DISPATCH
+
+/** Static English description of @p status, never null. */
+NUMKONG_API_RUNTIME char const *nk_status_to_string(nk_status_t status);
+
+#else
+
+/** @copydoc nk_status_to_string */
+NUMKONG_API_COMPTIME char const *nk_status_to_string(nk_status_t status) { return nk_status_to_string_(status); }
+
+#endif
+
 /**
  *  @brief Descriptor for a block-scaled tensor layout (OCP MX family + NVIDIA NVFP4).
  *
@@ -1310,6 +1309,69 @@ typedef struct {
     /** Elements per block: 16 (NVFP4) or 32 (MX); 0 for plain. */
     nk_size_t block_size;
 } nk_block_scaled_format_t;
+
+/** `{nk_e2m1_k, nk_ue4m3_k, nk_f32_k, 16}` — NVIDIA NVFP4 (Blackwell-native). */
+NUMKONG_API_COMPTIME nk_block_scaled_format_t nk_nvfp4(void) {
+    nk_block_scaled_format_t format = {nk_e2m1_k, nk_ue4m3_k, nk_f32_k, 16};
+    return format;
+}
+
+/** `{nk_e2m1_k, nk_ue8m0_k, unknown, 32}` — OCP MXFP4. */
+NUMKONG_API_COMPTIME nk_block_scaled_format_t nk_mxfp4(void) {
+    nk_block_scaled_format_t format = {nk_e2m1_k, nk_ue8m0_k, nk_dtype_unknown_k, 32};
+    return format;
+}
+
+/** `{nk_e2m3_k, nk_ue8m0_k, unknown, 32}` — OCP MXFP6 (E2M3 variant). */
+NUMKONG_API_COMPTIME nk_block_scaled_format_t nk_mxfp6_e2m3(void) {
+    nk_block_scaled_format_t format = {nk_e2m3_k, nk_ue8m0_k, nk_dtype_unknown_k, 32};
+    return format;
+}
+
+/** `{nk_e3m2_k, nk_ue8m0_k, unknown, 32}` — OCP MXFP6 (E3M2 variant). */
+NUMKONG_API_COMPTIME nk_block_scaled_format_t nk_mxfp6_e3m2(void) {
+    nk_block_scaled_format_t format = {nk_e3m2_k, nk_ue8m0_k, nk_dtype_unknown_k, 32};
+    return format;
+}
+
+/** `{nk_e4m3_k, nk_ue8m0_k, unknown, 32}` — OCP MXFP8 (E4M3 variant). */
+NUMKONG_API_COMPTIME nk_block_scaled_format_t nk_mxfp8_e4m3(void) {
+    nk_block_scaled_format_t format = {nk_e4m3_k, nk_ue8m0_k, nk_dtype_unknown_k, 32};
+    return format;
+}
+
+/** `{nk_e5m2_k, nk_ue8m0_k, unknown, 32}` — OCP MXFP8 (E5M2 variant). */
+NUMKONG_API_COMPTIME nk_block_scaled_format_t nk_mxfp8_e5m2(void) {
+    nk_block_scaled_format_t format = {nk_e5m2_k, nk_ue8m0_k, nk_dtype_unknown_k, 32};
+    return format;
+}
+
+/** `{nk_i8_k, nk_ue8m0_k, unknown, 32}` — OCP MXINT8. */
+NUMKONG_API_COMPTIME nk_block_scaled_format_t nk_mxint8(void) {
+    nk_block_scaled_format_t format = {nk_i8_k, nk_ue8m0_k, nk_dtype_unknown_k, 32};
+    return format;
+}
+
+/** `{element_dtype, unknown, unknown, 0}` — plain scalar buffer of @p element_dtype. */
+NUMKONG_API_COMPTIME nk_block_scaled_format_t nk_plain(nk_dtype_t element_dtype) {
+    nk_block_scaled_format_t format = {element_dtype, nk_dtype_unknown_k, nk_dtype_unknown_k, 0};
+    return format;
+}
+
+/** Build a block-scaled format descriptor from a composite @p dtype enum value. Returns
+ *  `nk_plain(dtype)` when @p dtype is not a composite. */
+NUMKONG_API_COMPTIME nk_block_scaled_format_t nk_block_scaled_format_of_dtype(nk_dtype_t dtype) {
+    switch (dtype) {
+    case nk_nvfp4_k: return nk_nvfp4();
+    case nk_mxfp4_k: return nk_mxfp4();
+    case nk_mxfp6_e2m3_k: return nk_mxfp6_e2m3();
+    case nk_mxfp6_e3m2_k: return nk_mxfp6_e3m2();
+    case nk_mxfp8_e4m3_k: return nk_mxfp8_e4m3();
+    case nk_mxfp8_e5m2_k: return nk_mxfp8_e5m2();
+    case nk_mxint8_k: return nk_mxint8();
+    default: return nk_plain(dtype);
+    }
+}
 
 typedef enum {
     nk_dtype_family_unknown_k = 0,
@@ -1593,12 +1655,12 @@ NUMKONG_API_COMPTIME nk_size_t nk_dimensions_per_value(nk_dtype_t dtype) {
  *  - `unsigned short` by default, on every compiler and architecture.
  *  - `NUMKONG_NATIVE_F16=1`: @c __fp16 on Arm, @c _Float16 elsewhere.
  *
- *  The type crosses the exported ABI by value — @c nk_f16_sqrt, @c nk_f16_order — and a native half
- *  is passed in a different register class than `unsigned short`. Deriving it from `-march`, as
- *  this once did, let each consumer reach its own answer: Swift's header import sees a native half
- *  on Apple silicon while the C sources it links were built `unsigned short`, and `rust/scalar.rs`
- *  binds @c u16 outright. Enabling it is a decision for a whole build, never for one translation
- *  unit, so the default cannot depend on flags.
+ *  The type crosses the exported ABI by value — @c nk_f16_sqrt_best, @c nk_f16_order_best — and a
+ *  native half is passed in a different register class than `unsigned short`. Deriving it from
+ *  `-march`, as this once did, let each consumer reach its own answer: Swift's header import sees a
+ *  native half on Apple silicon while the C sources it links were built `unsigned short`, and
+ *  `rust/scalar.rs` binds @c u16 outright. Enabling it is a decision for a whole build, never for
+ *  one translation unit, so the default cannot depend on flags.
  */
 #if !defined(NUMKONG_NATIVE_F16)
 #define NUMKONG_NATIVE_F16 0
@@ -1678,12 +1740,6 @@ typedef unsigned short nk_bf16_t;
 #define nk_f16_for_arm_simd_t  float16_t
 #define nk_bf16_for_arm_simd_t bfloat16_t
 #endif
-#endif
-
-/** RISC-V Vector (RVV) intrinsics use @c _Float16 for half-precision floats.
- *  This is the standard C23 type, also available in GCC/Clang with RVV extensions. */
-#if NUMKONG_ARCH_RISCV64_
-#define nk_f16_for_rvv_intrinsics_t _Float16
 #endif
 
 /**
@@ -1784,15 +1840,6 @@ NUMKONG_HELPER_AUTO void nk_assert_failure_(char const *condition, char const *f
 /** Asserts that @p dimensions fill whole storage values of @p dtype, as the sub-byte kernels
  *  require. */
 #define nk_assert_dims_(dimensions, dtype) nk_assert_((dimensions) % nk_dimensions_per_value(dtype) == 0)
-
-/** Whether @p packed_shape reads back from @p packed the @p width and @p depth a packed kernel is
- *  about to trust. */
-NUMKONG_HELPER_AUTO int nk_packed_shape_matches_(void (*packed_shape)(void const *, nk_size_t *, nk_size_t *),
-                                                 void const *packed, nk_size_t width, nk_size_t depth) {
-    nk_size_t packed_width = 0, packed_depth = 0;
-    packed_shape(packed, &packed_width, &packed_depth);
-    return packed_width == width && packed_depth == depth;
-}
 
 /** Compile-time assert akin to C++ @c static_assert. Uses the native assertion where available
  *  (C++11 @c static_assert, C11 @c _Static_assert); the older-C typedef fallback must sit at file
@@ -2088,122 +2135,6 @@ typedef union NUMKONG_MAY_ALIAS_ nk_b512_vec_t {
 } nk_b512_vec_t;
 
 /**
- *  @brief Advances the Multi-Dimensional iterator to the next set of indicies.
- *  @param[in] extents The extents of the tensor, defined by an array of at least @c rank scalars.
- *  @param[in] strides The @b signed strides of the tensor in bytes, defined by an array of at least
- *      @c rank scalars.
- *  @param[in] rank The number of dimensions in the tensor (its rank).
- *  @param[inout] coordinates The array of offsets along each of @c rank dimensions, which
- *      will be updated.
- *  @param[inout] byte_offset The @b signed byte offset of the current element, which
- *      will be advanced.
- *  @return 1 if the iterator was successfully advanced, 0 if the end of iteration was reached.
- *
- *  For flexibility, the API is decoupled from from the @c nk_tensor_position_t structure, and
- *  can be used on any-rank tensors, independent of the @c NUMKONG_TENSOR_MAX_RANK constant.
- */
-NUMKONG_API_COMPTIME int nk_tensor_position_next(                        //
-    nk_size_t const *extents, nk_ssize_t const *strides, nk_size_t rank, //
-    nk_size_t *coordinates, nk_ssize_t *byte_offset) {
-    // Start from last dimension and move backward
-    for (nk_size_t i = rank; i-- > 0;) {
-        coordinates[i]++;
-        *byte_offset += strides[i];
-        if (coordinates[i] < extents[i]) return 1; // Successfully moved to the next index
-        coordinates[i] = 0;                        // Reset this dimension counter
-        *byte_offset -= strides[i] * extents[i];   // Discard the running progress along this dimension
-    }
-    // If we reach here, we've iterated over all elements
-    return 0; // End of iteration
-}
-
-/**
- *  @brief Advances the Multi-Dimensional iterator to the provided coordinates, updating
- *      the byte offset.
- *  @param[in] extents The extents of the tensor, defined by an array of at least @c rank scalars.
- *  @param[in] strides The @b signed strides of the tensor in bytes, defined by an array of at least
- *      @c rank scalars.
- *  @param[in] rank The number of dimensions in the tensor (its rank).
- *  @param[in] coordinates The array of offsets along each of @c rank dimensions, which
- *      will be updated.
- *  @param[out] byte_offset The byte offset of the current element, which will be advanced.
- *  @return 1 if the offset was successfully advanced, 0 if the end of iteration was reached.
- */
-NUMKONG_API_COMPTIME int nk_tensor_position_linearize(                   //
-    nk_size_t const *extents, nk_ssize_t const *strides, nk_size_t rank, //
-    nk_size_t const *coordinates, nk_ssize_t *byte_offset) {
-
-    nk_ssize_t result = 0;
-    for (nk_size_t i = 0; i < rank; i++) {
-        // Ensure the coordinates is within bounds for the given dimension
-        if (coordinates[i] >= extents[i]) return 0; // Invalid coordinates, out of bounds
-        // Update the byte offset by multiplying the coordinates by the stride
-        result += coordinates[i] * strides[i];
-    }
-    *byte_offset = result;
-    return 1; // Successfully calculated global and byte offsets
-}
-
-/**
- *  @brief A @b beefy structure to iterate through Multi-Dimensional arrays.
- *
- *  Occupies 512 + 8 = 520 bytes on a 64-bit machine, or @b 9 cache-lines, by default.
- *  When advancing through a structure, its overall size and strides should be stored somewhere
- *  else. The @c byte_offset starts at zero and grow monotonically during iteration, if the
- *  strides are positive.
- */
-typedef struct nk_tensor_position_t {
-    nk_size_t coordinates[NUMKONG_TENSOR_MAX_RANK]; // Coordinate offsets along each dimension
-    nk_ssize_t byte_offset;                    // Byte offset of the current element
-} nk_tensor_position_t;
-
-NUMKONG_API_COMPTIME void nk_tensor_position_init(nk_tensor_position_t *tensor_position) {
-    for (nk_size_t i = 0; i < NUMKONG_TENSOR_MAX_RANK; i++) tensor_position->coordinates[i] = 0;
-    tensor_position->byte_offset = 0;
-}
-
-/**
- *  @brief A @b beefy structure describing the shape and memory layout of a Multi-Dimensional array.
- *
- *  Similar to @c md::span in C++20 and @c numpy.ndarray in Python, but with a focus on
- *  compatibility. Occupies 512 + 512 + 8 = 2052 bytes on a 64-bit machine, or @b 17 cache-lines, by
- *  default. Unlike NumPy and the CPython "Buffer Protocol", we don't use @c suboffsets for pointer
- *  indirection. The logic is that such layouts aren't friendly to conventional SIMD operations and
- *  dense matrix algorithms. If the tensor is sparse, consider using a different data structure or a
- *  different memory layout.
- *
- *  Most NumKong algorithms don't work with the entire structure, but expect the fields to be passed
- *  separately. It would also require storing the @b start-pointer and the @b dtype/item-size
- *  separately, as it's not stored inside the structure.
- */
-typedef struct nk_tensor_shape_t {
-
-    /** Number of elements along each dimension. */
-    nk_size_t extents[NUMKONG_TENSOR_MAX_RANK];
-
-    /** Strides of the tensor in bytes. */
-    nk_ssize_t strides[NUMKONG_TENSOR_MAX_RANK];
-
-    /** Number of dimensions in the tensor. */
-    nk_size_t rank;
-} nk_tensor_shape_t;
-
-NUMKONG_API_COMPTIME void nk_tensor_shape_init(nk_tensor_shape_t *tensor_shape) {
-    for (nk_size_t i = 0; i < NUMKONG_TENSOR_MAX_RANK; i++) tensor_shape->extents[i] = 0, tensor_shape->strides[i] = 0;
-    tensor_shape->rank = 0;
-}
-
-/*  The helpers below are inlined by vector kernels that pin their own ISA, and GCC refuses an
- *  @c always_inline callee carrying options its caller lacks - so they let the compiler decide,
- *  which for one-liners it does anyway. */
-NUMKONG_HELPER_AUTO nk_u32_t nk_u32_rol(nk_u32_t x, int n) { return (x << n) | (x >> (32 - n)); }
-NUMKONG_HELPER_AUTO nk_u16_t nk_u16_rol(nk_u16_t x, int n) { return (x << n) | (x >> (16 - n)); }
-NUMKONG_HELPER_AUTO nk_u8_t nk_u8_rol(nk_u8_t x, int n) { return (x << n) | (x >> (8 - n)); }
-NUMKONG_HELPER_AUTO nk_u32_t nk_u32_ror(nk_u32_t x, int n) { return (x >> n) | (x << (32 - n)); }
-NUMKONG_HELPER_AUTO nk_u16_t nk_u16_ror(nk_u16_t x, int n) { return (x >> n) | (x << (16 - n)); }
-NUMKONG_HELPER_AUTO nk_u8_t nk_u8_ror(nk_u8_t x, int n) { return (x >> n) | (x << (8 - n)); }
-
-/**
  *  @brief SWAR population count for 64-bit integers.
  *
  *  Classic algorithm from Hacker's Delight using parallel bit summation:
@@ -2221,7 +2152,7 @@ NUMKONG_HELPER_AUTO nk_u64_t nk_u64_popcount_(nk_u64_t x) {
     return (x * 0x0101010101010101ull) >> 56;
 }
 
-NUMKONG_HELPER_AUTO unsigned char nk_u1x8_popcount_(nk_u1x8_t x) {
+NUMKONG_HELPER_INLINE unsigned char nk_u1x8_popcount_(nk_u1x8_t x) {
     static unsigned char lookup_table[256] = {
         0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5, //
         1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5, 2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
@@ -2263,8 +2194,6 @@ NUMKONG_HELPER_AUTO int nk_size_mul_checked_(nk_size_t a, nk_size_t b,
 
 NUMKONG_HELPER_AUTO nk_f32_t nk_f32_abs_(nk_f32_t x) { return x < 0 ? -x : x; }
 NUMKONG_HELPER_AUTO nk_f64_t nk_f64_abs_(nk_f64_t x) { return x < 0 ? -x : x; }
-NUMKONG_HELPER_AUTO nk_i64_t nk_i64_abs_(nk_i64_t x) { return x < 0 ? -x : x; }
-NUMKONG_HELPER_AUTO nk_u64_t nk_u64_abs_(nk_u64_t x) { return x; }
 NUMKONG_HELPER_AUTO nk_i64_t nk_i32_abs_(nk_i32_t x) { return x < 0 ? -x : x; }
 NUMKONG_HELPER_AUTO nk_u32_t nk_u32_abs_(nk_u32_t x) { return x; }
 
@@ -2280,25 +2209,10 @@ NUMKONG_HELPER_AUTO nk_i8_t nk_i4x2_low_(nk_i4x2_t byte_val) { return (nk_i8_t)(
 /** Extract high (bits 4-7) signed nibble from packed i4x2 byte as i8. */
 NUMKONG_HELPER_AUTO nk_i8_t nk_i4x2_high_(nk_i4x2_t byte_val) { return (nk_i8_t)((((byte_val >> 4) & 0x0F) ^ 8) - 8); }
 
-/** Extract n-th nibble (n=0: high, n=1: low) — branchless. */
-NUMKONG_HELPER_AUTO nk_u8_t nk_u4x2_get_(nk_u4x2_t byte_val, int n) { return (byte_val >> ((~n & 1) * 4)) & 0x0F; }
-NUMKONG_HELPER_AUTO nk_i8_t nk_i4x2_get_(nk_i4x2_t byte_val, int n) {
-    nk_u8_t nibble = (byte_val >> ((~n & 1) * 4)) & 0x0F;
-    return (nk_i8_t)((nibble ^ 8) - 8);
-}
-
-/** Extract bit at position n (0-7) from packed u1x8 byte. */
-NUMKONG_HELPER_AUTO nk_u8_t nk_u1x8_get_(nk_u1x8_t byte_val, int n) { return (byte_val >> (n & 7)) & 1; }
-
 NUMKONG_HELPER_AUTO nk_f16_t nk_u16_as_f16_(nk_u16_t bits) {
     nk_fui16_t c;
     c.u = bits;
     return c.f;
-}
-NUMKONG_HELPER_AUTO nk_u16_t nk_f16_as_u16_(nk_f16_t x) {
-    nk_fui16_t c;
-    c.f = x;
-    return c.u;
 }
 NUMKONG_HELPER_AUTO nk_bf16_t nk_u16_as_bf16_(nk_u16_t bits) {
     nk_fui16_t c;
@@ -2308,164 +2222,6 @@ NUMKONG_HELPER_AUTO nk_bf16_t nk_u16_as_bf16_(nk_u16_t bits) {
 
 NUMKONG_HELPER_AUTO void nk_f64_from_i64_(nk_i64_t const *src, nk_f64_t *dest) { *dest = (nk_f64_t)*src; }
 NUMKONG_HELPER_AUTO void nk_f64_from_u64_(nk_u64_t const *src, nk_f64_t *dest) { *dest = (nk_f64_t)*src; }
-NUMKONG_HELPER_AUTO void nk_f32_from_i32_(nk_i32_t const *src, nk_f32_t *dest) { *dest = (nk_f32_t)*src; }
-NUMKONG_HELPER_AUTO void nk_f32_from_u32_(nk_u32_t const *src, nk_f32_t *dest) { *dest = (nk_f32_t)*src; }
-NUMKONG_HELPER_AUTO void nk_f32_from_f64_(nk_f64_t const *src, nk_f32_t *dest) { *dest = (nk_f32_t)*src; }
-
-/** E4M3: NaN when (raw & 0x7F) == 0x7F (two NaN values: 0x7F, 0xFF). */
-NUMKONG_HELPER_AUTO int nk_e4m3_is_nan_(nk_e4m3_t x) { return (x & 0x7F) == 0x7F; }
-
-/** E5M2: NaN when exponent=31 and mantissa!=0, i.e. (raw & 0x7F) > 0x7C. Values: 0x7D-0x7F
- *  (positive), 0xFD-0xFF (negative). Infinity = 0x7C/0xFC is not NaN. */
-NUMKONG_HELPER_AUTO int nk_e5m2_is_nan_(nk_e5m2_t x) { return (x & 0x7F) > 0x7C; }
-
-/** F16: NaN when (raw & 0x7FFF) > 0x7C00. */
-NUMKONG_HELPER_AUTO int nk_f16_is_nan_(nk_f16_t x) {
-    nk_fui16_t x_fui;
-    x_fui.f = x;
-    return (x_fui.u & 0x7FFF) > 0x7C00;
-}
-
-/** BF16: NaN when (raw & 0x7FFF) > 0x7F80. */
-NUMKONG_HELPER_AUTO int nk_bf16_is_nan_(nk_bf16_t x) {
-    nk_fui16_t x_fui;
-    x_fui.bf = x;
-    return (x_fui.u & 0x7FFF) > 0x7F80;
-}
-
-/*  Safe SVE vector-length queries usable from non-streaming context. On Apple M4 (and other
- *  SME-only-SVE cores), SVE instructions like CNTW/CNTH/CNTB trap with SIGILL outside streaming
- *  mode. These helpers bracket the query with SMSTART SM / SMSTOP SM so the calling function's ABI
- *  is unchanged. Inside @c __arm_locally_streaming functions the plain `svcntXX()` intrinsics are
- *  fine. The transitions zero every Z and P register, so the asm declares the V and P registers
- *  clobbered — the "v" spelling is the one Clang reliably honors for values it keeps in FP/SIMD
- *  registers; with bare "z" names Clang kept a live @c s0 argument in place across the bracket and
- *  the first SMSTART silently zeroed it. */
-#if NUMKONG_ARCH_ARM64_ && NUMKONG_TARGET_SME
-
-/** Streaming SVL byte-element count (SVL/8) via SMSTART SM bracket. */
-NUMKONG_HELPER_INLINE nk_size_t nk_sme_cntb_(void) {
-    nk_u64_t r;
-    __asm__ __volatile__("smstart sm\n\t" "cntb %0\n\t" "smstop sm"
-                         : "=r"(r)
-                         :
-                         : "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13",
-                           "v14", "v15", "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23", "v24", "v25", "v26",
-                           "v27", "v28", "v29", "v30", "v31", "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8",
-                           "p9", "p10", "p11", "p12", "p13", "p14", "p15");
-    return (nk_size_t)r;
-}
-
-/** Streaming SVL half-element count (SVL/16) via SMSTART SM bracket. */
-NUMKONG_HELPER_INLINE nk_size_t nk_sme_cnth_(void) {
-    nk_u64_t r;
-    __asm__ __volatile__("smstart sm\n\t" "cnth %0\n\t" "smstop sm"
-                         : "=r"(r)
-                         :
-                         : "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13",
-                           "v14", "v15", "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23", "v24", "v25", "v26",
-                           "v27", "v28", "v29", "v30", "v31", "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8",
-                           "p9", "p10", "p11", "p12", "p13", "p14", "p15");
-    return (nk_size_t)r;
-}
-
-/** Streaming SVL word-element count (SVL/32) via SMSTART SM bracket. */
-NUMKONG_HELPER_INLINE nk_size_t nk_sme_cntw_(void) {
-    nk_u64_t r;
-    __asm__ __volatile__("smstart sm\n\t" "cntw %0\n\t" "smstop sm"
-                         : "=r"(r)
-                         :
-                         : "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13",
-                           "v14", "v15", "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23", "v24", "v25", "v26",
-                           "v27", "v28", "v29", "v30", "v31", "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8",
-                           "p9", "p10", "p11", "p12", "p13", "p14", "p15");
-    return (nk_size_t)r;
-}
-
-/** Streaming SVL double-element count (SVL/64) via SMSTART SM bracket. */
-NUMKONG_HELPER_INLINE nk_size_t nk_sme_cntd_(void) {
-    nk_u64_t r;
-    __asm__ __volatile__("smstart sm\n\t" "cntd %0\n\t" "smstop sm"
-                         : "=r"(r)
-                         :
-                         : "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13",
-                           "v14", "v15", "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23", "v24", "v25", "v26",
-                           "v27", "v28", "v29", "v30", "v31", "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8",
-                           "p9", "p10", "p11", "p12", "p13", "p14", "p15");
-    return (nk_size_t)r;
-}
-
-/** Enter streaming SVE mode (PSTATE.SM = 1). Caller is responsible for smstop. The transition
- *  zeroes every Z and P register, so they are declared clobbered — otherwise values the compiler
- *  caches in the callee-saved V8-V15 are silently lost. */
-NUMKONG_HELPER_INLINE void nk_sme_start_streaming_(void) {
-    __asm__ __volatile__("smstart sm"
-                         :
-                         :
-                         : "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13",
-                           "v14", "v15", "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23", "v24", "v25", "v26",
-                           "v27", "v28", "v29", "v30", "v31", "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8",
-                           "p9", "p10", "p11", "p12", "p13", "p14", "p15", "memory");
-}
-
-/** Exit streaming SVE mode (PSTATE.SM = 0). Must pair with nk_sme_start_streaming_. */
-NUMKONG_HELPER_INLINE void nk_sme_stop_streaming_(void) {
-    __asm__ __volatile__("smstop sm"
-                         :
-                         :
-                         : "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13",
-                           "v14", "v15", "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23", "v24", "v25", "v26",
-                           "v27", "v28", "v29", "v30", "v31", "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8",
-                           "p9", "p10", "p11", "p12", "p13", "p14", "p15", "memory");
-}
-
-/**
- *  @brief SME runtime stubs — weak definitions for symbols the compiler may reference from
- *      @c __arm_streaming or `__arm_new("za")` functions.
- *
- *  Every TU that includes this header emits a weak copy; the linker deduplicates to one.
- *
- *  @c __arm_tpidr2_save and @c __arm_tpidr2_restore implement the lazy ZA save/restore protocol
- *  used in `__arm_new("za")` prologues. They are always no-ops in NumKong because no
- *  @c NUMKONG_API_COMPTIME function carries ZA state, so TPIDR2_EL0 is always null at entry. The
- *  @c used attribute is load-bearing under LTO: the prologue call is synthesized by the backend,
- *  long after IPA would drop these as unreferenced.
- *
- *  @c __arm_sc_memset, @c __arm_sc_memcpy, and @c __arm_sc_memmove are streaming-compatible memory
- *  routines the compiler may emit inside @c __arm_streaming functions. Apple Clang provides these
- *  in its runtime; upstream LLVM does not. GCC needs no stub because it never emits calls to them —
- *  and must not get one, as its `arm_sme.h` declares them with C++ linkage.
- */
-__attribute__((weak, used)) void __arm_tpidr2_save(void) {}
-__attribute__((weak, used)) void __arm_tpidr2_restore(void *blk) { nk_unused_(blk); }
-#if defined(__clang__) // GCC's `arm_sme.h` declares these with C++ linkage, which collides here
-__attribute__((weak, target("+sme"))) void *__arm_sc_memset(void *d, int c,
-                                                            __SIZE_TYPE__ n) __arm_streaming_compatible {
-    unsigned char *p = (unsigned char *)d;
-    for (__SIZE_TYPE__ i = 0; i < n; i++) p[i] = (unsigned char)c;
-    return d;
-}
-__attribute__((weak, target("+sme"))) void *__arm_sc_memcpy(void *d, void const *s,
-                                                            __SIZE_TYPE__ n) __arm_streaming_compatible {
-    unsigned char *dp = (unsigned char *)d;
-    unsigned char const *sp = (unsigned char const *)s;
-    for (__SIZE_TYPE__ i = 0; i < n; i++) dp[i] = sp[i];
-    return d;
-}
-__attribute__((weak, target("+sme"))) void *__arm_sc_memmove(void *d, void const *s,
-                                                             __SIZE_TYPE__ n) __arm_streaming_compatible {
-    unsigned char *dp = (unsigned char *)d;
-    unsigned char const *sp = (unsigned char const *)s;
-    if (dp < sp) {
-        for (__SIZE_TYPE__ i = 0; i < n; i++) dp[i] = sp[i];
-    }
-    else {
-        for (__SIZE_TYPE__ i = n; i > 0; i--) dp[i - 1] = sp[i - 1];
-    }
-    return d;
-}
-#endif
-#endif
 
 /**
  *  @brief Union for type-punned scalar values at language binding boundaries.

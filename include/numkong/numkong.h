@@ -11,25 +11,25 @@
 #ifndef NUMKONG_NUMKONG_H
 #define NUMKONG_NUMKONG_H
 
-#include "numkong/capabilities.h" // Runtime detection, like `nk_cpu_capabilities_detected_x8664_`
-#include "numkong/scalar.h"       // Scalar math: sqrt, rsqrt, fma, saturating, order, like `nk_f32_sqrt`
-#include "numkong/cast.h"         // Type conversions, like `nk_cast`
-#include "numkong/set.h"          // Hamming, Jaccard, like `nk_hamming_u1`
-#include "numkong/curved.h"       // Mahalanobis, Bilinear Forms, like `nk_bilinear_f64`
-#include "numkong/dot.h"          // Inner (dot) product and its conjugate, like `nk_dot_f32`
-#include "numkong/dots.h"         // GEMM-style MxN batched dot-products, like `nk_dots_pack_size_bf16`
-#include "numkong/each.h"         // Weighted Sum, Fused-Multiply-Add, like `nk_each_scale_f64`
-#include "numkong/geospatial.h"   // Haversine and Vincenty, like `nk_haversine_f64`
-#include "numkong/mesh.h"         // RMSD, Kabsch, Umeyama, like `nk_rmsd_f64`
-#include "numkong/probability.h"  // Kullback-Leibler, Jensen-Shannon, like `nk_kld_f16`
-#include "numkong/reduce.h"       // Horizontal MinMax & Moments reductions, like `nk_reduce_moments_f64`
-#include "numkong/sets.h"         // Hamming & Jaccard for binary sets, like `nk_hammings_packed_u1`
-#include "numkong/sparse.h"       // Set Intersections and Sparse Dot Products, like `nk_sparse_intersect_u16`
-#include "numkong/spatial.h"      // Euclidean, Angular, like `nk_euclidean_f64`
-#include "numkong/spatials.h"     // Batched Angular & Euclidean distances, like `nk_angulars_packed_f32`
-#include "numkong/maxsim.h"       // MaxSim: Multi-Vector Maximum Similarity, like `nk_maxsim_packed_f32`
-#include "numkong/attention.h"    // Ragged Transformer attention, like `nk_attention_causal_packed_bf16`
-#include "numkong/trigonometry.h" // Sin, Cos, Atan, like `nk_trig_sin_f64`
+#include "numkong/capabilities.h" // Capabilities, kernel kinds, the pick and detection, like `nk_find_kernel_punned`
+#include "numkong/scalar.h"       // Scalar math: sqrt, rsqrt, fma, saturating, order, like `nk_f32_sqrt_best`
+#include "numkong/cast.h"         // Type conversions, like `nk_cast_best`
+#include "numkong/set.h"          // Hamming, Jaccard, like `nk_hamming_u1_best`
+#include "numkong/curved.h"       // Mahalanobis, Bilinear Forms, like `nk_bilinear_f64_best`
+#include "numkong/dot.h"          // Inner (dot) product and its conjugate, like `nk_dot_f32_best`
+#include "numkong/dots.h"         // GEMM-style MxN batched dot-products, like `nk_dots_pack_size_bf16_best`
+#include "numkong/each.h"         // Weighted Sum, Fused-Multiply-Add, like `nk_each_scale_f64_best`
+#include "numkong/geospatial.h"   // Haversine and Vincenty, like `nk_haversine_f64_best`
+#include "numkong/mesh.h"         // RMSD, Kabsch, Umeyama, like `nk_rmsd_f64_best`
+#include "numkong/probability.h"  // Kullback-Leibler, Jensen-Shannon, like `nk_kld_f16_best`
+#include "numkong/reduce.h"       // Horizontal MinMax & Moments reductions, like `nk_reduce_moments_f64_best`
+#include "numkong/sets.h"         // Hamming & Jaccard for binary sets, like `nk_hammings_packed_u1_best`
+#include "numkong/sparse.h"       // Set Intersections and Sparse Dot Products, like `nk_sparse_intersect_u16_best`
+#include "numkong/spatial.h"      // Euclidean, Angular, like `nk_euclidean_f64_best`
+#include "numkong/spatials.h"     // Batched Angular & Euclidean distances, like `nk_angulars_packed_f32_best`
+#include "numkong/maxsim.h"       // MaxSim: Multi-Vector Maximum Similarity, like `nk_maxsim_packed_f32_best`
+#include "numkong/attention.h"    // Ragged Transformer attention, like `nk_attention_causal_packed_bf16_best`
+#include "numkong/trigonometry.h" // Sin, Cos, Atan, like `nk_trig_sin_f64_best`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -69,6 +69,16 @@ NUMKONG_API_COMPTIME nk_dtype_t nk_kernel_output_dtype(nk_kernel_kind_t kind, nk
     case nk_kernel_attention_bidirectional_packed_k:
     case nk_kernel_attention_causal_packed_k: return nk_attention_output_dtype(input);
     default: return nk_dtype_unknown_k;
+    }
+}
+
+/** Whether swapping the two inputs of @p kind leaves its result unchanged. */
+NUMKONG_API_COMPTIME int nk_kernel_is_commutative(nk_kernel_kind_t kind) {
+    switch (kind) {
+    case nk_kernel_kld_k: return 0;
+    case nk_kernel_vdot_k: return 0;
+    case nk_kernel_bilinear_k: return 0;
+    default: return 1;
     }
 }
 

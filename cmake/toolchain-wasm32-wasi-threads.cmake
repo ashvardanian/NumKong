@@ -2,7 +2,7 @@
 # spawn workers (Wasmtime with `-S threads=y`, a Node host, an embedding that links the pool).
 # Usage: cmake -B build-wasi-threads -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-wasi-threads.cmake -DNUMKONG_BUILD_TEST=ON
 #
-# Every runtime with WASI threads also has Relaxed SIMD, so the tier defaults to `v128relaxed`; `-DNUMKONG_WASM_SIMD=v128`
+# Every runtime with WASI threads also has Relaxed SIMD, so the capability defaults to `v128relaxed`; `-DNUMKONG_WASM_SIMD=v128`
 # narrows it. The single-threaded module lives in `toolchain-wasm32-wasi.cmake`.
 
 set(CMAKE_SYSTEM_NAME WASI)
@@ -48,8 +48,8 @@ set(CMAKE_FIND_ROOT_PATH "${WASI_SDK_PATH}")
 # A `-shared` module needs a main module to resolve `__global_base` and kin, which no standalone runtime supplies.
 set(NUMKONG_BUILD_SHARED OFF CACHE BOOL "Compile a dynamic library")
 
-# SIMD tier: the flags define `__wasm_simd128__` / `__wasm_relaxed_simd__`, which `types.h` reads.
-set(NUMKONG_WASM_SIMD "v128relaxed" CACHE STRING "WebAssembly SIMD tier of this module: v128 or v128relaxed")
+# SIMD capability: the flags define `__wasm_simd128__` / `__wasm_relaxed_simd__`, which `types.h` reads.
+set(NUMKONG_WASM_SIMD "v128relaxed" CACHE STRING "WebAssembly SIMD capability of this module: v128 or v128relaxed")
 if (NUMKONG_WASM_SIMD STREQUAL "v128relaxed")
     set(WASM_SIMD_FLAGS "-msimd128 -mrelaxed-simd")
 elseif (NUMKONG_WASM_SIMD STREQUAL "v128")
@@ -87,7 +87,7 @@ else ()
     message(STATUS "NumKong WASI: WASI-SDK version unknown")
 endif ()
 
-message(STATUS "NumKong WASI: SIMD tier ${NUMKONG_WASM_SIMD}, wasi-threads over shared memory")
+message(STATUS "NumKong WASI: SIMD capability ${NUMKONG_WASM_SIMD}, wasi-threads over shared memory")
 message(STATUS "NumKong WASI: Toolchain at ${WASI_SDK_PATH}")
 
 # Runtime that CTest invokes on each cross binary. Only hosts that spawn workers over the imported shared memory can

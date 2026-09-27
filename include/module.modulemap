@@ -1,18 +1,19 @@
 // Hierarchical Clang C Module Map for NumKong
 //
 // Layout for fast partial recompilation:
-//   CNumKongCore → CNumKongKernels (per-header submodules) → CNumKongCapabilities → CNumKong
+//   CNumKongCore → CNumKongKernels (per-header submodules) → CNumKong
 //
 // `config_macros` documents which macros affect the ABI of each module.
 // SPM's `cSettings: [.define(...)]` only applies when compiling .c sources,
 // NOT when Swift imports these headers — but listing the macros here prevents
 // silent miscompilation if flags ever do differ between TUs.
 
-// Layer 1: Core types (changes rarely, no dependencies)
+// Layer 1: Core types, capabilities, kernel signatures and detection (change rarely, no dependencies)
 module CNumKongCore {
     config_macros [exhaustive] NUMKONG_RUNTIME_DISPATCH, NUMKONG_NATIVE_F16, NUMKONG_NATIVE_BF16
 
     header "numkong/types.h"
+    header "numkong/capabilities.h"
     header "numkong/scalar.h"
     export *
 }
@@ -111,23 +112,12 @@ module CNumKongKernels {
     export *
 }
 
-// Layer 3: Capability detection (depends on Core, used by umbrella)
-module CNumKongCapabilities {
-    config_macros [exhaustive] NUMKONG_RUNTIME_DISPATCH, NUMKONG_NATIVE_F16, NUMKONG_NATIVE_BF16
-
-    use CNumKongCore
-
-    header "numkong/capabilities.h"
-    export *
-}
-
-// Layer 4: Unified API (top-level umbrella module)
+// Layer 3: Unified API (top-level umbrella module)
 module CNumKong {
     config_macros [exhaustive] NUMKONG_RUNTIME_DISPATCH, NUMKONG_NATIVE_F16, NUMKONG_NATIVE_BF16
 
     use CNumKongCore
     use CNumKongKernels
-    use CNumKongCapabilities
 
     header "numkong/numkong.h"
     export *

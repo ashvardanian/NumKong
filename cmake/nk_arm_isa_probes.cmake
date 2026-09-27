@@ -36,23 +36,15 @@ nk_instruction_set_probe_(nk_target_svehalf "" "-march=armv8.2-a+sve+fp16" "prob
 nk_instruction_set_probe_(nk_target_svebfdot "" "-march=armv8.2-a+sve+bf16" "probes/arm_sve_bfdot.c")
 nk_instruction_set_probe_(nk_target_svesdot "" "-march=armv8.2-a+sve+dotprod" "probes/arm_sve_sdot.c")
 nk_instruction_set_probe_(nk_target_sve2 "" "-march=armv8.2-a+sve2" "probes/arm_sve2.c")
-nk_instruction_set_probe_(nk_target_sve2p1 "" "-march=armv8.2-a+sve2p1" "probes/arm_sve2p1.c")
 
 # NEON FP8
 nk_instruction_set_probe_(nk_target_neonfp8 "" "-march=armv8-a+simd+fp8dot4" "probes/arm_neonfp8.c")
 
 # SME probes
 nk_instruction_set_probe_(nk_target_sme "" "-march=armv8-a+sme" "probes/arm_sme.c")
-nk_instruction_set_probe_(nk_target_sme2 "" "-march=armv8-a+sme2" "probes/arm_sme2.c")
-nk_instruction_set_probe_(nk_target_sme2p1 "" "-march=armv8-a+sme2p1" "probes/arm_sme2p1.c")
 nk_instruction_set_probe_(nk_target_smef64 "" "-march=armv8-a+sme+sme-f64f64" "probes/arm_sme_f64.c")
-nk_instruction_set_probe_(nk_target_smehalf "" "-march=armv8-a+sme+sme-f16f16" "probes/arm_sme_half.c")
-nk_instruction_set_probe_(nk_target_smebf16 "" "-march=armv8-a+sme2+sme-b16b16" "probes/arm_sme_bf16.c")
 nk_instruction_set_probe_(nk_target_smebi32 "" "-march=armv8-a+sme2" "probes/arm_sme_bi32.c")
-nk_instruction_set_probe_(nk_target_smelut2 "" "-march=armv8-a+sme2+sme-lutv2" "probes/arm_sme_lut2.c")
-nk_instruction_set_probe_(nk_target_smefa64 "" "-march=armv8-a+sme+sme-fa64" "probes/arm_sme_fa64.c")
 
 nk_build_instruction_set_definitions_(
-    "Arm"
-    "NEON;NEONHALF;NEONSDOT;NEONBFDOT;NEONFHM;SVE;SVEHALF;SVEBFDOT;SVESDOT;SVE2;SVE2P1;NEONFP8;SME;SME2;SME2P1;SMEF64;SMEHALF;SMEBF16;SMEBI32;SMELUT2;SMEFA64"
+    "Arm" "NEON;NEONHALF;NEONSDOT;NEONBFDOT;NEONFHM;SVE;SVEHALF;SVEBFDOT;SVESDOT;SVE2;NEONFP8;SME;SMEF64;SMEBI32"
 )

@@ -189,12 +189,6 @@ const ARM_PROBES: &[IsaProbe] = &[
         msvc_flags: &[],
     },
     IsaProbe {
-        name: "NUMKONG_TARGET_SVE2P1",
-        probe_file: "probes/arm_sve2p1.c",
-        gcc_flags: &["-march=armv8.2-a+sve2p1"],
-        msvc_flags: &[],
-    },
-    IsaProbe {
         name: "NUMKONG_TARGET_NEONFP8",
         probe_file: "probes/arm_neonfp8.c",
         gcc_flags: &["-march=armv8-a+simd+fp8dot4"],
@@ -207,51 +201,15 @@ const ARM_PROBES: &[IsaProbe] = &[
         msvc_flags: &[],
     },
     IsaProbe {
-        name: "NUMKONG_TARGET_SME2",
-        probe_file: "probes/arm_sme2.c",
-        gcc_flags: &["-march=armv8-a+sme2"],
-        msvc_flags: &[],
-    },
-    IsaProbe {
-        name: "NUMKONG_TARGET_SME2P1",
-        probe_file: "probes/arm_sme2p1.c",
-        gcc_flags: &["-march=armv8-a+sme2p1"],
-        msvc_flags: &[],
-    },
-    IsaProbe {
         name: "NUMKONG_TARGET_SMEF64",
         probe_file: "probes/arm_sme_f64.c",
         gcc_flags: &["-march=armv8-a+sme+sme-f64f64"],
         msvc_flags: &[],
     },
     IsaProbe {
-        name: "NUMKONG_TARGET_SMEHALF",
-        probe_file: "probes/arm_sme_half.c",
-        gcc_flags: &["-march=armv8-a+sme+sme-f16f16"],
-        msvc_flags: &[],
-    },
-    IsaProbe {
-        name: "NUMKONG_TARGET_SMEBF16",
-        probe_file: "probes/arm_sme_bf16.c",
-        gcc_flags: &["-march=armv8-a+sme2+sme-b16b16"],
-        msvc_flags: &[],
-    },
-    IsaProbe {
         name: "NUMKONG_TARGET_SMEBI32",
         probe_file: "probes/arm_sme_bi32.c",
         gcc_flags: &["-march=armv8-a+sme2"],
-        msvc_flags: &[],
-    },
-    IsaProbe {
-        name: "NUMKONG_TARGET_SMELUT2",
-        probe_file: "probes/arm_sme_lut2.c",
-        gcc_flags: &["-march=armv8-a+sme2+sme-lutv2"],
-        msvc_flags: &[],
-    },
-    IsaProbe {
-        name: "NUMKONG_TARGET_SMEFA64",
-        probe_file: "probes/arm_sme_fa64.c",
-        gcc_flags: &["-march=armv8-a+sme+sme-fa64"],
         msvc_flags: &[],
     },
 ];

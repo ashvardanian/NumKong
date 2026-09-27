@@ -2,7 +2,28 @@
  *  @file include/numkong/capabilities.h
  *  @author Ash Vardanian
  *  @date October 3, 2023
- *  @brief SIMD capability detection and thread configuration.
+ *  @brief Capabilities and their groups, kernel kinds and signatures, the pick of a kernel, and CPU
+ *      and GPU detection.
+ *
+ *  A capability is one bit, like @c nk_cap_haswell_k or @c nk_cap_ampere_k, and a capability group
+ *  is the range of bits of one kind of hardware: the CPU's, NVIDIA's, AMD's or Apple's. Every batch
+ *  kernel, on every capability, returns an @c nk_status_t and takes a trailing @c stream: null on
+ *  the CPU, a @c cudaStream_t, @c hipStream_t or @ref nk_metal_queue_t pointer on a GPU. A dispatch
+ *  point, like @c nk_dot_f32_best, holds its kernels of every capability group and runs the best
+ *  capability its mask shares with the group that mask describes.
+ *
+ *  @section gpu_devices GPU Devices
+ *
+ *  NumKong lists every GPU of every vendor this build targets in one flat order: CUDA devices
+ *  first, then ROCm devices, then Metal devices, each in its own runtime's order. A device index
+ *  names one of them. Its capability mask, the vendor's baseline and the capabilities the device
+ *  runs, is what every dispatch point takes for that device, beside a stream of that vendor:
+ *
+ *  - CUDA: a @c cudaStream_t, or null for the legacy default stream.
+ *  - ROCm: a @c hipStream_t, or null.
+ *  - Metal: a pointer to an @ref nk_metal_queue_t from @ref nk_metal_queue_init.
+ *
+ *  A GPU entry queues its work on the stream and returns without waiting.
  *
  *  @section x86_targets Choosing x86 Target Generations
  *
@@ -107,20 +128,11 @@
 #define NUMKONG_CAPABILITIES_H
 
 #include "numkong/types.h" // `nk_u64_t`, `NUMKONG_OS_LINUX_`
+#include "numkong/metal.h" // `nk_metal_devices_`, empty unless `NUMKONG_WITH_METAL`
 
-#define NUMKONG_VERSION_MAJOR 7
-#define NUMKONG_VERSION_MINOR 8
-#define NUMKONG_VERSION_PATCH 2
-
-/**
- *  @brief Removes compile-time dispatching in favor of runtime dispatching, so @c nk_dot_f32
- *      invokes the most advanced backend supported by the CPU running the program.
- *
- *  Without it, the function is pinned to the most advanced backend supported by the CPU used to
- *  compile the library or the downstream application.
- */
-#if !defined(NUMKONG_RUNTIME_DISPATCH)
-#define NUMKONG_RUNTIME_DISPATCH (0) // true or false
+/* AMD GPUs name their architecture only as a string, like "gfx950:sramecc+:xnack-" */
+#if NUMKONG_ARCH_ROCM_
+#include <string.h> // `strncmp`
 #endif
 
 /* On Apple Silicon, @c mrs is not allowed in user-space, so we need to use the @c sysctl API. */
@@ -176,6 +188,150 @@ extern long syscall(long, ...);
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/** 64-bit bitmask representing SIMD capabilities of the target architecture. */
+typedef nk_u64_t nk_capability_t;
+
+/** Serial (non-SIMD) fallback capability. Always available. */
+#define nk_cap_serial_k ((nk_capability_t)1)
+
+/** Mask representing any capability. */
+#define nk_cap_any_k ((nk_capability_t)NUMKONG_U64_MAX)
+
+/** CPU capabilities, each architecture's in a contiguous run of bits ascending by preference, so
+ *  the highest bit a mask shares with a dispatch point's capabilities names the one to run. */
+#define nk_cap_neon_k        ((nk_capability_t)1 << 1)
+#define nk_cap_neonhalf_k    ((nk_capability_t)1 << 2)
+#define nk_cap_neonbfdot_k   ((nk_capability_t)1 << 3)
+#define nk_cap_neonfhm_k     ((nk_capability_t)1 << 4)
+#define nk_cap_neonsdot_k    ((nk_capability_t)1 << 5)
+#define nk_cap_neonfp8_k     ((nk_capability_t)1 << 6)
+#define nk_cap_sve_k         ((nk_capability_t)1 << 7)
+#define nk_cap_svehalf_k     ((nk_capability_t)1 << 8)
+#define nk_cap_svesdot_k     ((nk_capability_t)1 << 9)
+#define nk_cap_svebfdot_k    ((nk_capability_t)1 << 10)
+#define nk_cap_sve2_k        ((nk_capability_t)1 << 11)
+#define nk_cap_sme_k         ((nk_capability_t)1 << 12)
+#define nk_cap_smef64_k      ((nk_capability_t)1 << 13)
+#define nk_cap_smebi32_k     ((nk_capability_t)1 << 14)
+#define nk_cap_haswell_k     ((nk_capability_t)1 << 15)
+#define nk_cap_alder_k       ((nk_capability_t)1 << 16)
+#define nk_cap_sierra_k      ((nk_capability_t)1 << 17)
+#define nk_cap_skylake_k     ((nk_capability_t)1 << 18)
+#define nk_cap_icelake_k     ((nk_capability_t)1 << 19)
+#define nk_cap_genoa_k       ((nk_capability_t)1 << 20)
+#define nk_cap_turin_k       ((nk_capability_t)1 << 21)
+#define nk_cap_sapphire_k    ((nk_capability_t)1 << 22)
+#define nk_cap_diamond_k     ((nk_capability_t)1 << 23)
+#define nk_cap_sapphireamx_k ((nk_capability_t)1 << 24)
+#define nk_cap_graniteamx_k  ((nk_capability_t)1 << 25)
+#define nk_cap_diamondamx_k  ((nk_capability_t)1 << 26)
+#define nk_cap_rvv_k         ((nk_capability_t)1 << 27)
+#define nk_cap_rvvbf16_k     ((nk_capability_t)1 << 28)
+#define nk_cap_rvvhalf_k     ((nk_capability_t)1 << 29)
+#define nk_cap_rvvbb_k       ((nk_capability_t)1 << 30)
+#define nk_cap_v128_k        ((nk_capability_t)1 << 31)
+#define nk_cap_v128relaxed_k ((nk_capability_t)1 << 32)
+#define nk_cap_powervsx_k    ((nk_capability_t)1 << 33)
+#define nk_cap_loongsonasx_k ((nk_capability_t)1 << 34)
+
+/** GPU capabilities, reported for one device by the `nk_gpu_capabilities_*` functions only, and
+ *  grouped by vendor above bit 47, leaving room for more CPU capabilities and more per vendor.
+ *  Each vendor's baseline runs on every device of that vendor, as @c serial runs on every CPU. */
+#define nk_cap_cuda_k         ((nk_capability_t)1 << 48)
+#define nk_cap_ampere_k       ((nk_capability_t)1 << 49)
+#define nk_cap_ada_k          ((nk_capability_t)1 << 50)
+#define nk_cap_hopper_k       ((nk_capability_t)1 << 51)
+#define nk_cap_blackwell_k    ((nk_capability_t)1 << 52)
+#define nk_cap_blackwellrtx_k ((nk_capability_t)1 << 53)
+#define nk_cap_rocm_k         ((nk_capability_t)1 << 56)
+#define nk_cap_cdna4_k        ((nk_capability_t)1 << 57)
+#define nk_cap_cdna5_k        ((nk_capability_t)1 << 58)
+#define nk_cap_metal_k        ((nk_capability_t)1 << 60)
+#define nk_cap_apple9_k       ((nk_capability_t)1 << 61)
+#define nk_cap_apple10_k      ((nk_capability_t)1 << 62)
+
+/** Every GPU capability above, which the CPU dispatch never detects, compiles or enables. */
+#define nk_cap_devices_k                                                                                             \
+    (nk_cap_cuda_k | nk_cap_ampere_k | nk_cap_ada_k | nk_cap_hopper_k | nk_cap_blackwell_k | nk_cap_blackwellrtx_k | \
+     nk_cap_rocm_k | nk_cap_cdna4_k | nk_cap_cdna5_k | nk_cap_metal_k | nk_cap_apple9_k | nk_cap_apple10_k)
+
+/** Every CPU capability, the bits below the first GPU vendor's. */
+#define nk_cap_cpus_k (nk_cap_cuda_k - 1)
+
+/** Buffer size @c nk_name_capabilities never overruns, including its null terminator. */
+#define NUMKONG_CAPABILITIES_NAME_CAPACITY 1024
+
+/** Every named capability in bit order, spelled as the bindings parse them; a null name ends the
+ *  table. */
+static struct {
+    char const *name;
+    nk_capability_t flag;
+} const nk_capability_names_[] = {
+    {"serial", nk_cap_serial_k},
+    {"neon", nk_cap_neon_k},
+    {"neonhalf", nk_cap_neonhalf_k},
+    {"neonbfdot", nk_cap_neonbfdot_k},
+    {"neonfhm", nk_cap_neonfhm_k},
+    {"neonsdot", nk_cap_neonsdot_k},
+    {"neonfp8", nk_cap_neonfp8_k},
+    {"sve", nk_cap_sve_k},
+    {"svehalf", nk_cap_svehalf_k},
+    {"svesdot", nk_cap_svesdot_k},
+    {"svebfdot", nk_cap_svebfdot_k},
+    {"sve2", nk_cap_sve2_k},
+    {"sme", nk_cap_sme_k},
+    {"smef64", nk_cap_smef64_k},
+    {"smebi32", nk_cap_smebi32_k},
+    {"haswell", nk_cap_haswell_k},
+    {"alder", nk_cap_alder_k},
+    {"sierra", nk_cap_sierra_k},
+    {"skylake", nk_cap_skylake_k},
+    {"icelake", nk_cap_icelake_k},
+    {"genoa", nk_cap_genoa_k},
+    {"turin", nk_cap_turin_k},
+    {"sapphire", nk_cap_sapphire_k},
+    {"diamond", nk_cap_diamond_k},
+    {"sapphireamx", nk_cap_sapphireamx_k},
+    {"graniteamx", nk_cap_graniteamx_k},
+    {"diamondamx", nk_cap_diamondamx_k},
+    {"rvv", nk_cap_rvv_k},
+    {"rvvbf16", nk_cap_rvvbf16_k},
+    {"rvvhalf", nk_cap_rvvhalf_k},
+    {"rvvbb", nk_cap_rvvbb_k},
+    {"v128", nk_cap_v128_k},
+    {"v128relaxed", nk_cap_v128relaxed_k},
+    {"powervsx", nk_cap_powervsx_k},
+    {"loongsonasx", nk_cap_loongsonasx_k},
+    {"cuda", nk_cap_cuda_k},
+    {"ampere", nk_cap_ampere_k},
+    {"ada", nk_cap_ada_k},
+    {"hopper", nk_cap_hopper_k},
+    {"blackwell", nk_cap_blackwell_k},
+    {"blackwellrtx", nk_cap_blackwellrtx_k},
+    {"rocm", nk_cap_rocm_k},
+    {"cdna4", nk_cap_cdna4_k},
+    {"cdna5", nk_cap_cdna5_k},
+    {"metal", nk_cap_metal_k},
+    {"apple9", nk_cap_apple9_k},
+    {"apple10", nk_cap_apple10_k},
+    {0, 0},
+};
+
+/** Writes the names of @p capabilities into @p buffer, behind @c nk_name_capabilities. */
+NUMKONG_HELPER_AUTO nk_size_t nk_name_capabilities_(nk_capability_t capabilities, char *buffer, nk_size_t capacity) {
+    if (!capacity) return 0;
+    nk_size_t length = 0;
+    for (nk_size_t entry = 0; nk_capability_names_[entry].name; ++entry) {
+        if (!(capabilities & nk_capability_names_[entry].flag)) continue;
+        char const *character = length ? "," : "";
+        for (; *character && length + 1 < capacity; ++character) buffer[length++] = *character;
+        for (character = nk_capability_names_[entry].name; *character && length + 1 < capacity; ++character)
+            buffer[length++] = *character;
+    }
+    buffer[length] = '\0';
+    return length;
+}
 
 /** Enumeration of supported metric kinds. Some have aliases for convenience/discoverability. */
 typedef enum {
@@ -357,7 +513,7 @@ typedef enum {
     /** Attention packed KV-cache Buffer size in Bytes. */
     nk_kernel_attention_pack_size_k = 'B',
 
-    /** Attention K/V packing (KV cache → backend format). */
+    /** Attention K/V packing (KV cache → the capability's layout). */
     nk_kernel_attention_pack_k = 'V',
 
     /** Fused (Flash-style) bidirectional attention. */
@@ -500,286 +656,184 @@ NUMKONG_API_COMPTIME nk_kernel_kind_t nk_kernel_named(char const *name, nk_size_
     return nk_kernel_unknown_k;
 }
 
-/** 64-bit bitmask representing SIMD capabilities of the target architecture. */
-typedef nk_u64_t nk_capability_t;
+typedef nk_status_t (*nk_metric_dense_punned_t)(void const *a, void const *b, nk_size_t dimensions, void *result,
+                                                void *stream);
 
-/** Serial (non-SIMD) fallback capability. Always available. */
-#define nk_cap_serial_k ((nk_capability_t)1)
+typedef nk_status_t (*nk_sparse_intersect_punned_t)(void const *a, void const *b, nk_size_t a_length,
+                                                    nk_size_t b_length, void *result, nk_size_t *count, void *stream);
 
-/** Mask representing any capability. */
-#define nk_cap_any_k ((nk_capability_t)NUMKONG_U64_MAX)
+typedef nk_status_t (*nk_sparse_dot_punned_t)(void const *a, void const *b, void const *a_weights,
+                                              void const *b_weights, nk_size_t a_length, nk_size_t b_length,
+                                              void *product, void *stream);
 
-#define nk_cap_neon_k        ((nk_capability_t)1 << 1)
-#define nk_cap_haswell_k     ((nk_capability_t)1 << 2)
-#define nk_cap_skylake_k     ((nk_capability_t)1 << 3)
-#define nk_cap_neonhalf_k    ((nk_capability_t)1 << 4)
-#define nk_cap_neonsdot_k    ((nk_capability_t)1 << 5)
-#define nk_cap_neonfhm_k     ((nk_capability_t)1 << 6)
-#define nk_cap_icelake_k     ((nk_capability_t)1 << 7)
-#define nk_cap_genoa_k       ((nk_capability_t)1 << 8)
-#define nk_cap_neonbfdot_k   ((nk_capability_t)1 << 9)
-#define nk_cap_sve_k         ((nk_capability_t)1 << 10)
-#define nk_cap_svehalf_k     ((nk_capability_t)1 << 11)
-#define nk_cap_svesdot_k     ((nk_capability_t)1 << 12)
-#define nk_cap_alder_k       ((nk_capability_t)1 << 13)
-#define nk_cap_svebfdot_k    ((nk_capability_t)1 << 14)
-#define nk_cap_sve2_k        ((nk_capability_t)1 << 15)
-#define nk_cap_v128relaxed_k ((nk_capability_t)1 << 16)
-#define nk_cap_sapphire_k    ((nk_capability_t)1 << 17)
-#define nk_cap_sapphireamx_k ((nk_capability_t)1 << 18)
-#define nk_cap_rvv_k         ((nk_capability_t)1 << 19)
-#define nk_cap_rvvhalf_k     ((nk_capability_t)1 << 20)
-#define nk_cap_rvvbf16_k     ((nk_capability_t)1 << 21)
-#define nk_cap_graniteamx_k  ((nk_capability_t)1 << 22)
-#define nk_cap_turin_k       ((nk_capability_t)1 << 23)
-#define nk_cap_sme_k         ((nk_capability_t)1 << 24)
-#define nk_cap_sme2_k        ((nk_capability_t)1 << 25)
-#define nk_cap_smef64_k      ((nk_capability_t)1 << 26)
-#define nk_cap_smefa64_k     ((nk_capability_t)1 << 27)
-#define nk_cap_sve2p1_k      ((nk_capability_t)1 << 28)
-#define nk_cap_sme2p1_k      ((nk_capability_t)1 << 29)
-#define nk_cap_smehalf_k     ((nk_capability_t)1 << 30)
-#define nk_cap_smebf16_k     ((nk_capability_t)1 << 31)
-#define nk_cap_smelut2_k     ((nk_capability_t)1 << 32)
-#define nk_cap_rvvbb_k       ((nk_capability_t)1 << 33)
-#define nk_cap_sierra_k      ((nk_capability_t)1 << 34)
-#define nk_cap_smebi32_k     ((nk_capability_t)1 << 35)
-#define nk_cap_loongsonasx_k ((nk_capability_t)1 << 36)
-#define nk_cap_powervsx_k    ((nk_capability_t)1 << 37)
-#define nk_cap_diamond_k     ((nk_capability_t)1 << 38)
-#define nk_cap_neonfp8_k     ((nk_capability_t)1 << 39)
-#define nk_cap_diamondamx_k  ((nk_capability_t)1 << 40)
-#define nk_cap_v128_k        ((nk_capability_t)1 << 41)
+typedef nk_status_t (*nk_metric_curved_punned_t)(void const *a, void const *b, void const *c, nk_size_t dimensions,
+                                                 void *result, void *stream);
 
-/** CUDA device families, one cubin each, reported per device by `nk_capabilities_cuda_*` only. */
-#define nk_cap_ampere_k       ((nk_capability_t)1 << 42)
-#define nk_cap_hopper_k       ((nk_capability_t)1 << 43)
-#define nk_cap_blackwell_k    ((nk_capability_t)1 << 44)
-#define nk_cap_blackwellrtx_k ((nk_capability_t)1 << 45)
+typedef nk_status_t (*nk_metric_geospatial_punned_t)(void const *a_lats, void const *a_lons, void const *b_lats,
+                                                     void const *b_lons, nk_size_t count, void *results, void *stream);
 
-/** AMD Instinct device families, one code object each, reported per device by
- *  `nk_capabilities_hip_*` only. */
-#define nk_cap_cdna4_k ((nk_capability_t)1 << 46)
-#define nk_cap_cdna5_k ((nk_capability_t)1 << 47)
+typedef nk_status_t (*nk_each_scale_punned_t)(void const *a, nk_size_t count, void const *alpha, void const *beta,
+                                              void *y, void *stream);
 
-/** Apple GPU families, one Metal library each, reported per device by
- *  `nk_capabilities_metal_*` only. */
-#define nk_cap_apple9_k  ((nk_capability_t)1 << 48)
-#define nk_cap_apple10_k ((nk_capability_t)1 << 49)
+typedef nk_status_t (*nk_each_sum_punned_t)(void const *a, void const *b, nk_size_t count, void *y, void *stream);
 
-/** Every device family above, which the CPU dispatch never detects, compiles or enables. */
-#define nk_cap_devices_k                                                                               \
-    (nk_cap_ampere_k | nk_cap_hopper_k | nk_cap_blackwell_k | nk_cap_blackwellrtx_k | nk_cap_cdna4_k | \
-     nk_cap_cdna5_k | nk_cap_apple9_k | nk_cap_apple10_k)
+typedef nk_status_t (*nk_each_blend_punned_t)(void const *a, void const *b, nk_size_t count, void const *alpha,
+                                              void const *beta, void *y, void *stream);
 
-/** Buffer size @c nk_name_capabilities never overruns, including its null terminator. */
-#define NUMKONG_CAPABILITIES_NAME_CAPACITY 1024
+typedef nk_status_t (*nk_each_fma_punned_t)(void const *a, void const *b, void const *c, nk_size_t count,
+                                            void const *alpha, void const *beta, void *y, void *stream);
 
-/** Every named capability, the CPU tiers grouped by family and then the device families, spelled
- *  as the bindings parse them; a null name ends the table. */
-static struct {
-    char const *name;
-    nk_capability_t flag;
-} const nk_capability_names_[] = {
-    {"serial", nk_cap_serial_k},
-    {"neon", nk_cap_neon_k},
-    {"neonhalf", nk_cap_neonhalf_k},
-    {"neonfhm", nk_cap_neonfhm_k},
-    {"neonbfdot", nk_cap_neonbfdot_k},
-    {"neonsdot", nk_cap_neonsdot_k},
-    {"neonfp8", nk_cap_neonfp8_k},
-    {"sve", nk_cap_sve_k},
-    {"svehalf", nk_cap_svehalf_k},
-    {"svebfdot", nk_cap_svebfdot_k},
-    {"svesdot", nk_cap_svesdot_k},
-    {"sve2", nk_cap_sve2_k},
-    {"sve2p1", nk_cap_sve2p1_k},
-    {"sme", nk_cap_sme_k},
-    {"sme2", nk_cap_sme2_k},
-    {"sme2p1", nk_cap_sme2p1_k},
-    {"smef64", nk_cap_smef64_k},
-    {"smehalf", nk_cap_smehalf_k},
-    {"smebf16", nk_cap_smebf16_k},
-    {"smebi32", nk_cap_smebi32_k},
-    {"smelut2", nk_cap_smelut2_k},
-    {"smefa64", nk_cap_smefa64_k},
-    {"haswell", nk_cap_haswell_k},
-    {"alder", nk_cap_alder_k},
-    {"sierra", nk_cap_sierra_k},
-    {"skylake", nk_cap_skylake_k},
-    {"icelake", nk_cap_icelake_k},
-    {"genoa", nk_cap_genoa_k},
-    {"turin", nk_cap_turin_k},
-    {"sapphire", nk_cap_sapphire_k},
-    {"sapphireamx", nk_cap_sapphireamx_k},
-    {"graniteamx", nk_cap_graniteamx_k},
-    {"diamond", nk_cap_diamond_k},
-    {"diamondamx", nk_cap_diamondamx_k},
-    {"rvv", nk_cap_rvv_k},
-    {"rvvhalf", nk_cap_rvvhalf_k},
-    {"rvvbf16", nk_cap_rvvbf16_k},
-    {"rvvbb", nk_cap_rvvbb_k},
-    {"loongsonasx", nk_cap_loongsonasx_k},
-    {"powervsx", nk_cap_powervsx_k},
-    {"v128", nk_cap_v128_k},
-    {"v128relaxed", nk_cap_v128relaxed_k},
-    {"ampere", nk_cap_ampere_k},
-    {"hopper", nk_cap_hopper_k},
-    {"blackwell", nk_cap_blackwell_k},
-    {"blackwellrtx", nk_cap_blackwellrtx_k},
-    {"cdna4", nk_cap_cdna4_k},
-    {"cdna5", nk_cap_cdna5_k},
-    {"apple9", nk_cap_apple9_k},
-    {"apple10", nk_cap_apple10_k},
-    {0, 0},
-};
+typedef nk_status_t (*nk_kernel_trig_punned_t)(void const *x, nk_size_t count, void *y, void *stream);
 
-/** Writes the names of @p capabilities into @p buffer, behind @c nk_name_capabilities. */
-NUMKONG_HELPER_AUTO nk_size_t nk_name_capabilities_(nk_capability_t capabilities, char *buffer, nk_size_t capacity) {
-    if (!capacity) return 0;
-    nk_size_t length = 0;
-    for (nk_size_t entry = 0; nk_capability_names_[entry].name; ++entry) {
-        if (!(capabilities & nk_capability_names_[entry].flag)) continue;
-        char const *character = length ? "," : "";
-        for (; *character && length + 1 < capacity; ++character) buffer[length++] = *character;
-        for (character = nk_capability_names_[entry].name; *character && length + 1 < capacity; ++character)
-            buffer[length++] = *character;
-    }
-    buffer[length] = '\0';
-    return length;
-}
+typedef nk_status_t (*nk_metric_mesh_punned_t)(void const *a, void const *b, nk_size_t points_count, void *a_centroid,
+                                               void *b_centroid, void *rotation, void *scale, void *result,
+                                               void *stream);
 
-typedef void (*nk_metric_dense_punned_t)(void const *a, void const *b, nk_size_t dimensions, void *result);
+typedef nk_status_t (*nk_reduce_moments_punned_t)(void const *data, nk_size_t count, nk_size_t stride_bytes, void *sum,
+                                                  void *sumsq, void *stream);
 
-typedef void (*nk_sparse_intersect_punned_t)(void const *a, void const *b, nk_size_t a_length, nk_size_t b_length,
-                                             void *result, nk_size_t *count);
+typedef nk_status_t (*nk_reduce_minmax_punned_t)(void const *data, nk_size_t count, nk_size_t stride_bytes,
+                                                 void *min_value, nk_size_t *min_index, void *max_value,
+                                                 nk_size_t *max_index, void *stream);
 
-typedef void (*nk_sparse_dot_punned_t)(void const *a, void const *b, void const *a_weights, void const *b_weights,
-                                       nk_size_t a_length, nk_size_t b_length, void *product);
+typedef nk_status_t (*nk_reduce_rmsnorm_punned_t)(void const *x, void const *gamma, void *y, nk_size_t rows,
+                                                  nk_size_t groups, nk_size_t cols, nk_size_t x_row_stride,
+                                                  nk_size_t y_row_stride, nk_f32_t eps, nk_f32_t input_scale,
+                                                  void *stream);
 
-typedef void (*nk_metric_curved_punned_t)(void const *a, void const *b, void const *c, nk_size_t dimensions,
-                                          void *result);
+typedef nk_status_t (*nk_each_swiglu_punned_t)(void const *gate, void const *up, void *y, nk_size_t rows,
+                                               nk_size_t cols, nk_size_t gate_row_stride, nk_size_t up_row_stride,
+                                               nk_size_t y_row_stride, nk_f32_t input_scale, void *stream);
 
-typedef void (*nk_metric_geospatial_punned_t)(void const *a_lats, void const *a_lons, void const *b_lats,
-                                              void const *b_lons, nk_size_t count, void *results);
+typedef nk_status_t (*nk_kernel_trig_rope_punned_t)(void const *x, void *y, void const *cos, void const *sin,
+                                                    nk_size_t rows, nk_size_t heads, nk_size_t half_dim,
+                                                    nk_size_t x_row_stride, nk_size_t y_row_stride,
+                                                    nk_f32_t input_scale, void *stream);
 
-typedef void (*nk_each_scale_punned_t)(void const *a, nk_size_t count, void const *alpha, void const *beta, void *y);
+/** Pack sizes are host arithmetic, so they take no stream. */
+typedef nk_status_t (*nk_dots_pack_size_punned_t)(nk_size_t columns, nk_size_t depth, nk_size_t *bytes);
 
-typedef void (*nk_each_sum_punned_t)(void const *a, void const *b, nk_size_t count, void *y);
+typedef nk_status_t (*nk_dots_packed_shape_punned_t)(void const *packed, nk_size_t *width, nk_size_t *depth,
+                                                     void *stream);
 
-typedef void (*nk_each_blend_punned_t)(void const *a, void const *b, nk_size_t count, void const *alpha,
-                                       void const *beta, void *y);
+typedef nk_status_t (*nk_dots_pack_punned_t)(void const *b, nk_size_t columns, nk_size_t depth,
+                                             nk_size_t b_stride_bytes, void *b_packed, nk_size_t columns_begin,
+                                             nk_size_t columns_end, void *stream);
 
-typedef void (*nk_each_fma_punned_t)(void const *a, void const *b, void const *c, nk_size_t count, void const *alpha,
-                                     void const *beta, void *y);
+typedef nk_status_t (*nk_maxsim_pack_punned_t)(void const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                               nk_size_t stride_bytes, void *packed, void *stream);
 
-typedef void (*nk_kernel_trig_punned_t)(void const *x, nk_size_t count, void *y);
+typedef nk_status_t (*nk_dots_packed_punned_t)(void const *a, void const *b_packed, void *c, nk_size_t rows,
+                                               nk_size_t columns, nk_size_t depth, nk_size_t a_stride_bytes,
+                                               nk_size_t c_stride_bytes, void *stream);
 
-typedef void (*nk_metric_mesh_punned_t)(void const *a, void const *b, nk_size_t points_count, void *a_centroid,
-                                        void *b_centroid, void *rotation, void *scale, void *result);
+typedef nk_status_t (*nk_dots_symmetric_punned_t)(void const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                  nk_size_t stride_bytes, void *result, nk_size_t result_stride_bytes,
+                                                  nk_size_t row_start, nk_size_t row_count, void *stream);
 
-typedef void (*nk_reduce_moments_punned_t)(void const *data, nk_size_t count, nk_size_t stride_bytes, void *sum_ptr,
-                                           void *sumsq_ptr);
+typedef nk_dots_packed_punned_t nk_hammings_packed_punned_t;
+typedef nk_dots_symmetric_punned_t nk_hammings_symmetric_punned_t;
+typedef nk_dots_packed_punned_t nk_jaccards_packed_punned_t;
+typedef nk_dots_symmetric_punned_t nk_jaccards_symmetric_punned_t;
+typedef nk_dots_packed_punned_t nk_angulars_packed_punned_t;
+typedef nk_dots_symmetric_punned_t nk_angulars_symmetric_punned_t;
+typedef nk_dots_packed_punned_t nk_euclideans_packed_punned_t;
+typedef nk_dots_symmetric_punned_t nk_euclideans_symmetric_punned_t;
 
-typedef void (*nk_reduce_minmax_punned_t)(void const *data, nk_size_t count, nk_size_t stride_bytes, void *min_value,
-                                          nk_size_t *min_index, void *max_value, nk_size_t *max_index);
+typedef nk_status_t (*nk_maxsim_packed_punned_t)(void const *q_packed, void const *d_packed, nk_size_t query_count,
+                                                 nk_size_t document_count, nk_size_t depth, void *result, void *stream);
 
-typedef void (*nk_reduce_rmsnorm_punned_t)(void const *x, void const *gamma, void *y, nk_size_t rows, nk_size_t groups,
-                                           nk_size_t cols, nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t eps,
-                                           nk_f32_t input_scale);
+typedef nk_status_t (*nk_attention_packed_shape_punned_t)(void const *packed, nk_size_t *heads, nk_size_t *depth,
+                                                          nk_size_t *segments, void *stream);
 
-typedef void (*nk_each_swiglu_punned_t)(void const *gate, void const *up, void *y, nk_size_t rows, nk_size_t cols,
-                                        nk_size_t gate_row_stride, nk_size_t up_row_stride, nk_size_t y_row_stride,
-                                        nk_f32_t input_scale);
+/** Pack sizes are host arithmetic, so they take no stream. */
+typedef nk_status_t (*nk_attention_pack_size_punned_t)(nk_size_t num_kv_heads, nk_size_t head_dim,
+                                                       nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                       nk_size_t *bytes);
 
-typedef void (*nk_kernel_trig_rope_punned_t)(void const *x, void *y, void const *cos, void const *sin, nk_size_t rows,
-                                             nk_size_t heads, nk_size_t half_dim, nk_size_t x_row_stride,
-                                             nk_size_t y_row_stride, nk_f32_t input_scale);
+typedef nk_status_t (*nk_attention_pack_punned_t)(void const *k, void const *v, nk_size_t num_kv_heads,
+                                                  nk_size_t head_dim, nk_u32_t const *segment_offsets,
+                                                  nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                  nk_size_t k_stride_bytes, nk_size_t v_stride_bytes,
+                                                  void *key_value_packed, nk_size_t task_begin, nk_size_t task_end,
+                                                  void *stream);
 
-typedef nk_size_t (*nk_dots_pack_size_punned_t)(nk_size_t columns, nk_size_t depth);
+typedef nk_status_t (*nk_attention_bidirectional_packed_punned_t)(
+    void const *q, void const *key_value_packed, void *output, nk_size_t num_heads, nk_size_t num_kv_heads,
+    nk_size_t head_dim, nk_u32_t const *query_offsets, nk_size_t q_stride_bytes, nk_size_t o_stride_bytes,
+    nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
 
-typedef void (*nk_dots_packed_shape_punned_t)(void const *packed, nk_size_t *width, nk_size_t *depth);
-
-typedef void (*nk_dots_pack_punned_t)(void const *b, nk_size_t columns, nk_size_t depth, nk_size_t b_stride_bytes,
-                                      void *b_packed, nk_size_t columns_begin, nk_size_t columns_end);
-
-typedef void (*nk_maxsim_pack_punned_t)(void const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                        nk_size_t stride_bytes, void *packed);
-
-typedef void (*nk_dots_packed_punned_t)(void const *a, void const *b_packed, void *c, nk_size_t rows, nk_size_t columns,
-                                        nk_size_t depth, nk_size_t a_stride_bytes, nk_size_t c_stride_bytes);
-
-typedef void (*nk_dots_symmetric_punned_t)(void const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                           nk_size_t stride_bytes, void *result, nk_size_t result_stride_bytes,
-                                           nk_size_t row_start, nk_size_t row_count);
-
-typedef void (*nk_hammings_packed_punned_t)(void const *a, void const *b_packed, void *c, nk_size_t rows,
-                                            nk_size_t columns, nk_size_t depth, nk_size_t a_stride_bytes,
-                                            nk_size_t c_stride_bytes);
-
-typedef void (*nk_hammings_symmetric_punned_t)(void const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                               nk_size_t stride_bytes, void *result, nk_size_t result_stride_bytes,
-                                               nk_size_t row_start, nk_size_t row_count);
-
-typedef void (*nk_jaccards_packed_punned_t)(void const *a, void const *b_packed, void *c, nk_size_t rows,
-                                            nk_size_t columns, nk_size_t depth, nk_size_t a_stride_bytes,
-                                            nk_size_t c_stride_bytes);
-
-typedef void (*nk_jaccards_symmetric_punned_t)(void const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                               nk_size_t stride_bytes, void *result, nk_size_t result_stride_bytes,
-                                               nk_size_t row_start, nk_size_t row_count);
-
-typedef void (*nk_angulars_packed_punned_t)(void const *a, void const *b_packed, void *c, nk_size_t rows,
-                                            nk_size_t columns, nk_size_t depth, nk_size_t a_stride_bytes,
-                                            nk_size_t c_stride_bytes);
-typedef void (*nk_angulars_symmetric_punned_t)(void const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                               nk_size_t stride_bytes, void *result, nk_size_t result_stride_bytes,
-                                               nk_size_t row_start, nk_size_t row_count);
-typedef void (*nk_euclideans_packed_punned_t)(void const *a, void const *b_packed, void *c, nk_size_t rows,
-                                              nk_size_t columns, nk_size_t depth, nk_size_t a_stride_bytes,
-                                              nk_size_t c_stride_bytes);
-typedef void (*nk_euclideans_symmetric_punned_t)(void const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                 nk_size_t stride_bytes, void *result, nk_size_t result_stride_bytes,
-                                                 nk_size_t row_start, nk_size_t row_count);
-
-typedef void (*nk_maxsim_packed_punned_t)(void const *q_packed, void const *d_packed, nk_size_t query_count,
-                                          nk_size_t document_count, nk_size_t depth, void *result);
-
-typedef void (*nk_attention_packed_shape_punned_t)(void const *packed, nk_size_t *heads, nk_size_t *depth,
-                                                   nk_size_t *segments);
-
-typedef nk_size_t (*nk_attention_pack_size_punned_t)(nk_size_t num_kv_heads, nk_size_t head_dim,
-                                                     nk_u32_t const *segment_lengths, nk_size_t segment_count);
-typedef void (*nk_attention_pack_punned_t)(void const *k, void const *v, nk_size_t num_kv_heads, nk_size_t head_dim,
-                                           nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
-                                           nk_size_t segment_count, nk_size_t k_stride_bytes, nk_size_t v_stride_bytes,
-                                           void *key_value_packed, nk_size_t task_begin, nk_size_t task_end);
-typedef void (*nk_attention_bidirectional_packed_punned_t)(void const *q, void const *key_value_packed, void *output,
+typedef nk_status_t (*nk_attention_causal_packed_punned_t)(void const *q, void const *key_value_packed, void *output,
                                                            nk_size_t num_heads, nk_size_t num_kv_heads,
                                                            nk_size_t head_dim, nk_u32_t const *query_offsets,
                                                            nk_size_t q_stride_bytes, nk_size_t o_stride_bytes,
-                                                           nk_f32_t scale, nk_size_t task_start, nk_size_t task_count);
-typedef void (*nk_attention_causal_packed_punned_t)(void const *q, void const *key_value_packed, void *output,
-                                                    nk_size_t num_heads, nk_size_t num_kv_heads, nk_size_t head_dim,
-                                                    nk_u32_t const *query_offsets, nk_size_t q_stride_bytes,
-                                                    nk_size_t o_stride_bytes, nk_f32_t scale, nk_i64_t diagonal_offset,
-                                                    nk_size_t window, nk_size_t task_start, nk_size_t task_count);
+                                                           nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window,
+                                                           nk_size_t task_start, nk_size_t task_count, void *stream);
 
-typedef void (*nk_kernel_cast_punned_t)(void const *from, nk_dtype_t from_type, nk_size_t count, void *to,
-                                        nk_dtype_t to_type);
+typedef nk_status_t (*nk_kernel_cast_punned_t)(void const *from, nk_dtype_t from_type, nk_size_t count, void *to,
+                                               nk_dtype_t to_type, void *stream);
 
-typedef void (*nk_kernel_cast_block_scaled_punned_t)(                                         //
+typedef nk_status_t (*nk_kernel_cast_block_scaled_punned_t)(                                  //
     void const *from, void const *from_scales,                                                //
     nk_scalar_buffer_t const *from_tensor_scale, nk_block_scaled_format_t const *from_format, //
     void *to, void *to_scales,                                                                //
     nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format,           //
-    nk_size_t count);
+    nk_size_t count, void *stream);
 
-typedef void (*nk_kernel_punned_t)(void *);
+/** Any kernel, cast back to its kind's signature before the call. */
+typedef void (*nk_kernel_punned_t)(void);
+
+/** One capability group's kernels of one dispatch point: a kernel per bit of @c capabilities,
+ *  ascending by bit. */
+typedef struct {
+    nk_capability_t capabilities;
+    nk_kernel_punned_t const *kernels;
+} nk_capability_kernels_t;
+
+/** The capability groups a binary may hold: its CPU's, and one per GPU vendor it was built for. */
+typedef enum {
+    nk_capability_group_cpu_k,
+    nk_capability_group_nvidia_k,
+    nk_capability_group_amd_k,
+    nk_capability_group_apple_k,
+    nk_capability_groups_k,
+} nk_capability_group_t;
+
+/** The highest set bit of @p x as a mask, or zero; compilers lower it to one @c clz. */
+NUMKONG_HELPER_AUTO nk_u64_t nk_u64_highest_bit_(nk_u64_t x) {
+    x |= x >> 1, x |= x >> 2, x |= x >> 4, x |= x >> 8, x |= x >> 16, x |= x >> 32;
+    return x ^ (x >> 1);
+}
+
+/** The capability group @p capabilities describes, by its highest bit; zero is the CPU's. */
+NUMKONG_HELPER_AUTO nk_capability_group_t nk_capability_group_of_(nk_capability_t capabilities) {
+    nk_u64_t const top = nk_u64_highest_bit_(capabilities);
+    return (nk_capability_group_t)((top >= nk_cap_cuda_k) + (top >= nk_cap_rocm_k) + (top >= nk_cap_metal_k));
+}
+
+/** The best capability @p capabilities shares with its group's kernels, or zero if none. */
+NUMKONG_HELPER_AUTO nk_capability_t nk_capability_pick_(nk_capability_t capabilities,
+                                                        nk_capability_kernels_t const groups[nk_capability_groups_k]) {
+    return nk_u64_highest_bit_(capabilities & groups[nk_capability_group_of_(capabilities)].capabilities);
+}
+
+/** The kernel of the best capability @p capabilities shares with its group's kernels, or null. */
+NUMKONG_HELPER_AUTO nk_kernel_punned_t nk_kernel_pick_(nk_capability_t capabilities,
+                                                       nk_capability_kernels_t const groups[nk_capability_groups_k]) {
+    nk_capability_kernels_t const *group = &groups[nk_capability_group_of_(capabilities)];
+    nk_capability_t const capability = nk_u64_highest_bit_(capabilities & group->capabilities);
+    return capability ? group->kernels[nk_u64_popcount_(group->capabilities & (capability - 1))]
+                      : (nk_kernel_punned_t)NUMKONG_NULL;
+}
+
+/** Bit position of the single capability @p capability, as pack headers record it. */
+NUMKONG_HELPER_AUTO nk_u32_t nk_capability_index_(nk_capability_t capability) {
+    return (nk_u32_t)nk_u64_popcount_(capability - 1);
+}
 
 #if NUMKONG_ARCH_X86_64_
 
-NUMKONG_HELPER_AUTO int nk_cpu_configure_thread_x86_(nk_capability_t capabilities) {
+NUMKONG_HELPER_INLINE nk_status_t nk_cpu_configure_thread_x86_(nk_capability_t capabilities) {
 #if NUMKONG_TARGET_SAPPHIREAMX
     if (capabilities & nk_cap_sapphireamx_k) {
 #if NUMKONG_OS_LINUX_
@@ -795,10 +849,10 @@ NUMKONG_HELPER_AUTO int nk_cpu_configure_thread_x86_(nk_capability_t capabilitie
 #else
     nk_unused_(capabilities);
 #endif
-    return 1;
+    return nk_success_k;
 }
 
-NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_detected_x8664_(void) {
+NUMKONG_HELPER_INLINE nk_capability_t nk_cpu_capabilities_detected_x8664_(void) {
     union four_registers_t {
         int array[4];
         struct separate_t {
@@ -907,10 +961,10 @@ NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_detected_x8664_(void) {
 
 #if NUMKONG_ARCH_ARM64_
 
-NUMKONG_HELPER_AUTO int nk_cpu_configure_thread_arm64_(nk_capability_t capabilities) {
+NUMKONG_HELPER_INLINE nk_status_t nk_cpu_configure_thread_arm64_(nk_capability_t capabilities) {
 #if defined(_MSC_VER)
     nk_unused_(capabilities);
-    return 1;
+    return nk_success_k;
 #else
     // FPCR.EBF (bit 13) — requires FEAT_EBF16:
     //   Enables fused BF16 dot-product semantics for BFDOT/BFMOPA/BFMMLA.
@@ -958,16 +1012,15 @@ NUMKONG_HELPER_AUTO int nk_cpu_configure_thread_arm64_(nk_capability_t capabilit
             __asm__ __volatile__("msr fpcr, %0" : : "r"(fpcr_val));
         }
     }
-    return 1;
+    return nk_success_k;
 #endif // _MSC_VER
 }
 
-NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_detected_arm64_(void) {
+NUMKONG_HELPER_INLINE nk_capability_t nk_cpu_capabilities_detected_arm64_(void) {
 #if NUMKONG_OS_APPLE_
     size_t size = sizeof(unsigned);
     unsigned supports_neon = 0, supports_fp16 = 0, supports_fhm = 0, supports_bf16 = 0, supports_dotprod = 0;
-    unsigned supports_sme = 0, supports_sme2 = 0, supports_smef64 = 0, supports_smehalf = 0, supports_sme2p1 = 0,
-             supports_smebi32 = 0, supports_smebf16 = 0;
+    unsigned supports_sme = 0, supports_smef64 = 0, supports_smebi32 = 0;
     if (sysctlbyname("hw.optional.neon", &supports_neon, &size, NUMKONG_NULL, 0) != 0) supports_neon = 0;
     if (sysctlbyname("hw.optional.arm.FEAT_FP16", &supports_fp16, &size, NUMKONG_NULL, 0) != 0) supports_fp16 = 0;
     if (sysctlbyname("hw.optional.arm.FEAT_FHM", &supports_fhm, &size, NUMKONG_NULL, 0) != 0) supports_fhm = 0;
@@ -975,27 +1028,18 @@ NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_detected_arm64_(void) {
     if (sysctlbyname("hw.optional.arm.FEAT_DotProd", &supports_dotprod, &size, NUMKONG_NULL, 0) != 0)
         supports_dotprod = 0;
     if (sysctlbyname("hw.optional.arm.FEAT_SME", &supports_sme, &size, NUMKONG_NULL, 0) != 0) supports_sme = 0;
-    if (sysctlbyname("hw.optional.arm.FEAT_SME2", &supports_sme2, &size, NUMKONG_NULL, 0) != 0) supports_sme2 = 0;
     if (sysctlbyname("hw.optional.arm.FEAT_SME_F64F64", &supports_smef64, &size, NUMKONG_NULL, 0) != 0)
         supports_smef64 = 0;
-    if (sysctlbyname("hw.optional.arm.FEAT_SME_F16F16", &supports_smehalf, &size, NUMKONG_NULL, 0) != 0)
-        supports_smehalf = 0;
-    if (sysctlbyname("hw.optional.arm.FEAT_SME2p1", &supports_sme2p1, &size, NUMKONG_NULL, 0) != 0) supports_sme2p1 = 0;
     if (sysctlbyname("hw.optional.arm.SME_BI32I32", &supports_smebi32, &size, NUMKONG_NULL, 0) != 0)
         supports_smebi32 = 0;
-    if (sysctlbyname("hw.optional.arm.FEAT_SME_B16B16", &supports_smebf16, &size, NUMKONG_NULL, 0) != 0)
-        supports_smebf16 = 0;
 
-    // macOS exposes no sysctl for FEAT_SME_FA64, FEAT_SME_LUTv2 or FP8 dot-products, so
-    // `smefa64`, `smelut2` and `neonfp8` stay unset here rather than being overlooked.
+    // macOS exposes no sysctl for FP8 dot-products, so `neonfp8` stays unset here on purpose.
     return (nk_capability_t)((nk_cap_neon_k * (supports_neon)) |
                              (nk_cap_neonhalf_k * (supports_neon && supports_fp16)) |
                              (nk_cap_neonfhm_k * (supports_neon && supports_fhm)) |
                              (nk_cap_neonbfdot_k * (supports_neon && supports_bf16)) |
                              (nk_cap_neonsdot_k * (supports_neon && supports_dotprod)) |
-                             (nk_cap_sme_k * (supports_sme)) | (nk_cap_sme2_k * (supports_sme2)) |
-                             (nk_cap_sme2p1_k * (supports_sme2p1)) | (nk_cap_smef64_k * (supports_smef64)) |
-                             (nk_cap_smehalf_k * (supports_smehalf)) | (nk_cap_smebf16_k * (supports_smebf16)) |
+                             (nk_cap_sme_k * (supports_sme)) | (nk_cap_smef64_k * (supports_smef64)) |
                              (nk_cap_smebi32_k * (supports_smebi32)) | (nk_cap_serial_k));
 
 #elif NUMKONG_OS_LINUX_ || NUMKONG_OS_FREEBSD_
@@ -1029,7 +1073,6 @@ NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_detected_arm64_(void) {
     unsigned supports_svesdotmm = ((id_aa64zfr0_el1 >> 44) & 0xF) >= 1;
     unsigned supports_svebfdot = ((id_aa64zfr0_el1 >> 20) & 0xF) >= 1;
     unsigned supports_sve2 = ((id_aa64zfr0_el1) & 0xF) >= 1;
-    unsigned supports_sve2p1 = ((id_aa64zfr0_el1) & 0xF) >= 2;
 
     __asm__ __volatile__(".inst 0xD53804E0\n\tmov %0, x0" : "=r"(id_aa64fpfr0_el1) : : "x0"); // ID_AA64FPFR0_EL1
     unsigned supports_fp8dot4 = ((id_aa64fpfr0_el1 >> 29) & 0x1) >= 1;
@@ -1038,40 +1081,27 @@ NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_detected_arm64_(void) {
     __asm__ __volatile__(".inst 0xD5380420\n\tmov %0, x0" : "=r"(id_aa64pfr1_el1) : : "x0"); // ID_AA64PFR1_EL1
     unsigned supports_sme = ((id_aa64pfr1_el1 >> 24) & 0xF) >= 1;
 
-    unsigned supports_sme2 = 0, supports_sme2p1 = 0;
-    unsigned supports_smef64 = 0, supports_smehalf = 0, supports_smebf16 = 0;
-    unsigned supports_smebi32 = 0, supports_smelut2 = 0, supports_smefa64 = 0;
+    unsigned supports_smef64 = 0, supports_smebi32 = 0;
     if (supports_sme) {
         // MRS x0, ID_AA64SMFR0_EL1 (S3_0_C0_C4_5) — encoded as raw .inst because some
         // assemblers (Clang 21 in Android NDK r29) reject the symbolic register name.
         // Encoding: 0xD53804A0 = MRS x0, op0=3, op1=0, CRn=0, CRm=4, op2=5, Rt=0.
         __asm__ __volatile__(".inst 0xD53804A0\n\tmov %0, x0" : "=r"(id_aa64smfr0_el1) : : "x0");
-        unsigned sme_version = (id_aa64smfr0_el1 >> 56) & 0xF;
-        supports_sme2 = sme_version >= 1;
-        supports_sme2p1 = sme_version >= 2;
         supports_smef64 = (id_aa64smfr0_el1 >> 48) & 0x1;
-        supports_smehalf = (id_aa64smfr0_el1 >> 42) & 0x1;
-        supports_smebf16 = (id_aa64smfr0_el1 >> 43) & 0x1;
         supports_smebi32 = (id_aa64smfr0_el1 >> 33) & 0x1;
-        supports_smelut2 = (id_aa64smfr0_el1 >> 60) & 0x1;
-        supports_smefa64 = (id_aa64smfr0_el1 >> 63) & 0x1;
     }
 
-    return (nk_capability_t)((nk_cap_neon_k * (supports_neon)) |
-                             (nk_cap_neonhalf_k * (supports_neon && supports_fp16)) |
-                             (nk_cap_neonfhm_k * (supports_neon && supports_fhm)) |
-                             (nk_cap_neonbfdot_k * (supports_neon && supports_bf16)) |
-                             (nk_cap_neonsdot_k * (supports_neon && supports_integer_dot_products)) |
-                             (nk_cap_neonfp8_k * (supports_neon && supports_fp8dot4)) | //
-                             (nk_cap_sve_k * (supports_sve)) | (nk_cap_svehalf_k * (supports_sve && supports_fp16)) |
-                             (nk_cap_svebfdot_k * (supports_sve && supports_svebfdot)) |
-                             (nk_cap_svesdot_k * (supports_sve && supports_svesdotmm)) |
-                             (nk_cap_sve2_k * (supports_sve2)) | (nk_cap_sve2p1_k * (supports_sve2p1)) |
-                             (nk_cap_sme_k * (supports_sme)) | (nk_cap_sme2_k * (supports_sme2)) |
-                             (nk_cap_sme2p1_k * (supports_sme2p1)) | (nk_cap_smef64_k * (supports_smef64)) |
-                             (nk_cap_smehalf_k * (supports_smehalf)) | (nk_cap_smebf16_k * (supports_smebf16)) |
-                             (nk_cap_smebi32_k * (supports_smebi32)) | (nk_cap_smelut2_k * (supports_smelut2)) |
-                             (nk_cap_smefa64_k * (supports_smefa64)) | (nk_cap_serial_k));
+    return (
+        nk_capability_t)((nk_cap_neon_k * (supports_neon)) | (nk_cap_neonhalf_k * (supports_neon && supports_fp16)) |
+                         (nk_cap_neonfhm_k * (supports_neon && supports_fhm)) |
+                         (nk_cap_neonbfdot_k * (supports_neon && supports_bf16)) |
+                         (nk_cap_neonsdot_k * (supports_neon && supports_integer_dot_products)) |
+                         (nk_cap_neonfp8_k * (supports_neon && supports_fp8dot4)) | //
+                         (nk_cap_sve_k * (supports_sve)) | (nk_cap_svehalf_k * (supports_sve && supports_fp16)) |
+                         (nk_cap_svebfdot_k * (supports_sve && supports_svebfdot)) |
+                         (nk_cap_svesdot_k * (supports_sve && supports_svesdotmm)) | (nk_cap_sve2_k * (supports_sve2)) |
+                         (nk_cap_sme_k * (supports_sme)) | (nk_cap_smef64_k * (supports_smef64)) |
+                         (nk_cap_smebi32_k * (supports_smebi32)) | (nk_cap_serial_k));
 #elif NUMKONG_OS_WINDOWS_
 
     unsigned supports_neon = 0, supports_dp = 0;
@@ -1095,7 +1125,7 @@ NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_detected_arm64_(void) {
 
 #if NUMKONG_ARCH_RISCV64_
 
-NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_detected_riscv64_(void) {
+NUMKONG_HELPER_INLINE nk_capability_t nk_cpu_capabilities_detected_riscv64_(void) {
 #if NUMKONG_OS_LINUX_
     unsigned long hwcap = getauxval(AT_HWCAP);
     nk_capability_t caps = nk_cap_serial_k;
@@ -1131,7 +1161,7 @@ NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_detected_riscv64_(void) 
 
 #if NUMKONG_ARCH_LOONGARCH64_
 
-NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_detected_loongarch64_(void) {
+NUMKONG_HELPER_INLINE nk_capability_t nk_cpu_capabilities_detected_loongarch64_(void) {
 #if NUMKONG_OS_LINUX_
     unsigned long hwcap = getauxval(AT_HWCAP);
     nk_capability_t caps = nk_cap_serial_k;
@@ -1147,7 +1177,7 @@ NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_detected_loongarch64_(vo
 
 #if NUMKONG_ARCH_PPC64_
 
-NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_detected_power64_(void) {
+NUMKONG_HELPER_INLINE nk_capability_t nk_cpu_capabilities_detected_power64_(void) {
 #if NUMKONG_OS_LINUX_
     unsigned long hwcap = getauxval(AT_HWCAP);
     unsigned long hwcap2 = getauxval(AT_HWCAP2);
@@ -1177,9 +1207,10 @@ __attribute__((__import_module__("env"), __import_name__("nk_has_v128"))) extern
 __attribute__((__import_module__("env"), __import_name__("nk_has_relaxed"))) extern int nk_has_relaxed(void);
 #endif
 
-NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_detected_wasm_(void) {
-    /*  A hosted module asks its engine to validate one probe module per tier, so `detected` describes the
-     *  engine; a standalone module has already been validated whole, so it reports its own flags. */
+NUMKONG_HELPER_INLINE nk_capability_t nk_cpu_capabilities_detected_wasm_(void) {
+    /*  A hosted module asks its engine to validate one probe module per capability, so
+     *  @c detected describes the engine; a standalone module was validated whole, so it reports
+     *  its own flags. */
 #if ((defined(__EMSCRIPTEN__) && NUMKONG_RUNTIME_DISPATCH) || (defined(__wasi__) && NUMKONG_WASI_HOSTED)) && \
     !NUMKONG_PYODIDE_SIDE_MODULE_
     nk_capability_t caps = nk_cap_serial_k;
@@ -1188,7 +1219,7 @@ NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_detected_wasm_(void) {
     return caps;
 #else
     // Static WASM or Pyodide side module: the engine validated every opcode this module carries
-    // before running it, so the compiled tiers are the detected ones.
+    // before running it, so the compiled capabilities are the detected ones.
     return nk_cap_serial_k | (nk_cap_v128_k * NUMKONG_TARGET_V128) |
            (nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED);
 #endif
@@ -1196,7 +1227,7 @@ NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_detected_wasm_(void) {
 
 #endif // NUMKONG_ARCH_WASM_
 
-NUMKONG_HELPER_AUTO int nk_cpu_configure_thread_(nk_capability_t capabilities) {
+NUMKONG_HELPER_INLINE nk_status_t nk_cpu_configure_thread_(nk_capability_t capabilities) {
 #if NUMKONG_ARCH_X86_64_
     return nk_cpu_configure_thread_x86_(capabilities);
 #endif
@@ -1204,10 +1235,10 @@ NUMKONG_HELPER_AUTO int nk_cpu_configure_thread_(nk_capability_t capabilities) {
     return nk_cpu_configure_thread_arm64_(capabilities);
 #endif
     nk_unused_(capabilities);
-    return 1; // success — no platform-specific thread configuration needed
+    return nk_success_k; // no other architecture needs thread configuration
 }
 
-NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_detected_(void) {
+NUMKONG_HELPER_INLINE nk_capability_t nk_cpu_capabilities_detected_(void) {
 #if NUMKONG_ARCH_X86_64_
     return nk_cpu_capabilities_detected_x8664_();
 #elif NUMKONG_ARCH_ARM64_
@@ -1256,16 +1287,9 @@ NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_compiled_(void) {
     caps |= nk_cap_svesdot_k * NUMKONG_TARGET_SVESDOT;
     caps |= nk_cap_svebfdot_k * NUMKONG_TARGET_SVEBFDOT;
     caps |= nk_cap_sve2_k * NUMKONG_TARGET_SVE2;
-    caps |= nk_cap_sve2p1_k * NUMKONG_TARGET_SVE2P1;
     caps |= nk_cap_sme_k * NUMKONG_TARGET_SME;
-    caps |= nk_cap_sme2_k * NUMKONG_TARGET_SME2;
-    caps |= nk_cap_sme2p1_k * NUMKONG_TARGET_SME2P1;
     caps |= nk_cap_smef64_k * NUMKONG_TARGET_SMEF64;
-    caps |= nk_cap_smehalf_k * NUMKONG_TARGET_SMEHALF;
-    caps |= nk_cap_smebf16_k * NUMKONG_TARGET_SMEBF16;
     caps |= nk_cap_smebi32_k * NUMKONG_TARGET_SMEBI32;
-    caps |= nk_cap_smelut2_k * NUMKONG_TARGET_SMELUT2;
-    caps |= nk_cap_smefa64_k * NUMKONG_TARGET_SMEFA64;
 #endif
 #if NUMKONG_ARCH_RISCV64_
     caps |= nk_cap_rvv_k * NUMKONG_TARGET_RVV;
@@ -1286,50 +1310,43 @@ NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_compiled_(void) {
     return caps;
 }
 
-/*  CPU capabilities, reported along two independent axes and the set dispatch uses:
+/*  CPU capabilities, reported along two independent axes and the mask dispatch uses by default:
  *
  *  - @b nk_cpu_capabilities_detected() — what this CPU can execute, from CPUID or HWCAP.
  *  - @b nk_cpu_capabilities_compiled() — what this binary contains, from the `NUMKONG_TARGET_*`
  *    macros the ISA probes set at build time.
- *  - @b nk_cpu_capabilities_enabled() — what dispatch uses: both axes at once, unless narrowed by
- *    @b nk_cpu_capabilities_enable(). Always retains @b nk_cap_serial_k.
+ *  - @b nk_cpu_capabilities_enabled() — both axes at once: the mask to pass every dispatch point on
+ *    the CPU. Always retains @b nk_cap_serial_k.
  *
  *  The two axes are independent, and conflating them is a silent performance cliff rather than a
  *  build error: a binary whose ISA probes failed still reports this machine's full @b detected
  *  mask while containing no SIMD kernels at all. Ask for @b enabled() unless you specifically mean
- *  one of the raw axes.
- *
- *  @b nk_cpu_capabilities_enable() makes @p wanted the enabled set, clamped to both axes, and
- *  returns what it kept. */
+ *  one of the raw axes. To narrow dispatch, pass a narrower mask to the dispatch point itself. */
 
 #if NUMKONG_RUNTIME_DISPATCH
 
-NUMKONG_API_RUNTIME nk_capability_t nk_cpu_capabilities_detected(void);
-NUMKONG_API_RUNTIME nk_capability_t nk_cpu_capabilities_compiled(void);
-NUMKONG_API_RUNTIME nk_capability_t nk_cpu_capabilities_enabled(void);
-NUMKONG_API_RUNTIME nk_capability_t nk_cpu_capabilities_enable(nk_capability_t wanted);
+NUMKONG_API_RUNTIME nk_status_t nk_cpu_capabilities_detected(nk_capability_t *capabilities);
+NUMKONG_API_RUNTIME nk_status_t nk_cpu_capabilities_compiled(nk_capability_t *capabilities);
+NUMKONG_API_RUNTIME nk_status_t nk_cpu_capabilities_enabled(nk_capability_t *capabilities);
 
 /**
  *  @brief Prepares the calling thread for the kernels of @p capabilities, and only those.
- *  @param[in] capabilities The tiers to prepare for, like @c nk_cpu_capabilities_enabled() returns.
- *  @return 1 on success.
+ *  @param[in] capabilities The capabilities to prepare for, like @c nk_cpu_capabilities_enabled.
+ *  @return @c nk_success_k.
  *
- *  Most tiers need nothing. The ones that do, and what they cost:
+ *  Most capabilities need nothing. The ones that do, and what they cost:
  *  - @c nk_cap_sapphireamx_k on Linux: one @c arch_prctl syscall for AMX tile state, which the
  *    kernel grants to the whole process. Windows and FreeBSD need no request.
  *  - Arm with FEAT_EBF16: one write of the thread's @c FPCR, making BF16 dot products fused.
  *    Finding FEAT_EBF16 costs a @c sysctl on Apple systems, and one ID-register read on Linux and
  *    FreeBSD when @p capabilities holds more than NEON.
  */
-NUMKONG_API_RUNTIME int nk_cpu_configure_thread(nk_capability_t capabilities);
+NUMKONG_API_RUNTIME nk_status_t nk_cpu_configure_thread(nk_capability_t capabilities);
 NUMKONG_API_RUNTIME int nk_uses_runtime_dispatch(void);
-NUMKONG_API_RUNTIME void nk_cpu_find_kernel_punned(nk_kernel_kind_t kind, nk_dtype_t dtype,
-                                                   nk_kernel_punned_t *kernel_output,
-                                                   nk_capability_t *capability_output);
 
 /**
  *  @brief Writes @p capabilities as a comma-separated name list such as "serial,haswell,skylake".
- *  @param[in] capabilities The mask to name, like @c nk_cpu_capabilities_detected() returns.
+ *  @param[in] capabilities The mask to name, like @c nk_cpu_capabilities_detected() reports.
  *  @param[out] buffer Destination, always null-terminated; the list is truncated to fit.
  *  @param[in] capacity Size of @p buffer, like @c NUMKONG_CAPABILITIES_NAME_CAPACITY; a zero
  *      capacity writes nothing.
@@ -1339,21 +1356,21 @@ NUMKONG_API_RUNTIME nk_size_t nk_name_capabilities(nk_capability_t capabilities,
 
 #else
 
-NUMKONG_API_COMPTIME nk_capability_t nk_cpu_capabilities_detected(void) { return nk_cpu_capabilities_detected_(); }
-NUMKONG_API_COMPTIME nk_capability_t nk_cpu_capabilities_compiled(void) { return nk_cpu_capabilities_compiled_(); }
-NUMKONG_API_COMPTIME nk_capability_t nk_cpu_capabilities_enabled(void) {
-    return nk_cpu_capabilities_detected_() & nk_cpu_capabilities_compiled_();
+NUMKONG_API_COMPTIME nk_status_t nk_cpu_capabilities_detected(nk_capability_t *capabilities) {
+    *capabilities = nk_cpu_capabilities_detected_();
+    return nk_success_k;
 }
-
-/** Without a dispatch table there is nothing to narrow: the tiers were fixed at compile time, so
- *  the enabled set stays as it is. */
-NUMKONG_API_COMPTIME nk_capability_t nk_cpu_capabilities_enable(nk_capability_t wanted) {
-    nk_unused_(wanted);
-    return nk_cpu_capabilities_enabled();
+NUMKONG_API_COMPTIME nk_status_t nk_cpu_capabilities_compiled(nk_capability_t *capabilities) {
+    *capabilities = nk_cpu_capabilities_compiled_();
+    return nk_success_k;
+}
+NUMKONG_API_COMPTIME nk_status_t nk_cpu_capabilities_enabled(nk_capability_t *capabilities) {
+    *capabilities = nk_cpu_capabilities_detected_() & nk_cpu_capabilities_compiled_();
+    return nk_success_k;
 }
 
 /** @copydoc nk_cpu_configure_thread */
-NUMKONG_API_COMPTIME int nk_cpu_configure_thread(nk_capability_t capabilities) {
+NUMKONG_API_COMPTIME nk_status_t nk_cpu_configure_thread(nk_capability_t capabilities) {
     return nk_cpu_configure_thread_(capabilities);
 }
 
@@ -1366,39 +1383,197 @@ NUMKONG_API_COMPTIME nk_size_t nk_name_capabilities(nk_capability_t capabilities
 
 #endif
 
-/** CUDA families @p device can run from its compute capability, where every 8.0+ device runs
- *  Ampere, else zero. */
-#if NUMKONG_TARGET_CUDA
-NUMKONG_API_COMPTIME nk_capability_t nk_capabilities_cuda_detected(int device) {
-    int major = 0;
-    if (cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, device) != cudaSuccess) return 0;
-    if (major < 8) return 0;
-    nk_capability_t capabilities = nk_cap_ampere_k;
-    if (major == 9) capabilities |= nk_cap_hopper_k;
-    if (major == 10) capabilities |= nk_cap_blackwell_k;
-    if (major == 12) capabilities |= nk_cap_blackwellrtx_k;
-    return capabilities;
+#if NUMKONG_ARCH_CUDA_
+
+/** How many CUDA devices the process sees, or zero where the runtime does not answer. */
+NUMKONG_HELPER_INLINE nk_size_t nk_cuda_devices_(void) {
+    int count = 0;
+    return cudaGetDeviceCount(&count) == cudaSuccess ? (nk_size_t)count : 0;
 }
-#else
-NUMKONG_API_COMPTIME nk_capability_t nk_capabilities_cuda_detected(int device) {
-    nk_unused_(device);
-    return 0;
+
+/** The capabilities CUDA device @p device runs. */
+NUMKONG_HELPER_INLINE nk_status_t nk_cuda_capabilities_detected_(int device, nk_capability_t *capabilities) {
+    int major = 0, minor = 0;
+    if (cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, device) != cudaSuccess ||
+        cudaDeviceGetAttribute(&minor, cudaDevAttrComputeCapabilityMinor, device) != cudaSuccess)
+        return nk_device_code_mismatch_k;
+    nk_capability_t detected = nk_cap_cuda_k;
+    if (major * 10 + minor >= 80) detected |= nk_cap_ampere_k;
+    if (major * 10 + minor >= 89) detected |= nk_cap_ada_k;
+    if (major == 9) detected |= nk_cap_hopper_k;
+    if (major == 10) detected |= nk_cap_blackwell_k;
+    if (major == 12) detected |= nk_cap_blackwellrtx_k;
+    *capabilities = detected;
+    return nk_success_k;
 }
+
+#endif // NUMKONG_ARCH_CUDA_
+
+#if NUMKONG_ARCH_ROCM_
+
+/** How many ROCm devices the process sees, or zero where the runtime does not answer. */
+NUMKONG_HELPER_INLINE nk_size_t nk_rocm_devices_(void) {
+    int count = 0;
+    return hipGetDeviceCount(&count) == hipSuccess ? (nk_size_t)count : 0;
+}
+
+/** The capabilities ROCm device @p device runs. */
+NUMKONG_HELPER_INLINE nk_status_t nk_rocm_capabilities_detected_(int device, nk_capability_t *capabilities) {
+    hipDeviceProp_t properties;
+    if (hipGetDeviceProperties(&properties, device) != hipSuccess) return nk_device_code_mismatch_k;
+    char const *const name = properties.gcnArchName;
+    nk_capability_t detected = nk_cap_rocm_k;
+    if (strncmp(name, "gfx950", 6) == 0) detected |= nk_cap_cdna4_k;
+    if (strncmp(name, "gfx1250", 7) == 0 || strncmp(name, "gfx1251", 7) == 0) detected |= nk_cap_cdna5_k;
+    *capabilities = detected;
+    return nk_success_k;
+}
+
+#endif // NUMKONG_ARCH_ROCM_
+
+#if NUMKONG_WITH_METAL
+
+/** The capabilities Metal device @p device runs. */
+NUMKONG_HELPER_INLINE nk_status_t nk_metal_capabilities_detected_(nk_size_t device, nk_capability_t *capabilities) {
+    void *const metal_device = nk_metal_device_(device);
+    if (!metal_device) return nk_device_code_mismatch_k;
+    SEL const supports = sel_registerName("supportsFamily:");
+    nk_size_t const apple9 = 1009, apple10 = 1010; // `MTLGPUFamilyApple9` and `MTLGPUFamilyApple10`
+    nk_capability_t detected = nk_cap_metal_k;
+    if (((signed char (*)(void *, SEL, nk_size_t))objc_msgSend)(metal_device, supports, apple9))
+        detected |= nk_cap_apple9_k;
+    if (((signed char (*)(void *, SEL, nk_size_t))objc_msgSend)(metal_device, supports, apple10))
+        detected |= nk_cap_apple10_k;
+    nk_metal_do_(metal_device, "release");
+    *capabilities = detected;
+    return nk_success_k;
+}
+
+#endif // NUMKONG_WITH_METAL
+
+/** How many GPUs of every vendor this build targets the process sees. */
+NUMKONG_HELPER_INLINE nk_size_t nk_gpu_devices_(void) {
+    nk_size_t count = 0;
+#if NUMKONG_ARCH_CUDA_
+    count += nk_cuda_devices_();
 #endif
-
-/** CUDA families this translation unit has kernels for, per the `NUMKONG_TARGET_*` macros. */
-NUMKONG_API_COMPTIME nk_capability_t nk_capabilities_cuda_compiled(void) {
-    return nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-           nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX;
+#if NUMKONG_ARCH_ROCM_
+    count += nk_rocm_devices_();
+#endif
+#if NUMKONG_WITH_METAL
+    count += nk_metal_devices_();
+#endif
+    return count;
 }
 
-/** CUDA families @p device can run and this translation unit declares. */
-NUMKONG_API_COMPTIME nk_capability_t nk_capabilities_cuda_available(int device) {
-    return nk_capabilities_cuda_detected(device) & nk_capabilities_cuda_compiled();
+/** The capabilities the GPU at NumKong's index @p device runs, walking vendors in listing order. */
+NUMKONG_HELPER_INLINE nk_status_t nk_gpu_capabilities_detected_(nk_size_t device, nk_capability_t *capabilities) {
+    *capabilities = 0;
+#if NUMKONG_ARCH_CUDA_
+    nk_size_t const cuda_devices = nk_cuda_devices_();
+    if (device < cuda_devices) return nk_cuda_capabilities_detected_((int)device, capabilities);
+    device -= cuda_devices;
+#endif
+#if NUMKONG_ARCH_ROCM_
+    nk_size_t const rocm_devices = nk_rocm_devices_();
+    if (device < rocm_devices) return nk_rocm_capabilities_detected_((int)device, capabilities);
+    device -= rocm_devices;
+#endif
+#if NUMKONG_WITH_METAL
+    if (device < nk_metal_devices_()) return nk_metal_capabilities_detected_(device, capabilities);
+#endif
+    nk_unused_(device);
+    return nk_missing_gpu_k;
 }
+
+/** Returns the GPU capabilities whose kernels were compiled into this binary: the baseline of each
+ *  vendor it targets, and the capabilities its `NUMKONG_TARGET_*` macros enable. */
+NUMKONG_HELPER_AUTO nk_capability_t nk_gpu_capabilities_compiled_(void) {
+    nk_capability_t caps = 0;
+    caps |= nk_cap_cuda_k * NUMKONG_ARCH_CUDA_;
+    caps |= nk_cap_ampere_k * NUMKONG_TARGET_AMPERE;
+    caps |= nk_cap_ada_k * NUMKONG_TARGET_ADA;
+    caps |= nk_cap_hopper_k * NUMKONG_TARGET_HOPPER;
+    caps |= nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL;
+    caps |= nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX;
+    caps |= nk_cap_rocm_k * NUMKONG_ARCH_ROCM_;
+    caps |= nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4;
+    caps |= nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5;
+    caps |= nk_cap_metal_k * NUMKONG_WITH_METAL;
+    caps |= nk_cap_apple9_k * NUMKONG_TARGET_APPLE9;
+    caps |= nk_cap_apple10_k * NUMKONG_TARGET_APPLE10;
+    return caps;
+}
+
+/*  GPU capabilities, the twins of the CPU's for one device:
+ *
+ *  - @b nk_gpu_devices() — how many GPUs the process sees across the vendors this build targets.
+ *  - @b nk_gpu_capabilities_detected() — what one device runs.
+ *  - @b nk_gpu_capabilities_compiled() — what this binary contains.
+ *  - @b nk_gpu_capabilities_enabled() — both axes at once: the mask to pass every dispatch point
+ *    for that device.
+ *
+ *  The library probes every device once per process and keeps a mask per index, so a process
+ *  driving an H100 and an L4 dispatches to each one's capabilities by the mask it passes. */
+
+#if NUMKONG_RUNTIME_DISPATCH
+
+/**
+ *  @brief Counts the GPUs the process sees: CUDA devices, then ROCm, then Metal.
+ *  @param[out] count The count, zero when none answers.
+ *  @return @c nk_success_k, or @c nk_missing_gpu_k when no targeted vendor has a device.
+ */
+NUMKONG_API_RUNTIME nk_status_t nk_gpu_devices(nk_size_t *count);
+
+/**
+ *  @brief Reports the capabilities the GPU at @p device runs.
+ *  @param[in] device NumKong's device index, below what @c nk_gpu_devices counts.
+ *  @param[out] capabilities The vendor baseline and what the device runs, zero on failure.
+ *  @return @c nk_success_k, @c nk_missing_gpu_k past the last device, or
+ *      @c nk_device_code_mismatch_k when the vendor runtime fails to answer.
+ */
+NUMKONG_API_RUNTIME nk_status_t nk_gpu_capabilities_detected(nk_size_t device, nk_capability_t *capabilities);
+NUMKONG_API_RUNTIME nk_status_t nk_gpu_capabilities_compiled(nk_capability_t *capabilities);
+
+/** @copydoc nk_gpu_capabilities_detected, narrowed to the capabilities this binary contains. */
+NUMKONG_API_RUNTIME nk_status_t nk_gpu_capabilities_enabled(nk_size_t device, nk_capability_t *capabilities);
+
+/**
+ *  @brief Finds the kernel of @p kind for @p dtype that the best of @p capabilities runs.
+ *  @param[in] kind The kernel kind, like @c nk_kernel_dot_k.
+ *  @param[in] dtype The input type, like @c nk_f32_k.
+ *  @param[in] capabilities One device's mask, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[out] kernel The kernel, to cast back to its kind's signature, or null.
+ *  @param[out] capability The single capability the kernel belongs to, or zero.
+ *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in the mask has it.
+ */
+NUMKONG_API_RUNTIME nk_status_t nk_find_kernel_punned(nk_kernel_kind_t kind, nk_dtype_t dtype,
+                                                      nk_capability_t capabilities, nk_kernel_punned_t *kernel,
+                                                      nk_capability_t *capability);
+
+#else
+
+NUMKONG_API_COMPTIME nk_status_t nk_gpu_devices(nk_size_t *count) {
+    *count = nk_gpu_devices_();
+    return *count ? nk_success_k : nk_missing_gpu_k;
+}
+NUMKONG_API_COMPTIME nk_status_t nk_gpu_capabilities_detected(nk_size_t device, nk_capability_t *capabilities) {
+    return nk_gpu_capabilities_detected_(device, capabilities);
+}
+NUMKONG_API_COMPTIME nk_status_t nk_gpu_capabilities_compiled(nk_capability_t *capabilities) {
+    *capabilities = nk_gpu_capabilities_compiled_();
+    return nk_success_k;
+}
+NUMKONG_API_COMPTIME nk_status_t nk_gpu_capabilities_enabled(nk_size_t device, nk_capability_t *capabilities) {
+    nk_status_t const status = nk_gpu_capabilities_detected_(device, capabilities);
+    *capabilities &= nk_gpu_capabilities_compiled_();
+    return status;
+}
+
+#endif
 
 #ifdef __cplusplus
-}
-
+} // extern "C"
 #endif
+
 #endif // NUMKONG_CAPABILITIES_H

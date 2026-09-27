@@ -243,16 +243,9 @@ PROBE_TABLE_ARM: ProbeTable = [
     ("SVEBFDOT", "probes/arm_sve_bfdot.c", ["-march=armv8.2-a+sve+bf16"], []),
     ("SVESDOT", "probes/arm_sve_sdot.c", ["-march=armv8.2-a+sve+dotprod"], []),
     ("SVE2", "probes/arm_sve2.c", ["-march=armv8.2-a+sve2"], []),
-    ("SVE2P1", "probes/arm_sve2p1.c", ["-march=armv8.2-a+sve2p1"], []),
     ("SME", "probes/arm_sme.c", ["-march=armv8-a+sme"], []),
-    ("SME2", "probes/arm_sme2.c", ["-march=armv8-a+sme2"], []),
-    ("SME2P1", "probes/arm_sme2p1.c", ["-march=armv8-a+sme2p1"], []),
     ("SMEF64", "probes/arm_sme_f64.c", ["-march=armv8-a+sme+sme-f64f64"], []),
-    ("SMEHALF", "probes/arm_sme_half.c", ["-march=armv8-a+sme+sme-f16f16"], []),
-    ("SMEBF16", "probes/arm_sme_bf16.c", ["-march=armv8-a+sme2+sme-b16b16"], []),
     ("SMEBI32", "probes/arm_sme_bi32.c", ["-march=armv8-a+sme2"], []),
-    ("SMELUT2", "probes/arm_sme_lut2.c", ["-march=armv8-a+sme2+sme-lutv2"], []),
-    ("SMEFA64", "probes/arm_sme_fa64.c", ["-march=armv8-a+sme+sme-fa64"], []),
 ]
 """ARM probes: msvc_flags are empty because MSVC does not define __ARM_FEATURE_* macros via /arch:
 flags. For MSVC header-only builds, types.h infers features from __ARM_ARCH level instead. SVE/SME
@@ -461,9 +454,9 @@ def emscripten_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
     ]
     link_args: list[str] = []
     # Runtime dispatch is needed for the Python bindings, which look kernels up through
-    # nk_cpu_find_kernel_punned. The EM_JS runtime probes in c/numkong.c are guarded by
+    # nk_find_kernel_punned. The EM_JS runtime probes in c/numkong.c are guarded by
     # NUMKONG_RUNTIME_DISPATCH and __EMSCRIPTEN__; when building as a Pyodide side module, we define
-    # NUMKONG_PYODIDE_SIDE_MODULE_ to replace them with conservative serial-only stubs.
+    # NUMKONG_PYODIDE_SIDE_MODULE_ to report the compiled capabilities as detected instead.
     macros: list[tuple[str, str]] = [
         ("NUMKONG_RUNTIME_DISPATCH", "1"),
         ("NUMKONG_PYODIDE_SIDE_MODULE_", "1"),

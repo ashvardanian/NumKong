@@ -1,9 +1,9 @@
 # WASM/Emscripten toolchain for NumKong: 32-bit, single-threaded, the module any page and any runtime loads.
 # Usage: cmake -B build-wasm32-emscripten -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake
 #
-# The SIMD tier is a whole-module choice, so it is fixed here rather than probed: `v128` by default, which also
+# The SIMD capability is a whole-module choice, so it is fixed here rather than probed: `v128` by default, which also
 # loads where Relaxed SIMD is absent - Safari and WebKit on iOS - or `-DNUMKONG_WASM_SIMD=v128relaxed`. The flags go into
-# the cache once, so use one build directory per tier.
+# the cache once, so use one build directory per capability.
 
 # Verify the Emscripten SDK.
 if (NOT DEFINED ENV{EMSDK})
@@ -15,8 +15,8 @@ if (NOT DEFINED ENV{EMSDK})
     )
 endif ()
 
-# SIMD tier: the flags define `__wasm_simd128__` / `__wasm_relaxed_simd__`, which `types.h` reads.
-set(NUMKONG_WASM_SIMD "v128" CACHE STRING "WebAssembly SIMD tier of this module: v128 or v128relaxed")
+# SIMD capability: the flags define `__wasm_simd128__` / `__wasm_relaxed_simd__`, which `types.h` reads.
+set(NUMKONG_WASM_SIMD "v128" CACHE STRING "WebAssembly SIMD capability of this module: v128 or v128relaxed")
 if (NUMKONG_WASM_SIMD STREQUAL "v128relaxed")
     set(WASM_SIMD_FLAGS "-msimd128 -mrelaxed-simd")
 elseif (NUMKONG_WASM_SIMD STREQUAL "v128")
@@ -54,4 +54,4 @@ execute_process(
 )
 string(REGEX MATCH "[0-9]+\\.[0-9]+\\.[0-9]+" EMCC_VERSION "${EMCC_VERSION_OUTPUT}")
 message(STATUS "NumKong WASM32: Emscripten ${EMCC_VERSION}")
-message(STATUS "NumKong WASM32: SIMD tier ${NUMKONG_WASM_SIMD}")
+message(STATUS "NumKong WASM32: SIMD capability ${NUMKONG_WASM_SIMD}")
