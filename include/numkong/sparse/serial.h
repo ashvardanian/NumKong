@@ -59,9 +59,10 @@ extern "C" {
             if (indices[index - 1] >= indices[index]) return 0;                                                      \
         return 1;                                                                                                    \
     }                                                                                                                \
-    NUMKONG_API_COMPTIME void nk_sparse_intersect_##input_type##_serial(                                             \
+    NUMKONG_API_COMPTIME nk_status_t nk_sparse_intersect_##input_type##_serial(                                      \
         nk_##input_type##_t const *shorter, nk_##input_type##_t const *longer, nk_size_t shorter_length,             \
-        nk_size_t longer_length, nk_##input_type##_t *result, nk_size_t *count) {                                    \
+        nk_size_t longer_length, nk_##input_type##_t *result, nk_size_t *count, void *stream) {                      \
+        nk_assert_(stream == NUMKONG_NULL);                                                                          \
         nk_assert_(nk_sparse_ascending_##input_type##_(shorter, shorter_length) &&                                   \
                    nk_sparse_ascending_##input_type##_(longer, longer_length));                                      \
         /* Swap arrays if necessary, as we want "longer" to be larger than "shorter" */                              \
@@ -78,7 +79,7 @@ extern "C" {
         if (longer_length < 64 * shorter_length) {                                                                   \
             *count = nk_sparse_intersect_##input_type##_linear_scan_(shorter, longer, shorter_length, longer_length, \
                                                                      result);                                        \
-            return;                                                                                                  \
+            return nk_success_k;                                                                                     \
         }                                                                                                            \
                                                                                                                      \
         /* Perform galloping, shrinking the target range */                                                          \
@@ -93,13 +94,15 @@ extern "C" {
             }                                                                                                        \
         }                                                                                                            \
         *count = intersection_size;                                                                                  \
+        return nk_success_k;                                                                                         \
     }
 
 #define nk_define_sparse_dot_(input_type, weight_type, accumulator_type, load_and_convert)                 \
-    NUMKONG_API_COMPTIME void nk_sparse_dot_##input_type##weight_type##_serial(                            \
+    NUMKONG_API_COMPTIME nk_status_t nk_sparse_dot_##input_type##weight_type##_serial(                     \
         nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_##weight_type##_t const *a_weights, \
         nk_##weight_type##_t const *b_weights, nk_size_t a_length, nk_size_t b_length,                     \
-        nk_##accumulator_type##_t *product) {                                                              \
+        nk_##accumulator_type##_t *product, void *stream) {                                                \
+        nk_assert_(stream == NUMKONG_NULL);                                                                \
         nk_assert_(nk_sparse_ascending_##input_type##_(a, a_length) &&                                     \
                    nk_sparse_ascending_##input_type##_(b, b_length));                                      \
         nk_##accumulator_type##_t weights_product = 0, awi, bwi;                                           \
@@ -115,6 +118,7 @@ extern "C" {
             j += ai >= bj;                                                                                 \
         }                                                                                                  \
         *product = weights_product;                                                                        \
+        return nk_success_k;                                                                               \
     }
 
 nk_define_sparse_intersect_helpers_(u16)

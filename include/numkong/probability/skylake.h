@@ -13,7 +13,7 @@
 #if NUMKONG_TARGET_SKYLAKE
 
 #include "numkong/types.h"
-#include "numkong/spatial/haswell.h" // `nk_f32_sqrt_haswell`, `nk_f64_sqrt_haswell`
+#include "numkong/scalar/haswell.h" // `nk_f32_sqrt_haswell`, `nk_f64_sqrt_haswell`
 #include "numkong/spatial/skylake.h"
 
 #if defined(__cplusplus)
@@ -49,7 +49,9 @@ NUMKONG_HELPER_INLINE __m512 nk_log2_f32x16_skylake_(__m512 x) {
     return _mm512_add_ps(log2m_f32x16, exponent_f32x16);
 }
 
-NUMKONG_API_COMPTIME void nk_kld_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_kld_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                                    void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m512 sum_f32x16 = _mm512_setzero_ps();
     nk_f32_t epsilon = NUMKONG_F32_DIVISION_EPSILON;
     __m512 epsilon_f32x16 = _mm512_set1_ps(epsilon);
@@ -79,9 +81,12 @@ nk_kld_f32_skylake_cycle:
                    _mm512_reduce_add_pd(_mm512_cvtps_pd(upper_f32x8));
     nk_f64_t log2_normalizer = NUMKONG_F64_LN2_;
     *result = sum * log2_normalizer;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_jsd_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_jsd_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                                    void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m512 sum_f32x16 = _mm512_setzero_ps();
     nk_f32_t epsilon = NUMKONG_F32_DIVISION_EPSILON;
     __m512 epsilon_f32x16 = _mm512_set1_ps(epsilon);
@@ -118,6 +123,7 @@ nk_jsd_f32_skylake_cycle:
     nk_f64_t log2_normalizer = NUMKONG_F64_LN2_;
     nk_unused_(log2_normalizer);
     *result = sum > 0 ? nk_f64_sqrt_haswell(sum) : 0;
+    return nk_success_k;
 }
 
 NUMKONG_HELPER_INLINE __m512d nk_log2_f64x8_skylake_(__m512d x) {
@@ -159,7 +165,9 @@ NUMKONG_HELPER_INLINE __m512d nk_log2_f64x8_skylake_(__m512d x) {
     return _mm512_add_pd(exponent_f64x8, log2_m_f64x8);
 }
 
-NUMKONG_API_COMPTIME void nk_kld_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_kld_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                                    void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m512d sum_f64x8 = _mm512_setzero_pd();
     __m512d compensation_f64x8 = _mm512_setzero_pd();
     nk_f64_t epsilon = NUMKONG_F64_DIVISION_EPSILON;
@@ -190,9 +198,12 @@ nk_kld_f64_skylake_cycle:
 
     nk_f64_t log2_normalizer = NUMKONG_F64_LN2_;
     *result = _mm512_reduce_add_pd(sum_f64x8) * log2_normalizer;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_jsd_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_jsd_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                                    void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m512d sum_f64x8 = _mm512_setzero_pd();
     __m512d compensation_f64x8 = _mm512_setzero_pd();
     nk_f64_t epsilon = NUMKONG_F64_DIVISION_EPSILON;
@@ -235,9 +246,12 @@ nk_jsd_f64_skylake_cycle:
     nk_f64_t sum = _mm512_reduce_add_pd(sum_f64x8);
     sum *= log2_normalizer / 2;
     *result = sum > 0 ? nk_f64_sqrt_haswell(sum) : 0;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_kld_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_kld_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                    void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m512 sum_f32x16 = _mm512_setzero_ps();
     __m512 epsilon_f32x16 = _mm512_set1_ps(NUMKONG_F32_DIVISION_EPSILON);
     __m512 a_f32x16, b_f32x16;
@@ -263,9 +277,12 @@ nk_kld_f16_skylake_cycle:
 
     nk_f32_t log2_normalizer = NUMKONG_F32_LN2_;
     *result = _mm512_reduce_add_ps(sum_f32x16) * log2_normalizer;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_jsd_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_jsd_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                    void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m512 sum_a_f32x16 = _mm512_setzero_ps();
     __m512 sum_b_f32x16 = _mm512_setzero_ps();
     __m512 epsilon_f32x16 = _mm512_set1_ps(NUMKONG_F32_DIVISION_EPSILON);
@@ -298,6 +315,7 @@ nk_jsd_f16_skylake_cycle:
     nk_f32_t sum = _mm512_reduce_add_ps(_mm512_add_ps(sum_a_f32x16, sum_b_f32x16));
     sum *= log2_normalizer / 2;
     *result = sum > 0 ? nk_f32_sqrt_haswell(sum) : 0;
+    return nk_success_k;
 }
 
 #if defined(__clang__)

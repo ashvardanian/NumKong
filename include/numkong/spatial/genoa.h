@@ -30,8 +30,9 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "avx512bf16", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                    nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                           nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m512 a_sq_f32x16 = _mm512_setzero_ps();
     __m512 b_sq_f32x16 = _mm512_setzero_ps();
     __m512 ab_f32x16 = _mm512_setzero_ps();
@@ -57,15 +58,20 @@ nk_sqeuclidean_bf16_genoa_cycle:
     // (a-b)² = a² + b² - 2ab
     __m512 sum_sq_f32x16 = _mm512_add_ps(a_sq_f32x16, b_sq_f32x16);
     *result = nk_reduce_add_f32x16_skylake_(_mm512_fnmadd_ps(_mm512_set1_ps(2.0f), ab_f32x16, sum_sq_f32x16));
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                  nk_f32_t *result) {
-    nk_sqeuclidean_bf16_genoa(a, b, n, result);
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                         nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_sqeuclidean_bf16_genoa(a, b, n, result, stream);
     *result = nk_f32_sqrt_haswell(*result);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                       nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m512 dot_product_f32x16 = _mm512_setzero_ps();
     __m512 a_norm_sq_f32x16 = _mm512_setzero_ps();
     __m512 b_norm_sq_f32x16 = _mm512_setzero_ps();
@@ -95,6 +101,7 @@ nk_angular_bf16_genoa_cycle:
     nk_f32_t a_norm_sq_f32 = nk_reduce_add_f32x16_skylake_(a_norm_sq_f32x16);
     nk_f32_t b_norm_sq_f32 = nk_reduce_add_f32x16_skylake_(b_norm_sq_f32x16);
     *result = nk_angular_normalize_f32_haswell_(dot_product_f32, a_norm_sq_f32, b_norm_sq_f32);
+    return nk_success_k;
 }
 
 #if defined(__clang__)

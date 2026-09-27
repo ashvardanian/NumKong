@@ -32,6 +32,16 @@
 extern "C" {
 #endif
 
+/*  The helpers below are inlined by vector kernels that pin their own ISA, and GCC refuses an
+ *  @c always_inline callee carrying options its caller lacks - so they let the compiler decide,
+ *  which for one-liners it does anyway. */
+NUMKONG_HELPER_AUTO nk_u32_t nk_u32_rol(nk_u32_t x, int n) { return (x << n) | (x >> (32 - n)); }
+NUMKONG_HELPER_AUTO nk_u16_t nk_u16_rol(nk_u16_t x, int n) { return (x << n) | (x >> (16 - n)); }
+NUMKONG_HELPER_AUTO nk_u8_t nk_u8_rol(nk_u8_t x, int n) { return (x << n) | (x >> (8 - n)); }
+NUMKONG_HELPER_AUTO nk_u32_t nk_u32_ror(nk_u32_t x, int n) { return (x >> n) | (x << (32 - n)); }
+NUMKONG_HELPER_AUTO nk_u16_t nk_u16_ror(nk_u16_t x, int n) { return (x >> n) | (x << (16 - n)); }
+NUMKONG_HELPER_AUTO nk_u8_t nk_u8_ror(nk_u8_t x, int n) { return (x >> n) | (x << (8 - n)); }
+
 #if defined(__clang__)
 #pragma clang attribute push(                                                                         \
     __attribute__((target("avx2,avx512f,avx512vl,avx512dq,bmi2,lzcnt,popcnt,avx512bw,avx512vbmi2"))), \
@@ -134,16 +144,16 @@ NUMKONG_HELPER_INLINE nk_u16_t nk_intersect_u32x16_icelake_(__m512i a, __m512i b
     return ~(nk_u16_t)(nm0_m16 & nk_u16_rol(nm1_m16, 4) & nk_u16_rol(nm2_m16, 8) & nk_u16_ror(nm3_m16, 4));
 }
 
-NUMKONG_API_COMPTIME void nk_sparse_intersect_u16_icelake( //
-    nk_u16_t const *a, nk_u16_t const *b,                  //
-    nk_size_t a_length, nk_size_t b_length,                //
-    nk_u16_t *result, nk_size_t *count) {
+NUMKONG_API_COMPTIME nk_status_t nk_sparse_intersect_u16_icelake( //
+    nk_u16_t const *a, nk_u16_t const *b,                         //
+    nk_size_t a_length, nk_size_t b_length,                       //
+    nk_u16_t *result, nk_size_t *count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
 #if NUMKONG_ALLOW_ISA_REDIRECT
     // The baseline implementation for very small arrays (2 registers or less) can be quite simple:
     if (a_length < 64 && b_length < 64) {
-        nk_sparse_intersect_u16_serial(a, b, a_length, b_length, result, count);
-        return;
+        return nk_sparse_intersect_u16_serial(a, b, a_length, b_length, result, count, stream);
     }
 #endif
 
@@ -193,20 +203,21 @@ NUMKONG_API_COMPTIME void nk_sparse_intersect_u16_icelake( //
     }
 
     nk_size_t tail_count = 0;
-    nk_sparse_intersect_u16_serial(a, b, a_end - a, b_end - b, result ? result + c : 0, &tail_count);
+    nk_sparse_intersect_u16_serial(a, b, a_end - a, b_end - b, result ? result + c : 0, &tail_count, stream);
     *count = c + tail_count;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sparse_intersect_u32_icelake( //
-    nk_u32_t const *a, nk_u32_t const *b,                  //
-    nk_size_t a_length, nk_size_t b_length,                //
-    nk_u32_t *result, nk_size_t *count) {
+NUMKONG_API_COMPTIME nk_status_t nk_sparse_intersect_u32_icelake( //
+    nk_u32_t const *a, nk_u32_t const *b,                         //
+    nk_size_t a_length, nk_size_t b_length,                       //
+    nk_u32_t *result, nk_size_t *count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
 #if NUMKONG_ALLOW_ISA_REDIRECT
     // The baseline implementation for very small arrays (2 registers or less) can be quite simple:
     if (a_length < 32 && b_length < 32) {
-        nk_sparse_intersect_u32_serial(a, b, a_length, b_length, result, count);
-        return;
+        return nk_sparse_intersect_u32_serial(a, b, a_length, b_length, result, count, stream);
     }
 #endif
 
@@ -256,8 +267,9 @@ NUMKONG_API_COMPTIME void nk_sparse_intersect_u32_icelake( //
     }
 
     nk_size_t tail_count = 0;
-    nk_sparse_intersect_u32_serial(a, b, a_end - a, b_end - b, result ? result + c : 0, &tail_count);
+    nk_sparse_intersect_u32_serial(a, b, a_end - a, b_end - b, result ? result + c : 0, &tail_count, stream);
     *count = c + tail_count;
+    return nk_success_k;
 }
 
 /** Analogous to @c _mm512_2intersect_epi64, but compatible with Ice Lake CPUs, and returns only one
@@ -294,16 +306,16 @@ NUMKONG_HELPER_INLINE nk_u8_t nk_intersect_u64x8_icelake_(__m512i a, __m512i b) 
     return ~(nk_u8_t)(nm0_m8 & nk_u8_rol(nm1_m8, 2) & nk_u8_rol(nm2_m8, 4) & nk_u8_ror(nm3_m8, 2));
 }
 
-NUMKONG_API_COMPTIME void nk_sparse_intersect_u64_icelake( //
-    nk_u64_t const *a, nk_u64_t const *b,                  //
-    nk_size_t a_length, nk_size_t b_length,                //
-    nk_u64_t *result, nk_size_t *count) {
+NUMKONG_API_COMPTIME nk_status_t nk_sparse_intersect_u64_icelake( //
+    nk_u64_t const *a, nk_u64_t const *b,                         //
+    nk_size_t a_length, nk_size_t b_length,                       //
+    nk_u64_t *result, nk_size_t *count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
 #if NUMKONG_ALLOW_ISA_REDIRECT
     // The baseline implementation for very small arrays (2 registers or less) can be quite simple:
     if (a_length < 16 && b_length < 16) {
-        nk_sparse_intersect_u64_serial(a, b, a_length, b_length, result, count);
-        return;
+        return nk_sparse_intersect_u64_serial(a, b, a_length, b_length, result, count, stream);
     }
 #endif
 
@@ -353,20 +365,21 @@ NUMKONG_API_COMPTIME void nk_sparse_intersect_u64_icelake( //
     }
 
     nk_size_t tail_count = 0;
-    nk_sparse_intersect_u64_serial(a, b, a_end - a, b_end - b, result ? result + c : 0, &tail_count);
+    nk_sparse_intersect_u64_serial(a, b, a_end - a, b_end - b, result ? result + c : 0, &tail_count, stream);
     *count = c + tail_count;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sparse_dot_u32f32_icelake(   //
-    nk_u32_t const *a, nk_u32_t const *b,                 //
-    nk_f32_t const *a_weights, nk_f32_t const *b_weights, //
-    nk_size_t a_length, nk_size_t b_length, nk_f64_t *product) {
+NUMKONG_API_COMPTIME nk_status_t nk_sparse_dot_u32f32_icelake( //
+    nk_u32_t const *a, nk_u32_t const *b,                      //
+    nk_f32_t const *a_weights, nk_f32_t const *b_weights,      //
+    nk_size_t a_length, nk_size_t b_length, nk_f64_t *product, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
 #if NUMKONG_ALLOW_ISA_REDIRECT
     // The baseline implementation for very small arrays (2 registers or less) can be quite simple:
     if (a_length < 32 && b_length < 32) {
-        nk_sparse_dot_u32f32_serial(a, b, a_weights, b_weights, a_length, b_length, product);
-        return;
+        return nk_sparse_dot_u32f32_serial(a, b, a_weights, b_weights, a_length, b_length, product, stream);
     }
 #endif
 
@@ -439,8 +452,9 @@ NUMKONG_API_COMPTIME void nk_sparse_dot_u32f32_icelake(   //
     }
 
     nk_f64_t tail_product = 0;
-    nk_sparse_dot_u32f32_serial(a, b, a_weights, b_weights, a_end - a, b_end - b, &tail_product);
+    nk_sparse_dot_u32f32_serial(a, b, a_weights, b_weights, a_end - a, b_end - b, &tail_product, stream);
     *product = _mm512_reduce_add_pd(product_low_f64x8) + _mm512_reduce_add_pd(product_high_f64x8) + tail_product;
+    return nk_success_k;
 }
 
 #if defined(__clang__)

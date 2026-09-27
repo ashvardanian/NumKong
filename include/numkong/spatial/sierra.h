@@ -44,7 +44,9 @@ extern "C" {
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2", "avxvnni", "avxvnniint8")
 #endif
 
-NUMKONG_API_COMPTIME void nk_angular_i8_sierra(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_i8_sierra(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result,
+                                                      void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     __m256i dot_product_i32x8 = _mm256_setzero_si256();
     __m256i a_norm_sq_i32x8 = _mm256_setzero_si256();
@@ -72,9 +74,12 @@ NUMKONG_API_COMPTIME void nk_angular_i8_sierra(nk_i8_t const *a, nk_i8_t const *
 
     *result = nk_angular_normalize_f32_haswell_((nk_f32_t)dot_product_i32, (nk_f32_t)a_norm_sq_i32,
                                                 (nk_f32_t)b_norm_sq_i32);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_i8_sierra(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_i8_sierra(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n,
+                                                          nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // ||a-b||^2 = ||a||^2 + ||b||^2 - 2*dot(a,b) using dpbssds (signed x signed)
 
     __m256i dot_product_i32x8 = _mm256_setzero_si256();
@@ -102,15 +107,21 @@ NUMKONG_API_COMPTIME void nk_sqeuclidean_i8_sierra(nk_i8_t const *a, nk_i8_t con
     }
 
     *result = (nk_u32_t)(a_norm_sq_i32 + b_norm_sq_i32 - 2 * dot_product_i32);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_i8_sierra(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_i8_sierra(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n,
+                                                        nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t distance_sq_u32;
-    nk_sqeuclidean_i8_sierra(a, b, n, &distance_sq_u32);
+    nk_sqeuclidean_i8_sierra(a, b, n, &distance_sq_u32, stream);
     *result = nk_f32_sqrt_haswell((nk_f32_t)distance_sq_u32);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_u8_sierra(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_u8_sierra(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result,
+                                                      void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     __m256i dot_product_u32x8 = _mm256_setzero_si256();
     __m256i a_norm_sq_u32x8 = _mm256_setzero_si256();
@@ -138,9 +149,12 @@ NUMKONG_API_COMPTIME void nk_angular_u8_sierra(nk_u8_t const *a, nk_u8_t const *
 
     *result = nk_angular_normalize_f32_haswell_((nk_f32_t)dot_product_i32, (nk_f32_t)a_norm_sq_i32,
                                                 (nk_f32_t)b_norm_sq_i32);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_u8_sierra(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_u8_sierra(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
+                                                          nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // ||a-b||^2 = ||a||^2 + ||b||^2 - 2*dot(a,b) using dpbuud (unsigned x unsigned)
 
     __m256i dot_product_u32x8 = _mm256_setzero_si256();
@@ -168,16 +182,21 @@ NUMKONG_API_COMPTIME void nk_sqeuclidean_u8_sierra(nk_u8_t const *a, nk_u8_t con
     }
 
     *result = (nk_u32_t)(a_norm_sq_i32 + b_norm_sq_i32 - 2 * dot_product_i32);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_u8_sierra(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_u8_sierra(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
+                                                        nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t distance_sq_u32;
-    nk_sqeuclidean_u8_sierra(a, b, n, &distance_sq_u32);
+    nk_sqeuclidean_u8_sierra(a, b, n, &distance_sq_u32, stream);
     *result = nk_f32_sqrt_haswell((nk_f32_t)distance_sq_u32);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_e2m3_sierra(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
-                                                 nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_e2m3_sierra(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
+                                                        nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Angular distance for e2m3 using dual-VPSHUFB LUT + VPDPBSSD norm decomposition.
     // Every e2m3 value × 16 is an exact integer in [-120, +120].
     // DPBSSD(signed, signed) eliminates the need for unsigned conversion tricks.
@@ -245,10 +264,12 @@ nk_angular_e2m3_sierra_cycle:
     nk_i32_t a_norm_i32 = nk_reduce_add_i32x8_haswell_(a_norm_i32x8);
     nk_i32_t b_norm_i32 = nk_reduce_add_i32x8_haswell_(b_norm_i32x8);
     *result = nk_angular_normalize_f32_haswell_((nk_f32_t)dot_i32, (nk_f32_t)a_norm_i32, (nk_f32_t)b_norm_i32);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_e2m3_sierra(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
-                                                     nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_e2m3_sierra(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
+                                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Squared Euclidean distance for e2m3 using norm decomposition + VPDPBSSD.
     // ||a-b||^2 = ||a||^2 + ||b||^2 - 2*dot(a,b)
     //
@@ -314,16 +335,20 @@ nk_sqeuclidean_e2m3_sierra_cycle:
     nk_i32_t a_norm_i32 = nk_reduce_add_i32x8_haswell_(a_norm_i32x8);
     nk_i32_t b_norm_i32 = nk_reduce_add_i32x8_haswell_(b_norm_i32x8);
     *result = (nk_f32_t)(a_norm_i32 + b_norm_i32 - 2 * dot_i32) / 256.0f;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_e2m3_sierra(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
-                                                   nk_f32_t *result) {
-    nk_sqeuclidean_e2m3_sierra(a, b, n, result);
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_e2m3_sierra(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                          nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_sqeuclidean_e2m3_sierra(a, b, n, result, stream);
     *result = nk_f32_sqrt_haswell(*result);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_e3m2_sierra(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
-                                                     nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_e3m2_sierra(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
+                                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // E3M2 squared Euclidean distance via direct difference squaring.
     __m256i const lut_low_byte_first_u8x32 = _mm256_set_epi8(  //
         28, 24, 20, 16, 14, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1, 0, //
@@ -405,16 +430,20 @@ nk_sqeuclidean_e3m2_sierra_cycle:
 
     if (count_scalars) goto nk_sqeuclidean_e3m2_sierra_cycle;
     *result = (nk_f32_t)nk_reduce_add_i32x8_haswell_(sum_i32x8) / 256.0f;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_e3m2_sierra(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
-                                                   nk_f32_t *result) {
-    nk_sqeuclidean_e3m2_sierra(a, b, n, result);
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_e3m2_sierra(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                          nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_sqeuclidean_e3m2_sierra(a, b, n, result, stream);
     *result = nk_f32_sqrt_haswell(*result);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_e3m2_sierra(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
-                                                 nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_e3m2_sierra(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
+                                                        nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // E3M2 angular distance via VPMADDWD integer MAC.
     __m256i const lut_low_byte_first_u8x32 = _mm256_set_epi8(  //
         28, 24, 20, 16, 14, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1, 0, //
@@ -504,6 +533,7 @@ nk_angular_e3m2_sierra_cycle:
     nk_i32_t b_norm_i32 = nk_reduce_add_i32x8_haswell_(b_norm_i32x8);
     *result = nk_angular_normalize_f32_haswell_((nk_f32_t)dot_i32 / 256.0f, (nk_f32_t)a_norm_i32 / 256.0f,
                                                 (nk_f32_t)b_norm_i32 / 256.0f);
+    return nk_success_k;
 }
 
 #if defined(__clang__)

@@ -48,8 +48,9 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+sve+fp16")
 #endif
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_f16_svehalf(nk_f16_t const *a_enum, nk_f16_t const *b_enum, nk_size_t n,
-                                                     nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_f16_svehalf(nk_f16_t const *a_enum, nk_f16_t const *b_enum, nk_size_t n,
+                                                            nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     svfloat32_t d2_f32x = svdup_n_f32(0.0f);
     nk_f16_for_arm_simd_t const *a = (nk_f16_for_arm_simd_t const *)(a_enum);
@@ -78,16 +79,20 @@ NUMKONG_API_COMPTIME void nk_sqeuclidean_f16_svehalf(nk_f16_t const *a_enum, nk_
         i += svcnth();
     } while (i < n);
     *result = nk_svaddv_f32_(svptrue_b32(), d2_f32x);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_f16_svehalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
-                                                   nk_f32_t *result) {
-    nk_sqeuclidean_f16_svehalf(a, b, n, result);
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_f16_svehalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                          nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_sqeuclidean_f16_svehalf(a, b, n, result, stream);
     *result = nk_f32_sqrt_neon(*result);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_f16_svehalf(nk_f16_t const *a_enum, nk_f16_t const *b_enum, nk_size_t n,
-                                                 nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_f16_svehalf(nk_f16_t const *a_enum, nk_f16_t const *b_enum, nk_size_t n,
+                                                        nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     svfloat32_t ab_f32x = svdup_n_f32(0.0f);
     svfloat32_t a2_f32x = svdup_n_f32(0.0f);
@@ -123,6 +128,7 @@ NUMKONG_API_COMPTIME void nk_angular_f16_svehalf(nk_f16_t const *a_enum, nk_f16_
     nk_f32_t a2_f32 = nk_svaddv_f32_(svptrue_b32(), a2_f32x);
     nk_f32_t b2_f32 = nk_svaddv_f32_(svptrue_b32(), b2_f32x);
     *result = nk_angular_normalize_f32_neon_(ab_f32, a2_f32, b2_f32);
+    return nk_success_k;
 }
 
 #if defined(__clang__)

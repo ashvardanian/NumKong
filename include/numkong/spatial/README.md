@@ -100,13 +100,9 @@ Tail elements are handled by a masked load that zero-fills the inactive lanes, s
 
 ## Performance
 
-The following performance tables are produced by manually re-running `numkong_test` and `numkong_bench` included internal tools to measure both accuracy and throughput at different input shapes.
+The tables below follow the [benchmark methodology](../../../bench/README.md#methodology).
 The input size is controlled by the `NUMWARS_DIMS` environment variable and set to 256, 1024, and 4096 elements.
 The throughput is measured in GB/s as the number of input bytes per second.
-Accuracy is reported as mean ULP (units in last place) unless noted otherwise — the average number of representable floating-point values between the result and the exact answer.
-Each kernel runs for at least 20 seconds per configuration.
-Benchmark threads are pinned to specific cores; on machines with heterogeneous core types (e.g., Apple P/E cores), only the fastest cores are used.
-Workloads that significantly degrade CPU frequencies (Intel AMX, Apple SME) run in separate passes to avoid affecting throughput measurements of other kernels.
 
 ### Intel Sapphire Rapids
 
@@ -152,9 +148,6 @@ Workloads that significantly degrade CPU frequencies (Intel AMX, Apple SME) run 
 | `nk_sqeuclidean_e5m2_skylake` |         4.44 gb/s, 0 ulp |         4.65 gb/s, 0 ulp |         5.80 gb/s, 0 ulp |
 | `nk_euclidean_e5m2_skylake`   |         4.34 gb/s, 0 ulp |         4.65 gb/s, 0 ulp |         5.88 gb/s, 0 ulp |
 | `nk_angular_e5m2_skylake`     |         3.83 gb/s, 0 ulp |         4.39 gb/s, 0 ulp |         6.10 gb/s, 0 ulp |
-| `nk_sqeuclidean_e5m2_genoa`   |         7.12 gb/s, 0 ulp |         8.07 gb/s, 0 ulp |         8.05 gb/s, 0 ulp |
-| `nk_euclidean_e5m2_genoa`     |         7.01 gb/s, 0 ulp |         6.97 gb/s, 0 ulp |         8.16 gb/s, 0 ulp |
-| `nk_angular_e5m2_genoa`       |         6.33 gb/s, 0 ulp |         6.79 gb/s, 0 ulp |         7.99 gb/s, 0 ulp |
 | __e4m3__                      | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_sqeuclidean_e4m3_serial`  |        0.569 gb/s, 0 ulp |        0.606 gb/s, 0 ulp |        0.609 gb/s, 0 ulp |
 | `nk_euclidean_e4m3_serial`    |      0.587 gb/s, 0.5 ulp |      0.602 gb/s, 0.5 ulp |      0.578 gb/s, 0.5 ulp |
@@ -172,9 +165,6 @@ Workloads that significantly degrade CPU frequencies (Intel AMX, Apple SME) run 
 | `nk_sqeuclidean_e3m2_skylake` |         4.47 gb/s, 0 ulp |         5.46 gb/s, 0 ulp |         5.04 gb/s, 0 ulp |
 | `nk_euclidean_e3m2_skylake`   |         4.34 gb/s, 0 ulp |         6.20 gb/s, 0 ulp |         5.10 gb/s, 0 ulp |
 | `nk_angular_e3m2_skylake`     |         3.79 gb/s, 0 ulp |         4.41 gb/s, 0 ulp |         4.82 gb/s, 0 ulp |
-| `nk_sqeuclidean_e3m2_genoa`   |         8.79 gb/s, 0 ulp |         9.52 gb/s, 0 ulp |         10.6 gb/s, 0 ulp |
-| `nk_euclidean_e3m2_genoa`     |         8.68 gb/s, 0 ulp |         9.01 gb/s, 0 ulp |         12.8 gb/s, 0 ulp |
-| `nk_angular_e3m2_genoa`       |         6.89 gb/s, 0 ulp |         9.30 gb/s, 0 ulp |         10.3 gb/s, 0 ulp |
 | `nk_sqeuclidean_e3m2_icelake` |         21.2 gb/s, 0 ulp |         22.1 gb/s, 0 ulp |         21.9 gb/s, 0 ulp |
 | `nk_euclidean_e3m2_icelake`   |         21.2 gb/s, 0 ulp |         22.9 gb/s, 0 ulp |         21.2 gb/s, 0 ulp |
 | `nk_angular_e3m2_icelake`     |         14.1 gb/s, 0 ulp |         18.0 gb/s, 0 ulp |         17.6 gb/s, 0 ulp |
@@ -185,9 +175,6 @@ Workloads that significantly degrade CPU frequencies (Intel AMX, Apple SME) run 
 | `nk_sqeuclidean_e2m3_skylake` |         4.58 gb/s, 0 ulp |         4.65 gb/s, 0 ulp |         5.08 gb/s, 0 ulp |
 | `nk_euclidean_e2m3_skylake`   |         4.48 gb/s, 0 ulp |         4.39 gb/s, 0 ulp |         4.96 gb/s, 0 ulp |
 | `nk_angular_e2m3_skylake`     |         3.94 gb/s, 0 ulp |         4.25 gb/s, 0 ulp |         4.90 gb/s, 0 ulp |
-| `nk_sqeuclidean_e2m3_genoa`   |         9.62 gb/s, 0 ulp |         10.9 gb/s, 0 ulp |         10.8 gb/s, 0 ulp |
-| `nk_euclidean_e2m3_genoa`     |         8.45 gb/s, 0 ulp |         9.80 gb/s, 0 ulp |         10.3 gb/s, 0 ulp |
-| `nk_angular_e2m3_genoa`       |         7.21 gb/s, 0 ulp |         10.1 gb/s, 0 ulp |         10.4 gb/s, 0 ulp |
 | `nk_sqeuclidean_e2m3_icelake` |         50.7 gb/s, 0 ulp |         42.6 gb/s, 0 ulp |         31.0 gb/s, 0 ulp |
 | `nk_euclidean_e2m3_icelake`   |         50.2 gb/s, 0 ulp |         44.3 gb/s, 0 ulp |         31.0 gb/s, 0 ulp |
 | `nk_angular_e2m3_icelake`     |         27.2 gb/s, 0 ulp |         34.9 gb/s, 0 ulp |         30.5 gb/s, 0 ulp |
@@ -345,9 +332,9 @@ Measured with Wasmtime v42 (Cranelift backend).
 | `nk_sqeuclidean_f16_serial`     |       3.09 gb/s, 0.1 ulp |       3.16 gb/s, 0.1 ulp |       3.10 gb/s, 0.1 ulp |
 | `nk_euclidean_f16_serial`       |       3.13 gb/s, 0.6 ulp |       3.14 gb/s, 0.5 ulp |       3.11 gb/s, 0.5 ulp |
 | `nk_angular_f16_serial`         |         1.84 gb/s, 0 ulp |         1.92 gb/s, 0 ulp |         1.88 gb/s, 0 ulp |
-| `nk_sqeuclidean_f16_neonhalf`   |       34.7 gb/s, 0.9 ulp |       21.5 gb/s, 3.6 ulp |       18.3 gb/s, 9.7 ulp |
-| `nk_euclidean_f16_neonhalf`     |       32.7 gb/s, 0.5 ulp |       21.7 gb/s, 2.0 ulp |       18.4 gb/s, 5.3 ulp |
-| `nk_angular_f16_neonhalf`       |       25.2 gb/s, 0.1 ulp |       19.6 gb/s, 0.1 ulp |       17.3 gb/s, 0.1 ulp |
+| `nk_sqeuclidean_f16_neon`       |       34.7 gb/s, 0.9 ulp |       21.5 gb/s, 3.6 ulp |       18.3 gb/s, 9.7 ulp |
+| `nk_euclidean_f16_neon`         |       32.7 gb/s, 0.5 ulp |       21.7 gb/s, 2.0 ulp |       18.4 gb/s, 5.3 ulp |
+| `nk_angular_f16_neon`           |       25.2 gb/s, 0.1 ulp |       19.6 gb/s, 0.1 ulp |       17.3 gb/s, 0.1 ulp |
 | __e5m2__                        | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_sqeuclidean_e5m2_serial`    |         2.09 gb/s, 0 ulp |         2.08 gb/s, 0 ulp |         2.10 gb/s, 0 ulp |
 | `nk_euclidean_e5m2_serial`      |       2.06 gb/s, 0.5 ulp |       2.10 gb/s, 0.5 ulp |       2.05 gb/s, 0.5 ulp |

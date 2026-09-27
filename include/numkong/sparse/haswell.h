@@ -85,16 +85,18 @@ NUMKONG_HELPER_INLINE nk_f64_t nk_sparse_reduce_f64x4x2_haswell_(__m256d accumul
     return _mm_cvtsd_f64(sum_f64x1);
 }
 
-NUMKONG_API_COMPTIME void nk_sparse_dot_u32f32_haswell(nk_u32_t const *a, nk_u32_t const *b, nk_f32_t const *a_weights,
-                                                       nk_f32_t const *b_weights, nk_size_t a_length,
-                                                       nk_size_t b_length, nk_f64_t *product) {
+NUMKONG_API_COMPTIME nk_status_t nk_sparse_dot_u32f32_haswell(nk_u32_t const *a, nk_u32_t const *b,
+                                                              nk_f32_t const *a_weights, nk_f32_t const *b_weights,
+                                                              nk_size_t a_length, nk_size_t b_length, nk_f64_t *product,
+                                                              void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     if ((a_length << 6) < b_length) {
         *product = nk_sparse_dot_gallop_a_u32f32_haswell_(a, b, a_weights, b_weights, a_length, b_length);
-        return;
+        return nk_success_k;
     }
     if ((b_length << 6) < a_length) {
         *product = nk_sparse_dot_gallop_b_u32f32_haswell_(a, b, a_weights, b_weights, a_length, b_length);
-        return;
+        return nk_success_k;
     }
 
     nk_size_t i = 0;
@@ -218,8 +220,10 @@ NUMKONG_API_COMPTIME void nk_sparse_dot_u32f32_haswell(nk_u32_t const *a, nk_u32
 
     nk_f64_t vector_sum = nk_sparse_reduce_f64x4x2_haswell_(accumulator_low_f64x4, accumulator_high_f64x4);
     nk_f64_t tail_product = 0;
-    nk_sparse_dot_u32f32_serial(a + i, b + j, a_weights + i, b_weights + j, a_length - i, b_length - j, &tail_product);
+    nk_sparse_dot_u32f32_serial(a + i, b + j, a_weights + i, b_weights + j, a_length - i, b_length - j, &tail_product,
+                                stream);
     *product = vector_sum + tail_product;
+    return nk_success_k;
 }
 
 #if defined(__clang__)

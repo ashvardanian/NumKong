@@ -9,8 +9,8 @@
  *  Zvbb, the Vector Basic Bit-manipulation extension, adds a per-element popcount, `vcpop.v`, which
  *  replaces the 11-instruction SWAR sequence of set/rvv.h with one instruction.
  *
- *  Only @c nk_hamming_u1 and @c nk_jaccard_u1 need that byte-level popcount; the u8, u16 and u32
- *  set kernels count with the mask-level `vcpop.m` that base RVV 1.0 already has.
+ *  Only @c nk_hamming_u1_rvvbb and @c nk_jaccard_u1_rvvbb need that byte-level popcount; the u8,
+ *  u16 and u32 set kernels count with the mask-level `vcpop.m` that base RVV 1.0 already has.
  *
  *  Requires RVV 1.0 with Zvbb, from GCC 14 or Clang 18.
  */
@@ -44,7 +44,9 @@ NUMKONG_HELPER_INLINE vuint8m4_t nk_popcount_u8m4_rvvbb_(vuint8m4_t v_u8m4) {
     return result_u8m4;
 }
 
-NUMKONG_API_COMPTIME void nk_hamming_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
+                                                     nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t count_bytes = n / NUMKONG_BITS_PER_BYTE;
 
     vuint32m1_t sum_u32m1 = __riscv_vmv_v_x_u32m1(0, 1);
@@ -66,9 +68,12 @@ NUMKONG_API_COMPTIME void nk_hamming_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t cons
     }
 
     *result = __riscv_vmv_x_s_u32m1_u32(sum_u32m1);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_jaccard_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
+                                                     nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t count_bytes = n / NUMKONG_BITS_PER_BYTE;
 
     vuint32m1_t intersection_sum_u32m1 = __riscv_vmv_v_x_u32m1(0, 1);
@@ -99,6 +104,7 @@ NUMKONG_API_COMPTIME void nk_jaccard_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t cons
     nk_u32_t intersection_count_u32 = __riscv_vmv_x_s_u32m1_u32(intersection_sum_u32m1);
     nk_u32_t union_count_u32 = __riscv_vmv_x_s_u32m1_u32(union_sum_u32m1);
     *result = (union_count_u32 != 0) ? 1.0f - (nk_f32_t)intersection_count_u32 / (nk_f32_t)union_count_u32 : 0.0f;
+    return nk_success_k;
 }
 
 #if defined(__cplusplus)

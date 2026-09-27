@@ -20,21 +20,6 @@
  *  Haswell lacks SIMD popcount; we extract 64-bit words and use scalar POPCNT. The p1 port
  *  bottleneck limits throughput to 1 popcount/cycle. For Hamming distance, XOR + POPCNT; for
  *  Jaccard, compute AND/OR + POPCNT separately to get intersection and union counts.
- *
- *  @section set_haswell_stateful Stateful Streaming Logic
- *
- *  To build memory-optimal tiled algorithms, this file defines:
- *
- *  - nk_hamming_u1x64_state_haswell_t for streaming Hamming distance
- *  - nk_jaccard_u1x64_state_haswell_t for streaming Jaccard similarity
- *
- *  @code{.c}
- *  nk_jaccard_u1x64_state_haswell_t state_first, state_second, state_third, state_fourth;
- *  nk_jaccard_u1x64_init_haswell(&state_first);
- *  // ... stream through packed binary vectors ...
- *  nk_jaccard_u1x64_finalize_haswell(&state_first, &state_second, &state_third, &state_fourth,
- *      query_popcount, &target_popcounts_vec, total_dimensions, &result_vec);
- *  @endcode
  */
 #ifndef NUMKONG_SET_HASWELL_H
 #define NUMKONG_SET_HASWELL_H
@@ -58,7 +43,9 @@ extern "C" {
 
 #pragma region Binary Sets
 
-NUMKONG_API_COMPTIME void nk_hamming_u1_haswell(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_haswell(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
+                                                       nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
     // x86 supports unaligned loads and works just fine with the scalar version for small vectors.
     nk_u32_t differences = 0;
@@ -66,9 +53,12 @@ NUMKONG_API_COMPTIME void nk_hamming_u1_haswell(nk_u1x8_t const *a, nk_u1x8_t co
         differences += _mm_popcnt_u64(*(nk_u64_t const *)a ^ *(nk_u64_t const *)b);
     for (; n_bytes; --n_bytes, ++a, ++b) differences += _mm_popcnt_u32(*a ^ *b);
     *result = differences;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_jaccard_u1_haswell(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_haswell(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
+                                                       nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
     // x86 supports unaligned loads and works just fine with the scalar version for small vectors.
     nk_u32_t intersection_count = 0, union_count = 0;
@@ -78,13 +68,16 @@ NUMKONG_API_COMPTIME void nk_jaccard_u1_haswell(nk_u1x8_t const *a, nk_u1x8_t co
     for (; n_bytes; --n_bytes, ++a, ++b)
         intersection_count += nk_u1x8_popcount_(*a & *b), union_count += nk_u1x8_popcount_(*a | *b);
     *result = (union_count != 0) ? 1.0f - (nk_f32_t)intersection_count / (nk_f32_t)union_count : 0.0f;
+    return nk_success_k;
 }
 
 #pragma endregion Binary Sets
 
 #pragma region Integer Sets
 
-NUMKONG_API_COMPTIME void nk_jaccard_u32_haswell(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u32_haswell(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n,
+                                                        nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t intersection_count = 0;
     nk_size_t n_remaining = n;
     for (; n_remaining >= 4; n_remaining -= 4, a += 4, b += 4) {
@@ -96,9 +89,12 @@ NUMKONG_API_COMPTIME void nk_jaccard_u32_haswell(nk_u32_t const *a, nk_u32_t con
     }
     for (; n_remaining; --n_remaining, ++a, ++b) intersection_count += (*a == *b);
     *result = (n != 0) ? 1.0f - (nk_f32_t)intersection_count / (nk_f32_t)n : 0.0f;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_hamming_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_hamming_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
+                                                       nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Process 32 bytes at a time using AVX2 (256-bit registers).
     // Compare bytes for equality, invert to get not-equal mask, then count mismatches.
     //
@@ -142,9 +138,12 @@ NUMKONG_API_COMPTIME void nk_hamming_u8_haswell(nk_u8_t const *a, nk_u8_t const 
     for (; n_remaining; --n_remaining, ++a, ++b) differences += (*a != *b);
 
     *result = differences;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_jaccard_u16_haswell(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u16_haswell(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n,
+                                                        nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Process 16 u16 values at a time using AVX2 (256-bit registers).
     // Compare 16-bit integers for equality and count matches.
     //
@@ -191,104 +190,12 @@ NUMKONG_API_COMPTIME void nk_jaccard_u16_haswell(nk_u16_t const *a, nk_u16_t con
     for (; n_remaining; --n_remaining, ++a, ++b) matches += (*a == *b);
 
     *result = (n != 0) ? 1.0f - (nk_f32_t)matches / (nk_f32_t)n : 0.0f;
+    return nk_success_k;
 }
 
 #pragma endregion Integer Sets
 
-#pragma region Stateful Streaming
-
-typedef struct nk_hamming_u1x64_state_haswell_t {
-    nk_u32_t intersection_count;
-} nk_hamming_u1x64_state_haswell_t;
-
-NUMKONG_HELPER_INLINE void nk_hamming_u1x64_init_haswell(nk_hamming_u1x64_state_haswell_t *state) {
-    state->intersection_count = 0;
-}
-
-NUMKONG_HELPER_INLINE void nk_hamming_u1x64_update_haswell(nk_hamming_u1x64_state_haswell_t *state, nk_b64_vec_t a,
-                                                           nk_b64_vec_t b, nk_size_t depth_offset,
-                                                           nk_size_t active_dimensions) {
-    nk_unused_(depth_offset);
-    nk_unused_(active_dimensions);
-    state->intersection_count += (nk_u32_t)_mm_popcnt_u64(a.u64 ^ b.u64);
-}
-
-NUMKONG_HELPER_INLINE void nk_hamming_u1x64_finalize_haswell( //
-    nk_hamming_u1x64_state_haswell_t const *state_a, nk_hamming_u1x64_state_haswell_t const *state_b,
-    nk_hamming_u1x64_state_haswell_t const *state_c, nk_hamming_u1x64_state_haswell_t const *state_d,
-    nk_size_t total_dimensions, nk_b128_vec_t *result) {
-    nk_unused_(total_dimensions);
-    result->u32s[0] = state_a->intersection_count;
-    result->u32s[1] = state_b->intersection_count;
-    result->u32s[2] = state_c->intersection_count;
-    result->u32s[3] = state_d->intersection_count;
-}
-
-typedef struct nk_jaccard_u1x64_state_haswell_t {
-    nk_u32_t intersection_count;
-} nk_jaccard_u1x64_state_haswell_t;
-
-NUMKONG_HELPER_INLINE void nk_jaccard_u1x64_init_haswell(nk_jaccard_u1x64_state_haswell_t *state) {
-    state->intersection_count = 0;
-}
-
-NUMKONG_HELPER_INLINE void nk_jaccard_u1x64_update_haswell(nk_jaccard_u1x64_state_haswell_t *state, nk_b64_vec_t a,
-                                                           nk_b64_vec_t b, nk_size_t depth_offset,
-                                                           nk_size_t active_dimensions) {
-    nk_unused_(depth_offset);
-    nk_unused_(active_dimensions);
-    state->intersection_count += (nk_u32_t)_mm_popcnt_u64(a.u64 & b.u64);
-}
-
-NUMKONG_HELPER_INLINE void nk_jaccard_u1x64_finalize_haswell( //
-    nk_jaccard_u1x64_state_haswell_t const *state_a, nk_jaccard_u1x64_state_haswell_t const *state_b,
-    nk_jaccard_u1x64_state_haswell_t const *state_c, nk_jaccard_u1x64_state_haswell_t const *state_d,
-    nk_f32_t query_popcount, nk_b128_vec_t const *target_popcounts_vec, nk_size_t total_dimensions,
-    nk_b128_vec_t *result_vec) {
-    nk_unused_(total_dimensions);
-
-    // 4-way SIMD Jaccard computation with fast reciprocal.
-    //
-    // Haswell port analysis:
-    // - `_mm_setr_ps`:     p5, 1cy (INSERTPS chain)
-    // - `_mm_add_ps`:      p01, 3cy latency
-    // - `_mm_sub_ps`:      p01, 3cy latency
-    // - `_mm_rcp_ps`:      p0, 5cy latency, 1cy throughput
-    // - `_mm_mul_ps`:      p01, 5cy latency, 0.5cy throughput
-    // - `_mm_blendv_ps`:   p015, 2cy latency
-
-    // Pack intersection counts and convert to float
-    nk_f32_t intersection_a_f32 = (nk_f32_t)state_a->intersection_count;
-    nk_f32_t intersection_b_f32 = (nk_f32_t)state_b->intersection_count;
-    nk_f32_t intersection_c_f32 = (nk_f32_t)state_c->intersection_count;
-    nk_f32_t intersection_d_f32 = (nk_f32_t)state_d->intersection_count;
-
-    __m128 intersection_f32x4 = _mm_setr_ps(intersection_a_f32, intersection_b_f32, intersection_c_f32,
-                                            intersection_d_f32);
-    __m128 query_f32x4 = _mm_set1_ps(query_popcount);
-    __m128 targets_f32x4 = target_popcounts_vec->xmm_ps;
-    __m128 union_f32x4 = _mm_sub_ps(_mm_add_ps(query_f32x4, targets_f32x4), intersection_f32x4);
-
-    // Handle zero-union edge case
-    __m128 zero_union_b32x4 = _mm_cmpeq_ps(union_f32x4, _mm_setzero_ps());
-    __m128 one_f32x4 = _mm_set1_ps(1.0f);
-    __m128 two_f32x4 = _mm_set1_ps(2.0f);
-    __m128 safe_union_f32x4 = _mm_blendv_ps(union_f32x4, one_f32x4, zero_union_b32x4);
-
-    // Fast reciprocal with Newton-Raphson refinement:
-    // - `_mm_rcp_ps`: ~12-bit precision, 5cy latency, 1cy throughput
-    // Newton-Raphson:
-    //      rcp' = rcp × (2 - x × rcp), doubles precision to ~22-24 bits
-    // Total: ~10cy vs `_mm_div_ps` 13cy latency, but NR has better throughput
-    __m128 union_reciprocal_f32x4 = _mm_rcp_ps(safe_union_f32x4);
-    __m128 newton_raphson_correction_f32x4 = _mm_sub_ps(two_f32x4,
-                                                        _mm_mul_ps(safe_union_f32x4, union_reciprocal_f32x4));
-    union_reciprocal_f32x4 = _mm_mul_ps(union_reciprocal_f32x4, newton_raphson_correction_f32x4);
-
-    __m128 ratio_f32x4 = _mm_mul_ps(intersection_f32x4, union_reciprocal_f32x4);
-    __m128 jaccard_f32x4 = _mm_sub_ps(one_f32x4, ratio_f32x4);
-    result_vec->xmm_ps = _mm_blendv_ps(jaccard_f32x4, _mm_setzero_ps(), zero_union_b32x4);
-}
+#pragma region Distances from Dot Products
 
 /** Hamming from_dot: computes pop_a + pop_b - 2*dot for 4 pairs (Haswell). */
 NUMKONG_HELPER_INLINE void nk_hamming_u32x4_from_dot_haswell_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
@@ -319,7 +226,7 @@ NUMKONG_HELPER_INLINE void nk_jaccard_f32x4_from_dot_haswell_(nk_b128_vec_t cons
     result_vec->xmm_ps = _mm_blendv_ps(jaccard_f32x4, _mm_setzero_ps(), zero_union_b32x4);
 }
 
-#pragma endregion Stateful Streaming
+#pragma endregion Distances from Dot Products
 
 #if defined(__clang__)
 #pragma clang attribute pop

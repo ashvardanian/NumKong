@@ -17,7 +17,7 @@
 #if NUMKONG_TARGET_SKYLAKE
 
 #include "numkong/types.h"
-#include "numkong/spatial/haswell.h" // `nk_f64_sqrt_haswell`
+#include "numkong/scalar/haswell.h" // `nk_f64_sqrt_haswell`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -31,8 +31,9 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NUMKONG_API_COMPTIME void nk_bilinear_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                                  nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c,
+                                                         nk_size_t n, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     // Default case for arbitrary size `n`
     nk_size_t const tail_length = n % 8;
@@ -62,10 +63,12 @@ NUMKONG_API_COMPTIME void nk_bilinear_f32_skylake(nk_f32_t const *a, nk_f32_t co
     }
 
     *result = _mm512_reduce_add_pd(sum_f64x8);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_mahalanobis_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c,
-                                                     nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_mahalanobis_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c,
+                                                            nk_size_t n, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // We use f64 accumulators to prevent catastrophic cancellation.
     nk_size_t const tail_length = n % 8;
     nk_size_t const tail_start = n - tail_length;
@@ -99,10 +102,12 @@ NUMKONG_API_COMPTIME void nk_mahalanobis_f32_skylake(nk_f32_t const *a, nk_f32_t
 
     nk_f64_t quadratic = _mm512_reduce_add_pd(sum_f64x8);
     *result = nk_f64_sqrt_haswell(quadratic > 0 ? quadratic : 0);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_bilinear_f32c_skylake(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c,
-                                                   nk_size_t n, nk_f64c_t *results) {
+NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f32c_skylake(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c,
+                                                          nk_size_t n, nk_f64c_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     // We take into account, that FMS is the same as FMA with a negative multiplier.
     // To multiply a floating-point value by -1, we can use the `XOR` instruction to flip the sign bit.
@@ -161,10 +166,12 @@ NUMKONG_API_COMPTIME void nk_bilinear_f32c_skylake(nk_f32c_t const *a, nk_f32c_t
     // Reduce horizontal sums:
     results->real = sum_real;
     results->imag = sum_imag;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_bilinear_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                                  nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c,
+                                                         nk_size_t n, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     // Default case for arbitrary size `n`
     // Using Dot2 algorithm (Ogita-Rump-Oishi 2005) for compensated summation.
@@ -229,10 +236,12 @@ NUMKONG_API_COMPTIME void nk_bilinear_f64_skylake(nk_f64_t const *a, nk_f64_t co
 
     // Final: combine sum + compensation before reduce
     *result = _mm512_reduce_add_pd(_mm512_add_pd(sum_f64x8, compensation_f64x8));
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_mahalanobis_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c,
-                                                     nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_mahalanobis_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c,
+                                                            nk_size_t n, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Using Dot2 algorithm (Ogita-Rump-Oishi 2005) for compensated summation.
     nk_size_t const tail_length = n % 8;
     nk_size_t const tail_start = n - tail_length;
@@ -301,10 +310,12 @@ NUMKONG_API_COMPTIME void nk_mahalanobis_f64_skylake(nk_f64_t const *a, nk_f64_t
     // Final: combine sum + compensation before reduce
     nk_f64_t quadratic = _mm512_reduce_add_pd(_mm512_add_pd(sum_f64x8, compensation_f64x8));
     *result = nk_f64_sqrt_haswell(quadratic > 0 ? quadratic : 0);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_bilinear_f64c_skylake(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c,
-                                                   nk_size_t n, nk_f64c_t *results) {
+NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f64c_skylake(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c,
+                                                          nk_size_t n, nk_f64c_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     // We take into account, that FMS is the same as FMA with a negative multiplier.
     // To multiply a floating-point value by -1, we can use the `XOR` instruction to flip the sign bit.
@@ -440,6 +451,7 @@ NUMKONG_API_COMPTIME void nk_bilinear_f64c_skylake(nk_f64c_t const *a, nk_f64c_t
     // Final: combine sum + compensation
     results->real = sum_real + compensation_real;
     results->imag = sum_imag + compensation_imag;
+    return nk_success_k;
 }
 
 #if defined(__clang__)

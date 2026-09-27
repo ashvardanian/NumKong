@@ -31,8 +31,9 @@
 extern "C" {
 #endif
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_f16_rvvhalf(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
-                                                     nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_f16_rvvhalf(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
+                                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Per-lane accumulator — deferred horizontal reduction
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m2_t sum_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
@@ -55,16 +56,20 @@ NUMKONG_API_COMPTIME void nk_sqeuclidean_f16_rvvhalf(nk_f16_t const *a_scalars, 
     // Single horizontal reduction after the loop
     vfloat32m1_t zero_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
     *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m2_f32m1(sum_f32m2, zero_f32m1, max_vector_length));
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_f16_rvvhalf(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
-                                                   nk_size_t count_scalars, nk_f32_t *result) {
-    nk_sqeuclidean_f16_rvvhalf(a_scalars, b_scalars, count_scalars, result);
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_f16_rvvhalf(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
+                                                          nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_sqeuclidean_f16_rvvhalf(a_scalars, b_scalars, count_scalars, result, stream);
     *result = nk_f32_sqrt_rvv(*result);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_f16_rvvhalf(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
-                                                 nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_f16_rvvhalf(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
+                                                        nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Per-lane accumulators — deferred horizontal reduction
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m2_t dot_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
@@ -103,6 +108,7 @@ NUMKONG_API_COMPTIME void nk_angular_f16_rvvhalf(nk_f16_t const *a_scalars, nk_f
         nk_f32_t unclipped = 1.0f - dot * nk_f32_rsqrt_rvv(a_sq) * nk_f32_rsqrt_rvv(b_sq);
         *result = unclipped > 0.0f ? unclipped : 0.0f;
     }
+    return nk_success_k;
 }
 
 #if defined(__cplusplus)

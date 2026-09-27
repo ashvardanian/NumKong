@@ -56,8 +56,9 @@ NUMKONG_HELPER_INLINE nk_f64_t nk_angular_normalize_f64_v128_(nk_f64_t ab, nk_f6
 
 #pragma region BF16 Floats
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                   nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                          nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     v128_t sum_f32x4 = wasm_f32x4_splat(0.0f);
     v128_t mask_high_u32x4 = wasm_i32x4_splat((int)0xFFFF0000);
     nk_bf16_t const *a_scalars = a, *b_scalars = b;
@@ -86,16 +87,21 @@ nk_sqeuclidean_bf16_v128_cycle:
     if (count_scalars) goto nk_sqeuclidean_bf16_v128_cycle;
 
     *result = nk_reduce_add_f32x4_v128_(sum_f32x4);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                 nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                        nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t l2sq;
-    nk_sqeuclidean_bf16_v128(a, b, n, &l2sq);
+    nk_sqeuclidean_bf16_v128(a, b, n, &l2sq, stream);
     *result = nk_f32_sqrt_v128(l2sq);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                      nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     v128_t ab_f32x4 = wasm_f32x4_splat(0.0f);
     v128_t a2_f32x4 = wasm_f32x4_splat(0.0f);
     v128_t b2_f32x4 = wasm_f32x4_splat(0.0f);
@@ -131,12 +137,15 @@ nk_angular_bf16_v128_cycle:
     nk_f32_t a2 = nk_reduce_add_f32x4_v128_(a2_f32x4);
     nk_f32_t b2 = nk_reduce_add_f32x4_v128_(b2_f32x4);
     *result = (nk_f32_t)nk_angular_normalize_f64_v128_((nk_f64_t)ab, (nk_f64_t)a2, (nk_f64_t)b2);
+    return nk_success_k;
 }
 
 #pragma endregion BF16 Floats
 #pragma region I8 and U8 Integers
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
+                                                        nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     v128_t sum_u32x4 = wasm_u32x4_splat(0);
     nk_u8_t const *a_scalars = a, *b_scalars = b;
     nk_size_t count_scalars = n;
@@ -169,15 +178,21 @@ nk_sqeuclidean_u8_v128_cycle:
     if (count_scalars) goto nk_sqeuclidean_u8_v128_cycle;
 
     *result = nk_reduce_add_u32x4_v128_(sum_u32x4);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result,
+                                                      void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t distance_sq;
-    nk_sqeuclidean_u8_v128(a, b, n, &distance_sq);
+    nk_sqeuclidean_u8_v128(a, b, n, &distance_sq, stream);
     *result = nk_f32_sqrt_v128((nk_f32_t)distance_sq);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result,
+                                                    void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_u64_t dot_ab_total = 0, dot_aa_total = 0, dot_bb_total = 0;
     nk_size_t i = 0;
 
@@ -220,9 +235,12 @@ NUMKONG_API_COMPTIME void nk_angular_u8_v128(nk_u8_t const *a, nk_u8_t const *b,
 
     *result = (nk_f32_t)nk_angular_normalize_f64_v128_((nk_f64_t)dot_ab_total, (nk_f64_t)dot_aa_total,
                                                        (nk_f64_t)dot_bb_total);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n,
+                                                        nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     v128_t sum_u32x4 = wasm_u32x4_splat(0);
     v128_t bias_u8x16 = wasm_u8x16_splat(0x80); // XOR flips i8 to u8, and |a-b|² is invariant under the shared offset
     nk_i8_t const *a_scalars = a, *b_scalars = b;
@@ -254,15 +272,21 @@ nk_sqeuclidean_i8_v128_cycle:
     if (count_scalars) goto nk_sqeuclidean_i8_v128_cycle;
 
     *result = nk_reduce_add_u32x4_v128_(sum_u32x4);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result,
+                                                      void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t distance_sq;
-    nk_sqeuclidean_i8_v128(a, b, n, &distance_sq);
+    nk_sqeuclidean_i8_v128(a, b, n, &distance_sq, stream);
     *result = nk_f32_sqrt_v128((nk_f32_t)distance_sq);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result,
+                                                    void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_i64_t dot_ab_total = 0, dot_aa_total = 0, dot_bb_total = 0;
     nk_size_t i = 0;
 
@@ -304,6 +328,7 @@ NUMKONG_API_COMPTIME void nk_angular_i8_v128(nk_i8_t const *a, nk_i8_t const *b,
 
     *result = (nk_f32_t)nk_angular_normalize_f64_v128_((nk_f64_t)dot_ab_total, (nk_f64_t)dot_aa_total,
                                                        (nk_f64_t)dot_bb_total);
+    return nk_success_k;
 }
 
 #pragma endregion I8 and U8 Integers

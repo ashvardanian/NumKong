@@ -23,21 +23,6 @@
  *  According to the available literature, the throughput for those basic integer ops is identical
  *  across most Apple, Qualcomm, and AWS Graviton chips. As long as we avoid widening operations and
  *  horizontal reductions, we won't face any reasonable bottlenecks.
- *
- *  @section set_neon_stateful Stateful Streaming Logic
- *
- *  To build memory-optimal tiled algorithms, this file defines:
- *
- *  - nk_hamming_u1x128_state_neon_t for streaming Hamming distance
- *  - nk_jaccard_u1x128_state_neon_t for streaming Jaccard similarity
- *
- *  @code{.c}
- *  nk_jaccard_u1x128_state_neon_t state_first, state_second, state_third, state_fourth;
- *  nk_jaccard_u1x128_init_neon(&state_first);
- *  // ... stream through packed binary vectors ...
- *  nk_jaccard_u1x128_finalize_neon(&state_first, &state_second, &state_third, &state_fourth,
- *      query_popcount, &target_popcounts_vec, total_dimensions, &result_vec);
- *  @endcode
  */
 #ifndef NUMKONG_SET_NEON_H
 #define NUMKONG_SET_NEON_H
@@ -61,7 +46,9 @@ extern "C" {
 
 #pragma region Binary Sets
 
-NUMKONG_API_COMPTIME void nk_hamming_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
+                                                    nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
     nk_u32_t differences = 0;
     nk_size_t i = 0;
@@ -82,9 +69,12 @@ NUMKONG_API_COMPTIME void nk_hamming_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const
     // Handle the tail
     for (; i != n_bytes; ++i) differences += nk_u1x8_popcount_(a[i] ^ b[i]);
     *result = differences;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_jaccard_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
+                                                    nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
     nk_u32_t intersection_count = 0, union_count = 0;
     nk_size_t i = 0;
@@ -108,13 +98,16 @@ NUMKONG_API_COMPTIME void nk_jaccard_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const
     for (; i != n_bytes; ++i)
         intersection_count += nk_u1x8_popcount_(a[i] & b[i]), union_count += nk_u1x8_popcount_(a[i] | b[i]);
     *result = (union_count != 0) ? 1.0f - (nk_f32_t)intersection_count / (nk_f32_t)union_count : 0.0f;
+    return nk_success_k;
 }
 
 #pragma endregion Binary Sets
 
 #pragma region Integer Sets
 
-NUMKONG_API_COMPTIME void nk_jaccard_u32_neon(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u32_neon(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n,
+                                                     nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t intersection_count = 0;
     nk_size_t i = 0;
     uint32x4_t intersection_count_u32x4 = vdupq_n_u32(0);
@@ -127,9 +120,12 @@ NUMKONG_API_COMPTIME void nk_jaccard_u32_neon(nk_u32_t const *a, nk_u32_t const 
     intersection_count += vaddvq_u32(intersection_count_u32x4);
     for (; i != n; ++i) intersection_count += (a[i] == b[i]);
     *result = (n != 0) ? 1.0f - (nk_f32_t)intersection_count / (nk_f32_t)n : 0.0f;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_hamming_u8_neon(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_hamming_u8_neon(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
+                                                    void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     uint32x4_t diff_count_u32x4 = vdupq_n_u32(0);
     // Process 16 bytes at a time using NEON with widening adds to avoid overflow.
@@ -150,9 +146,12 @@ NUMKONG_API_COMPTIME void nk_hamming_u8_neon(nk_u8_t const *a, nk_u8_t const *b,
     // Handle tail elements
     for (; i != n; ++i) differences += (a[i] != b[i]);
     *result = differences;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_jaccard_u16_neon(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u16_neon(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n,
+                                                     nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t matches = 0;
     nk_size_t i = 0;
     uint32x4_t match_count_u32x4 = vdupq_n_u32(0);
@@ -173,149 +172,12 @@ NUMKONG_API_COMPTIME void nk_jaccard_u16_neon(nk_u16_t const *a, nk_u16_t const 
     // Handle tail elements
     for (; i != n; ++i) matches += (a[i] == b[i]);
     *result = (n != 0) ? 1.0f - (nk_f32_t)matches / (nk_f32_t)n : 0.0f;
+    return nk_success_k;
 }
 
 #pragma endregion Integer Sets
 
-#pragma region Stateful Streaming
-
-typedef struct nk_hamming_u1x128_state_neon_t {
-    uint32x4_t intersection_count_u32x4;
-} nk_hamming_u1x128_state_neon_t;
-
-NUMKONG_HELPER_INLINE void nk_hamming_u1x128_init_neon(nk_hamming_u1x128_state_neon_t *state) {
-    state->intersection_count_u32x4 = vdupq_n_u32(0);
-}
-
-NUMKONG_HELPER_INLINE void nk_hamming_u1x128_update_neon(nk_hamming_u1x128_state_neon_t *state, nk_b128_vec_t a,
-                                                         nk_b128_vec_t b, nk_size_t depth_offset,
-                                                         nk_size_t active_dimensions) {
-    nk_unused_(depth_offset);
-    nk_unused_(active_dimensions);
-
-    // Process one 128-bit chunk (native ARM NEON register size).
-    // Uses vector accumulation - horizontal sum deferred to finalize.
-    //
-    // ARM NEON instruction characteristics:
-    // - `veorq_u8`:    XOR (V.16B, V.16B, V.16B)       1cy
-    // - `vcntq_u8`:    CNT (V.16B, V.16B)              1-2cy, byte popcount
-    // - `vpaddlq_u8`:  UADDLP (V.8H, V.16B)            1cy, pairwise widen u8 → u16
-    // - `vpaddlq_u16`: UADDLP (V.4S, V.8H)             1cy, pairwise widen u16 → u32
-    // - `vaddq_u32`:   ADD (V.4S, V.4S, V.4S)          1cy
-    // Total: ~5-6cy per 128-bit chunk (horizontal sum deferred to finalize)
-
-    // Compute intersection bits (A XOR B)
-    uint8x16_t intersection_u8x16 = veorq_u8(a.u8x16, b.u8x16);
-
-    // Byte-level popcount - each byte contains count of set bits (0-8)
-    uint8x16_t popcount_u8x16 = vcntq_u8(intersection_u8x16);
-
-    // Pairwise widening reduction chain
-    // u8x16 → u16x8: pairs of adjacent bytes summed into 16-bit
-    uint16x8_t popcount_u16x8 = vpaddlq_u8(popcount_u8x16);
-    // u16x8 → u32x4: pairs of 16-bit values summed into 32-bit
-    uint32x4_t popcount_u32x4 = vpaddlq_u16(popcount_u16x8);
-
-    // Vector accumulation (defers horizontal sum to finalize)
-    state->intersection_count_u32x4 = vaddq_u32(state->intersection_count_u32x4, popcount_u32x4);
-}
-
-NUMKONG_HELPER_INLINE void nk_hamming_u1x128_finalize_neon( //
-    nk_hamming_u1x128_state_neon_t const *state_a, nk_hamming_u1x128_state_neon_t const *state_b,
-    nk_hamming_u1x128_state_neon_t const *state_c, nk_hamming_u1x128_state_neon_t const *state_d,
-    nk_size_t total_dimensions, nk_b128_vec_t *result) {
-    nk_unused_(total_dimensions);
-
-    // Horizontal sum using pairwise adds - same pattern as Jaccard.
-    // 3× ADDP to reduce 4 state vectors into [sum_a, sum_b, sum_c, sum_d].
-    uint32x4_t ab_sum_u32x4 = vpaddq_u32(state_a->intersection_count_u32x4, state_b->intersection_count_u32x4);
-    uint32x4_t cd_sum_u32x4 = vpaddq_u32(state_c->intersection_count_u32x4, state_d->intersection_count_u32x4);
-    result->u32x4 = vpaddq_u32(ab_sum_u32x4, cd_sum_u32x4);
-}
-
-typedef struct nk_jaccard_u1x128_state_neon_t {
-    uint32x4_t intersection_count_u32x4;
-} nk_jaccard_u1x128_state_neon_t;
-
-NUMKONG_HELPER_INLINE void nk_jaccard_u1x128_init_neon(nk_jaccard_u1x128_state_neon_t *state) {
-    state->intersection_count_u32x4 = vdupq_n_u32(0);
-}
-
-NUMKONG_HELPER_INLINE void nk_jaccard_u1x128_update_neon(nk_jaccard_u1x128_state_neon_t *state, nk_b128_vec_t a,
-                                                         nk_b128_vec_t b, nk_size_t depth_offset,
-                                                         nk_size_t active_dimensions) {
-    nk_unused_(depth_offset);
-    nk_unused_(active_dimensions);
-
-    // Process one 128-bit chunk (native ARM NEON register size).
-    // Uses vector accumulation - horizontal sum deferred to finalize.
-    //
-    // ARM NEON instruction characteristics:
-    // - `vandq_u8`:    AND (V.16B, V.16B, V.16B)       1cy
-    // - `vcntq_u8`:    CNT (V.16B, V.16B)              1-2cy, byte popcount
-    // - `vpaddlq_u8`:  UADDLP (V.8H, V.16B)            1cy, pairwise widen u8 → u16
-    // - `vpaddlq_u16`: UADDLP (V.4S, V.8H)             1cy, pairwise widen u16 → u32
-    // - `vaddq_u32`:   ADD (V.4S, V.4S, V.4S)          1cy
-    // Total: ~5-6cy per 128-bit chunk (horizontal sum deferred to finalize)
-
-    // Compute intersection bits (A AND B)
-    uint8x16_t intersection_u8x16 = vandq_u8(a.u8x16, b.u8x16);
-
-    // Byte-level popcount - each byte contains count of set bits (0-8)
-    uint8x16_t popcount_u8x16 = vcntq_u8(intersection_u8x16);
-
-    // Pairwise widening reduction chain
-    // u8x16 → u16x8: pairs of adjacent bytes summed into 16-bit
-    uint16x8_t popcount_u16x8 = vpaddlq_u8(popcount_u8x16);
-    // u16x8 → u32x4: pairs of 16-bit values summed into 32-bit
-    uint32x4_t popcount_u32x4 = vpaddlq_u16(popcount_u16x8);
-
-    // Vector accumulation (defers horizontal sum to finalize)
-    state->intersection_count_u32x4 = vaddq_u32(state->intersection_count_u32x4, popcount_u32x4);
-}
-
-NUMKONG_HELPER_INLINE void nk_jaccard_u1x128_finalize_neon( //
-    nk_jaccard_u1x128_state_neon_t const *state_a, nk_jaccard_u1x128_state_neon_t const *state_b,
-    nk_jaccard_u1x128_state_neon_t const *state_c, nk_jaccard_u1x128_state_neon_t const *state_d,
-    nk_f32_t query_popcount, nk_b128_vec_t const *target_popcounts_vec, nk_size_t total_dimensions,
-    nk_b128_vec_t *result_vec) {
-    nk_unused_(total_dimensions);
-
-    // Horizontal sum using pairwise adds instead of `vaddvq_u32` (ADDV).
-    // `vpaddq_u32` (ADDP) has better throughput: 2/cy vs 1/cy for ADDV on Cortex-A76.
-    // 3 ADDP instructions vs 4 ADDV + union store/load.
-    //
-    // vpaddq_u32(A, B) = [a0+a1, a2+a3, b0+b1, b2+b3]
-    uint32x4_t ab_sum_u32x4 = vpaddq_u32(state_a->intersection_count_u32x4, state_b->intersection_count_u32x4);
-    uint32x4_t cd_sum_u32x4 = vpaddq_u32(state_c->intersection_count_u32x4, state_d->intersection_count_u32x4);
-    // Final pairwise reduction gives [sum_a, sum_b, sum_c, sum_d]
-    uint32x4_t intersection_u32x4 = vpaddq_u32(ab_sum_u32x4, cd_sum_u32x4);
-    float32x4_t intersection_f32x4 = vcvtq_f32_u32(intersection_u32x4);
-
-    // Compute union using |A ∪ B| = |A| + |B| - |A ∩ B|
-    float32x4_t query_f32x4 = vdupq_n_f32(query_popcount);
-    float32x4_t targets_f32x4 = target_popcounts_vec->f32x4;
-    float32x4_t union_f32x4 = vsubq_f32(vaddq_f32(query_f32x4, targets_f32x4), intersection_f32x4);
-
-    // Handle zero-union edge case (empty vectors → distance = 0.0, matching scipy convention)
-    float32x4_t one_f32x4 = vdupq_n_f32(1.0f);
-    uint32x4_t zero_union_u32x4 = vceqq_f32(union_f32x4, vdupq_n_f32(0.0f));
-    float32x4_t safe_union_f32x4 = vbslq_f32(zero_union_u32x4, one_f32x4, union_f32x4);
-
-    // Fast reciprocal with Newton-Raphson refinement:
-    // - `vrecpeq_f32`: ~12-bit estimate, 1 cycle
-    // - `vrecpsq_f32`: Newton-Raphson step computes (2 - a × b), 1 cycle
-    // - `vmulq_f32`: multiply, 1 cycle
-    // One N-R iteration: ~24-bit accuracy, sufficient for f32 (23 mantissa bits).
-    // Total: ~3-4 cycles vs ~10-14 cycles for division.
-    float32x4_t union_reciprocal_f32x4 = vrecpeq_f32(safe_union_f32x4);
-    union_reciprocal_f32x4 = vmulq_f32(union_reciprocal_f32x4, vrecpsq_f32(safe_union_f32x4, union_reciprocal_f32x4));
-
-    // Compute Jaccard distance = 1 - intersection ÷ union
-    float32x4_t ratio_f32x4 = vmulq_f32(intersection_f32x4, union_reciprocal_f32x4);
-    float32x4_t jaccard_f32x4 = vsubq_f32(one_f32x4, ratio_f32x4);
-    result_vec->f32x4 = vbslq_f32(zero_union_u32x4, vdupq_n_f32(0.0f), jaccard_f32x4);
-}
+#pragma region Distances from Dot Products
 
 /** Hamming from_dot: computes pop_a + pop_b - 2*dot for 4 pairs (NEON). */
 NUMKONG_HELPER_INLINE void nk_hamming_u32x4_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
@@ -346,7 +208,7 @@ NUMKONG_HELPER_INLINE void nk_jaccard_f32x4_from_dot_neon_(nk_b128_vec_t const *
     result_vec->f32x4 = vbslq_f32(zero_union_u32x4, vdupq_n_f32(0.0f), jaccard_f32x4);
 }
 
-#pragma endregion Stateful Streaming
+#pragma endregion Distances from Dot Products
 
 #if defined(__clang__)
 #pragma clang attribute pop

@@ -118,8 +118,7 @@
 #ifndef NUMKONG_GEOSPATIAL_H
 #define NUMKONG_GEOSPATIAL_H
 
-#include "numkong/types.h"
-#include "numkong/trigonometry.h"
+#include "numkong/capabilities.h" // `nk_capability_kernels_t`, `nk_kernel_pick_`
 
 /** Earth Ellipsoid Constants. The defaults use the IERS-2003 standard, overridable before this
  *  header is included. */
@@ -158,19 +157,20 @@ extern "C" {
  *  @param[in] b_lons Longitudes of the second points, in radians.
  *  @param[in] n The number of point pairs.
  *  @param[out] results Output distances in meters, length @c n.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  @note Inputs are in radians and outputs are in meters.
  */
-NUMKONG_API_RUNTIME void nk_haversine_f64(          //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results);
+NUMKONG_API_RUNTIME nk_status_t nk_haversine_f64_best(nk_f64_t const *a_lats, nk_f64_t const *a_lons,
+                                                      nk_f64_t const *b_lats, nk_f64_t const *b_lons, nk_size_t n,
+                                                      nk_f64_t *results, nk_capability_t capabilities, void *stream);
 
-/** @copydoc nk_haversine_f64 */
-NUMKONG_API_RUNTIME void nk_haversine_f32(          //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results);
+/** @copydoc nk_haversine_f64_best */
+NUMKONG_API_RUNTIME nk_status_t nk_haversine_f32_best(nk_f32_t const *a_lats, nk_f32_t const *a_lons,
+                                                      nk_f32_t const *b_lats, nk_f32_t const *b_lons, nk_size_t n,
+                                                      nk_f32_t *results, nk_capability_t capabilities, void *stream);
 
 /**
  *  @brief Vincenty distance between two arrays of points on an oblate spheroid.
@@ -181,155 +181,156 @@ NUMKONG_API_RUNTIME void nk_haversine_f32(          //
  *  @param[in] b_lons Longitudes of the second points, in radians.
  *  @param[in] n The number of point pairs.
  *  @param[out] results Output distances in meters, length @c n.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  @note Inputs are in radians and outputs are in meters.
  *  @note Uses the Earth ellipsoid parameters configured via `NUMKONG_EARTH_ELLIPSOID_*`.
  */
-NUMKONG_API_RUNTIME void nk_vincenty_f64(           //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results);
+NUMKONG_API_RUNTIME nk_status_t nk_vincenty_f64_best(nk_f64_t const *a_lats, nk_f64_t const *a_lons,
+                                                     nk_f64_t const *b_lats, nk_f64_t const *b_lons, nk_size_t n,
+                                                     nk_f64_t *results, nk_capability_t capabilities, void *stream);
 
-/** @copydoc nk_vincenty_f64 */
-NUMKONG_API_RUNTIME void nk_vincenty_f32(           //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results);
+/** @copydoc nk_vincenty_f64_best */
+NUMKONG_API_RUNTIME nk_status_t nk_vincenty_f32_best(nk_f32_t const *a_lats, nk_f32_t const *a_lons,
+                                                     nk_f32_t const *b_lats, nk_f32_t const *b_lons, nk_size_t n,
+                                                     nk_f32_t *results, nk_capability_t capabilities, void *stream);
 
-/** @copydoc nk_haversine_f64 */
-NUMKONG_API_COMPTIME void nk_haversine_f64_serial(  //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results);
-/** @copydoc nk_vincenty_f64 */
-NUMKONG_API_COMPTIME void nk_vincenty_f64_serial(   //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results);
-/** @copydoc nk_haversine_f32 */
-NUMKONG_API_COMPTIME void nk_haversine_f32_serial(  //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results);
-/** @copydoc nk_vincenty_f32 */
-NUMKONG_API_COMPTIME void nk_vincenty_f32_serial(   //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results);
+/** @copydoc nk_haversine_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_haversine_f64_serial( //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons,       //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons,       //
+    nk_size_t n, nk_f64_t *results, void *stream);
+/** @copydoc nk_vincenty_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f64_serial( //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons,      //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons,      //
+    nk_size_t n, nk_f64_t *results, void *stream);
+/** @copydoc nk_haversine_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_haversine_f32_serial( //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons,       //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons,       //
+    nk_size_t n, nk_f32_t *results, void *stream);
+/** @copydoc nk_vincenty_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f32_serial( //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons,      //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons,      //
+    nk_size_t n, nk_f32_t *results, void *stream);
 
 #if NUMKONG_TARGET_NEON
-/** @copydoc nk_haversine_f64 */
-NUMKONG_API_COMPTIME void nk_haversine_f64_neon(    //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results);
-/** @copydoc nk_vincenty_f64 */
-NUMKONG_API_COMPTIME void nk_vincenty_f64_neon(     //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results);
-/** @copydoc nk_haversine_f32 */
-NUMKONG_API_COMPTIME void nk_haversine_f32_neon(    //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results);
-/** @copydoc nk_vincenty_f32 */
-NUMKONG_API_COMPTIME void nk_vincenty_f32_neon(     //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results);
+/** @copydoc nk_haversine_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_haversine_f64_neon( //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons,     //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons,     //
+    nk_size_t n, nk_f64_t *results, void *stream);
+/** @copydoc nk_vincenty_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f64_neon( //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons,    //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons,    //
+    nk_size_t n, nk_f64_t *results, void *stream);
+/** @copydoc nk_haversine_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_haversine_f32_neon( //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons,     //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons,     //
+    nk_size_t n, nk_f32_t *results, void *stream);
+/** @copydoc nk_vincenty_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f32_neon( //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons,    //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons,    //
+    nk_size_t n, nk_f32_t *results, void *stream);
 #endif // NUMKONG_TARGET_NEON
 
 #if NUMKONG_TARGET_HASWELL
-/** @copydoc nk_haversine_f64 */
-NUMKONG_API_COMPTIME void nk_haversine_f64_haswell( //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results);
-/** @copydoc nk_vincenty_f64 */
-NUMKONG_API_COMPTIME void nk_vincenty_f64_haswell(  //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results);
-/** @copydoc nk_haversine_f32 */
-NUMKONG_API_COMPTIME void nk_haversine_f32_haswell( //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results);
-/** @copydoc nk_vincenty_f32 */
-NUMKONG_API_COMPTIME void nk_vincenty_f32_haswell(  //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results);
+/** @copydoc nk_haversine_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_haversine_f64_haswell( //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons,        //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons,        //
+    nk_size_t n, nk_f64_t *results, void *stream);
+/** @copydoc nk_vincenty_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f64_haswell( //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons,       //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons,       //
+    nk_size_t n, nk_f64_t *results, void *stream);
+/** @copydoc nk_haversine_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_haversine_f32_haswell( //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons,        //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons,        //
+    nk_size_t n, nk_f32_t *results, void *stream);
+/** @copydoc nk_vincenty_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f32_haswell( //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons,       //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons,       //
+    nk_size_t n, nk_f32_t *results, void *stream);
 #endif // NUMKONG_TARGET_HASWELL
 
 #if NUMKONG_TARGET_SKYLAKE
-/** @copydoc nk_haversine_f64 */
-NUMKONG_API_COMPTIME void nk_haversine_f64_skylake( //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results);
-/** @copydoc nk_vincenty_f64 */
-NUMKONG_API_COMPTIME void nk_vincenty_f64_skylake(  //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results);
-/** @copydoc nk_haversine_f32 */
-NUMKONG_API_COMPTIME void nk_haversine_f32_skylake( //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results);
-/** @copydoc nk_vincenty_f32 */
-NUMKONG_API_COMPTIME void nk_vincenty_f32_skylake(  //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results);
+/** @copydoc nk_haversine_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_haversine_f64_skylake( //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons,        //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons,        //
+    nk_size_t n, nk_f64_t *results, void *stream);
+/** @copydoc nk_vincenty_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f64_skylake( //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons,       //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons,       //
+    nk_size_t n, nk_f64_t *results, void *stream);
+/** @copydoc nk_haversine_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_haversine_f32_skylake( //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons,        //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons,        //
+    nk_size_t n, nk_f32_t *results, void *stream);
+/** @copydoc nk_vincenty_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f32_skylake( //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons,       //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons,       //
+    nk_size_t n, nk_f32_t *results, void *stream);
 #endif // NUMKONG_TARGET_SKYLAKE
 
 #if NUMKONG_TARGET_V128RELAXED
-/** @copydoc nk_haversine_f64 */
-NUMKONG_API_COMPTIME void nk_haversine_f64_v128relaxed( //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons,     //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons,     //
-    nk_size_t n, nk_f64_t *results);
-/** @copydoc nk_vincenty_f64 */
-NUMKONG_API_COMPTIME void nk_vincenty_f64_v128relaxed( //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons,    //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons,    //
-    nk_size_t n, nk_f64_t *results);
-/** @copydoc nk_haversine_f32 */
-NUMKONG_API_COMPTIME void nk_haversine_f32_v128relaxed( //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons,     //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons,     //
-    nk_size_t n, nk_f32_t *results);
-/** @copydoc nk_vincenty_f32 */
-NUMKONG_API_COMPTIME void nk_vincenty_f32_v128relaxed( //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons,    //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons,    //
-    nk_size_t n, nk_f32_t *results);
+/** @copydoc nk_haversine_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_haversine_f64_v128relaxed( //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons,            //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons,            //
+    nk_size_t n, nk_f64_t *results, void *stream);
+/** @copydoc nk_vincenty_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f64_v128relaxed( //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons,           //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons,           //
+    nk_size_t n, nk_f64_t *results, void *stream);
+/** @copydoc nk_haversine_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_haversine_f32_v128relaxed( //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons,            //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons,            //
+    nk_size_t n, nk_f32_t *results, void *stream);
+/** @copydoc nk_vincenty_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f32_v128relaxed( //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons,           //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons,           //
+    nk_size_t n, nk_f32_t *results, void *stream);
 #endif // NUMKONG_TARGET_V128RELAXED
 
 #if NUMKONG_TARGET_RVV
-/** @copydoc nk_haversine_f64 */
-NUMKONG_API_COMPTIME void nk_haversine_f64_rvv(     //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results);
-/** @copydoc nk_vincenty_f64 */
-NUMKONG_API_COMPTIME void nk_vincenty_f64_rvv(      //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results);
-/** @copydoc nk_haversine_f32 */
-NUMKONG_API_COMPTIME void nk_haversine_f32_rvv(     //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results);
-/** @copydoc nk_vincenty_f32 */
-NUMKONG_API_COMPTIME void nk_vincenty_f32_rvv(      //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results);
+/** @copydoc nk_haversine_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_haversine_f64_rvv( //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons,    //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons,    //
+    nk_size_t n, nk_f64_t *results, void *stream);
+/** @copydoc nk_vincenty_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f64_rvv( //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons,   //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons,   //
+    nk_size_t n, nk_f64_t *results, void *stream);
+/** @copydoc nk_haversine_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_haversine_f32_rvv( //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons,    //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons,    //
+    nk_size_t n, nk_f32_t *results, void *stream);
+/** @copydoc nk_vincenty_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f32_rvv( //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons,   //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons,   //
+    nk_size_t n, nk_f32_t *results, void *stream);
 #endif // NUMKONG_TARGET_RVV
 
 /** Returns the output dtype for Haversine distance. */
@@ -365,82 +366,162 @@ NUMKONG_HELPER_INLINE nk_dtype_t nk_vincenty_output_dtype(nk_dtype_t dtype) {
 extern "C" {
 #endif
 
+NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_haversine_f64_capabilities_(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_haversine_f64_serial,
+#if NUMKONG_TARGET_NEON
+        (nk_kernel_punned_t)&nk_haversine_f64_neon,
+#endif
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_haversine_f64_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_haversine_f64_skylake,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_haversine_f64_rvv,
+#endif
+#if NUMKONG_TARGET_V128RELAXED
+        (nk_kernel_punned_t)&nk_haversine_f64_v128relaxed,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
+             nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
+             nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
+         cpu},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_haversine_f32_capabilities_(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_haversine_f32_serial,
+#if NUMKONG_TARGET_NEON
+        (nk_kernel_punned_t)&nk_haversine_f32_neon,
+#endif
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_haversine_f32_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_haversine_f32_skylake,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_haversine_f32_rvv,
+#endif
+#if NUMKONG_TARGET_V128RELAXED
+        (nk_kernel_punned_t)&nk_haversine_f32_v128relaxed,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
+             nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
+             nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
+         cpu},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_vincenty_f64_capabilities_(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_vincenty_f64_serial,
+#if NUMKONG_TARGET_NEON
+        (nk_kernel_punned_t)&nk_vincenty_f64_neon,
+#endif
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_vincenty_f64_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_vincenty_f64_skylake,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_vincenty_f64_rvv,
+#endif
+#if NUMKONG_TARGET_V128RELAXED
+        (nk_kernel_punned_t)&nk_vincenty_f64_v128relaxed,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
+             nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
+             nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
+         cpu},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_vincenty_f32_capabilities_(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_vincenty_f32_serial,
+#if NUMKONG_TARGET_NEON
+        (nk_kernel_punned_t)&nk_vincenty_f32_neon,
+#endif
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_vincenty_f32_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_vincenty_f32_skylake,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_vincenty_f32_rvv,
+#endif
+#if NUMKONG_TARGET_V128RELAXED
+        (nk_kernel_punned_t)&nk_vincenty_f32_v128relaxed,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
+             nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
+             nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
+         cpu},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
 #if !NUMKONG_RUNTIME_DISPATCH
 
-NUMKONG_API_COMPTIME void nk_haversine_f64(         //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results) {
-#if NUMKONG_TARGET_SKYLAKE
-    nk_haversine_f64_skylake(a_lats, a_lons, b_lats, b_lons, n, results);
-#elif NUMKONG_TARGET_HASWELL
-    nk_haversine_f64_haswell(a_lats, a_lons, b_lats, b_lons, n, results);
-#elif NUMKONG_TARGET_NEON
-    nk_haversine_f64_neon(a_lats, a_lons, b_lats, b_lons, n, results);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_haversine_f64_v128relaxed(a_lats, a_lons, b_lats, b_lons, n, results);
-#elif NUMKONG_TARGET_RVV
-    nk_haversine_f64_rvv(a_lats, a_lons, b_lats, b_lons, n, results);
-#else
-    nk_haversine_f64_serial(a_lats, a_lons, b_lats, b_lons, n, results);
-#endif
+NUMKONG_API_COMPTIME nk_status_t nk_haversine_f64_best(nk_f64_t const *a_lats, nk_f64_t const *a_lons,
+                                                       nk_f64_t const *b_lats, nk_f64_t const *b_lons, nk_size_t n,
+                                                       nk_f64_t *results, nk_capability_t capabilities, void *stream) {
+    nk_metric_geospatial_punned_t const kernel = (nk_metric_geospatial_punned_t)nk_kernel_pick_(
+        capabilities, nk_haversine_f64_capabilities_());
+    return kernel ? kernel(a_lats, a_lons, b_lats, b_lons, n, results, stream) : nk_missing_kernel_k;
 }
 
-NUMKONG_API_COMPTIME void nk_haversine_f32(         //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results) {
-#if NUMKONG_TARGET_SKYLAKE
-    nk_haversine_f32_skylake(a_lats, a_lons, b_lats, b_lons, n, results);
-#elif NUMKONG_TARGET_HASWELL
-    nk_haversine_f32_haswell(a_lats, a_lons, b_lats, b_lons, n, results);
-#elif NUMKONG_TARGET_NEON
-    nk_haversine_f32_neon(a_lats, a_lons, b_lats, b_lons, n, results);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_haversine_f32_v128relaxed(a_lats, a_lons, b_lats, b_lons, n, results);
-#elif NUMKONG_TARGET_RVV
-    nk_haversine_f32_rvv(a_lats, a_lons, b_lats, b_lons, n, results);
-#else
-    nk_haversine_f32_serial(a_lats, a_lons, b_lats, b_lons, n, results);
-#endif
+NUMKONG_API_COMPTIME nk_status_t nk_haversine_f32_best(nk_f32_t const *a_lats, nk_f32_t const *a_lons,
+                                                       nk_f32_t const *b_lats, nk_f32_t const *b_lons, nk_size_t n,
+                                                       nk_f32_t *results, nk_capability_t capabilities, void *stream) {
+    nk_metric_geospatial_punned_t const kernel = (nk_metric_geospatial_punned_t)nk_kernel_pick_(
+        capabilities, nk_haversine_f32_capabilities_());
+    return kernel ? kernel(a_lats, a_lons, b_lats, b_lons, n, results, stream) : nk_missing_kernel_k;
 }
 
-NUMKONG_API_COMPTIME void nk_vincenty_f64(          //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results) {
-#if NUMKONG_TARGET_SKYLAKE
-    nk_vincenty_f64_skylake(a_lats, a_lons, b_lats, b_lons, n, results);
-#elif NUMKONG_TARGET_HASWELL
-    nk_vincenty_f64_haswell(a_lats, a_lons, b_lats, b_lons, n, results);
-#elif NUMKONG_TARGET_NEON
-    nk_vincenty_f64_neon(a_lats, a_lons, b_lats, b_lons, n, results);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_vincenty_f64_v128relaxed(a_lats, a_lons, b_lats, b_lons, n, results);
-#elif NUMKONG_TARGET_RVV
-    nk_vincenty_f64_rvv(a_lats, a_lons, b_lats, b_lons, n, results);
-#else
-    nk_vincenty_f64_serial(a_lats, a_lons, b_lats, b_lons, n, results);
-#endif
+NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f64_best(nk_f64_t const *a_lats, nk_f64_t const *a_lons,
+                                                      nk_f64_t const *b_lats, nk_f64_t const *b_lons, nk_size_t n,
+                                                      nk_f64_t *results, nk_capability_t capabilities, void *stream) {
+    nk_metric_geospatial_punned_t const kernel = (nk_metric_geospatial_punned_t)nk_kernel_pick_(
+        capabilities, nk_vincenty_f64_capabilities_());
+    return kernel ? kernel(a_lats, a_lons, b_lats, b_lons, n, results, stream) : nk_missing_kernel_k;
 }
 
-NUMKONG_API_COMPTIME void nk_vincenty_f32(          //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results) {
-#if NUMKONG_TARGET_SKYLAKE
-    nk_vincenty_f32_skylake(a_lats, a_lons, b_lats, b_lons, n, results);
-#elif NUMKONG_TARGET_HASWELL
-    nk_vincenty_f32_haswell(a_lats, a_lons, b_lats, b_lons, n, results);
-#elif NUMKONG_TARGET_NEON
-    nk_vincenty_f32_neon(a_lats, a_lons, b_lats, b_lons, n, results);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_vincenty_f32_v128relaxed(a_lats, a_lons, b_lats, b_lons, n, results);
-#elif NUMKONG_TARGET_RVV
-    nk_vincenty_f32_rvv(a_lats, a_lons, b_lats, b_lons, n, results);
-#else
-    nk_vincenty_f32_serial(a_lats, a_lons, b_lats, b_lons, n, results);
-#endif
+NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f32_best(nk_f32_t const *a_lats, nk_f32_t const *a_lons,
+                                                      nk_f32_t const *b_lats, nk_f32_t const *b_lons, nk_size_t n,
+                                                      nk_f32_t *results, nk_capability_t capabilities, void *stream) {
+    nk_metric_geospatial_punned_t const kernel = (nk_metric_geospatial_punned_t)nk_kernel_pick_(
+        capabilities, nk_vincenty_f32_capabilities_());
+    return kernel ? kernel(a_lats, a_lons, b_lats, b_lons, n, results, stream) : nk_missing_kernel_k;
 }
 
 #endif // !NUMKONG_RUNTIME_DISPATCH

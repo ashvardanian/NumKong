@@ -30,8 +30,9 @@ extern "C" {
 #pragma GCC target("arch=armv8-a+simd+fp8dot4")
 #endif
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_e4m3_neonfp8(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
-                                                      nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_e4m3_neonfp8(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                             nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     mfloat8x16_t a_mf8x16, b_mf8x16;
     float32x4_t a2_f32x4 = vdupq_n_f32(0), ab_f32x4 = vdupq_n_f32(0), b2_f32x4 = vdupq_n_f32(0);
 nk_sqeuclidean_e4m3_neonfp8_cycle:
@@ -53,16 +54,20 @@ nk_sqeuclidean_e4m3_neonfp8_cycle:
     b2_f32x4 = vdotq_f32_mf8_fpm(b2_f32x4, b_mf8x16, b_mf8x16, NUMKONG_FPM_E4M3_);
     if (n) goto nk_sqeuclidean_e4m3_neonfp8_cycle;
     *result = vaddvq_f32(a2_f32x4) - 2 * vaddvq_f32(ab_f32x4) + vaddvq_f32(b2_f32x4);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_e4m3_neonfp8(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
-                                                    nk_f32_t *result) {
-    nk_sqeuclidean_e4m3_neonfp8(a, b, n, result);
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_e4m3_neonfp8(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                           nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_sqeuclidean_e4m3_neonfp8(a, b, n, result, stream);
     *result = nk_f32_sqrt_neon(*result);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_e4m3_neonfp8(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
-                                                  nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_e4m3_neonfp8(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                         nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     mfloat8x16_t a_mf8x16, b_mf8x16;
     float32x4_t ab_f32x4 = vdupq_n_f32(0), a2_f32x4 = vdupq_n_f32(0), b2_f32x4 = vdupq_n_f32(0);
 nk_angular_e4m3_neonfp8_cycle:
@@ -84,10 +89,12 @@ nk_angular_e4m3_neonfp8_cycle:
     b2_f32x4 = vdotq_f32_mf8_fpm(b2_f32x4, b_mf8x16, b_mf8x16, NUMKONG_FPM_E4M3_);
     if (n) goto nk_angular_e4m3_neonfp8_cycle;
     *result = nk_angular_normalize_f32_neon_(vaddvq_f32(ab_f32x4), vaddvq_f32(a2_f32x4), vaddvq_f32(b2_f32x4));
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_e5m2_neonfp8(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
-                                                      nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_e5m2_neonfp8(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                             nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     mfloat8x16_t a_mf8x16, b_mf8x16;
     float32x4_t a2_f32x4 = vdupq_n_f32(0), ab_f32x4 = vdupq_n_f32(0), b2_f32x4 = vdupq_n_f32(0);
 nk_sqeuclidean_e5m2_neonfp8_cycle:
@@ -109,16 +116,20 @@ nk_sqeuclidean_e5m2_neonfp8_cycle:
     b2_f32x4 = vdotq_f32_mf8_fpm(b2_f32x4, b_mf8x16, b_mf8x16, NUMKONG_FPM_E5M2_);
     if (n) goto nk_sqeuclidean_e5m2_neonfp8_cycle;
     *result = vaddvq_f32(a2_f32x4) - 2 * vaddvq_f32(ab_f32x4) + vaddvq_f32(b2_f32x4);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_e5m2_neonfp8(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
-                                                    nk_f32_t *result) {
-    nk_sqeuclidean_e5m2_neonfp8(a, b, n, result);
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_e5m2_neonfp8(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                           nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_sqeuclidean_e5m2_neonfp8(a, b, n, result, stream);
     *result = nk_f32_sqrt_neon(*result);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_e5m2_neonfp8(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
-                                                  nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_e5m2_neonfp8(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                         nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     mfloat8x16_t a_mf8x16, b_mf8x16;
     float32x4_t ab_f32x4 = vdupq_n_f32(0), a2_f32x4 = vdupq_n_f32(0), b2_f32x4 = vdupq_n_f32(0);
 nk_angular_e5m2_neonfp8_cycle:
@@ -140,10 +151,12 @@ nk_angular_e5m2_neonfp8_cycle:
     b2_f32x4 = vdotq_f32_mf8_fpm(b2_f32x4, b_mf8x16, b_mf8x16, NUMKONG_FPM_E5M2_);
     if (n) goto nk_angular_e5m2_neonfp8_cycle;
     *result = nk_angular_normalize_f32_neon_(vaddvq_f32(ab_f32x4), vaddvq_f32(a2_f32x4), vaddvq_f32(b2_f32x4));
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_e2m3_neonfp8(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
-                                                      nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_e2m3_neonfp8(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                             nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     mfloat8x16_t a_mf8x16, b_mf8x16;
     float32x4_t a2_f32x4 = vdupq_n_f32(0), ab_f32x4 = vdupq_n_f32(0), b2_f32x4 = vdupq_n_f32(0);
 nk_sqeuclidean_e2m3_neonfp8_cycle:
@@ -165,16 +178,20 @@ nk_sqeuclidean_e2m3_neonfp8_cycle:
     b2_f32x4 = vdotq_f32_mf8_fpm(b2_f32x4, b_mf8x16, b_mf8x16, NUMKONG_FPM_E4M3_);
     if (n) goto nk_sqeuclidean_e2m3_neonfp8_cycle;
     *result = vaddvq_f32(a2_f32x4) - 2 * vaddvq_f32(ab_f32x4) + vaddvq_f32(b2_f32x4);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_e2m3_neonfp8(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
-                                                    nk_f32_t *result) {
-    nk_sqeuclidean_e2m3_neonfp8(a, b, n, result);
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_e2m3_neonfp8(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                           nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_sqeuclidean_e2m3_neonfp8(a, b, n, result, stream);
     *result = nk_f32_sqrt_neon(*result);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_e2m3_neonfp8(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
-                                                  nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_e2m3_neonfp8(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                         nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     mfloat8x16_t a_mf8x16, b_mf8x16;
     float32x4_t ab_f32x4 = vdupq_n_f32(0), a2_f32x4 = vdupq_n_f32(0), b2_f32x4 = vdupq_n_f32(0);
 nk_angular_e2m3_neonfp8_cycle:
@@ -196,10 +213,12 @@ nk_angular_e2m3_neonfp8_cycle:
     b2_f32x4 = vdotq_f32_mf8_fpm(b2_f32x4, b_mf8x16, b_mf8x16, NUMKONG_FPM_E4M3_);
     if (n) goto nk_angular_e2m3_neonfp8_cycle;
     *result = nk_angular_normalize_f32_neon_(vaddvq_f32(ab_f32x4), vaddvq_f32(a2_f32x4), vaddvq_f32(b2_f32x4));
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_e3m2_neonfp8(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
-                                                      nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_e3m2_neonfp8(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                             nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     mfloat8x16_t a_mf8x16, b_mf8x16;
     float32x4_t a2_f32x4 = vdupq_n_f32(0), ab_f32x4 = vdupq_n_f32(0), b2_f32x4 = vdupq_n_f32(0);
 nk_sqeuclidean_e3m2_neonfp8_cycle:
@@ -221,16 +240,20 @@ nk_sqeuclidean_e3m2_neonfp8_cycle:
     b2_f32x4 = vdotq_f32_mf8_fpm(b2_f32x4, b_mf8x16, b_mf8x16, NUMKONG_FPM_E5M2_);
     if (n) goto nk_sqeuclidean_e3m2_neonfp8_cycle;
     *result = vaddvq_f32(a2_f32x4) - 2 * vaddvq_f32(ab_f32x4) + vaddvq_f32(b2_f32x4);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_e3m2_neonfp8(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
-                                                    nk_f32_t *result) {
-    nk_sqeuclidean_e3m2_neonfp8(a, b, n, result);
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_e3m2_neonfp8(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                           nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_sqeuclidean_e3m2_neonfp8(a, b, n, result, stream);
     *result = nk_f32_sqrt_neon(*result);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_e3m2_neonfp8(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
-                                                  nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_e3m2_neonfp8(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                         nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     mfloat8x16_t a_mf8x16, b_mf8x16;
     float32x4_t ab_f32x4 = vdupq_n_f32(0), a2_f32x4 = vdupq_n_f32(0), b2_f32x4 = vdupq_n_f32(0);
 nk_angular_e3m2_neonfp8_cycle:
@@ -252,6 +275,7 @@ nk_angular_e3m2_neonfp8_cycle:
     b2_f32x4 = vdotq_f32_mf8_fpm(b2_f32x4, b_mf8x16, b_mf8x16, NUMKONG_FPM_E5M2_);
     if (n) goto nk_angular_e3m2_neonfp8_cycle;
     *result = nk_angular_normalize_f32_neon_(vaddvq_f32(ab_f32x4), vaddvq_f32(a2_f32x4), vaddvq_f32(b2_f32x4));
+    return nk_success_k;
 }
 
 #if defined(__clang__)

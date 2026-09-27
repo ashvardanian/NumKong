@@ -15,7 +15,7 @@
 #if NUMKONG_TARGET_GENOA
 
 #include "numkong/types.h"
-#include "numkong/spatial/haswell.h" // `nk_f32_sqrt_haswell`
+#include "numkong/scalar/haswell.h" // `nk_f32_sqrt_haswell`
 #include "numkong/reduce/skylake.h"  // `nk_reduce_add_f32x16_skylake_`
 
 #if defined(__cplusplus)
@@ -31,8 +31,9 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "avx512bf16", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NUMKONG_API_COMPTIME void nk_bilinear_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
-                                                 nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_bilinear_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
+                                                        nk_size_t n, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const tail_length = n % 32;
     nk_size_t const tail_start = n - tail_length;
     __mmask32 const tail_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, tail_length);
@@ -62,10 +63,12 @@ NUMKONG_API_COMPTIME void nk_bilinear_bf16_genoa(nk_bf16_t const *a, nk_bf16_t c
     }
 
     *result = _mm512_reduce_add_ps(sum_f32x16);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_mahalanobis_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
-                                                    nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_mahalanobis_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
+                                                           nk_size_t n, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const tail_length = n % 32;
     nk_size_t const tail_start = n - tail_length;
     __mmask32 const tail_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, tail_length);
@@ -108,10 +111,12 @@ NUMKONG_API_COMPTIME void nk_mahalanobis_bf16_genoa(nk_bf16_t const *a, nk_bf16_
 
     nk_f32_t quadratic = _mm512_reduce_add_ps(sum_f32x16);
     *result = nk_f32_sqrt_haswell(quadratic > 0 ? quadratic : 0);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_bilinear_bf16c_genoa(nk_bf16c_t const *a, nk_bf16c_t const *b, nk_bf16c_t const *c,
-                                                  nk_size_t n, nk_f32c_t *results) {
+NUMKONG_API_COMPTIME nk_status_t nk_bilinear_bf16c_genoa(nk_bf16c_t const *a, nk_bf16c_t const *b, nk_bf16c_t const *c,
+                                                         nk_size_t n, nk_f32c_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     // We take into account, that FMS is the same as FMA with a negative multiplier.
     // To multiply a floating-point value by -1, we can use the `XOR` instruction to flip the sign bit.
@@ -171,6 +176,7 @@ NUMKONG_API_COMPTIME void nk_bilinear_bf16c_genoa(nk_bf16c_t const *a, nk_bf16c_
     // Reduce horizontal sums:
     results->real = sum_real;
     results->imag = sum_imag;
+    return nk_success_k;
 }
 
 #if defined(__clang__)

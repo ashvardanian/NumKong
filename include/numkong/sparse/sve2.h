@@ -48,10 +48,11 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+sve+sve2")
 #endif
 
-NUMKONG_API_COMPTIME void nk_sparse_intersect_u16_sve2( //
-    nk_u16_t const *a, nk_u16_t const *b,               //
-    nk_size_t a_length, nk_size_t b_length,             //
-    nk_u16_t *result, nk_size_t *count) {
+NUMKONG_API_COMPTIME nk_status_t nk_sparse_intersect_u16_sve2( //
+    nk_u16_t const *a, nk_u16_t const *b,                      //
+    nk_size_t a_length, nk_size_t b_length,                    //
+    nk_u16_t *result, nk_size_t *count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     // A single SVE lane is 128 bits wide, so one lane fits 8 values.
     nk_size_t const register_size = svcnth();
@@ -130,16 +131,17 @@ NUMKONG_API_COMPTIME void nk_sparse_intersect_u16_sve2( //
         c += equal_count;
     }
     *count = c;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sparse_intersect_u32_sve2( //
-    nk_u32_t const *a, nk_u32_t const *b,               //
-    nk_size_t a_length, nk_size_t b_length,             //
-    nk_u32_t *result, nk_size_t *count) {
+NUMKONG_API_COMPTIME nk_status_t nk_sparse_intersect_u32_sve2( //
+    nk_u32_t const *a, nk_u32_t const *b,                      //
+    nk_size_t a_length, nk_size_t b_length,                    //
+    nk_u32_t *result, nk_size_t *count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     // A single SVE lane is 128 bits wide, so one lane fits 4 values.
     nk_size_t const register_size = svcntw();
-    nk_size_t const lanes_count = register_size / 4;
     nk_size_t a_idx = 0, b_idx = 0;
     nk_size_t c = 0;
 
@@ -237,16 +239,17 @@ NUMKONG_API_COMPTIME void nk_sparse_intersect_u32_sve2( //
         c += equal_count;
     }
     *count = c;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sparse_intersect_u64_sve2( //
-    nk_u64_t const *a, nk_u64_t const *b,               //
-    nk_size_t a_length, nk_size_t b_length,             //
-    nk_u64_t *result, nk_size_t *count) {
+NUMKONG_API_COMPTIME nk_status_t nk_sparse_intersect_u64_sve2( //
+    nk_u64_t const *a, nk_u64_t const *b,                      //
+    nk_size_t a_length, nk_size_t b_length,                    //
+    nk_u64_t *result, nk_size_t *count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     // A single SVE lane is 128 bits wide, so one lane fits 2 values.
     nk_size_t const register_size = svcntd();
-    nk_size_t const lanes_count = register_size / 2;
     nk_size_t a_idx = 0, b_idx = 0;
     nk_size_t c = 0;
 
@@ -313,16 +316,17 @@ NUMKONG_API_COMPTIME void nk_sparse_intersect_u64_sve2( //
         c += equal_count;
     }
     *count = c;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sparse_dot_u32f32_sve2(      //
-    nk_u32_t const *a, nk_u32_t const *b,                 //
-    nk_f32_t const *a_weights, nk_f32_t const *b_weights, //
-    nk_size_t a_length, nk_size_t b_length,               //
-    nk_f64_t *product) {
+NUMKONG_API_COMPTIME nk_status_t nk_sparse_dot_u32f32_sve2( //
+    nk_u32_t const *a, nk_u32_t const *b,                   //
+    nk_f32_t const *a_weights, nk_f32_t const *b_weights,   //
+    nk_size_t a_length, nk_size_t b_length,                 //
+    nk_f64_t *product, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     nk_size_t const register_size = svcntw();
-    nk_size_t const vector_length_f64 = svcntd();
     nk_size_t a_idx = 0, b_idx = 0;
     svbool_t const predicate_all_b32x = svptrue_b32();
     svbool_t const predicate_all_b64x = svptrue_b64();
@@ -410,13 +414,15 @@ NUMKONG_API_COMPTIME void nk_sparse_dot_u32f32_sve2(      //
         b_idx += b_step;
     }
     *product = nk_svaddv_f64_(predicate_all_b64x, product_f64x);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sparse_dot_u16bf16_sve2(       //
-    nk_u16_t const *a, nk_u16_t const *b,                   //
-    nk_bf16_t const *a_weights, nk_bf16_t const *b_weights, //
-    nk_size_t a_length, nk_size_t b_length,                 //
-    nk_f32_t *product) {
+NUMKONG_API_COMPTIME nk_status_t nk_sparse_dot_u16bf16_sve2( //
+    nk_u16_t const *a, nk_u16_t const *b,                    //
+    nk_bf16_t const *a_weights, nk_bf16_t const *b_weights,  //
+    nk_size_t a_length, nk_size_t b_length,                  //
+    nk_f32_t *product, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     // Mirrors `nk_sparse_dot_u32f32_sve2`, widening the 16-bit indices on load. `svmatch_u16`
     // only reports that a lane matched, never which, so pairing weights by lane index is wrong;
@@ -495,6 +501,7 @@ NUMKONG_API_COMPTIME void nk_sparse_dot_u16bf16_sve2(       //
         b_idx += b_step;
     }
     *product = nk_svaddv_f32_(svptrue_b32(), product_f32x);
+    return nk_success_k;
 }
 
 #if defined(__clang__)

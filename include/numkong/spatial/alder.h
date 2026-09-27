@@ -46,7 +46,9 @@ extern "C" {
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2", "avxvnni")
 #endif
 
-NUMKONG_API_COMPTIME void nk_angular_i8_alder(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_i8_alder(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result,
+                                                     void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Angular distance using DPBUSD with algebraic transformation for signed x signed.
     //
     // For angular distance we need: dot(a,b), ||a||^2, ||b||^2
@@ -106,9 +108,12 @@ NUMKONG_API_COMPTIME void nk_angular_i8_alder(nk_i8_t const *a, nk_i8_t const *b
 
     *result = nk_angular_normalize_f32_haswell_((nk_f32_t)dot_product_i32, (nk_f32_t)a_norm_sq_i32,
                                                 (nk_f32_t)b_norm_sq_i32);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_i8_alder(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_i8_alder(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n,
+                                                         nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Squared Euclidean distance for i8 using DPBUSD with norm decomposition.
     // ||a-b||^2 = ||a||^2 + ||b||^2 - 2*dot(a,b)
     //
@@ -153,15 +158,21 @@ NUMKONG_API_COMPTIME void nk_sqeuclidean_i8_alder(nk_i8_t const *a, nk_i8_t cons
 
     // ||a-b||^2 = ||a||^2 + ||b||^2 - 2*dot(a,b)
     *result = (nk_u32_t)(a_norm_sq_i32 + b_norm_sq_i32 - 2 * dot_product_i32);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_i8_alder(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_i8_alder(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n,
+                                                       nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t distance_sq_u32;
-    nk_sqeuclidean_i8_alder(a, b, n, &distance_sq_u32);
+    nk_sqeuclidean_i8_alder(a, b, n, &distance_sq_u32, stream);
     *result = nk_f32_sqrt_haswell((nk_f32_t)distance_sq_u32);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_u8_alder(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_u8_alder(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
+                                                         nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Squared Euclidean distance for u8 using DPBUSD with norm decomposition.
     // ||a-b||^2 = ||a||^2 + ||b||^2 - 2*dot(a,b)
     //
@@ -208,15 +219,21 @@ NUMKONG_API_COMPTIME void nk_sqeuclidean_u8_alder(nk_u8_t const *a, nk_u8_t cons
     }
 
     *result = (nk_u32_t)(a_norm_sq_i32 + b_norm_sq_i32 - 2 * dot_product_i32);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_u8_alder(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_u8_alder(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
+                                                       nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t distance_sq_u32;
-    nk_sqeuclidean_u8_alder(a, b, n, &distance_sq_u32);
+    nk_sqeuclidean_u8_alder(a, b, n, &distance_sq_u32, stream);
     *result = nk_f32_sqrt_haswell((nk_f32_t)distance_sq_u32);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_u8_alder(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_u8_alder(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result,
+                                                     void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Angular distance for u8 using DPBUSD with algebraic transformation.
     // dpbusd(a, b'^0x80) = a*(b-128), so dot(a,b) = dpbusd(a,b') + 128*sum(a)
     //
@@ -259,10 +276,12 @@ NUMKONG_API_COMPTIME void nk_angular_u8_alder(nk_u8_t const *a, nk_u8_t const *b
 
     *result = nk_angular_normalize_f32_haswell_((nk_f32_t)dot_product_i32, (nk_f32_t)a_norm_sq_i32,
                                                 (nk_f32_t)b_norm_sq_i32);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_e2m3_alder(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
-                                                nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_e2m3_alder(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
+                                                       nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Angular distance for e2m3 using dual-VPSHUFB LUT + VPDPBUSD norm decomposition.
     // Every e2m3 value × 16 is an exact integer in [-120, +120].
     // We compute dot(a,b), ||a||^2, ||b||^2 in scaled integer domain,
@@ -334,10 +353,12 @@ nk_angular_e2m3_alder_cycle:
     nk_i32_t b_norm_i32 = nk_reduce_add_i32x8_haswell_(b_norm_i32x8);
     // The 256.0f factor cancels in the angular normalization ratio
     *result = nk_angular_normalize_f32_haswell_((nk_f32_t)dot_i32, (nk_f32_t)a_norm_i32, (nk_f32_t)b_norm_i32);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_e2m3_alder(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
-                                                    nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_e2m3_alder(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
+                                                           nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Squared Euclidean distance for e2m3 using norm decomposition:
     // ||a-b||^2 = ||a||^2 + ||b||^2 - 2*dot(a,b)
     // Each value × 16 is exact integer, so result = integer_result / 256.0f
@@ -404,16 +425,20 @@ nk_sqeuclidean_e2m3_alder_cycle:
     nk_i32_t b_norm_i32 = nk_reduce_add_i32x8_haswell_(b_norm_i32x8);
     // ||a-b||^2 = ||a||^2 + ||b||^2 - 2*dot(a,b), scaled by 256
     *result = (nk_f32_t)(a_norm_i32 + b_norm_i32 - 2 * dot_i32) / 256.0f;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_e2m3_alder(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
-                                                  nk_f32_t *result) {
-    nk_sqeuclidean_e2m3_alder(a, b, n, result);
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_e2m3_alder(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                         nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_sqeuclidean_e2m3_alder(a, b, n, result, stream);
     *result = nk_f32_sqrt_haswell(*result);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_e3m2_alder(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
-                                                nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_e3m2_alder(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
+                                                       nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Angular distance for e3m2 using dual-VPSHUFB LUT decode to i16 + VPDPWSSD norm decomposition.
     // Every e3m2 value × 16 is an exact integer (max magnitude 448), requiring i16.
     // VPDPWSSD replaces Haswell's VPMADDWD + VPADDD, saving one instruction per accumulation.
@@ -506,10 +531,12 @@ nk_angular_e3m2_alder_cycle:
     nk_i32_t b_norm_i32 = nk_reduce_add_i32x8_haswell_(b_norm_i32x8);
     // The 256.0f factor cancels in the angular normalization ratio
     *result = nk_angular_normalize_f32_haswell_((nk_f32_t)dot_i32, (nk_f32_t)a_norm_i32, (nk_f32_t)b_norm_i32);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_e3m2_alder(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
-                                                    nk_size_t count_scalars, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_e3m2_alder(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
+                                                           nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Squared Euclidean distance for e3m2 via direct difference squaring.
     // Computes Σ(a_i − b_i)² using signed i16 subtraction + VPMADDWD self-multiply.
     // 2 VPMADDWDs per 32 elements (one per i16 half). 0 ULP.
@@ -593,12 +620,15 @@ nk_sqeuclidean_e3m2_alder_cycle:
 
     if (count_scalars) goto nk_sqeuclidean_e3m2_alder_cycle;
     *result = (nk_f32_t)nk_reduce_add_i32x8_haswell_(sum_i32x8) / 256.0f;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_e3m2_alder(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
-                                                  nk_f32_t *result) {
-    nk_sqeuclidean_e3m2_alder(a, b, n, result);
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_e3m2_alder(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                         nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_sqeuclidean_e3m2_alder(a, b, n, result, stream);
     *result = nk_f32_sqrt_haswell(*result);
+    return nk_success_k;
 }
 
 #if defined(__clang__)

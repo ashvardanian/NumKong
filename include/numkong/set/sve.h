@@ -51,15 +51,14 @@ extern "C" {
 
 #pragma region Binary Sets
 
-NUMKONG_API_COMPTIME void nk_hamming_u1_sve(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_sve(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
+                                                   nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
 
     // On very small register sizes, NEON is at least as fast as SVE.
     nk_size_t const words_per_register = svcntb();
-    if (words_per_register <= 32) {
-        nk_hamming_u1_neon(a, b, n, result);
-        return;
-    }
+    if (words_per_register <= 32) { return nk_hamming_u1_neon(a, b, n, result, stream); }
 
     // On larger register sizes, SVE is faster.
     nk_size_t i = 0, cycle = 0;
@@ -82,17 +81,17 @@ NUMKONG_API_COMPTIME void nk_hamming_u1_sve(nk_u1x8_t const *a, nk_u1x8_t const 
     }
 
     *result = differences;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_jaccard_u1_sve(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_sve(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
+                                                   nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
 
     // On very small register sizes, NEON is at least as fast as SVE.
     nk_size_t const words_per_register = svcntb();
-    if (words_per_register <= 32) {
-        nk_jaccard_u1_neon(a, b, n, result);
-        return;
-    }
+    if (words_per_register <= 32) { return nk_jaccard_u1_neon(a, b, n, result, stream); }
 
     // On larger register sizes, SVE is faster.
     nk_size_t i = 0, cycle = 0;
@@ -121,13 +120,16 @@ NUMKONG_API_COMPTIME void nk_jaccard_u1_sve(nk_u1x8_t const *a, nk_u1x8_t const 
     }
 
     *result = (union_count != 0) ? 1.0f - (nk_f32_t)intersection_count / (nk_f32_t)union_count : 0.0f;
+    return nk_success_k;
 }
 
 #pragma endregion Binary Sets
 
 #pragma region Integer Sets
 
-NUMKONG_API_COMPTIME void nk_jaccard_u32_sve(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u32_sve(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result,
+                                                    void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const words_per_register = svcntw();
     nk_size_t i = 0;
     nk_u32_t intersection_count = 0;
@@ -140,9 +142,12 @@ NUMKONG_API_COMPTIME void nk_jaccard_u32_sve(nk_u32_t const *a, nk_u32_t const *
         i += words_per_register;
     }
     *result = (n != 0) ? 1.0f - (nk_f32_t)intersection_count / (nk_f32_t)n : 0.0f;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_hamming_u8_sve(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_hamming_u8_sve(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
+                                                   void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const bytes_per_register = svcntb();
     nk_size_t i = 0;
     nk_u32_t differences = 0;
@@ -155,9 +160,12 @@ NUMKONG_API_COMPTIME void nk_hamming_u8_sve(nk_u8_t const *a, nk_u8_t const *b, 
         i += bytes_per_register;
     }
     *result = differences;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_jaccard_u16_sve(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u16_sve(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                    void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const halfwords_per_register = svcnth();
     nk_size_t i = 0;
     nk_u32_t intersection_count = 0;
@@ -170,6 +178,7 @@ NUMKONG_API_COMPTIME void nk_jaccard_u16_sve(nk_u16_t const *a, nk_u16_t const *
         i += halfwords_per_register;
     }
     *result = (n != 0) ? 1.0f - (nk_f32_t)intersection_count / (nk_f32_t)n : 0.0f;
+    return nk_success_k;
 }
 
 #pragma endregion Integer Sets

@@ -21,7 +21,8 @@
 #include "numkong/types.h"
 #include "numkong/probability/serial.h" // `nk_kld_f64_serial`, `nk_jsd_f64_serial`
 #include "numkong/cast/rvv.h"           // `nk_f16m1_to_f32m2_rvv_`, `nk_bf16m1_to_f32m2_rvv_`
-#include "numkong/spatial/rvv.h"        // `nk_f32_sqrt_rvv`
+#include "numkong/scalar/rvv.h"         // `nk_f32_sqrt_rvv`
+#include "numkong/spatial/rvv.h"        // `nk_f32m2_reciprocal_rvv_`
 
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=+v"))), apply_to = function)
@@ -33,58 +34,6 @@
 #if defined(__cplusplus)
 extern "C" {
 #endif
-
-/**
- *  @brief Computes log₂(x) for a vector of f32 values using IEEE 754 bit manipulation and a 5-term
- *      Horner polynomial, matching the Haswell log2 approximation.
- *
- *  Decomposes each float into exponent and mantissa, evaluates poly(m) via Horner's method, and
- *  returns log₂(x) = exponent + poly × (m − 1):
- *
- *  @verbatim
- *  exponent = (bits >> 23) - 127
- *  mantissa = (bits & 0x007FFFFF) | 0x3F800000, yielding m in [1, 2)
- *  poly = -3.4436006e-2f
- *  poly = poly * m + 3.1821337e-1f
- *  poly = poly * m - 1.2315303f
- *  poly = poly * m + 2.5988452f
- *  poly = poly * m - 3.3241990f
- *  poly = poly * m + 3.1157899f
- *  @endverbatim
- */
-NUMKONG_HELPER_INLINE vfloat32m4_t nk_log2_f32m4_rvv_(vfloat32m4_t x, nk_size_t vector_length) {
-    vuint32m4_t bits_u32m4 = __riscv_vreinterpret_v_f32m4_u32m4(x);
-
-    // Extract exponent: (bits >> 23) - 127
-    vuint32m4_t exponent_u32m4 = __riscv_vsrl_vx_u32m4(bits_u32m4, 23, vector_length);
-    vint32m4_t exponent_i32m4 = __riscv_vsub_vx_i32m4(__riscv_vreinterpret_v_u32m4_i32m4(exponent_u32m4), 127,
-                                                      vector_length);
-    vfloat32m4_t exponent_f32m4 = __riscv_vfcvt_f_x_v_f32m4(exponent_i32m4, vector_length);
-
-    // Extract mantissa: set exponent field to 0 (bias 127), so value is in [1, 2)
-    vuint32m4_t mantissa_u32m4 = __riscv_vor_vx_u32m4(__riscv_vand_vx_u32m4(bits_u32m4, 0x007FFFFF, vector_length),
-                                                      0x3F800000, vector_length);
-    vfloat32m4_t mantissa_f32m4 = __riscv_vreinterpret_v_u32m4_f32m4(mantissa_u32m4);
-
-    // Horner polynomial evaluation:
-    //   vfmadd_vv(vd, vs1, vs2) computes vd = vd * vs1 + vs2
-    //   So poly = vfmadd(poly, m, coeff) means poly = poly * m + coeff
-    vfloat32m4_t poly_f32m4 = __riscv_vfmv_v_f_f32m4(-3.4436006e-2f, vector_length);
-    poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, mantissa_f32m4,
-                                         __riscv_vfmv_v_f_f32m4(3.1821337e-1f, vector_length), vector_length);
-    poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, mantissa_f32m4, __riscv_vfmv_v_f_f32m4(-1.2315303f, vector_length),
-                                         vector_length);
-    poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, mantissa_f32m4, __riscv_vfmv_v_f_f32m4(2.5988452f, vector_length),
-                                         vector_length);
-    poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, mantissa_f32m4, __riscv_vfmv_v_f_f32m4(-3.3241990f, vector_length),
-                                         vector_length);
-    poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, mantissa_f32m4, __riscv_vfmv_v_f_f32m4(3.1157899f, vector_length),
-                                         vector_length);
-
-    // result = exponent + poly * (m - 1)
-    vfloat32m4_t m_minus_1_f32m4 = __riscv_vfsub_vf_f32m4(mantissa_f32m4, 1.0f, vector_length);
-    return __riscv_vfmacc_vv_f32m4(exponent_f32m4, poly_f32m4, m_minus_1_f32m4, vector_length);
-}
 
 NUMKONG_HELPER_INLINE vfloat32m2_t nk_log2_f32m2_rvv_(vfloat32m2_t x, nk_size_t vector_length) {
     vuint32m2_t bits_u32m2 = __riscv_vreinterpret_v_f32m2_u32m2(x);
@@ -171,7 +120,9 @@ NUMKONG_HELPER_INLINE vfloat64m4_t nk_log2_f64m4_rvv_(vfloat64m4_t x, nk_size_t 
 
 #pragma region Kullback Leibler Divergence
 
-NUMKONG_API_COMPTIME void nk_kld_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_kld_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                                void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t vector_length_max = __riscv_vsetvlmax_e64m4();
     vfloat64m4_t sum_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, vector_length_max);
     for (nk_size_t vector_length; n > 0; n -= vector_length, a += vector_length, b += vector_length) {
@@ -193,9 +144,12 @@ NUMKONG_API_COMPTIME void nk_kld_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, n
     vfloat64m1_t zero_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, 1);
     *result = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m4_f64m1(sum_f64m4, zero_f64m1, vector_length_max)) *
               NUMKONG_F64_LN2_;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_kld_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_kld_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                                void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
     vfloat64m4_t sum_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
     for (nk_size_t vector_length; n > 0; n -= vector_length, a += vector_length, b += vector_length) {
@@ -218,9 +172,12 @@ NUMKONG_API_COMPTIME void nk_kld_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, n
     // Convert from log2 to ln by multiplying by ln(2)
     *result = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m4_f64m1(sum_f64m4, zero_f64m1, max_vector_length)) *
               NUMKONG_F64_LN2_;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_kld_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_kld_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m2_t sum_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
     for (nk_size_t vector_length; n > 0; n -= vector_length, a += vector_length, b += vector_length) {
@@ -246,9 +203,12 @@ NUMKONG_API_COMPTIME void nk_kld_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, n
     vfloat32m1_t zero_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
     *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m2_f32m1(sum_f32m2, zero_f32m1, max_vector_length)) *
               NUMKONG_F32_LN2_;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_kld_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_kld_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                 void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m2_t sum_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
     for (nk_size_t vector_length; n > 0; n -= vector_length, a += vector_length, b += vector_length) {
@@ -274,13 +234,16 @@ NUMKONG_API_COMPTIME void nk_kld_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b
     vfloat32m1_t zero_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
     *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m2_f32m1(sum_f32m2, zero_f32m1, max_vector_length)) *
               NUMKONG_F32_LN2_;
+    return nk_success_k;
 }
 
 #pragma endregion Kullback Leibler Divergence
 
 #pragma region Jensen Shannon Divergence
 
-NUMKONG_API_COMPTIME void nk_jsd_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_jsd_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                                void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t vector_length_max = __riscv_vsetvlmax_e64m4();
     vfloat64m4_t sum_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, vector_length_max);
     for (nk_size_t vector_length; n > 0; n -= vector_length, a += vector_length, b += vector_length) {
@@ -312,9 +275,12 @@ NUMKONG_API_COMPTIME void nk_jsd_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, n
                        __riscv_vfredusum_vs_f64m4_f64m1(sum_f64m4, zero_f64m1, vector_length_max)) *
                    NUMKONG_F64_LN2_ / 2.0;
     *result = sum > 0 ? nk_f64_sqrt_rvv(sum) : 0;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_jsd_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_jsd_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                                void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
     vfloat64m4_t sum_a_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
     vfloat64m4_t sum_b_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
@@ -347,9 +313,12 @@ NUMKONG_API_COMPTIME void nk_jsd_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, n
                        max_vector_length)) *
                    NUMKONG_F64_LN2_ / 2;
     *result = sum > 0 ? nk_f64_sqrt_rvv(sum) : 0;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_jsd_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_jsd_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m2_t sum_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
     for (nk_size_t vector_length; n > 0; n -= vector_length, a += vector_length, b += vector_length) {
@@ -385,9 +354,12 @@ NUMKONG_API_COMPTIME void nk_jsd_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, n
                        __riscv_vfredusum_vs_f32m2_f32m1(sum_f32m2, zero_f32m1, max_vector_length)) *
                    NUMKONG_F32_LN2_ / 2;
     *result = sum > 0 ? nk_f32_sqrt_rvv(sum) : 0;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_jsd_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_jsd_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                 void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m2_t sum_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
     for (nk_size_t vector_length; n > 0; n -= vector_length, a += vector_length, b += vector_length) {
@@ -423,6 +395,7 @@ NUMKONG_API_COMPTIME void nk_jsd_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b
                        __riscv_vfredusum_vs_f32m2_f32m1(sum_f32m2, zero_f32m1, max_vector_length)) *
                    NUMKONG_F32_LN2_ / 2;
     *result = sum > 0 ? nk_f32_sqrt_rvv(sum) : 0;
+    return nk_success_k;
 }
 
 #pragma endregion Jensen Shannon Divergence

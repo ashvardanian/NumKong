@@ -62,22 +62,19 @@ NUMKONG_HELPER_INLINE uint16x8_t nk_intersect_u16x8_neon_(uint16x8_t a, uint16x8
     return matches_u16x8;
 }
 
-NUMKONG_API_COMPTIME void nk_sparse_intersect_u16_neon( //
-    nk_u16_t const *a, nk_u16_t const *b,               //
-    nk_size_t a_length, nk_size_t b_length,             //
-    nk_u16_t *result, nk_size_t *count) {
+NUMKONG_API_COMPTIME nk_status_t nk_sparse_intersect_u16_neon( //
+    nk_u16_t const *a, nk_u16_t const *b,                      //
+    nk_size_t a_length, nk_size_t b_length,                    //
+    nk_u16_t *result, nk_size_t *count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     // NEON lacks compress-store, so fall back to serial for result output
-    if (result) {
-        nk_sparse_intersect_u16_serial(a, b, a_length, b_length, result, count);
-        return;
-    }
+    if (result) { return nk_sparse_intersect_u16_serial(a, b, a_length, b_length, result, count, stream); }
 
 #if NUMKONG_ALLOW_ISA_REDIRECT
     // The baseline implementation for very small arrays (2 registers or less) can be quite simple:
     if (a_length < 32 && b_length < 32) {
-        nk_sparse_intersect_u16_serial(a, b, a_length, b_length, result, count);
-        return;
+        return nk_sparse_intersect_u16_serial(a, b, a_length, b_length, result, count, stream);
     }
 #endif
 
@@ -129,26 +126,24 @@ NUMKONG_API_COMPTIME void nk_sparse_intersect_u16_neon( //
     }
 
     nk_size_t tail_count = 0;
-    nk_sparse_intersect_u16_serial(a, b, a_end - a, b_end - b, 0, &tail_count);
+    nk_sparse_intersect_u16_serial(a, b, a_end - a, b_end - b, 0, &tail_count, stream);
     *count = tail_count + (nk_size_t)vaddvq_u16(c_counts_u16x8);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sparse_intersect_u32_neon( //
-    nk_u32_t const *a, nk_u32_t const *b,               //
-    nk_size_t a_length, nk_size_t b_length,             //
-    nk_u32_t *result, nk_size_t *count) {
+NUMKONG_API_COMPTIME nk_status_t nk_sparse_intersect_u32_neon( //
+    nk_u32_t const *a, nk_u32_t const *b,                      //
+    nk_size_t a_length, nk_size_t b_length,                    //
+    nk_u32_t *result, nk_size_t *count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     // NEON lacks compress-store, so fall back to serial for result output
-    if (result) {
-        nk_sparse_intersect_u32_serial(a, b, a_length, b_length, result, count);
-        return;
-    }
+    if (result) { return nk_sparse_intersect_u32_serial(a, b, a_length, b_length, result, count, stream); }
 
 #if NUMKONG_ALLOW_ISA_REDIRECT
     // The baseline implementation for very small arrays (2 registers or less) can be quite simple:
     if (a_length < 32 && b_length < 32) {
-        nk_sparse_intersect_u32_serial(a, b, a_length, b_length, result, count);
-        return;
+        return nk_sparse_intersect_u32_serial(a, b, a_length, b_length, result, count, stream);
     }
 #endif
 
@@ -196,8 +191,9 @@ NUMKONG_API_COMPTIME void nk_sparse_intersect_u32_neon( //
     }
 
     nk_size_t tail_count = 0;
-    nk_sparse_intersect_u32_serial(a, b, a_end - a, b_end - b, 0, &tail_count);
+    nk_sparse_intersect_u32_serial(a, b, a_end - a, b_end - b, 0, &tail_count, stream);
     *count = tail_count + (nk_size_t)vaddvq_u32(c_counts_u32x4);
+    return nk_success_k;
 }
 
 NUMKONG_HELPER_INLINE uint64x2_t nk_intersect_u64x2_neon_(uint64x2_t a, uint64x2_t b) {
@@ -208,22 +204,19 @@ NUMKONG_HELPER_INLINE uint64x2_t nk_intersect_u64x2_neon_(uint64x2_t a, uint64x2
     return matches_u64x2;
 }
 
-NUMKONG_API_COMPTIME void nk_sparse_intersect_u64_neon( //
-    nk_u64_t const *a, nk_u64_t const *b,               //
-    nk_size_t a_length, nk_size_t b_length,             //
-    nk_u64_t *result, nk_size_t *count) {
+NUMKONG_API_COMPTIME nk_status_t nk_sparse_intersect_u64_neon( //
+    nk_u64_t const *a, nk_u64_t const *b,                      //
+    nk_size_t a_length, nk_size_t b_length,                    //
+    nk_u64_t *result, nk_size_t *count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     // NEON lacks compress-store, so fall back to serial for result output
-    if (result) {
-        nk_sparse_intersect_u64_serial(a, b, a_length, b_length, result, count);
-        return;
-    }
+    if (result) { return nk_sparse_intersect_u64_serial(a, b, a_length, b_length, result, count, stream); }
 
 #if NUMKONG_ALLOW_ISA_REDIRECT
     // The baseline implementation for very small arrays (2 registers or less) can be quite simple:
     if (a_length < 8 && b_length < 8) {
-        nk_sparse_intersect_u64_serial(a, b, a_length, b_length, result, count);
-        return;
+        return nk_sparse_intersect_u64_serial(a, b, a_length, b_length, result, count, stream);
     }
 #endif
 
@@ -272,8 +265,9 @@ NUMKONG_API_COMPTIME void nk_sparse_intersect_u64_neon( //
     }
 
     nk_size_t tail_count = 0;
-    nk_sparse_intersect_u64_serial(a, b, a_end - a, b_end - b, 0, &tail_count);
+    nk_sparse_intersect_u64_serial(a, b, a_end - a, b_end - b, 0, &tail_count, stream);
     *count = tail_count + (nk_size_t)vaddvq_u64(c_counts_u64x2);
+    return nk_success_k;
 }
 
 #if defined(__clang__)

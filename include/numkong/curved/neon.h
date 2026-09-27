@@ -30,7 +30,7 @@
 #if NUMKONG_TARGET_NEON
 
 #include "numkong/types.h"
-#include "numkong/spatial/neon.h" // nk_f64_sqrt_neon
+#include "numkong/scalar/neon.h" // `nk_f64_sqrt_neon`
 #include "numkong/dot/serial.h"   // `nk_dot_f16c_serial`, `nk_vdot_f16c_serial`
 
 #if defined(__cplusplus)
@@ -44,8 +44,9 @@ extern "C" {
 #pragma GCC target("arch=armv8-a+simd")
 #endif
 
-NUMKONG_API_COMPTIME void nk_bilinear_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                               nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c,
+                                                      nk_size_t n, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t outer_sum_f64 = 0;
 
     for (nk_size_t i = 0; i != n; ++i) {
@@ -81,10 +82,12 @@ NUMKONG_API_COMPTIME void nk_bilinear_f32_neon(nk_f32_t const *a, nk_f32_t const
     }
 
     *result = outer_sum_f64;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_mahalanobis_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                                  nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_mahalanobis_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c,
+                                                         nk_size_t n, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t outer_sum_f64 = 0;
 
     for (nk_size_t i = 0; i != n; ++i) {
@@ -127,10 +130,13 @@ NUMKONG_API_COMPTIME void nk_mahalanobis_f32_neon(nk_f32_t const *a, nk_f32_t co
 
     // Take square root of the result (clamp to 0 for numerical stability)
     *result = nk_f64_sqrt_neon(outer_sum_f64 > 0 ? outer_sum_f64 : 0);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_bilinear_f32c_neon(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs,
-                                                nk_f32c_t const *c_pairs, nk_size_t n, nk_f64c_t *results) {
+NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f32c_neon(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs,
+                                                       nk_f32c_t const *c_pairs, nk_size_t n, nk_f64c_t *results,
+                                                       void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // ARMv8.3-A FCMLA (`vcmlaq_f32`) was benchmarked for this complex inner loop.
     // The deinterleave+4FMA pattern is 2.3x faster on Apple M4 — see `dot/neon.h` comment.
     nk_f64_t outer_sum_real_f64 = 0;
@@ -189,10 +195,12 @@ NUMKONG_API_COMPTIME void nk_bilinear_f32c_neon(nk_f32c_t const *a_pairs, nk_f32
 
     results->real = outer_sum_real_f64;
     results->imag = outer_sum_imag_f64;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_bilinear_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                               nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c,
+                                                      nk_size_t n, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t outer_sum = 0;
     for (nk_size_t row = 0; row != n; ++row) {
         nk_f16_t const *c_row = c + row * n;
@@ -220,10 +228,12 @@ NUMKONG_API_COMPTIME void nk_bilinear_f16_neon(nk_f16_t const *a, nk_f16_t const
         outer_sum += a_row * inner_sum;
     }
     *result = outer_sum;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_mahalanobis_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                                  nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_mahalanobis_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c,
+                                                         nk_size_t n, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t outer_sum = 0;
     for (nk_size_t row = 0; row != n; ++row) {
         nk_f16_t const *c_row = c + row * n;
@@ -260,10 +270,13 @@ NUMKONG_API_COMPTIME void nk_mahalanobis_f16_neon(nk_f16_t const *a, nk_f16_t co
     }
     nk_f32_t quadratic = outer_sum;
     *result = nk_f32_sqrt_neon(quadratic > 0 ? quadratic : 0);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_bilinear_f16c_neon(nk_f16c_t const *a_pairs, nk_f16c_t const *b_pairs,
-                                                nk_f16c_t const *c_pairs, nk_size_t n, nk_f32c_t *results) {
+NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f16c_neon(nk_f16c_t const *a_pairs, nk_f16c_t const *b_pairs,
+                                                       nk_f16c_t const *c_pairs, nk_size_t n, nk_f32c_t *results,
+                                                       void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t outer_sum_real = 0;
     nk_f32_t outer_sum_imag = 0;
     for (nk_size_t row = 0; row != n; ++row) {
@@ -314,6 +327,7 @@ NUMKONG_API_COMPTIME void nk_bilinear_f16c_neon(nk_f16c_t const *a_pairs, nk_f16
     }
     results->real = outer_sum_real;
     results->imag = outer_sum_imag;
+    return nk_success_k;
 }
 
 #if defined(__clang__)

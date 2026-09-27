@@ -218,8 +218,9 @@ NUMKONG_HELPER_INLINE nk_f32_t nk_angular_normalize_f32_haswell_(nk_f32_t ab, nk
 
 #pragma region F16 and BF16 Floats
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
-                                                     nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                            nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256 a_f32x8, b_f32x8;
     __m256 distance_sq_f32x8 = _mm256_setzero_ps();
 
@@ -242,15 +243,20 @@ nk_sqeuclidean_f16_haswell_cycle:
     if (n) goto nk_sqeuclidean_f16_haswell_cycle;
 
     *result = nk_reduce_add_f32x8_haswell_(distance_sq_f32x8);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
-                                                   nk_f32_t *result) {
-    nk_sqeuclidean_f16_haswell(a, b, n, result);
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                          nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_sqeuclidean_f16_haswell(a, b, n, result, stream);
     *result = nk_f32_sqrt_haswell(*result);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                        nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256 a_f32x8, b_f32x8;
     __m256 dot_product_f32x8 = _mm256_setzero_ps(), a_norm_sq_f32x8 = _mm256_setzero_ps(),
            b_norm_sq_f32x8 = _mm256_setzero_ps();
@@ -278,10 +284,12 @@ nk_angular_f16_haswell_cycle:
     nk_f32_t a_norm_sq_f32 = nk_reduce_add_f32x8_haswell_(a_norm_sq_f32x8);
     nk_f32_t b_norm_sq_f32 = nk_reduce_add_f32x8_haswell_(b_norm_sq_f32x8);
     *result = nk_angular_normalize_f32_haswell_(dot_product_f32, a_norm_sq_f32, b_norm_sq_f32);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                      nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                             nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256i a_bf16_i16x16, b_bf16_i16x16;
     __m256 distance_sq_f32x8 = _mm256_setzero_ps();
     __m256i mask_high_u32x8 = _mm256_set1_epi32((int)0xFFFF0000);
@@ -311,16 +319,20 @@ nk_sqeuclidean_bf16_haswell_cycle:
     if (n) goto nk_sqeuclidean_bf16_haswell_cycle;
 
     *result = nk_reduce_add_f32x8_haswell_(distance_sq_f32x8);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                    nk_f32_t *result) {
-    nk_sqeuclidean_bf16_haswell(a, b, n, result);
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                           nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_sqeuclidean_bf16_haswell(a, b, n, result, stream);
     *result = nk_f32_sqrt_haswell(*result);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                  nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                         nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256i a_bf16_i16x16, b_bf16_i16x16;
     __m256 dot_product_f32x8 = _mm256_setzero_ps(), a_norm_sq_f32x8 = _mm256_setzero_ps(),
            b_norm_sq_f32x8 = _mm256_setzero_ps();
@@ -356,12 +368,15 @@ nk_angular_bf16_haswell_cycle:
     nk_f32_t a_norm_sq_f32 = nk_reduce_add_f32x8_haswell_(a_norm_sq_f32x8);
     nk_f32_t b_norm_sq_f32 = nk_reduce_add_f32x8_haswell_(b_norm_sq_f32x8);
     *result = nk_angular_normalize_f32_haswell_(dot_product_f32, a_norm_sq_f32, b_norm_sq_f32);
+    return nk_success_k;
 }
 
 #pragma endregion F16 and BF16 Floats
 #pragma region I8 and U8 Integers
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_i8_haswell(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_i8_haswell(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n,
+                                                           nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Optimized i8 L2-squared using saturating subtract + VPMADDWD
     //
     // Approach:
@@ -421,15 +436,21 @@ NUMKONG_API_COMPTIME void nk_sqeuclidean_i8_haswell(nk_i8_t const *a, nk_i8_t co
     }
 
     *result = (nk_u32_t)distance_sq_i32;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_i8_haswell(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_i8_haswell(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n,
+                                                         nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t distance_sq_u32;
-    nk_sqeuclidean_i8_haswell(a, b, n, &distance_sq_u32);
+    nk_sqeuclidean_i8_haswell(a, b, n, &distance_sq_u32, stream);
     *result = nk_f32_sqrt_haswell((nk_f32_t)distance_sq_u32);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_i8_haswell(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_i8_haswell(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n,
+                                                       nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     __m256i dot_product_i32x8 = _mm256_setzero_si256();
     __m256i a_norm_sq_i32x8 = _mm256_setzero_si256();
@@ -477,9 +498,12 @@ NUMKONG_API_COMPTIME void nk_angular_i8_haswell(nk_i8_t const *a, nk_i8_t const 
 
     *result = nk_angular_normalize_f32_haswell_((nk_f32_t)dot_product_i32, (nk_f32_t)a_norm_sq_i32,
                                                 (nk_f32_t)b_norm_sq_i32);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
+                                                           nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     __m256i distance_sq_low_i32x8 = _mm256_setzero_si256();
     __m256i distance_sq_high_i32x8 = _mm256_setzero_si256();
@@ -516,15 +540,21 @@ NUMKONG_API_COMPTIME void nk_sqeuclidean_u8_haswell(nk_u8_t const *a, nk_u8_t co
     }
 
     *result = (nk_u32_t)distance_sq_i32;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
+                                                         nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t distance_sq_u32;
-    nk_sqeuclidean_u8_haswell(a, b, n, &distance_sq_u32);
+    nk_sqeuclidean_u8_haswell(a, b, n, &distance_sq_u32, stream);
     *result = nk_f32_sqrt_haswell((nk_f32_t)distance_sq_u32);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
+                                                       nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     __m256i dot_product_low_i32x8 = _mm256_setzero_si256();
     __m256i dot_product_high_i32x8 = _mm256_setzero_si256();
@@ -584,13 +614,15 @@ NUMKONG_API_COMPTIME void nk_angular_u8_haswell(nk_u8_t const *a, nk_u8_t const 
 
     *result = nk_angular_normalize_f32_haswell_((nk_f32_t)dot_product_i32, (nk_f32_t)a_norm_sq_i32,
                                                 (nk_f32_t)b_norm_sq_i32);
+    return nk_success_k;
 }
 
 #pragma endregion I8 and U8 Integers
 #pragma region F32 and F64 Floats
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
-                                                     nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
+                                                            nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Upcast to f64 for higher precision accumulation
     __m256d sum_f64x4 = _mm256_setzero_pd();
     nk_size_t i = 0;
@@ -610,10 +642,12 @@ NUMKONG_API_COMPTIME void nk_sqeuclidean_f32_haswell(nk_f32_t const *a, nk_f32_t
     }
 
     *result = sum_f64;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
-                                                   nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
+                                                          nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Upcast to f64 for higher precision accumulation, use f64 sqrt before downcasting
     __m256d sum_f64x4 = _mm256_setzero_pd();
     nk_size_t i = 0;
@@ -633,9 +667,12 @@ NUMKONG_API_COMPTIME void nk_euclidean_f32_haswell(nk_f32_t const *a, nk_f32_t c
     }
 
     *result = nk_f64_sqrt_haswell(sum_f64);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
+                                                        nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Upcast to f64 for higher precision accumulation
     __m256d dot_f64x4 = _mm256_setzero_pd();
     __m256d a_norm_sq_f64x4 = _mm256_setzero_pd();
@@ -661,10 +698,12 @@ NUMKONG_API_COMPTIME void nk_angular_f32_haswell(nk_f32_t const *a, nk_f32_t con
         b_norm_sq_f64 += b_f64 * b_f64;
     }
     *result = nk_angular_normalize_f64_haswell_(dot_f64, a_norm_sq_f64, b_norm_sq_f64);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
-                                                     nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
+                                                            nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256d sum_f64x4 = _mm256_setzero_pd();
     __m256d a_f64x4, b_f64x4;
 
@@ -687,15 +726,20 @@ nk_sqeuclidean_f64_haswell_cycle:
     if (n) goto nk_sqeuclidean_f64_haswell_cycle;
 
     *result = nk_reduce_add_f64x4_haswell_(sum_f64x4);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
-                                                   nk_f64_t *result) {
-    nk_sqeuclidean_f64_haswell(a, b, n, result);
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
+                                                          nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_sqeuclidean_f64_haswell(a, b, n, result, stream);
     *result = nk_f64_sqrt_haswell(*result);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
+                                                        nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Dot2 (Ogita-Rump-Oishi 2005) for cross-product a × b only - it may have cancellation.
     // Self-products ‖a‖² and ‖b‖² use simple FMA - all terms are non-negative, no cancellation.
     // Note: For cross-product we use Knuth TwoSum (6 ops) rather than Neumaier with blends (10 ops)
@@ -739,13 +783,15 @@ nk_angular_f64_haswell_cycle:
     *result = nk_angular_normalize_f64_haswell_( //
         nk_dot_stable_sum_f64x4_haswell_(dot_sum_f64x4, dot_compensation_f64x4),
         nk_reduce_add_f64x4_haswell_(a_norm_sq_f64x4), nk_reduce_add_f64x4_haswell_(b_norm_sq_f64x4));
+    return nk_success_k;
 }
 
 #pragma endregion F32 and F64 Floats
 #pragma region FP8 Floats
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_e2m3_haswell(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
-                                                      nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_e2m3_haswell(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                             nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256 distance_sq_f32x8 = _mm256_setzero_ps();
 
 nk_sqeuclidean_e2m3_haswell_cycle:
@@ -768,16 +814,20 @@ nk_sqeuclidean_e2m3_haswell_cycle:
     }
 
     *result = nk_reduce_add_f32x8_haswell_(distance_sq_f32x8);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_e2m3_haswell(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
-                                                    nk_f32_t *result) {
-    nk_sqeuclidean_e2m3_haswell(a, b, n, result);
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_e2m3_haswell(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                           nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_sqeuclidean_e2m3_haswell(a, b, n, result, stream);
     *result = nk_f32_sqrt_haswell(*result);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_e2m3_haswell(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
-                                                  nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_e2m3_haswell(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                         nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256 dot_product_f32x8 = _mm256_setzero_ps();
     __m256 a_norm_sq_f32x8 = _mm256_setzero_ps();
     __m256 b_norm_sq_f32x8 = _mm256_setzero_ps();
@@ -807,10 +857,12 @@ nk_angular_e2m3_haswell_cycle:
     nk_f32_t a_norm_sq_f32 = nk_reduce_add_f32x8_haswell_(a_norm_sq_f32x8);
     nk_f32_t b_norm_sq_f32 = nk_reduce_add_f32x8_haswell_(b_norm_sq_f32x8);
     *result = nk_angular_normalize_f32_haswell_(dot_product_f32, a_norm_sq_f32, b_norm_sq_f32);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_e3m2_haswell(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
-                                                      nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_e3m2_haswell(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                             nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256 distance_sq_f32x8 = _mm256_setzero_ps();
 
 nk_sqeuclidean_e3m2_haswell_cycle:
@@ -833,16 +885,20 @@ nk_sqeuclidean_e3m2_haswell_cycle:
     }
 
     *result = nk_reduce_add_f32x8_haswell_(distance_sq_f32x8);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_e3m2_haswell(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
-                                                    nk_f32_t *result) {
-    nk_sqeuclidean_e3m2_haswell(a, b, n, result);
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_e3m2_haswell(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                           nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_sqeuclidean_e3m2_haswell(a, b, n, result, stream);
     *result = nk_f32_sqrt_haswell(*result);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_e3m2_haswell(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
-                                                  nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_e3m2_haswell(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                         nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256 dot_product_f32x8 = _mm256_setzero_ps();
     __m256 a_norm_sq_f32x8 = _mm256_setzero_ps();
     __m256 b_norm_sq_f32x8 = _mm256_setzero_ps();
@@ -872,10 +928,12 @@ nk_angular_e3m2_haswell_cycle:
     nk_f32_t a_norm_sq_f32 = nk_reduce_add_f32x8_haswell_(a_norm_sq_f32x8);
     nk_f32_t b_norm_sq_f32 = nk_reduce_add_f32x8_haswell_(b_norm_sq_f32x8);
     *result = nk_angular_normalize_f32_haswell_(dot_product_f32, a_norm_sq_f32, b_norm_sq_f32);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
-                                                      nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                             nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // E4M3 has no free widen shift, so we call the Giesen-based 8-lane cast helper
     // twice per 16-lane iter and run with two F32 accumulators to break the FMA chain.
     __m256 first_acc_f32x8 = _mm256_setzero_ps();
@@ -907,16 +965,20 @@ nk_sqeuclidean_e4m3_haswell_cycle:
     if (n) goto nk_sqeuclidean_e4m3_haswell_cycle;
 
     *result = nk_reduce_add_f32x8_haswell_(_mm256_add_ps(first_acc_f32x8, second_acc_f32x8));
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
-                                                    nk_f32_t *result) {
-    nk_sqeuclidean_e4m3_haswell(a, b, n, result);
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                           nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_sqeuclidean_e4m3_haswell(a, b, n, result, stream);
     *result = nk_f32_sqrt_haswell(*result);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
-                                                  nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                         nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256 dot_product_f32x8 = _mm256_setzero_ps();
     __m256 a_norm_sq_f32x8 = _mm256_setzero_ps();
     __m256 b_norm_sq_f32x8 = _mm256_setzero_ps();
@@ -952,10 +1014,12 @@ nk_angular_e4m3_haswell_cycle:
     nk_f32_t a_norm_sq_f32 = nk_reduce_add_f32x8_haswell_(a_norm_sq_f32x8);
     nk_f32_t b_norm_sq_f32 = nk_reduce_add_f32x8_haswell_(b_norm_sq_f32x8);
     *result = nk_angular_normalize_f32_haswell_(dot_product_f32, a_norm_sq_f32, b_norm_sq_f32);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
-                                                      nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                             nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // E5M2 shares F16's exponent bias (15): `byte << 8` equals the matching F16 encoding.
     // `vpunpck*bw` against zero is the free widen+shift: zero byte in low half of each
     // 16-bit lane, E5M2 byte in high half. Per-128-bit-lane scrambled; commutative sum
@@ -994,16 +1058,20 @@ nk_sqeuclidean_e5m2_haswell_cycle:
     if (n) goto nk_sqeuclidean_e5m2_haswell_cycle;
 
     *result = nk_reduce_add_f32x8_haswell_(_mm256_add_ps(first_acc_f32x8, second_acc_f32x8));
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
-                                                    nk_f32_t *result) {
-    nk_sqeuclidean_e5m2_haswell(a, b, n, result);
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                           nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_sqeuclidean_e5m2_haswell(a, b, n, result, stream);
     *result = nk_f32_sqrt_haswell(*result);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
-                                                  nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                         nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256 dot_product_f32x8 = _mm256_setzero_ps();
     __m256 a_norm_sq_f32x8 = _mm256_setzero_ps();
     __m256 b_norm_sq_f32x8 = _mm256_setzero_ps();
@@ -1044,6 +1112,7 @@ nk_angular_e5m2_haswell_cycle:
     nk_f32_t a_norm_sq_f32 = nk_reduce_add_f32x8_haswell_(a_norm_sq_f32x8);
     nk_f32_t b_norm_sq_f32 = nk_reduce_add_f32x8_haswell_(b_norm_sq_f32x8);
     *result = nk_angular_normalize_f32_haswell_(dot_product_f32, a_norm_sq_f32, b_norm_sq_f32);
+    return nk_success_k;
 }
 
 #if defined(__clang__)

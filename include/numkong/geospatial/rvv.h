@@ -123,16 +123,18 @@ NUMKONG_HELPER_INLINE void nk_haversine_f64_rvv_kernel_( //
     __riscv_vse64_v_f64m4(results, distances_f64m4, vector_length);
 }
 
-NUMKONG_API_COMPTIME void nk_haversine_f64_rvv(     //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results) {
+NUMKONG_API_COMPTIME nk_status_t nk_haversine_f64_rvv( //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons,    //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons,    //
+    nk_size_t n, nk_f64_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     for (nk_size_t vector_length; n > 0; n -= vector_length, a_lats += vector_length, a_lons += vector_length,
                                          b_lats += vector_length, b_lons += vector_length, results += vector_length) {
         vector_length = __riscv_vsetvl_e64m4(n);
         nk_haversine_f64_rvv_kernel_(a_lats, a_lons, b_lats, b_lons, vector_length, results);
     }
+    return nk_success_k;
 }
 
 /** RVV internal kernel for Haversine distance on vector_length f32 point pairs. */
@@ -189,16 +191,18 @@ NUMKONG_HELPER_INLINE void nk_haversine_f32_rvv_kernel_( //
     __riscv_vse32_v_f32m4(results, distances_f32m4, vector_length);
 }
 
-NUMKONG_API_COMPTIME void nk_haversine_f32_rvv(     //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results) {
+NUMKONG_API_COMPTIME nk_status_t nk_haversine_f32_rvv( //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons,    //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons,    //
+    nk_size_t n, nk_f32_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     for (nk_size_t vector_length; n > 0; n -= vector_length, a_lats += vector_length, a_lons += vector_length,
                                          b_lats += vector_length, b_lons += vector_length, results += vector_length) {
         vector_length = __riscv_vsetvl_e32m4(n);
         nk_haversine_f32_rvv_kernel_(a_lats, a_lons, b_lats, b_lons, vector_length, results);
     }
+    return nk_success_k;
 }
 
 #pragma endregion Haversine Distance
@@ -475,16 +479,18 @@ NUMKONG_HELPER_INLINE void nk_vincenty_f64_rvv_kernel_( //
     __riscv_vse64_v_f64m4(results, distances_f64m4, vector_length);
 }
 
-NUMKONG_API_COMPTIME void nk_vincenty_f64_rvv(      //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results) {
+NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f64_rvv( //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons,   //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons,   //
+    nk_size_t n, nk_f64_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     for (nk_size_t vector_length; n > 0; n -= vector_length, a_lats += vector_length, a_lons += vector_length,
                                          b_lats += vector_length, b_lons += vector_length, results += vector_length) {
         vector_length = __riscv_vsetvl_e64m4(n);
         nk_vincenty_f64_rvv_kernel_(a_lats, a_lons, b_lats, b_lons, vector_length, results);
     }
+    return nk_success_k;
 }
 
 /**
@@ -743,16 +749,18 @@ NUMKONG_HELPER_INLINE void nk_vincenty_f32_rvv_kernel_( //
     __riscv_vse32_v_f32m4(results, distances_f32m4, vector_length);
 }
 
-NUMKONG_API_COMPTIME void nk_vincenty_f32_rvv(      //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results) {
+NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f32_rvv( //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons,   //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons,   //
+    nk_size_t n, nk_f32_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     for (nk_size_t vector_length; n > 0; n -= vector_length, a_lats += vector_length, a_lons += vector_length,
                                          b_lats += vector_length, b_lons += vector_length, results += vector_length) {
         vector_length = __riscv_vsetvl_e32m4(n);
         nk_vincenty_f32_rvv_kernel_(a_lats, a_lons, b_lats, b_lons, vector_length, results);
     }
+    return nk_success_k;
 }
 
 #pragma endregion Vincenty Distance

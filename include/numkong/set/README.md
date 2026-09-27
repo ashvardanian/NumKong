@@ -78,9 +78,8 @@ Longer inputs enter a loop that accumulates the per-quadword counts via `VPADDQ`
 
 ### Jaccard via Precomputed Norms
 
-The streaming helpers `nk_jaccard_u1x64_finalize_haswell` and `nk_jaccard_u1x512_finalize_icelake` exploit the identity $|A \cup B| = |A| + |B| - |A \cap B|$ to avoid computing both AND-popcount and OR-popcount in the inner loop.
-The matching `update` step accumulates only the intersection popcount; `finalize` takes the query popcount and a vector of four target popcounts and recovers the union from them, halving the work in the critical path.
-Both finalizers replace the division by a reciprocal estimate — `RCPPS` on Haswell, `VRCP14PS` on Ice Lake — refined with one Newton-Raphson step.
+The packed kernels in `sets.h` exploit the identity $|A \cup B| = |A| + |B| - |A \cap B|$ to avoid computing both AND-popcount and OR-popcount in the inner loop.
+Their tiles accumulate only the intersection popcounts, and `nk_jaccard_f32x4_from_dot_haswell_` and its siblings recover the unions from the precomputed popcounts, halving the work in the critical path.
 
 ### Byte Hamming via Compare Masks
 
@@ -89,13 +88,10 @@ Both finalizers replace the division by a reciprocal estimate — `RCPPS` on Has
 
 ## Performance
 
-The following performance tables are produced by manually re-running `numkong_test` and `numkong_bench` included internal tools to measure both accuracy and throughput at different input shapes.
+The tables below follow the [benchmark methodology](../../../bench/README.md#methodology).
 The input size is controlled by the `NUMWARS_DIMS` environment variable and set to 256, 1024, and 4096 elements.
 The throughput is measured in GB/s as the number of input bytes per second.
 Accuracy is reported where applicable as exact distance in the result representation; floating Jaccard rows are shown as mean ULP (units in last place).
-Each kernel runs for at least 20 seconds per configuration.
-Benchmark threads are pinned to specific cores; on machines with heterogeneous core types (e.g., Apple P/E cores), only the fastest cores are used.
-Workloads that significantly degrade CPU frequencies (Intel AMX, Apple SME) run in separate passes to avoid affecting throughput measurements of other kernels.
 
 ### Intel Sapphire Rapids
 

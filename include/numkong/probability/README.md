@@ -101,13 +101,11 @@ This keeps the accumulated error bounded by $O(1)$ ULP regardless of vector leng
 
 ## Performance
 
-The following performance tables are produced by manually re-running `numkong_test` and `numkong_bench` included internal tools to measure both accuracy and throughput at different input shapes.
+The tables below follow the [benchmark methodology](../../../bench/README.md#methodology).
 The input size is controlled by the `NUMWARS_DIMS` environment variable and set to 256, 1024, and 4096 elements.
 The throughput is measured in GB/s as the number of input bytes per second.
-The published tables below summarize mean ULP (units in last place) across all test pairs — the average number of representable floating-point values between the computed result and the exact answer. The current `numkong_test` family also reports max/mean absolute and relative divergence error for detailed inspection.
-Each kernel runs for at least 20 seconds per configuration.
-Benchmark threads are pinned to specific cores; on machines with heterogeneous core types (e.g., Apple P/E cores), only the fastest cores are used.
-Workloads that significantly degrade CPU frequencies (Intel AMX, Apple SME) run in separate passes to avoid affecting throughput measurements of other kernels.
+The published tables below summarize mean ULP (units in last place) across all test pairs — the average number of representable floating-point values between the computed result and the exact answer.
+The current `numkong_test` family also reports max/mean absolute and relative divergence error for detailed inspection.
 
 ### Intel Sapphire Rapids
 
@@ -177,5 +175,5 @@ Measured with Wasmtime v42 (Cranelift backend).
 | __f16__               | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_kld_f16_serial`   |      4.63 gb/s, 1.0K ulp |      4.45 gb/s, 4.5K ulp |       4.55 gb/s, 18K ulp |
 | `nk_jsd_f16_serial`   |       1.03 gb/s, 1.4 ulp |      0.962 gb/s, 2.7 ulp |      0.976 gb/s, 8.7 ulp |
-| `nk_kld_f16_neonhalf` |      10.2 gb/s, 1.0K ulp |      9.67 gb/s, 4.5K ulp |       9.99 gb/s, 18K ulp |
-| `nk_jsd_f16_neonhalf` |        5.00 gb/s, 15 ulp |        4.79 gb/s, 14 ulp |       4.94 gb/s, 9.9 ulp |
+| `nk_kld_f16_neon`     |      10.2 gb/s, 1.0K ulp |      9.67 gb/s, 4.5K ulp |       9.99 gb/s, 18K ulp |
+| `nk_jsd_f16_neon`     |        5.00 gb/s, 15 ulp |        4.79 gb/s, 14 ulp |       4.94 gb/s, 9.9 ulp |

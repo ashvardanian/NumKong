@@ -50,8 +50,9 @@
 
 #include "numkong/types.h"
 #include "numkong/reduce/sve.h"    // `nk_svaddv_f64_`
-#include "numkong/spatial/neon.h"  // `nk_f64_sqrt_neon`
+#include "numkong/scalar/neon.h"   // `nk_f64_sqrt_neon`
 #include "numkong/dots/smef64.h"   // `nk_dot2_f64_sve_accumulate_`, `nk_sme_zero_za64_tile_0_`
+#include "numkong/dots/sme.h"      // `nk_sme_start_streaming_`, `nk_sme_stop_streaming_`
 #include "numkong/curved/serial.h" // `nk_bilinear_f64_serial`
 #include "numkong/dot/serial.h"    // `nk_dot_f16c_serial`, `nk_vdot_f16c_serial`
 
@@ -117,11 +118,13 @@ __arm_new("za") static void nk_bilinear_f32_smef64_streaming_( //
     *result = outer_sum_f64;
 }
 
-NUMKONG_API_COMPTIME void nk_bilinear_f32_smef64( //
-    nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t dimensions, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f32_smef64( //
+    nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t dimensions, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_sme_start_streaming_();
     nk_bilinear_f32_smef64_streaming_(a, b, c, dimensions, result);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
 /** f32 Mahalanobis: GEMV v = C × d via FMOPA, where d = a − b (exact in f64). ZA0.D = C staging,
@@ -171,12 +174,14 @@ __arm_new("za") static nk_f64_t nk_mahalanobis_f32_smef64_streaming_( //
     return outer_sum_f64;
 }
 
-NUMKONG_API_COMPTIME void nk_mahalanobis_f32_smef64( //
-    nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t dimensions, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_mahalanobis_f32_smef64( //
+    nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t dimensions, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_sme_start_streaming_();
     nk_f64_t quadratic = nk_mahalanobis_f32_smef64_streaming_(a, b, c, dimensions);
     nk_sme_stop_streaming_();
     *result = nk_f64_sqrt_neon(quadratic > 0 ? quadratic : 0);
+    return nk_success_k;
 }
 
 /** f64 bilinear: row-by-row streaming SVE with Dot2 compensation. 4-row fast path shares b_f64x
@@ -245,11 +250,13 @@ NUMKONG_STREAMING_OUTLINED_ void nk_bilinear_f64_smef64_ssve_( //
     *result = outer_sum + outer_comp;
 }
 
-NUMKONG_API_COMPTIME void nk_bilinear_f64_smef64( //
-    nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t dimensions, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f64_smef64( //
+    nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t dimensions, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_sme_start_streaming_();
     nk_bilinear_f64_smef64_ssve_(a, b, c, dimensions, result);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
 /** Returns a - b as @p difference and its rounding error, by TwoSum. */
@@ -351,12 +358,14 @@ NUMKONG_STREAMING_OUTLINED_ nk_f64_t nk_mahalanobis_f64_smef64_ssve_( //
     return outer_sum + outer_comp;
 }
 
-NUMKONG_API_COMPTIME void nk_mahalanobis_f64_smef64( //
-    nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t dimensions, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_mahalanobis_f64_smef64( //
+    nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t dimensions, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_sme_start_streaming_();
     nk_f64_t quadratic = nk_mahalanobis_f64_smef64_ssve_(a, b, c, dimensions);
     nk_sme_stop_streaming_();
     *result = nk_f64_sqrt_neon(quadratic > 0 ? quadratic : 0);
+    return nk_success_k;
 }
 
 /** f32c bilinear: complex GEMV via FMOPA (widening f32 → f64). ZA0.D = C staging, ZA1.D = v_real
@@ -437,12 +446,14 @@ __arm_new("za") static void nk_bilinear_f32c_smef64_streaming_( //
     results->imag = outer_sum_imag_f64;
 }
 
-NUMKONG_API_COMPTIME void nk_bilinear_f32c_smef64( //
+NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f32c_smef64( //
     nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_f32c_t const *c_pairs, nk_size_t dimensions,
-    nk_f64c_t *results) {
+    nk_f64c_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_sme_start_streaming_();
     nk_bilinear_f32c_smef64_streaming_(a_pairs, b_pairs, c_pairs, dimensions, results);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
 /** f64c bilinear: interleaved Dot2 with permute + deferred XOR sign-flip. 2 accumulators instead of
@@ -507,12 +518,14 @@ NUMKONG_STREAMING_OUTLINED_ void nk_bilinear_f64c_smef64_ssve_( //
     results->imag = outer_sum_imag + outer_comp_imag;
 }
 
-NUMKONG_API_COMPTIME void nk_bilinear_f64c_smef64( //
+NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f64c_smef64( //
     nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_f64c_t const *c_pairs, nk_size_t dimensions,
-    nk_f64c_t *results) {
+    nk_f64c_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_sme_start_streaming_();
     nk_bilinear_f64c_smef64_ssve_(a_pairs, b_pairs, c_pairs, dimensions, results);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
 #if defined(__clang__)

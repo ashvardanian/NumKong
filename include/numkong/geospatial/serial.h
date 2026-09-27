@@ -10,8 +10,7 @@
 #define NUMKONG_GEOSPATIAL_SERIAL_H
 
 #include "numkong/types.h"
-#include "numkong/spatial/serial.h"      // `nk_f64_sqrt_serial`, `nk_f32_sqrt_serial`
-#include "numkong/trigonometry/serial.h" // `nk_f64_sin`, `nk_f64_cos`, `nk_f64_atan2`
+#include "numkong/scalar/serial.h" // `nk_f64_sqrt_serial`, `nk_f64_sin_serial`, `nk_f64_atan2_serial`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -26,10 +25,11 @@ extern "C" {
 #pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
 #endif
 
-NUMKONG_API_COMPTIME void nk_haversine_f64_serial(  //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results) {
+NUMKONG_API_COMPTIME nk_status_t nk_haversine_f64_serial( //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons,       //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons,       //
+    nk_size_t n, nk_f64_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     nk_f64_t const earth_radius = NUMKONG_EARTH_MEDIATORIAL_RADIUS;
 
@@ -43,10 +43,10 @@ NUMKONG_API_COMPTIME void nk_haversine_f64_serial(  //
         nk_f64_t longitude_delta = second_longitude - first_longitude;
 
         // Haversine formula: a = sin²(Δlat/2) + cos(lat1) × cos(lat2) × sin²(Δlon/2)
-        nk_f64_t sin_latitude_delta_half = nk_f64_sin(latitude_delta * 0.5);
-        nk_f64_t sin_longitude_delta_half = nk_f64_sin(longitude_delta * 0.5);
-        nk_f64_t cos_first_latitude = nk_f64_cos(first_latitude);
-        nk_f64_t cos_second_latitude = nk_f64_cos(second_latitude);
+        nk_f64_t sin_latitude_delta_half = nk_f64_sin_serial(latitude_delta * 0.5);
+        nk_f64_t sin_longitude_delta_half = nk_f64_sin_serial(longitude_delta * 0.5);
+        nk_f64_t cos_first_latitude = nk_f64_cos_serial(first_latitude);
+        nk_f64_t cos_second_latitude = nk_f64_cos_serial(second_latitude);
 
         // Use FMA for improved precision
         nk_f64_t sin_lat_sq = sin_latitude_delta_half * sin_latitude_delta_half;
@@ -59,16 +59,18 @@ NUMKONG_API_COMPTIME void nk_haversine_f64_serial(  //
         // Central angle: c = 2 × atan2(√a, √(1-a))
         nk_f64_t sqrt_haversine = nk_f64_sqrt_serial(haversine_term);
         nk_f64_t sqrt_complement = nk_f64_sqrt_serial(1.0 - haversine_term);
-        nk_f64_t central_angle = 2.0 * nk_f64_atan2(sqrt_haversine, sqrt_complement);
+        nk_f64_t central_angle = 2.0 * nk_f64_atan2_serial(sqrt_haversine, sqrt_complement);
 
         results[i] = earth_radius * central_angle;
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_haversine_f32_serial(  //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results) {
+NUMKONG_API_COMPTIME nk_status_t nk_haversine_f32_serial( //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons,       //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons,       //
+    nk_size_t n, nk_f32_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     nk_f32_t const earth_radius = (nk_f32_t)NUMKONG_EARTH_MEDIATORIAL_RADIUS;
 
@@ -82,10 +84,10 @@ NUMKONG_API_COMPTIME void nk_haversine_f32_serial(  //
         nk_f32_t longitude_delta = second_longitude - first_longitude;
 
         // Haversine formula: a = sin²(Δlat/2) + cos(lat1) × cos(lat2) × sin²(Δlon/2)
-        nk_f32_t sin_latitude_delta_half = nk_f32_sin(latitude_delta * 0.5f);
-        nk_f32_t sin_longitude_delta_half = nk_f32_sin(longitude_delta * 0.5f);
-        nk_f32_t cos_first_latitude = nk_f32_cos(first_latitude);
-        nk_f32_t cos_second_latitude = nk_f32_cos(second_latitude);
+        nk_f32_t sin_latitude_delta_half = nk_f32_sin_serial(latitude_delta * 0.5f);
+        nk_f32_t sin_longitude_delta_half = nk_f32_sin_serial(longitude_delta * 0.5f);
+        nk_f32_t cos_first_latitude = nk_f32_cos_serial(first_latitude);
+        nk_f32_t cos_second_latitude = nk_f32_cos_serial(second_latitude);
 
         // Use FMA for improved precision
         nk_f32_t sin_lat_sq = sin_latitude_delta_half * sin_latitude_delta_half;
@@ -100,16 +102,18 @@ NUMKONG_API_COMPTIME void nk_haversine_f32_serial(  //
         // Central angle: c = 2 × atan2(√a, √(1-a))
         nk_f32_t sqrt_haversine = nk_f32_sqrt_serial(haversine_term);
         nk_f32_t sqrt_complement = nk_f32_sqrt_serial(1.0f - haversine_term);
-        nk_f32_t central_angle = 2.0f * nk_f32_atan2(sqrt_haversine, sqrt_complement);
+        nk_f32_t central_angle = 2.0f * nk_f32_atan2_serial(sqrt_haversine, sqrt_complement);
 
         results[i] = earth_radius * central_angle;
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_vincenty_f64_serial(   //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results) {
+NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f64_serial( //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons,      //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons,      //
+    nk_size_t n, nk_f64_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     nk_f64_t const equatorial_radius = NUMKONG_EARTH_ELLIPSOID_EQUATORIAL_RADIUS;
     nk_f64_t const polar_radius = NUMKONG_EARTH_ELLIPSOID_POLAR_RADIUS;
@@ -121,8 +125,10 @@ NUMKONG_API_COMPTIME void nk_vincenty_f64_serial(   //
         nk_f64_t longitude_difference = b_lons[i] - a_lons[i];
 
         // Reduced latitudes on the auxiliary sphere
-        nk_f64_t tan_reduced_first = (1.0 - flattening) * (nk_f64_sin(first_latitude) / nk_f64_cos(first_latitude));
-        nk_f64_t tan_reduced_second = (1.0 - flattening) * (nk_f64_sin(second_latitude) / nk_f64_cos(second_latitude));
+        nk_f64_t tan_reduced_first = (1.0 - flattening) *
+                                     (nk_f64_sin_serial(first_latitude) / nk_f64_cos_serial(first_latitude));
+        nk_f64_t tan_reduced_second = (1.0 - flattening) *
+                                      (nk_f64_sin_serial(second_latitude) / nk_f64_cos_serial(second_latitude));
         nk_f64_t cos_reduced_first = 1.0 / nk_f64_sqrt_serial(1.0 + tan_reduced_first * tan_reduced_first);
         nk_f64_t sin_reduced_first = tan_reduced_first * cos_reduced_first;
         nk_f64_t cos_reduced_second = 1.0 / nk_f64_sqrt_serial(1.0 + tan_reduced_second * tan_reduced_second);
@@ -138,8 +144,8 @@ NUMKONG_API_COMPTIME void nk_vincenty_f64_serial(   //
         // Check for coincident points early
         nk_u32_t coincident = 0;
         do {
-            nk_f64_t sin_lambda = nk_f64_sin(lambda);
-            nk_f64_t cos_lambda = nk_f64_cos(lambda);
+            nk_f64_t sin_lambda = nk_f64_sin_serial(lambda);
+            nk_f64_t cos_lambda = nk_f64_cos_serial(lambda);
 
             nk_f64_t cross_term = cos_reduced_second * sin_lambda;
             nk_f64_t mixed_term = cos_reduced_first * sin_reduced_second -
@@ -153,7 +159,7 @@ NUMKONG_API_COMPTIME void nk_vincenty_f64_serial(   //
 
             cos_angular_distance = sin_reduced_first * sin_reduced_second +
                                    cos_reduced_first * cos_reduced_second * cos_lambda;
-            angular_distance = nk_f64_atan2(sin_angular_distance, cos_angular_distance);
+            angular_distance = nk_f64_atan2_serial(sin_angular_distance, cos_angular_distance);
 
             sin_azimuth = cos_reduced_first * cos_reduced_second * sin_lambda / sin_angular_distance;
             cos_squared_azimuth = 1.0 - sin_azimuth * sin_azimuth;
@@ -203,12 +209,14 @@ NUMKONG_API_COMPTIME void nk_vincenty_f64_serial(   //
 
         results[i] = polar_radius * series_a * (angular_distance - angular_correction);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_vincenty_f32_serial(   //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results) {
+NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f32_serial( //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons,      //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons,      //
+    nk_size_t n, nk_f32_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     nk_f32_t const equatorial_radius = (nk_f32_t)NUMKONG_EARTH_ELLIPSOID_EQUATORIAL_RADIUS;
     nk_f32_t const polar_radius = (nk_f32_t)NUMKONG_EARTH_ELLIPSOID_POLAR_RADIUS;
@@ -221,8 +229,10 @@ NUMKONG_API_COMPTIME void nk_vincenty_f32_serial(   //
         nk_f32_t longitude_difference = b_lons[i] - a_lons[i];
 
         // Reduced latitudes on the auxiliary sphere
-        nk_f32_t tan_reduced_first = (1.0f - flattening) * (nk_f32_sin(first_latitude) / nk_f32_cos(first_latitude));
-        nk_f32_t tan_reduced_second = (1.0f - flattening) * (nk_f32_sin(second_latitude) / nk_f32_cos(second_latitude));
+        nk_f32_t tan_reduced_first = (1.0f - flattening) *
+                                     (nk_f32_sin_serial(first_latitude) / nk_f32_cos_serial(first_latitude));
+        nk_f32_t tan_reduced_second = (1.0f - flattening) *
+                                      (nk_f32_sin_serial(second_latitude) / nk_f32_cos_serial(second_latitude));
         nk_f32_t cos_reduced_first = 1.0f / nk_f32_sqrt_serial(1.0f + tan_reduced_first * tan_reduced_first);
         nk_f32_t sin_reduced_first = tan_reduced_first * cos_reduced_first;
         nk_f32_t cos_reduced_second = 1.0f / nk_f32_sqrt_serial(1.0f + tan_reduced_second * tan_reduced_second);
@@ -238,8 +248,8 @@ NUMKONG_API_COMPTIME void nk_vincenty_f32_serial(   //
         // Check for coincident points early
         nk_u32_t coincident = 0;
         do {
-            nk_f32_t sin_lambda = nk_f32_sin(lambda);
-            nk_f32_t cos_lambda = nk_f32_cos(lambda);
+            nk_f32_t sin_lambda = nk_f32_sin_serial(lambda);
+            nk_f32_t cos_lambda = nk_f32_cos_serial(lambda);
 
             nk_f32_t cross_term = cos_reduced_second * sin_lambda;
             nk_f32_t mixed_term = cos_reduced_first * sin_reduced_second -
@@ -253,7 +263,7 @@ NUMKONG_API_COMPTIME void nk_vincenty_f32_serial(   //
 
             cos_angular_distance = sin_reduced_first * sin_reduced_second +
                                    cos_reduced_first * cos_reduced_second * cos_lambda;
-            angular_distance = nk_f32_atan2(sin_angular_distance, cos_angular_distance);
+            angular_distance = nk_f32_atan2_serial(sin_angular_distance, cos_angular_distance);
 
             sin_azimuth = cos_reduced_first * cos_reduced_second * sin_lambda / sin_angular_distance;
             cos_squared_azimuth = 1.0f - sin_azimuth * sin_azimuth;
@@ -305,6 +315,7 @@ NUMKONG_API_COMPTIME void nk_vincenty_f32_serial(   //
 
         results[i] = polar_radius * series_a * (angular_distance - angular_correction);
     }
+    return nk_success_k;
 }
 
 #if defined(__clang__)

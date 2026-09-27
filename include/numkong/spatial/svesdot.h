@@ -50,7 +50,9 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+sve+dotprod")
 #endif
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_i8_svesdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_i8_svesdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n,
+                                                           nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     svuint32_t distance_sq_u32x = svdup_u32(0);
     do {
@@ -62,14 +64,20 @@ NUMKONG_API_COMPTIME void nk_sqeuclidean_i8_svesdot(nk_i8_t const *a, nk_i8_t co
         i += svcntb();
     } while (i < n);
     *result = (nk_u32_t)nk_svaddv_u32_(svptrue_b32(), distance_sq_u32x);
+    return nk_success_k;
 }
-NUMKONG_API_COMPTIME void nk_euclidean_i8_svesdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_i8_svesdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n,
+                                                         nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t distance_sq_u32;
-    nk_sqeuclidean_i8_svesdot(a, b, n, &distance_sq_u32);
+    nk_sqeuclidean_i8_svesdot(a, b, n, &distance_sq_u32, stream);
     *result = nk_f32_sqrt_neon((nk_f32_t)distance_sq_u32);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_i8_svesdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_i8_svesdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n,
+                                                       nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     svint32_t ab_i32x = svdup_s32(0);
     svint32_t a2_i32x = svdup_s32(0);
@@ -88,9 +96,12 @@ NUMKONG_API_COMPTIME void nk_angular_i8_svesdot(nk_i8_t const *a, nk_i8_t const 
     nk_i32_t a2 = (nk_i32_t)nk_svaddv_s32_(svptrue_b32(), a2_i32x);
     nk_i32_t b2 = (nk_i32_t)nk_svaddv_s32_(svptrue_b32(), b2_i32x);
     *result = nk_angular_normalize_f32_neon_((nk_f32_t)ab, (nk_f32_t)a2, (nk_f32_t)b2);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_u8_svesdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_u8_svesdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
+                                                           nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     svuint32_t distance_sq_u32x = svdup_u32(0);
     do {
@@ -102,14 +113,20 @@ NUMKONG_API_COMPTIME void nk_sqeuclidean_u8_svesdot(nk_u8_t const *a, nk_u8_t co
         i += svcntb();
     } while (i < n);
     *result = (nk_u32_t)nk_svaddv_u32_(svptrue_b32(), distance_sq_u32x);
+    return nk_success_k;
 }
-NUMKONG_API_COMPTIME void nk_euclidean_u8_svesdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_u8_svesdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
+                                                         nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t distance_sq_u32;
-    nk_sqeuclidean_u8_svesdot(a, b, n, &distance_sq_u32);
+    nk_sqeuclidean_u8_svesdot(a, b, n, &distance_sq_u32, stream);
     *result = nk_f32_sqrt_neon((nk_f32_t)distance_sq_u32);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_u8_svesdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_u8_svesdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
+                                                       nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     svuint32_t ab_u32x = svdup_u32(0);
     svuint32_t a2_u32x = svdup_u32(0);
@@ -128,6 +145,7 @@ NUMKONG_API_COMPTIME void nk_angular_u8_svesdot(nk_u8_t const *a, nk_u8_t const 
     nk_u32_t a2 = (nk_u32_t)nk_svaddv_u32_(svptrue_b32(), a2_u32x);
     nk_u32_t b2 = (nk_u32_t)nk_svaddv_u32_(svptrue_b32(), b2_u32x);
     *result = nk_angular_normalize_f32_neon_((nk_f32_t)ab, (nk_f32_t)a2, (nk_f32_t)b2);
+    return nk_success_k;
 }
 
 #if defined(__clang__)

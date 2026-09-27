@@ -124,8 +124,9 @@ NUMKONG_HELPER_INLINE nk_f64_t nk_angular_normalize_f64_powervsx_(nk_f64_t ab, n
 
 #pragma region F32 and F64 Floats
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_f32_powervsx(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
-                                                      nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_f32_powervsx(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
+                                                             nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Accumulate in f64 for numerical stability using vec_doublee/vec_doubleo (f32 → f64)
     nk_vf64x2_t sum_even_f64x2 = vec_splats((nk_f64_t)0);
     nk_vf64x2_t sum_odd_f64x2 = vec_splats((nk_f64_t)0);
@@ -157,15 +158,20 @@ nk_sqeuclidean_f32_powervsx_cycle:
 
     nk_vf64x2_t total_f64x2 = vec_add(sum_even_f64x2, sum_odd_f64x2);
     *result = nk_hsum_f64x2_powervsx_(total_f64x2);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_f32_powervsx(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
-                                                    nk_f64_t *result) {
-    nk_sqeuclidean_f32_powervsx(a, b, n, result);
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_f32_powervsx(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
+                                                           nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_sqeuclidean_f32_powervsx(a, b, n, result, stream);
     *result = nk_f64_sqrt_powervsx(*result);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_f32_powervsx(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_f32_powervsx(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
+                                                         nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Accumulate in f64 for numerical stability using vec_doublee/vec_doubleo
     nk_vf64x2_t ab_even_f64x2 = vec_splats((nk_f64_t)0);
     nk_vf64x2_t ab_odd_f64x2 = vec_splats((nk_f64_t)0);
@@ -208,10 +214,12 @@ nk_angular_f32_powervsx_cycle:
     nk_f64_t a2 = nk_hsum_f64x2_powervsx_(vec_add(a2_even_f64x2, a2_odd_f64x2));
     nk_f64_t b2 = nk_hsum_f64x2_powervsx_(vec_add(b2_even_f64x2, b2_odd_f64x2));
     *result = nk_angular_normalize_f64_powervsx_(ab, a2, b2);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_f64_powervsx(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
-                                                      nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_f64_powervsx(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
+                                                             nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_vf64x2_t sum_f64x2 = vec_splats((nk_f64_t)0);
     nk_vf64x2_t a_f64x2, b_f64x2;
     nk_size_t tail_bytes;
@@ -233,15 +241,20 @@ nk_sqeuclidean_f64_powervsx_cycle:
     if (n) goto nk_sqeuclidean_f64_powervsx_cycle;
 
     *result = nk_hsum_f64x2_powervsx_(sum_f64x2);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_f64_powervsx(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
-                                                    nk_f64_t *result) {
-    nk_sqeuclidean_f64_powervsx(a, b, n, result);
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_f64_powervsx(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
+                                                           nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_sqeuclidean_f64_powervsx(a, b, n, result, stream);
     *result = nk_f64_sqrt_powervsx(*result);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_f64_powervsx(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_f64_powervsx(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
+                                                         nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Dot2 (Ogita-Rump-Oishi) for cross-product ab (may have cancellation),
     // simple FMA for self-products a2/b2 (all positive, no cancellation)
     nk_vf64x2_t ab_sum_f64x2 = vec_splats((nk_f64_t)0);
@@ -280,13 +293,15 @@ nk_angular_f64_powervsx_cycle:
 
     *result = nk_angular_normalize_f64_powervsx_(nk_dot_stable_sum_f64x2_powervsx_(ab_sum_f64x2, ab_compensation_f64x2),
                                                  nk_hsum_f64x2_powervsx_(a2_f64x2), nk_hsum_f64x2_powervsx_(b2_f64x2));
+    return nk_success_k;
 }
 
 #pragma endregion F32 and F64 Floats
 #pragma region F16 and BF16 Floats
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_bf16_powervsx(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                       nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_bf16_powervsx(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                              nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // bf16 → f32 via merge with zero: places bf16 bits in upper 16 of each f32
     nk_vu16x8_t zero_u16x8 = vec_splats((nk_u16_t)0);
     nk_vf32x4_t sum_f32x4 = vec_splats(0.0f);
@@ -315,16 +330,20 @@ nk_sqeuclidean_bf16_powervsx_cycle:
     sum_f32x4 = vec_madd(diff_low_f32x4, diff_low_f32x4, sum_f32x4);
     if (n) goto nk_sqeuclidean_bf16_powervsx_cycle;
     *result = nk_hsum_f32x4_powervsx_(sum_f32x4);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_bf16_powervsx(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                     nk_f32_t *result) {
-    nk_sqeuclidean_bf16_powervsx(a, b, n, result);
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_bf16_powervsx(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                            nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_sqeuclidean_bf16_powervsx(a, b, n, result, stream);
     *result = nk_f32_sqrt_powervsx(*result);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_bf16_powervsx(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                   nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_bf16_powervsx(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                          nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_vu16x8_t zero_u16x8 = vec_splats((nk_u16_t)0);
     nk_vf32x4_t ab_f32x4 = vec_splats(0.0f);
     nk_vf32x4_t a2_f32x4 = vec_splats(0.0f);
@@ -359,10 +378,12 @@ nk_angular_bf16_powervsx_cycle:
     nk_f32_t a2 = nk_hsum_f32x4_powervsx_(a2_f32x4);
     nk_f32_t b2 = nk_hsum_f32x4_powervsx_(b2_f32x4);
     *result = nk_angular_normalize_f32_powervsx_(ab, a2, b2);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_f16_powervsx(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
-                                                      nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_f16_powervsx(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                             nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // f16 → f32 via POWER9 hardware XVCVHPSP (vec_extract_fp32_from_shorth/shortl)
     nk_vf32x4_t sum_f32x4 = vec_splats(0.0f);
     nk_vu16x8_t a_u16x8, b_u16x8;
@@ -390,15 +411,20 @@ nk_sqeuclidean_f16_powervsx_cycle:
     sum_f32x4 = vec_madd(diff_low_f32x4, diff_low_f32x4, sum_f32x4);
     if (n) goto nk_sqeuclidean_f16_powervsx_cycle;
     *result = nk_hsum_f32x4_powervsx_(sum_f32x4);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_f16_powervsx(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
-                                                    nk_f32_t *result) {
-    nk_sqeuclidean_f16_powervsx(a, b, n, result);
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_f16_powervsx(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                           nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_sqeuclidean_f16_powervsx(a, b, n, result, stream);
     *result = nk_f32_sqrt_powervsx(*result);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_f16_powervsx(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_f16_powervsx(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                         nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // f16 → f32 via POWER9 hardware XVCVHPSP
     nk_vf32x4_t ab_f32x4 = vec_splats(0.0f);
     nk_vf32x4_t a2_f32x4 = vec_splats(0.0f);
@@ -433,13 +459,15 @@ nk_angular_f16_powervsx_cycle:
     nk_f32_t a2 = nk_hsum_f32x4_powervsx_(a2_f32x4);
     nk_f32_t b2 = nk_hsum_f32x4_powervsx_(b2_f32x4);
     *result = nk_angular_normalize_f32_powervsx_(ab, a2, b2);
+    return nk_success_k;
 }
 
 #pragma endregion F16 and BF16 Floats
 #pragma region I8 and U8 Integers
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_i8_powervsx(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n,
-                                                     nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_i8_powervsx(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n,
+                                                            nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Power has no vabdq_s8. Widen i8 → i16 via vec_unpackh/vec_unpackl,
     // subtract in i16, then vec_msum(diff_i16, diff_i16, accumulator_i32) to square-accumulate.
     nk_vi32x4_t accumulator_i32x4 = vec_splats((nk_i32_t)0);
@@ -472,15 +500,21 @@ nk_sqeuclidean_i8_powervsx_cycle:
     if (n) goto nk_sqeuclidean_i8_powervsx_cycle;
 
     *result = (nk_u32_t)nk_hsum_i32x4_powervsx_(accumulator_i32x4);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_i8_powervsx(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_i8_powervsx(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n,
+                                                          nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t distance_sq_u32;
-    nk_sqeuclidean_i8_powervsx(a, b, n, &distance_sq_u32);
+    nk_sqeuclidean_i8_powervsx(a, b, n, &distance_sq_u32, stream);
     *result = nk_f32_sqrt_powervsx((nk_f32_t)distance_sq_u32);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_i8_powervsx(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_i8_powervsx(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n,
+                                                        nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Hybrid approach for 3-accumulator i8 angular distance:
     //   a · b: algebraic transform — VMSUMMBM(a, b⊕0x80) with correction −128 · Σa
     //   a · a: abs-based unsigned   — VMSUMUBM(|a|, |a|), no correction needed
@@ -532,10 +566,12 @@ nk_angular_i8_powervsx_cycle:
     nk_u32_t b_norm_sq_u32 = nk_hsum_u32x4_powervsx_(b_norm_sq_u32x4);
     *result = nk_angular_normalize_f32_powervsx_((nk_f32_t)dot_product_i32, (nk_f32_t)a_norm_sq_u32,
                                                  (nk_f32_t)b_norm_sq_u32);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_u8_powervsx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
-                                                     nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_u8_powervsx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
+                                                            nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Compute |a-b| without underflow: vec_sub(vec_max(a, b), vec_min(a, b))
     // Then square-accumulate via vec_msum(u8, u8, u32) → VMSUMUBM
     nk_vu32x4_t accumulator_u32x4 = vec_splats((nk_u32_t)0);
@@ -560,15 +596,21 @@ nk_sqeuclidean_u8_powervsx_cycle:
     if (n) goto nk_sqeuclidean_u8_powervsx_cycle;
 
     *result = nk_hsum_u32x4_powervsx_(accumulator_u32x4);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_u8_powervsx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_u8_powervsx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
+                                                          nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t distance_sq_u32;
-    nk_sqeuclidean_u8_powervsx(a, b, n, &distance_sq_u32);
+    nk_sqeuclidean_u8_powervsx(a, b, n, &distance_sq_u32, stream);
     *result = nk_f32_sqrt_powervsx((nk_f32_t)distance_sq_u32);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_u8_powervsx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_u8_powervsx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
+                                                        nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Triple accumulator in u32 using vec_msum(u8, u8, u32) → VMSUMUBM
     nk_vu32x4_t ab_u32x4 = vec_splats((nk_u32_t)0);
     nk_vu32x4_t aa_u32x4 = vec_splats((nk_u32_t)0);
@@ -598,6 +640,7 @@ nk_angular_u8_powervsx_cycle:
     nk_u32_t aa = nk_hsum_u32x4_powervsx_(aa_u32x4);
     nk_u32_t bb = nk_hsum_u32x4_powervsx_(bb_u32x4);
     *result = nk_angular_normalize_f32_powervsx_((nk_f32_t)ab, (nk_f32_t)aa, (nk_f32_t)bb);
+    return nk_success_k;
 }
 
 /** Angular from_dot: computes 1 − dot × rsqrt(q) × rsqrt(t) for 4 pairs in f64, where q is

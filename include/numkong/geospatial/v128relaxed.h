@@ -94,10 +94,11 @@ NUMKONG_HELPER_INLINE v128_t nk_haversine_f64x2_v128relaxed_(    //
     return wasm_f64x2_mul(earth_radius_f64x2, central_angle_f64x2);
 }
 
-NUMKONG_API_COMPTIME void nk_haversine_f64_v128relaxed( //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons,     //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons,     //
-    nk_size_t n, nk_f64_t *results) {
+NUMKONG_API_COMPTIME nk_status_t nk_haversine_f64_v128relaxed( //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons,            //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons,            //
+    nk_size_t n, nk_f64_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     while (n >= 2) {
         v128_t first_latitudes_f64x2 = wasm_v128_load(a_lats);
@@ -124,6 +125,7 @@ NUMKONG_API_COMPTIME void nk_haversine_f64_v128relaxed( //
         result_vec.v128 = distances_f64x2;
         nk_partial_store_b64x2_serial_(&result_vec, results, n);
     }
+    return nk_success_k;
 }
 
 NUMKONG_HELPER_INLINE v128_t nk_haversine_f32x4_v128relaxed_(    //
@@ -173,10 +175,11 @@ NUMKONG_HELPER_INLINE v128_t nk_haversine_f32x4_v128relaxed_(    //
     return wasm_f32x4_mul(earth_radius_f32x4, central_angle_f32x4);
 }
 
-NUMKONG_API_COMPTIME void nk_haversine_f32_v128relaxed( //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons,     //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons,     //
-    nk_size_t n, nk_f32_t *results) {
+NUMKONG_API_COMPTIME nk_status_t nk_haversine_f32_v128relaxed( //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons,            //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons,            //
+    nk_size_t n, nk_f32_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     while (n >= 4) {
         v128_t first_latitudes_f32x4 = wasm_v128_load(a_lats);
@@ -203,6 +206,7 @@ NUMKONG_API_COMPTIME void nk_haversine_f32_v128relaxed( //
         result_vec.v128 = distances_f32x4;
         nk_partial_store_b32x4_serial_(&result_vec, results, n);
     }
+    return nk_success_k;
 }
 
 /**
@@ -393,10 +397,11 @@ NUMKONG_HELPER_INLINE v128_t nk_vincenty_f64x2_v128relaxed_(     //
     return distances_f64x2;
 }
 
-NUMKONG_API_COMPTIME void nk_vincenty_f64_v128relaxed( //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons,    //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons,    //
-    nk_size_t n, nk_f64_t *results) {
+NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f64_v128relaxed( //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons,           //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons,           //
+    nk_size_t n, nk_f64_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     while (n >= 2) {
         v128_t first_latitudes_f64x2 = wasm_v128_load(a_lats);
@@ -423,6 +428,7 @@ NUMKONG_API_COMPTIME void nk_vincenty_f64_v128relaxed( //
         result_vec.v128 = distances_f64x2;
         nk_partial_store_b64x2_serial_(&result_vec, results, n);
     }
+    return nk_success_k;
 }
 
 /**
@@ -607,10 +613,11 @@ NUMKONG_HELPER_INLINE v128_t nk_vincenty_f32x4_v128relaxed_(     //
     return distances_f32x4;
 }
 
-NUMKONG_API_COMPTIME void nk_vincenty_f32_v128relaxed( //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons,    //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons,    //
-    nk_size_t n, nk_f32_t *results) {
+NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f32_v128relaxed( //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons,           //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons,           //
+    nk_size_t n, nk_f32_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     while (n >= 4) {
         v128_t first_latitudes_f32x4 = wasm_v128_load(a_lats);
@@ -637,6 +644,7 @@ NUMKONG_API_COMPTIME void nk_vincenty_f32_v128relaxed( //
         result_vec.v128 = distances_f32x4;
         nk_partial_store_b32x4_serial_(&result_vec, results, n);
     }
+    return nk_success_k;
 }
 
 #if defined(__clang__)

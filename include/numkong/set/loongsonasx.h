@@ -56,21 +56,13 @@ NUMKONG_HELPER_INLINE nk_u64_t nk_reduce_add_u64x4_loongsonasx_(__m256i sum_u64x
     return (nk_u64_t)__lasx_xvpickve2gr_du(reduced_u64x2, 0);
 }
 
-/** Horizontally sums all bytes in a 256-bit register as unsigned values, chaining pairwise widening
- *  additions u8 → u16 → u32 → u64, then reducing 4 u64 lanes. */
-NUMKONG_HELPER_INLINE nk_u64_t nk_reduce_add_u8x32_loongsonasx_(__m256i v_u8x32) {
-    __m256i sum_u16x16 = __lasx_xvhaddw_hu_bu(v_u8x32, v_u8x32);
-    __m256i sum_u32x8 = __lasx_xvhaddw_wu_hu(sum_u16x16, sum_u16x16);
-    __m256i sum_u64x4 = __lasx_xvhaddw_du_wu(sum_u32x8, sum_u32x8);
-    return nk_reduce_add_u64x4_loongsonasx_(sum_u64x4);
-}
-
 #pragma endregion Reduction Helpers
 
 #pragma region Binary Sets
 
-NUMKONG_API_COMPTIME void nk_hamming_u1_loongsonasx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                    nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_loongsonasx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
+                                                           nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
     __m256i count_u64x4 = __lasx_xvreplgr2vr_d(0);
     nk_size_t i = 0;
@@ -86,10 +78,12 @@ NUMKONG_API_COMPTIME void nk_hamming_u1_loongsonasx(nk_u1x8_t const *a, nk_u1x8_
 
     for (; i < n_bytes; ++i) count += nk_u1x8_popcount_(a[i] ^ b[i]);
     *result = (nk_u32_t)count;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_jaccard_u1_loongsonasx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                    nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_loongsonasx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
+                                                           nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
     __m256i xor_count_u64x4 = __lasx_xvreplgr2vr_d(0);
     __m256i or_count_u64x4 = __lasx_xvreplgr2vr_d(0);
@@ -112,13 +106,16 @@ NUMKONG_API_COMPTIME void nk_jaccard_u1_loongsonasx(nk_u1x8_t const *a, nk_u1x8_
         or_count += nk_u1x8_popcount_(a[i] | b[i]);
     }
     *result = (or_count != 0) ? (nk_f32_t)xor_count / (nk_f32_t)or_count : 0.0f;
+    return nk_success_k;
 }
 
 #pragma endregion Binary Sets
 
 #pragma region Integer Sets
 
-NUMKONG_API_COMPTIME void nk_hamming_u8_loongsonasx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_hamming_u8_loongsonasx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
+                                                           nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     __m256i count_u64x4 = __lasx_xvreplgr2vr_d(0);
     __m256i ones_u8x32 = __lasx_xvreplgr2vr_b(1);
     nk_size_t i = 0;
@@ -138,6 +135,7 @@ NUMKONG_API_COMPTIME void nk_hamming_u8_loongsonasx(nk_u8_t const *a, nk_u8_t co
 
     for (; i < n; ++i) count += (a[i] != b[i]);
     *result = (nk_u32_t)count;
+    return nk_success_k;
 }
 
 #pragma endregion Integer Sets

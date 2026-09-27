@@ -82,7 +82,9 @@ NUMKONG_HELPER_INLINE vuint8m4_t nk_popcount_u8m4_rvv_(vuint8m4_t v_u8m4, nk_siz
     return __riscv_vand_vx_u8m4(v_u8m4, 0x0F, vector_length);
 }
 
-NUMKONG_API_COMPTIME void nk_hamming_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
+                                                   nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t count_bytes = n / NUMKONG_BITS_PER_BYTE;
 
     // Accumulator for total differences
@@ -106,9 +108,12 @@ NUMKONG_API_COMPTIME void nk_hamming_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const 
     }
 
     *result = __riscv_vmv_x_s_u32m1_u32(sum_u32m1);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_jaccard_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
+                                                   nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t count_bytes = n / NUMKONG_BITS_PER_BYTE;
 
     // Accumulators for intersection and union counts
@@ -142,13 +147,16 @@ NUMKONG_API_COMPTIME void nk_jaccard_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const 
     nk_u32_t intersection_count_u32 = __riscv_vmv_x_s_u32m1_u32(intersection_sum_u32m1);
     nk_u32_t union_count_u32 = __riscv_vmv_x_s_u32m1_u32(union_sum_u32m1);
     *result = (union_count_u32 != 0) ? 1.0f - (nk_f32_t)intersection_count_u32 / (nk_f32_t)union_count_u32 : 0.0f;
+    return nk_success_k;
 }
 
 #pragma endregion Binary Sets
 
 #pragma region Integer Sets
 
-NUMKONG_API_COMPTIME void nk_hamming_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_hamming_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
+                                                   void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     vuint32m1_t diff_count_u32m1 = __riscv_vmv_v_x_u32m1(0, 1);
 
     nk_size_t i = 0;
@@ -169,9 +177,12 @@ NUMKONG_API_COMPTIME void nk_hamming_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, 
     }
 
     *result = __riscv_vmv_x_s_u32m1_u32(diff_count_u32m1);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_jaccard_u32_rvv(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u32_rvv(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result,
+                                                    void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t match_count_u32 = 0;
 
     nk_size_t i = 0;
@@ -189,9 +200,12 @@ NUMKONG_API_COMPTIME void nk_jaccard_u32_rvv(nk_u32_t const *a, nk_u32_t const *
     }
 
     *result = (n != 0) ? 1.0f - (nk_f32_t)match_count_u32 / (nk_f32_t)n : 0.0f;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_jaccard_u16_rvv(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u16_rvv(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                    void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t match_count_u32 = 0;
 
     nk_size_t i = 0;
@@ -209,6 +223,7 @@ NUMKONG_API_COMPTIME void nk_jaccard_u16_rvv(nk_u16_t const *a, nk_u16_t const *
     }
 
     *result = (n != 0) ? 1.0f - (nk_f32_t)match_count_u32 / (nk_f32_t)n : 0.0f;
+    return nk_success_k;
 }
 
 #pragma endregion Integer Sets

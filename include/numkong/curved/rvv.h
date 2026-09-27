@@ -21,7 +21,7 @@
 #include "numkong/types.h"
 #include "numkong/curved/serial.h"
 #include "numkong/cast/rvv.h"
-#include "numkong/spatial/rvv.h" // `nk_f64_sqrt_rvv`
+#include "numkong/scalar/rvv.h" // `nk_f64_sqrt_rvv`
 
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=+v"))), apply_to = function)
@@ -34,8 +34,9 @@
 extern "C" {
 #endif
 
-NUMKONG_API_COMPTIME void nk_bilinear_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                              nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c,
+                                                     nk_size_t n, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_f64_t outer_sum = 0;
     for (nk_size_t i = 0; i < n; ++i) {
@@ -54,10 +55,12 @@ NUMKONG_API_COMPTIME void nk_bilinear_f32_rvv(nk_f32_t const *a, nk_f32_t const 
         outer_sum += (nk_f64_t)a[i] * inner_value;
     }
     *result = outer_sum;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_bilinear_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                              nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c,
+                                                     nk_size_t n, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
     vfloat64m1_t sum_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, 1);
     nk_f64_t outer_compensation = 0;
@@ -92,10 +95,12 @@ NUMKONG_API_COMPTIME void nk_bilinear_f64_rvv(nk_f64_t const *a, nk_f64_t const 
         sum_f64m1 = __riscv_vfmv_v_f_f64m1(new_sum, 1);
     }
     *result = __riscv_vfmv_f_s_f64m1_f64(sum_f64m1) + outer_compensation;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_bilinear_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                              nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c,
+                                                     nk_size_t n, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m1_t sum_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
     for (nk_size_t i = 0; i < n; ++i) {
@@ -121,10 +126,12 @@ NUMKONG_API_COMPTIME void nk_bilinear_f16_rvv(nk_f16_t const *a, nk_f16_t const 
         sum_f32m1 = __riscv_vfmv_v_f_f32m1(__riscv_vfmv_f_s_f32m1_f32(sum_f32m1) + a_i * inner_value, 1);
     }
     *result = __riscv_vfmv_f_s_f32m1_f32(sum_f32m1);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_bilinear_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                               nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_bilinear_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
+                                                      nk_size_t n, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m1_t sum_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
     for (nk_size_t i = 0; i < n; ++i) {
@@ -150,10 +157,12 @@ NUMKONG_API_COMPTIME void nk_bilinear_bf16_rvv(nk_bf16_t const *a, nk_bf16_t con
         sum_f32m1 = __riscv_vfmv_v_f_f32m1(__riscv_vfmv_f_s_f32m1_f32(sum_f32m1) + a_i * inner_value, 1);
     }
     *result = __riscv_vfmv_f_s_f32m1_f32(sum_f32m1);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_mahalanobis_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                                 nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_mahalanobis_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c,
+                                                        nk_size_t n, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_f64_t outer_sum = 0;
     for (nk_size_t i = 0; i < n; ++i) {
@@ -177,10 +186,12 @@ NUMKONG_API_COMPTIME void nk_mahalanobis_f32_rvv(nk_f32_t const *a, nk_f32_t con
         outer_sum += diff_i * inner_value;
     }
     *result = nk_f64_sqrt_rvv(outer_sum > 0 ? outer_sum : 0);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_mahalanobis_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                                 nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_mahalanobis_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c,
+                                                        nk_size_t n, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
     vfloat64m1_t sum_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, 1);
     nk_f64_t outer_compensation = 0;
@@ -220,10 +231,12 @@ NUMKONG_API_COMPTIME void nk_mahalanobis_f64_rvv(nk_f64_t const *a, nk_f64_t con
     }
     nk_f64_t quadratic = __riscv_vfmv_f_s_f64m1_f64(sum_f64m1) + outer_compensation;
     *result = nk_f64_sqrt_rvv(quadratic > 0 ? quadratic : 0);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_mahalanobis_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                                 nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_mahalanobis_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c,
+                                                        nk_size_t n, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m1_t sum_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
     for (nk_size_t i = 0; i < n; ++i) {
@@ -254,10 +267,12 @@ NUMKONG_API_COMPTIME void nk_mahalanobis_f16_rvv(nk_f16_t const *a, nk_f16_t con
     }
     nk_f32_t quadratic_f16 = __riscv_vfmv_f_s_f32m1_f32(sum_f32m1);
     *result = nk_f32_sqrt_rvv(quadratic_f16 > 0 ? quadratic_f16 : 0);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_mahalanobis_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
-                                                  nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_mahalanobis_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
+                                                         nk_size_t n, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m1_t sum_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
     for (nk_size_t i = 0; i < n; ++i) {
@@ -288,6 +303,7 @@ NUMKONG_API_COMPTIME void nk_mahalanobis_bf16_rvv(nk_bf16_t const *a, nk_bf16_t 
     }
     nk_f32_t quadratic_bf16 = __riscv_vfmv_f_s_f32m1_f32(sum_f32m1);
     *result = nk_f32_sqrt_rvv(quadratic_bf16 > 0 ? quadratic_bf16 : 0);
+    return nk_success_k;
 }
 
 #if defined(__cplusplus)

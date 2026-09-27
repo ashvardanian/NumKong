@@ -29,7 +29,7 @@
 #define NUMKONG_CURVED_SERIAL_H
 
 #include "numkong/types.h"
-#include "numkong/spatial/serial.h" // `nk_f64_sqrt_serial`
+#include "numkong/scalar/serial.h" // `nk_f64_sqrt_serial`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -42,9 +42,10 @@ extern "C" {
  *  (f32 → f64, f16 → f32, bf16 → f32).
  */
 #define nk_define_bilinear_(input_type, accumulator_type, output_type, load_and_convert)                       \
-    NUMKONG_API_COMPTIME void nk_bilinear_##input_type##_serial(                                               \
+    NUMKONG_API_COMPTIME nk_status_t nk_bilinear_##input_type##_serial(                                        \
         nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_##input_type##_t const *c, nk_size_t n, \
-        nk_##output_type##_t *result) {                                                                        \
+        nk_##output_type##_t *result, void *stream) {                                                          \
+        nk_assert_(stream == NUMKONG_NULL);                                                                    \
         nk_##accumulator_type##_t outer_sum = 0;                                                               \
         nk_##accumulator_type##_t vector_a_value, vector_b_value, tensor_value;                                \
         for (nk_size_t row = 0; row != n; ++row) {                                                             \
@@ -58,6 +59,7 @@ extern "C" {
             outer_sum += vector_a_value * inner_sum;                                                           \
         }                                                                                                      \
         *result = (nk_##output_type##_t)(outer_sum);                                                           \
+        return nk_success_k;                                                                                   \
     }
 
 /**
@@ -67,9 +69,10 @@ extern "C" {
  *  headroom. The outer sum is a complex multiply of @c a_i by each row's inner complex sum.
  */
 #define nk_define_bilinear_complex_(input_type, accumulator_type, output_type, load_and_convert)                    \
-    NUMKONG_API_COMPTIME void nk_bilinear_##input_type##_serial(                                                    \
+    NUMKONG_API_COMPTIME nk_status_t nk_bilinear_##input_type##_serial(                                             \
         nk_##input_type##_t const *a_pairs, nk_##input_type##_t const *b_pairs, nk_##input_type##_t const *c_pairs, \
-        nk_size_t n, nk_##output_type##c_t *results) {                                                              \
+        nk_size_t n, nk_##output_type##c_t *results, void *stream) {                                                \
+        nk_assert_(stream == NUMKONG_NULL);                                                                         \
         nk_##accumulator_type##_t outer_sum_real = 0, outer_sum_imag = 0;                                           \
         nk_##accumulator_type##_t a_real, a_imag, b_real, b_imag, c_real, c_imag;                                   \
         for (nk_size_t row = 0; row != n; ++row) {                                                                  \
@@ -90,6 +93,7 @@ extern "C" {
         }                                                                                                           \
         results->real = outer_sum_real;                                                                             \
         results->imag = outer_sum_imag;                                                                             \
+        return nk_success_k;                                                                                        \
     }
 
 /**
@@ -99,9 +103,10 @@ extern "C" {
  *  Differences are computed in the accumulator precision.
  */
 #define nk_define_mahalanobis_(input_type, accumulator_type, output_type, load_and_convert)                    \
-    NUMKONG_API_COMPTIME void nk_mahalanobis_##input_type##_serial(                                            \
+    NUMKONG_API_COMPTIME nk_status_t nk_mahalanobis_##input_type##_serial(                                     \
         nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_##input_type##_t const *c, nk_size_t n, \
-        nk_##output_type##_t *result) {                                                                        \
+        nk_##output_type##_t *result, void *stream) {                                                          \
+        nk_assert_(stream == NUMKONG_NULL);                                                                    \
         nk_##accumulator_type##_t outer_sum = 0;                                                               \
         nk_##accumulator_type##_t a_row_value, b_row_value, a_column_value, b_column_value, tensor_value;      \
         for (nk_size_t row = 0; row != n; ++row) {                                                             \
@@ -120,6 +125,7 @@ extern "C" {
         }                                                                                                      \
         nk_##accumulator_type##_t quadratic = outer_sum;                                                       \
         *result = nk_##accumulator_type##_sqrt_serial(quadratic > 0 ? quadratic : 0);                          \
+        return nk_success_k;                                                                                   \
     }
 
 /* f32 → f64 accumulator → f64 output */
@@ -141,8 +147,9 @@ nk_define_mahalanobis_(bf16, f32, f32, nk_bf16_to_f32_serial)       // nk_mahala
 #undef nk_define_bilinear_complex_
 #undef nk_define_mahalanobis_
 
-NUMKONG_API_COMPTIME void nk_bilinear_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                                 nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c,
+                                                        nk_size_t n, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t outer_sum = 0, outer_comp = 0;
     for (nk_size_t row = 0; row != n; ++row) {
         nk_f64_t inner_sum = 0, inner_comp = 0;
@@ -151,10 +158,13 @@ NUMKONG_API_COMPTIME void nk_bilinear_f64_serial(nk_f64_t const *a, nk_f64_t con
         nk_f64_dot2_(&outer_sum, &outer_comp, a[row], cb_j);
     }
     *result = outer_sum + outer_comp;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_bilinear_f64c_serial(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs,
-                                                  nk_f64c_t const *c_pairs, nk_size_t n, nk_f64c_t *results) {
+NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f64c_serial(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs,
+                                                         nk_f64c_t const *c_pairs, nk_size_t n, nk_f64c_t *results,
+                                                         void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t outer_sum_real = 0, outer_comp_real = 0;
     nk_f64_t outer_sum_imag = 0, outer_comp_imag = 0;
     for (nk_size_t row = 0; row != n; ++row) {
@@ -183,10 +193,12 @@ NUMKONG_API_COMPTIME void nk_bilinear_f64c_serial(nk_f64c_t const *a_pairs, nk_f
     }
     results->real = outer_sum_real + outer_comp_real;
     results->imag = outer_sum_imag + outer_comp_imag;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_mahalanobis_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c,
-                                                    nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_mahalanobis_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c,
+                                                           nk_size_t n, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t outer_sum = 0, outer_comp = 0;
     for (nk_size_t row = 0; row != n; ++row) {
         nk_f64_t diff_row = a[row] - b[row];
@@ -198,6 +210,7 @@ NUMKONG_API_COMPTIME void nk_mahalanobis_f64_serial(nk_f64_t const *a, nk_f64_t 
     }
     nk_f64_t quadratic = outer_sum + outer_comp;
     *result = nk_f64_sqrt_serial(quadratic > 0 ? quadratic : 0);
+    return nk_success_k;
 }
 
 #if defined(__cplusplus)

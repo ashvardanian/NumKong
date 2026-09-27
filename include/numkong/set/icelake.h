@@ -19,21 +19,6 @@
  *
  *  Ice Lake has native VPOPCNTQ instruction via AVX-512 VPOPCNTDQ extension, enabling efficient
  *  64-bit element-wise popcount. We process 512 bits per iteration.
- *
- *  @section set_icelake_stateful Stateful Streaming Logic
- *
- *  To build memory-optimal tiled algorithms, this file defines:
- *
- *  - nk_hamming_u1x512_state_icelake_t for streaming Hamming distance
- *  - nk_jaccard_u1x512_state_icelake_t for streaming Jaccard similarity
- *
- *  @code{.c}
- *  nk_jaccard_u1x512_state_icelake_t state_first, state_second, state_third, state_fourth;
- *  nk_jaccard_u1x512_init_icelake(&state_first);
- *  // ... stream through packed binary vectors ...
- *  nk_jaccard_u1x512_finalize_icelake(&state_first, &state_second, &state_third, &state_fourth,
- *      query_popcount, &target_popcounts_vec, total_dimensions, &result_vec);
- *  @endcode
  */
 #ifndef NUMKONG_SET_ICELAKE_H
 #define NUMKONG_SET_ICELAKE_H
@@ -57,7 +42,9 @@ extern "C" {
 
 #pragma region Binary Sets
 
-NUMKONG_API_COMPTIME void nk_hamming_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
+                                                       nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
 
     nk_u32_t xor_count;
@@ -134,9 +121,12 @@ NUMKONG_API_COMPTIME void nk_hamming_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t co
         xor_count = _mm512_reduce_add_epi64(xor_popcount_u64x8);
     }
     *result = xor_count;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_jaccard_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
+                                                       nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
 
     nk_u32_t intersection_count = 0, union_count = 0;
@@ -238,13 +228,16 @@ NUMKONG_API_COMPTIME void nk_jaccard_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t co
         union_count = _mm512_reduce_add_epi64(union_popcount_u64x8);
     }
     *result = (union_count != 0) ? 1.0f - (nk_f32_t)intersection_count / (nk_f32_t)union_count : 0.0f;
+    return nk_success_k;
 }
 
 #pragma endregion Binary Sets
 
 #pragma region Integer Sets
 
-NUMKONG_API_COMPTIME void nk_jaccard_u32_icelake(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u32_icelake(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n,
+                                                        nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t intersection_count = 0;
     nk_size_t n_remaining = n;
     for (; n_remaining >= 16; n_remaining -= 16, a += 16, b += 16) {
@@ -261,9 +254,12 @@ NUMKONG_API_COMPTIME void nk_jaccard_u32_icelake(nk_u32_t const *a, nk_u32_t con
         intersection_count += _mm_popcnt_u32((unsigned int)equality_m16);
     }
     *result = (n != 0) ? 1.0f - (nk_f32_t)intersection_count / (nk_f32_t)n : 0.0f;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_hamming_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_hamming_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
+                                                       nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t differences = 0;
     nk_size_t n_remaining = n;
     for (; n_remaining >= 64; n_remaining -= 64, a += 64, b += 64) {
@@ -280,9 +276,12 @@ NUMKONG_API_COMPTIME void nk_hamming_u8_icelake(nk_u8_t const *a, nk_u8_t const 
         differences += _mm_popcnt_u64(neq_m64);
     }
     *result = differences;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_jaccard_u16_icelake(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u16_icelake(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n,
+                                                        nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t matches = 0;
     nk_size_t n_remaining = n;
     for (; n_remaining >= 32; n_remaining -= 32, a += 32, b += 32) {
@@ -299,145 +298,12 @@ NUMKONG_API_COMPTIME void nk_jaccard_u16_icelake(nk_u16_t const *a, nk_u16_t con
         matches += _mm_popcnt_u32(equality_m32);
     }
     *result = (n != 0) ? 1.0f - (nk_f32_t)matches / (nk_f32_t)n : 0.0f;
+    return nk_success_k;
 }
 
 #pragma endregion Integer Sets
 
-#pragma region Stateful Streaming
-
-typedef struct nk_hamming_u1x512_state_icelake_t {
-    __m512i intersection_count_i64x8;
-} nk_hamming_u1x512_state_icelake_t;
-
-NUMKONG_HELPER_INLINE void nk_hamming_u1x512_init_icelake(nk_hamming_u1x512_state_icelake_t *state) {
-    state->intersection_count_i64x8 = _mm512_setzero_si512();
-}
-
-NUMKONG_HELPER_INLINE void nk_hamming_u1x512_update_icelake(nk_hamming_u1x512_state_icelake_t *state, nk_b512_vec_t a,
-                                                            nk_b512_vec_t b, nk_size_t depth_offset,
-                                                            nk_size_t active_dimensions) {
-    nk_unused_(depth_offset);
-    nk_unused_(active_dimensions);
-    state->intersection_count_i64x8 = _mm512_add_epi64(state->intersection_count_i64x8,
-                                                       _mm512_popcnt_epi64(_mm512_xor_si512(a.zmm, b.zmm)));
-}
-
-NUMKONG_HELPER_INLINE void nk_hamming_u1x512_finalize_icelake( //
-    nk_hamming_u1x512_state_icelake_t const *state_a, nk_hamming_u1x512_state_icelake_t const *state_b,
-    nk_hamming_u1x512_state_icelake_t const *state_c, nk_hamming_u1x512_state_icelake_t const *state_d,
-    nk_size_t total_dimensions, nk_b128_vec_t *result) {
-    nk_unused_(total_dimensions);
-
-    // Port-optimized 4-way horizontal reduction, matching the Jaccard finalizer pattern.
-    // Truncate i64 → i32 early so we can use `VPHADDD` (p01) instead of shuffle-heavy i64 reductions (p5).
-
-    // Truncate 8 × i64 → 8 × i32 per state via VPMOVQD (p01, 4cy, 0.5/cy)
-    __m256i a_i32x8 = _mm512_cvtepi64_epi32(state_a->intersection_count_i64x8);
-    __m256i b_i32x8 = _mm512_cvtepi64_epi32(state_b->intersection_count_i64x8);
-    __m256i c_i32x8 = _mm512_cvtepi64_epi32(state_c->intersection_count_i64x8);
-    __m256i d_i32x8 = _mm512_cvtepi64_epi32(state_d->intersection_count_i64x8);
-
-    // Fold 8 × i32 → 4 × i32 (add high 128-bit lane to low)
-    __m128i a_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(a_i32x8), _mm256_extracti128_si256(a_i32x8, 1));
-    __m128i b_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(b_i32x8), _mm256_extracti128_si256(b_i32x8, 1));
-    __m128i c_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(c_i32x8), _mm256_extracti128_si256(c_i32x8, 1));
-    __m128i d_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(d_i32x8), _mm256_extracti128_si256(d_i32x8, 1));
-
-    // Interleaved horizontal adds — 4 × i32 → 2 × i32 via VPHADDD (p01, 3cy, 0.5/cy)
-    __m128i ab_i32x4 = _mm_hadd_epi32(a_i32x4, b_i32x4); // [a01, a23, b01, b23]
-    __m128i cd_i32x4 = _mm_hadd_epi32(c_i32x4, d_i32x4); // [c01, c23, d01, d23]
-
-    // Final horizontal add — 2 × i32 → 1 × i32 per state
-    result->xmm = _mm_hadd_epi32(ab_i32x4, cd_i32x4); // [sum_a, sum_b, sum_c, sum_d]
-}
-
-typedef struct nk_jaccard_u1x512_state_icelake_t {
-    __m512i intersection_count_i64x8;
-} nk_jaccard_u1x512_state_icelake_t;
-
-NUMKONG_HELPER_INLINE void nk_jaccard_u1x512_init_icelake(nk_jaccard_u1x512_state_icelake_t *state) {
-    state->intersection_count_i64x8 = _mm512_setzero_si512();
-}
-
-NUMKONG_HELPER_INLINE void nk_jaccard_u1x512_update_icelake(nk_jaccard_u1x512_state_icelake_t *state, nk_b512_vec_t a,
-                                                            nk_b512_vec_t b, nk_size_t depth_offset,
-                                                            nk_size_t active_dimensions) {
-    nk_unused_(depth_offset);
-    nk_unused_(active_dimensions);
-    state->intersection_count_i64x8 = _mm512_add_epi64(state->intersection_count_i64x8,
-                                                       _mm512_popcnt_epi64(_mm512_and_si512(a.zmm, b.zmm)));
-}
-
-NUMKONG_HELPER_INLINE void nk_jaccard_u1x512_finalize_icelake( //
-    nk_jaccard_u1x512_state_icelake_t const *state_a, nk_jaccard_u1x512_state_icelake_t const *state_b,
-    nk_jaccard_u1x512_state_icelake_t const *state_c, nk_jaccard_u1x512_state_icelake_t const *state_d,
-    nk_f32_t query_popcount, nk_b128_vec_t const *target_popcounts_vec, nk_size_t total_dimensions,
-    nk_b128_vec_t *result_vec) {
-    nk_unused_(total_dimensions);
-
-    // Port-optimized 4-way horizontal reduction using early i64 → i32 truncation.
-    //
-    // Key insight: `_mm_hadd_epi32` uses ports p01, not p5, avoiding the shuffle bottleneck.
-    // By truncating to i32 early, we can use hadd for reduction instead of expensive shuffles.
-    //
-    // Ice Lake execution ports:
-    // - p0: Division, reciprocal (`VRCP14PS`: 4cy latency, 1/cy throughput)
-    // - p01: FP mul/add/fma, hadd (`VMULPS`/`VPHADDD`: 3cy latency, 0.5/cy throughput)
-    // - p015: Integer add (`VPADDD`: 1cy latency, 0.33/cy throughput)
-    // - p5: Shuffles/extracts (`VEXTRACTI128`: 3cy latency, 1/cy throughput)
-
-    // Truncate 8x i64 → 8x i32 per state (fits in YMM)
-    // `VPMOVQD` (ZMM → YMM): 4cy latency, 0.5/cy throughput, port p01
-    __m256i a_i32x8 = _mm512_cvtepi64_epi32(state_a->intersection_count_i64x8);
-    __m256i b_i32x8 = _mm512_cvtepi64_epi32(state_b->intersection_count_i64x8);
-    __m256i c_i32x8 = _mm512_cvtepi64_epi32(state_c->intersection_count_i64x8);
-    __m256i d_i32x8 = _mm512_cvtepi64_epi32(state_d->intersection_count_i64x8);
-
-    // Reduce 8x i32 → 4x i32 (add high 128-bit lane to low)
-    // - `VEXTRACTI128`: 3cy latency, 1/cy throughput, port p5
-    // - `VPADDD` (XMM): 1cy latency, 0.33/cy throughput, ports p015
-    __m128i a_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(a_i32x8), _mm256_extracti128_si256(a_i32x8, 1));
-    __m128i b_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(b_i32x8), _mm256_extracti128_si256(b_i32x8, 1));
-    __m128i c_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(c_i32x8), _mm256_extracti128_si256(c_i32x8, 1));
-    __m128i d_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(d_i32x8), _mm256_extracti128_si256(d_i32x8, 1));
-
-    // Reduce 4x i32 → 2x i32 using horizontal add (uses p01, not p5!)
-    // - `VPHADDD` (XMM): 3cy latency, 0.5/cy throughput, ports p01
-    __m128i ab_i32x4 = _mm_hadd_epi32(a_i32x4, b_i32x4); // [a01, a23, b01, b23]
-    __m128i cd_i32x4 = _mm_hadd_epi32(c_i32x4, d_i32x4); // [c01, c23, d01, d23]
-
-    // Reduce 2x i32 → 1x i32 per state (final horizontal add)
-    __m128i intersection_i32x4 = _mm_hadd_epi32(ab_i32x4, cd_i32x4); // [a, b, c, d]
-
-    // Direct i32 → f32 conversion (simpler than i64 → f64 → f32 path)
-    // - `VCVTDQ2PS` (XMM): 4cy latency, 0.5/cy throughput, port p01
-    __m128 intersection_f32x4 = _mm_cvtepi32_ps(intersection_i32x4);
-
-    // Compute Jaccard distance: 1 - intersection ÷ union
-    // where union = query_popcount + target_popcount - intersection
-    __m128 query_f32x4 = _mm_set1_ps(query_popcount);
-    __m128 targets_f32x4 = target_popcounts_vec->xmm_ps;
-    __m128 union_f32x4 = _mm_sub_ps(_mm_add_ps(query_f32x4, targets_f32x4), intersection_f32x4);
-
-    // Handle zero-union edge case: if union == 0, result = 0.0
-    __m128 zero_union_b32x4 = _mm_cmpeq_ps(union_f32x4, _mm_setzero_ps());
-    __m128 one_f32x4 = _mm_set1_ps(1.0f);
-    __m128 safe_union_f32x4 = _mm_blendv_ps(union_f32x4, one_f32x4, zero_union_b32x4);
-
-    // Fast reciprocal with Newton-Raphson refinement:
-    // - `VRCP14PS`: 4cy latency, 1/cy throughput, port p0 (~14-bit precision)
-    // Newton-Raphson: rcp' = rcp × (2 - x × rcp) doubles precision to ~28 bits
-    // - `VFNMADD`: 4cy latency, 0.5/cy throughput, ports p01
-    // - `VMULPS`: 4cy latency, 0.5/cy throughput, ports p01
-    // Total: ~12cy vs `VDIVPS` 11cy latency but 3cy throughput - NR wins on throughput
-    __m128 union_reciprocal_f32x4 = _mm_rcp14_ps(safe_union_f32x4);
-    union_reciprocal_f32x4 = _mm_mul_ps(union_reciprocal_f32x4,
-                                        _mm_fnmadd_ps(safe_union_f32x4, union_reciprocal_f32x4, _mm_set1_ps(2.0f)));
-
-    __m128 ratio_f32x4 = _mm_mul_ps(intersection_f32x4, union_reciprocal_f32x4);
-    __m128 jaccard_f32x4 = _mm_sub_ps(one_f32x4, ratio_f32x4);
-    result_vec->xmm_ps = _mm_blendv_ps(jaccard_f32x4, _mm_setzero_ps(), zero_union_b32x4);
-}
+#pragma region Distances from Dot Products
 
 /** Hamming from_dot: computes pop_a + pop_b - 2*dot for 4 pairs (Icelake). */
 NUMKONG_HELPER_INLINE void nk_hamming_u32x4_from_dot_icelake_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
@@ -468,7 +334,7 @@ NUMKONG_HELPER_INLINE void nk_jaccard_f32x4_from_dot_icelake_(nk_b128_vec_t cons
     result_vec->xmm_ps = _mm_blendv_ps(jaccard_f32x4, _mm_setzero_ps(), zero_union_b32x4);
 }
 
-#pragma endregion Stateful Streaming
+#pragma endregion Distances from Dot Products
 
 #if defined(__clang__)
 #pragma clang attribute pop

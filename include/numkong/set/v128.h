@@ -28,7 +28,9 @@ extern "C" {
 
 #pragma region Binary Sets
 
-NUMKONG_API_COMPTIME void nk_hamming_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
+                                                    nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_u8_t const *a_bytes = (nk_u8_t const *)a;
     nk_u8_t const *b_bytes = (nk_u8_t const *)b;
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
@@ -61,9 +63,12 @@ NUMKONG_API_COMPTIME void nk_hamming_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const
     }
 
     *result = differences;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_jaccard_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
+                                                    nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_u8_t const *a_bytes = (nk_u8_t const *)a;
     nk_u8_t const *b_bytes = (nk_u8_t const *)b;
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
@@ -105,13 +110,16 @@ NUMKONG_API_COMPTIME void nk_jaccard_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const
 
     // Jaccard distance = 1 - (intersection / union)
     *result = union_count > 0 ? 1.0f - ((nk_f32_t)intersection / (nk_f32_t)union_count) : 0.0f;
+    return nk_success_k;
 }
 
 #pragma endregion Binary Sets
 
 #pragma region Integer Sets
 
-NUMKONG_API_COMPTIME void nk_hamming_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_hamming_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
+                                                    void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t sum_total = 0;
     nk_size_t i = 0;
 
@@ -137,9 +145,12 @@ NUMKONG_API_COMPTIME void nk_hamming_u8_v128(nk_u8_t const *a, nk_u8_t const *b,
     for (; i < n; i++) { sum_total += (a[i] != b[i]); }
 
     *result = sum_total;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_jaccard_u32_v128(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u32_v128(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n,
+                                                     nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t matches = 0;
     nk_size_t i = 0;
     v128_t matches_u32x4 = wasm_i32x4_splat(0);
@@ -156,9 +167,12 @@ NUMKONG_API_COMPTIME void nk_jaccard_u32_v128(nk_u32_t const *a, nk_u32_t const 
     for (; i < n; ++i) matches += (a[i] == b[i]);
 
     *result = (n != 0) ? 1.0f - (nk_f32_t)matches / (nk_f32_t)n : 0.0f;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_jaccard_u16_v128(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u16_v128(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n,
+                                                     nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t matches = 0;
     nk_size_t i = 0;
     v128_t matches_u32x4 = wasm_i32x4_splat(0);
@@ -175,6 +189,7 @@ NUMKONG_API_COMPTIME void nk_jaccard_u16_v128(nk_u16_t const *a, nk_u16_t const 
     for (; i < n; ++i) matches += (a[i] == b[i]);
 
     *result = (n != 0) ? 1.0f - (nk_f32_t)matches / (nk_f32_t)n : 0.0f;
+    return nk_success_k;
 }
 
 #pragma endregion Integer Sets

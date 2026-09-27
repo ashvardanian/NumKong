@@ -13,7 +13,7 @@
 
 #include "numkong/types.h"
 #include "numkong/cast/serial.h"  // `nk_partial_load_b16x4_serial_`, `nk_partial_load_b32x4_serial_`
-#include "numkong/spatial/neon.h" // `nk_f32_sqrt_neon`
+#include "numkong/scalar/neon.h"  // `nk_f32_sqrt_neon`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -27,7 +27,7 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+simd")
 #endif
 
-NUMKONG_HELPER_AUTO float32x4_t nk_log2_f32x4_neon_(float32x4_t x) {
+NUMKONG_HELPER_INLINE float32x4_t nk_log2_f32x4_neon_(float32x4_t x) {
     // Extracting the exponent
     int32x4_t bits_i32x4 = vreinterpretq_s32_f32(x);
     int32x4_t exponent_i32x4 = vsubq_s32(vshrq_n_s32(vandq_s32(bits_i32x4, vdupq_n_s32(0x7F800000)), 23),
@@ -54,7 +54,9 @@ NUMKONG_HELPER_AUTO float32x4_t nk_log2_f32x4_neon_(float32x4_t x) {
     return result_f32x4;
 }
 
-NUMKONG_API_COMPTIME void nk_kld_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_kld_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                                 void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t epsilon = NUMKONG_F32_DIVISION_EPSILON;
     float32x4_t epsilon_f32x4 = vdupq_n_f32(epsilon);
     float64x2_t sum_low_f64x2 = vdupq_n_f64(0.0);
@@ -86,9 +88,12 @@ nk_kld_f32_neon_cycle:
     nk_f64_t log2_normalizer = NUMKONG_F64_LN2_;
     nk_f64_t sum = vaddvq_f64(vaddq_f64(sum_low_f64x2, sum_high_f64x2)) * log2_normalizer;
     *result = sum;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_jsd_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_jsd_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                                 void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t epsilon = NUMKONG_F32_DIVISION_EPSILON;
     float32x4_t epsilon_f32x4 = vdupq_n_f32(epsilon);
     float64x2_t sum_low_f64x2 = vdupq_n_f64(0.0);
@@ -125,6 +130,7 @@ nk_jsd_f32_neon_cycle:
     nk_f64_t log2_normalizer = NUMKONG_F64_LN2_;
     nk_f64_t sum = vaddvq_f64(vaddq_f64(sum_low_f64x2, sum_high_f64x2)) * log2_normalizer / 2.0;
     *result = sum > 0 ? nk_f64_sqrt_neon(sum) : 0;
+    return nk_success_k;
 }
 
 #if defined(__clang__)
@@ -142,7 +148,9 @@ nk_jsd_f32_neon_cycle:
 #pragma GCC target("arch=armv8.2-a+simd")
 #endif
 
-NUMKONG_API_COMPTIME void nk_kld_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_kld_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                 void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
     nk_f32_t epsilon = NUMKONG_F32_DIVISION_EPSILON;
     float32x4_t epsilon_f32x4 = vdupq_n_f32(epsilon);
@@ -184,9 +192,12 @@ nk_kld_f16_neon_cycle:
     nk_f32_t log2_normalizer = NUMKONG_F32_LN2_;
     nk_f32_t sum = vaddvq_f32(sum_f32x4) * log2_normalizer;
     *result = sum;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_jsd_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_jsd_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                 void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
     nk_f32_t epsilon = NUMKONG_F32_DIVISION_EPSILON;
     float32x4_t epsilon_f32x4 = vdupq_n_f32(epsilon);
@@ -238,6 +249,7 @@ nk_jsd_f16_neon_cycle:
     nk_f32_t log2_normalizer = NUMKONG_F32_LN2_;
     nk_f32_t sum = vaddvq_f32(sum_f32x4) * log2_normalizer / 2;
     *result = sum > 0 ? nk_f32_sqrt_neon(sum) : 0;
+    return nk_success_k;
 }
 
 #if defined(__clang__)

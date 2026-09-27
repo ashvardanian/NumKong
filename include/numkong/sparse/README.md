@@ -88,14 +88,10 @@ Hardware support remains the bottleneck: no ISA provides native sparse outer-pro
 
 ## Performance
 
-The following performance tables are produced by manually re-running `numkong_test` and `numkong_bench` included internal tools to measure both accuracy and throughput at different input shapes.
+The tables below follow the [benchmark methodology](../../../bench/README.md#methodology).
 The input size is controlled by `NUMKONG_SPARSE_FIRST_LENGTH`, `NUMKONG_SPARSE_SECOND_LENGTH`, and `NUMKONG_SPARSE_INTERSECTION` environment variables.
 Columns show throughput at 1%, 50%, and 95% intersection ratio with both set lengths fixed at 4096.
 The throughput is measured in GB/s as the number of input bytes per second.
-Each kernel runs for at least 20 seconds per configuration.
-Benchmark threads are pinned to specific cores; on machines with heterogeneous core types (e.g., Apple P/E cores), only the fastest cores are used.
-Workloads that significantly degrade CPU frequencies (Intel AMX, Apple SME) run in separate passes to avoid affecting throughput measurements of other kernels.
-Accuracy is reported as mean ULP (units in last place) averaged over all test pairs — the average number of representable floating-point values between the computed result and the exact answer.
 
 ### Intel Sapphire Rapids
 

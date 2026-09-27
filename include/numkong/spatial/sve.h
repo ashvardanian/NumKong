@@ -53,52 +53,9 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+sve")
 #endif
 
-/**
- *  @brief Reciprocal square root of an f32 SVE vector via estimate + 2 Newton-Raphson steps.
- *
- *  Computes 1/√x for each active lane. The initial estimate from @c svrsqrte_f32 has ~8 bits of
- *  precision; each Newton-Raphson iteration via @c svrsqrts_f32 roughly doubles the mantissa bits,
- *  giving ~23 bits (~full f32 precision) after 2 steps.
- *
- *  Marked @c __arm_streaming_compatible so the helper is callable from both streaming
- *  (SME) and non-streaming (SVE) contexts without mode transitions.
- *
- *  @param[in] predicate_b32x Active-lane mask.
- *  @param[in] x Input vector, which must be positive for meaningful results.
- *  @return Approximate 1/√x with ~23-bit mantissa accuracy.
- */
-NUMKONG_HELPER_INLINE svfloat32_t nk_rsqrt_f32x_sve_(svbool_t predicate_b32x,
-                                                     svfloat32_t x) NUMKONG_STREAMING_COMPATIBLE_ {
-    svfloat32_t r_f32x = svrsqrte_f32(x);
-    r_f32x = svmul_f32_x(predicate_b32x, r_f32x, svrsqrts_f32(svmul_f32_x(predicate_b32x, x, r_f32x), r_f32x));
-    r_f32x = svmul_f32_x(predicate_b32x, r_f32x, svrsqrts_f32(svmul_f32_x(predicate_b32x, x, r_f32x), r_f32x));
-    return r_f32x;
-}
-
-/**
- *  @brief Reciprocal square root of an f64 SVE vector via estimate + 3 Newton-Raphson steps.
- *
- *  Computes 1/√x for each active lane. The initial estimate from @c svrsqrte_f64 has ~8 bits of
- *  precision; three Newton-Raphson iterations via @c svrsqrts_f64 yield ~52-bit mantissa accuracy
- *  (full f64 precision).
- *
- *  Marked @c __arm_streaming_compatible so the helper is callable from both streaming
- *  (SME) and non-streaming (SVE) contexts without mode transitions.
- *
- *  @param[in] predicate_b64x Active-lane mask.
- *  @param[in] x Input vector, which must be positive for meaningful results.
- *  @return Approximate 1/√x with ~52-bit mantissa accuracy.
- */
-NUMKONG_HELPER_INLINE svfloat64_t nk_rsqrt_f64x_sve_(svbool_t predicate_b64x,
-                                                     svfloat64_t x) NUMKONG_STREAMING_COMPATIBLE_ {
-    svfloat64_t r_f64x = svrsqrte_f64(x);
-    r_f64x = svmul_f64_x(predicate_b64x, r_f64x, svrsqrts_f64(svmul_f64_x(predicate_b64x, x, r_f64x), r_f64x));
-    r_f64x = svmul_f64_x(predicate_b64x, r_f64x, svrsqrts_f64(svmul_f64_x(predicate_b64x, x, r_f64x), r_f64x));
-    r_f64x = svmul_f64_x(predicate_b64x, r_f64x, svrsqrts_f64(svmul_f64_x(predicate_b64x, x, r_f64x), r_f64x));
-    return r_f64x;
-}
-
-NUMKONG_API_COMPTIME void nk_sqeuclidean_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
+                                                        nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     svfloat64_t dist_sq_f64x = svdupq_n_f64(0.0, 0.0);
     for (; i < n; i += svcntw()) {
@@ -122,14 +79,20 @@ NUMKONG_API_COMPTIME void nk_sqeuclidean_f32_sve(nk_f32_t const *a, nk_f32_t con
     }
     nk_f64_t dist_sq_f64 = nk_svaddv_f64_(svptrue_b64(), dist_sq_f64x);
     *result = dist_sq_f64;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
-    nk_sqeuclidean_f32_sve(a, b, n, result);
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
+                                                      nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_sqeuclidean_f32_sve(a, b, n, result, stream);
     *result = nk_f64_sqrt_neon(*result);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                                    void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     svfloat64_t ab_f64x = svdupq_n_f64(0.0, 0.0);
     svfloat64_t a2_f64x = svdupq_n_f64(0.0, 0.0);
@@ -160,9 +123,12 @@ NUMKONG_API_COMPTIME void nk_angular_f32_sve(nk_f32_t const *a, nk_f32_t const *
     nk_f64_t a2_f64 = nk_svaddv_f64_(svptrue_b64(), a2_f64x);
     nk_f64_t b2_f64 = nk_svaddv_f64_(svptrue_b64(), b2_f64x);
     *result = nk_angular_normalize_f64_neon_(ab_f64, a2_f64, b2_f64);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_sqeuclidean_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
+                                                        nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Neumaier compensated summation for numerical stability
     nk_size_t i = 0;
     svfloat64_t sum_f64x = svdupq_n_f64(0.0, 0.0);
@@ -190,14 +156,20 @@ NUMKONG_API_COMPTIME void nk_sqeuclidean_f64_sve(nk_f64_t const *a, nk_f64_t con
         i += svcntd();
     } while (i < n);
     *result = nk_dot_stable_sum_f64_sve_(predicate_all_b64x, sum_f64x, compensation_f64x);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclidean_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
-    nk_sqeuclidean_f64_sve(a, b, n, result);
+NUMKONG_API_COMPTIME nk_status_t nk_euclidean_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
+                                                      nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_sqeuclidean_f64_sve(a, b, n, result, stream);
     *result = nk_f64_sqrt_neon(*result);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angular_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_API_COMPTIME nk_status_t nk_angular_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                                    void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // Dot2 (Ogita-Rump-Oishi) for cross-product ab (may have cancellation),
     // simple FMA for self-products a2/b2 (all positive, no cancellation)
     nk_size_t i = 0;
@@ -234,6 +206,7 @@ NUMKONG_API_COMPTIME void nk_angular_f64_sve(nk_f64_t const *a, nk_f64_t const *
     nk_f64_t a2_f64 = nk_svaddv_f64_(predicate_all_b64x, a2_f64x);
     nk_f64_t b2_f64 = nk_svaddv_f64_(predicate_all_b64x, b2_f64x);
     *result = nk_angular_normalize_f64_neon_(ab_f64, a2_f64, b2_f64);
+    return nk_success_k;
 }
 
 #if defined(__clang__)

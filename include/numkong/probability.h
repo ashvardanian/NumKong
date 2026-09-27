@@ -74,8 +74,15 @@
 #ifndef NUMKONG_PROBABILITY_H
 #define NUMKONG_PROBABILITY_H
 
-#include "numkong/types.h"
-#include "numkong/reduce.h" // For horizontal reduction helpers
+#include "numkong/capabilities.h" // `nk_capability_kernels_t`, `nk_kernel_pick_`
+
+#if !defined(NUMKONG_F64_DIVISION_EPSILON)
+#define NUMKONG_F64_DIVISION_EPSILON (1e-15)
+#endif
+
+#if !defined(NUMKONG_F32_DIVISION_EPSILON)
+#define NUMKONG_F32_DIVISION_EPSILON (1e-7f)
+#endif
 
 #if defined(__cplusplus)
 extern "C" {
@@ -88,12 +95,16 @@ extern "C" {
  *  @param[in] b The second discrete probability distribution.
  *  @param[in] n The number of elements in the distributions.
  *  @param[out] result The output divergence value.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  @note The distributions are assumed to be normalized.
  *  @note The output divergence value is non-negative.
  *  @note The output divergence value is zero if and only if the two distributions are identical.
  */
-NUMKONG_API_RUNTIME void nk_kld_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME nk_status_t nk_kld_f16_best(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                nk_capability_t capabilities, void *stream);
 
 /**
  *  @brief Kullback-Leibler divergence between two discrete probability distributions.
@@ -102,12 +113,16 @@ NUMKONG_API_RUNTIME void nk_kld_f16(nk_f16_t const *a, nk_f16_t const *b, nk_siz
  *  @param[in] b The second discrete probability distribution.
  *  @param[in] n The number of elements in the distributions.
  *  @param[out] result The output divergence value.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  @note The distributions are assumed to be normalized.
  *  @note The output divergence value is non-negative.
  *  @note The output divergence value is zero if and only if the two distributions are identical.
  */
-NUMKONG_API_RUNTIME void nk_kld_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME nk_status_t nk_kld_bf16_best(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                 nk_capability_t capabilities, void *stream);
 
 /**
  *  @brief Kullback-Leibler divergence between two discrete probability distributions.
@@ -116,12 +131,16 @@ NUMKONG_API_RUNTIME void nk_kld_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_
  *  @param[in] b The second discrete probability distribution.
  *  @param[in] n The number of elements in the distributions.
  *  @param[out] result The output divergence value.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  @note The distributions are assumed to be normalized.
  *  @note The output divergence value is non-negative.
  *  @note The output divergence value is zero if and only if the two distributions are identical.
  */
-NUMKONG_API_RUNTIME void nk_kld_f32(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_RUNTIME nk_status_t nk_kld_f32_best(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                                nk_capability_t capabilities, void *stream);
 
 /**
  *  @brief Kullback-Leibler divergence between two discrete probability distributions.
@@ -130,12 +149,16 @@ NUMKONG_API_RUNTIME void nk_kld_f32(nk_f32_t const *a, nk_f32_t const *b, nk_siz
  *  @param[in] b The second discrete probability distribution.
  *  @param[in] n The number of elements in the distributions.
  *  @param[out] result The output divergence value.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  @note The distributions are assumed to be normalized.
  *  @note The output divergence value is non-negative.
  *  @note The output divergence value is zero if and only if the two distributions are identical.
  */
-NUMKONG_API_RUNTIME void nk_kld_f64(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_RUNTIME nk_status_t nk_kld_f64_best(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                                nk_capability_t capabilities, void *stream);
 
 /**
  *  @brief Jensen-Shannon distance between two discrete probability distributions.
@@ -144,12 +167,16 @@ NUMKONG_API_RUNTIME void nk_kld_f64(nk_f64_t const *a, nk_f64_t const *b, nk_siz
  *  @param[in] b The second discrete probability distribution.
  *  @param[in] n The number of elements in the distributions.
  *  @param[out] result The output distance value.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  @note The distributions are assumed to be normalized.
  *  @note The output distance value is non-negative.
  *  @note The output distance value is zero if and only if the two distributions are identical.
  */
-NUMKONG_API_RUNTIME void nk_jsd_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME nk_status_t nk_jsd_f16_best(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                nk_capability_t capabilities, void *stream);
 
 /**
  *  @brief Jensen-Shannon distance between two discrete probability distributions.
@@ -158,12 +185,16 @@ NUMKONG_API_RUNTIME void nk_jsd_f16(nk_f16_t const *a, nk_f16_t const *b, nk_siz
  *  @param[in] b The second discrete probability distribution.
  *  @param[in] n The number of elements in the distributions.
  *  @param[out] result The output distance value.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  @note The distributions are assumed to be normalized.
  *  @note The output distance value is non-negative.
  *  @note The output distance value is zero if and only if the two distributions are identical.
  */
-NUMKONG_API_RUNTIME void nk_jsd_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+NUMKONG_API_RUNTIME nk_status_t nk_jsd_bf16_best(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                 nk_capability_t capabilities, void *stream);
 
 /**
  *  @brief Jensen-Shannon distance between two discrete probability distributions.
@@ -172,12 +203,16 @@ NUMKONG_API_RUNTIME void nk_jsd_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_
  *  @param[in] b The second discrete probability distribution.
  *  @param[in] n The number of elements in the distributions.
  *  @param[out] result The output distance value.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  @note The distributions are assumed to be normalized.
  *  @note The output distance value is non-negative.
  *  @note The output distance value is zero if and only if the two distributions are identical.
  */
-NUMKONG_API_RUNTIME void nk_jsd_f32(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_RUNTIME nk_status_t nk_jsd_f32_best(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                                nk_capability_t capabilities, void *stream);
 
 /**
  *  @brief Jensen-Shannon distance between two discrete probability distributions.
@@ -186,84 +221,118 @@ NUMKONG_API_RUNTIME void nk_jsd_f32(nk_f32_t const *a, nk_f32_t const *b, nk_siz
  *  @param[in] b The second discrete probability distribution.
  *  @param[in] n The number of elements in the distributions.
  *  @param[out] result The output distance value.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  @note The distributions are assumed to be normalized.
  *  @note The output distance value is non-negative.
  *  @note The output distance value is zero if and only if the two distributions are identical.
  */
-NUMKONG_API_RUNTIME void nk_jsd_f64(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
+NUMKONG_API_RUNTIME nk_status_t nk_jsd_f64_best(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                                nk_capability_t capabilities, void *stream);
 
-/** @copydoc nk_kld_f64 */
-NUMKONG_API_COMPTIME void nk_kld_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
-/** @copydoc nk_jsd_f64 */
-NUMKONG_API_COMPTIME void nk_jsd_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
-/** @copydoc nk_kld_f32 */
-NUMKONG_API_COMPTIME void nk_kld_f32_serial(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
-/** @copydoc nk_jsd_f32 */
-NUMKONG_API_COMPTIME void nk_jsd_f32_serial(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
-/** @copydoc nk_kld_f16 */
-NUMKONG_API_COMPTIME void nk_kld_f16_serial(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_jsd_f16 */
-NUMKONG_API_COMPTIME void nk_jsd_f16_serial(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_kld_bf16 */
-NUMKONG_API_COMPTIME void nk_kld_bf16_serial(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_jsd_bf16 */
-NUMKONG_API_COMPTIME void nk_jsd_bf16_serial(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_kld_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_kld_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                                   void *stream);
+/** @copydoc nk_jsd_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_jsd_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                                   void *stream);
+/** @copydoc nk_kld_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_kld_f32_serial(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                                   void *stream);
+/** @copydoc nk_jsd_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_jsd_f32_serial(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                                   void *stream);
+/** @copydoc nk_kld_f16_best */
+NUMKONG_API_COMPTIME nk_status_t nk_kld_f16_serial(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                   void *stream);
+/** @copydoc nk_jsd_f16_best */
+NUMKONG_API_COMPTIME nk_status_t nk_jsd_f16_serial(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                   void *stream);
+/** @copydoc nk_kld_bf16_best */
+NUMKONG_API_COMPTIME nk_status_t nk_kld_bf16_serial(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                    nk_f32_t *result, void *stream);
+/** @copydoc nk_jsd_bf16_best */
+NUMKONG_API_COMPTIME nk_status_t nk_jsd_bf16_serial(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                    nk_f32_t *result, void *stream);
 
 #if NUMKONG_TARGET_NEON
-/** @copydoc nk_kld_f32 */
-NUMKONG_API_COMPTIME void nk_kld_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
-/** @copydoc nk_jsd_f32 */
-NUMKONG_API_COMPTIME void nk_jsd_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
-/** @copydoc nk_kld_f16 */
-NUMKONG_API_COMPTIME void nk_kld_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_jsd_f16 */
-NUMKONG_API_COMPTIME void nk_jsd_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_kld_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_kld_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                                 void *stream);
+/** @copydoc nk_jsd_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_jsd_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                                 void *stream);
+/** @copydoc nk_kld_f16_best */
+NUMKONG_API_COMPTIME nk_status_t nk_kld_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                 void *stream);
+/** @copydoc nk_jsd_f16_best */
+NUMKONG_API_COMPTIME nk_status_t nk_jsd_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                 void *stream);
 #endif // NUMKONG_TARGET_NEON
 
 #if NUMKONG_TARGET_HASWELL
-/** @copydoc nk_kld_f64 */
-NUMKONG_API_COMPTIME void nk_kld_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
-/** @copydoc nk_jsd_f64 */
-NUMKONG_API_COMPTIME void nk_jsd_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
-/** @copydoc nk_kld_f16 */
-NUMKONG_API_COMPTIME void nk_kld_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_jsd_f16 */
-NUMKONG_API_COMPTIME void nk_jsd_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_kld_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_kld_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                                    void *stream);
+/** @copydoc nk_jsd_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_jsd_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                                    void *stream);
+/** @copydoc nk_kld_f16_best */
+NUMKONG_API_COMPTIME nk_status_t nk_kld_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                    void *stream);
+/** @copydoc nk_jsd_f16_best */
+NUMKONG_API_COMPTIME nk_status_t nk_jsd_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                    void *stream);
 #endif // NUMKONG_TARGET_HASWELL
 
 #if NUMKONG_TARGET_SKYLAKE
-/** @copydoc nk_kld_f64 */
-NUMKONG_API_COMPTIME void nk_kld_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
-/** @copydoc nk_jsd_f64 */
-NUMKONG_API_COMPTIME void nk_jsd_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
-/** @copydoc nk_kld_f32 */
-NUMKONG_API_COMPTIME void nk_kld_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
-/** @copydoc nk_jsd_f32 */
-NUMKONG_API_COMPTIME void nk_jsd_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
-/** @copydoc nk_kld_f16 */
-NUMKONG_API_COMPTIME void nk_kld_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_jsd_f16 */
-NUMKONG_API_COMPTIME void nk_jsd_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_kld_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_kld_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                                    void *stream);
+/** @copydoc nk_jsd_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_jsd_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                                    void *stream);
+/** @copydoc nk_kld_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_kld_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                                    void *stream);
+/** @copydoc nk_jsd_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_jsd_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                                    void *stream);
+/** @copydoc nk_kld_f16_best */
+NUMKONG_API_COMPTIME nk_status_t nk_kld_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                    void *stream);
+/** @copydoc nk_jsd_f16_best */
+NUMKONG_API_COMPTIME nk_status_t nk_jsd_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                    void *stream);
 #endif // NUMKONG_TARGET_SKYLAKE
 
 #if NUMKONG_TARGET_RVV
-/** @copydoc nk_kld_f32 */
-NUMKONG_API_COMPTIME void nk_kld_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
-/** @copydoc nk_jsd_f32 */
-NUMKONG_API_COMPTIME void nk_jsd_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
-/** @copydoc nk_kld_f64 */
-NUMKONG_API_COMPTIME void nk_kld_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
-/** @copydoc nk_jsd_f64 */
-NUMKONG_API_COMPTIME void nk_jsd_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result);
-/** @copydoc nk_kld_f16 */
-NUMKONG_API_COMPTIME void nk_kld_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_jsd_f16 */
-NUMKONG_API_COMPTIME void nk_jsd_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_kld_bf16 */
-NUMKONG_API_COMPTIME void nk_kld_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
-/** @copydoc nk_jsd_bf16 */
-NUMKONG_API_COMPTIME void nk_jsd_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+/** @copydoc nk_kld_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_kld_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                                void *stream);
+/** @copydoc nk_jsd_f32_best */
+NUMKONG_API_COMPTIME nk_status_t nk_jsd_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                                void *stream);
+/** @copydoc nk_kld_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_kld_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                                void *stream);
+/** @copydoc nk_jsd_f64_best */
+NUMKONG_API_COMPTIME nk_status_t nk_jsd_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                                void *stream);
+/** @copydoc nk_kld_f16_best */
+NUMKONG_API_COMPTIME nk_status_t nk_kld_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                void *stream);
+/** @copydoc nk_jsd_f16_best */
+NUMKONG_API_COMPTIME nk_status_t nk_jsd_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                void *stream);
+/** @copydoc nk_kld_bf16_best */
+NUMKONG_API_COMPTIME nk_status_t nk_kld_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                 void *stream);
+/** @copydoc nk_jsd_bf16_best */
+NUMKONG_API_COMPTIME nk_status_t nk_jsd_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                 void *stream);
 #endif // NUMKONG_TARGET_RVV
 
 /** Returns the output dtype for probability measures (KLD, JSD). */
@@ -291,98 +360,244 @@ NUMKONG_HELPER_INLINE nk_dtype_t nk_probability_output_dtype(nk_dtype_t dtype) {
 extern "C" {
 #endif
 
+NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_kld_f16_capabilities_(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_kld_f16_serial,
+#if NUMKONG_TARGET_NEON
+        (nk_kernel_punned_t)&nk_kld_f16_neon,
+#endif
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_kld_f16_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_kld_f16_skylake,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_kld_f16_rvv,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
+             nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV,
+         cpu},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_kld_bf16_capabilities_(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_kld_bf16_serial,
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_kld_bf16_rvv,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_rvv_k * NUMKONG_TARGET_RVV, cpu},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_kld_f32_capabilities_(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_kld_f32_serial,
+#if NUMKONG_TARGET_NEON
+        (nk_kernel_punned_t)&nk_kld_f32_neon,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_kld_f32_skylake,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_kld_f32_rvv,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
+             nk_cap_rvv_k * NUMKONG_TARGET_RVV,
+         cpu},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_kld_f64_capabilities_(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_kld_f64_serial,
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_kld_f64_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_kld_f64_skylake,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_kld_f64_rvv,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
+             nk_cap_rvv_k * NUMKONG_TARGET_RVV,
+         cpu},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_jsd_f16_capabilities_(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_jsd_f16_serial,
+#if NUMKONG_TARGET_NEON
+        (nk_kernel_punned_t)&nk_jsd_f16_neon,
+#endif
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_jsd_f16_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_jsd_f16_skylake,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_jsd_f16_rvv,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
+             nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV,
+         cpu},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_jsd_bf16_capabilities_(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_jsd_bf16_serial,
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_jsd_bf16_rvv,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_rvv_k * NUMKONG_TARGET_RVV, cpu},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_jsd_f32_capabilities_(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_jsd_f32_serial,
+#if NUMKONG_TARGET_NEON
+        (nk_kernel_punned_t)&nk_jsd_f32_neon,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_jsd_f32_skylake,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_jsd_f32_rvv,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
+             nk_cap_rvv_k * NUMKONG_TARGET_RVV,
+         cpu},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_jsd_f64_capabilities_(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_jsd_f64_serial,
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_jsd_f64_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_jsd_f64_skylake,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_jsd_f64_rvv,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
+             nk_cap_rvv_k * NUMKONG_TARGET_RVV,
+         cpu},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
 #if !NUMKONG_RUNTIME_DISPATCH
 
-NUMKONG_API_COMPTIME void nk_kld_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NUMKONG_TARGET_NEON
-    nk_kld_f16_neon(a, b, n, result);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_kld_f16_skylake(a, b, n, result);
-#elif NUMKONG_TARGET_HASWELL
-    nk_kld_f16_haswell(a, b, n, result);
-#elif NUMKONG_TARGET_RVV
-    nk_kld_f16_rvv(a, b, n, result);
-#else
-    nk_kld_f16_serial(a, b, n, result);
-#endif
+NUMKONG_API_COMPTIME nk_status_t nk_kld_f16_best(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                 nk_capability_t capabilities, void *stream) {
+    nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
+                                                                                      nk_kld_f16_capabilities_());
+    return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
 }
 
-NUMKONG_API_COMPTIME void nk_kld_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NUMKONG_TARGET_RVV
-    nk_kld_bf16_rvv(a, b, n, result);
-#else
-    nk_kld_bf16_serial(a, b, n, result);
-#endif
+NUMKONG_API_COMPTIME nk_status_t nk_kld_bf16_best(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                  nk_capability_t capabilities, void *stream) {
+    nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
+                                                                                      nk_kld_bf16_capabilities_());
+    return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
 }
 
-NUMKONG_API_COMPTIME void nk_kld_f32(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
-#if NUMKONG_TARGET_NEON
-    nk_kld_f32_neon(a, b, n, result);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_kld_f32_skylake(a, b, n, result);
-#elif NUMKONG_TARGET_RVV
-    nk_kld_f32_rvv(a, b, n, result);
-#else
-    nk_kld_f32_serial(a, b, n, result);
-#endif
+NUMKONG_API_COMPTIME nk_status_t nk_kld_f32_best(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                                 nk_capability_t capabilities, void *stream) {
+    nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
+                                                                                      nk_kld_f32_capabilities_());
+    return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
 }
 
-NUMKONG_API_COMPTIME void nk_kld_f64(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
-#if NUMKONG_TARGET_SKYLAKE
-    nk_kld_f64_skylake(a, b, n, result);
-#elif NUMKONG_TARGET_HASWELL
-    nk_kld_f64_haswell(a, b, n, result);
-#elif NUMKONG_TARGET_RVV
-    nk_kld_f64_rvv(a, b, n, result);
-#else
-    nk_kld_f64_serial(a, b, n, result);
-#endif
+NUMKONG_API_COMPTIME nk_status_t nk_kld_f64_best(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                                 nk_capability_t capabilities, void *stream) {
+    nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
+                                                                                      nk_kld_f64_capabilities_());
+    return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
 }
 
-NUMKONG_API_COMPTIME void nk_jsd_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NUMKONG_TARGET_NEON
-    nk_jsd_f16_neon(a, b, n, result);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_jsd_f16_skylake(a, b, n, result);
-#elif NUMKONG_TARGET_HASWELL
-    nk_jsd_f16_haswell(a, b, n, result);
-#elif NUMKONG_TARGET_RVV
-    nk_jsd_f16_rvv(a, b, n, result);
-#else
-    nk_jsd_f16_serial(a, b, n, result);
-#endif
+NUMKONG_API_COMPTIME nk_status_t nk_jsd_f16_best(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                 nk_capability_t capabilities, void *stream) {
+    nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
+                                                                                      nk_jsd_f16_capabilities_());
+    return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
 }
 
-NUMKONG_API_COMPTIME void nk_jsd_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result) {
-#if NUMKONG_TARGET_RVV
-    nk_jsd_bf16_rvv(a, b, n, result);
-#else
-    nk_jsd_bf16_serial(a, b, n, result);
-#endif
+NUMKONG_API_COMPTIME nk_status_t nk_jsd_bf16_best(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                  nk_capability_t capabilities, void *stream) {
+    nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
+                                                                                      nk_jsd_bf16_capabilities_());
+    return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
 }
 
-NUMKONG_API_COMPTIME void nk_jsd_f32(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
-#if NUMKONG_TARGET_NEON
-    nk_jsd_f32_neon(a, b, n, result);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_jsd_f32_skylake(a, b, n, result);
-#elif NUMKONG_TARGET_RVV
-    nk_jsd_f32_rvv(a, b, n, result);
-#else
-    nk_jsd_f32_serial(a, b, n, result);
-#endif
+NUMKONG_API_COMPTIME nk_status_t nk_jsd_f32_best(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                                 nk_capability_t capabilities, void *stream) {
+    nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
+                                                                                      nk_jsd_f32_capabilities_());
+    return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
 }
 
-NUMKONG_API_COMPTIME void nk_jsd_f64(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
-#if NUMKONG_TARGET_SKYLAKE
-    nk_jsd_f64_skylake(a, b, n, result);
-#elif NUMKONG_TARGET_HASWELL
-    nk_jsd_f64_haswell(a, b, n, result);
-#elif NUMKONG_TARGET_RVV
-    nk_jsd_f64_rvv(a, b, n, result);
-#else
-    nk_jsd_f64_serial(a, b, n, result);
-#endif
+NUMKONG_API_COMPTIME nk_status_t nk_jsd_f64_best(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                                 nk_capability_t capabilities, void *stream) {
+    nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
+                                                                                      nk_jsd_f64_capabilities_());
+    return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
 }
 
 #endif // !NUMKONG_RUNTIME_DISPATCH
