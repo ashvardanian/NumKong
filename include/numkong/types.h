@@ -2177,9 +2177,15 @@ NUMKONG_API_COMPTIME void nk_tensor_position_init(nk_tensor_position_t *tensor_p
  *  separately, as it's not stored inside the structure.
  */
 typedef struct nk_tensor_shape_t {
-    nk_size_t extents[NUMKONG_TENSOR_MAX_RANK];  /// Number of elements along each dimension
-    nk_ssize_t strides[NUMKONG_TENSOR_MAX_RANK]; /// Strides of the tensor in bytes
-    nk_size_t rank;                         /// Number of dimensions in the tensor
+
+    /** Number of elements along each dimension. */
+    nk_size_t extents[NUMKONG_TENSOR_MAX_RANK];
+
+    /** Strides of the tensor in bytes. */
+    nk_ssize_t strides[NUMKONG_TENSOR_MAX_RANK];
+
+    /** Number of dimensions in the tensor. */
+    nk_size_t rank;
 } nk_tensor_shape_t;
 
 NUMKONG_API_COMPTIME void nk_tensor_shape_init(nk_tensor_shape_t *tensor_shape) {

@@ -31,7 +31,7 @@ NUMKONG_API_COMPTIME nk_f32_t nk_f32_sin(nk_f32_t const angle_radians) {
     // Cody-Waite constants for argument reduction (pi split into hi + lo)
     nk_f32_t const pi_high = 3.1415927f;
     nk_f32_t const pi_low = -8.742278e-8f;
-    nk_f32_t const pi_reciprocal = 0.31830988618379067154f; /// 1/π
+    nk_f32_t const pi_reciprocal = 0.31830988618379067154f; // 1/π
 
     // Degree-9 minimax coefficients: sin(x) ≈ x + c3*x³ + c5*x⁵ + c7*x⁷ + c9*x⁹
     nk_f32_t const coeff_9 = +2.7557319224e-6f;
@@ -74,8 +74,8 @@ NUMKONG_API_COMPTIME nk_f32_t nk_f32_cos(nk_f32_t const angle_radians) {
     // Cody-Waite constants for argument reduction (pi split into hi + lo)
     nk_f32_t const pi_high = 3.1415927f;
     nk_f32_t const pi_low = -8.742278e-8f;
-    nk_f32_t const pi_half = 1.57079632679489661923f;       /// π/2
-    nk_f32_t const pi_reciprocal = 0.31830988618379067154f; /// 1/π
+    nk_f32_t const pi_half = 1.57079632679489661923f;       // π/2
+    nk_f32_t const pi_reciprocal = 0.31830988618379067154f; // 1/π
 
     // Degree-9 minimax coefficients: sin(x) ≈ x + c3*x³ + c5*x⁵ + c7*x⁷ + c9*x⁹
     nk_f32_t const coeff_9 = +2.7557319224e-6f;
@@ -562,14 +562,14 @@ NUMKONG_API_COMPTIME nk_f32_t nk_f32_tan(nk_f32_t const angle_radians) {
     // Cody-Waite constants for argument reduction
     nk_f32_t const pi_high = 3.1415927f;
     nk_f32_t const pi_low = -8.742278e-8f;
-    nk_f32_t const pi_half = 1.57079632679489661923f;       /// π/2
-    nk_f32_t const pi_quarter = 0.78539816339744830962f;    /// π/4
-    nk_f32_t const pi_reciprocal = 0.31830988618379067154f; /// 1/π
+    nk_f32_t const pi_half = 1.57079632679489661923f;       // π/2
+    nk_f32_t const pi_quarter = 0.78539816339744830962f;    // π/4
+    nk_f32_t const pi_reciprocal = 0.31830988618379067154f; // 1/π
 
     // Polynomial coefficients for tangent approximation (minimax polynomial)
-    nk_f32_t const coeff_7 = +0.002443315461f; /// Coefficient for x⁷ term
-    nk_f32_t const coeff_5 = +0.05338123068f;  /// Coefficient for x⁵ term
-    nk_f32_t const coeff_3 = +0.3333314061f;   /// Coefficient for x³ term
+    nk_f32_t const coeff_7 = +0.002443315461f; // Coefficient for x⁷ term
+    nk_f32_t const coeff_5 = +0.05338123068f;  // Coefficient for x⁵ term
+    nk_f32_t const coeff_3 = +0.3333314061f;   // Coefficient for x³ term
 
     // Compute (multiple_of_pi) = round(angle / π)
     nk_f32_t const quotient = angle_radians * pi_reciprocal;
@@ -612,20 +612,20 @@ NUMKONG_API_COMPTIME nk_f32_t nk_f32_tan(nk_f32_t const angle_radians) {
 NUMKONG_API_COMPTIME nk_f64_t nk_f64_tan(nk_f64_t const angle_radians) {
 
     // Constants for argument reduction
-    nk_f64_t const pi_high = 3.141592653589793116;                         /// High-digits part of π
-    nk_f64_t const pi_low = 1.2246467991473532072e-16;                     /// Low-digits part of π
-    nk_f64_t const pi_half = 1.5707963267948966192313216916398;            /// π/2
-    nk_f64_t const pi_quarter = 0.78539816339744830961566084581988;        /// π/4
-    nk_f64_t const pi_reciprocal = 0.318309886183790671537767526745028724; /// 1/π
+    nk_f64_t const pi_high = 3.141592653589793116;                         // High-digits part of π
+    nk_f64_t const pi_low = 1.2246467991473532072e-16;                     // Low-digits part of π
+    nk_f64_t const pi_half = 1.5707963267948966192313216916398;            // π/2
+    nk_f64_t const pi_quarter = 0.78539816339744830961566084581988;        // π/4
+    nk_f64_t const pi_reciprocal = 0.318309886183790671537767526745028724; // 1/π
 
     // Polynomial coefficients for tangent approximation (minimax polynomial)
-    nk_f64_t const coeff_13 = +0.000024030521244861858; /// Coefficient for x¹³ term
-    nk_f64_t const coeff_11 = +0.00035923150434482523;  /// Coefficient for x¹¹ term
-    nk_f64_t const coeff_9 = +0.0058685277932046705;    /// Coefficient for x⁹ term
-    nk_f64_t const coeff_7 = +0.021869488294859542;     /// Coefficient for x⁷ term
-    nk_f64_t const coeff_5 = +0.053968253972902704;     /// Coefficient for x⁵ term
-    nk_f64_t const coeff_3 = +0.13333333333320124;      /// Coefficient for x³ term
-    nk_f64_t const coeff_1 = +0.33333333333333331;      /// Coefficient for x term
+    nk_f64_t const coeff_13 = +0.000024030521244861858; // Coefficient for x¹³ term
+    nk_f64_t const coeff_11 = +0.00035923150434482523;  // Coefficient for x¹¹ term
+    nk_f64_t const coeff_9 = +0.0058685277932046705;    // Coefficient for x⁹ term
+    nk_f64_t const coeff_7 = +0.021869488294859542;     // Coefficient for x⁷ term
+    nk_f64_t const coeff_5 = +0.053968253972902704;     // Coefficient for x⁵ term
+    nk_f64_t const coeff_3 = +0.13333333333320124;      // Coefficient for x³ term
+    nk_f64_t const coeff_1 = +0.33333333333333331;      // Coefficient for x term
 
     // Compute (multiple_of_pi) = round(angle / π)
     nk_f64_t const quotient = angle_radians * pi_reciprocal;

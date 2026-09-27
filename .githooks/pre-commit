@@ -301,12 +301,12 @@ check_section_anchor_unique() {
         "            domain, as in dots_haswell_instructions:"
 }
 
-# Rejects `///<`, `//!<` and `/**<` trailing a member, because the column drifts on every rename; the
-# member gets its own `/** ... */` above it, or the type's docblock explains all of them.
+# Rejects `///`, `//!<` and `/**<` trailing code, because no editor shows them on hover and the column
+# drifts on every rename; a member gets its own `/** ... */` above it, or the type's docblock explains all.
 check_member_docs_not_trailing() {
     local trailing
     trailing=$(printf '%s\n' "$staged_added_text" | grep -vE '^\+[[:space:]]*(\*([[:space:]]|$)|/\*|//)' |
-        grep -E '(//!<|///<|/\*\*<)' || true)
+        grep -E '(//!<|///|/\*\*<)' || true)
     [ -z "$trailing" ] || reject_with_reason "$trailing" \
         "$staged_path documents a member with a trailing marker;" \
         "            put a /** ... */ above the member, or fold the explanation into the type's docblock:"

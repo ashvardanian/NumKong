@@ -367,7 +367,7 @@ FIXTURE
 
 assert_rejects "trailing member doc" "with a trailing marker" include/numkong/probe.h <<'FIXTURE'
 struct probe_t {
-    int value; ///< The value.
+    int value; /// The value.
 };
 FIXTURE
 
