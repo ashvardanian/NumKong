@@ -82,6 +82,9 @@ NUMKONG_HELPER_INLINE vuint16m1_t nk_f32m2_to_bf16m1_rvv_(vfloat32m2_t f32_f32m2
                                                   vector_length);
     vuint32m2_t rounding_u32m2 = __riscv_vadd_vx_u32m2(lsb_u32m2, 0x7FFF, vector_length);
     vuint32m2_t rounded_u32m2 = __riscv_vadd_vv_u32m2(bits_u32m2, rounding_u32m2, vector_length);
+    // NaNs skip rounding, which could carry them into infinity or zero, and keep a quiet payload
+    vbool16_t is_nan_b16 = __riscv_vmfne_vv_f32m2_b16(f32_f32m2, f32_f32m2, vector_length);
+    rounded_u32m2 = __riscv_vor_vx_u32m2_mu(is_nan_b16, rounded_u32m2, bits_u32m2, 0x00400000, vector_length);
     vuint32m2_t shifted_u32m2 = __riscv_vsrl_vx_u32m2(rounded_u32m2, 16, vector_length);
     return __riscv_vncvt_x_x_w_u16m1(shifted_u32m2, vector_length);
 }

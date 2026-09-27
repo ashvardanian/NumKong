@@ -744,10 +744,14 @@ NUMKONG_API_COMPTIME void nk_f32_to_bf16_serial(nk_f32_t const *src, nk_bf16_t *
 #else
     nk_fui32_t conv;
     conv.f = *src;
-    // IEEE 754 round-to-nearest-even: add (0x7FFF + LSB)
-    unsigned int lsb = (conv.u >> 16) & 1;
-    conv.u += 0x7FFF + lsb;
-    conv.u >>= 16;
+    // NaN keeps its sign and top payload bits, as rounding could carry it into infinity or zero
+    if ((conv.u & 0x7FFFFFFFu) > 0x7F800000u) conv.u = (conv.u >> 16) | 0x0040u;
+    else {
+        // IEEE 754 round-to-nearest-even: add (0x7FFF + LSB)
+        unsigned int lsb = (conv.u >> 16) & 1;
+        conv.u += 0x7FFF + lsb;
+        conv.u >>= 16;
+    }
     // Use an intermediate variable to ensure correct behavior on big-endian systems.
     // Copying directly from `&conv.u` would copy the wrong bytes on big-endian,
     // since the lower 16 bits are at offset 2, not offset 0.
@@ -2425,6 +2429,14 @@ NUMKONG_API_COMPTIME void nk_cast_serial(void const *from, nk_dtype_t from_type,
         nk_size_t size_bits = nk_dtype_bits(from_type);
         nk_size_t size_bytes = n * size_bits / NUMKONG_BITS_PER_BYTE;
         if (size_bytes > 0) nk_copy_bytes_(to, from, size_bytes);
+        return;
+    }
+
+    // F32 → BF16 skips the F64 hub, whose round trip may drop a NaN's sign and payload
+    if ((from_type == nk_f32_k && to_type == nk_bf16_k) || (from_type == nk_f32c_k && to_type == nk_bf16c_k)) {
+        nk_size_t const components = from_type == nk_f32c_k ? n * 2 : n;
+        for (nk_size_t i = 0; i != components; ++i)
+            nk_f32_to_bf16_serial((nk_f32_t const *)from + i, (nk_bf16_t *)to + i);
         return;
     }
 

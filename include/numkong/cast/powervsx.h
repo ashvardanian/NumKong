@@ -243,9 +243,12 @@ NUMKONG_HELPER_INLINE nk_vu16x8_t nk_f32x4_to_bf16_pack_powervsx_(nk_vf32x4_t va
     // RNE rounding: lsb = (bits >> 16) & 1; bits += 0x7FFF + lsb
     nk_vu32x4_t lsb_u32x4 = vec_and(vec_sr(bits_u32x4, shift_u32x4), one_u32x4);
     nk_vu32x4_t rounding_u32x4 = vec_add(rounding_base_u32x4, lsb_u32x4);
-    bits_u32x4 = vec_add(bits_u32x4, rounding_u32x4);
-    bits_u32x4 = vec_sr(bits_u32x4, shift_u32x4);
-    return vec_pack(bits_u32x4, bits_u32x4);
+    nk_vu32x4_t rounded_u32x4 = vec_add(bits_u32x4, rounding_u32x4);
+    // NaNs skip rounding, which could carry them into infinity or zero, and keep a quiet payload
+    nk_vu32x4_t quiet_nan_u32x4 = vec_or(bits_u32x4, vec_splats((nk_u32_t)0x00400000));
+    rounded_u32x4 = vec_sel(quiet_nan_u32x4, rounded_u32x4, (nk_vu32x4_t)vec_cmpeq(values_f32x4, values_f32x4));
+    rounded_u32x4 = vec_sr(rounded_u32x4, shift_u32x4);
+    return vec_pack(rounded_u32x4, rounded_u32x4);
 }
 
 /** Convert f32x4 → 4x bf16 with RNE rounding (Power VSX). Returns nk_b64_vec_t. */

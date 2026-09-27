@@ -190,6 +190,9 @@ NUMKONG_HELPER_INLINE __m256i nk_f32x16_to_bf16x16_skylake_(__m512 a) {
     __m512i bits_i32x16 = _mm512_castps_si512(a);
     __m512i lsb_i32x16 = _mm512_and_si512(_mm512_srli_epi32(bits_i32x16, 16), _mm512_set1_epi32(1));
     __m512i rounded_i32x16 = _mm512_add_epi32(bits_i32x16, _mm512_add_epi32(_mm512_set1_epi32(0x7FFF), lsb_i32x16));
+    // NaNs skip rounding, which could carry them into infinity or zero, and keep a quiet payload
+    __mmask16 is_nan_m16 = _mm512_cmp_ps_mask(a, a, _CMP_UNORD_Q);
+    rounded_i32x16 = _mm512_mask_or_epi32(rounded_i32x16, is_nan_m16, bits_i32x16, _mm512_set1_epi32(0x00400000));
     __m512i x_i32x16 = _mm512_srli_epi32(rounded_i32x16, 16);
     return _mm512_cvtepi32_epi16(x_i32x16);
 }

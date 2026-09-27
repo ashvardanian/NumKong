@@ -586,8 +586,11 @@ NUMKONG_HELPER_INLINE uint16x4_t nk_f32x4_to_bf16x4_neon_(float32x4_t f32x4) {
     uint32x4_t bits_u32x4 = vreinterpretq_u32_f32(f32x4);
     uint32x4_t lsb_u32x4 = vandq_u32(vshrq_n_u32(bits_u32x4, 16), vdupq_n_u32(1));
     uint32x4_t rounding_u32x4 = vaddq_u32(vdupq_n_u32(0x7FFF), lsb_u32x4);
-    bits_u32x4 = vaddq_u32(bits_u32x4, rounding_u32x4);
-    return vmovn_u32(vshrq_n_u32(bits_u32x4, 16));
+    uint32x4_t rounded_u32x4 = vaddq_u32(bits_u32x4, rounding_u32x4);
+    // NaNs skip rounding, which could carry them into infinity or zero, and keep a quiet payload
+    uint32x4_t quiet_nan_u32x4 = vorrq_u32(bits_u32x4, vdupq_n_u32(0x00400000));
+    rounded_u32x4 = vbslq_u32(vceqq_f32(f32x4, f32x4), rounded_u32x4, quiet_nan_u32x4);
+    return vmovn_u32(vshrq_n_u32(rounded_u32x4, 16));
 }
 
 /** Convert 8x e4m3 → bf16x8 via direct bit manipulation (NEON). E4M3FN format: S EEEE MMM (bias=7).
@@ -1052,14 +1055,13 @@ NUMKONG_API_COMPTIME void nk_cast_neon(void const *from, nk_dtype_t from_type, n
         return;
     }
 
-    // Check if F16 hub is applicable (FP8/F16/BF16 conversions, 8 elements/iter)
-    // Exception: BF16 ↔ F16 skips F16 hub since it needs F32 intermediate anyway
+    // F16 hub, 8 elements per iteration; BF16 skips it, as F16 turns |x| past 65504 into infinity
+    // Exception: F16 → BF16 skips F16 hub since it needs F32 intermediate anyway
     int from_f16_hub = (from_type == nk_e4m3_k || from_type == nk_e5m2_k || from_type == nk_e2m3_k ||
-                        from_type == nk_e3m2_k || from_type == nk_f16_k || from_type == nk_bf16_k);
+                        from_type == nk_e3m2_k || from_type == nk_f16_k);
     int to_f16_hub = (to_type == nk_e4m3_k || to_type == nk_e5m2_k || to_type == nk_f16_k || to_type == nk_bf16_k ||
                       to_type == nk_f32_k);
-    int is_bf16_f16 = (from_type == nk_bf16_k && to_type == nk_f16_k) ||
-                      (from_type == nk_f16_k && to_type == nk_bf16_k);
+    int is_bf16_f16 = (from_type == nk_f16_k && to_type == nk_bf16_k);
 
     if (from_f16_hub && to_f16_hub && !is_bf16_f16) {
         // F16 hub: 8 elements per iteration (float16x8_t intermediate)
@@ -1079,11 +1081,6 @@ NUMKONG_API_COMPTIME void nk_cast_neon(void const *from, nk_dtype_t from_type, n
             case nk_e2m3_k: hub_vec.u16x8 = vreinterpretq_u16_f16(nk_e2m3x8_to_f16x8_neon_(vld1_u8(from_ptr))); break;
             case nk_e3m2_k: hub_vec.u16x8 = vreinterpretq_u16_f16(nk_e3m2x8_to_f16x8_neon_(vld1_u8(from_ptr))); break;
             case nk_f16_k: hub_vec.u16x8 = vld1q_u16((nk_u16_t const *)from_ptr); break;
-            case nk_bf16_k: {
-                float32x4_t low_f32x4 = nk_bf16x4_to_f32x4_neon_(vld1_u16((nk_u16_t const *)from_ptr));
-                float32x4_t high_f32x4 = nk_bf16x4_to_f32x4_neon_(vld1_u16((nk_u16_t const *)(from_ptr + 8)));
-                hub_vec.u16x8 = vreinterpretq_u16_f16(vcombine_f16(vcvt_f16_f32(low_f32x4), vcvt_f16_f32(high_f32x4)));
-            } break;
             default: hub_vec.u16x8 = vdupq_n_u16(0); break;
             }
 

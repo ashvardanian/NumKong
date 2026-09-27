@@ -116,6 +116,10 @@ NUMKONG_HELPER_INLINE __m128i nk_f32x8_to_bf16x8_haswell_(__m256 f32x8) {
     // RNE rounding: add (0x7FFF + lsb) where lsb is bit 16
     __m256i lsb_i32x8 = _mm256_and_si256(_mm256_srli_epi32(bits_i32x8, 16), _mm256_set1_epi32(1));
     __m256i rounded_i32x8 = _mm256_add_epi32(bits_i32x8, _mm256_add_epi32(_mm256_set1_epi32(0x7FFF), lsb_i32x8));
+    // NaNs skip rounding, which could carry them into infinity or zero, and keep a quiet payload
+    __m256i quiet_nan_i32x8 = _mm256_or_si256(bits_i32x8, _mm256_set1_epi32(0x00400000));
+    __m256i is_nan_i32x8 = _mm256_castps_si256(_mm256_cmp_ps(f32x8, f32x8, _CMP_UNORD_Q));
+    rounded_i32x8 = _mm256_blendv_epi8(rounded_i32x8, quiet_nan_i32x8, is_nan_i32x8);
     __m256i bf16_i32x8 = _mm256_srli_epi32(rounded_i32x8, 16);
     // Pack 8x i32 to 8x i16
     __m128i low_i32x4 = _mm256_castsi256_si128(bf16_i32x8);

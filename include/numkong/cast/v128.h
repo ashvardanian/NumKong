@@ -114,6 +114,9 @@ NUMKONG_HELPER_INLINE nk_b64_vec_t nk_f32x4_to_bf16x4_v128_(nk_b128_vec_t hub_ve
     v128_t bits_u32x4 = hub_vec.v128;
     v128_t lsb_u32x4 = wasm_v128_and(wasm_u32x4_shr(bits_u32x4, 16), wasm_i32x4_splat(1));
     v128_t rounded_u32x4 = wasm_i32x4_add(bits_u32x4, wasm_i32x4_add(wasm_i32x4_splat(0x7FFF), lsb_u32x4));
+    // NaNs skip rounding, which could carry them into infinity or zero, and keep a quiet payload
+    v128_t quiet_nan_u32x4 = wasm_v128_or(bits_u32x4, wasm_i32x4_splat(0x00400000));
+    rounded_u32x4 = wasm_v128_bitselect(rounded_u32x4, quiet_nan_u32x4, wasm_f32x4_eq(bits_u32x4, bits_u32x4));
     v128_t bf16_u32x4 = wasm_u32x4_shr(rounded_u32x4, 16);
     v128_t packed_u16x8 = wasm_u16x8_narrow_i32x4(bf16_u32x4, bf16_u32x4);
     nk_b64_vec_t result_vec;
