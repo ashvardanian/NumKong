@@ -14,6 +14,7 @@
 
 #include "numkong/types.h"
 #include "numkong/cast/rvv.h"
+#include "numkong/dot/rvv.h" // `nk_dot_stable_sum_f64m1_rvv_`
 #include "numkong/reduce/serial.h"
 
 #if defined(__clang__)
@@ -274,42 +275,74 @@ NUMKONG_API_COMPTIME void nk_reduce_minmax_f32_rvv(                //
     else nk_reduce_minmax_f32_rvv_strided_(data, count, stride_bytes, min_value, min_index, max_value, max_index);
 }
 
+/** Folds @p vector_length values into both running moments: TwoSum carries each sum's rounding
+ *  error, and TwoProd each square's, into per-lane compensations, as @c nk_dot_f64_rvv does. */
+NUMKONG_HELPER_INLINE void nk_reduce_moments_f64m1_rvv_(vfloat64m1_t data_f64m1, nk_size_t vector_length,
+                                                        vfloat64m1_t *sum_f64m1, vfloat64m1_t *sum_compensation_f64m1,
+                                                        vfloat64m1_t *sumsq_f64m1,
+                                                        vfloat64m1_t *sumsq_compensation_f64m1) {
+    vfloat64m1_t tentative_sum_f64m1 = __riscv_vfadd_vv_f64m1(*sum_f64m1, data_f64m1, vector_length);
+    vfloat64m1_t virtual_addend_f64m1 = __riscv_vfsub_vv_f64m1(tentative_sum_f64m1, *sum_f64m1, vector_length);
+    vfloat64m1_t sum_error_f64m1 = __riscv_vfadd_vv_f64m1(
+        __riscv_vfsub_vv_f64m1(*sum_f64m1,
+                               __riscv_vfsub_vv_f64m1(tentative_sum_f64m1, virtual_addend_f64m1, vector_length),
+                               vector_length),
+        __riscv_vfsub_vv_f64m1(data_f64m1, virtual_addend_f64m1, vector_length), vector_length);
+    vfloat64m1_t square_f64m1 = __riscv_vfmul_vv_f64m1(data_f64m1, data_f64m1, vector_length);
+    vfloat64m1_t square_error_f64m1 = __riscv_vfmsac_vv_f64m1(square_f64m1, data_f64m1, data_f64m1, vector_length);
+    vfloat64m1_t tentative_sumsq_f64m1 = __riscv_vfadd_vv_f64m1(*sumsq_f64m1, square_f64m1, vector_length);
+    vfloat64m1_t virtual_square_f64m1 = __riscv_vfsub_vv_f64m1(tentative_sumsq_f64m1, *sumsq_f64m1, vector_length);
+    vfloat64m1_t sumsq_error_f64m1 = __riscv_vfadd_vv_f64m1(
+        __riscv_vfsub_vv_f64m1(*sumsq_f64m1,
+                               __riscv_vfsub_vv_f64m1(tentative_sumsq_f64m1, virtual_square_f64m1, vector_length),
+                               vector_length),
+        __riscv_vfsub_vv_f64m1(square_f64m1, virtual_square_f64m1, vector_length), vector_length);
+    vfloat64m1_t total_sumsq_error_f64m1 = __riscv_vfadd_vv_f64m1(sumsq_error_f64m1, square_error_f64m1, vector_length);
+    // Tail-undisturbed updates: preserve the lanes a partial iteration doesn't touch
+    *sum_f64m1 = __riscv_vslideup_vx_f64m1_tu(*sum_f64m1, tentative_sum_f64m1, 0, vector_length);
+    *sum_compensation_f64m1 = __riscv_vfadd_vv_f64m1_tu(*sum_compensation_f64m1, *sum_compensation_f64m1,
+                                                        sum_error_f64m1, vector_length);
+    *sumsq_f64m1 = __riscv_vslideup_vx_f64m1_tu(*sumsq_f64m1, tentative_sumsq_f64m1, 0, vector_length);
+    *sumsq_compensation_f64m1 = __riscv_vfadd_vv_f64m1_tu(*sumsq_compensation_f64m1, *sumsq_compensation_f64m1,
+                                                          total_sumsq_error_f64m1, vector_length);
+}
+
 NUMKONG_HELPER_INLINE void nk_reduce_moments_f64_rvv_contiguous_( //
     nk_f64_t const *data, nk_size_t count,                        //
     nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr) {
-    nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
-    vfloat64m4_t sum_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
-    vfloat64m4_t sumsq_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
+    nk_size_t max_vector_length = __riscv_vsetvlmax_e64m1();
+    vfloat64m1_t sum_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
+    vfloat64m1_t sum_compensation_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
+    vfloat64m1_t sumsq_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
+    vfloat64m1_t sumsq_compensation_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
     for (nk_size_t vector_length; count > 0; count -= vector_length, data += vector_length) {
-        vector_length = __riscv_vsetvl_e64m4(count);
-        vfloat64m4_t data_f64m4 = __riscv_vle64_v_f64m4(data, vector_length);
-        sum_f64m4 = __riscv_vfadd_vv_f64m4_tu(sum_f64m4, sum_f64m4, data_f64m4, vector_length);
-        sumsq_f64m4 = __riscv_vfmacc_vv_f64m4_tu(sumsq_f64m4, data_f64m4, data_f64m4, vector_length);
+        vector_length = __riscv_vsetvl_e64m1(count);
+        vfloat64m1_t data_f64m1 = __riscv_vle64_v_f64m1(data, vector_length);
+        nk_reduce_moments_f64m1_rvv_(data_f64m1, vector_length, &sum_f64m1, &sum_compensation_f64m1, &sumsq_f64m1,
+                                     &sumsq_compensation_f64m1);
     }
-    vfloat64m1_t zero_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, 1);
-    *sum_ptr = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m4_f64m1(sum_f64m4, zero_f64m1, max_vector_length)),
-    *sumsq_ptr = __riscv_vfmv_f_s_f64m1_f64(
-        __riscv_vfredusum_vs_f64m4_f64m1(sumsq_f64m4, zero_f64m1, max_vector_length));
+    *sum_ptr = nk_dot_stable_sum_f64m1_rvv_(sum_f64m1, sum_compensation_f64m1);
+    *sumsq_ptr = nk_dot_stable_sum_f64m1_rvv_(sumsq_f64m1, sumsq_compensation_f64m1);
 }
 
 NUMKONG_HELPER_INLINE void nk_reduce_moments_f64_rvv_strided_(     //
     nk_f64_t const *data, nk_size_t count, nk_size_t stride_bytes, //
     nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr) {
-    nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
-    vfloat64m4_t sum_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
-    vfloat64m4_t sumsq_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
+    nk_size_t max_vector_length = __riscv_vsetvlmax_e64m1();
+    vfloat64m1_t sum_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
+    vfloat64m1_t sum_compensation_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
+    vfloat64m1_t sumsq_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
+    vfloat64m1_t sumsq_compensation_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
     unsigned char const *ptr = (unsigned char const *)data;
     for (nk_size_t vector_length; count > 0; count -= vector_length, ptr += vector_length * stride_bytes) {
-        vector_length = __riscv_vsetvl_e64m4(count);
-        vfloat64m4_t data_f64m4 = __riscv_vlse64_v_f64m4((nk_f64_t const *)ptr, (nk_ssize_t)stride_bytes,
+        vector_length = __riscv_vsetvl_e64m1(count);
+        vfloat64m1_t data_f64m1 = __riscv_vlse64_v_f64m1((nk_f64_t const *)ptr, (nk_ssize_t)stride_bytes,
                                                          vector_length);
-        sum_f64m4 = __riscv_vfadd_vv_f64m4_tu(sum_f64m4, sum_f64m4, data_f64m4, vector_length);
-        sumsq_f64m4 = __riscv_vfmacc_vv_f64m4_tu(sumsq_f64m4, data_f64m4, data_f64m4, vector_length);
+        nk_reduce_moments_f64m1_rvv_(data_f64m1, vector_length, &sum_f64m1, &sum_compensation_f64m1, &sumsq_f64m1,
+                                     &sumsq_compensation_f64m1);
     }
-    vfloat64m1_t zero_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, 1);
-    *sum_ptr = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m4_f64m1(sum_f64m4, zero_f64m1, max_vector_length)),
-    *sumsq_ptr = __riscv_vfmv_f_s_f64m1_f64(
-        __riscv_vfredusum_vs_f64m4_f64m1(sumsq_f64m4, zero_f64m1, max_vector_length));
+    *sum_ptr = nk_dot_stable_sum_f64m1_rvv_(sum_f64m1, sum_compensation_f64m1);
+    *sumsq_ptr = nk_dot_stable_sum_f64m1_rvv_(sumsq_f64m1, sumsq_compensation_f64m1);
 }
 
 NUMKONG_API_COMPTIME void nk_reduce_moments_f64_rvv(               //
