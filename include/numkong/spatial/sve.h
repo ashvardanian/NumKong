@@ -210,10 +210,9 @@ NUMKONG_API_COMPTIME void nk_angular_f64_sve(nk_f64_t const *a, nk_f64_t const *
         svbool_t predicate_b64x = svwhilelt_b64_u64(i, n);
         svfloat64_t a_f64x = svld1_f64(predicate_b64x, a + i);
         svfloat64_t b_f64x = svld1_f64(predicate_b64x, b + i);
-        // TwoProd for ab: product = a*b, error = fma(a,b,-product) = -(product - a*b)
+        // TwoProd for ab: product = a*b, error = a*b - product in one rounding
         svfloat64_t product_f64x = svmul_f64_x(predicate_b64x, a_f64x, b_f64x);
-        svfloat64_t product_error_f64x = svneg_f64_x(predicate_b64x,
-                                                     svnmls_f64_x(predicate_b64x, product_f64x, a_f64x, b_f64x));
+        svfloat64_t product_error_f64x = svnmls_f64_x(predicate_b64x, product_f64x, a_f64x, b_f64x);
         // TwoSum: (tentative_sum, sum_error) = TwoSum(sum, product)
         svfloat64_t tentative_sum_f64x = svadd_f64_m(predicate_b64x, ab_sum_f64x, product_f64x);
         svfloat64_t virtual_addend_f64x = svsub_f64_x(predicate_b64x, tentative_sum_f64x, ab_sum_f64x);

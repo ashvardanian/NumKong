@@ -15,8 +15,8 @@
  *
  *  - f32 GEMM: uses @c vfwmacc_vv_f64m4 for f64 accumulation, a vector-vector widened FMA,
  *    processing 4 rows per tile via rows_per_tile=4. Narrowed to f32 on store.
- *  - f64 GEMM: uses @c vfmul plus Kahan compensation, processing 2 rows per tile via
- *    rows_per_tile=2, a tighter register budget at LMUL=4.
+ *  - f64 GEMM: every output is a Dot2 product from @c nk_dot_f64_rvv, TwoProd via @c vfmsac and
+ *    TwoSum per lane, with the compensation kept through the horizontal reduction.
  *  - B packing: column-panel layout with cache-line padding. Each depth step stores contiguous
  *    elements along depth — one @c vle32 and @c vle64 per vectorized chunk.
  *  - Edge handling: RVV's @c vsetvl returns actual VL for partial vectors — no separate edge kernel
@@ -51,6 +51,7 @@
 #include "numkong/types.h"
 #include "numkong/dots/serial.h"
 #include "numkong/cast/rvv.h" // `nk_bf16m1_to_f32m2_rvv_`
+#include "numkong/dot/rvv.h"  // `nk_dot_f64_rvv`
 
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=+v"))), apply_to = function)
@@ -348,125 +349,18 @@ NUMKONG_API_COMPTIME void nk_dots_pack_f64_rvv(nk_f64_t const *b, nk_size_t colu
     }
 }
 
-/**
- *  @brief f64 packed GEMM kernel: C += A * B_packed^T with Kahan compensation.
- *
- *  Vectorizes over depth dimension k using @c vfmul+Kahan (vector-vector multiply).
- *  Uses Kahan summation over full depth to maintain precision.
- *  Register tile: process 2 rows per iteration (rows_per_tile=2, budget: 32 regs at LMUL=4).
- */
-NUMKONG_HELPER_INLINE void nk_dots_packed_f64_rvv_aligned_(nk_f64_t const *a_matrix, void const *b_packed_buffer,
-                                                           nk_f64_t *c_matrix, nk_size_t row_count,
-                                                           nk_size_t column_count, nk_size_t depth,
-                                                           nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
-    nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;
-    nk_size_t const depth_padded = header->depth_padded_values;
-    nk_f64_t const *packed_data = (nk_f64_t const *)((char const *)b_packed_buffer +
-                                                     sizeof(nk_cross_packed_buffer_header_t));
-
-    // Zero output matrix
-    for (nk_size_t i = 0; i < row_count; ++i) {
-        nk_f64_t *c_row = (nk_f64_t *)((char *)c_matrix + i * c_stride_in_bytes);
-        for (nk_size_t j = 0; j < column_count; ++j) c_row[j] = 0;
-    }
-
-    // Process 2 rows per tile (rows_per_tile=2, tighter register budget for f64 at LMUL=4)
-    nk_size_t row = 0;
-    for (; row + 2 <= row_count; row += 2) {
-        nk_f64_t const *a_row_0 = (nk_f64_t const *)((char const *)a_matrix + (row + 0) * a_stride_in_bytes);
-        nk_f64_t const *a_row_1 = (nk_f64_t const *)((char const *)a_matrix + (row + 1) * a_stride_in_bytes);
-        nk_f64_t *c_row_0 = (nk_f64_t *)((char *)c_matrix + (row + 0) * c_stride_in_bytes);
-        nk_f64_t *c_row_1 = (nk_f64_t *)((char *)c_matrix + (row + 1) * c_stride_in_bytes);
-
-        for (nk_size_t column = 0; column < column_count; ++column) {
-            nk_f64_t const *b_column = packed_data + column * depth_padded;
-            nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
-            vfloat64m4_t accumulator_0_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
-            vfloat64m4_t accumulator_1_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
-            vfloat64m4_t compensation_0_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
-            vfloat64m4_t compensation_1_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
-
-            nk_size_t remaining = depth;
-            nk_size_t k = 0;
-            for (nk_size_t vector_length = 0; remaining > 0; remaining -= vector_length, k += vector_length) {
-                vector_length = __riscv_vsetvl_e64m4(remaining);
-                vfloat64m4_t b_vector_f64m4 = __riscv_vle64_v_f64m4(b_column + k, vector_length);
-                vfloat64m4_t a_vector_0_f64m4 = __riscv_vle64_v_f64m4(a_row_0 + k, vector_length);
-                vfloat64m4_t a_vector_1_f64m4 = __riscv_vle64_v_f64m4(a_row_1 + k, vector_length);
-
-                // Kahan step for row 0: product = a*b; corrected = product - comp; running = acc + corrected; comp =
-                // (running - acc) - corrected; acc = running
-                vfloat64m4_t product_0_f64m4 = __riscv_vfmul_vv_f64m4(a_vector_0_f64m4, b_vector_f64m4, vector_length);
-                vfloat64m4_t corrected_term_0_f64m4 = __riscv_vfsub_vv_f64m4(product_0_f64m4, compensation_0_f64m4,
-                                                                             vector_length);
-                vfloat64m4_t running_sum_0_f64m4 = __riscv_vfadd_vv_f64m4_tu(accumulator_0_f64m4, accumulator_0_f64m4,
-                                                                             corrected_term_0_f64m4, vector_length);
-                compensation_0_f64m4 = __riscv_vfsub_vv_f64m4_tu(
-                    compensation_0_f64m4,
-                    __riscv_vfsub_vv_f64m4(running_sum_0_f64m4, accumulator_0_f64m4, vector_length),
-                    corrected_term_0_f64m4, vector_length);
-                accumulator_0_f64m4 = running_sum_0_f64m4;
-
-                // Kahan step for row 1
-                vfloat64m4_t product_1_f64m4 = __riscv_vfmul_vv_f64m4(a_vector_1_f64m4, b_vector_f64m4, vector_length);
-                vfloat64m4_t corrected_term_1_f64m4 = __riscv_vfsub_vv_f64m4(product_1_f64m4, compensation_1_f64m4,
-                                                                             vector_length);
-                vfloat64m4_t running_sum_1_f64m4 = __riscv_vfadd_vv_f64m4_tu(accumulator_1_f64m4, accumulator_1_f64m4,
-                                                                             corrected_term_1_f64m4, vector_length);
-                compensation_1_f64m4 = __riscv_vfsub_vv_f64m4_tu(
-                    compensation_1_f64m4,
-                    __riscv_vfsub_vv_f64m4(running_sum_1_f64m4, accumulator_1_f64m4, vector_length),
-                    corrected_term_1_f64m4, vector_length);
-                accumulator_1_f64m4 = running_sum_1_f64m4;
-            }
-
-            // Horizontal reduce
-            vfloat64m1_t zero_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, 1);
-            c_row_0[column] = __riscv_vfmv_f_s_f64m1_f64(
-                __riscv_vfredusum_vs_f64m4_f64m1(accumulator_0_f64m4, zero_f64m1, max_vector_length));
-            c_row_1[column] = __riscv_vfmv_f_s_f64m1_f64(
-                __riscv_vfredusum_vs_f64m4_f64m1(accumulator_1_f64m4, zero_f64m1, max_vector_length));
-        }
-    }
-    // Remainder rows
-    for (; row < row_count; ++row) {
-        nk_f64_t const *a_row = (nk_f64_t const *)((char const *)a_matrix + row * a_stride_in_bytes);
-        nk_f64_t *c_row = (nk_f64_t *)((char *)c_matrix + row * c_stride_in_bytes);
-        for (nk_size_t column = 0; column < column_count; ++column) {
-            nk_f64_t const *b_column = packed_data + column * depth_padded;
-            nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
-            vfloat64m4_t accumulator_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
-            vfloat64m4_t compensation_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
-
-            nk_size_t remaining = depth;
-            nk_size_t k = 0;
-            for (nk_size_t vector_length = 0; remaining > 0; remaining -= vector_length, k += vector_length) {
-                vector_length = __riscv_vsetvl_e64m4(remaining);
-                vfloat64m4_t b_vector_f64m4 = __riscv_vle64_v_f64m4(b_column + k, vector_length);
-                vfloat64m4_t a_vector_f64m4 = __riscv_vle64_v_f64m4(a_row + k, vector_length);
-
-                vfloat64m4_t product_f64m4 = __riscv_vfmul_vv_f64m4(a_vector_f64m4, b_vector_f64m4, vector_length);
-                vfloat64m4_t corrected_term_f64m4 = __riscv_vfsub_vv_f64m4(product_f64m4, compensation_f64m4,
-                                                                           vector_length);
-                vfloat64m4_t running_sum_f64m4 = __riscv_vfadd_vv_f64m4_tu(accumulator_f64m4, accumulator_f64m4,
-                                                                           corrected_term_f64m4, vector_length);
-                compensation_f64m4 = __riscv_vfsub_vv_f64m4_tu(
-                    compensation_f64m4, __riscv_vfsub_vv_f64m4(running_sum_f64m4, accumulator_f64m4, vector_length),
-                    corrected_term_f64m4, vector_length);
-                accumulator_f64m4 = running_sum_f64m4;
-            }
-
-            vfloat64m1_t zero_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, 1);
-            c_row[column] = __riscv_vfmv_f_s_f64m1_f64(
-                __riscv_vfredusum_vs_f64m4_f64m1(accumulator_f64m4, zero_f64m1, max_vector_length));
-        }
-    }
-}
-
 NUMKONG_API_COMPTIME void nk_dots_packed_f64_rvv(nk_f64_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows,
                                                  nk_size_t columns, nk_size_t depth, nk_size_t a_stride_in_bytes,
                                                  nk_size_t c_stride_in_bytes) {
-    nk_dots_packed_f64_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride_in_bytes, c_stride_in_bytes);
+    nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed;
+    nk_size_t const depth_padded = header->depth_padded_values;
+    nk_f64_t const *packed_data = (nk_f64_t const *)((char const *)b_packed + sizeof(nk_cross_packed_buffer_header_t));
+    for (nk_size_t row = 0; row < rows; ++row) {
+        nk_f64_t const *a_row = (nk_f64_t const *)((char const *)a + row * a_stride_in_bytes);
+        nk_f64_t *c_row = (nk_f64_t *)((char *)c + row * c_stride_in_bytes);
+        for (nk_size_t column = 0; column < columns; ++column)
+            nk_dot_f64_rvv(a_row, packed_data + column * depth_padded, depth, c_row + column);
+    }
 }
 
 NUMKONG_API_COMPTIME void nk_dots_symmetric_f64_rvv(nk_f64_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
@@ -480,35 +374,8 @@ NUMKONG_API_COMPTIME void nk_dots_symmetric_f64_rvv(nk_f64_t const *vectors, nk_
 
     for (nk_size_t i = row_start; i < row_end; ++i) {
         nk_f64_t const *a_i = vectors + i * stride_elements;
-        for (nk_size_t j = i; j < vectors_count; ++j) {
-            nk_f64_t const *a_j = vectors + j * stride_elements;
-            nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
-            vfloat64m4_t accumulator_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
-            vfloat64m4_t compensation_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
-
-            nk_size_t remaining = depth;
-            nk_size_t k = 0;
-            for (nk_size_t vector_length = 0; remaining > 0; remaining -= vector_length, k += vector_length) {
-                vector_length = __riscv_vsetvl_e64m4(remaining);
-                vfloat64m4_t a_vector_f64m4 = __riscv_vle64_v_f64m4(a_i + k, vector_length);
-                vfloat64m4_t b_vector_f64m4 = __riscv_vle64_v_f64m4(a_j + k, vector_length);
-
-                vfloat64m4_t product_f64m4 = __riscv_vfmul_vv_f64m4(a_vector_f64m4, b_vector_f64m4, vector_length);
-                vfloat64m4_t corrected_term_f64m4 = __riscv_vfsub_vv_f64m4(product_f64m4, compensation_f64m4,
-                                                                           vector_length);
-                vfloat64m4_t running_sum_f64m4 = __riscv_vfadd_vv_f64m4_tu(accumulator_f64m4, accumulator_f64m4,
-                                                                           corrected_term_f64m4, vector_length);
-                compensation_f64m4 = __riscv_vfsub_vv_f64m4_tu(
-                    compensation_f64m4, __riscv_vfsub_vv_f64m4(running_sum_f64m4, accumulator_f64m4, vector_length),
-                    corrected_term_f64m4, vector_length);
-                accumulator_f64m4 = running_sum_f64m4;
-            }
-
-            vfloat64m1_t zero_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, 1);
-            nk_f64_t dot = __riscv_vfmv_f_s_f64m1_f64(
-                __riscv_vfredusum_vs_f64m4_f64m1(accumulator_f64m4, zero_f64m1, max_vector_length));
-            result[i * result_stride_elements + j] = dot;
-        }
+        for (nk_size_t j = i; j < vectors_count; ++j)
+            nk_dot_f64_rvv(a_i, vectors + j * stride_elements, depth, result + i * result_stride_elements + j);
     }
 }
 

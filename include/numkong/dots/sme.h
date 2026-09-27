@@ -101,10 +101,9 @@ enum {
     nk_sme_zero_za32_tiles_123_ = 0xEE, /* Accumulators only (preserves ZA0 staging) */
     nk_sme_zero_za64_tile_0_ = 0x01,
     nk_sme_zero_za64_tile_1_ = 0x02,
-    nk_sme_zero_za64_tile_2_ = 0x04,    /* ZA2.D only */
-    nk_sme_zero_za64_tiles_1_3_ = 0x0E, /* ZA1-3.D (Ozaki 1-col path) */
-    nk_sme_zero_za64_tiles_1_6_ = 0x7E, /* ZA1-6.D (Ozaki 2-col path) */
-    nk_sme_zero_za64_tiles_1_7_ = 0xFE, /* Accumulators ZA1-7.D (preserves ZA0.D staging) */
+    nk_sme_zero_za64_tile_2_ = 0x04,      /* ZA2.D only */
+    nk_sme_zero_za64_tiles_1_5_7_ = 0xBE, /* ZA1-5.D and ZA7.D (Ozaki products, keeping staging) */
+    nk_sme_zero_za64_tiles_1_7_ = 0xFE,   /* Accumulators ZA1-7.D (preserves ZA0.D staging) */
 };
 
 /** Clears the lanes of @p bound left of the diagonal on row @p row_index, for a tile starting at

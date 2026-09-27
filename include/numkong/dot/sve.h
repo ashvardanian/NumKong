@@ -213,10 +213,9 @@ NUMKONG_API_COMPTIME void nk_dot_f64_sve(nk_f64_t const *a_scalars, nk_f64_t con
         svbool_t predicate_b64x = svwhilelt_b64_u64(idx_scalars, count_scalars);
         svfloat64_t a_f64x = svld1_f64(predicate_b64x, a_scalars + idx_scalars);
         svfloat64_t b_f64x = svld1_f64(predicate_b64x, b_scalars + idx_scalars);
-        // TwoProd: product = a*b, error = -(product - a*b) negated
+        // TwoProd: product = a*b, error = a*b - product in one rounding
         svfloat64_t product_f64x = svmul_f64_x(predicate_b64x, a_f64x, b_f64x);
-        svfloat64_t product_error_f64x = svneg_f64_x(predicate_b64x,
-                                                     svnmls_f64_x(predicate_b64x, product_f64x, a_f64x, b_f64x));
+        svfloat64_t product_error_f64x = svnmls_f64_x(predicate_b64x, product_f64x, a_f64x, b_f64x);
         // TwoSum: tentative_sum = sum + product
         svfloat64_t tentative_sum_f64x = svadd_f64_m(predicate_b64x, sum_f64x, product_f64x);
         svfloat64_t virtual_addend_f64x = svsub_f64_x(predicate_b64x, tentative_sum_f64x, sum_f64x);
@@ -253,8 +252,7 @@ NUMKONG_API_COMPTIME void nk_dot_f64c_sve(nk_f64c_t const *a_pairs, nk_f64c_t co
         // TwoProd + TwoSum for real part: sum_real += a_real*b_real
         {
             svfloat64_t product_f64x = svmul_f64_x(predicate_b64x, a_real_f64x, b_real_f64x);
-            svfloat64_t product_error_f64x = svneg_f64_x(
-                predicate_b64x, svnmls_f64_x(predicate_b64x, product_f64x, a_real_f64x, b_real_f64x));
+            svfloat64_t product_error_f64x = svnmls_f64_x(predicate_b64x, product_f64x, a_real_f64x, b_real_f64x);
             svfloat64_t tentative_sum_f64x = svadd_f64_m(predicate_b64x, sum_real_f64x, product_f64x);
             svfloat64_t virtual_addend_f64x = svsub_f64_x(predicate_b64x, tentative_sum_f64x, sum_real_f64x);
             svfloat64_t sum_error_f64x = svadd_f64_x(
@@ -269,8 +267,7 @@ NUMKONG_API_COMPTIME void nk_dot_f64c_sve(nk_f64c_t const *a_pairs, nk_f64c_t co
         // TwoProd + TwoSum for real part: sum_real -= a_imag*b_imag
         {
             svfloat64_t product_f64x = svmul_f64_x(predicate_b64x, a_imag_f64x, b_imag_f64x);
-            svfloat64_t product_error_f64x = svneg_f64_x(
-                predicate_b64x, svnmls_f64_x(predicate_b64x, product_f64x, a_imag_f64x, b_imag_f64x));
+            svfloat64_t product_error_f64x = svnmls_f64_x(predicate_b64x, product_f64x, a_imag_f64x, b_imag_f64x);
             svfloat64_t neg_product_f64x = svneg_f64_x(predicate_b64x, product_f64x);
             svfloat64_t neg_product_error_f64x = svneg_f64_x(predicate_b64x, product_error_f64x);
             svfloat64_t tentative_sum_f64x = svadd_f64_m(predicate_b64x, sum_real_f64x, neg_product_f64x);
@@ -287,8 +284,7 @@ NUMKONG_API_COMPTIME void nk_dot_f64c_sve(nk_f64c_t const *a_pairs, nk_f64c_t co
         // TwoProd + TwoSum for imaginary part: sum_imag += a_real*b_imag
         {
             svfloat64_t product_f64x = svmul_f64_x(predicate_b64x, a_real_f64x, b_imag_f64x);
-            svfloat64_t product_error_f64x = svneg_f64_x(
-                predicate_b64x, svnmls_f64_x(predicate_b64x, product_f64x, a_real_f64x, b_imag_f64x));
+            svfloat64_t product_error_f64x = svnmls_f64_x(predicate_b64x, product_f64x, a_real_f64x, b_imag_f64x);
             svfloat64_t tentative_sum_f64x = svadd_f64_m(predicate_b64x, sum_imag_f64x, product_f64x);
             svfloat64_t virtual_addend_f64x = svsub_f64_x(predicate_b64x, tentative_sum_f64x, sum_imag_f64x);
             svfloat64_t sum_error_f64x = svadd_f64_x(
@@ -303,8 +299,7 @@ NUMKONG_API_COMPTIME void nk_dot_f64c_sve(nk_f64c_t const *a_pairs, nk_f64c_t co
         // TwoProd + TwoSum for imaginary part: sum_imag += a_imag*b_real
         {
             svfloat64_t product_f64x = svmul_f64_x(predicate_b64x, a_imag_f64x, b_real_f64x);
-            svfloat64_t product_error_f64x = svneg_f64_x(
-                predicate_b64x, svnmls_f64_x(predicate_b64x, product_f64x, a_imag_f64x, b_real_f64x));
+            svfloat64_t product_error_f64x = svnmls_f64_x(predicate_b64x, product_f64x, a_imag_f64x, b_real_f64x);
             svfloat64_t tentative_sum_f64x = svadd_f64_m(predicate_b64x, sum_imag_f64x, product_f64x);
             svfloat64_t virtual_addend_f64x = svsub_f64_x(predicate_b64x, tentative_sum_f64x, sum_imag_f64x);
             svfloat64_t sum_error_f64x = svadd_f64_x(
@@ -344,8 +339,7 @@ NUMKONG_API_COMPTIME void nk_vdot_f64c_sve(nk_f64c_t const *a_pairs, nk_f64c_t c
         // TwoProd + TwoSum for real part: sum_real += a_real*b_real
         {
             svfloat64_t product_f64x = svmul_f64_x(predicate_b64x, a_real_f64x, b_real_f64x);
-            svfloat64_t product_error_f64x = svneg_f64_x(
-                predicate_b64x, svnmls_f64_x(predicate_b64x, product_f64x, a_real_f64x, b_real_f64x));
+            svfloat64_t product_error_f64x = svnmls_f64_x(predicate_b64x, product_f64x, a_real_f64x, b_real_f64x);
             svfloat64_t tentative_sum_f64x = svadd_f64_m(predicate_b64x, sum_real_f64x, product_f64x);
             svfloat64_t virtual_addend_f64x = svsub_f64_x(predicate_b64x, tentative_sum_f64x, sum_real_f64x);
             svfloat64_t sum_error_f64x = svadd_f64_x(
@@ -360,8 +354,7 @@ NUMKONG_API_COMPTIME void nk_vdot_f64c_sve(nk_f64c_t const *a_pairs, nk_f64c_t c
         // TwoProd + TwoSum for real part: sum_real += a_imag*b_imag (conjugate: + not -)
         {
             svfloat64_t product_f64x = svmul_f64_x(predicate_b64x, a_imag_f64x, b_imag_f64x);
-            svfloat64_t product_error_f64x = svneg_f64_x(
-                predicate_b64x, svnmls_f64_x(predicate_b64x, product_f64x, a_imag_f64x, b_imag_f64x));
+            svfloat64_t product_error_f64x = svnmls_f64_x(predicate_b64x, product_f64x, a_imag_f64x, b_imag_f64x);
             svfloat64_t tentative_sum_f64x = svadd_f64_m(predicate_b64x, sum_real_f64x, product_f64x);
             svfloat64_t virtual_addend_f64x = svsub_f64_x(predicate_b64x, tentative_sum_f64x, sum_real_f64x);
             svfloat64_t sum_error_f64x = svadd_f64_x(
@@ -376,8 +369,7 @@ NUMKONG_API_COMPTIME void nk_vdot_f64c_sve(nk_f64c_t const *a_pairs, nk_f64c_t c
         // TwoProd + TwoSum for imaginary part: sum_imag += a_real*b_imag
         {
             svfloat64_t product_f64x = svmul_f64_x(predicate_b64x, a_real_f64x, b_imag_f64x);
-            svfloat64_t product_error_f64x = svneg_f64_x(
-                predicate_b64x, svnmls_f64_x(predicate_b64x, product_f64x, a_real_f64x, b_imag_f64x));
+            svfloat64_t product_error_f64x = svnmls_f64_x(predicate_b64x, product_f64x, a_real_f64x, b_imag_f64x);
             svfloat64_t tentative_sum_f64x = svadd_f64_m(predicate_b64x, sum_imag_f64x, product_f64x);
             svfloat64_t virtual_addend_f64x = svsub_f64_x(predicate_b64x, tentative_sum_f64x, sum_imag_f64x);
             svfloat64_t sum_error_f64x = svadd_f64_x(
@@ -392,8 +384,7 @@ NUMKONG_API_COMPTIME void nk_vdot_f64c_sve(nk_f64c_t const *a_pairs, nk_f64c_t c
         // TwoProd + TwoSum for imaginary part: sum_imag -= a_imag*b_real (conjugate: - not +)
         {
             svfloat64_t product_f64x = svmul_f64_x(predicate_b64x, a_imag_f64x, b_real_f64x);
-            svfloat64_t product_error_f64x = svneg_f64_x(
-                predicate_b64x, svnmls_f64_x(predicate_b64x, product_f64x, a_imag_f64x, b_real_f64x));
+            svfloat64_t product_error_f64x = svnmls_f64_x(predicate_b64x, product_f64x, a_imag_f64x, b_real_f64x);
             svfloat64_t neg_product_f64x = svneg_f64_x(predicate_b64x, product_f64x);
             svfloat64_t neg_product_error_f64x = svneg_f64_x(predicate_b64x, product_error_f64x);
             svfloat64_t tentative_sum_f64x = svadd_f64_m(predicate_b64x, sum_imag_f64x, neg_product_f64x);

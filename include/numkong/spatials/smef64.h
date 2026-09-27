@@ -49,14 +49,14 @@ NUMKONG_HELPER_AUTO nk_f64_t nk_dots_reduce_sumsq_f32_ssve_(nk_f32_t const *data
 }
 
 NUMKONG_HELPER_AUTO nk_f64_t nk_dots_reduce_sumsq_f64_ssve_(nk_f64_t const *data, nk_size_t count) NUMKONG_STREAMING_ {
-    svfloat64_t accumulator_f64x = svdup_f64(0.0);
+    svfloat64_t sum_f64x = svdup_f64(0.0), compensation_f64x = svdup_f64(0.0);
     nk_size_t const vector_length = svcntd();
     for (nk_size_t i = 0; i < count; i += vector_length) {
         svbool_t predicate_b64x = svwhilelt_b64_u64(i, count);
         svfloat64_t values_f64x = svld1_f64(predicate_b64x, data + i);
-        accumulator_f64x = svmla_f64_m(predicate_b64x, accumulator_f64x, values_f64x, values_f64x);
+        nk_dot2_f64_sve_accumulate_(predicate_b64x, &sum_f64x, &compensation_f64x, values_f64x, values_f64x);
     }
-    return nk_svaddv_f64_(svptrue_b64(), accumulator_f64x);
+    return nk_svaddv_f64_(svptrue_b64(), sum_f64x) + nk_svaddv_f64_(svptrue_b64(), compensation_f64x);
 }
 
 NUMKONG_HELPER_AUTO svfloat64_t

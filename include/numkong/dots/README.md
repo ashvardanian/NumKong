@@ -86,7 +86,10 @@ A 3-column-tile fast path handles B column count ≤ 3×SVL using ZA1–ZA3 as t
 For wider B, the kernel falls back to multi-pass accumulation with ZA store/load between passes.
 `BFMOPA` for BFloat16 uses the same outer-product pattern but with BFloat16 → Float32 widening — 2× the depth per instruction vs Float32 `FMOPA`.
 `SMSTART`/`SMSTOP` streaming mode transitions cost ~50–100 cycles, amortized across the full M×N output.
-Ozaki splitting for Float64 (`nk_dots_packed_f64_smef64`) splits each Float64 into 3 mantissa-masked Float32 slices, computes 6 FMOPAs (all cross-products of 3×2 slices) into 3 ZA accumulators, then reconstructs the Float64 result — achieving Float64 precision using Float32 tile hardware.
+Ozaki splitting for Float64 (`nk_dots_packed_f64_smef64`, `nk_dots_symmetric_f64_smef64`) scales every row of A and column of B by a power of two and cuts it into 4 slices on 20-bit grids plus a remainder.
+The 13 grid products with index sums up to 4 add up exactly in 5 ZA tiles for 4096 depth steps, the 2 remainder products round in a sixth, and TwoSum folds them into a running sum, so results are compensated like Dot2.
+Streaming mode issues Float64 arithmetic only every 4 cycles, so the unpacked side is split with exponent-field additions, `FRINTN`, conversions and shifts, leaving 3 multiplies per vector.
+Packed B stores the 5 slices in Float64, 40 bytes per element or 5× the input, plus an exponent and a norm per column.
 
 ### Compensated Integer GEMM
 
@@ -505,8 +508,8 @@ Measured with Wasmtime v42 (Cranelift backend).
 | `nk_dots_symmetric_f64_serial`     |        1.38 gso/s, 0 ulp |        1.36 gso/s, 0 ulp |        1.49 gso/s, 0 ulp |
 | `nk_dots_packed_f64_neon`          |        6.31 gso/s, 0 ulp |        6.00 gso/s, 0 ulp |        6.34 gso/s, 0 ulp |
 | `nk_dots_symmetric_f64_neon`       |        5.57 gso/s, 0 ulp |        5.41 gso/s, 0 ulp |        5.40 gso/s, 0 ulp |
-| `nk_dots_packed_f64_smef64`        |      45.9 gso/s, 1.5 ulp |      46.3 gso/s, 1.1 ulp |      46.2 gso/s, 0.9 ulp |
-| `nk_dots_symmetric_f64_smef64`     |      22.5 gso/s, 1.5 ulp |      24.3 gso/s, 1.2 ulp |      21.3 gso/s, 1.1 ulp |
+| `nk_dots_packed_f64_smef64`        |        16.8 gso/s, 0 ulp |        20.4 gso/s, 0 ulp |        21.4 gso/s, 0 ulp |
+| `nk_dots_symmetric_f64_smef64`     |        8.11 gso/s, 0 ulp |        9.76 gso/s, 0 ulp |        9.66 gso/s, 0 ulp |
 | __f32__                            | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dots_packed_f32_serial`        |       12.0 gso/s, 19 ulp |       11.4 gso/s, 30 ulp |      12.2 gso/s, 725 ulp |
 | `nk_dots_symmetric_f32_serial`     |      8.75 gso/s, 3.1 ulp |     9.15 gso/s, 12.8 ulp |     9.62 gso/s, 39.9 ulp |
