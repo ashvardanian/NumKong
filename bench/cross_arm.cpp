@@ -41,7 +41,7 @@ void bench_cross_arm() {
                            nk_dots_packed_f32_neon);
     run_dots_packed<bf16_k>("dots_packed_bf16_neon", nk_dots_pack_size_bf16_neon, nk_dots_pack_bf16_neon,
                             nk_dots_packed_bf16_neon);
-    run_dots_packed<u1_k>("dots_packed_u1_neon", nk_dots_pack_size_u1_serial, nk_dots_pack_u1_serial,
+    run_dots_packed<u1_k>("dots_packed_u1_neon", nk_dots_pack_size_u1_neon, nk_dots_pack_u1_neon,
                           nk_dots_packed_u1_neon);
 
     run_dots_symmetric<f64_k>("dots_symmetric_f64_neon", nk_dots_symmetric_f64_neon);
@@ -71,11 +71,11 @@ void bench_cross_arm() {
     run_euclideans_symmetric<f32_k>("euclideans_symmetric_f32_neon", nk_euclideans_symmetric_f32_neon);
     run_euclideans_symmetric<bf16_k>("euclideans_symmetric_bf16_neon", nk_euclideans_symmetric_bf16_neon);
 
-    run_hammings_packed<u1_k>("hammings_packed_u1_neon", nk_dots_pack_size_u1_serial, nk_dots_pack_u1_serial,
+    run_hammings_packed<u1_k>("hammings_packed_u1_neon", nk_dots_pack_size_u1_neon, nk_dots_pack_u1_neon,
                               nk_hammings_packed_u1_neon);
     run_hammings_symmetric<u1_k>("hammings_symmetric_u1_neon", nk_hammings_symmetric_u1_neon);
 
-    run_jaccards_packed<u1_k>("jaccards_packed_u1_neon", nk_dots_pack_size_u1_serial, nk_dots_pack_u1_serial,
+    run_jaccards_packed<u1_k>("jaccards_packed_u1_neon", nk_dots_pack_size_u1_neon, nk_dots_pack_u1_neon,
                               nk_jaccards_packed_u1_neon);
     run_jaccards_symmetric<u1_k>("jaccards_symmetric_u1_neon", nk_jaccards_symmetric_u1_neon);
 

@@ -97,11 +97,11 @@ void bench_cross_loongarch() {
     run_euclideans_symmetric<u8_k>("euclideans_symmetric_u8_loongsonasx", nk_euclideans_symmetric_u8_loongsonasx);
 
     // Sets
-    run_hammings_packed<u1_k>("hammings_packed_u1_loongsonasx", nk_dots_pack_size_u1_serial, nk_dots_pack_u1_serial,
-                              nk_hammings_packed_u1_loongsonasx);
+    run_hammings_packed<u1_k>("hammings_packed_u1_loongsonasx", nk_dots_pack_size_u1_loongsonasx,
+                              nk_dots_pack_u1_loongsonasx, nk_hammings_packed_u1_loongsonasx);
     run_hammings_symmetric<u1_k>("hammings_symmetric_u1_loongsonasx", nk_hammings_symmetric_u1_loongsonasx);
-    run_jaccards_packed<u1_k>("jaccards_packed_u1_loongsonasx", nk_dots_pack_size_u1_serial, nk_dots_pack_u1_serial,
-                              nk_jaccards_packed_u1_loongsonasx);
+    run_jaccards_packed<u1_k>("jaccards_packed_u1_loongsonasx", nk_dots_pack_size_u1_loongsonasx,
+                              nk_dots_pack_u1_loongsonasx, nk_jaccards_packed_u1_loongsonasx);
     run_jaccards_symmetric<u1_k>("jaccards_symmetric_u1_loongsonasx", nk_jaccards_symmetric_u1_loongsonasx);
 
 #endif // NUMKONG_TARGET_LOONGSONASX
