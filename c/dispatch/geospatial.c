@@ -8,6 +8,7 @@
 
 static nk_capability_kernels_t const *nk_haversine_f64_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_haversine_f64_serial,
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_haversine_f64_neon,
@@ -30,9 +31,9 @@ static nk_capability_kernels_t const *nk_haversine_f64_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }
@@ -47,6 +48,7 @@ NUMKONG_API nk_status_t nk_haversine_f64_best(nk_f64_t const *a_lats, nk_f64_t c
 
 static nk_capability_kernels_t const *nk_haversine_f32_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_haversine_f32_serial,
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_haversine_f32_neon,
@@ -69,9 +71,9 @@ static nk_capability_kernels_t const *nk_haversine_f32_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }
@@ -86,6 +88,7 @@ NUMKONG_API nk_status_t nk_haversine_f32_best(nk_f32_t const *a_lats, nk_f32_t c
 
 static nk_capability_kernels_t const *nk_vincenty_f64_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_vincenty_f64_serial,
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_vincenty_f64_neon,
@@ -108,9 +111,9 @@ static nk_capability_kernels_t const *nk_vincenty_f64_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }
@@ -125,6 +128,7 @@ NUMKONG_API nk_status_t nk_vincenty_f64_best(nk_f64_t const *a_lats, nk_f64_t co
 
 static nk_capability_kernels_t const *nk_vincenty_f32_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_vincenty_f32_serial,
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_vincenty_f32_neon,
@@ -147,9 +151,9 @@ static nk_capability_kernels_t const *nk_vincenty_f32_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }

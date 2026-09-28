@@ -8,6 +8,7 @@
 
 static nk_capability_kernels_t const *nk_bilinear_f64_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_bilinear_f64_serial,
 #if NUMKONG_TARGET_SMEF64
         (nk_kernel_punned_t)&nk_bilinear_f64_smef64,
@@ -23,9 +24,9 @@ static nk_capability_kernels_t const *nk_bilinear_f64_capabilities(void) {
         {nk_cap_serial_k | nk_cap_smef64_k * NUMKONG_TARGET_SMEF64 | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV,
          cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }
@@ -39,6 +40,7 @@ NUMKONG_API nk_status_t nk_bilinear_f64_best(nk_f64_t const *a, nk_f64_t const *
 
 static nk_capability_kernels_t const *nk_bilinear_f32_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_bilinear_f32_serial,
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_bilinear_f32_neon,
@@ -61,9 +63,9 @@ static nk_capability_kernels_t const *nk_bilinear_f32_capabilities(void) {
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV,
          cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }
@@ -77,6 +79,7 @@ NUMKONG_API nk_status_t nk_bilinear_f32_best(nk_f32_t const *a, nk_f32_t const *
 
 static nk_capability_kernels_t const *nk_bilinear_f16_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_bilinear_f16_serial,
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_bilinear_f16_neon,
@@ -92,9 +95,9 @@ static nk_capability_kernels_t const *nk_bilinear_f16_capabilities(void) {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV,
          cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }
@@ -108,6 +111,7 @@ NUMKONG_API nk_status_t nk_bilinear_f16_best(nk_f16_t const *a, nk_f16_t const *
 
 static nk_capability_kernels_t const *nk_bilinear_bf16_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_bilinear_bf16_serial,
 #if NUMKONG_TARGET_NEONBFDOT
         (nk_kernel_punned_t)&nk_bilinear_bf16_neonbfdot,
@@ -126,9 +130,9 @@ static nk_capability_kernels_t const *nk_bilinear_bf16_capabilities(void) {
         {nk_cap_serial_k | nk_cap_neonbfdot_k * NUMKONG_TARGET_NEONBFDOT | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
              nk_cap_genoa_k * NUMKONG_TARGET_GENOA | nk_cap_rvv_k * NUMKONG_TARGET_RVV,
          cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }
@@ -142,6 +146,7 @@ NUMKONG_API nk_status_t nk_bilinear_bf16_best(nk_bf16_t const *a, nk_bf16_t cons
 
 static nk_capability_kernels_t const *nk_mahalanobis_f64_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_mahalanobis_f64_serial,
 #if NUMKONG_TARGET_SMEF64
         (nk_kernel_punned_t)&nk_mahalanobis_f64_smef64,
@@ -157,9 +162,9 @@ static nk_capability_kernels_t const *nk_mahalanobis_f64_capabilities(void) {
         {nk_cap_serial_k | nk_cap_smef64_k * NUMKONG_TARGET_SMEF64 | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV,
          cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }
@@ -173,6 +178,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_f64_best(nk_f64_t const *a, nk_f64_t cons
 
 static nk_capability_kernels_t const *nk_mahalanobis_f32_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_mahalanobis_f32_serial,
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_mahalanobis_f32_neon,
@@ -195,9 +201,9 @@ static nk_capability_kernels_t const *nk_mahalanobis_f32_capabilities(void) {
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV,
          cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }
@@ -211,6 +217,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_f32_best(nk_f32_t const *a, nk_f32_t cons
 
 static nk_capability_kernels_t const *nk_mahalanobis_f16_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_mahalanobis_f16_serial,
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_mahalanobis_f16_neon,
@@ -226,9 +233,9 @@ static nk_capability_kernels_t const *nk_mahalanobis_f16_capabilities(void) {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV,
          cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }
@@ -242,6 +249,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_f16_best(nk_f16_t const *a, nk_f16_t cons
 
 static nk_capability_kernels_t const *nk_mahalanobis_bf16_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_mahalanobis_bf16_serial,
 #if NUMKONG_TARGET_NEONBFDOT
         (nk_kernel_punned_t)&nk_mahalanobis_bf16_neonbfdot,
@@ -260,9 +268,9 @@ static nk_capability_kernels_t const *nk_mahalanobis_bf16_capabilities(void) {
         {nk_cap_serial_k | nk_cap_neonbfdot_k * NUMKONG_TARGET_NEONBFDOT | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
              nk_cap_genoa_k * NUMKONG_TARGET_GENOA | nk_cap_rvv_k * NUMKONG_TARGET_RVV,
          cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }
@@ -277,6 +285,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_bf16_best(nk_bf16_t const *a, nk_bf16_t c
 
 static nk_capability_kernels_t const *nk_bilinear_f64c_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_bilinear_f64c_serial,
 #if NUMKONG_TARGET_SMEF64
         (nk_kernel_punned_t)&nk_bilinear_f64c_smef64,
@@ -287,9 +296,9 @@ static nk_capability_kernels_t const *nk_bilinear_f64c_capabilities(void) {
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_smef64_k * NUMKONG_TARGET_SMEF64 | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE, cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }
@@ -303,6 +312,7 @@ NUMKONG_API nk_status_t nk_bilinear_f64c_best(nk_f64c_t const *a, nk_f64c_t cons
 
 static nk_capability_kernels_t const *nk_bilinear_f32c_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_bilinear_f32c_serial,
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_bilinear_f32c_neon,
@@ -318,9 +328,9 @@ static nk_capability_kernels_t const *nk_bilinear_f32c_capabilities(void) {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_smef64_k * NUMKONG_TARGET_SMEF64 |
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE,
          cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }
@@ -334,6 +344,7 @@ NUMKONG_API nk_status_t nk_bilinear_f32c_best(nk_f32c_t const *a, nk_f32c_t cons
 
 static nk_capability_kernels_t const *nk_bilinear_f16c_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_bilinear_f16c_serial,
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_bilinear_f16c_neon,
@@ -341,9 +352,9 @@ static nk_capability_kernels_t const *nk_bilinear_f16c_capabilities(void) {
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON, cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }
@@ -357,6 +368,7 @@ NUMKONG_API nk_status_t nk_bilinear_f16c_best(nk_f16c_t const *a, nk_f16c_t cons
 
 static nk_capability_kernels_t const *nk_bilinear_bf16c_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_bilinear_bf16c_serial,
 #if NUMKONG_TARGET_NEONBFDOT
         (nk_kernel_punned_t)&nk_bilinear_bf16c_neonbfdot,
@@ -367,9 +379,9 @@ static nk_capability_kernels_t const *nk_bilinear_bf16c_capabilities(void) {
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonbfdot_k * NUMKONG_TARGET_NEONBFDOT | nk_cap_genoa_k * NUMKONG_TARGET_GENOA, cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }

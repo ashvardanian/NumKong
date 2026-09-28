@@ -9,6 +9,7 @@
 
 static nk_capability_kernels_t const *nk_hammings_packed_u1_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_hammings_packed_u1_serial,
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_hammings_packed_u1_neon,
@@ -38,9 +39,9 @@ static nk_capability_kernels_t const *nk_hammings_packed_u1_capabilities(void) {
              nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX |
              nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }
@@ -56,6 +57,7 @@ NUMKONG_API nk_status_t nk_hammings_packed_u1_best(nk_u1x8_t const *a, void cons
 
 static nk_capability_kernels_t const *nk_hammings_symmetric_u1_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_hammings_symmetric_u1_serial,
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_hammings_symmetric_u1_neon,
@@ -85,9 +87,9 @@ static nk_capability_kernels_t const *nk_hammings_symmetric_u1_capabilities(void
              nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX |
              nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }
@@ -104,6 +106,7 @@ NUMKONG_API nk_status_t nk_hammings_symmetric_u1_best(nk_u1x8_t const *vectors, 
 
 static nk_capability_kernels_t const *nk_jaccards_packed_u1_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_jaccards_packed_u1_serial,
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_jaccards_packed_u1_neon,
@@ -133,9 +136,9 @@ static nk_capability_kernels_t const *nk_jaccards_packed_u1_capabilities(void) {
              nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX |
              nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }
@@ -151,6 +154,7 @@ NUMKONG_API nk_status_t nk_jaccards_packed_u1_best(nk_u1x8_t const *a, void cons
 
 static nk_capability_kernels_t const *nk_jaccards_symmetric_u1_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_jaccards_symmetric_u1_serial,
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_jaccards_symmetric_u1_neon,
@@ -180,9 +184,9 @@ static nk_capability_kernels_t const *nk_jaccards_symmetric_u1_capabilities(void
              nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX |
              nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }

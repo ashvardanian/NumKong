@@ -22,12 +22,15 @@
 extern "C" {
 #endif
 
-/** One capability group's kernels of one dispatch point: a kernel per bit of @c capabilities,
- *  ascending by bit. */
+/** One capability group's kernels of one dispatch point: a null slot 0, then a kernel per bit of
+ *  @c capabilities, ascending by bit. */
 typedef struct {
     nk_capability_t capabilities;
     nk_kernel_punned_t const *kernels;
 } nk_capability_kernels_t;
+
+/** The kernels of a group a dispatch point has none in: only the null slot 0. */
+static nk_kernel_punned_t const nk_no_kernels_[1] = {NUMKONG_NULL};
 
 /** The capability groups a binary may hold: its CPU's, and one per GPU vendor it was built for. */
 typedef enum {
@@ -38,31 +41,32 @@ typedef enum {
     nk_capability_groups_k,
 } nk_capability_group_t;
 
-/** The highest set bit of @p x as a mask, or zero; compilers lower it to one @c clz. */
-NUMKONG_CONSTEXPR nk_u64_t nk_u64_highest_bit_(nk_u64_t x) {
+/** Every bit of @p x at or below its highest set one, or zero. */
+NUMKONG_CONSTEXPR nk_u64_t nk_u64_smear_down_(nk_u64_t x) {
     x |= x >> 1, x |= x >> 2, x |= x >> 4, x |= x >> 8, x |= x >> 16, x |= x >> 32;
-    return x ^ (x >> 1);
+    return x;
 }
 
-/** The capability group @p capabilities describes, by its highest bit; zero is the CPU's. */
+/** The capability group @p capabilities describes: each GPU vendor's bits sit above the CPU's. */
 NUMKONG_CONSTEXPR nk_capability_group_t nk_capability_group_of_(nk_capability_t capabilities) {
-    nk_u64_t const top = nk_u64_highest_bit_(capabilities);
-    return (nk_capability_group_t)((top >= nk_cap_cuda_k) + (top >= nk_cap_rocm_k) + (top >= nk_cap_metal_k));
+    return (nk_capability_group_t)((capabilities >= nk_cap_cuda_k) + (capabilities >= nk_cap_rocm_k) +
+                                   (capabilities >= nk_cap_metal_k));
 }
 
 /** The best capability @p capabilities shares with its group's kernels, or zero if none. */
 NUMKONG_CONSTEXPR nk_capability_t nk_capability_pick_(nk_capability_t capabilities,
                                                       nk_capability_kernels_t const groups[nk_capability_groups_k]) {
-    return nk_u64_highest_bit_(capabilities & groups[nk_capability_group_of_(capabilities)].capabilities);
+    nk_u64_t const at_or_below = nk_u64_smear_down_(capabilities &
+                                                    groups[nk_capability_group_of_(capabilities)].capabilities);
+    return at_or_below ^ (at_or_below >> 1);
 }
 
 /** The kernel of the best capability @p capabilities shares with its group's kernels, or null. */
 NUMKONG_CONSTEXPR nk_kernel_punned_t nk_kernel_pick_(nk_capability_t capabilities,
                                                      nk_capability_kernels_t const groups[nk_capability_groups_k]) {
     nk_capability_kernels_t const *group = &groups[nk_capability_group_of_(capabilities)];
-    nk_capability_t const capability = nk_u64_highest_bit_(capabilities & group->capabilities);
-    return capability ? group->kernels[nk_u64_popcount_(group->capabilities & (capability - 1))]
-                      : (nk_kernel_punned_t)NUMKONG_NULL;
+    nk_u64_t const at_or_below = nk_u64_smear_down_(capabilities & group->capabilities);
+    return group->kernels[nk_u64_popcount_(group->capabilities & at_or_below)];
 }
 
 #ifdef __cplusplus

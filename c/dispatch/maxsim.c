@@ -9,6 +9,7 @@
 
 static nk_capability_kernels_t const *nk_maxsim_pack_size_bf16_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_maxsim_pack_size_bf16_serial,
 #if NUMKONG_TARGET_NEONSDOT
         (nk_kernel_punned_t)&nk_maxsim_pack_size_bf16_neonsdot,
@@ -38,9 +39,9 @@ static nk_capability_kernels_t const *nk_maxsim_pack_size_bf16_capabilities(void
              nk_cap_genoa_k * NUMKONG_TARGET_GENOA | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }
@@ -54,6 +55,7 @@ NUMKONG_API nk_status_t nk_maxsim_pack_size_bf16_best(nk_size_t width, nk_size_t
 
 static nk_capability_kernels_t const *nk_maxsim_pack_size_f32_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_maxsim_pack_size_f32_serial,
 #if NUMKONG_TARGET_NEONSDOT
         (nk_kernel_punned_t)&nk_maxsim_pack_size_f32_neonsdot,
@@ -83,9 +85,9 @@ static nk_capability_kernels_t const *nk_maxsim_pack_size_f32_capabilities(void)
              nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }
@@ -99,6 +101,7 @@ NUMKONG_API nk_status_t nk_maxsim_pack_size_f32_best(nk_size_t width, nk_size_t 
 
 static nk_capability_kernels_t const *nk_maxsim_pack_size_f16_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_maxsim_pack_size_f16_serial,
 #if NUMKONG_TARGET_NEONSDOT
         (nk_kernel_punned_t)&nk_maxsim_pack_size_f16_neonsdot,
@@ -128,9 +131,9 @@ static nk_capability_kernels_t const *nk_maxsim_pack_size_f16_capabilities(void)
              nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }
@@ -144,6 +147,7 @@ NUMKONG_API nk_status_t nk_maxsim_pack_size_f16_best(nk_size_t width, nk_size_t 
 
 static nk_capability_kernels_t const *nk_maxsim_packed_shape_bf16_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_maxsim_packed_shape_bf16_serial,
 #if NUMKONG_TARGET_NEONSDOT
         (nk_kernel_punned_t)&nk_maxsim_packed_shape_bf16_neonsdot,
@@ -173,9 +177,9 @@ static nk_capability_kernels_t const *nk_maxsim_packed_shape_bf16_capabilities(v
              nk_cap_genoa_k * NUMKONG_TARGET_GENOA | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }
@@ -189,6 +193,7 @@ NUMKONG_API nk_status_t nk_maxsim_packed_shape_bf16_best(void const *packed, nk_
 
 static nk_capability_kernels_t const *nk_maxsim_packed_shape_f32_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_maxsim_packed_shape_f32_serial,
 #if NUMKONG_TARGET_NEONSDOT
         (nk_kernel_punned_t)&nk_maxsim_packed_shape_f32_neonsdot,
@@ -218,9 +223,9 @@ static nk_capability_kernels_t const *nk_maxsim_packed_shape_f32_capabilities(vo
              nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }
@@ -234,6 +239,7 @@ NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_best(void const *packed, nk_s
 
 static nk_capability_kernels_t const *nk_maxsim_packed_shape_f16_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_maxsim_packed_shape_f16_serial,
 #if NUMKONG_TARGET_NEONSDOT
         (nk_kernel_punned_t)&nk_maxsim_packed_shape_f16_neonsdot,
@@ -263,9 +269,9 @@ static nk_capability_kernels_t const *nk_maxsim_packed_shape_f16_capabilities(vo
              nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }
@@ -279,6 +285,7 @@ NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_best(void const *packed, nk_s
 
 static nk_capability_kernels_t const *nk_maxsim_pack_bf16_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_maxsim_pack_bf16_serial,
 #if NUMKONG_TARGET_NEONSDOT
         (nk_kernel_punned_t)&nk_maxsim_pack_bf16_neonsdot,
@@ -308,9 +315,9 @@ static nk_capability_kernels_t const *nk_maxsim_pack_bf16_capabilities(void) {
              nk_cap_genoa_k * NUMKONG_TARGET_GENOA | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }
@@ -325,6 +332,7 @@ NUMKONG_API nk_status_t nk_maxsim_pack_bf16_best(nk_bf16_t const *b, nk_size_t w
 
 static nk_capability_kernels_t const *nk_maxsim_pack_f32_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_maxsim_pack_f32_serial,
 #if NUMKONG_TARGET_NEONSDOT
         (nk_kernel_punned_t)&nk_maxsim_pack_f32_neonsdot,
@@ -354,9 +362,9 @@ static nk_capability_kernels_t const *nk_maxsim_pack_f32_capabilities(void) {
              nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }
@@ -370,6 +378,7 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f32_best(nk_f32_t const *b, nk_size_t wid
 
 static nk_capability_kernels_t const *nk_maxsim_pack_f16_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_maxsim_pack_f16_serial,
 #if NUMKONG_TARGET_NEONSDOT
         (nk_kernel_punned_t)&nk_maxsim_pack_f16_neonsdot,
@@ -399,9 +408,9 @@ static nk_capability_kernels_t const *nk_maxsim_pack_f16_capabilities(void) {
              nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }
@@ -415,6 +424,7 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f16_best(nk_f16_t const *b, nk_size_t wid
 
 static nk_capability_kernels_t const *nk_maxsim_packed_bf16_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_maxsim_packed_bf16_serial,
 #if NUMKONG_TARGET_NEONSDOT
         (nk_kernel_punned_t)&nk_maxsim_packed_bf16_neonsdot,
@@ -444,9 +454,9 @@ static nk_capability_kernels_t const *nk_maxsim_packed_bf16_capabilities(void) {
              nk_cap_genoa_k * NUMKONG_TARGET_GENOA | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }
@@ -462,6 +472,7 @@ NUMKONG_API nk_status_t nk_maxsim_packed_bf16_best(void const *q_packed, void co
 
 static nk_capability_kernels_t const *nk_maxsim_packed_f32_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_maxsim_packed_f32_serial,
 #if NUMKONG_TARGET_NEONSDOT
         (nk_kernel_punned_t)&nk_maxsim_packed_f32_neonsdot,
@@ -491,9 +502,9 @@ static nk_capability_kernels_t const *nk_maxsim_packed_f32_capabilities(void) {
              nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }
@@ -509,6 +520,7 @@ NUMKONG_API nk_status_t nk_maxsim_packed_f32_best(void const *q_packed, void con
 
 static nk_capability_kernels_t const *nk_maxsim_packed_f16_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_maxsim_packed_f16_serial,
 #if NUMKONG_TARGET_NEONSDOT
         (nk_kernel_punned_t)&nk_maxsim_packed_f16_neonsdot,
@@ -538,9 +550,9 @@ static nk_capability_kernels_t const *nk_maxsim_packed_f16_capabilities(void) {
              nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
     };
     return lists;
 }
