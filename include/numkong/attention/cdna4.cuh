@@ -322,8 +322,7 @@ NUMKONG_DEVICE void nk_attention_block_cdna4_(nk_dtype_t dtype, nk_attention_wid
                                                                        nk_attention_step_bytes_k);
     unsigned const row_stride = row_bytes + nk_attention_row_padding_cdna4_k;
     unsigned const value_stride = nk_attention_panel_k * element_bytes + nk_attention_row_padding_cdna4_k;
-    // 32-bit here and in `panel_end`, where the `nk_size_t` round-up helper costs registers.
-    unsigned const depth_steps = (row_bytes + step_bytes - 1) / step_bytes;
+    unsigned const depth_steps = nk_u32_divide_round_up_(row_bytes, step_bytes);
     // Loops run to the register arrays' fixed bounds and skip steps and tiles by these masks, as a
     // bound known only after inlining leaves them rolled and the arrays in scratch.
     unsigned const width_step_mask = (1u << width_steps) - 1, step_mask = ((1u << depth_steps) - 1) & width_step_mask;
@@ -384,8 +383,7 @@ NUMKONG_DEVICE void nk_attention_block_cdna4_(nk_dtype_t dtype, nk_attention_wid
     __syncthreads();
     unsigned const block_begin = min(unions[0][0], unions[1][0]), block_end = max(unions[0][1], unions[1][1]);
     unsigned const panel_first = block_begin < block_end ? block_begin / nk_attention_panel_k : 0;
-    unsigned const panel_end = block_begin < block_end ? (block_end + nk_attention_panel_k - 1) / nk_attention_panel_k
-                                                       : 0;
+    unsigned const panel_end = block_begin < block_end ? nk_u32_divide_round_up_(block_end, nk_attention_panel_k) : 0;
 
     nk_u32_t queries[2][nk_attention_steps_cdna4_k][8];
 #pragma unroll

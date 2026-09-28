@@ -2313,6 +2313,18 @@ assert_accepts "object-like ALL_CAPS macro, and a snake_case_ generator" include
 #define nk_probe_twice_(value) ((value) * 2)
 FIXTURE
 
+assert_rejects "hand-rolled ceiling division" "hand-rolls a ceiling division" include/numkong/probe.h <<'FIXTURE'
+static nk_size_t probe(nk_size_t count) { return (count + 16 - 1) / 16; }
+FIXTURE
+
+assert_accepts "ceiling helper call, its own body, and prose naming the formula" include/numkong/probe.h <<'FIXTURE'
+/* Spelled `(number + divisor - 1) / divisor` only inside the helper. */
+NUMKONG_CONSTEXPR nk_size_t nk_size_divide_round_up_(nk_size_t number, nk_size_t divisor) {
+    return (number + divisor - 1) / divisor;
+}
+static nk_size_t probe(nk_size_t count) { return nk_size_divide_round_up_(count, 16); }
+FIXTURE
+
 # endregion NumKong Fixtures
 
 # region Commit Message Fixtures

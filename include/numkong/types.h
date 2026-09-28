@@ -2193,6 +2193,11 @@ NUMKONG_CONSTEXPR nk_size_t nk_size_divide_round_up_(nk_size_t number, nk_size_t
     return (number + divisor - 1) / divisor;
 }
 
+/** Divides rounding up in 32 bits, for device code where the @c nk_size_t form costs registers. */
+NUMKONG_CONSTEXPR nk_u32_t nk_u32_divide_round_up_(nk_u32_t number, nk_u32_t divisor) NUMKONG_STREAMABLE_ {
+    return (number + divisor - 1) / divisor;
+}
+
 /** Rounds up the number to the next multiple of the given divisor. */
 NUMKONG_CONSTEXPR nk_size_t nk_size_round_up_to_multiple_(nk_size_t number, nk_size_t divisor) NUMKONG_STREAMABLE_ {
     return nk_size_divide_round_up_(number, divisor) * divisor;

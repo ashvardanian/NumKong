@@ -2666,6 +2666,21 @@ check_all_caps_macros_object_like() {
         "            or name a file-local generator snake_case_ and #undef it after use:"
 }
 
+# Rejects a hand-rolled ceiling division, `(value + divisor - 1) / divisor`, because the helpers name it;
+# their own bodies, the one place it is spelled out, are skipped.
+check_ceiling_divisions_use_helpers() {
+    local ceilings
+    ceilings=$(printf '%s\n' "$staged_file_text" | blank_c_comments_preserving_columns |
+        added_list="$staged_added_line_numbers_list" awk '
+            BEGIN { count = split(ENVIRON["added_list"], numbers, "\n"); for (index_ = 1; index_ <= count; ++index_) added[numbers[index_] + 0] = 1 }
+            /^(NUMKONG_CONSTEXPR|constexpr)[^(]*[[:space:]](nk_[a-z0-9]+_)?divide_round_up_?\(/ { helper = 1; next }
+            helper { if (/^}/) helper = 0; next }
+            (FNR in added) && /\([^()]+\+[^()]+-[[:space:]]*1[[:space:]]*\)[[:space:]]*\// { printf "line %d: %s\n", FNR, $0 }' || true)
+    [ -z "$ceilings" ] || reject_with_reason "$ceilings" \
+        "$staged_path hand-rolls a ceiling division; write nk_size_divide_round_up_(value, divisor) in C" \
+        "            or nk::divide_round_up(value, divisor) in C++:"
+}
+
 # Routes one staged file through the checks only NumKong has.
 run_project_checks() {
     case "$staged_path" in
@@ -2677,6 +2692,9 @@ run_project_checks() {
         check_facts_tested_by_value
         check_all_caps_macros_object_like
         ;;
+    esac
+    case "$staged_path" in
+    *.c | *.h | *.cpp | *.hpp | *.cc | *.cu | *.cuh) check_ceiling_divisions_use_helpers ;;
     esac
     case "$staged_path" in
     include/numkong/*/*.h | include/numkong/*/*.cuh)
