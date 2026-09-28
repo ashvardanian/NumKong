@@ -8,7 +8,7 @@
  *  @see https://sleef.org
  *
  *  Implements sin, cos, atan, atan2 for f32x4 and f64x2 using minimax polynomial approximations.
- *  F32 sin/cos use 3-term polynomials with Cody-Waite range reduction; f64 uses 8-term Estrin.
+ *  F32 sin/cos: a degree-9 polynomial after a 4-part Cody-Waite reduction; f64: 8-term Estrin.
  *  F32 atan uses an 8-term Horner scheme; f64 atan uses 19 terms. Atan2 adds quadrant correction.
  *
  *  Polynomial chains rely on relaxed FMA, @c relaxed_madd and @c relaxed_nmadd, for throughput.
@@ -53,12 +53,17 @@ extern "C" {
  *  approximations using 128-bit WASM SIMD vectors. */
 
 NUMKONG_INLINE v128_t nk_f32x4_sin_v128relaxed_(v128_t const angles_radians) {
-    // Constants for argument reduction
-    v128_t const pi_f32x4 = wasm_f32x4_splat(3.14159265358979323846f);
+    // π in four 12-bit parts, whose products stay exact even where relaxed FMAs are unfused
+    v128_t const pi_part_1_f32x4 = wasm_f32x4_splat(3.140625f);
+    v128_t const pi_part_2_f32x4 = wasm_f32x4_splat(9.67502593994140625e-4f);
+    v128_t const pi_part_3_f32x4 = wasm_f32x4_splat(1.50990672409534454346e-7f);
+    v128_t const pi_part_4_f32x4 = wasm_f32x4_splat(5.12668813651417920596e-12f);
     v128_t const pi_reciprocal_f32x4 = wasm_f32x4_splat(0.31830988618379067154f);
-    v128_t const coeff_5_f32x4 = wasm_f32x4_splat(-0.0001881748176f);
-    v128_t const coeff_3_f32x4 = wasm_f32x4_splat(+0.008323502727f);
-    v128_t const coeff_1_f32x4 = wasm_f32x4_splat(-0.1666651368f);
+    // Degree-9 minimax coefficients for the relative error over [-π/2, π/2]
+    v128_t const coeff_9_f32x4 = wasm_f32x4_splat(+2.6057805e-6f);
+    v128_t const coeff_7_f32x4 = wasm_f32x4_splat(-1.9809602e-4f);
+    v128_t const coeff_5_f32x4 = wasm_f32x4_splat(+8.3330665e-3f);
+    v128_t const coeff_3_f32x4 = wasm_f32x4_splat(-1.6666660e-1f);
 
     // Compute (multiples_of_pi_f32x4) = round(angle / pi_f32x4) using nearest rounding
     v128_t quotients_f32x4 = wasm_f32x4_mul(angles_radians, pi_reciprocal_f32x4);
@@ -67,15 +72,19 @@ NUMKONG_INLINE v128_t nk_f32x4_sin_v128relaxed_(v128_t const angles_radians) {
     // Safe because rounded_quotients_f32x4 are small integers from nearest(), never NaN or out of i32 range.
     v128_t multiples_of_pi_f32x4 = wasm_i32x4_relaxed_trunc_f32x4(rounded_quotients_f32x4);
 
-    // Reduce the angle: angle - rounded_quotients_f32x4 * pi_f32x4
-    v128_t const angles_f32x4 = wasm_f32x4_relaxed_nmadd(rounded_quotients_f32x4, pi_f32x4, angles_radians);
+    // Cody-Waite range reduction
+    v128_t angles_f32x4 = wasm_f32x4_relaxed_nmadd(rounded_quotients_f32x4, pi_part_1_f32x4, angles_radians);
+    angles_f32x4 = wasm_f32x4_relaxed_nmadd(rounded_quotients_f32x4, pi_part_2_f32x4, angles_f32x4);
+    angles_f32x4 = wasm_f32x4_relaxed_nmadd(rounded_quotients_f32x4, pi_part_3_f32x4, angles_f32x4);
+    angles_f32x4 = wasm_f32x4_relaxed_nmadd(rounded_quotients_f32x4, pi_part_4_f32x4, angles_f32x4);
     v128_t const angles_sq_f32x4 = wasm_f32x4_mul(angles_f32x4, angles_f32x4);
     v128_t const angles_cubed_f32x4 = wasm_f32x4_mul(angles_f32x4, angles_sq_f32x4);
 
-    // Compute the polynomial approximation
-    v128_t polynomials_f32x4 = coeff_5_f32x4;
+    // Degree-9 polynomial via Horner's method
+    v128_t polynomials_f32x4 = coeff_9_f32x4;
+    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, angles_sq_f32x4, coeff_7_f32x4);
+    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, angles_sq_f32x4, coeff_5_f32x4);
     polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, angles_sq_f32x4, coeff_3_f32x4);
-    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, angles_sq_f32x4, coeff_1_f32x4);
     v128_t results_f32x4 = wasm_f32x4_relaxed_madd(angles_cubed_f32x4, polynomials_f32x4, angles_f32x4);
 
     // If multiples_of_pi_f32x4 is odd, flip the sign
@@ -89,13 +98,17 @@ NUMKONG_INLINE v128_t nk_f32x4_sin_v128relaxed_(v128_t const angles_radians) {
 }
 
 NUMKONG_INLINE v128_t nk_f32x4_cos_v128relaxed_(v128_t const angles_radians) {
-    // Constants for argument reduction
-    v128_t const pi_f32x4 = wasm_f32x4_splat(3.14159265358979323846f);
-    v128_t const pi_half_f32x4 = wasm_f32x4_splat(1.57079632679489661923f);
+    // π in four 12-bit parts, whose products stay exact even where relaxed FMAs are unfused
+    v128_t const pi_part_1_f32x4 = wasm_f32x4_splat(3.140625f);
+    v128_t const pi_part_2_f32x4 = wasm_f32x4_splat(9.67502593994140625e-4f);
+    v128_t const pi_part_3_f32x4 = wasm_f32x4_splat(1.50990672409534454346e-7f);
+    v128_t const pi_part_4_f32x4 = wasm_f32x4_splat(5.12668813651417920596e-12f);
     v128_t const pi_reciprocal_f32x4 = wasm_f32x4_splat(0.31830988618379067154f);
-    v128_t const coeff_5_f32x4 = wasm_f32x4_splat(-0.0001881748176f);
-    v128_t const coeff_3_f32x4 = wasm_f32x4_splat(+0.008323502727f);
-    v128_t const coeff_1_f32x4 = wasm_f32x4_splat(-0.1666651368f);
+    // Degree-9 minimax coefficients for the relative error over [-π/2, π/2]
+    v128_t const coeff_9_f32x4 = wasm_f32x4_splat(+2.6057805e-6f);
+    v128_t const coeff_7_f32x4 = wasm_f32x4_splat(-1.9809602e-4f);
+    v128_t const coeff_5_f32x4 = wasm_f32x4_splat(+8.3330665e-3f);
+    v128_t const coeff_3_f32x4 = wasm_f32x4_splat(-1.6666660e-1f);
 
     // Compute round((angle / pi_f32x4) - 0.5)
     v128_t const neg_half_f32x4 = wasm_f32x4_splat(-0.5f);
@@ -105,16 +118,20 @@ NUMKONG_INLINE v128_t nk_f32x4_cos_v128relaxed_(v128_t const angles_radians) {
     // Safe because rounded_quotients_f32x4 are small integers from nearest(), never NaN or out of i32 range.
     v128_t multiples_of_pi_f32x4 = wasm_i32x4_relaxed_trunc_f32x4(rounded_quotients_f32x4);
 
-    // Reduce the angle: (angle - pi_f32x4/2) - rounded_quotients_f32x4 * pi_f32x4
-    v128_t shifted_f32x4 = wasm_f32x4_sub(angles_radians, pi_half_f32x4);
-    v128_t const angles_f32x4 = wasm_f32x4_relaxed_nmadd(rounded_quotients_f32x4, pi_f32x4, shifted_f32x4);
+    // Reduce by the odd multiple of π/2, never subtracting a rounded π/2 on its own
+    v128_t const offsets_f32x4 = wasm_f32x4_add(rounded_quotients_f32x4, wasm_f32x4_splat(0.5f));
+    v128_t angles_f32x4 = wasm_f32x4_relaxed_nmadd(offsets_f32x4, pi_part_1_f32x4, angles_radians);
+    angles_f32x4 = wasm_f32x4_relaxed_nmadd(offsets_f32x4, pi_part_2_f32x4, angles_f32x4);
+    angles_f32x4 = wasm_f32x4_relaxed_nmadd(offsets_f32x4, pi_part_3_f32x4, angles_f32x4);
+    angles_f32x4 = wasm_f32x4_relaxed_nmadd(offsets_f32x4, pi_part_4_f32x4, angles_f32x4);
     v128_t const angles_sq_f32x4 = wasm_f32x4_mul(angles_f32x4, angles_f32x4);
     v128_t const angles_cubed_f32x4 = wasm_f32x4_mul(angles_f32x4, angles_sq_f32x4);
 
-    // Compute the polynomial approximation
-    v128_t polynomials_f32x4 = coeff_5_f32x4;
+    // Degree-9 polynomial via Horner's method
+    v128_t polynomials_f32x4 = coeff_9_f32x4;
+    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, angles_sq_f32x4, coeff_7_f32x4);
+    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, angles_sq_f32x4, coeff_5_f32x4);
     polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, angles_sq_f32x4, coeff_3_f32x4);
-    polynomials_f32x4 = wasm_f32x4_relaxed_madd(polynomials_f32x4, angles_sq_f32x4, coeff_1_f32x4);
     v128_t results_f32x4 = wasm_f32x4_relaxed_madd(angles_cubed_f32x4, polynomials_f32x4, angles_f32x4);
 
     // If multiples_of_pi_f32x4 is even, flip the sign

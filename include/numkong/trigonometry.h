@@ -26,6 +26,14 @@
  *
  *  @see SLEEF: https://sleef.org/
  *
+ *  @section trigonometry_accuracy Accuracy
+ *
+ *  - @c f64 sin, cos and atan: within 2 ULP of the correctly rounded result, so not faithful.
+ *  - @c f32 sin and cos: within 2 ULP for |x| ≤ 10⁴, next to their zeros too; atan within 3 ULP.
+ *  - @c f16: shorter polynomials evaluated in @c f32, within 1 ULP of the correctly rounded result.
+ *
+ *  The measurements behind these bounds are in @c include/numkong/trigonometry/README.md.
+ *
  *  @section glibc_math GLibC IEEE-754-compliant Math Functions
  *
  *  The GNU C Library, GLibC, provides IEEE-754-compliant math functions, like single-precision
@@ -438,10 +446,10 @@ NUMKONG_API nk_status_t nk_trig_atan_f16_rvv(nk_f16_t const *ins, nk_size_t n, n
 #endif // NUMKONG_TARGET_RVV
 
 /**
- *  @brief Finds the trigonometry kernel of @p kind for @p dtype from the best capability in @p capabilities.
+ *  @brief Finds the trigonometry kernel of @p kind for @p dtype, from the best of @p capabilities.
  *  @param[out] kernel The kernel, or null when no capability in @p capabilities has it.
  *  @param[out] capability The capability the kernel belongs to, or zero.
- *  @return @c nk_success_k, @c nk_missing_kernel_k, or @c nk_missing_library_k in header-only builds.
+ *  @return @c nk_success_k, @c nk_missing_kernel_k, or @c nk_missing_library_k when header-only.
  */
 NUMKONG_API nk_status_t nk_trigonometry_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype,
                                                     nk_capability_t capabilities, nk_kernel_punned_t *kernel,

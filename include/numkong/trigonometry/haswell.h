@@ -48,15 +48,16 @@ extern "C" {
  *  approximations as Skylake but with 256-bit vectors. */
 
 NUMKONG_INLINE __m256 nk_sin_f32x8_haswell_(__m256 const angles_radians) {
-    // Cody-Waite constants for argument reduction
+    // Cody-Waite constants for argument reduction, π split into three parts
     __m256 const pi_high_f32x8 = _mm256_set1_ps(3.1415927f);
     __m256 const pi_low_f32x8 = _mm256_set1_ps(-8.742278e-8f);
+    __m256 const pi_lowest_f32x8 = _mm256_set1_ps(-3.430249e-15f);
     __m256 const pi_reciprocal_f32x8 = _mm256_set1_ps(0.31830988618379067154f); // 1/π
-    // Degree-9 minimax coefficients
-    __m256 const coeff_9_f32x8 = _mm256_set1_ps(+2.7557319224e-6f);
-    __m256 const coeff_7_f32x8 = _mm256_set1_ps(-1.9841269841e-4f);
-    __m256 const coeff_5_f32x8 = _mm256_set1_ps(+8.3333293855e-3f);
-    __m256 const coeff_3_f32x8 = _mm256_set1_ps(-1.6666666641e-1f);
+    // Degree-9 minimax coefficients for the relative error over [-π/2, π/2]
+    __m256 const coeff_9_f32x8 = _mm256_set1_ps(+2.6057805e-6f);
+    __m256 const coeff_7_f32x8 = _mm256_set1_ps(-1.9809602e-4f);
+    __m256 const coeff_5_f32x8 = _mm256_set1_ps(+8.3330665e-3f);
+    __m256 const coeff_3_f32x8 = _mm256_set1_ps(-1.6666660e-1f);
 
     // Compute (multiples_of_pi_i32x8) = round(angle / π)
     __m256 quotients_f32x8 = _mm256_mul_ps(angles_radians, pi_reciprocal_f32x8);
@@ -67,6 +68,7 @@ NUMKONG_INLINE __m256 nk_sin_f32x8_haswell_(__m256 const angles_radians) {
     // Cody-Waite range reduction
     __m256 angles_f32x8 = _mm256_fnmadd_ps(rounded_quotients_f32x8, pi_high_f32x8, angles_radians);
     angles_f32x8 = _mm256_fnmadd_ps(rounded_quotients_f32x8, pi_low_f32x8, angles_f32x8);
+    angles_f32x8 = _mm256_fnmadd_ps(rounded_quotients_f32x8, pi_lowest_f32x8, angles_f32x8);
     __m256 const angles_squared_f32x8 = _mm256_mul_ps(angles_f32x8, angles_f32x8);
     __m256 const angles_cubed_f32x8 = _mm256_mul_ps(angles_f32x8, angles_squared_f32x8);
 
@@ -87,16 +89,16 @@ NUMKONG_INLINE __m256 nk_sin_f32x8_haswell_(__m256 const angles_radians) {
 }
 
 NUMKONG_INLINE __m256 nk_cos_f32x8_haswell_(__m256 const angles_radians) {
-    // Cody-Waite constants for argument reduction
+    // Cody-Waite constants for argument reduction, π split into three parts
     __m256 const pi_high_f32x8 = _mm256_set1_ps(3.1415927f);
     __m256 const pi_low_f32x8 = _mm256_set1_ps(-8.742278e-8f);
-    __m256 const pi_half_f32x8 = _mm256_set1_ps(1.57079632679489661923f);       // π/2
+    __m256 const pi_lowest_f32x8 = _mm256_set1_ps(-3.430249e-15f);
     __m256 const pi_reciprocal_f32x8 = _mm256_set1_ps(0.31830988618379067154f); // 1/π
-    // Degree-9 minimax coefficients
-    __m256 const coeff_9_f32x8 = _mm256_set1_ps(+2.7557319224e-6f);
-    __m256 const coeff_7_f32x8 = _mm256_set1_ps(-1.9841269841e-4f);
-    __m256 const coeff_5_f32x8 = _mm256_set1_ps(+8.3333293855e-3f);
-    __m256 const coeff_3_f32x8 = _mm256_set1_ps(-1.6666666641e-1f);
+    // Degree-9 minimax coefficients for the relative error over [-π/2, π/2]
+    __m256 const coeff_9_f32x8 = _mm256_set1_ps(+2.6057805e-6f);
+    __m256 const coeff_7_f32x8 = _mm256_set1_ps(-1.9809602e-4f);
+    __m256 const coeff_5_f32x8 = _mm256_set1_ps(+8.3330665e-3f);
+    __m256 const coeff_3_f32x8 = _mm256_set1_ps(-1.6666660e-1f);
 
     // Compute (multiples_of_pi_i32x8) = round((angle / π) - 0.5)
     __m256 quotients_f32x8 = _mm256_fmsub_ps(angles_radians, pi_reciprocal_f32x8, _mm256_set1_ps(0.5f));
@@ -104,10 +106,11 @@ NUMKONG_INLINE __m256 nk_cos_f32x8_haswell_(__m256 const angles_radians) {
     // Use truncation (MXCSR-independent) since rounded_quotients_f32x8 is already integer-valued
     __m256i multiples_of_pi_i32x8 = _mm256_cvttps_epi32(rounded_quotients_f32x8);
 
-    // Cody-Waite range reduction: angle = angle_radians - (multiples * pi + pi/2)
-    __m256 const offset_f32x8 = _mm256_fmadd_ps(rounded_quotients_f32x8, pi_high_f32x8, pi_half_f32x8);
-    __m256 angles_f32x8 = _mm256_sub_ps(angles_radians, offset_f32x8);
-    angles_f32x8 = _mm256_fnmadd_ps(rounded_quotients_f32x8, pi_low_f32x8, angles_f32x8);
+    // Reduce by the odd multiple of π/2, never subtracting a rounded π/2 on its own
+    __m256 const offsets_f32x8 = _mm256_add_ps(rounded_quotients_f32x8, _mm256_set1_ps(0.5f));
+    __m256 angles_f32x8 = _mm256_fnmadd_ps(offsets_f32x8, pi_high_f32x8, angles_radians);
+    angles_f32x8 = _mm256_fnmadd_ps(offsets_f32x8, pi_low_f32x8, angles_f32x8);
+    angles_f32x8 = _mm256_fnmadd_ps(offsets_f32x8, pi_lowest_f32x8, angles_f32x8);
     __m256 const angles_squared_f32x8 = _mm256_mul_ps(angles_f32x8, angles_f32x8);
     __m256 const angles_cubed_f32x8 = _mm256_mul_ps(angles_f32x8, angles_squared_f32x8);
 

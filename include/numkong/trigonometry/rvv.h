@@ -10,7 +10,7 @@
  *  Implements sin, cos, atan, atan2 for f32 (m4), f64 (m4), and f16 (via f32 m2) using minimax
  *  polynomial approximations with RVV vector intrinsics.
  *
- *  F32 sin/cos use 3-term Horner polynomials with Cody-Waite range reduction modulo pi.
+ *  F32 sin/cos use a degree-9 Horner polynomial after a three-part Cody-Waite reduction modulo pi.
  *  F32 atan uses an 8-term Horner scheme with reciprocal folding for |x| > 1.
  *  F64 sin/cos use 8-term Estrin-style evaluation for better ILP with high-low pi splitting.
  *  F64 atan uses a 19-term Horner polynomial for full double-precision accuracy.
@@ -61,7 +61,7 @@ extern "C" {
  *  Internal helpers return vector register groups for use by geospatial/rvv.h. */
 
 NUMKONG_INLINE vfloat32m4_t nk_f32m4_sin_rvv_(vfloat32m4_t angles_f32m4, nk_size_t vector_length) {
-    nk_f32_t const pi = 3.14159265358979323846f;
+    nk_f32_t const pi_high = 3.1415927f, pi_low = -8.742278e-8f, pi_lowest = -3.430249e-15f;
     nk_f32_t const pi_recip = 0.31830988618379067154f;
 
     // Range reduce: round(angle / pi)
@@ -70,18 +70,22 @@ NUMKONG_INLINE vfloat32m4_t nk_f32m4_sin_rvv_(vfloat32m4_t angles_f32m4, nk_size
     vint32m4_t rounded_i32m4 = __riscv_vfcvt_x_f_v_i32m4(quotients_f32m4, vector_length);
     vfloat32m4_t rounded_f32m4 = __riscv_vfcvt_f_x_v_f32m4(rounded_i32m4, vector_length);
 
-    // reduced = angle - rounded * pi
-    vfloat32m4_t reduced_f32m4 = __riscv_vfnmsac_vf_f32m4(angles_f32m4, pi, rounded_f32m4, vector_length);
+    // Cody-Waite range reduction: reduced = angle - rounded * (pi_high + pi_low + pi_lowest)
+    vfloat32m4_t reduced_f32m4 = __riscv_vfnmsac_vf_f32m4(angles_f32m4, pi_high, rounded_f32m4, vector_length);
+    reduced_f32m4 = __riscv_vfnmsac_vf_f32m4(reduced_f32m4, pi_low, rounded_f32m4, vector_length);
+    reduced_f32m4 = __riscv_vfnmsac_vf_f32m4(reduced_f32m4, pi_lowest, rounded_f32m4, vector_length);
 
-    // Polynomial: sin(x) ~ x + x^3 * (c1 + x^2 * (c3 + x^2 * c5))
+    // Degree-9 minimax polynomial for the relative error over [-π/2, π/2]
     vfloat32m4_t squared_f32m4 = __riscv_vfmul_vv_f32m4(reduced_f32m4, reduced_f32m4, vector_length);
     vfloat32m4_t cubed_f32m4 = __riscv_vfmul_vv_f32m4(reduced_f32m4, squared_f32m4, vector_length);
 
-    vfloat32m4_t poly_f32m4 = __riscv_vfmv_v_f_f32m4(-0.0001881748176f, vector_length);
+    vfloat32m4_t poly_f32m4 = __riscv_vfmv_v_f_f32m4(+2.6057805e-6f, vector_length);
     poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, squared_f32m4,
-                                         __riscv_vfmv_v_f_f32m4(0.008323502727f, vector_length), vector_length);
+                                         __riscv_vfmv_v_f_f32m4(-1.9809602e-4f, vector_length), vector_length);
     poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, squared_f32m4,
-                                         __riscv_vfmv_v_f_f32m4(-0.1666651368f, vector_length), vector_length);
+                                         __riscv_vfmv_v_f_f32m4(+8.3330665e-3f, vector_length), vector_length);
+    poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, squared_f32m4,
+                                         __riscv_vfmv_v_f_f32m4(-1.6666660e-1f, vector_length), vector_length);
     vfloat32m4_t result_f32m4 = __riscv_vfmacc_vv_f32m4(reduced_f32m4, cubed_f32m4, poly_f32m4, vector_length);
 
     // Sign flip if rounded is odd: XOR bit 0 of rounded_i32m4 shifted to sign position
@@ -93,8 +97,7 @@ NUMKONG_INLINE vfloat32m4_t nk_f32m4_sin_rvv_(vfloat32m4_t angles_f32m4, nk_size
 }
 
 NUMKONG_INLINE vfloat32m4_t nk_f32m4_cos_rvv_(vfloat32m4_t angles_f32m4, nk_size_t vector_length) {
-    nk_f32_t const pi = 3.14159265358979323846f;
-    nk_f32_t const pi_half = 1.57079632679489661923f;
+    nk_f32_t const pi_high = 3.1415927f, pi_low = -8.742278e-8f, pi_lowest = -3.430249e-15f;
     nk_f32_t const pi_recip = 0.31830988618379067154f;
 
     // Compute round((angle / pi) - 0.5)
@@ -103,20 +106,23 @@ NUMKONG_INLINE vfloat32m4_t nk_f32m4_cos_rvv_(vfloat32m4_t angles_f32m4, nk_size
     vint32m4_t rounded_i32m4 = __riscv_vfcvt_x_f_v_i32m4(quotients_f32m4, vector_length);
     vfloat32m4_t rounded_f32m4 = __riscv_vfcvt_f_x_v_f32m4(rounded_i32m4, vector_length);
 
-    // Reduce: angle - (rounded * pi + pi/2)
-    vfloat32m4_t offset_f32m4 = __riscv_vfmacc_vf_f32m4(__riscv_vfmv_v_f_f32m4(pi_half, vector_length), pi,
-                                                        rounded_f32m4, vector_length);
-    vfloat32m4_t reduced_f32m4 = __riscv_vfsub_vv_f32m4(angles_f32m4, offset_f32m4, vector_length);
+    // Reduce by the odd multiple of π/2, never subtracting a rounded π/2 on its own
+    vfloat32m4_t offsets_f32m4 = __riscv_vfadd_vf_f32m4(rounded_f32m4, 0.5f, vector_length);
+    vfloat32m4_t reduced_f32m4 = __riscv_vfnmsac_vf_f32m4(angles_f32m4, pi_high, offsets_f32m4, vector_length);
+    reduced_f32m4 = __riscv_vfnmsac_vf_f32m4(reduced_f32m4, pi_low, offsets_f32m4, vector_length);
+    reduced_f32m4 = __riscv_vfnmsac_vf_f32m4(reduced_f32m4, pi_lowest, offsets_f32m4, vector_length);
 
-    // Polynomial: same 3-term approximation
+    // Degree-9 minimax polynomial for the relative error over [-π/2, π/2]
     vfloat32m4_t squared_f32m4 = __riscv_vfmul_vv_f32m4(reduced_f32m4, reduced_f32m4, vector_length);
     vfloat32m4_t cubed_f32m4 = __riscv_vfmul_vv_f32m4(reduced_f32m4, squared_f32m4, vector_length);
 
-    vfloat32m4_t poly_f32m4 = __riscv_vfmv_v_f_f32m4(-0.0001881748176f, vector_length);
+    vfloat32m4_t poly_f32m4 = __riscv_vfmv_v_f_f32m4(+2.6057805e-6f, vector_length);
     poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, squared_f32m4,
-                                         __riscv_vfmv_v_f_f32m4(0.008323502727f, vector_length), vector_length);
+                                         __riscv_vfmv_v_f_f32m4(-1.9809602e-4f, vector_length), vector_length);
     poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, squared_f32m4,
-                                         __riscv_vfmv_v_f_f32m4(-0.1666651368f, vector_length), vector_length);
+                                         __riscv_vfmv_v_f_f32m4(+8.3330665e-3f, vector_length), vector_length);
+    poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, squared_f32m4,
+                                         __riscv_vfmv_v_f_f32m4(-1.6666660e-1f, vector_length), vector_length);
     vfloat32m4_t result_f32m4 = __riscv_vfmacc_vv_f32m4(reduced_f32m4, cubed_f32m4, poly_f32m4, vector_length);
 
     // If rounded is even, flip the sign
@@ -585,28 +591,28 @@ NUMKONG_INLINE vfloat64m4_t nk_f64m4_atan2_rvv_(vfloat64m4_t ys_inputs_f64m4, vf
     return __riscv_vreinterpret_v_u64m4_f64m4(result_u64m4);
 }
 
-/*  m2-width versions of sin/cos/atan for the f16 conversion path.
- *  f16 data is loaded as m1 (16-bit), widened to f32 m2, computed, then narrowed back. */
+/*  F16 kernels widen each m1 register of F16 to F32 at m2, evaluate the shorter F16 polynomials of
+ *  @c nk_f32_sin_for_f16_ and its siblings in F32, and narrow the result back. */
 
-NUMKONG_INLINE vfloat32m2_t nk_f32m2_sin_rvv_(vfloat32m2_t angles_f32m2, nk_size_t vector_length) {
-    nk_f32_t const pi = 3.14159265358979323846f;
-    nk_f32_t const pi_recip = 0.31830988618379067154f;
-
-    vfloat32m2_t quotients_f32m2 = __riscv_vfmul_vf_f32m2(angles_f32m2, pi_recip, vector_length);
+NUMKONG_INLINE vfloat32m2_t nk_f32m2_sin_for_f16_rvv_(vfloat32m2_t angles_f32m2, nk_size_t vector_length) {
+    vfloat32m2_t quotients_f32m2 = __riscv_vfmul_vf_f32m2(angles_f32m2, 0.31830988618379067154f, vector_length);
     vint32m2_t rounded_i32m2 = __riscv_vfcvt_x_f_v_i32m2(quotients_f32m2, vector_length);
     vfloat32m2_t rounded_f32m2 = __riscv_vfcvt_f_x_v_f32m2(rounded_i32m2, vector_length);
 
-    vfloat32m2_t reduced_f32m2 = __riscv_vfnmsac_vf_f32m2(angles_f32m2, pi, rounded_f32m2, vector_length);
+    // π in two parts, one FMA each
+    vfloat32m2_t reduced_f32m2 = __riscv_vfnmsac_vf_f32m2(angles_f32m2, 3.140625f, rounded_f32m2, vector_length);
+    reduced_f32m2 = __riscv_vfnmsac_vf_f32m2(reduced_f32m2, 9.676535897e-4f, rounded_f32m2, vector_length);
+
+    // Degree-5 odd polynomial
     vfloat32m2_t squared_f32m2 = __riscv_vfmul_vv_f32m2(reduced_f32m2, reduced_f32m2, vector_length);
-    vfloat32m2_t cubed_f32m2 = __riscv_vfmul_vv_f32m2(reduced_f32m2, squared_f32m2, vector_length);
-
-    vfloat32m2_t poly_f32m2 = __riscv_vfmv_v_f_f32m2(-0.0001881748176f, vector_length);
+    vfloat32m2_t poly_f32m2 = __riscv_vfmv_v_f_f32m2(+7.601828013e-3f, vector_length);
     poly_f32m2 = __riscv_vfmadd_vv_f32m2(poly_f32m2, squared_f32m2,
-                                         __riscv_vfmv_v_f_f32m2(0.008323502727f, vector_length), vector_length);
+                                         __riscv_vfmv_v_f_f32m2(-1.659576743e-1f, vector_length), vector_length);
     poly_f32m2 = __riscv_vfmadd_vv_f32m2(poly_f32m2, squared_f32m2,
-                                         __riscv_vfmv_v_f_f32m2(-0.1666651368f, vector_length), vector_length);
-    vfloat32m2_t result_f32m2 = __riscv_vfmacc_vv_f32m2(reduced_f32m2, cubed_f32m2, poly_f32m2, vector_length);
+                                         __riscv_vfmv_v_f_f32m2(+9.998911284e-1f, vector_length), vector_length);
+    vfloat32m2_t result_f32m2 = __riscv_vfmul_vv_f32m2(poly_f32m2, reduced_f32m2, vector_length);
 
+    // Sign flip if rounded is odd: XOR bit 0 of rounded_i32m2 shifted to sign position
     vuint32m2_t sign_mask_u32m2 = __riscv_vsll_vx_u32m2(__riscv_vreinterpret_v_i32m2_u32m2(rounded_i32m2), 31,
                                                         vector_length);
     vuint32m2_t result_u32m2 = __riscv_vxor_vv_u32m2(__riscv_vreinterpret_v_f32m2_u32m2(result_f32m2), sign_mask_u32m2,
@@ -614,80 +620,58 @@ NUMKONG_INLINE vfloat32m2_t nk_f32m2_sin_rvv_(vfloat32m2_t angles_f32m2, nk_size
     return __riscv_vreinterpret_v_u32m2_f32m2(result_u32m2);
 }
 
-NUMKONG_INLINE vfloat32m2_t nk_f32m2_cos_rvv_(vfloat32m2_t angles_f32m2, nk_size_t vector_length) {
-    nk_f32_t const pi = 3.14159265358979323846f;
-    nk_f32_t const pi_half = 1.57079632679489661923f;
-    nk_f32_t const pi_recip = 0.31830988618379067154f;
-
-    vfloat32m2_t quotients_f32m2 = __riscv_vfsub_vf_f32m2(__riscv_vfmul_vf_f32m2(angles_f32m2, pi_recip, vector_length),
-                                                          0.5f, vector_length);
+NUMKONG_INLINE vfloat32m2_t nk_f32m2_cos_for_f16_rvv_(vfloat32m2_t angles_f32m2, nk_size_t vector_length) {
+    vfloat32m2_t quotients_f32m2 = __riscv_vfsub_vf_f32m2(
+        __riscv_vfmul_vf_f32m2(angles_f32m2, 0.31830988618379067154f, vector_length), 0.5f, vector_length);
     vint32m2_t rounded_i32m2 = __riscv_vfcvt_x_f_v_i32m2(quotients_f32m2, vector_length);
     vfloat32m2_t rounded_f32m2 = __riscv_vfcvt_f_x_v_f32m2(rounded_i32m2, vector_length);
 
-    vfloat32m2_t offset_f32m2 = __riscv_vfmacc_vf_f32m2(__riscv_vfmv_v_f_f32m2(pi_half, vector_length), pi,
-                                                        rounded_f32m2, vector_length);
-    vfloat32m2_t reduced_f32m2 = __riscv_vfsub_vv_f32m2(angles_f32m2, offset_f32m2, vector_length);
+    // Reduce by the odd multiple of π/2, never subtracting a rounded π/2 on its own
+    vfloat32m2_t offsets_f32m2 = __riscv_vfadd_vf_f32m2(rounded_f32m2, 0.5f, vector_length);
+    vfloat32m2_t reduced_f32m2 = __riscv_vfnmsac_vf_f32m2(angles_f32m2, 3.140625f, offsets_f32m2, vector_length);
+    reduced_f32m2 = __riscv_vfnmsac_vf_f32m2(reduced_f32m2, 9.676535897e-4f, offsets_f32m2, vector_length);
 
+    // Degree-5 odd polynomial
     vfloat32m2_t squared_f32m2 = __riscv_vfmul_vv_f32m2(reduced_f32m2, reduced_f32m2, vector_length);
-    vfloat32m2_t cubed_f32m2 = __riscv_vfmul_vv_f32m2(reduced_f32m2, squared_f32m2, vector_length);
-
-    vfloat32m2_t poly_f32m2 = __riscv_vfmv_v_f_f32m2(-0.0001881748176f, vector_length);
+    vfloat32m2_t poly_f32m2 = __riscv_vfmv_v_f_f32m2(+7.601828013e-3f, vector_length);
     poly_f32m2 = __riscv_vfmadd_vv_f32m2(poly_f32m2, squared_f32m2,
-                                         __riscv_vfmv_v_f_f32m2(0.008323502727f, vector_length), vector_length);
+                                         __riscv_vfmv_v_f_f32m2(-1.659576743e-1f, vector_length), vector_length);
     poly_f32m2 = __riscv_vfmadd_vv_f32m2(poly_f32m2, squared_f32m2,
-                                         __riscv_vfmv_v_f_f32m2(-0.1666651368f, vector_length), vector_length);
-    vfloat32m2_t result_f32m2 = __riscv_vfmacc_vv_f32m2(reduced_f32m2, cubed_f32m2, poly_f32m2, vector_length);
+                                         __riscv_vfmv_v_f_f32m2(+9.998911284e-1f, vector_length), vector_length);
+    vfloat32m2_t result_f32m2 = __riscv_vfmul_vv_f32m2(poly_f32m2, reduced_f32m2, vector_length);
 
+    // If rounded is even, flip the sign
     vuint32m2_t parity_u32m2 = __riscv_vand_vx_u32m2(__riscv_vreinterpret_v_i32m2_u32m2(rounded_i32m2), 1,
                                                      vector_length);
     vbool16_t even_mask_b16 = __riscv_vmseq_vx_u32m2_b16(parity_u32m2, 0, vector_length);
-    result_f32m2 = __riscv_vfneg_v_f32m2_mu(even_mask_b16, result_f32m2, result_f32m2, vector_length);
-    return result_f32m2;
+    return __riscv_vfneg_v_f32m2_mu(even_mask_b16, result_f32m2, result_f32m2, vector_length);
 }
 
-NUMKONG_INLINE vfloat32m2_t nk_f32m2_atan_rvv_(vfloat32m2_t inputs_f32m2, nk_size_t vector_length) {
-    nk_f32_t const c8 = -0.333331018686294555664062f;
-    nk_f32_t const c7 = +0.199926957488059997558594f;
-    nk_f32_t const c6 = -0.142027363181114196777344f;
-    nk_f32_t const c5 = +0.106347933411598205566406f;
-    nk_f32_t const c4 = -0.0748900920152664184570312f;
-    nk_f32_t const c3 = +0.0425049886107444763183594f;
-    nk_f32_t const c2 = -0.0159569028764963150024414f;
-    nk_f32_t const c1 = +0.00282363896258175373077393f;
-
+NUMKONG_INLINE vfloat32m2_t nk_f32m2_atan_for_f16_rvv_(vfloat32m2_t inputs_f32m2, nk_size_t vector_length) {
     vbool16_t negative_mask_b16 = __riscv_vmflt_vf_f32m2_b16(inputs_f32m2, 0.0f, vector_length);
     vfloat32m2_t values_f32m2 = __riscv_vfabs_v_f32m2(inputs_f32m2, vector_length);
 
+    // Fold |x| > 1 into [0, 1] through atan(x) = π/2 - atan(1/x)
     vbool16_t reciprocal_mask_b16 = __riscv_vmfgt_vf_f32m2_b16(values_f32m2, 1.0f, vector_length);
     vfloat32m2_t reciprocal_values_f32m2 = nk_f32m2_reciprocal_rvv_(values_f32m2, vector_length);
     values_f32m2 = __riscv_vmerge_vvm_f32m2(values_f32m2, reciprocal_values_f32m2, reciprocal_mask_b16, vector_length);
 
+    // Degree-9 odd polynomial
     vfloat32m2_t squared_f32m2 = __riscv_vfmul_vv_f32m2(values_f32m2, values_f32m2, vector_length);
-    vfloat32m2_t cubed_f32m2 = __riscv_vfmul_vv_f32m2(values_f32m2, squared_f32m2, vector_length);
-
-    vfloat32m2_t poly_f32m2 = __riscv_vfmv_v_f_f32m2(c1, vector_length);
-    poly_f32m2 = __riscv_vfmadd_vv_f32m2(poly_f32m2, squared_f32m2, __riscv_vfmv_v_f_f32m2(c2, vector_length),
-                                         vector_length);
-    poly_f32m2 = __riscv_vfmadd_vv_f32m2(poly_f32m2, squared_f32m2, __riscv_vfmv_v_f_f32m2(c3, vector_length),
-                                         vector_length);
-    poly_f32m2 = __riscv_vfmadd_vv_f32m2(poly_f32m2, squared_f32m2, __riscv_vfmv_v_f_f32m2(c4, vector_length),
-                                         vector_length);
-    poly_f32m2 = __riscv_vfmadd_vv_f32m2(poly_f32m2, squared_f32m2, __riscv_vfmv_v_f_f32m2(c5, vector_length),
-                                         vector_length);
-    poly_f32m2 = __riscv_vfmadd_vv_f32m2(poly_f32m2, squared_f32m2, __riscv_vfmv_v_f_f32m2(c6, vector_length),
-                                         vector_length);
-    poly_f32m2 = __riscv_vfmadd_vv_f32m2(poly_f32m2, squared_f32m2, __riscv_vfmv_v_f_f32m2(c7, vector_length),
-                                         vector_length);
-    poly_f32m2 = __riscv_vfmadd_vv_f32m2(poly_f32m2, squared_f32m2, __riscv_vfmv_v_f_f32m2(c8, vector_length),
-                                         vector_length);
-
-    vfloat32m2_t result_f32m2 = __riscv_vfmacc_vv_f32m2(values_f32m2, cubed_f32m2, poly_f32m2, vector_length);
+    vfloat32m2_t poly_f32m2 = __riscv_vfmv_v_f_f32m2(+2.384410794e-2f, vector_length);
+    poly_f32m2 = __riscv_vfmadd_vv_f32m2(poly_f32m2, squared_f32m2,
+                                         __riscv_vfmv_v_f_f32m2(-9.189231944e-2f, vector_length), vector_length);
+    poly_f32m2 = __riscv_vfmadd_vv_f32m2(poly_f32m2, squared_f32m2,
+                                         __riscv_vfmv_v_f_f32m2(+1.851973596e-1f, vector_length), vector_length);
+    poly_f32m2 = __riscv_vfmadd_vv_f32m2(poly_f32m2, squared_f32m2,
+                                         __riscv_vfmv_v_f_f32m2(-3.316979017e-1f, vector_length), vector_length);
+    poly_f32m2 = __riscv_vfmadd_vv_f32m2(poly_f32m2, squared_f32m2,
+                                         __riscv_vfmv_v_f_f32m2(+9.999699700e-1f, vector_length), vector_length);
+    vfloat32m2_t result_f32m2 = __riscv_vfmul_vv_f32m2(poly_f32m2, values_f32m2, vector_length);
 
     result_f32m2 = __riscv_vfrsub_vf_f32m2_mu(reciprocal_mask_b16, result_f32m2, result_f32m2, 1.5707963267948966f,
                                               vector_length);
-
-    result_f32m2 = __riscv_vfneg_v_f32m2_mu(negative_mask_b16, result_f32m2, result_f32m2, vector_length);
-    return result_f32m2;
+    return __riscv_vfneg_v_f32m2_mu(negative_mask_b16, result_f32m2, result_f32m2, vector_length);
 }
 
 #if NUMKONG_TARGET_RVV
@@ -763,7 +747,7 @@ NUMKONG_API nk_status_t nk_trig_sin_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk
         vector_length = __riscv_vsetvl_e16m1(n);
         vuint16m1_t f16_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)ins, vector_length);
         vfloat32m2_t values_f32m2 = nk_f16m1_to_f32m2_rvv_(f16_u16m1, vector_length);
-        vfloat32m2_t results_f32m2 = nk_f32m2_sin_rvv_(values_f32m2, vector_length);
+        vfloat32m2_t results_f32m2 = nk_f32m2_sin_for_f16_rvv_(values_f32m2, vector_length);
         vuint16m1_t f16_results_u16m1 = nk_f32m2_to_f16m1_rvv_(results_f32m2, vector_length);
         __riscv_vse16_v_u16m1((nk_u16_t *)outs, f16_results_u16m1, vector_length);
     }
@@ -776,7 +760,7 @@ NUMKONG_API nk_status_t nk_trig_cos_f16_rvv(nk_f16_t const *ins, nk_size_t n, nk
         vector_length = __riscv_vsetvl_e16m1(n);
         vuint16m1_t f16_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)ins, vector_length);
         vfloat32m2_t values_f32m2 = nk_f16m1_to_f32m2_rvv_(f16_u16m1, vector_length);
-        vfloat32m2_t results_f32m2 = nk_f32m2_cos_rvv_(values_f32m2, vector_length);
+        vfloat32m2_t results_f32m2 = nk_f32m2_cos_for_f16_rvv_(values_f32m2, vector_length);
         vuint16m1_t f16_results_u16m1 = nk_f32m2_to_f16m1_rvv_(results_f32m2, vector_length);
         __riscv_vse16_v_u16m1((nk_u16_t *)outs, f16_results_u16m1, vector_length);
     }
@@ -789,7 +773,7 @@ NUMKONG_API nk_status_t nk_trig_atan_f16_rvv(nk_f16_t const *ins, nk_size_t n, n
         vector_length = __riscv_vsetvl_e16m1(n);
         vuint16m1_t f16_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)ins, vector_length);
         vfloat32m2_t values_f32m2 = nk_f16m1_to_f32m2_rvv_(f16_u16m1, vector_length);
-        vfloat32m2_t results_f32m2 = nk_f32m2_atan_rvv_(values_f32m2, vector_length);
+        vfloat32m2_t results_f32m2 = nk_f32m2_atan_for_f16_rvv_(values_f32m2, vector_length);
         vuint16m1_t f16_results_u16m1 = nk_f32m2_to_f16m1_rvv_(results_f32m2, vector_length);
         __riscv_vse16_v_u16m1((nk_u16_t *)outs, f16_results_u16m1, vector_length);
     }

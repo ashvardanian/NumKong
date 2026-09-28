@@ -403,24 +403,29 @@ NUMKONG_API int nk_f16_order_serial(nk_f16_t a, nk_f16_t b) { return nk_f16_orde
 /** Sine of @p angle_radians: Cody-Waite reduction by π and an odd minimax polynomial. */
 NUMKONG_INLINE nk_f32_t nk_f32_sin_(nk_f32_t const angle_radians) {
 
-    // Cody-Waite constants for argument reduction, π split into high and low parts
-    nk_f32_t const pi_high = 3.1415927f;
-    nk_f32_t const pi_low = -8.742278e-8f;
+    // Cody-Waite constants: π split into 12-bit parts, whose products stay exact without an FMA
+    nk_f32_t const pi_part_1 = 3.140625f;
+    nk_f32_t const pi_part_2 = 9.67502593994140625e-4f;
+    nk_f32_t const pi_part_3 = 1.50990672409534454346e-7f;
+    nk_f32_t const pi_part_4 = 5.12668813651417920596e-12f;
     nk_f32_t const pi_reciprocal = 0.31830988618379067154f; // 1/π
 
-    // Degree-9 minimax coefficients: sin(x) ≈ x + c3*x³ + c5*x⁵ + c7*x⁷ + c9*x⁹
-    nk_f32_t const coeff_9 = +2.7557319224e-6f;
-    nk_f32_t const coeff_7 = -1.9841269841e-4f;
-    nk_f32_t const coeff_5 = +8.3333293855e-3f;
-    nk_f32_t const coeff_3 = -1.6666666641e-1f;
+    // Degree-9 minimax coefficients for the relative error over [-π/2, π/2]
+    nk_f32_t const coeff_9 = +2.6057805e-6f;
+    nk_f32_t const coeff_7 = -1.9809602e-4f;
+    nk_f32_t const coeff_5 = +8.3330665e-3f;
+    nk_f32_t const coeff_3 = -1.6666660e-1f;
 
     // Compute (multiple_of_pi) = round(angle / π)
     nk_f32_t const quotient = angle_radians * pi_reciprocal;
     int const multiple_of_pi = (int)(quotient < 0 ? quotient - 0.5f : quotient + 0.5f);
 
-    // Cody-Waite range reduction: angle = angle_radians - multiple * (pi_high + pi_low)
-    nk_f32_t angle = angle_radians - (nk_f32_t)multiple_of_pi * pi_high;
-    angle -= (nk_f32_t)multiple_of_pi * pi_low;
+    // Cody-Waite range reduction: angle = angle_radians - multiple * π
+    nk_f32_t const multiple = (nk_f32_t)multiple_of_pi;
+    nk_f32_t angle = angle_radians - multiple * pi_part_1;
+    angle -= multiple * pi_part_2;
+    angle -= multiple * pi_part_3;
+    angle -= multiple * pi_part_4;
     nk_f32_t const angle_squared = angle * angle;
     nk_f32_t const angle_cubed = angle * angle_squared;
 
@@ -439,26 +444,29 @@ NUMKONG_INLINE nk_f32_t nk_f32_sin_(nk_f32_t const angle_radians) {
 /** Cosine of @p angle_radians: Cody-Waite reduction by π around π/2 and an odd polynomial. */
 NUMKONG_INLINE nk_f32_t nk_f32_cos_(nk_f32_t const angle_radians) {
 
-    // Cody-Waite constants for argument reduction, π split into high and low parts
-    nk_f32_t const pi_high = 3.1415927f;
-    nk_f32_t const pi_low = -8.742278e-8f;
-    nk_f32_t const pi_half = 1.57079632679489661923f;       // π/2
+    // Cody-Waite constants: π split into 12-bit parts, whose products stay exact without an FMA
+    nk_f32_t const pi_part_1 = 3.140625f;
+    nk_f32_t const pi_part_2 = 9.67502593994140625e-4f;
+    nk_f32_t const pi_part_3 = 1.50990672409534454346e-7f;
+    nk_f32_t const pi_part_4 = 5.12668813651417920596e-12f;
     nk_f32_t const pi_reciprocal = 0.31830988618379067154f; // 1/π
 
-    // Degree-9 minimax coefficients: sin(x) ≈ x + c3*x³ + c5*x⁵ + c7*x⁷ + c9*x⁹
-    nk_f32_t const coeff_9 = +2.7557319224e-6f;
-    nk_f32_t const coeff_7 = -1.9841269841e-4f;
-    nk_f32_t const coeff_5 = +8.3333293855e-3f;
-    nk_f32_t const coeff_3 = -1.6666666641e-1f;
+    // Degree-9 minimax coefficients for the relative error over [-π/2, π/2]
+    nk_f32_t const coeff_9 = +2.6057805e-6f;
+    nk_f32_t const coeff_7 = -1.9809602e-4f;
+    nk_f32_t const coeff_5 = +8.3330665e-3f;
+    nk_f32_t const coeff_3 = -1.6666660e-1f;
 
     // Compute (multiple_of_pi) = round(angle / π - 0.5)
     nk_f32_t const quotient = angle_radians * pi_reciprocal - 0.5f;
     int const multiple_of_pi = (int)(quotient < 0 ? quotient - 0.5f : quotient + 0.5f);
 
-    // Cody-Waite range reduction: angle = angle_radians - (multiple * pi + pi/2)
-    nk_f32_t const offset = pi_half + (nk_f32_t)multiple_of_pi * pi_high;
-    nk_f32_t angle = angle_radians - offset;
-    angle -= (nk_f32_t)multiple_of_pi * pi_low;
+    // Reduce by the odd multiple of π/2, never subtracting a rounded π/2 on its own
+    nk_f32_t const offset = (nk_f32_t)multiple_of_pi + 0.5f;
+    nk_f32_t angle = angle_radians - offset * pi_part_1;
+    angle -= offset * pi_part_2;
+    angle -= offset * pi_part_3;
+    angle -= offset * pi_part_4;
     nk_f32_t const angle_squared = angle * angle;
     nk_f32_t const angle_cubed = angle * angle_squared;
 
@@ -514,7 +522,67 @@ NUMKONG_INLINE nk_f32_t nk_f32_atan_(nk_f32_t const input) {
     return result;
 }
 
-/** Four-quadrant arctangent of @p y_input over @p x_input, with IEEE signed zeros and infinities. */
+/** Sine of an F16 @p angle_radians widened to F32, within one F16 ULP: a degree-5 polynomial. */
+NUMKONG_INLINE nk_f32_t nk_f32_sin_for_f16_(nk_f32_t const angle_radians) {
+    // π in three parts, the first two of 8 bits, keeping their products exact for every F16 angle
+    nk_f32_t const pi_high = 3.140625f, pi_middle = 9.68933105468750e-4f, pi_low = -1.2795157e-6f;
+    nk_f32_t const pi_reciprocal = 0.31830988618379067154f; // 1/π
+    nk_f32_t const coeff_5 = +7.601828013e-3f, coeff_3 = -1.659576743e-1f, coeff_1 = +9.998911284e-1f;
+
+    nk_f32_t const quotient = angle_radians * pi_reciprocal;
+    int const multiple_of_pi = (int)(quotient < 0 ? quotient - 0.5f : quotient + 0.5f);
+    nk_f32_t const multiple = (nk_f32_t)multiple_of_pi;
+    nk_f32_t angle = angle_radians - multiple * pi_high;
+    angle -= multiple * pi_middle;
+    angle -= multiple * pi_low;
+
+    nk_f32_t const angle_squared = angle * angle;
+    nk_f32_t const result = ((coeff_5 * angle_squared + coeff_3) * angle_squared + coeff_1) * angle;
+    return (multiple_of_pi & 1) != 0 ? -result : result;
+}
+
+/** Cosine of an F16 @p angle_radians widened to F32, within one F16 ULP: a degree-5 polynomial. */
+NUMKONG_INLINE nk_f32_t nk_f32_cos_for_f16_(nk_f32_t const angle_radians) {
+    nk_f32_t const pi_high = 3.140625f, pi_middle = 9.68933105468750e-4f, pi_low = -1.2795157e-6f;
+    nk_f32_t const pi_reciprocal = 0.31830988618379067154f; // 1/π
+    nk_f32_t const coeff_5 = +7.601828013e-3f, coeff_3 = -1.659576743e-1f, coeff_1 = +9.998911284e-1f;
+
+    // Reduce by the odd multiple of π/2, never subtracting a rounded π/2 on its own
+    nk_f32_t const quotient = angle_radians * pi_reciprocal - 0.5f;
+    int const multiple_of_pi = (int)(quotient < 0 ? quotient - 0.5f : quotient + 0.5f);
+    nk_f32_t const offset = (nk_f32_t)multiple_of_pi + 0.5f;
+    nk_f32_t angle = angle_radians - offset * pi_high;
+    angle -= offset * pi_middle;
+    angle -= offset * pi_low;
+
+    nk_f32_t const angle_squared = angle * angle;
+    nk_f32_t const result = ((coeff_5 * angle_squared + coeff_3) * angle_squared + coeff_1) * angle;
+    return (multiple_of_pi & 1) == 0 ? -result : result;
+}
+
+/** Arctangent of an F16 @p input widened to F32, within one F16 ULP: a degree-9 polynomial. */
+NUMKONG_INLINE nk_f32_t nk_f32_atan_for_f16_(nk_f32_t const input) {
+    nk_f32_t const coeff_9 = +2.384410794e-2f, coeff_7 = -9.189231944e-2f, coeff_5 = +1.851973596e-1f;
+    nk_f32_t const coeff_3 = -3.316979017e-1f, coeff_1 = +9.999699700e-1f;
+    nk_f32_t const pi_half = 1.5707963267948966f; // π/2
+
+    // Fold |input| > 1 into [0, 1] through atan(x) = π/2 - atan(1/x)
+    nk_f32_t const magnitude = input < 0 ? -input : input;
+    int const reciprocal = magnitude > 1.0f;
+    nk_f32_t const value = reciprocal ? 1.0f / magnitude : magnitude;
+
+    nk_f32_t const value_squared = value * value;
+    nk_f32_t polynomial = coeff_9;
+    polynomial = polynomial * value_squared + coeff_7;
+    polynomial = polynomial * value_squared + coeff_5;
+    polynomial = polynomial * value_squared + coeff_3;
+    polynomial = polynomial * value_squared + coeff_1;
+    nk_f32_t result = polynomial * value;
+    if (reciprocal) result = pi_half - result;
+    return input < 0 ? -result : result;
+}
+
+/** Four-quadrant arctangent of @p y_input / @p x_input, with IEEE signed zeros and infinities. */
 NUMKONG_INLINE nk_f32_t nk_f32_atan2_(nk_f32_t const y_input, nk_f32_t const x_input) {
 
     // Polynomial coefficients for atan2 approximation

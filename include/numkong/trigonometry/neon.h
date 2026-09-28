@@ -55,15 +55,16 @@ extern "C" {
  *  128-bit NEON vectors. */
 
 NUMKONG_INLINE float32x4_t nk_sin_f32x4_neon_(float32x4_t const angles_radians) {
-    // Cody-Waite constants for argument reduction
+    // Cody-Waite constants for argument reduction, π split into three parts
     float32x4_t const pi_high_f32x4 = vdupq_n_f32(3.1415927f);
     float32x4_t const pi_low_f32x4 = vdupq_n_f32(-8.742278e-8f);
+    float32x4_t const pi_lowest_f32x4 = vdupq_n_f32(-3.430249e-15f);
     float32x4_t const pi_reciprocal_f32x4 = vdupq_n_f32(0.31830988618379067154f);
-    // Degree-9 minimax coefficients
-    float32x4_t const coeff_9_f32x4 = vdupq_n_f32(+2.7557319224e-6f);
-    float32x4_t const coeff_7_f32x4 = vdupq_n_f32(-1.9841269841e-4f);
-    float32x4_t const coeff_5_f32x4 = vdupq_n_f32(+8.3333293855e-3f);
-    float32x4_t const coeff_3_f32x4 = vdupq_n_f32(-1.6666666641e-1f);
+    // Degree-9 minimax coefficients for the relative error over [-π/2, π/2]
+    float32x4_t const coeff_9_f32x4 = vdupq_n_f32(+2.6057805e-6f);
+    float32x4_t const coeff_7_f32x4 = vdupq_n_f32(-1.9809602e-4f);
+    float32x4_t const coeff_5_f32x4 = vdupq_n_f32(+8.3330665e-3f);
+    float32x4_t const coeff_3_f32x4 = vdupq_n_f32(-1.6666660e-1f);
 
     // Compute (multiples_of_pi_i32x4) = round(angle / π) using vcvtnq which rounds to nearest
     float32x4_t quotients_f32x4 = vmulq_f32(angles_radians, pi_reciprocal_f32x4);
@@ -73,6 +74,7 @@ NUMKONG_INLINE float32x4_t nk_sin_f32x4_neon_(float32x4_t const angles_radians) 
     // Cody-Waite range reduction
     float32x4_t angles_f32x4 = vfmsq_f32(angles_radians, rounded_quotients_f32x4, pi_high_f32x4);
     angles_f32x4 = vfmsq_f32(angles_f32x4, rounded_quotients_f32x4, pi_low_f32x4);
+    angles_f32x4 = vfmsq_f32(angles_f32x4, rounded_quotients_f32x4, pi_lowest_f32x4);
     float32x4_t const angles_sq_f32x4 = vmulq_f32(angles_f32x4, angles_f32x4);
     float32x4_t const angles_cubed_f32x4 = vmulq_f32(angles_f32x4, angles_sq_f32x4);
 
@@ -92,26 +94,26 @@ NUMKONG_INLINE float32x4_t nk_sin_f32x4_neon_(float32x4_t const angles_radians) 
 }
 
 NUMKONG_INLINE float32x4_t nk_cos_f32x4_neon_(float32x4_t const angles_radians) {
-    // Cody-Waite constants for argument reduction
+    // Cody-Waite constants for argument reduction, π split into three parts
     float32x4_t const pi_high_f32x4 = vdupq_n_f32(3.1415927f);
     float32x4_t const pi_low_f32x4 = vdupq_n_f32(-8.742278e-8f);
-    float32x4_t const pi_half_f32x4 = vdupq_n_f32(1.57079632679489661923f);
+    float32x4_t const pi_lowest_f32x4 = vdupq_n_f32(-3.430249e-15f);
     float32x4_t const pi_reciprocal_f32x4 = vdupq_n_f32(0.31830988618379067154f);
-    // Degree-9 minimax coefficients
-    float32x4_t const coeff_9_f32x4 = vdupq_n_f32(+2.7557319224e-6f);
-    float32x4_t const coeff_7_f32x4 = vdupq_n_f32(-1.9841269841e-4f);
-    float32x4_t const coeff_5_f32x4 = vdupq_n_f32(+8.3333293855e-3f);
-    float32x4_t const coeff_3_f32x4 = vdupq_n_f32(-1.6666666641e-1f);
+    // Degree-9 minimax coefficients for the relative error over [-π/2, π/2]
+    float32x4_t const coeff_9_f32x4 = vdupq_n_f32(+2.6057805e-6f);
+    float32x4_t const coeff_7_f32x4 = vdupq_n_f32(-1.9809602e-4f);
+    float32x4_t const coeff_5_f32x4 = vdupq_n_f32(+8.3330665e-3f);
+    float32x4_t const coeff_3_f32x4 = vdupq_n_f32(-1.6666660e-1f);
 
     // Compute round((angle / π) - 0.5)
     float32x4_t quotients_f32x4 = vsubq_f32(vmulq_f32(angles_radians, pi_reciprocal_f32x4), vdupq_n_f32(0.5f));
     int32x4_t multiples_of_pi_i32x4 = vcvtnq_s32_f32(quotients_f32x4);
-    float32x4_t rounded_quotients_f32x4 = vcvtq_f32_s32(multiples_of_pi_i32x4);
+    float32x4_t offsets_f32x4 = vaddq_f32(vcvtq_f32_s32(multiples_of_pi_i32x4), vdupq_n_f32(0.5f));
 
-    // Cody-Waite range reduction: angle = (angle - pi/2) - rounded * (pi_high + pi_low)
-    float32x4_t shifted_f32x4 = vsubq_f32(angles_radians, pi_half_f32x4);
-    float32x4_t angles_f32x4 = vfmsq_f32(shifted_f32x4, rounded_quotients_f32x4, pi_high_f32x4);
-    angles_f32x4 = vfmsq_f32(angles_f32x4, rounded_quotients_f32x4, pi_low_f32x4);
+    // Reduce by the odd multiple of π/2, never subtracting a rounded π/2 on its own
+    float32x4_t angles_f32x4 = vfmsq_f32(angles_radians, offsets_f32x4, pi_high_f32x4);
+    angles_f32x4 = vfmsq_f32(angles_f32x4, offsets_f32x4, pi_low_f32x4);
+    angles_f32x4 = vfmsq_f32(angles_f32x4, offsets_f32x4, pi_lowest_f32x4);
     float32x4_t const angles_sq_f32x4 = vmulq_f32(angles_f32x4, angles_f32x4);
     float32x4_t const angles_cubed_f32x4 = vmulq_f32(angles_f32x4, angles_sq_f32x4);
 

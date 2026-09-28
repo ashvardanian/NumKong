@@ -1,6 +1,6 @@
 # Trigonometric Functions in NumKong
 
-NumKong implements element-wise trigonometric functions — sine, cosine, and arc tangent — with ~3 ulp error bounds for f32 and faithful rounding for f64.
+NumKong implements element-wise trigonometric functions — sine, cosine, and arc tangent — within 2 ulp for f64, 2 ulp for f32 sine and cosine, 3 ulp for f32 arc tangent, and 1 ulp for f16, as measured in [Accuracy](#accuracy).
 Each function operates on dense vectors, reading input angles (radians) and writing output values of the same length.
 The implementations derive from SLEEF (SIMD Library for Evaluating Elementary Functions), adapted for NumKong's ISA dispatch and type system.
 
@@ -50,15 +50,27 @@ def atan(a: np.ndarray) -> np.ndarray:
 ### Cody-Waite Range Reduction
 
 All trigonometric kernels reduce the input angle to $[-\pi/2, \pi/2]$ before polynomial evaluation using Cody-Waite argument reduction.
-The constant $\pi$ is split into high and low parts ($\pi_{\text{hi}} + \pi_{\text{lo}}$) to maintain precision during the subtraction $x - n\pi$: `reduced = (x - n * pi_hi) - n * pi_lo`.
-Single-part subtraction would lose ~3 bits of precision for large multiples of $\pi$; the two-part split preserves the full mantissa.
-The multiple $n = \text{round}(x / \pi)$ decides the sign of the result through its parity alone; cosine reuses the same sine polynomial by folding an extra $\pi/2$ into the reduction offset.
+The multiple $n = \text{round}(x / \pi)$ decides the sign of the result through its parity alone.
+Cosine reuses the sine polynomial by reducing against the odd multiple $(n + \frac{1}{2})\pi$ of $\pi/2$ in one pass.
+Subtracting a rounded $\pi/2$ on its own would leave an absolute error of $1.6 \cdot 10^{-7}$ next to the zeros of cosine, millions of ulp of results that small.
+
+The f32 kernels with a fused multiply-add split $\pi$ into three f32 parts, $\pi_{\text{hi}} + \pi_{\text{lo}} + \pi_{\text{lowest}}$, and subtract each with one FMA: `reduced = fma(-n, pi_lowest, fma(-n, pi_lo, fma(-n, pi_hi, x)))`.
+The first FMA is exact while the reduced angle stays below 2, and the three parts leave $2 \cdot 10^{-23} n$ of $\pi$ unrepresented.
+A two-part split leaves $3.4 \cdot 10^{-15} n$, which is 6 ulp next to the zero of cosine at $3\pi/2$ and 688 ulp by $|x| = 10^4$.
+The serial and WASM Relaxed SIMD kernels, whose multiply-adds may not be fused, split $\pi$ into four parts of 12 significant bits instead, so that every product $n \cdot \pi_i$ is exact on its own up to $|x| \approx 1.28 \cdot 10^4$.
+Neither split replaces Payne-Hanek reduction, so the error grows past those ranges.
 
 ### Minimax Polynomial Approximation
 
-`nk_trig_sin_f32_serial`, `nk_trig_cos_f32_serial` evaluate degree-9 minimax polynomials via Horner's method after range reduction.
-The polynomial coefficients are precomputed to minimize maximum error over $[-\pi/2, \pi/2]$ — a minimax fit rather than a plain Taylor truncation.
+The f32 kernels evaluate one odd degree-9 polynomial via Horner's method after range reduction.
+Its coefficients are a Remez fit of the relative error over $[-\pi/2, \pi/2]$, at most $6 \cdot 10^{-9}$ before rounding to f32.
+Taylor coefficients of the same degree would leave $3.6 \cdot 10^{-6}$ at $|x| = \pi/2$, which is 59 ulp next to $\pm 1$.
 Horner evaluation: `p = c9; p = p*x^2 + c7; p = p*x^2 + c5; p = p*x^2 + c3; result = p*x^3 + x` — 3 FMA operations for the polynomial plus one more against the cubed angle.
+The f16 kernels widen to f32 and evaluate shorter polynomials that f16 cannot tell apart from the f32 ones, then round back to f16.
+Sine and cosine use an odd degree-5 minimax polynomial on $[-\pi/2, \pi/2]$ with free linear term, at most $1.1 \cdot 10^{-4}$ relative error.
+Their reduction splits $\pi$ into $3.140625$, whose 8 bits keep $n \cdot \pi_{\text{hi}}$ exact for every f16 input, and one more f32 part, one FMA each.
+The serial kernels, lacking a fused multiply-add, split the remainder once more into an 8-bit part and an f32 tail, because $|x|$ reaches 65504 and the rounded product $n \cdot \pi_{\text{lo}}$ alone costs 5 ulp next to cosine's zeros.
+Arc tangent folds $|x| > 1$ through $\pi/2 - \text{atan}(1/x)$ and evaluates an odd degree-9 minimax polynomial on $[0, 1]$, at most $3 \cdot 10^{-5}$ relative error.
 `nk_trig_sin_f64_serial` uses degree-19 polynomials for 52-bit mantissa coverage.
 
 ### Vectorized Polynomial Evaluation
@@ -67,6 +79,27 @@ Horner evaluation: `p = c9; p = p*x^2 + c7; p = p*x^2 + c5; p = p*x^2 + c3; resu
 Range reduction, quadrant selection, and polynomial evaluation all operate on packed vectors — the only scalar operation is the final sign correction via `VBLENDVPS` with the quadrant mask.
 `nk_trig_sin_f32_neon` processes 4 elements per iteration using `vfmaq_f32` for the Horner chain.
 WASM v128relaxed (`nk_trig_sin_f32_v128relaxed`) uses `f32x4.relaxed_madd` for the FMA steps, achieving ~2x throughput over strict `f32x4.mul` + `f32x4.add` sequences.
+
+## Accuracy
+
+The f32 bounds come from every f32 input in the range, both signs, against the correctly rounded f64 result.
+The f16 bounds come from every f16 input in the range.
+The f64 bounds come from 180 thousand sampled inputs against a 200-bit reference.
+
+| Kernel      | Input range         | Max error                            |
+| :---------- | :------------------ | :----------------------------------- |
+| f64 sin/cos | $[-2\pi, 2\pi]$     | 1.6 ulp of the exact value           |
+| f64 atan    | $[-10, 10]$         | 1.6 ulp of the exact value           |
+| f32 sin/cos | $\|x\| \le 10^4$    | 2 ulp, $1.25 \cdot 10^{-7}$ absolute |
+| f32 atan    | all finite          | 3 ulp                                |
+| f16 all     | all finite          | 1 ulp                                |
+
+F64 results are not faithfully rounded: the worst of them sit 2 ulp from the correctly rounded value.
+The f32 sine and cosine bound holds next to the zeros too, where the result is as small as $5 \cdot 10^{-14}$.
+The FMA capabilities keep it up to $|x| \le 10^5$, and 3 ulp up to $10^6$.
+F16 polynomial errors stay below half an f16 ulp, so the rounded result is at most one ulp from the correctly rounded value: 5012 of the 63488 finite inputs for sine, 4934 for cosine, and 544 for arc tangent.
+
+The ulp figures in the tables below are mean errors recorded with earlier kernels, whose f32 sine and cosine lacked the reduction and coefficients above.
 
 ## Performance
 

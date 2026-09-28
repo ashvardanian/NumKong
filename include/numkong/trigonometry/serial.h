@@ -56,7 +56,7 @@ NUMKONG_API nk_status_t nk_trig_sin_f16_serial(nk_f16_t const *ins, nk_size_t n,
     for (nk_size_t i = 0; i != n; ++i) {
         nk_f32_t angle_f32;
         nk_f16_to_f32_(&ins[i], &angle_f32);
-        nk_f32_t const result_f32 = nk_f32_sin_(angle_f32);
+        nk_f32_t const result_f32 = nk_f32_sin_for_f16_(angle_f32);
         nk_f32_to_f16_(&result_f32, &outs[i]);
     }
     return nk_success_k;
@@ -67,7 +67,7 @@ NUMKONG_API nk_status_t nk_trig_cos_f16_serial(nk_f16_t const *ins, nk_size_t n,
     for (nk_size_t i = 0; i != n; ++i) {
         nk_f32_t angle_f32;
         nk_f16_to_f32_(&ins[i], &angle_f32);
-        nk_f32_t const result_f32 = nk_f32_cos_(angle_f32);
+        nk_f32_t const result_f32 = nk_f32_cos_for_f16_(angle_f32);
         nk_f32_to_f16_(&result_f32, &outs[i]);
     }
     return nk_success_k;
@@ -78,7 +78,7 @@ NUMKONG_API nk_status_t nk_trig_atan_f16_serial(nk_f16_t const *ins, nk_size_t n
     for (nk_size_t i = 0; i != n; ++i) {
         nk_f32_t value_f32;
         nk_f16_to_f32_(&ins[i], &value_f32);
-        nk_f32_t const result_f32 = nk_f32_atan_(value_f32);
+        nk_f32_t const result_f32 = nk_f32_atan_for_f16_(value_f32);
         nk_f32_to_f16_(&result_f32, &outs[i]);
     }
     return nk_success_k;
