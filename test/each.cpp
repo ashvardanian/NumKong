@@ -44,9 +44,10 @@ error_stats_t test_sum(typename scalar_type_::sum_kernel_t kernel) {
         fill_random(generator, a);
         fill_random(generator, b);
 
-        kernel(a.raw_values_data(), b.raw_values_data(), global_config.dense_dimensions, result.raw_values_data());
-        nk::sum<scalar_t, nk::no_simd_k>(a.values_data(), b.values_data(), global_config.dense_dimensions,
-                                         reference.values_data());
+        stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), global_config.dense_dimensions,
+                            result.raw_values_data(), nullptr));
+        nk::sum<scalar_t>(a.values_data(), b.values_data(), global_config.dense_dimensions, reference.values_data(),
+                          no_tiers_k);
 
         for (std::size_t i = 0; i < global_config.dense_dimensions; i++) stats.accumulate(result[i], reference[i]);
     }
@@ -70,7 +71,8 @@ error_stats_t test_scale(typename scalar_type_::scale_kernel_t kernel) {
         scale_t alpha = random_coef<scalar_t>(generator);
         scale_t beta = random_coef<scalar_t>(generator);
 
-        kernel(input.raw_values_data(), global_config.dense_dimensions, &alpha, &beta, result.raw_values_data());
+        stats.expect(kernel(input.raw_values_data(), global_config.dense_dimensions, &alpha, &beta,
+                            result.raw_values_data(), nullptr));
         for (std::size_t i = 0; i < global_config.dense_dimensions; i++)
             stats.accumulate(result[i], value_t(input[i]) * value_t(alpha) + value_t(beta));
     }
@@ -96,8 +98,8 @@ error_stats_t test_blend(typename scalar_type_::blend_kernel_t kernel) {
         scale_t alpha = random_coef<scalar_t>(generator);
         scale_t beta = random_coef<scalar_t>(generator);
 
-        kernel(a.raw_values_data(), b.raw_values_data(), global_config.dense_dimensions, &alpha, &beta,
-               result.raw_values_data());
+        stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), global_config.dense_dimensions, &alpha, &beta,
+                            result.raw_values_data(), nullptr));
         for (std::size_t i = 0; i < global_config.dense_dimensions; i++)
             stats.accumulate(result[i], value_t(a[i]) * value_t(alpha) + value_t(b[i]) * value_t(beta));
     }
@@ -125,8 +127,8 @@ error_stats_t test_fma(typename scalar_type_::fma_kernel_t kernel) {
         scale_t alpha = random_coef<scalar_t>(generator);
         scale_t beta = random_coef<scalar_t>(generator);
 
-        kernel(a.raw_values_data(), b.raw_values_data(), c.raw_values_data(), global_config.dense_dimensions, &alpha,
-               &beta, result.raw_values_data());
+        stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), c.raw_values_data(),
+                            global_config.dense_dimensions, &alpha, &beta, result.raw_values_data(), nullptr));
         for (std::size_t i = 0; i < global_config.dense_dimensions; i++)
             stats.accumulate(result[i], value_t(a[i]) * value_t(b[i]) * value_t(alpha) + value_t(c[i]) * value_t(beta));
     }
@@ -177,28 +179,28 @@ void test_each() {
     check("each_sum_f16_serial", test_sum<f16_t>, nk_each_sum_f16_serial);
     check("each_scale_f16_serial", test_scale<f16_t>, nk_each_scale_f16_serial);
 
-#if NUMKONG_RUNTIME_DISPATCH
+#if !NUMKONG_HEADER_ONLY
     check.section("Elementwise Operations Runtime Dispatch", nk_cap_serial_k);
-    check("each_scale_f32", test_scale<f32_t>, nk_each_scale_f32);
-    check("each_sum_f32", test_sum<f32_t>, nk_each_sum_f32);
-    check("each_blend_f32", test_blend<f32_t>, nk_each_blend_f32);
-    check("each_fma_f32", test_fma<f32_t>, nk_each_fma_f32);
-    check("each_scale_e4m3", test_scale<e4m3_t>, nk_each_scale_e4m3);
-    check("each_scale_e5m2", test_scale<e5m2_t>, nk_each_scale_e5m2);
-    check("each_sum_e4m3", test_sum<e4m3_t>, nk_each_sum_e4m3);
-    check("each_sum_e5m2", test_sum<e5m2_t>, nk_each_sum_e5m2);
-    check("each_blend_e4m3", test_blend<e4m3_t>, nk_each_blend_e4m3);
-    check("each_blend_e5m2", test_blend<e5m2_t>, nk_each_blend_e5m2);
-    check("each_fma_e4m3", test_fma<e4m3_t>, nk_each_fma_e4m3);
-    check("each_fma_e5m2", test_fma<e5m2_t>, nk_each_fma_e5m2);
-    check("each_sum_f32c", test_sum<f32c_t>, nk_each_sum_f32c);
-    check("each_sum_f64c", test_sum<f64c_t>, nk_each_sum_f64c);
-    check("each_scale_f32c", test_scale<f32c_t>, nk_each_scale_f32c);
-    check("each_scale_f64c", test_scale<f64c_t>, nk_each_scale_f64c);
-    check("each_blend_f32c", test_blend<f32c_t>, nk_each_blend_f32c);
-    check("each_blend_f64c", test_blend<f64c_t>, nk_each_blend_f64c);
-    check("each_fma_f32c", test_fma<f32c_t>, nk_each_fma_f32c);
-    check("each_fma_f64c", test_fma<f64c_t>, nk_each_fma_f64c);
+    check("each_scale_f32", test_scale<f32_t>, cpu_best<nk_each_scale_f32_best>);
+    check("each_sum_f32", test_sum<f32_t>, cpu_best<nk_each_sum_f32_best>);
+    check("each_blend_f32", test_blend<f32_t>, cpu_best<nk_each_blend_f32_best>);
+    check("each_fma_f32", test_fma<f32_t>, cpu_best<nk_each_fma_f32_best>);
+    check("each_scale_e4m3", test_scale<e4m3_t>, cpu_best<nk_each_scale_e4m3_best>);
+    check("each_scale_e5m2", test_scale<e5m2_t>, cpu_best<nk_each_scale_e5m2_best>);
+    check("each_sum_e4m3", test_sum<e4m3_t>, cpu_best<nk_each_sum_e4m3_best>);
+    check("each_sum_e5m2", test_sum<e5m2_t>, cpu_best<nk_each_sum_e5m2_best>);
+    check("each_blend_e4m3", test_blend<e4m3_t>, cpu_best<nk_each_blend_e4m3_best>);
+    check("each_blend_e5m2", test_blend<e5m2_t>, cpu_best<nk_each_blend_e5m2_best>);
+    check("each_fma_e4m3", test_fma<e4m3_t>, cpu_best<nk_each_fma_e4m3_best>);
+    check("each_fma_e5m2", test_fma<e5m2_t>, cpu_best<nk_each_fma_e5m2_best>);
+    check("each_sum_f32c", test_sum<f32c_t>, cpu_best<nk_each_sum_f32c_best>);
+    check("each_sum_f64c", test_sum<f64c_t>, cpu_best<nk_each_sum_f64c_best>);
+    check("each_scale_f32c", test_scale<f32c_t>, cpu_best<nk_each_scale_f32c_best>);
+    check("each_scale_f64c", test_scale<f64c_t>, cpu_best<nk_each_scale_f64c_best>);
+    check("each_blend_f32c", test_blend<f32c_t>, cpu_best<nk_each_blend_f32c_best>);
+    check("each_blend_f64c", test_blend<f64c_t>, cpu_best<nk_each_blend_f64c_best>);
+    check("each_fma_f32c", test_fma<f32c_t>, cpu_best<nk_each_fma_f32c_best>);
+    check("each_fma_f64c", test_fma<f64c_t>, cpu_best<nk_each_fma_f64c_best>);
 #endif
 
 #if NUMKONG_TARGET_NEON

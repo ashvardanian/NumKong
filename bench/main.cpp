@@ -42,12 +42,9 @@
 
 #include "numkong/capabilities.h" // Runtime capability detection
 
-#include "../test/harness.hpp" // `env_variable`, `log_environment`
 #include "harness.hpp"
 
 using namespace ashvardanian::numkong::bench;
-using ashvardanian::numkong::test::env_variable;
-using ashvardanian::numkong::test::log_environment;
 
 bench_config_t nk::bench::bench_config;
 
@@ -87,7 +84,7 @@ static std::vector<std::string> benchmark_arguments(int argc, char **argv) {
     bool wants_help = false;
 
     for (int index = 1; index < argc; ++index) {
-        // Foreign flags from numkong_test
+        // Foreign flags from numkong_cpu_test
         if (std::strncmp(argv[index], "--filter=", 9) == 0) {
             arguments.push_back(std::string("--benchmark_filter=") + (argv[index] + 9));
             fmt::println(stderr, "Note: Mapped --filter to --benchmark_filter. Prefer: --benchmark_filter='{}'",
@@ -99,7 +96,7 @@ static std::vector<std::string> benchmark_arguments(int argc, char **argv) {
                          argv[index]);
         }
         else if (std::strcmp(argv[index], "--assert") == 0 || std::strcmp(argv[index], "--verbose") == 0) {
-            fmt::println(stderr, "Note: '{}' is a numkong_test flag, not supported in numkong_bench. Ignoring.",
+            fmt::println(stderr, "Note: '{}' is a numkong_cpu_test flag, not supported in numkong_bench. Ignoring.",
                          argv[index]);
         }
         // Foreign flags from GTest
@@ -159,7 +156,7 @@ static std::vector<std::string> benchmark_arguments(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
-    nk_capability_t runtime_caps = nk_cpu_capabilities_detected();
+    nk_capability_t runtime_caps = cpu_capabilities_detected();
     nk_cpu_configure_thread(runtime_caps); // Also enables AMX if available
 
 #if NUMKONG_COMPARE_TO_MKL
@@ -172,9 +169,6 @@ int main(int argc, char **argv) {
 
     log_environment();
     fmt::println("- Seed: {}", bench_config.seed);
-#if NUMKONG_BUILD_CUDA
-    print_cuda_header();
-#endif
     fmt::println(
         "  Dimensions: dense={}  curved={}  mesh={}  matrix={}x{}x{}  sparse={}/{}@{:.2f}  geo={:.0f}\xc2\xb0\n",
         bench_config.dense_dimensions, bench_config.curved_dimensions, bench_config.mesh_points,
@@ -208,18 +202,15 @@ int main(int argc, char **argv) {
 
     // Register cross/batch benchmarks (ISA-family files for parallel compilation)
     bench_cross_serial();
-    bench_cross_x86();
-    bench_cross_amx();
-    bench_cross_arm();
-    bench_cross_sme();
+    bench_cross_x8664();
+    bench_cross_arm64();
     bench_cross_blas();
-    bench_cross_rvv();
-    bench_cross_power();
+    bench_cross_riscv64();
+    bench_cross_ppc64();
     bench_cross_wasm();
-    bench_cross_loongarch();
-#if NUMKONG_BUILD_CUDA
+    bench_cross_loongarch64();
     bench_cross_cuda();
-#endif
+    bench_cross_metal();
 
     bm::RunSpecifiedBenchmarks();
     bm::Shutdown();

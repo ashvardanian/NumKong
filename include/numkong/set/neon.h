@@ -28,7 +28,7 @@
 #define NUMKONG_SET_NEON_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_NEON
+#if NUMKONG_ARCH_ARM64_NEON_
 
 #include "numkong/types.h"      // `nk_u1x8_t`
 #include "numkong/set/serial.h" // `nk_u1x8_popcount_`
@@ -46,9 +46,8 @@ extern "C" {
 
 #pragma region Binary Sets
 
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                    nk_u32_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
+/** Counts the bits that differ between two @p n -bit sets. */
+NUMKONG_INLINE nk_u32_t nk_u1_xor_popcount_neon_(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n) {
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
     nk_u32_t differences = 0;
     nk_size_t i = 0;
@@ -68,13 +67,12 @@ NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_neon(nk_u1x8_t const *a, nk_u1x8_
     }
     // Handle the tail
     for (; i != n_bytes; ++i) differences += nk_u1x8_popcount_(a[i] ^ b[i]);
-    *result = differences;
-    return nk_success_k;
+    return differences;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                    nk_f32_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
+/** Counts the bits in the intersection and in the union of two @p n -bit sets. */
+NUMKONG_INLINE void nk_u1_and_or_popcounts_neon_(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
+                                                 nk_u32_t *intersection_count_ptr, nk_u32_t *union_count_ptr) {
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
     nk_u32_t intersection_count = 0, union_count = 0;
     nk_size_t i = 0;
@@ -97,6 +95,22 @@ NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_neon(nk_u1x8_t const *a, nk_u1x8_
     // Handle the tail
     for (; i != n_bytes; ++i)
         intersection_count += nk_u1x8_popcount_(a[i] & b[i]), union_count += nk_u1x8_popcount_(a[i] | b[i]);
+    *intersection_count_ptr = intersection_count, *union_count_ptr = union_count;
+}
+
+#if NUMKONG_TARGET_NEON
+NUMKONG_API nk_status_t nk_hamming_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
+                                           void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    *result = nk_u1_xor_popcount_neon_(a, b, n);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_jaccard_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result,
+                                           void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_u32_t intersection_count, union_count;
+    nk_u1_and_or_popcounts_neon_(a, b, n, &intersection_count, &union_count);
     *result = (union_count != 0) ? 1.0f - (nk_f32_t)intersection_count / (nk_f32_t)union_count : 0.0f;
     return nk_success_k;
 }
@@ -105,8 +119,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_neon(nk_u1x8_t const *a, nk_u1x8_
 
 #pragma region Integer Sets
 
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u32_neon(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n,
-                                                     nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_jaccard_u32_neon(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result,
+                                            void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t intersection_count = 0;
     nk_size_t i = 0;
@@ -123,8 +137,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u32_neon(nk_u32_t const *a, nk_u32_t
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u8_neon(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                                    void *stream) {
+NUMKONG_API nk_status_t nk_hamming_u8_neon(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
+                                           void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     uint32x4_t diff_count_u32x4 = vdupq_n_u32(0);
@@ -149,8 +163,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_hamming_u8_neon(nk_u8_t const *a, nk_u8_t co
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u16_neon(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n,
-                                                     nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_jaccard_u16_neon(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result,
+                                            void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t matches = 0;
     nk_size_t i = 0;
@@ -174,15 +188,15 @@ NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u16_neon(nk_u16_t const *a, nk_u16_t
     *result = (n != 0) ? 1.0f - (nk_f32_t)matches / (nk_f32_t)n : 0.0f;
     return nk_success_k;
 }
+#endif // NUMKONG_TARGET_NEON
 
 #pragma endregion Integer Sets
 
 #pragma region Distances from Dot Products
 
 /** Hamming from_dot: computes pop_a + pop_b - 2*dot for 4 pairs (NEON). */
-NUMKONG_HELPER_INLINE void nk_hamming_u32x4_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
-                                                           nk_b128_vec_t const *target_pops_vec,
-                                                           nk_b128_vec_t *result_vec) {
+NUMKONG_INLINE void nk_hamming_u32x4_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                    nk_b128_vec_t const *target_pops_vec, nk_b128_vec_t *result_vec) {
     uint32x4_t dots_u32x4 = dots_vec->u32x4;
     uint32x4_t query_u32x4 = vdupq_n_u32(query_pop);
     uint32x4_t target_u32x4 = target_pops_vec->u32x4;
@@ -190,9 +204,8 @@ NUMKONG_HELPER_INLINE void nk_hamming_u32x4_from_dot_neon_(nk_b128_vec_t const *
 }
 
 /** Jaccard from_dot: computes 1 - dot / (pop_a + pop_b - dot) for 4 pairs (NEON). */
-NUMKONG_HELPER_INLINE void nk_jaccard_f32x4_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
-                                                           nk_b128_vec_t const *target_pops_vec,
-                                                           nk_b128_vec_t *result_vec) {
+NUMKONG_INLINE void nk_jaccard_f32x4_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                    nk_b128_vec_t const *target_pops_vec, nk_b128_vec_t *result_vec) {
     float32x4_t dot_f32x4 = vcvtq_f32_u32(dots_vec->u32x4);
     float32x4_t query_f32x4 = vdupq_n_f32((nk_f32_t)query_pop);
     float32x4_t target_f32x4 = vcvtq_f32_u32(target_pops_vec->u32x4);
@@ -220,6 +233,6 @@ NUMKONG_HELPER_INLINE void nk_jaccard_f32x4_from_dot_neon_(nk_b128_vec_t const *
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_NEON
+#endif // NUMKONG_ARCH_ARM64_NEON_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_SET_NEON_H

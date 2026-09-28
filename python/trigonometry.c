@@ -33,6 +33,8 @@ PyObject *api_rope(PyObject *self, PyObject *const *args, Py_ssize_t const posit
     nk_unused_(self);
     PyObject *x_obj = NULL, *cos_obj = NULL, *sin_obj = NULL, *heads_obj = NULL, *half_obj = NULL;
     PyObject *out_obj = NULL, *scale_obj = NULL;
+    nk_capability_t capabilities = default_capabilities;
+    void *stream = NULL;
 
     Py_buffer x_buffer, y_buffer, cos_buffer, sin_buffer;
     nk_buffer_backing_t x_backing, y_backing, cos_backing, sin_backing;
@@ -44,8 +46,8 @@ PyObject *api_rope(PyObject *self, PyObject *const *args, Py_ssize_t const posit
 
     Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
     Py_ssize_t const args_count = positional_args_count + args_names_count;
-    if (args_count < 5 || args_count > 7) {
-        PyErr_Format(PyExc_TypeError, "Function expects 5-7 arguments, got %zd", args_count);
+    if (args_count < 5 || args_count > 9) {
+        PyErr_Format(PyExc_TypeError, "Function expects 5-9 arguments, got %zd", args_count);
         return NULL;
     }
     if (positional_args_count > 5) {
@@ -63,10 +65,7 @@ PyObject *api_rope(PyObject *self, PyObject *const *args, Py_ssize_t const posit
         else if (PyUnicode_CompareWithASCIIString(key, "half_dim") == 0 && !half_obj) half_obj = value;
         else if (PyUnicode_CompareWithASCIIString(key, "out") == 0 && !out_obj) out_obj = value;
         else if (PyUnicode_CompareWithASCIIString(key, "input_scale") == 0 && !scale_obj) scale_obj = value;
-        else {
-            PyErr_Format(PyExc_TypeError, "Got unexpected keyword argument: %S", key);
-            return NULL;
-        }
+        else if (!parse_dispatch_keyword(key, value, &capabilities, &stream)) return NULL;
     }
     if (!x_obj || !cos_obj || !sin_obj || !heads_obj || !half_obj) {
         PyErr_SetString(PyExc_TypeError, "rope requires x, cos, sin, heads, half_dim");
@@ -157,7 +156,7 @@ PyObject *api_rope(PyObject *self, PyObject *const *args, Py_ssize_t const posit
 
     nk_kernel_trig_rope_punned_t kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_trig_rope_k, dtype, (nk_kernel_punned_t *)&kernel, &capability);
+    nk_find_kernel_punned(nk_kernel_trig_rope_k, dtype, capabilities, (nk_kernel_punned_t *)&kernel, &capability);
     if (!kernel || !capability) {
         PyErr_Format(PyExc_LookupError, "No rope kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
@@ -165,9 +164,11 @@ PyObject *api_rope(PyObject *self, PyObject *const *args, Py_ssize_t const posit
 
     {
         PyThreadState *gil = PyEval_SaveThread();
-        kernel(x_buffer.buf, y_buf, (nk_f32_t const *)cos_buffer.buf, (nk_f32_t const *)sin_buffer.buf, rows,
-               (nk_size_t)heads_l, (nk_size_t)half_l, x_row_stride, y_row_stride, input_scale);
+        nk_status_t const status = kernel(x_buffer.buf, y_buf, (nk_f32_t const *)cos_buffer.buf,
+                                          (nk_f32_t const *)sin_buffer.buf, rows, (nk_size_t)heads_l, (nk_size_t)half_l,
+                                          x_row_stride, y_row_stride, input_scale, stream);
         PyEval_RestoreThread(gil);
+        if (!check_status(status)) goto cleanup;
     }
     if (got_x) PyBuffer_Release(&x_buffer);
     if (got_y) PyBuffer_Release(&y_buffer);
@@ -223,7 +224,7 @@ static PyObject *implement_trigonometry(nk_kernel_kind_t kernel_kind, PyObject *
 
     PyObject *return_obj = NULL;
 
-    // This function accepts up to 3 arguments:
+    // This function accepts up to 5 arguments:
     PyObject *a_obj = NULL;     // Required object, positional-only
     PyObject *dtype_obj = NULL; // Optional object, "dtype" keyword or positional
     PyObject *out_obj = NULL;   // Optional object, "out" keyword-only
@@ -231,6 +232,8 @@ static PyObject *implement_trigonometry(nk_kernel_kind_t kernel_kind, PyObject *
     // Once parsed, the arguments will be stored in these variables:
 
     nk_dtype_t dtype = nk_dtype_unknown_k;
+    nk_capability_t capabilities = default_capabilities;
+    void *stream = NULL;
 
     Py_buffer a_buffer, out_buffer;
     nk_buffer_backing_t a_backing, out_backing;
@@ -239,8 +242,8 @@ static PyObject *implement_trigonometry(nk_kernel_kind_t kernel_kind, PyObject *
 
     Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
     Py_ssize_t const args_count = positional_args_count + args_names_count;
-    if (args_count < 1 || args_count > 3) {
-        PyErr_Format(PyExc_TypeError, "Function expects 1-3 arguments, got %zd", args_count);
+    if (args_count < 1 || args_count > 5) {
+        PyErr_Format(PyExc_TypeError, "Function expects 1-5 arguments, got %zd", args_count);
         return NULL;
     }
     if (positional_args_count > 2) {
@@ -261,10 +264,7 @@ static PyObject *implement_trigonometry(nk_kernel_kind_t kernel_kind, PyObject *
         PyObject *const value = args[args_progress];
         if (PyUnicode_CompareWithASCIIString(key, "dtype") == 0 && !dtype_obj) { dtype_obj = value; }
         else if (PyUnicode_CompareWithASCIIString(key, "out") == 0 && !out_obj) { out_obj = value; }
-        else {
-            PyErr_Format(PyExc_TypeError, "Got unexpected keyword argument: %S", key);
-            return NULL;
-        }
+        else if (!parse_dispatch_keyword(key, value, &capabilities, &stream)) return NULL;
     }
 
     // Convert `dtype_obj` to `dtype`
@@ -290,7 +290,7 @@ static PyObject *implement_trigonometry(nk_kernel_kind_t kernel_kind, PyObject *
     // Look up the kernel and the capability
     nk_kernel_trig_punned_t kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(kernel_kind, dtype, (nk_kernel_punned_t *)&kernel, &capability);
+    nk_find_kernel_punned(kernel_kind, dtype, capabilities, (nk_kernel_punned_t *)&kernel, &capability);
     if (!kernel || !capability) {
         PyErr_Format(PyExc_LookupError, "No '%c' kernel for dtype '%s'", kernel_kind, nk_dtype_python_name(dtype));
         goto cleanup;
@@ -306,9 +306,11 @@ static PyObject *implement_trigonometry(nk_kernel_kind_t kernel_kind, PyObject *
 
     {
         PyThreadState *gil = PyEval_SaveThread();
-        each_unary_recursive(kernel, a_buffer.buf, result_data, //
-                             a_buffer.shape, a_buffer.strides, result_strides, a_buffer.ndim, contiguous_tail);
+        nk_status_t const status = each_unary_recursive(kernel, stream, a_buffer.buf, result_data, a_buffer.shape,
+                                                        a_buffer.strides, result_strides, a_buffer.ndim,
+                                                        contiguous_tail);
         PyEval_RestoreThread(gil);
+        if (!check_status(status)) Py_CLEAR(return_obj);
     }
 cleanup:
     PyBuffer_Release(&a_buffer);

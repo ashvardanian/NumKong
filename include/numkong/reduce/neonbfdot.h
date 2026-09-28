@@ -14,8 +14,8 @@
 
 #include "numkong/types.h"         // `nk_bf16_t`
 #include "numkong/cast/neon.h"     // `nk_e4m3x8_to_f16x8_neon_`
-#include "numkong/cast/serial.h"   // `nk_f32_to_bf16_serial`
-#include "numkong/reduce/serial.h" // `nk_reduce_moments_bf16_serial`
+#include "numkong/cast/serial.h"   // `nk_partial_load_b16x8_serial_`
+#include "numkong/reduce/serial.h" // `nk_reduce_moments_bf16_strided_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -28,8 +28,8 @@ extern "C" {
 #pragma GCC target("arch=armv8.6-a+simd+bf16")
 #endif
 
-NUMKONG_HELPER_INLINE void nk_reduce_moments_bf16_neonbfdot_contiguous_( //
-    nk_bf16_t const *data_ptr, nk_size_t count,                          //
+NUMKONG_INLINE void nk_reduce_moments_bf16_neonbfdot_contiguous_( //
+    nk_bf16_t const *data_ptr, nk_size_t count,                   //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
 
     // bf16 representation of 1.0 is 0x3F80 (same as upper 16 bits of f32 1.0)
@@ -57,7 +57,7 @@ NUMKONG_HELPER_INLINE void nk_reduce_moments_bf16_neonbfdot_contiguous_( //
     *sumsq_ptr = vaddvq_f32(sumsq_f32x4);
 }
 
-NUMKONG_HELPER_INLINE void nk_reduce_moments_bf16_neonbfdot_strided_(      //
+NUMKONG_INLINE void nk_reduce_moments_bf16_neonbfdot_strided_(             //
     nk_bf16_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
 
@@ -106,28 +106,36 @@ NUMKONG_HELPER_INLINE void nk_reduce_moments_bf16_neonbfdot_strided_(      //
     *sumsq_ptr = vaddvq_f32(sumsq_f32x4);
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_reduce_moments_bf16_neonbfdot(      //
+NUMKONG_INLINE void nk_reduce_moments_bf16_neonbfdot_chunked_(          //
     nk_bf16_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
-    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
+    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_bf16_t);
     int aligned = (stride_bytes % sizeof(nk_bf16_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (!aligned || stride_elements == 0)
-        nk_reduce_moments_bf16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr, stream);
-    else if (count > (nk_size_t)(NUMKONG_U16_MAX + 1) * 8) {
-        nk_size_t left_count = count / 2;
-        nk_f32_t left_sum_value, left_sumsq_value, right_sum_value, right_sumsq_value;
-        nk_reduce_moments_bf16_neonbfdot(data_ptr, left_count, stride_bytes, &left_sum_value, &left_sumsq_value,
-                                         stream);
-        nk_reduce_moments_bf16_neonbfdot(data_ptr + left_count * stride_elements, count - left_count, stride_bytes,
-                                         &right_sum_value, &right_sumsq_value, stream);
-        *sum_ptr = left_sum_value + right_sum_value, *sumsq_ptr = left_sumsq_value + right_sumsq_value;
+        nk_reduce_moments_bf16_strided_(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    else {
+        nk_size_t const chunk_limit = (nk_size_t)(NUMKONG_U16_MAX + 1) * 8;
+        for (nk_size_t start = 0; start < count; start += chunk_limit) {
+            nk_bf16_t const *chunk_ptr = data_ptr + start * stride_elements;
+            nk_size_t chunk_count = count - start < chunk_limit ? count - start : chunk_limit;
+            nk_f32_t sum, sumsq;
+            if (stride_elements == 1)
+                nk_reduce_moments_bf16_neonbfdot_contiguous_(chunk_ptr, chunk_count, &sum, &sumsq);
+            else if (stride_elements <= 4)
+                nk_reduce_moments_bf16_neonbfdot_strided_(chunk_ptr, chunk_count, stride_elements, &sum, &sumsq);
+            else nk_reduce_moments_bf16_strided_(chunk_ptr, chunk_count, stride_bytes, &sum, &sumsq);
+            if (start == 0) *sum_ptr = sum, *sumsq_ptr = sumsq;
+            else *sum_ptr += sum, *sumsq_ptr += sumsq;
+        }
     }
-    else if (stride_elements == 1) nk_reduce_moments_bf16_neonbfdot_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr);
-    else if (stride_elements <= 4)
-        nk_reduce_moments_bf16_neonbfdot_strided_(data_ptr, count, stride_elements, sum_ptr, sumsq_ptr);
-    else nk_reduce_moments_bf16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr, stream);
+}
+
+NUMKONG_API nk_status_t nk_reduce_moments_bf16_neonbfdot(               //
+    nk_bf16_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
+    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_reduce_moments_bf16_neonbfdot_chunked_(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
     return nk_success_k;
 }
 

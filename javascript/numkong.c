@@ -11,11 +11,22 @@
 
 #include <node_api.h> // `napi_*` functions — N-API v6+ for BigInt (Node ≥ 10.20)
 
-#include <numkong/numkong.h> // `nk_*` functions — must be first to bring `_GNU_SOURCE`
+#include <numkong/numkong.h>     // `nk_*` functions
+#include <numkong/cast/serial.h> // `nk_scalar_buffer_*_` helpers, which only header-only builds pull in
 
 #include "parallel.h" // `nk_parallel_for_tiles`, tile sizes
 
 #pragma region Helpers
+
+/** The mask kernels run with: detected and compiled, unless @c capabilitiesEnable narrows it. */
+static nk_capability_t default_capabilities = nk_cap_serial_k;
+
+/** Throws the @c nk_status_to_string of a failed @p status; returns whether it succeeded. */
+static int check_status(napi_env env, nk_status_t status) {
+    if (status == nk_success_k) return 1;
+    napi_throw_error(env, NULL, nk_status_to_string(status));
+    return 0;
+}
 
 /** Parses a dtype string, e.g. "f32", "f16", "bf16", into an nk_dtype_t enum value. */
 static nk_dtype_t parse_dtype_string(char const *str) { return nk_dtype_named(str, strlen(str)); }
@@ -64,7 +75,7 @@ static napi_value nk_scalar_buffer_to_js_number(napi_env env, nk_scalar_buffer_t
         return js_result;
     }
     nk_f64c_t result_c;
-    nk_scalar_buffer_to_f64c(result, out_dtype, &result_c);
+    nk_scalar_buffer_to_f64c_(result, out_dtype, &result_c);
     double result_f64 = result_c.real;
     napi_value js_result;
     if (napi_create_double(env, result_f64, &js_result) != napi_ok) return NULL;
@@ -156,7 +167,7 @@ static napi_value dense(napi_env env, napi_callback_info info, nk_kernel_kind_t 
 
     nk_metric_dense_punned_t metric = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(kernel_kind, dtype, (nk_kernel_punned_t *)&metric, &capability);
+    nk_find_kernel_punned(kernel_kind, dtype, default_capabilities, (nk_kernel_punned_t *)&metric, &capability);
     if (!metric || !capability) {
         napi_throw_error(env, NULL, "Unsupported dtype for given metric");
         return NULL;
@@ -172,7 +183,7 @@ static napi_value dense(napi_env env, napi_callback_info info, nk_kernel_kind_t 
     size_t dimensions = length_a * nk_dimensions_per_value(dtype);
 
     nk_scalar_buffer_t result;
-    metric(data_a, data_b, dimensions, &result);
+    if (!check_status(env, metric(data_a, data_b, dimensions, &result, NULL))) return NULL;
 
     return nk_scalar_buffer_to_js_number(env, &result, out_dtype);
 }
@@ -225,8 +236,10 @@ napi_value api_jaccard(napi_env env, napi_callback_info info) { return dense(env
  *  never run — see @b api_capabilities_enabled().
  */
 napi_value api_capabilities_detected(napi_env env, napi_callback_info info) {
+    nk_capability_t detected = nk_cap_serial_k;
+    if (!check_status(env, nk_cpu_capabilities_detected(&detected))) return NULL;
     napi_value result;
-    napi_create_bigint_uint64(env, (uint64_t)nk_cpu_capabilities_detected(), &result);
+    napi_create_bigint_uint64(env, (uint64_t)detected, &result);
     return result;
 }
 
@@ -235,8 +248,10 @@ napi_value api_capabilities_detected(napi_env env, napi_callback_info info) {
  *  @return BigInt bitmask of nk_capability_t flags.
  */
 napi_value api_capabilities_compiled(napi_env env, napi_callback_info info) {
+    nk_capability_t compiled = nk_cap_serial_k;
+    if (!check_status(env, nk_cpu_capabilities_compiled(&compiled))) return NULL;
     napi_value result;
-    napi_create_bigint_uint64(env, (uint64_t)nk_cpu_capabilities_compiled(), &result);
+    napi_create_bigint_uint64(env, (uint64_t)compiled, &result);
     return result;
 }
 
@@ -248,7 +263,7 @@ napi_value api_capabilities_compiled(napi_env env, napi_callback_info info) {
  */
 napi_value api_capabilities_enabled(napi_env env, napi_callback_info info) {
     napi_value result;
-    napi_create_bigint_uint64(env, (uint64_t)nk_cpu_capabilities_enabled(), &result);
+    napi_create_bigint_uint64(env, (uint64_t)default_capabilities, &result);
     return result;
 }
 
@@ -269,12 +284,15 @@ napi_value api_capabilities_enable(napi_env env, napi_callback_info info) {
         napi_throw_error(env, NULL, "Capability mask must be a BigInt");
         return NULL;
     }
+    nk_capability_t available = nk_cap_serial_k;
+    if (!check_status(env, nk_cpu_capabilities_enabled(&available))) return NULL;
+    default_capabilities = ((nk_capability_t)wanted & available) | nk_cap_serial_k;
     napi_value result;
-    napi_create_bigint_uint64(env, (uint64_t)nk_cpu_capabilities_enable((nk_capability_t)wanted), &result);
+    napi_create_bigint_uint64(env, (uint64_t)default_capabilities, &result);
     return result;
 }
 
-/** Exports @c Capability, mapping every CPU tier's name to its BigInt bit, and no GPU tiers. */
+/** Exports @c Capability, mapping every CPU capability's name to its BigInt bit, and no GPU capabilities. */
 static napi_status export_capability_names(napi_env env, napi_value exports) {
     napi_value names;
     napi_status status = napi_create_object(env, &names);
@@ -312,7 +330,8 @@ static napi_value cast_to_f32(napi_env env, napi_callback_info info, nk_dtype_t 
     }
 
     nk_f32_t f32_val;
-    nk_cast(&bits, src_dtype, 1, &f32_val, nk_f32_k);
+    if (!check_status(env, nk_cast_best(&bits, src_dtype, 1, &f32_val, nk_f32_k, default_capabilities, NULL)))
+        return NULL;
 
     napi_value result;
     napi_create_double(env, (double)f32_val, &result);
@@ -337,7 +356,8 @@ static napi_value cast_from_f32(napi_env env, napi_callback_info info, nk_dtype_
 
     nk_f32_t f32_val = (nk_f32_t)f32_dbl;
     uint32_t bits = 0;
-    nk_cast(&f32_val, nk_f32_k, 1, &bits, dst_dtype);
+    if (!check_status(env, nk_cast_best(&f32_val, nk_f32_k, 1, &bits, dst_dtype, default_capabilities, NULL)))
+        return NULL;
 
     napi_value result;
     napi_create_uint32(env, bits, &result);
@@ -369,7 +389,7 @@ napi_value api_cast_e5m2_to_f32(napi_env env, napi_callback_info info) { return 
 napi_value api_cast_f32_to_e5m2(napi_env env, napi_callback_info info) { return cast_from_f32(env, info, nk_e5m2_k); }
 
 /**
- *  @brief Buffer casting function using nk_cast.
+ *  @brief Buffer casting function using nk_cast_best.
  *
  *  @code{.ts}
  *  (source: TypedArray, sourceType: string, destination: TypedArray, destinationType: string)
@@ -412,9 +432,7 @@ napi_value api_cast(napi_env env, napi_callback_info info) {
         return NULL;
     }
 
-    // Perform conversion using nk_cast
-    nk_cast(src_data, src_dtype, src_len, dst_data, dst_dtype);
-
+    check_status(env, nk_cast_best(src_data, src_dtype, src_len, dst_data, dst_dtype, default_capabilities, NULL));
     return NULL; // Modifies dst_data in place
 }
 
@@ -447,13 +465,15 @@ static napi_value api_dots_pack_size(napi_env env, napi_callback_info info) {
 
     nk_dots_pack_size_punned_t size_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_dots_pack_size_k, dtype, (nk_kernel_punned_t *)&size_fn, &cap);
+    nk_find_kernel_punned(nk_kernel_dots_pack_size_k, dtype, default_capabilities, (nk_kernel_punned_t *)&size_fn,
+                          &cap);
     if (!size_fn) {
         napi_throw_error(env, NULL, "dots_pack_size not available for this dtype");
         return NULL;
     }
 
-    nk_size_t byte_count = size_fn((nk_size_t)width, (nk_size_t)depth);
+    nk_size_t byte_count = 0;
+    if (!check_status(env, size_fn((nk_size_t)width, (nk_size_t)depth, &byte_count))) return NULL;
 
     napi_value result;
     napi_create_double(env, (double)byte_count, &result);
@@ -494,12 +514,14 @@ static napi_value api_dots_pack(napi_env env, napi_callback_info info) {
     // Get packed size
     nk_dots_pack_size_punned_t size_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_dots_pack_size_k, dtype, (nk_kernel_punned_t *)&size_fn, &cap);
+    nk_find_kernel_punned(nk_kernel_dots_pack_size_k, dtype, default_capabilities, (nk_kernel_punned_t *)&size_fn,
+                          &cap);
     if (!size_fn) {
         napi_throw_error(env, NULL, "dots_pack_size not available for this dtype");
         return NULL;
     }
-    nk_size_t packed_byte_count = size_fn((nk_size_t)width, (nk_size_t)depth);
+    nk_size_t packed_byte_count = 0;
+    if (!check_status(env, size_fn((nk_size_t)width, (nk_size_t)depth, &packed_byte_count))) return NULL;
 
     // Allocate V8-managed ArrayBuffer for packed data
     void *packed_data = NULL;
@@ -512,13 +534,14 @@ static napi_value api_dots_pack(napi_env env, napi_callback_info info) {
     // Pack
     nk_dots_pack_punned_t pack_fn = NULL;
     cap = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_dots_pack_k, dtype, (nk_kernel_punned_t *)&pack_fn, &cap);
+    nk_find_kernel_punned(nk_kernel_dots_pack_k, dtype, default_capabilities, (nk_kernel_punned_t *)&pack_fn, &cap);
     if (!pack_fn) {
         napi_throw_error(env, NULL, "dots_pack not available for this dtype");
         return NULL;
     }
-    pack_fn(data, (nk_size_t)width, (nk_size_t)depth, (nk_size_t)stride_bytes, packed_data, (nk_size_t)0,
-            (nk_size_t)width);
+    if (!check_status(env, pack_fn(data, (nk_size_t)width, (nk_size_t)depth, (nk_size_t)stride_bytes, packed_data,
+                                   (nk_size_t)0, (nk_size_t)width, NULL)))
+        return NULL;
 
     // Return object { buffer, width, depth, byteLength }
     napi_value result_obj;
@@ -550,13 +573,13 @@ typedef struct packed_task_t {
     nk_size_t c_stride_bytes;
 } packed_task_t;
 
-static void packed_tile_(nk_size_t tile_index, void *context) {
+static nk_status_t packed_tile_(nk_size_t tile_index, void *context) {
     packed_task_t const *task = (packed_task_t const *)context;
     nk_size_t const row = tile_index * NUMKONG_PARALLEL_PACKED_TILE;
     nk_size_t const chunk = (row + NUMKONG_PARALLEL_PACKED_TILE <= task->rows) ? NUMKONG_PARALLEL_PACKED_TILE
                                                                                : (task->rows - row);
-    task->kernel(task->a + row * task->a_stride_bytes, task->b_packed, task->c + row * task->c_stride_bytes, chunk,
-                 task->columns, task->depth, task->a_stride_bytes, task->c_stride_bytes);
+    return task->kernel(task->a + row * task->a_stride_bytes, task->b_packed, task->c + row * task->c_stride_bytes,
+                        chunk, task->columns, task->depth, task->a_stride_bytes, task->c_stride_bytes, NULL);
 }
 
 /**
@@ -613,7 +636,7 @@ static napi_value api_packed_common(napi_env env, napi_callback_info info, nk_ke
 
     nk_dots_packed_punned_t kernel = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(kernel_kind, dtype, (nk_kernel_punned_t *)&kernel, &cap);
+    nk_find_kernel_punned(kernel_kind, dtype, default_capabilities, (nk_kernel_punned_t *)&kernel, &cap);
     if (!kernel) {
         napi_throw_error(env, NULL, "Packed kernel not available for this dtype");
         return NULL;
@@ -632,7 +655,8 @@ static napi_value api_packed_common(napi_env env, napi_callback_info info, nk_ke
     task.depth = depth;
     task.a_stride_bytes = a_stride;
     task.c_stride_bytes = result_stride;
-    nk_parallel_for_tiles(nk_size_divide_round_up_(height, NUMKONG_PARALLEL_PACKED_TILE), threads, packed_tile_, &task);
+    check_status(env, nk_parallel_for_tiles(nk_size_divide_round_up_(height, NUMKONG_PARALLEL_PACKED_TILE), threads,
+                                            packed_tile_, &task));
     return NULL;
 }
 
@@ -659,14 +683,14 @@ typedef struct symmetric_task_t {
     nk_size_t row_end;
 } symmetric_task_t;
 
-static void symmetric_tile_(nk_size_t tile_index, void *context) {
+static nk_status_t symmetric_tile_(nk_size_t tile_index, void *context) {
     symmetric_task_t const *task = (symmetric_task_t const *)context;
     nk_size_t const tile_start = task->row_start + tile_index * NUMKONG_PARALLEL_SYMMETRIC_TILE;
     nk_size_t const tile_rows = (tile_start + NUMKONG_PARALLEL_SYMMETRIC_TILE <= task->row_end)
                                     ? NUMKONG_PARALLEL_SYMMETRIC_TILE
                                     : (task->row_end - tile_start);
-    task->kernel(task->vectors, task->vectors_count, task->depth, task->stride_bytes, task->result,
-                 task->result_stride_bytes, tile_start, tile_rows);
+    return task->kernel(task->vectors, task->vectors_count, task->depth, task->stride_bytes, task->result,
+                        task->result_stride_bytes, tile_start, tile_rows, NULL);
 }
 
 /**
@@ -720,7 +744,7 @@ static napi_value api_symmetric_common(napi_env env, napi_callback_info info, nk
 
     nk_dots_symmetric_punned_t kernel = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(kernel_kind, dtype, (nk_kernel_punned_t *)&kernel, &cap);
+    nk_find_kernel_punned(kernel_kind, dtype, default_capabilities, (nk_kernel_punned_t *)&kernel, &cap);
     if (!kernel) {
         napi_throw_error(env, NULL, "Symmetric kernel not available for this dtype");
         return NULL;
@@ -740,9 +764,8 @@ static napi_value api_symmetric_common(napi_env env, napi_callback_info info, nk
     task.row_start = row_start;
     // Widen before the sum so two `uint32_t` row bounds cannot wrap.
     task.row_end = (nk_size_t)row_start + row_count;
-    nk_parallel_for_tiles(nk_size_divide_round_up_(row_count, NUMKONG_PARALLEL_SYMMETRIC_TILE), threads,
-                          symmetric_tile_, &task);
-
+    check_status(env, nk_parallel_for_tiles(nk_size_divide_round_up_(row_count, NUMKONG_PARALLEL_SYMMETRIC_TILE),
+                                            threads, symmetric_tile_, &task));
     return NULL;
 }
 
@@ -803,7 +826,8 @@ napi_value Init(napi_env env, napi_value exports) {
         export_function(env, exports, "euclideansSymmetric", api_euclideans_symmetric) != napi_ok) {
         return NULL;
     }
-    nk_cpu_configure_thread(nk_cpu_capabilities_enabled());
+    nk_cpu_capabilities_enabled(&default_capabilities);
+    nk_cpu_configure_thread(default_capabilities);
     return exports;
 }
 

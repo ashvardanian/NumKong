@@ -9,12 +9,13 @@
 #ifndef NUMKONG_SPATIALS_SIERRA_H
 #define NUMKONG_SPATIALS_SIERRA_H
 
-#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_ARCH_X8664_
 #if NUMKONG_TARGET_SIERRA
 
 #include "numkong/spatial/haswell.h"
 #include "numkong/spatial/serial.h"
 #include "numkong/dots/sierra.h"
+#include "numkong/dots/serial.h"
 #include "numkong/reduce/haswell.h" // `nk_reduce_add_i32x8_haswell_`
 
 #if defined(__cplusplus)
@@ -111,5 +112,5 @@ nk_define_cross_normalized_symmetric_(euclidean, e2m1, sierra, e2m1x2, f32, /*no
 #endif
 
 #endif // NUMKONG_TARGET_SIERRA
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_SPATIALS_SIERRA_H

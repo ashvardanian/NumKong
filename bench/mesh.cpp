@@ -45,8 +45,10 @@ void measure_mesh(bm::State &state, kernel_type_ kernel, std::size_t points_coun
         transform_t scale;
         raw_transform_t first_centroid[3], second_centroid[3], rotation[9];
         std::size_t const index = iterations & (clouds_count - 1);
-        kernel(first_clouds[index].raw_values_data(), second_clouds[index].raw_values_data(), points_count,
-               first_centroid, second_centroid, rotation, &scale.raw_, &result.raw_);
+        if (!succeeded(state, kernel(first_clouds[index].raw_values_data(), second_clouds[index].raw_values_data(),
+                                     points_count, first_centroid, second_centroid, rotation, &scale.raw_, &result.raw_,
+                                     nullptr)))
+            break;
         bm::DoNotOptimize(result);
         iterations++;
     }

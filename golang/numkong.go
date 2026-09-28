@@ -56,6 +56,6 @@
 // Author: Ash Vardanian
 package numkong
 
-// #cgo CFLAGS: -O3 -I../include -DNUMKONG_NATIVE_F16=0 -DNUMKONG_NATIVE_BF16=0
-// #cgo LDFLAGS: -O3 -L. -lm
+// #cgo CFLAGS: -O3 -I${SRCDIR}/../include -DNUMKONG_NATIVE_F16=0 -DNUMKONG_NATIVE_BF16=0
+// #cgo LDFLAGS: -L${SRCDIR} -lnumkong_static -lm
 import "C"

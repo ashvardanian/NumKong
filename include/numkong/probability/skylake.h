@@ -9,11 +9,10 @@
 #ifndef NUMKONG_PROBABILITY_SKYLAKE_H
 #define NUMKONG_PROBABILITY_SKYLAKE_H
 
-#if NUMKONG_ARCH_X86_64_
-#if NUMKONG_TARGET_SKYLAKE
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_SKYLAKE_
 
 #include "numkong/types.h"
-#include "numkong/scalar/haswell.h" // `nk_f32_sqrt_haswell`, `nk_f64_sqrt_haswell`
 #include "numkong/spatial/skylake.h"
 
 #if defined(__cplusplus)
@@ -28,7 +27,7 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NUMKONG_HELPER_INLINE __m512 nk_log2_f32x16_skylake_(__m512 x) {
+NUMKONG_INLINE __m512 nk_log2_f32x16_skylake_(__m512 x) {
     // Extract the exponent and mantissa: x = 2^exp × m, m ∈ [1, 2)
     __m512 one_f32x16 = _mm512_set1_ps(1.0f);
     __m512 exponent_f32x16 = _mm512_getexp_ps(x);
@@ -49,8 +48,9 @@ NUMKONG_HELPER_INLINE __m512 nk_log2_f32x16_skylake_(__m512 x) {
     return _mm512_add_ps(log2m_f32x16, exponent_f32x16);
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_kld_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
-                                                    void *stream) {
+#if NUMKONG_TARGET_SKYLAKE
+NUMKONG_API nk_status_t nk_kld_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                           void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m512 sum_f32x16 = _mm512_setzero_ps();
     nk_f32_t epsilon = NUMKONG_F32_DIVISION_EPSILON;
@@ -84,8 +84,8 @@ nk_kld_f32_skylake_cycle:
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_jsd_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
-                                                    void *stream) {
+NUMKONG_API nk_status_t nk_jsd_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                           void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m512 sum_f32x16 = _mm512_setzero_ps();
     nk_f32_t epsilon = NUMKONG_F32_DIVISION_EPSILON;
@@ -122,11 +122,12 @@ nk_jsd_f32_skylake_cycle:
                    NUMKONG_F64_LN2_ / 2.0;
     nk_f64_t log2_normalizer = NUMKONG_F64_LN2_;
     nk_unused_(log2_normalizer);
-    *result = sum > 0 ? nk_f64_sqrt_haswell(sum) : 0;
+    *result = sum > 0 ? _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(sum))) : 0;
     return nk_success_k;
 }
+#endif // NUMKONG_TARGET_SKYLAKE
 
-NUMKONG_HELPER_INLINE __m512d nk_log2_f64x8_skylake_(__m512d x) {
+NUMKONG_INLINE __m512d nk_log2_f64x8_skylake_(__m512d x) {
     // Extract the exponent and mantissa: x = 2^exp × m, m ∈ [1, 2)
     __m512d one_f64x8 = _mm512_set1_pd(1.0);
     __m512d two_f64x8 = _mm512_set1_pd(2.0);
@@ -165,8 +166,9 @@ NUMKONG_HELPER_INLINE __m512d nk_log2_f64x8_skylake_(__m512d x) {
     return _mm512_add_pd(exponent_f64x8, log2_m_f64x8);
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_kld_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
-                                                    void *stream) {
+#if NUMKONG_TARGET_SKYLAKE
+NUMKONG_API nk_status_t nk_kld_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                           void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m512d sum_f64x8 = _mm512_setzero_pd();
     __m512d compensation_f64x8 = _mm512_setzero_pd();
@@ -201,8 +203,8 @@ nk_kld_f64_skylake_cycle:
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_jsd_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
-                                                    void *stream) {
+NUMKONG_API nk_status_t nk_jsd_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                           void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m512d sum_f64x8 = _mm512_setzero_pd();
     __m512d compensation_f64x8 = _mm512_setzero_pd();
@@ -245,12 +247,12 @@ nk_jsd_f64_skylake_cycle:
     nk_f64_t log2_normalizer = NUMKONG_F64_LN2_;
     nk_f64_t sum = _mm512_reduce_add_pd(sum_f64x8);
     sum *= log2_normalizer / 2;
-    *result = sum > 0 ? nk_f64_sqrt_haswell(sum) : 0;
+    *result = sum > 0 ? _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(sum))) : 0;
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_kld_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
-                                                    void *stream) {
+NUMKONG_API nk_status_t nk_kld_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                           void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m512 sum_f32x16 = _mm512_setzero_ps();
     __m512 epsilon_f32x16 = _mm512_set1_ps(NUMKONG_F32_DIVISION_EPSILON);
@@ -280,8 +282,8 @@ nk_kld_f16_skylake_cycle:
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_jsd_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
-                                                    void *stream) {
+NUMKONG_API nk_status_t nk_jsd_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                           void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m512 sum_a_f32x16 = _mm512_setzero_ps();
     __m512 sum_b_f32x16 = _mm512_setzero_ps();
@@ -314,9 +316,10 @@ nk_jsd_f16_skylake_cycle:
     nk_f32_t log2_normalizer = NUMKONG_F32_LN2_;
     nk_f32_t sum = _mm512_reduce_add_ps(_mm512_add_ps(sum_a_f32x16, sum_b_f32x16));
     sum *= log2_normalizer / 2;
-    *result = sum > 0 ? nk_f32_sqrt_haswell(sum) : 0;
+    *result = sum > 0 ? _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(sum))) : 0;
     return nk_success_k;
 }
+#endif // NUMKONG_TARGET_SKYLAKE
 
 #if defined(__clang__)
 #pragma clang attribute pop
@@ -328,6 +331,6 @@ nk_jsd_f16_skylake_cycle:
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_SKYLAKE
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_SKYLAKE_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_PROBABILITY_SKYLAKE_H

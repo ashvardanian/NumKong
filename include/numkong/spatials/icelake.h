@@ -9,17 +9,19 @@
 #ifndef NUMKONG_SPATIALS_ICELAKE_H
 #define NUMKONG_SPATIALS_ICELAKE_H
 
-#if NUMKONG_ARCH_X86_64_
-#if NUMKONG_TARGET_ICELAKE
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_ICELAKE_
 
 #include "numkong/spatial/haswell.h"
 #include "numkong/dots/icelake.h"
+#include "numkong/dots/serial.h"
 #include "numkong/reduce/skylake.h" // `nk_reduce_add_f32x16_skylake_`
 
 #if defined(__cplusplus)
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_ICELAKE
 #if defined(__clang__)
 #pragma clang attribute push(                                                                                        \
     __attribute__((                                                                                                  \
@@ -104,11 +106,12 @@ nk_define_cross_normalized_symmetric_(euclidean, u4, icelake, u4x2, u32, /*norm_
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_ICELAKE
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_ICELAKE
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_ICELAKE_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_SPATIALS_ICELAKE_H

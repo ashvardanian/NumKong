@@ -38,6 +38,10 @@
 //! Author: Ash Vardanian
 
 // Supplies the `Dot` supertrait bound for the `SpatialSimilarity` bundle below.
+use core::ffi::c_void;
+use core::ptr::null_mut;
+
+use crate::capabilities::{cpu_capabilities, Status};
 use crate::dot::Dot;
 use crate::types::{bf16, e2m3, e3m2, e4m3, e5m2, f16, i4x2, u4x2, StorageElement};
 
@@ -45,46 +49,298 @@ use crate::types::{bf16, e2m3, e3m2, e4m3, e5m2, f16, i4x2, u4x2, StorageElement
 extern "C" {
 
     // Spatial similarity/distance functions
-    fn nk_angular_i8(a: *const i8, b: *const i8, c: usize, d: *mut f32);
-    fn nk_angular_u8(a: *const u8, b: *const u8, c: usize, d: *mut f32);
-    fn nk_angular_f16(a: *const u16, b: *const u16, c: usize, d: *mut f32);
-    fn nk_angular_bf16(a: *const u16, b: *const u16, c: usize, d: *mut f32);
-    fn nk_angular_e4m3(a: *const u8, b: *const u8, c: usize, d: *mut f32);
-    fn nk_angular_e5m2(a: *const u8, b: *const u8, c: usize, d: *mut f32);
-    fn nk_angular_e2m3(a: *const u8, b: *const u8, c: usize, d: *mut f32);
-    fn nk_angular_e3m2(a: *const u8, b: *const u8, c: usize, d: *mut f32);
-    fn nk_angular_f32(a: *const f32, b: *const f32, c: usize, d: *mut f64);
-    fn nk_angular_f64(a: *const f64, b: *const f64, c: usize, d: *mut f64);
+    fn nk_angular_i8_best(
+        a: *const i8,
+        b: *const i8,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_angular_u8_best(
+        a: *const u8,
+        b: *const u8,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_angular_f16_best(
+        a: *const u16,
+        b: *const u16,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_angular_bf16_best(
+        a: *const u16,
+        b: *const u16,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_angular_e4m3_best(
+        a: *const u8,
+        b: *const u8,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_angular_e5m2_best(
+        a: *const u8,
+        b: *const u8,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_angular_e2m3_best(
+        a: *const u8,
+        b: *const u8,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_angular_e3m2_best(
+        a: *const u8,
+        b: *const u8,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_angular_f32_best(
+        a: *const f32,
+        b: *const f32,
+        c: usize,
+        d: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_angular_f64_best(
+        a: *const f64,
+        b: *const f64,
+        c: usize,
+        d: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
 
-    fn nk_sqeuclidean_i8(a: *const i8, b: *const i8, c: usize, d: *mut u32);
-    fn nk_sqeuclidean_u8(a: *const u8, b: *const u8, c: usize, d: *mut u32);
-    fn nk_sqeuclidean_f16(a: *const u16, b: *const u16, c: usize, d: *mut f32);
-    fn nk_sqeuclidean_bf16(a: *const u16, b: *const u16, c: usize, d: *mut f32);
-    fn nk_sqeuclidean_e4m3(a: *const u8, b: *const u8, c: usize, d: *mut f32);
-    fn nk_sqeuclidean_e5m2(a: *const u8, b: *const u8, c: usize, d: *mut f32);
-    fn nk_sqeuclidean_e2m3(a: *const u8, b: *const u8, c: usize, d: *mut f32);
-    fn nk_sqeuclidean_e3m2(a: *const u8, b: *const u8, c: usize, d: *mut f32);
-    fn nk_sqeuclidean_f32(a: *const f32, b: *const f32, c: usize, d: *mut f64);
-    fn nk_sqeuclidean_f64(a: *const f64, b: *const f64, c: usize, d: *mut f64);
+    fn nk_sqeuclidean_i8_best(
+        a: *const i8,
+        b: *const i8,
+        c: usize,
+        d: *mut u32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_sqeuclidean_u8_best(
+        a: *const u8,
+        b: *const u8,
+        c: usize,
+        d: *mut u32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_sqeuclidean_f16_best(
+        a: *const u16,
+        b: *const u16,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_sqeuclidean_bf16_best(
+        a: *const u16,
+        b: *const u16,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_sqeuclidean_e4m3_best(
+        a: *const u8,
+        b: *const u8,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_sqeuclidean_e5m2_best(
+        a: *const u8,
+        b: *const u8,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_sqeuclidean_e2m3_best(
+        a: *const u8,
+        b: *const u8,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_sqeuclidean_e3m2_best(
+        a: *const u8,
+        b: *const u8,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_sqeuclidean_f32_best(
+        a: *const f32,
+        b: *const f32,
+        c: usize,
+        d: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_sqeuclidean_f64_best(
+        a: *const f64,
+        b: *const f64,
+        c: usize,
+        d: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
 
-    fn nk_euclidean_i8(a: *const i8, b: *const i8, c: usize, d: *mut f32);
-    fn nk_euclidean_u8(a: *const u8, b: *const u8, c: usize, d: *mut f32);
-    fn nk_euclidean_f16(a: *const u16, b: *const u16, c: usize, d: *mut f32);
-    fn nk_euclidean_bf16(a: *const u16, b: *const u16, c: usize, d: *mut f32);
-    fn nk_euclidean_e4m3(a: *const u8, b: *const u8, c: usize, d: *mut f32);
-    fn nk_euclidean_e5m2(a: *const u8, b: *const u8, c: usize, d: *mut f32);
-    fn nk_euclidean_e2m3(a: *const u8, b: *const u8, c: usize, d: *mut f32);
-    fn nk_euclidean_e3m2(a: *const u8, b: *const u8, c: usize, d: *mut f32);
-    fn nk_euclidean_f32(a: *const f32, b: *const f32, c: usize, d: *mut f64);
-    fn nk_euclidean_f64(a: *const f64, b: *const f64, c: usize, d: *mut f64);
+    fn nk_euclidean_i8_best(
+        a: *const i8,
+        b: *const i8,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_euclidean_u8_best(
+        a: *const u8,
+        b: *const u8,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_euclidean_f16_best(
+        a: *const u16,
+        b: *const u16,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_euclidean_bf16_best(
+        a: *const u16,
+        b: *const u16,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_euclidean_e4m3_best(
+        a: *const u8,
+        b: *const u8,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_euclidean_e5m2_best(
+        a: *const u8,
+        b: *const u8,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_euclidean_e2m3_best(
+        a: *const u8,
+        b: *const u8,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_euclidean_e3m2_best(
+        a: *const u8,
+        b: *const u8,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_euclidean_f32_best(
+        a: *const f32,
+        b: *const f32,
+        c: usize,
+        d: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_euclidean_f64_best(
+        a: *const f64,
+        b: *const f64,
+        c: usize,
+        d: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
 
     // 4-bit integer kernels
-    fn nk_sqeuclidean_i4(a: *const u8, b: *const u8, n: usize, result: *mut u32);
-    fn nk_sqeuclidean_u4(a: *const u8, b: *const u8, n: usize, result: *mut u32);
-    fn nk_euclidean_i4(a: *const u8, b: *const u8, n: usize, result: *mut f32);
-    fn nk_euclidean_u4(a: *const u8, b: *const u8, n: usize, result: *mut f32);
-    fn nk_angular_i4(a: *const u8, b: *const u8, n: usize, result: *mut f32);
-    fn nk_angular_u4(a: *const u8, b: *const u8, n: usize, result: *mut f32);
+    fn nk_sqeuclidean_i4_best(
+        a: *const u8,
+        b: *const u8,
+        n: usize,
+        result: *mut u32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_sqeuclidean_u4_best(
+        a: *const u8,
+        b: *const u8,
+        n: usize,
+        result: *mut u32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_euclidean_i4_best(
+        a: *const u8,
+        b: *const u8,
+        n: usize,
+        result: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_euclidean_u4_best(
+        a: *const u8,
+        b: *const u8,
+        n: usize,
+        result: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_angular_i4_best(
+        a: *const u8,
+        b: *const u8,
+        n: usize,
+        result: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_angular_u4_best(
+        a: *const u8,
+        b: *const u8,
+        n: usize,
+        result: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
 }
 
 // region: Angular
@@ -112,7 +368,17 @@ impl Angular for f64 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_angular_f64(a.as_ptr(), b.as_ptr(), a.len(), &mut result) };
+        unsafe {
+            nk_angular_f64_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -124,7 +390,17 @@ impl Angular for f32 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_angular_f32(a.as_ptr(), b.as_ptr(), a.len(), &mut result) };
+        unsafe {
+            nk_angular_f32_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -136,7 +412,17 @@ impl Angular for f16 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_angular_f16(a.as_ptr() as *const u16, b.as_ptr() as *const u16, a.len(), &mut result) };
+        unsafe {
+            nk_angular_f16_best(
+                a.as_ptr() as *const u16,
+                b.as_ptr() as *const u16,
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -148,7 +434,17 @@ impl Angular for bf16 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_angular_bf16(a.as_ptr() as *const u16, b.as_ptr() as *const u16, a.len(), &mut result) };
+        unsafe {
+            nk_angular_bf16_best(
+                a.as_ptr() as *const u16,
+                b.as_ptr() as *const u16,
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -160,7 +456,17 @@ impl Angular for i8 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_angular_i8(a.as_ptr(), b.as_ptr(), a.len(), &mut result) };
+        unsafe {
+            nk_angular_i8_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -172,7 +478,17 @@ impl Angular for u8 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_angular_u8(a.as_ptr(), b.as_ptr(), a.len(), &mut result) };
+        unsafe {
+            nk_angular_u8_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -184,7 +500,17 @@ impl Angular for e4m3 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_angular_e4m3(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
+        unsafe {
+            nk_angular_e4m3_best(
+                a.as_ptr() as *const u8,
+                b.as_ptr() as *const u8,
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -196,7 +522,17 @@ impl Angular for e5m2 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_angular_e5m2(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
+        unsafe {
+            nk_angular_e5m2_best(
+                a.as_ptr() as *const u8,
+                b.as_ptr() as *const u8,
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -208,7 +544,17 @@ impl Angular for e2m3 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_angular_e2m3(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
+        unsafe {
+            nk_angular_e2m3_best(
+                a.as_ptr() as *const u8,
+                b.as_ptr() as *const u8,
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -220,7 +566,17 @@ impl Angular for e3m2 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_angular_e3m2(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
+        unsafe {
+            nk_angular_e3m2_best(
+                a.as_ptr() as *const u8,
+                b.as_ptr() as *const u8,
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -234,13 +590,16 @@ impl Angular for i4x2 {
         let mut result: Self::Output = 0.0;
         let element_count = a.len() * Self::dimensions_per_value();
         unsafe {
-            nk_angular_i4(
+            nk_angular_i4_best(
                 a.as_ptr() as *const u8,
                 b.as_ptr() as *const u8,
                 element_count,
                 &mut result,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -254,13 +613,16 @@ impl Angular for u4x2 {
         let mut result: Self::Output = 0.0;
         let element_count = a.len() * Self::dimensions_per_value();
         unsafe {
-            nk_angular_u4(
+            nk_angular_u4_best(
                 a.as_ptr() as *const u8,
                 b.as_ptr() as *const u8,
                 element_count,
                 &mut result,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -297,7 +659,17 @@ impl Euclidean for f64 {
             return None;
         }
         let mut result: Self::SqEuclideanOutput = 0.0;
-        unsafe { nk_sqeuclidean_f64(a.as_ptr(), b.as_ptr(), a.len(), &mut result) };
+        unsafe {
+            nk_sqeuclidean_f64_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 
@@ -306,7 +678,17 @@ impl Euclidean for f64 {
             return None;
         }
         let mut result: Self::EuclideanOutput = 0.0;
-        unsafe { nk_euclidean_f64(a.as_ptr(), b.as_ptr(), a.len(), &mut result) };
+        unsafe {
+            nk_euclidean_f64_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -320,7 +702,17 @@ impl Euclidean for f32 {
             return None;
         }
         let mut result: Self::SqEuclideanOutput = 0.0;
-        unsafe { nk_sqeuclidean_f32(a.as_ptr(), b.as_ptr(), a.len(), &mut result) };
+        unsafe {
+            nk_sqeuclidean_f32_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 
@@ -329,7 +721,17 @@ impl Euclidean for f32 {
             return None;
         }
         let mut result: Self::EuclideanOutput = 0.0;
-        unsafe { nk_euclidean_f32(a.as_ptr(), b.as_ptr(), a.len(), &mut result) };
+        unsafe {
+            nk_euclidean_f32_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -343,7 +745,17 @@ impl Euclidean for f16 {
             return None;
         }
         let mut result: Self::SqEuclideanOutput = 0.0;
-        unsafe { nk_sqeuclidean_f16(a.as_ptr() as *const u16, b.as_ptr() as *const u16, a.len(), &mut result) };
+        unsafe {
+            nk_sqeuclidean_f16_best(
+                a.as_ptr() as *const u16,
+                b.as_ptr() as *const u16,
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 
@@ -352,7 +764,17 @@ impl Euclidean for f16 {
             return None;
         }
         let mut result: Self::EuclideanOutput = 0.0;
-        unsafe { nk_euclidean_f16(a.as_ptr() as *const u16, b.as_ptr() as *const u16, a.len(), &mut result) };
+        unsafe {
+            nk_euclidean_f16_best(
+                a.as_ptr() as *const u16,
+                b.as_ptr() as *const u16,
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -366,7 +788,17 @@ impl Euclidean for bf16 {
             return None;
         }
         let mut result: Self::SqEuclideanOutput = 0.0;
-        unsafe { nk_sqeuclidean_bf16(a.as_ptr() as *const u16, b.as_ptr() as *const u16, a.len(), &mut result) };
+        unsafe {
+            nk_sqeuclidean_bf16_best(
+                a.as_ptr() as *const u16,
+                b.as_ptr() as *const u16,
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 
@@ -375,7 +807,17 @@ impl Euclidean for bf16 {
             return None;
         }
         let mut result: Self::EuclideanOutput = 0.0;
-        unsafe { nk_euclidean_bf16(a.as_ptr() as *const u16, b.as_ptr() as *const u16, a.len(), &mut result) };
+        unsafe {
+            nk_euclidean_bf16_best(
+                a.as_ptr() as *const u16,
+                b.as_ptr() as *const u16,
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -389,7 +831,17 @@ impl Euclidean for i8 {
             return None;
         }
         let mut result: Self::SqEuclideanOutput = 0;
-        unsafe { nk_sqeuclidean_i8(a.as_ptr(), b.as_ptr(), a.len(), &mut result) };
+        unsafe {
+            nk_sqeuclidean_i8_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 
@@ -398,7 +850,17 @@ impl Euclidean for i8 {
             return None;
         }
         let mut result: Self::EuclideanOutput = 0.0;
-        unsafe { nk_euclidean_i8(a.as_ptr(), b.as_ptr(), a.len(), &mut result) };
+        unsafe {
+            nk_euclidean_i8_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -412,7 +874,17 @@ impl Euclidean for u8 {
             return None;
         }
         let mut result: Self::SqEuclideanOutput = 0;
-        unsafe { nk_sqeuclidean_u8(a.as_ptr(), b.as_ptr(), a.len(), &mut result) };
+        unsafe {
+            nk_sqeuclidean_u8_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 
@@ -421,7 +893,17 @@ impl Euclidean for u8 {
             return None;
         }
         let mut result: Self::EuclideanOutput = 0.0;
-        unsafe { nk_euclidean_u8(a.as_ptr(), b.as_ptr(), a.len(), &mut result) };
+        unsafe {
+            nk_euclidean_u8_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -435,7 +917,17 @@ impl Euclidean for e4m3 {
             return None;
         }
         let mut result: Self::SqEuclideanOutput = 0.0;
-        unsafe { nk_sqeuclidean_e4m3(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
+        unsafe {
+            nk_sqeuclidean_e4m3_best(
+                a.as_ptr() as *const u8,
+                b.as_ptr() as *const u8,
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 
@@ -444,7 +936,17 @@ impl Euclidean for e4m3 {
             return None;
         }
         let mut result: Self::EuclideanOutput = 0.0;
-        unsafe { nk_euclidean_e4m3(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
+        unsafe {
+            nk_euclidean_e4m3_best(
+                a.as_ptr() as *const u8,
+                b.as_ptr() as *const u8,
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -458,7 +960,17 @@ impl Euclidean for e5m2 {
             return None;
         }
         let mut result: Self::SqEuclideanOutput = 0.0;
-        unsafe { nk_sqeuclidean_e5m2(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
+        unsafe {
+            nk_sqeuclidean_e5m2_best(
+                a.as_ptr() as *const u8,
+                b.as_ptr() as *const u8,
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 
@@ -467,7 +979,17 @@ impl Euclidean for e5m2 {
             return None;
         }
         let mut result: Self::EuclideanOutput = 0.0;
-        unsafe { nk_euclidean_e5m2(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
+        unsafe {
+            nk_euclidean_e5m2_best(
+                a.as_ptr() as *const u8,
+                b.as_ptr() as *const u8,
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -481,7 +1003,17 @@ impl Euclidean for e2m3 {
             return None;
         }
         let mut result: Self::SqEuclideanOutput = 0.0;
-        unsafe { nk_sqeuclidean_e2m3(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
+        unsafe {
+            nk_sqeuclidean_e2m3_best(
+                a.as_ptr() as *const u8,
+                b.as_ptr() as *const u8,
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 
@@ -490,7 +1022,17 @@ impl Euclidean for e2m3 {
             return None;
         }
         let mut result: Self::EuclideanOutput = 0.0;
-        unsafe { nk_euclidean_e2m3(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
+        unsafe {
+            nk_euclidean_e2m3_best(
+                a.as_ptr() as *const u8,
+                b.as_ptr() as *const u8,
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -504,7 +1046,17 @@ impl Euclidean for e3m2 {
             return None;
         }
         let mut result: Self::SqEuclideanOutput = 0.0;
-        unsafe { nk_sqeuclidean_e3m2(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
+        unsafe {
+            nk_sqeuclidean_e3m2_best(
+                a.as_ptr() as *const u8,
+                b.as_ptr() as *const u8,
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 
@@ -513,7 +1065,17 @@ impl Euclidean for e3m2 {
             return None;
         }
         let mut result: Self::EuclideanOutput = 0.0;
-        unsafe { nk_euclidean_e3m2(a.as_ptr() as *const u8, b.as_ptr() as *const u8, a.len(), &mut result) };
+        unsafe {
+            nk_euclidean_e3m2_best(
+                a.as_ptr() as *const u8,
+                b.as_ptr() as *const u8,
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -529,13 +1091,16 @@ impl Euclidean for i4x2 {
         let mut result: Self::SqEuclideanOutput = 0;
         let element_count = a.len() * Self::dimensions_per_value();
         unsafe {
-            nk_sqeuclidean_i4(
+            nk_sqeuclidean_i4_best(
                 a.as_ptr() as *const u8,
                 b.as_ptr() as *const u8,
                 element_count,
                 &mut result,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(result)
     }
 
@@ -546,13 +1111,16 @@ impl Euclidean for i4x2 {
         let mut result: Self::EuclideanOutput = 0.0;
         let element_count = a.len() * Self::dimensions_per_value();
         unsafe {
-            nk_euclidean_i4(
+            nk_euclidean_i4_best(
                 a.as_ptr() as *const u8,
                 b.as_ptr() as *const u8,
                 element_count,
                 &mut result,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -568,13 +1136,16 @@ impl Euclidean for u4x2 {
         let mut result: Self::SqEuclideanOutput = 0;
         let element_count = a.len() * Self::dimensions_per_value();
         unsafe {
-            nk_sqeuclidean_u4(
+            nk_sqeuclidean_u4_best(
                 a.as_ptr() as *const u8,
                 b.as_ptr() as *const u8,
                 element_count,
                 &mut result,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(result)
     }
 
@@ -585,13 +1156,16 @@ impl Euclidean for u4x2 {
         let mut result: Self::EuclideanOutput = 0.0;
         let element_count = a.len() * Self::dimensions_per_value();
         unsafe {
-            nk_euclidean_u4(
+            nk_euclidean_u4_best(
                 a.as_ptr() as *const u8,
                 b.as_ptr() as *const u8,
                 element_count,
                 &mut result,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(result)
     }
 }

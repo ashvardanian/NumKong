@@ -51,8 +51,8 @@ extension Float64: NumKongDot {
     where A: Sequence, B: Sequence, A.Element == Float64, B.Element == Float64 {
         _nkWithDensePair(a, b) { ap, bp, n in
             var result: Float64 = 0
-            nk_dot_f64(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_dot_f64_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -65,8 +65,8 @@ extension Float64: NumKongAngular {
     where A: Sequence, B: Sequence, A.Element == Float64, B.Element == Float64 {
         _nkWithDensePair(a, b) { ap, bp, n in
             var result: Float64 = 0
-            nk_angular_f64(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_angular_f64_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -79,8 +79,8 @@ extension Float64: NumKongEuclidean {
     where A: Sequence, B: Sequence, A.Element == Float64, B.Element == Float64 {
         _nkWithDensePair(a, b) { ap, bp, n in
             var result: Float64 = 0
-            nk_euclidean_f64(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_euclidean_f64_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -93,8 +93,8 @@ extension Float64: NumKongSqEuclidean {
     where A: Sequence, B: Sequence, A.Element == Float64, B.Element == Float64 {
         _nkWithDensePair(a, b) { ap, bp, n in
             var result: Float64 = 0
-            nk_sqeuclidean_f64(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_sqeuclidean_f64_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -107,8 +107,8 @@ extension Float32: NumKongDot {
     where A: Sequence, B: Sequence, A.Element == Float32, B.Element == Float32 {
         _nkWithDensePair(a, b) { ap, bp, n in
             var result: Float64 = 0
-            nk_dot_f32(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_dot_f32_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -121,8 +121,8 @@ extension Float32: NumKongAngular {
     where A: Sequence, B: Sequence, A.Element == Float32, B.Element == Float32 {
         _nkWithDensePair(a, b) { ap, bp, n in
             var result: Float64 = 0
-            nk_angular_f32(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_angular_f32_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -135,8 +135,8 @@ extension Float32: NumKongEuclidean {
     where A: Sequence, B: Sequence, A.Element == Float32, B.Element == Float32 {
         _nkWithDensePair(a, b) { ap, bp, n in
             var result: Float64 = 0
-            nk_euclidean_f32(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_euclidean_f32_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -149,8 +149,8 @@ extension Float32: NumKongSqEuclidean {
     where A: Sequence, B: Sequence, A.Element == Float32, B.Element == Float32 {
         _nkWithDensePair(a, b) { ap, bp, n in
             var result: Float64 = 0
-            nk_sqeuclidean_f32(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_sqeuclidean_f32_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -163,8 +163,8 @@ extension BFloat16: NumKongDot {
     where A: Sequence, B: Sequence, A.Element == BFloat16, B.Element == BFloat16 {
         _nkWithDensePairRebound(a, b, to: nk_bf16_t.self) { ap, bp, n in
             var result: Float32 = 0
-            nk_dot_bf16(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_dot_bf16_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -177,8 +177,8 @@ extension BFloat16: NumKongAngular {
     where A: Sequence, B: Sequence, A.Element == BFloat16, B.Element == BFloat16 {
         _nkWithDensePairRebound(a, b, to: nk_bf16_t.self) { ap, bp, n in
             var result: Float32 = 0
-            nk_angular_bf16(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_angular_bf16_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -191,8 +191,8 @@ extension BFloat16: NumKongEuclidean {
     where A: Sequence, B: Sequence, A.Element == BFloat16, B.Element == BFloat16 {
         _nkWithDensePairRebound(a, b, to: nk_bf16_t.self) { ap, bp, n in
             var result: Float32 = 0
-            nk_euclidean_bf16(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_euclidean_bf16_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -205,8 +205,8 @@ extension BFloat16: NumKongSqEuclidean {
     where A: Sequence, B: Sequence, A.Element == BFloat16, B.Element == BFloat16 {
         _nkWithDensePairRebound(a, b, to: nk_bf16_t.self) { ap, bp, n in
             var result: Float32 = 0
-            nk_sqeuclidean_bf16(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_sqeuclidean_bf16_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -225,8 +225,8 @@ extension Float16: NumKongDot {
             let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_f16_t.self)
             let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_f16_t.self)
             var result: Float32 = 0
-            nk_dot_f16(aPtr, bPtr, nk_size_t(n), &result)
-            return result
+            let status = nk_dot_f16_best(aPtr, bPtr, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -241,8 +241,8 @@ extension Float16: NumKongAngular {
             let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_f16_t.self)
             let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_f16_t.self)
             var result: Float32 = 0
-            nk_angular_f16(aPtr, bPtr, nk_size_t(n), &result)
-            return result
+            let status = nk_angular_f16_best(aPtr, bPtr, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -257,8 +257,8 @@ extension Float16: NumKongEuclidean {
             let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_f16_t.self)
             let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_f16_t.self)
             var result: Float32 = 0
-            nk_euclidean_f16(aPtr, bPtr, nk_size_t(n), &result)
-            return result
+            let status = nk_euclidean_f16_best(aPtr, bPtr, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -273,8 +273,8 @@ extension Float16: NumKongSqEuclidean {
             let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_f16_t.self)
             let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_f16_t.self)
             var result: Float32 = 0
-            nk_sqeuclidean_f16(aPtr, bPtr, nk_size_t(n), &result)
-            return result
+            let status = nk_sqeuclidean_f16_best(aPtr, bPtr, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -288,8 +288,8 @@ extension E5M2: NumKongDot {
     where A: Sequence, B: Sequence, A.Element == E5M2, B.Element == E5M2 {
         _nkWithDensePairRebound(a, b, to: nk_e5m2_t.self) { ap, bp, n in
             var result: Float32 = 0
-            nk_dot_e5m2(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_dot_e5m2_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -302,8 +302,8 @@ extension E5M2: NumKongAngular {
     where A: Sequence, B: Sequence, A.Element == E5M2, B.Element == E5M2 {
         _nkWithDensePairRebound(a, b, to: nk_e5m2_t.self) { ap, bp, n in
             var result: Float32 = 0
-            nk_angular_e5m2(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_angular_e5m2_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -316,8 +316,8 @@ extension E5M2: NumKongEuclidean {
     where A: Sequence, B: Sequence, A.Element == E5M2, B.Element == E5M2 {
         _nkWithDensePairRebound(a, b, to: nk_e5m2_t.self) { ap, bp, n in
             var result: Float32 = 0
-            nk_euclidean_e5m2(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_euclidean_e5m2_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -330,8 +330,8 @@ extension E5M2: NumKongSqEuclidean {
     where A: Sequence, B: Sequence, A.Element == E5M2, B.Element == E5M2 {
         _nkWithDensePairRebound(a, b, to: nk_e5m2_t.self) { ap, bp, n in
             var result: Float32 = 0
-            nk_sqeuclidean_e5m2(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_sqeuclidean_e5m2_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -344,8 +344,8 @@ extension E4M3: NumKongDot {
     where A: Sequence, B: Sequence, A.Element == E4M3, B.Element == E4M3 {
         _nkWithDensePairRebound(a, b, to: nk_e4m3_t.self) { ap, bp, n in
             var result: Float32 = 0
-            nk_dot_e4m3(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_dot_e4m3_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -358,8 +358,8 @@ extension E4M3: NumKongAngular {
     where A: Sequence, B: Sequence, A.Element == E4M3, B.Element == E4M3 {
         _nkWithDensePairRebound(a, b, to: nk_e4m3_t.self) { ap, bp, n in
             var result: Float32 = 0
-            nk_angular_e4m3(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_angular_e4m3_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -372,8 +372,8 @@ extension E4M3: NumKongEuclidean {
     where A: Sequence, B: Sequence, A.Element == E4M3, B.Element == E4M3 {
         _nkWithDensePairRebound(a, b, to: nk_e4m3_t.self) { ap, bp, n in
             var result: Float32 = 0
-            nk_euclidean_e4m3(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_euclidean_e4m3_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -386,8 +386,8 @@ extension E4M3: NumKongSqEuclidean {
     where A: Sequence, B: Sequence, A.Element == E4M3, B.Element == E4M3 {
         _nkWithDensePairRebound(a, b, to: nk_e4m3_t.self) { ap, bp, n in
             var result: Float32 = 0
-            nk_sqeuclidean_e4m3(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_sqeuclidean_e4m3_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -400,8 +400,8 @@ extension E3M2: NumKongDot {
     where A: Sequence, B: Sequence, A.Element == E3M2, B.Element == E3M2 {
         _nkWithDensePairRebound(a, b, to: nk_e3m2_t.self) { ap, bp, n in
             var result: Float32 = 0
-            nk_dot_e3m2(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_dot_e3m2_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -414,8 +414,8 @@ extension E3M2: NumKongAngular {
     where A: Sequence, B: Sequence, A.Element == E3M2, B.Element == E3M2 {
         _nkWithDensePairRebound(a, b, to: nk_e3m2_t.self) { ap, bp, n in
             var result: Float32 = 0
-            nk_angular_e3m2(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_angular_e3m2_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -428,8 +428,8 @@ extension E3M2: NumKongEuclidean {
     where A: Sequence, B: Sequence, A.Element == E3M2, B.Element == E3M2 {
         _nkWithDensePairRebound(a, b, to: nk_e3m2_t.self) { ap, bp, n in
             var result: Float32 = 0
-            nk_euclidean_e3m2(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_euclidean_e3m2_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -442,8 +442,8 @@ extension E3M2: NumKongSqEuclidean {
     where A: Sequence, B: Sequence, A.Element == E3M2, B.Element == E3M2 {
         _nkWithDensePairRebound(a, b, to: nk_e3m2_t.self) { ap, bp, n in
             var result: Float32 = 0
-            nk_sqeuclidean_e3m2(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_sqeuclidean_e3m2_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -456,8 +456,8 @@ extension E2M3: NumKongDot {
     where A: Sequence, B: Sequence, A.Element == E2M3, B.Element == E2M3 {
         _nkWithDensePairRebound(a, b, to: nk_e2m3_t.self) { ap, bp, n in
             var result: Float32 = 0
-            nk_dot_e2m3(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_dot_e2m3_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -470,8 +470,8 @@ extension E2M3: NumKongAngular {
     where A: Sequence, B: Sequence, A.Element == E2M3, B.Element == E2M3 {
         _nkWithDensePairRebound(a, b, to: nk_e2m3_t.self) { ap, bp, n in
             var result: Float32 = 0
-            nk_angular_e2m3(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_angular_e2m3_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -484,8 +484,8 @@ extension E2M3: NumKongEuclidean {
     where A: Sequence, B: Sequence, A.Element == E2M3, B.Element == E2M3 {
         _nkWithDensePairRebound(a, b, to: nk_e2m3_t.self) { ap, bp, n in
             var result: Float32 = 0
-            nk_euclidean_e2m3(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_euclidean_e2m3_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -498,8 +498,8 @@ extension E2M3: NumKongSqEuclidean {
     where A: Sequence, B: Sequence, A.Element == E2M3, B.Element == E2M3 {
         _nkWithDensePairRebound(a, b, to: nk_e2m3_t.self) { ap, bp, n in
             var result: Float32 = 0
-            nk_sqeuclidean_e2m3(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_sqeuclidean_e2m3_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -514,8 +514,8 @@ extension Int8: NumKongDot {
     where A: Sequence, B: Sequence, A.Element == Int8, B.Element == Int8 {
         _nkWithDensePair(a, b) { ap, bp, n in
             var result: Int32 = 0
-            nk_dot_i8(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_dot_i8_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -528,8 +528,8 @@ extension Int8: NumKongAngular {
     where A: Sequence, B: Sequence, A.Element == Int8, B.Element == Int8 {
         _nkWithDensePair(a, b) { ap, bp, n in
             var result: Float32 = 0
-            nk_angular_i8(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_angular_i8_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -542,8 +542,8 @@ extension Int8: NumKongEuclidean {
     where A: Sequence, B: Sequence, A.Element == Int8, B.Element == Int8 {
         _nkWithDensePair(a, b) { ap, bp, n in
             var result: Float32 = 0
-            nk_euclidean_i8(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_euclidean_i8_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -556,8 +556,8 @@ extension Int8: NumKongSqEuclidean {
     where A: Sequence, B: Sequence, A.Element == Int8, B.Element == Int8 {
         _nkWithDensePair(a, b) { ap, bp, n in
             var result: UInt32 = 0
-            nk_sqeuclidean_i8(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_sqeuclidean_i8_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -572,8 +572,9 @@ extension I4x2: NumKongDot {
             let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_i4x2_t.self)
             let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_i4x2_t.self)
             var result: Int32 = 0
-            nk_dot_i4(aPtr, bPtr, nk_size_t(valuesToDimensions(n, nk_i4_k)), &result)
-            return result
+            let status = nk_dot_i4_best(
+                aPtr, bPtr, nk_size_t(valuesToDimensions(n, nk_i4_k)), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -588,8 +589,9 @@ extension I4x2: NumKongAngular {
             let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_i4x2_t.self)
             let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_i4x2_t.self)
             var result: Float32 = 0
-            nk_angular_i4(aPtr, bPtr, nk_size_t(valuesToDimensions(n, nk_i4_k)), &result)
-            return result
+            let status = nk_angular_i4_best(
+                aPtr, bPtr, nk_size_t(valuesToDimensions(n, nk_i4_k)), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -604,8 +606,9 @@ extension I4x2: NumKongEuclidean {
             let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_i4x2_t.self)
             let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_i4x2_t.self)
             var result: Float32 = 0
-            nk_euclidean_i4(aPtr, bPtr, nk_size_t(valuesToDimensions(n, nk_i4_k)), &result)
-            return result
+            let status = nk_euclidean_i4_best(
+                aPtr, bPtr, nk_size_t(valuesToDimensions(n, nk_i4_k)), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -620,8 +623,9 @@ extension I4x2: NumKongSqEuclidean {
             let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_i4x2_t.self)
             let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_i4x2_t.self)
             var result: UInt32 = 0
-            nk_sqeuclidean_i4(aPtr, bPtr, nk_size_t(valuesToDimensions(n, nk_i4_k)), &result)
-            return result
+            let status = nk_sqeuclidean_i4_best(
+                aPtr, bPtr, nk_size_t(valuesToDimensions(n, nk_i4_k)), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -636,8 +640,8 @@ extension UInt8: NumKongDot {
     where A: Sequence, B: Sequence, A.Element == UInt8, B.Element == UInt8 {
         _nkWithDensePair(a, b) { ap, bp, n in
             var result: UInt32 = 0
-            nk_dot_u8(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_dot_u8_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -650,8 +654,8 @@ extension UInt8: NumKongAngular {
     where A: Sequence, B: Sequence, A.Element == UInt8, B.Element == UInt8 {
         _nkWithDensePair(a, b) { ap, bp, n in
             var result: Float32 = 0
-            nk_angular_u8(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_angular_u8_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -664,8 +668,8 @@ extension UInt8: NumKongEuclidean {
     where A: Sequence, B: Sequence, A.Element == UInt8, B.Element == UInt8 {
         _nkWithDensePair(a, b) { ap, bp, n in
             var result: Float32 = 0
-            nk_euclidean_u8(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_euclidean_u8_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -678,8 +682,8 @@ extension UInt8: NumKongSqEuclidean {
     where A: Sequence, B: Sequence, A.Element == UInt8, B.Element == UInt8 {
         _nkWithDensePair(a, b) { ap, bp, n in
             var result: UInt32 = 0
-            nk_sqeuclidean_u8(ap, bp, nk_size_t(n), &result)
-            return result
+            let status = nk_sqeuclidean_u8_best(ap, bp, nk_size_t(n), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -694,8 +698,9 @@ extension U4x2: NumKongDot {
             let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_u4x2_t.self)
             let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_u4x2_t.self)
             var result: UInt32 = 0
-            nk_dot_u4(aPtr, bPtr, nk_size_t(valuesToDimensions(n, nk_u4_k)), &result)
-            return result
+            let status = nk_dot_u4_best(
+                aPtr, bPtr, nk_size_t(valuesToDimensions(n, nk_u4_k)), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -710,8 +715,9 @@ extension U4x2: NumKongAngular {
             let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_u4x2_t.self)
             let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_u4x2_t.self)
             var result: Float32 = 0
-            nk_angular_u4(aPtr, bPtr, nk_size_t(valuesToDimensions(n, nk_u4_k)), &result)
-            return result
+            let status = nk_angular_u4_best(
+                aPtr, bPtr, nk_size_t(valuesToDimensions(n, nk_u4_k)), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -726,8 +732,9 @@ extension U4x2: NumKongEuclidean {
             let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_u4x2_t.self)
             let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_u4x2_t.self)
             var result: Float32 = 0
-            nk_euclidean_u4(aPtr, bPtr, nk_size_t(valuesToDimensions(n, nk_u4_k)), &result)
-            return result
+            let status = nk_euclidean_u4_best(
+                aPtr, bPtr, nk_size_t(valuesToDimensions(n, nk_u4_k)), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -742,8 +749,9 @@ extension U4x2: NumKongSqEuclidean {
             let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_u4x2_t.self)
             let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_u4x2_t.self)
             var result: UInt32 = 0
-            nk_sqeuclidean_u4(aPtr, bPtr, nk_size_t(valuesToDimensions(n, nk_u4_k)), &result)
-            return result
+            let status = nk_sqeuclidean_u4_best(
+                aPtr, bPtr, nk_size_t(valuesToDimensions(n, nk_u4_k)), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -758,8 +766,9 @@ extension U1x8: NumKongDot {
             let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_u1x8_t.self)
             let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_u1x8_t.self)
             var result: UInt32 = 0
-            nk_dot_u1(aPtr, bPtr, nk_size_t(valuesToDimensions(n, nk_u1_k)), &result)
-            return result
+            let status = nk_dot_u1_best(
+                aPtr, bPtr, nk_size_t(valuesToDimensions(n, nk_u1_k)), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -790,8 +799,9 @@ extension U1x8: NumKongHamming {
             let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_u1x8_t.self)
             let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_u1x8_t.self)
             var result: UInt32 = 0
-            nk_hamming_u1(aPtr, bPtr, nk_size_t(valuesToDimensions(n, nk_u1_k)), &result)
-            return result
+            let status = nk_hamming_u1_best(
+                aPtr, bPtr, nk_size_t(valuesToDimensions(n, nk_u1_k)), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }
@@ -804,8 +814,9 @@ extension U1x8: NumKongJaccard {
             let aPtr = UnsafeRawPointer(ap).assumingMemoryBound(to: nk_u1x8_t.self)
             let bPtr = UnsafeRawPointer(bp).assumingMemoryBound(to: nk_u1x8_t.self)
             var result: Float32 = 0
-            nk_jaccard_u1(aPtr, bPtr, nk_size_t(valuesToDimensions(n, nk_u1_k)), &result)
-            return result
+            let status = nk_jaccard_u1_best(
+                aPtr, bPtr, nk_size_t(valuesToDimensions(n, nk_u1_k)), &result, Capabilities.enabled.native, nil)
+            return status == nk_success_k ? result : nil
         }
     }
 }

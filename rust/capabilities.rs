@@ -15,122 +15,153 @@
 //!
 //! This module also provides:
 //!
-//! - [`Capability`]: One CPU tier — NEON, Skylake, etc.
-//! - [`configure_thread`]: Set up the current thread's SIMD state for the given tiers
-//! - [`uses_runtime_dispatch`]: Check if the library selects kernels at runtime
+//! - [`Capability`]: One CPU capability — NEON, Skylake, etc.
+//! - [`configure_thread`]: Set up the current thread's SIMD state for the given capabilities
 //!
 //! File: rust/capabilities.rs
 //! Author: Ash Vardanian
 
 use core::fmt;
 use core::ops::BitOr;
+use core::sync::atomic::{AtomicU64, Ordering};
+
+use crate::tensor::TensorError;
 
 #[link(name = "numkong")]
 extern "C" {
-    fn nk_cpu_capabilities_detected() -> u64;
-    fn nk_cpu_capabilities_compiled() -> u64;
-    fn nk_cpu_capabilities_enabled() -> u64;
-    fn nk_cpu_capabilities_enable(wanted: u64) -> u64;
-    fn nk_cpu_configure_thread(capabilities: u64) -> i32;
-    fn nk_uses_runtime_dispatch() -> i32;
+    fn nk_cpu_capabilities_detected(capabilities: *mut u64) -> Status;
+    fn nk_cpu_capabilities_compiled(capabilities: *mut u64) -> Status;
+    fn nk_cpu_capabilities_enabled(capabilities: *mut u64) -> Status;
+    fn nk_cpu_configure_thread(capabilities: u64) -> Status;
     fn nk_name_capabilities(capabilities: u64, buffer: *mut u8, capacity: usize) -> usize;
 }
 
-/// One CPU capability tier, numbered like the C `nk_cap_<tier>_k` bits.
+/// What a dispatched kernel reports, C's `nk_status_t`: zero on success, negative when it wrote
+/// nothing.
+#[repr(transparent)]
+#[must_use]
+pub(crate) struct Status(i32);
+
+impl Status {
+    /// `Some(())` on success, so a method returning `Option` returns `None` on failure through `?`.
+    pub(crate) fn ok(self) -> Option<()> { (self.0 == 0).then_some(()) }
+
+    /// `Ok(())` on success, so a method returning `Result` returns the status through `?`.
+    pub(crate) fn check(self) -> Result<(), TensorError> {
+        match self.0 {
+            0 => Ok(()),
+            status => Err(TensorError::KernelFailed { status }),
+        }
+    }
+
+    /// Panics on failure, in methods whose signatures have no failure path.
+    #[track_caller]
+    pub(crate) fn unwrap(self) { assert!(self.0 == 0, "NumKong kernel failed with status {}", self.0) }
+}
+
+/// A failure the workers of a parallel loop report, checked once the loop joins.
+#[cfg(feature = "parallel")]
+#[derive(Default)]
+pub(crate) struct WorkerStatus(core::sync::atomic::AtomicI32);
+
+#[cfg(feature = "parallel")]
+impl WorkerStatus {
+    /// Keeps the status of a kernel call that failed.
+    pub(crate) fn record(&self, result: Result<(), TensorError>) {
+        if let Err(TensorError::KernelFailed { status }) = result {
+            self.0.store(status, Ordering::Relaxed);
+        }
+    }
+
+    /// `Ok(())` unless a worker recorded a failure.
+    pub(crate) fn check(&self) -> Result<(), TensorError> { Status(self.0.load(Ordering::Relaxed)).check() }
+}
+
+/// One CPU capability, numbered like the C `nk_cap_<capability>_k` bits: each capability group in a
+/// contiguous run, ascending by dispatch preference.
 #[repr(u64)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Capability {
     Serial = 1 << 0,       // Always: Fallback
     Neon = 1 << 1,         // ARM NEON
-    Haswell = 1 << 2,      // Intel AVX2
-    Skylake = 1 << 3,      // Intel AVX-512
-    NeonHalf = 1 << 4,     // ARM NEON FP16
+    NeonHalf = 1 << 2,     // ARM NEON FP16
+    NeonBfdot = 1 << 3,    // ARM NEON BF16
+    NeonFhm = 1 << 4,      // ARM NEON FP16 FML
     NeonSdot = 1 << 5,     // ARM NEON i8 dot
-    NeonFhm = 1 << 6,      // ARM NEON FP16 FML
-    Icelake = 1 << 7,      // Intel AVX-512 VNNI
-    Genoa = 1 << 8,        // AMD AVX-512 BF16
-    NeonBfdot = 1 << 9,    // ARM NEON BF16
-    Sve = 1 << 10,         // ARM SVE
-    SveHalf = 1 << 11,     // ARM SVE FP16
-    SveSdot = 1 << 12,     // ARM SVE i8 dot
-    Alder = 1 << 13,       // Intel AVX2+VNNI
-    SveBfdot = 1 << 14,    // ARM SVE BF16
-    Sve2 = 1 << 15,        // ARM SVE2
-    V128Relaxed = 1 << 16, // WASM Relaxed SIMD
-    Sapphire = 1 << 17,    // Intel AVX-512 FP16
-    SapphireAmx = 1 << 18, // Intel Sapphire AMX
-    Rvv = 1 << 19,         // RISC-V Vector
-    RvvHalf = 1 << 20,     // RISC-V Zvfh
-    RvvBf16 = 1 << 21,     // RISC-V Zvfbfwma
-    GraniteAmx = 1 << 22,  // Intel Granite AMX FP16
-    Turin = 1 << 23,       // AMD Turin AVX-512 CD
-    Sme = 1 << 24,         // ARM SME
-    Sme2 = 1 << 25,        // ARM SME2
-    SmeF64 = 1 << 26,      // ARM SME F64
-    SmeFa64 = 1 << 27,     // ARM SME FA64
-    Sve2p1 = 1 << 28,      // ARM SVE2.1
-    Sme2p1 = 1 << 29,      // ARM SME2.1
-    SmeHalf = 1 << 30,     // ARM SME F16F16
-    SmeBf16 = 1 << 31,     // ARM SME B16B16
-    SmeLut2 = 1 << 32,     // ARM SME LUTv2
-    RvvBb = 1 << 33,       // RISC-V Zvbb
-    Sierra = 1 << 34,      // Intel AVXVNNIINT8
-    SmeBi32 = 1 << 35,     // ARM SME BI32I32
-    LoongsonAsx = 1 << 36, // LoongArch LASX 256-bit SIMD
-    PowerVsx = 1 << 37,    // Power VSX 128-bit SIMD
-    Diamond = 1 << 38,     // Intel AVX10.2
-    NeonFp8 = 1 << 39,     // ARM NEON FP8
-    DiamondAmx = 1 << 40,  // Intel Diamond Rapids AMX
-    V128 = 1 << 41,        // WASM SIMD128
+    NeonFp8 = 1 << 6,      // ARM NEON FP8
+    Sve = 1 << 7,          // ARM SVE
+    SveHalf = 1 << 8,      // ARM SVE FP16
+    SveSdot = 1 << 9,      // ARM SVE i8 dot
+    SveBfdot = 1 << 10,    // ARM SVE BF16
+    Sve2 = 1 << 11,        // ARM SVE2
+    Sme = 1 << 12,         // ARM SME
+    SmeF64 = 1 << 13,      // ARM SME F64
+    SmeBi32 = 1 << 14,     // ARM SME BI32I32
+    Haswell = 1 << 15,     // Intel AVX2
+    Alder = 1 << 16,       // Intel AVX2+VNNI
+    Sierra = 1 << 17,      // Intel AVXVNNIINT8
+    Skylake = 1 << 18,     // Intel AVX-512
+    Icelake = 1 << 19,     // Intel AVX-512 VNNI
+    Genoa = 1 << 20,       // AMD AVX-512 BF16
+    Turin = 1 << 21,       // AMD Turin AVX-512 CD
+    Sapphire = 1 << 22,    // Intel AVX-512 FP16
+    Diamond = 1 << 23,     // Intel AVX10.2
+    SapphireAmx = 1 << 24, // Intel Sapphire AMX
+    GraniteAmx = 1 << 25,  // Intel Granite AMX FP16
+    DiamondAmx = 1 << 26,  // Intel Diamond Rapids AMX
+    Rvv = 1 << 27,         // RISC-V Vector
+    RvvBf16 = 1 << 28,     // RISC-V Zvfbfwma
+    RvvHalf = 1 << 29,     // RISC-V Zvfh
+    RvvBb = 1 << 30,       // RISC-V Zvbb
+    V128 = 1 << 31,        // WASM SIMD128
+    V128Relaxed = 1 << 32, // WASM Relaxed SIMD
+    PowerVsx = 1 << 33,    // Power VSX 128-bit SIMD
+    LoongsonAsx = 1 << 34, // LoongArch LASX 256-bit SIMD
 }
 
 /// Every [`Capability`], in bit order.
-const TIERS: [Capability; 42] = [
+const CAPABILITIES: [Capability; 35] = [
     Capability::Serial,
     Capability::Neon,
-    Capability::Haswell,
-    Capability::Skylake,
     Capability::NeonHalf,
-    Capability::NeonSdot,
-    Capability::NeonFhm,
-    Capability::Icelake,
-    Capability::Genoa,
     Capability::NeonBfdot,
+    Capability::NeonFhm,
+    Capability::NeonSdot,
+    Capability::NeonFp8,
     Capability::Sve,
     Capability::SveHalf,
     Capability::SveSdot,
-    Capability::Alder,
     Capability::SveBfdot,
     Capability::Sve2,
-    Capability::V128Relaxed,
-    Capability::Sapphire,
-    Capability::SapphireAmx,
-    Capability::Rvv,
-    Capability::RvvHalf,
-    Capability::RvvBf16,
-    Capability::GraniteAmx,
-    Capability::Turin,
     Capability::Sme,
-    Capability::Sme2,
     Capability::SmeF64,
-    Capability::SmeFa64,
-    Capability::Sve2p1,
-    Capability::Sme2p1,
-    Capability::SmeHalf,
-    Capability::SmeBf16,
-    Capability::SmeLut2,
-    Capability::RvvBb,
-    Capability::Sierra,
     Capability::SmeBi32,
-    Capability::LoongsonAsx,
-    Capability::PowerVsx,
+    Capability::Haswell,
+    Capability::Alder,
+    Capability::Sierra,
+    Capability::Skylake,
+    Capability::Icelake,
+    Capability::Genoa,
+    Capability::Turin,
+    Capability::Sapphire,
     Capability::Diamond,
-    Capability::NeonFp8,
+    Capability::SapphireAmx,
+    Capability::GraniteAmx,
     Capability::DiamondAmx,
+    Capability::Rvv,
+    Capability::RvvBf16,
+    Capability::RvvHalf,
+    Capability::RvvBb,
     Capability::V128,
+    Capability::V128Relaxed,
+    Capability::PowerVsx,
+    Capability::LoongsonAsx,
 ];
 
-/// A set of CPU capability tiers, printed as comma-separated names like `serial,haswell`.
+/// The mask every kernel call passes, zero until [`Capabilities::enabled`] first reads it.
+static ENABLED: AtomicU64 = AtomicU64::new(0);
+
+/// A set of CPU capabilities, printed as comma-separated names like `serial,haswell`.
 ///
 /// # Example
 /// ```
@@ -149,43 +180,72 @@ const TIERS: [Capability; 42] = [
 pub struct Capabilities(u64);
 
 impl Capabilities {
-    /// Tiers this CPU supports, whether or not their kernels were compiled in.
-    pub fn detected() -> Self { Capabilities(unsafe { nk_cpu_capabilities_detected() }) }
+    /// Capabilities this CPU supports, whether or not their kernels were compiled in.
+    pub fn detected() -> Self { query(nk_cpu_capabilities_detected) }
 
-    /// Tiers whose kernels were compiled into this binary, whether or not this CPU supports them.
-    pub fn compiled() -> Self { Capabilities(unsafe { nk_cpu_capabilities_compiled() }) }
+    /// Capabilities whose kernels were compiled into this binary, whether or not this CPU supports them.
+    pub fn compiled() -> Self { query(nk_cpu_capabilities_compiled) }
 
-    /// Tiers dispatch selects kernels from: [`Capabilities::detected`] & [`Capabilities::compiled`]
+    /// Capabilities every kernel call passes: [`Capabilities::detected`] & [`Capabilities::compiled`]
     /// unless narrowed by [`Capabilities::enable`], always with [`Capability::Serial`].
-    pub fn enabled() -> Self { Capabilities(unsafe { nk_cpu_capabilities_enabled() }) }
+    pub fn enabled() -> Self {
+        let mask = ENABLED.load(Ordering::Relaxed);
+        if mask != 0 {
+            return Capabilities(mask);
+        }
+        let available = query(nk_cpu_capabilities_enabled).0;
+        match ENABLED.compare_exchange(0, available, Ordering::Relaxed, Ordering::Relaxed) {
+            Ok(_) => Capabilities(available),
+            Err(current) => Capabilities(current),
+        }
+    }
 
     /// Makes this set, clamped to [`Capabilities::detected`] & [`Capabilities::compiled`] and with
-    /// [`Capability::Serial`] kept, what dispatch selects from, and returns what stuck.
-    pub fn enable(self) -> Self { Capabilities(unsafe { nk_cpu_capabilities_enable(self.0) }) }
+    /// [`Capability::Serial`] kept, what every kernel call passes, and returns what stuck. Pack
+    /// matrices again after the call: packed kernels refuse another capability's layout with
+    /// [`TensorError::KernelFailed`].
+    pub fn enable(self) -> Self {
+        let mask = self.0 & query(nk_cpu_capabilities_enabled).0 | Capability::Serial as u64;
+        ENABLED.store(mask, Ordering::Relaxed);
+        Capabilities(mask)
+    }
 
     /// The raw `nk_capability_t` mask.
     pub const fn bits(self) -> u64 { self.0 }
 
-    /// Whether `tier` is in this set.
-    pub const fn contains(self, tier: Capability) -> bool { self.0 & tier as u64 != 0 }
+    /// Whether `capability` is in this set.
+    pub const fn contains(self, capability: Capability) -> bool { self.0 & capability as u64 != 0 }
 
-    /// This set with `tier` removed, like `Capabilities::enabled().without(Capability::Skylake)`.
-    pub const fn without(self, tier: Capability) -> Self { Capabilities(self.0 & !(tier as u64)) }
+    /// This set with `capability` removed, like `Capabilities::enabled().without(Capability::Skylake)`.
+    pub const fn without(self, capability: Capability) -> Self { Capabilities(self.0 & !(capability as u64)) }
 
-    /// The tiers in this set, in bit order.
-    pub fn iter(self) -> impl Iterator<Item = Capability> { TIERS.into_iter().filter(move |&tier| self.contains(tier)) }
+    /// The capabilities in this set, in bit order.
+    pub fn iter(self) -> impl Iterator<Item = Capability> {
+        CAPABILITIES
+            .into_iter()
+            .filter(move |&capability| self.contains(capability))
+    }
 }
+
+/// Reads one of the `nk_cpu_capabilities_*` masks.
+fn query(read: unsafe extern "C" fn(*mut u64) -> Status) -> Capabilities {
+    let mut mask = Capability::Serial as u64;
+    unsafe { read(&mut mask) }.unwrap();
+    Capabilities(mask)
+}
+
+/// The mask every kernel call passes, [`Capabilities::enabled`] as C's `nk_capability_t`.
+pub(crate) fn cpu_capabilities() -> u64 { Capabilities::enabled().0 }
 
 /// Sets up the calling thread for the kernels in `capabilities`, usually [`Capabilities::enabled`]:
 /// AMX tile permission on x86 Linux, fused BF16 dots on Arm. Call it once per thread before using
 /// those kernels; it is idempotent. Returns `true` on success.
-pub fn configure_thread(capabilities: Capabilities) -> bool { unsafe { nk_cpu_configure_thread(capabilities.0) != 0 } }
-
-/// Returns `true` if the library uses runtime dispatch for function selection.
-pub fn uses_runtime_dispatch() -> bool { unsafe { nk_uses_runtime_dispatch() != 0 } }
+pub fn configure_thread(capabilities: Capabilities) -> bool {
+    unsafe { nk_cpu_configure_thread(capabilities.0) }.ok().is_some()
+}
 
 impl From<Capability> for Capabilities {
-    fn from(tier: Capability) -> Self { Capabilities(tier as u64) }
+    fn from(capability: Capability) -> Self { Capabilities(capability as u64) }
 }
 
 impl BitOr for Capability {
@@ -195,7 +255,7 @@ impl BitOr for Capability {
 
 impl BitOr<Capability> for Capabilities {
     type Output = Self;
-    fn bitor(self, tier: Capability) -> Self { Capabilities(self.0 | tier as u64) }
+    fn bitor(self, capability: Capability) -> Self { Capabilities(self.0 | capability as u64) }
 }
 
 impl BitOr for Capabilities {
@@ -221,53 +281,57 @@ mod tests {
 
     #[test]
     fn names_match_the_c_table() {
-        let names: [&str; TIERS.len()] = [
+        let names: [&str; CAPABILITIES.len()] = [
             "serial",
             "neon",
-            "haswell",
-            "skylake",
             "neonhalf",
-            "neonsdot",
-            "neonfhm",
-            "icelake",
-            "genoa",
             "neonbfdot",
+            "neonfhm",
+            "neonsdot",
+            "neonfp8",
             "sve",
             "svehalf",
             "svesdot",
-            "alder",
             "svebfdot",
             "sve2",
-            "v128relaxed",
-            "sapphire",
-            "sapphireamx",
-            "rvv",
-            "rvvhalf",
-            "rvvbf16",
-            "graniteamx",
-            "turin",
             "sme",
-            "sme2",
             "smef64",
-            "smefa64",
-            "sve2p1",
-            "sme2p1",
-            "smehalf",
-            "smebf16",
-            "smelut2",
-            "rvvbb",
-            "sierra",
             "smebi32",
-            "loongsonasx",
-            "powervsx",
+            "haswell",
+            "alder",
+            "sierra",
+            "skylake",
+            "icelake",
+            "genoa",
+            "turin",
+            "sapphire",
             "diamond",
-            "neonfp8",
+            "sapphireamx",
+            "graniteamx",
             "diamondamx",
+            "rvv",
+            "rvvbf16",
+            "rvvhalf",
+            "rvvbb",
             "v128",
+            "v128relaxed",
+            "powervsx",
+            "loongsonasx",
         ];
-        for (bit, (tier, name)) in TIERS.into_iter().zip(names).enumerate() {
-            assert_eq!(tier as u64, 1 << bit);
-            assert_eq!(tier.to_string(), name);
+        for (bit, (capability, name)) in CAPABILITIES.into_iter().zip(names).enumerate() {
+            assert_eq!(capability as u64, 1 << bit);
+            assert_eq!(capability.to_string(), name);
         }
+    }
+
+    #[test]
+    fn enabled_is_clamped_and_keeps_serial() {
+        let enabled = Capabilities::enabled();
+        assert!(enabled.contains(Capability::Serial));
+        assert_eq!(
+            enabled.bits() & !(Capabilities::detected().bits() | Capability::Serial as u64),
+            0
+        );
+        assert_eq!(enabled.bits() & !Capabilities::compiled().bits(), 0);
     }
 }

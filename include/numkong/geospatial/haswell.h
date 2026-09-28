@@ -22,10 +22,11 @@
 #ifndef NUMKONG_GEOSPATIAL_HASWELL_H
 #define NUMKONG_GEOSPATIAL_HASWELL_H
 
-#if NUMKONG_ARCH_X86_64_
-#if NUMKONG_TARGET_HASWELL
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_HASWELL_
 
 #include "numkong/types.h"
+#include "numkong/cast/haswell.h"         // `nk_partial_load_b64x4_haswell_`, `nk_partial_load_b32x8_serial_`
 #include "numkong/trigonometry/haswell.h" // `nk_sin_f64x4_haswell_`, `nk_cos_f64x4_haswell_`, `nk_atan2_f64x4_haswell_`
 
 #if defined(__cplusplus)
@@ -42,7 +43,7 @@ extern "C" {
 /*  Haswell AVX2 implementations using 4-wide f64 and 8-wide f32 SIMD.
  *  These require AVX2 trigonometric kernels from trigonometry.h. */
 
-NUMKONG_HELPER_INLINE __m256d nk_haversine_f64x4_haswell_(         //
+NUMKONG_INLINE __m256d nk_haversine_f64x4_haswell_(                //
     __m256d first_latitudes_f64x4, __m256d first_longitudes_f64x4, //
     __m256d second_latitudes_f64x4, __m256d second_longitudes_f64x4) {
 
@@ -85,9 +86,10 @@ NUMKONG_HELPER_INLINE __m256d nk_haversine_f64x4_haswell_(         //
     return _mm256_mul_pd(earth_radius_f64x4, central_angle_f64x4);
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_haversine_f64_haswell( //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons,        //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons,        //
+#if NUMKONG_TARGET_HASWELL
+NUMKONG_API nk_status_t nk_haversine_f64_haswell(   //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
@@ -118,8 +120,9 @@ NUMKONG_API_COMPTIME nk_status_t nk_haversine_f64_haswell( //
     }
     return nk_success_k;
 }
+#endif // NUMKONG_TARGET_HASWELL
 
-NUMKONG_HELPER_INLINE __m256 nk_haversine_f32x8_haswell_(        //
+NUMKONG_INLINE __m256 nk_haversine_f32x8_haswell_(               //
     __m256 first_latitudes_f32x8, __m256 first_longitudes_f32x8, //
     __m256 second_latitudes_f32x8, __m256 second_longitudes_f32x8) {
 
@@ -163,9 +166,10 @@ NUMKONG_HELPER_INLINE __m256 nk_haversine_f32x8_haswell_(        //
     return _mm256_mul_ps(earth_radius_f32x8, central_angle_f32x8);
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_haversine_f32_haswell( //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons,        //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons,        //
+#if NUMKONG_TARGET_HASWELL
+NUMKONG_API nk_status_t nk_haversine_f32_haswell(   //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
@@ -196,12 +200,13 @@ NUMKONG_API_COMPTIME nk_status_t nk_haversine_f32_haswell( //
     }
     return nk_success_k;
 }
+#endif // NUMKONG_TARGET_HASWELL
 
 /**
  *  @brief AVX2 helper for Vincenty's geodesic distance on 4 f64 point pairs.
  *  @note This is a true SIMD implementation using masked convergence tracking via blending.
  */
-NUMKONG_HELPER_INLINE __m256d nk_vincenty_f64x4_haswell_(          //
+NUMKONG_INLINE __m256d nk_vincenty_f64x4_haswell_(                 //
     __m256d first_latitudes_f64x4, __m256d first_longitudes_f64x4, //
     __m256d second_latitudes_f64x4, __m256d second_longitudes_f64x4) {
 
@@ -375,9 +380,10 @@ NUMKONG_HELPER_INLINE __m256d nk_vincenty_f64x4_haswell_(          //
     return distances_f64x4;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f64_haswell( //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons,       //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons,       //
+#if NUMKONG_TARGET_HASWELL
+NUMKONG_API nk_status_t nk_vincenty_f64_haswell(    //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
@@ -408,12 +414,13 @@ NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f64_haswell( //
     }
     return nk_success_k;
 }
+#endif // NUMKONG_TARGET_HASWELL
 
 /**
  *  @brief AVX2 helper for Vincenty's geodesic distance on 8 f32 point pairs.
  *  @note This is a true SIMD implementation using masked convergence tracking via blending.
  */
-NUMKONG_HELPER_INLINE __m256 nk_vincenty_f32x8_haswell_(         //
+NUMKONG_INLINE __m256 nk_vincenty_f32x8_haswell_(                //
     __m256 first_latitudes_f32x8, __m256 first_longitudes_f32x8, //
     __m256 second_latitudes_f32x8, __m256 second_longitudes_f32x8) {
 
@@ -587,9 +594,10 @@ NUMKONG_HELPER_INLINE __m256 nk_vincenty_f32x8_haswell_(         //
     return distances_f32x8;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f32_haswell( //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons,       //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons,       //
+#if NUMKONG_TARGET_HASWELL
+NUMKONG_API nk_status_t nk_vincenty_f32_haswell(    //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
@@ -620,6 +628,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f32_haswell( //
     }
     return nk_success_k;
 }
+#endif // NUMKONG_TARGET_HASWELL
 
 #if defined(__clang__)
 #pragma clang attribute pop
@@ -631,6 +640,6 @@ NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f32_haswell( //
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_HASWELL
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_HASWELL_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_GEOSPATIAL_HASWELL_H

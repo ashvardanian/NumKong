@@ -93,15 +93,17 @@ error_stats_t test_dots_unpacked_conjugated(kernel_type_ dots_fn, nk_f64_t term_
     return stats;
 }
 
-void dot_f32_with_blas(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+nk_status_t dot_f32_with_blas(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result, void *) {
     *result = cblas_dsdot(static_cast<int>(n), a, 1, b, 1);
+    return nk_success_k;
 }
 
-void dot_f64_with_blas(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+nk_status_t dot_f64_with_blas(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result, void *) {
     *result = cblas_ddot(static_cast<int>(n), a, 1, b, 1);
+    return nk_success_k;
 }
 
-void dot_f32c_with_blas(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n, nk_f64c_t *result) {
+nk_status_t dot_f32c_with_blas(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n, nk_f64c_t *result, void *) {
     nk_f32c_t reduced_result_f32;
 #if NUMKONG_COMPARE_TO_ACCELERATE
     cblas_cdotu_sub(static_cast<int>(n), reinterpret_cast<__LAPACK_float_complex const *>(a), 1,
@@ -111,9 +113,10 @@ void dot_f32c_with_blas(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n, nk_
     cblas_cdotu_sub(static_cast<int>(n), a, 1, b, 1, &reduced_result_f32);
 #endif
     result->real = (nk_f64_t)reduced_result_f32.real, result->imag = (nk_f64_t)reduced_result_f32.imag;
+    return nk_success_k;
 }
 
-void vdot_f32c_with_blas(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n, nk_f64c_t *result) {
+nk_status_t vdot_f32c_with_blas(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n, nk_f64c_t *result, void *) {
     nk_f32c_t reduced_result_f32;
 #if NUMKONG_COMPARE_TO_ACCELERATE
     cblas_cdotc_sub(static_cast<int>(n), reinterpret_cast<__LAPACK_float_complex const *>(a), 1,
@@ -123,9 +126,10 @@ void vdot_f32c_with_blas(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n, nk
     cblas_cdotc_sub(static_cast<int>(n), a, 1, b, 1, &reduced_result_f32); // conjugated
 #endif
     result->real = (nk_f64_t)reduced_result_f32.real, result->imag = (nk_f64_t)reduced_result_f32.imag;
+    return nk_success_k;
 }
 
-void dot_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n, nk_f64c_t *result) {
+nk_status_t dot_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n, nk_f64c_t *result, void *) {
 #if NUMKONG_COMPARE_TO_ACCELERATE
     cblas_zdotu_sub(static_cast<int>(n), reinterpret_cast<__LAPACK_double_complex const *>(a), 1,
                     reinterpret_cast<__LAPACK_double_complex const *>(b), 1,
@@ -133,9 +137,10 @@ void dot_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n, nk_
 #else
     cblas_zdotu_sub(static_cast<int>(n), a, 1, b, 1, result);
 #endif
+    return nk_success_k;
 }
 
-void vdot_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n, nk_f64c_t *result) {
+nk_status_t vdot_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n, nk_f64c_t *result, void *) {
 #if NUMKONG_COMPARE_TO_ACCELERATE
     cblas_zdotc_sub(static_cast<int>(n), reinterpret_cast<__LAPACK_double_complex const *>(a), 1,
                     reinterpret_cast<__LAPACK_double_complex const *>(b), 1,
@@ -143,6 +148,7 @@ void vdot_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n, nk
 #else
     cblas_zdotc_sub(static_cast<int>(n), a, 1, b, 1, result); // conjugated
 #endif
+    return nk_success_k;
 }
 
 void dots_f32_with_blas(f32_t const *a, f32_t const *b, f64_t *c, nk_size_t m, nk_size_t n, nk_size_t k,
@@ -207,8 +213,8 @@ void dots_f64c_with_blas(f64c_t const *a, f64c_t const *b, f64c_t *c, nk_size_t 
 
 /** SYRK over all of A into scratch, copying back the upper triangle of only the requested rows. */
 template <typename scalar_type_>
-void dots_symmetric_with_blas(scalar_type_ const *a, nk_size_t n, nk_size_t k, nk_size_t a_stride, nk_f64_t *c,
-                              nk_size_t c_stride, nk_size_t row_start, nk_size_t row_count) {
+nk_status_t dots_symmetric_with_blas(scalar_type_ const *a, nk_size_t n, nk_size_t k, nk_size_t a_stride, nk_f64_t *c,
+                                     nk_size_t c_stride, nk_size_t row_start, nk_size_t row_count, void *) {
     std::vector<scalar_type_> full(n * n);
     int const size = static_cast<int>(n), depth = static_cast<int>(k);
     int const leading_dimension_a = static_cast<int>(a_stride / sizeof(scalar_type_));
@@ -220,6 +226,7 @@ void dots_symmetric_with_blas(scalar_type_ const *a, nk_size_t n, nk_size_t k, n
                     size);
     for (nk_size_t row = row_start; row < std::min(n, row_start + row_count); row++)
         std::copy(&full[row * n + row], &full[row * n] + n, c + row * (c_stride / sizeof(nk_f64_t)) + row);
+    return nk_success_k;
 }
 
 #endif // NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
@@ -274,11 +281,12 @@ error_stats_t test_dot_blas(typename scalar_type_::dot_kernel_t kernel, nk_f64_t
         fill_random(generator, b);
 
         result_t result;
-        kernel(a.raw_values_data(), b.raw_values_data(), global_config.dense_dimensions, &result.raw_);
+        stats.expect(
+            kernel(a.raw_values_data(), b.raw_values_data(), global_config.dense_dimensions, &result.raw_, nullptr));
 
         reference_t reference;
-        nk::dot<scalar_t, reference_t, nk::no_simd_k>(a.values_data(), b.values_data(), global_config.dense_dimensions,
-                                                      &reference);
+        nk::dot<scalar_t, reference_t>(a.values_data(), b.values_data(), global_config.dense_dimensions, &reference,
+                                       no_tiers_k);
 
         stats.accumulate(result, reference);
     }
@@ -302,11 +310,12 @@ error_stats_t test_vdot_blas(typename scalar_type_::vdot_kernel_t kernel, nk_f64
         fill_random(generator, b);
 
         result_t result;
-        kernel(a.raw_values_data(), b.raw_values_data(), global_config.dense_dimensions, &result.raw_);
+        stats.expect(
+            kernel(a.raw_values_data(), b.raw_values_data(), global_config.dense_dimensions, &result.raw_, nullptr));
 
         reference_t reference;
-        nk::vdot<scalar_t, reference_t, nk::no_simd_k>(a.values_data(), b.values_data(), global_config.dense_dimensions,
-                                                       &reference);
+        nk::vdot<scalar_t, reference_t>(a.values_data(), b.values_data(), global_config.dense_dimensions, &reference,
+                                        no_tiers_k);
 
         stats.accumulate(result, reference);
     }

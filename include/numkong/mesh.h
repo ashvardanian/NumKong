@@ -106,7 +106,7 @@
 #ifndef NUMKONG_MESH_H
 #define NUMKONG_MESH_H
 
-#include "numkong/types.h"
+#include "numkong/capabilities.h"
 
 #if defined(__cplusplus)
 extern "C" {
@@ -125,18 +125,25 @@ extern "C" {
  *  @param[out] rotation Row-major 3×3 rotation matrix (9 values), always identity. Can be NULL.
  *  @param[out] scale Scale factor applied, always 1. Can be NULL.
  *  @param[out] result RMSD after applying the transformation.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  */
-NUMKONG_API_RUNTIME void nk_rmsd_f64(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
-                                     nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result);
-/** @copydoc nk_rmsd_f64 */
-NUMKONG_API_RUNTIME void nk_rmsd_f32(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                     nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result);
-/** @copydoc nk_rmsd_f64 */
-NUMKONG_API_RUNTIME void nk_rmsd_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                     nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result);
-/** @copydoc nk_rmsd_f64 */
-NUMKONG_API_RUNTIME void nk_rmsd_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                      nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result);
+NUMKONG_API nk_status_t nk_rmsd_f64_best(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+                                         nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result,
+                                         nk_capability_t capabilities, void *stream);
+/** @copydoc nk_rmsd_f64_best */
+NUMKONG_API nk_status_t nk_rmsd_f32_best(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                         nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result,
+                                         nk_capability_t capabilities, void *stream);
+/** @copydoc nk_rmsd_f64_best */
+NUMKONG_API nk_status_t nk_rmsd_f16_best(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                         nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result,
+                                         nk_capability_t capabilities, void *stream);
+/** @copydoc nk_rmsd_f64_best */
+NUMKONG_API nk_status_t nk_rmsd_bf16_best(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                          nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result,
+                                          nk_capability_t capabilities, void *stream);
 
 /**
  *  @brief Kabsch mesh superposition function.
@@ -151,18 +158,25 @@ NUMKONG_API_RUNTIME void nk_rmsd_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk
  *  @param[out] rotation Row-major 3×3 rotation matrix (9 values). Can be NULL.
  *  @param[out] scale Scale factor applied, always 1. Can be NULL.
  *  @param[out] result RMSD after applying the transformation.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  */
-NUMKONG_API_RUNTIME void nk_kabsch_f64(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
-                                       nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result);
-/** @copydoc nk_kabsch_f64 */
-NUMKONG_API_RUNTIME void nk_kabsch_f32(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                       nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result);
-/** @copydoc nk_kabsch_f64 */
-NUMKONG_API_RUNTIME void nk_kabsch_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                       nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result);
-/** @copydoc nk_kabsch_f64 */
-NUMKONG_API_RUNTIME void nk_kabsch_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                        nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result);
+NUMKONG_API nk_status_t nk_kabsch_f64_best(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+                                           nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result,
+                                           nk_capability_t capabilities, void *stream);
+/** @copydoc nk_kabsch_f64_best */
+NUMKONG_API nk_status_t nk_kabsch_f32_best(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                           nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result,
+                                           nk_capability_t capabilities, void *stream);
+/** @copydoc nk_kabsch_f64_best */
+NUMKONG_API nk_status_t nk_kabsch_f16_best(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                           nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result,
+                                           nk_capability_t capabilities, void *stream);
+/** @copydoc nk_kabsch_f64_best */
+NUMKONG_API nk_status_t nk_kabsch_bf16_best(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                            nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result,
+                                            nk_capability_t capabilities, void *stream);
 
 /**
  *  @brief Umeyama mesh superposition function.
@@ -177,365 +191,378 @@ NUMKONG_API_RUNTIME void nk_kabsch_bf16(nk_bf16_t const *a, nk_bf16_t const *b, 
  *  @param[out] rotation Row-major 3×3 rotation matrix (9 values). Can be NULL.
  *  @param[out] scale Scale factor applied. Can be NULL.
  *  @param[out] result RMSD after applying the transformation.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  */
-NUMKONG_API_RUNTIME void nk_umeyama_f64(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
-                                        nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result);
-/** @copydoc nk_umeyama_f64 */
-NUMKONG_API_RUNTIME void nk_umeyama_f32(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                        nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result);
-/** @copydoc nk_umeyama_f64 */
-NUMKONG_API_RUNTIME void nk_umeyama_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                        nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result);
-/** @copydoc nk_umeyama_f64 */
-NUMKONG_API_RUNTIME void nk_umeyama_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                         nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result);
+NUMKONG_API nk_status_t nk_umeyama_f64_best(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+                                            nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result,
+                                            nk_capability_t capabilities, void *stream);
+/** @copydoc nk_umeyama_f64_best */
+NUMKONG_API nk_status_t nk_umeyama_f32_best(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                            nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result,
+                                            nk_capability_t capabilities, void *stream);
+/** @copydoc nk_umeyama_f64_best */
+NUMKONG_API nk_status_t nk_umeyama_f16_best(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                            nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result,
+                                            nk_capability_t capabilities, void *stream);
+/** @copydoc nk_umeyama_f64_best */
+NUMKONG_API nk_status_t nk_umeyama_bf16_best(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                             nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                             nk_f32_t *result, nk_capability_t capabilities, void *stream);
 
-/** @copydoc nk_rmsd_f64 */
-NUMKONG_API_COMPTIME void nk_rmsd_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+/** @copydoc nk_rmsd_f64_best */
+NUMKONG_API nk_status_t nk_rmsd_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+                                           nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result,
+                                           void *stream);
+/** @copydoc nk_kabsch_f64_best */
+NUMKONG_API nk_status_t nk_kabsch_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
                                              nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
-                                             nk_f64_t *result);
-/** @copydoc nk_kabsch_f64 */
-NUMKONG_API_COMPTIME void nk_kabsch_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
-                                               nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
-                                               nk_f64_t *result);
-/** @copydoc nk_umeyama_f64 */
-NUMKONG_API_COMPTIME void nk_umeyama_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
-                                                nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
-                                                nk_f64_t *result);
+                                             nk_f64_t *result, void *stream);
+/** @copydoc nk_umeyama_f64_best */
+NUMKONG_API nk_status_t nk_umeyama_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+                                              nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
+                                              nk_f64_t *result, void *stream);
 
-/** @copydoc nk_rmsd_f32 */
-NUMKONG_API_COMPTIME void nk_rmsd_f32_serial(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+/** @copydoc nk_rmsd_f32_best */
+NUMKONG_API nk_status_t nk_rmsd_f32_serial(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                           nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result,
+                                           void *stream);
+/** @copydoc nk_kabsch_f32_best */
+NUMKONG_API nk_status_t nk_kabsch_f32_serial(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                              nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                             nk_f64_t *result);
-/** @copydoc nk_kabsch_f32 */
-NUMKONG_API_COMPTIME void nk_kabsch_f32_serial(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                               nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                               nk_f64_t *result);
-/** @copydoc nk_umeyama_f32 */
-NUMKONG_API_COMPTIME void nk_umeyama_f32_serial(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                                nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                                nk_f64_t *result);
-
-/** @copydoc nk_rmsd_f16 */
-NUMKONG_API_COMPTIME void nk_rmsd_f16_serial(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                             nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                             nk_f32_t *result);
-/** @copydoc nk_kabsch_f16 */
-NUMKONG_API_COMPTIME void nk_kabsch_f16_serial(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                               nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                               nk_f32_t *result);
-/** @copydoc nk_umeyama_f16 */
-NUMKONG_API_COMPTIME void nk_umeyama_f16_serial(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                                nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                                nk_f32_t *result);
-
-/** @copydoc nk_rmsd_bf16 */
-NUMKONG_API_COMPTIME void nk_rmsd_bf16_serial(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                             nk_f64_t *result, void *stream);
+/** @copydoc nk_umeyama_f32_best */
+NUMKONG_API nk_status_t nk_umeyama_f32_serial(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                               nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                              nk_f32_t *result);
-/** @copydoc nk_kabsch_bf16 */
-NUMKONG_API_COMPTIME void nk_kabsch_bf16_serial(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                                nk_f32_t *scale, nk_f32_t *result);
-/** @copydoc nk_umeyama_bf16 */
-NUMKONG_API_COMPTIME void nk_umeyama_bf16_serial(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                 nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                                 nk_f32_t *scale, nk_f32_t *result);
+                                              nk_f64_t *result, void *stream);
+
+/** @copydoc nk_rmsd_f16_best */
+NUMKONG_API nk_status_t nk_rmsd_f16_serial(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                           nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result,
+                                           void *stream);
+/** @copydoc nk_kabsch_f16_best */
+NUMKONG_API nk_status_t nk_kabsch_f16_serial(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                             nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                             nk_f32_t *result, void *stream);
+/** @copydoc nk_umeyama_f16_best */
+NUMKONG_API nk_status_t nk_umeyama_f16_serial(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                              nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                              nk_f32_t *result, void *stream);
+
+/** @copydoc nk_rmsd_bf16_best */
+NUMKONG_API nk_status_t nk_rmsd_bf16_serial(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                            nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result,
+                                            void *stream);
+/** @copydoc nk_kabsch_bf16_best */
+NUMKONG_API nk_status_t nk_kabsch_bf16_serial(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                              nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                              nk_f32_t *result, void *stream);
+/** @copydoc nk_umeyama_bf16_best */
+NUMKONG_API nk_status_t nk_umeyama_bf16_serial(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                               nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
+                                               nk_f32_t *scale, nk_f32_t *result, void *stream);
 
 /*  SIMD-powered backends for AVX512 CPUs of Skylake generation and newer. */
 #if NUMKONG_TARGET_SKYLAKE
-/** @copydoc nk_rmsd_f32 */
-NUMKONG_API_COMPTIME void nk_rmsd_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+/** @copydoc nk_rmsd_f32_best */
+NUMKONG_API nk_status_t nk_rmsd_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                            nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result,
+                                            void *stream);
+/** @copydoc nk_kabsch_f32_best */
+NUMKONG_API nk_status_t nk_kabsch_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                               nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                              nk_f64_t *result);
-/** @copydoc nk_kabsch_f32 */
-NUMKONG_API_COMPTIME void nk_kabsch_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                                nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                                nk_f64_t *result);
-/** @copydoc nk_umeyama_f32 */
-NUMKONG_API_COMPTIME void nk_umeyama_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
-                                                 nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                                 nk_f32_t *scale, nk_f64_t *result);
+                                              nk_f64_t *result, void *stream);
+/** @copydoc nk_umeyama_f32_best */
+NUMKONG_API nk_status_t nk_umeyama_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                               nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                               nk_f64_t *result, void *stream);
 
-/** @copydoc nk_rmsd_f64 */
-NUMKONG_API_COMPTIME void nk_rmsd_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+/** @copydoc nk_rmsd_f64_best */
+NUMKONG_API nk_status_t nk_rmsd_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+                                            nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result,
+                                            void *stream);
+/** @copydoc nk_kabsch_f64_best */
+NUMKONG_API nk_status_t nk_kabsch_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
                                               nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
-                                              nk_f64_t *result);
-/** @copydoc nk_kabsch_f64 */
-NUMKONG_API_COMPTIME void nk_kabsch_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
-                                                nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
-                                                nk_f64_t *result);
-/** @copydoc nk_umeyama_f64 */
-NUMKONG_API_COMPTIME void nk_umeyama_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
-                                                 nk_f64_t *a_centroid, nk_f64_t *b_centroid, nk_f64_t *rotation,
-                                                 nk_f64_t *scale, nk_f64_t *result);
+                                              nk_f64_t *result, void *stream);
+/** @copydoc nk_umeyama_f64_best */
+NUMKONG_API nk_status_t nk_umeyama_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+                                               nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
+                                               nk_f64_t *result, void *stream);
 
-/** @copydoc nk_rmsd_f16 */
-NUMKONG_API_COMPTIME void nk_rmsd_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+/** @copydoc nk_rmsd_f16_best */
+NUMKONG_API nk_status_t nk_rmsd_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                            nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result,
+                                            void *stream);
+/** @copydoc nk_kabsch_f16_best */
+NUMKONG_API nk_status_t nk_kabsch_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                               nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                              nk_f32_t *result);
-/** @copydoc nk_kabsch_f16 */
-NUMKONG_API_COMPTIME void nk_kabsch_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                                nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                                nk_f32_t *result);
-/** @copydoc nk_umeyama_f16 */
-NUMKONG_API_COMPTIME void nk_umeyama_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
-                                                 nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                                 nk_f32_t *scale, nk_f32_t *result);
-/** @copydoc nk_rmsd_bf16 */
-NUMKONG_API_COMPTIME void nk_rmsd_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                              nk_f32_t *result, void *stream);
+/** @copydoc nk_umeyama_f16_best */
+NUMKONG_API nk_status_t nk_umeyama_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                               nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                               nk_f32_t *result, void *stream);
+/** @copydoc nk_rmsd_bf16_best */
+NUMKONG_API nk_status_t nk_rmsd_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                             nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                             nk_f32_t *result, void *stream);
+/** @copydoc nk_kabsch_bf16_best */
+NUMKONG_API nk_status_t nk_kabsch_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
                                                nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                               nk_f32_t *scale, nk_f32_t *result);
-/** @copydoc nk_kabsch_bf16 */
-NUMKONG_API_COMPTIME void nk_kabsch_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                 nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                                 nk_f32_t *scale, nk_f32_t *result);
-/** @copydoc nk_umeyama_bf16 */
-NUMKONG_API_COMPTIME void nk_umeyama_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                  nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                                  nk_f32_t *scale, nk_f32_t *result);
+                                               nk_f32_t *scale, nk_f32_t *result, void *stream);
+/** @copydoc nk_umeyama_bf16_best */
+NUMKONG_API nk_status_t nk_umeyama_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
+                                                nk_f32_t *scale, nk_f32_t *result, void *stream);
 #endif // NUMKONG_TARGET_SKYLAKE
 
 /*  SIMD-powered backends for AVX512-BF16 CPUs of AMD Genoa / Intel Sapphire Rapids
  *  generation and newer. */
 #if NUMKONG_TARGET_GENOA
-/** @copydoc nk_rmsd_bf16 */
-NUMKONG_API_COMPTIME void nk_rmsd_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+/** @copydoc nk_rmsd_bf16_best */
+NUMKONG_API nk_status_t nk_rmsd_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                           nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result,
+                                           void *stream);
+/** @copydoc nk_kabsch_bf16_best */
+NUMKONG_API nk_status_t nk_kabsch_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                              nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                             nk_f32_t *result);
-/** @copydoc nk_kabsch_bf16 */
-NUMKONG_API_COMPTIME void nk_kabsch_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                               nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                               nk_f32_t *scale, nk_f32_t *result);
-/** @copydoc nk_umeyama_bf16 */
-NUMKONG_API_COMPTIME void nk_umeyama_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                                nk_f32_t *scale, nk_f32_t *result);
+                                             nk_f32_t *result, void *stream);
+/** @copydoc nk_umeyama_bf16_best */
+NUMKONG_API nk_status_t nk_umeyama_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                              nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                              nk_f32_t *result, void *stream);
 #endif // NUMKONG_TARGET_GENOA
 
 /*  SIMD-powered backends for AVX2 CPUs of Haswell generation and newer. */
 #if NUMKONG_TARGET_HASWELL
-/** @copydoc nk_rmsd_f32 */
-NUMKONG_API_COMPTIME void nk_rmsd_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+/** @copydoc nk_rmsd_f32_best */
+NUMKONG_API nk_status_t nk_rmsd_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                            nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result,
+                                            void *stream);
+/** @copydoc nk_kabsch_f32_best */
+NUMKONG_API nk_status_t nk_kabsch_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                               nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                              nk_f64_t *result);
-/** @copydoc nk_kabsch_f32 */
-NUMKONG_API_COMPTIME void nk_kabsch_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                                nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                                nk_f64_t *result);
-/** @copydoc nk_umeyama_f32 */
-NUMKONG_API_COMPTIME void nk_umeyama_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
-                                                 nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                                 nk_f32_t *scale, nk_f64_t *result);
+                                              nk_f64_t *result, void *stream);
+/** @copydoc nk_umeyama_f32_best */
+NUMKONG_API nk_status_t nk_umeyama_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                               nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                               nk_f64_t *result, void *stream);
 
-/** @copydoc nk_rmsd_f64 */
-NUMKONG_API_COMPTIME void nk_rmsd_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+/** @copydoc nk_rmsd_f64_best */
+NUMKONG_API nk_status_t nk_rmsd_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+                                            nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result,
+                                            void *stream);
+/** @copydoc nk_kabsch_f64_best */
+NUMKONG_API nk_status_t nk_kabsch_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
                                               nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
-                                              nk_f64_t *result);
-/** @copydoc nk_kabsch_f64 */
-NUMKONG_API_COMPTIME void nk_kabsch_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
-                                                nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
-                                                nk_f64_t *result);
-/** @copydoc nk_umeyama_f64 */
-NUMKONG_API_COMPTIME void nk_umeyama_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
-                                                 nk_f64_t *a_centroid, nk_f64_t *b_centroid, nk_f64_t *rotation,
-                                                 nk_f64_t *scale, nk_f64_t *result);
+                                              nk_f64_t *result, void *stream);
+/** @copydoc nk_umeyama_f64_best */
+NUMKONG_API nk_status_t nk_umeyama_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+                                               nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
+                                               nk_f64_t *result, void *stream);
 
-/** @copydoc nk_rmsd_f16 */
-NUMKONG_API_COMPTIME void nk_rmsd_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+/** @copydoc nk_rmsd_f16_best */
+NUMKONG_API nk_status_t nk_rmsd_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                            nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result,
+                                            void *stream);
+/** @copydoc nk_kabsch_f16_best */
+NUMKONG_API nk_status_t nk_kabsch_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                               nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                              nk_f32_t *result);
-/** @copydoc nk_kabsch_f16 */
-NUMKONG_API_COMPTIME void nk_kabsch_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                                nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                                nk_f32_t *result);
-/** @copydoc nk_umeyama_f16 */
-NUMKONG_API_COMPTIME void nk_umeyama_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
-                                                 nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                                 nk_f32_t *scale, nk_f32_t *result);
+                                              nk_f32_t *result, void *stream);
+/** @copydoc nk_umeyama_f16_best */
+NUMKONG_API nk_status_t nk_umeyama_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                               nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                               nk_f32_t *result, void *stream);
 
-/** @copydoc nk_rmsd_bf16 */
-NUMKONG_API_COMPTIME void nk_rmsd_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+/** @copydoc nk_rmsd_bf16_best */
+NUMKONG_API nk_status_t nk_rmsd_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                             nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                             nk_f32_t *result, void *stream);
+/** @copydoc nk_kabsch_bf16_best */
+NUMKONG_API nk_status_t nk_kabsch_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
                                                nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                               nk_f32_t *scale, nk_f32_t *result);
-/** @copydoc nk_kabsch_bf16 */
-NUMKONG_API_COMPTIME void nk_kabsch_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                 nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                                 nk_f32_t *scale, nk_f32_t *result);
-/** @copydoc nk_umeyama_bf16 */
-NUMKONG_API_COMPTIME void nk_umeyama_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                  nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                                  nk_f32_t *scale, nk_f32_t *result);
+                                               nk_f32_t *scale, nk_f32_t *result, void *stream);
+/** @copydoc nk_umeyama_bf16_best */
+NUMKONG_API nk_status_t nk_umeyama_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
+                                                nk_f32_t *scale, nk_f32_t *result, void *stream);
 #endif // NUMKONG_TARGET_HASWELL
 
 /*  SIMD-powered backends for Arm NEON CPUs. */
 #if NUMKONG_TARGET_NEON
-/** @copydoc nk_rmsd_f32 */
-NUMKONG_API_COMPTIME void nk_rmsd_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                           nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result);
-/** @copydoc nk_kabsch_f32 */
-NUMKONG_API_COMPTIME void nk_kabsch_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                             nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                             nk_f64_t *result);
-/** @copydoc nk_umeyama_f32 */
-NUMKONG_API_COMPTIME void nk_umeyama_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                              nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                              nk_f64_t *result);
+/** @copydoc nk_rmsd_f32_best */
+NUMKONG_API nk_status_t nk_rmsd_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                         nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result,
+                                         void *stream);
+/** @copydoc nk_kabsch_f32_best */
+NUMKONG_API nk_status_t nk_kabsch_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                           nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result,
+                                           void *stream);
+/** @copydoc nk_umeyama_f32_best */
+NUMKONG_API nk_status_t nk_umeyama_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                            nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result,
+                                            void *stream);
 
-/** @copydoc nk_rmsd_f64 */
-NUMKONG_API_COMPTIME void nk_rmsd_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
-                                           nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result);
-/** @copydoc nk_kabsch_f64 */
-NUMKONG_API_COMPTIME void nk_kabsch_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
-                                             nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
-                                             nk_f64_t *result);
-/** @copydoc nk_umeyama_f64 */
-NUMKONG_API_COMPTIME void nk_umeyama_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
-                                              nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
-                                              nk_f64_t *result);
-
-/**
- *  @copydoc nk_rmsd_f16
- *  @note Widens FP16 to FP32 before accumulating.
- */
-NUMKONG_API_COMPTIME void nk_rmsd_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                           nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result);
+/** @copydoc nk_rmsd_f64_best */
+NUMKONG_API nk_status_t nk_rmsd_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+                                         nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result,
+                                         void *stream);
+/** @copydoc nk_kabsch_f64_best */
+NUMKONG_API nk_status_t nk_kabsch_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+                                           nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result,
+                                           void *stream);
+/** @copydoc nk_umeyama_f64_best */
+NUMKONG_API nk_status_t nk_umeyama_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+                                            nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result,
+                                            void *stream);
 
 /**
- *  @copydoc nk_kabsch_f16
+ *  @copydoc nk_rmsd_f16_best
  *  @note Widens FP16 to FP32 before accumulating.
  */
-NUMKONG_API_COMPTIME void nk_kabsch_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                             nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                             nk_f32_t *result);
-/** @copydoc nk_umeyama_f16 */
-NUMKONG_API_COMPTIME void nk_umeyama_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                              nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                              nk_f32_t *result);
+NUMKONG_API nk_status_t nk_rmsd_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                         nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result,
+                                         void *stream);
+
+/**
+ *  @copydoc nk_kabsch_f16_best
+ *  @note Widens FP16 to FP32 before accumulating.
+ */
+NUMKONG_API nk_status_t nk_kabsch_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                           nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result,
+                                           void *stream);
+/** @copydoc nk_umeyama_f16_best */
+NUMKONG_API nk_status_t nk_umeyama_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                            nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result,
+                                            void *stream);
 #endif // NUMKONG_TARGET_NEON
 
 /*  SIMD-powered backends for Arm NEON BF16 CPUs. */
 #if NUMKONG_TARGET_NEONBFDOT
-/** @copydoc nk_rmsd_bf16 */
-NUMKONG_API_COMPTIME void nk_rmsd_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+/** @copydoc nk_rmsd_bf16_best */
+NUMKONG_API nk_status_t nk_rmsd_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                               nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
+                                               nk_f32_t *scale, nk_f32_t *result, void *stream);
+/** @copydoc nk_kabsch_bf16_best */
+NUMKONG_API nk_status_t nk_kabsch_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
                                                  nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                                 nk_f32_t *scale, nk_f32_t *result);
-/** @copydoc nk_kabsch_bf16 */
-NUMKONG_API_COMPTIME void nk_kabsch_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                   nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                                   nk_f32_t *scale, nk_f32_t *result);
-/** @copydoc nk_umeyama_bf16 */
-NUMKONG_API_COMPTIME void nk_umeyama_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                    nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                                    nk_f32_t *scale, nk_f32_t *result);
+                                                 nk_f32_t *scale, nk_f32_t *result, void *stream);
+/** @copydoc nk_umeyama_bf16_best */
+NUMKONG_API nk_status_t nk_umeyama_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                  nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
+                                                  nk_f32_t *scale, nk_f32_t *result, void *stream);
 #endif // NUMKONG_TARGET_NEONBFDOT
 
 /*  SIMD-powered backends for Arm NEON FHM (FP16 widening FMA) CPUs. */
 #if NUMKONG_TARGET_NEONFHM
-
 /**
- *  @copydoc nk_rmsd_f16
+ *  @copydoc nk_rmsd_f16_best
  *  @note Accumulates FP16 products into FP32 with the FHM widening FMA.
  */
-NUMKONG_API_COMPTIME void nk_rmsd_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+NUMKONG_API nk_status_t nk_rmsd_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                            nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result,
+                                            void *stream);
+
+/**
+ *  @copydoc nk_kabsch_f16_best
+ *  @note Accumulates FP16 products into FP32 with the FHM widening FMA.
+ */
+NUMKONG_API nk_status_t nk_kabsch_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                               nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                              nk_f32_t *result);
+                                              nk_f32_t *result, void *stream);
 
 /**
- *  @copydoc nk_kabsch_f16
+ *  @copydoc nk_umeyama_f16_best
  *  @note Accumulates FP16 products into FP32 with the FHM widening FMA.
  */
-NUMKONG_API_COMPTIME void nk_kabsch_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                                nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                                nk_f32_t *result);
-
-/**
- *  @copydoc nk_umeyama_f16
- *  @note Accumulates FP16 products into FP32 with the FHM widening FMA.
- */
-NUMKONG_API_COMPTIME void nk_umeyama_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
-                                                 nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                                 nk_f32_t *scale, nk_f32_t *result);
+NUMKONG_API nk_status_t nk_umeyama_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                               nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                               nk_f32_t *result, void *stream);
 #endif // NUMKONG_TARGET_NEONFHM
 
 #if NUMKONG_TARGET_RVV
-/** @copydoc nk_rmsd_f32 */
-NUMKONG_API_COMPTIME void nk_rmsd_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                          nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result);
-/** @copydoc nk_rmsd_f64 */
-NUMKONG_API_COMPTIME void nk_rmsd_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
-                                          nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result);
-/** @copydoc nk_rmsd_f16 */
-NUMKONG_API_COMPTIME void nk_rmsd_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                          nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result);
-/** @copydoc nk_rmsd_bf16 */
-NUMKONG_API_COMPTIME void nk_rmsd_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                           nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result);
-/** @copydoc nk_kabsch_f32 */
-NUMKONG_API_COMPTIME void nk_kabsch_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                            nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                            nk_f64_t *result);
-/** @copydoc nk_kabsch_f64 */
-NUMKONG_API_COMPTIME void nk_kabsch_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
-                                            nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
-                                            nk_f64_t *result);
-/** @copydoc nk_kabsch_f16 */
-NUMKONG_API_COMPTIME void nk_kabsch_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                            nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                            nk_f32_t *result);
-/** @copydoc nk_kabsch_bf16 */
-NUMKONG_API_COMPTIME void nk_kabsch_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                             nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                             nk_f32_t *result);
-/** @copydoc nk_umeyama_f32 */
-NUMKONG_API_COMPTIME void nk_umeyama_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                             nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                             nk_f64_t *result);
-/** @copydoc nk_umeyama_f64 */
-NUMKONG_API_COMPTIME void nk_umeyama_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
-                                             nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
-                                             nk_f64_t *result);
-/** @copydoc nk_umeyama_f16 */
-NUMKONG_API_COMPTIME void nk_umeyama_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                             nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                             nk_f32_t *result);
-/** @copydoc nk_umeyama_bf16 */
-NUMKONG_API_COMPTIME void nk_umeyama_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                              nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                              nk_f32_t *result);
+/** @copydoc nk_rmsd_f32_best */
+NUMKONG_API nk_status_t nk_rmsd_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                        nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result,
+                                        void *stream);
+/** @copydoc nk_rmsd_f64_best */
+NUMKONG_API nk_status_t nk_rmsd_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+                                        nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result,
+                                        void *stream);
+/** @copydoc nk_rmsd_f16_best */
+NUMKONG_API nk_status_t nk_rmsd_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                        nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result,
+                                        void *stream);
+/** @copydoc nk_rmsd_bf16_best */
+NUMKONG_API nk_status_t nk_rmsd_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                         nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result,
+                                         void *stream);
+/** @copydoc nk_kabsch_f32_best */
+NUMKONG_API nk_status_t nk_kabsch_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                          nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result,
+                                          void *stream);
+/** @copydoc nk_kabsch_f64_best */
+NUMKONG_API nk_status_t nk_kabsch_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+                                          nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result,
+                                          void *stream);
+/** @copydoc nk_kabsch_f16_best */
+NUMKONG_API nk_status_t nk_kabsch_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                          nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result,
+                                          void *stream);
+/** @copydoc nk_kabsch_bf16_best */
+NUMKONG_API nk_status_t nk_kabsch_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                           nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result,
+                                           void *stream);
+/** @copydoc nk_umeyama_f32_best */
+NUMKONG_API nk_status_t nk_umeyama_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                           nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result,
+                                           void *stream);
+/** @copydoc nk_umeyama_f64_best */
+NUMKONG_API nk_status_t nk_umeyama_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+                                           nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result,
+                                           void *stream);
+/** @copydoc nk_umeyama_f16_best */
+NUMKONG_API nk_status_t nk_umeyama_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                           nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result,
+                                           void *stream);
+/** @copydoc nk_umeyama_bf16_best */
+NUMKONG_API nk_status_t nk_umeyama_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                            nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result,
+                                            void *stream);
 #endif // NUMKONG_TARGET_RVV
 
 /*  WASM Relaxed SIMD backends using wasm_f32x4_relaxed_madd for FMA. */
 #if NUMKONG_TARGET_V128RELAXED
-/** @copydoc nk_rmsd_f32 */
-NUMKONG_API_COMPTIME void nk_rmsd_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
+/** @copydoc nk_rmsd_f32_best */
+NUMKONG_API nk_status_t nk_rmsd_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                                nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                                nk_f64_t *result, void *stream);
+/** @copydoc nk_kabsch_f32_best */
+NUMKONG_API nk_status_t nk_kabsch_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
                                                   nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                                  nk_f32_t *scale, nk_f64_t *result);
-/** @copydoc nk_kabsch_f32 */
-NUMKONG_API_COMPTIME void nk_kabsch_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
-                                                    nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                                    nk_f32_t *scale, nk_f64_t *result);
-/** @copydoc nk_umeyama_f32 */
-NUMKONG_API_COMPTIME void nk_umeyama_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
-                                                     nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                                     nk_f32_t *scale, nk_f64_t *result);
-/** @copydoc nk_rmsd_f64 */
-NUMKONG_API_COMPTIME void nk_rmsd_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
+                                                  nk_f32_t *scale, nk_f64_t *result, void *stream);
+/** @copydoc nk_umeyama_f32_best */
+NUMKONG_API nk_status_t nk_umeyama_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
+                                                   nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
+                                                   nk_f32_t *scale, nk_f64_t *result, void *stream);
+/** @copydoc nk_rmsd_f64_best */
+NUMKONG_API nk_status_t nk_rmsd_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+                                                nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
+                                                nk_f64_t *result, void *stream);
+/** @copydoc nk_kabsch_f64_best */
+NUMKONG_API nk_status_t nk_kabsch_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
                                                   nk_f64_t *a_centroid, nk_f64_t *b_centroid, nk_f64_t *rotation,
-                                                  nk_f64_t *scale, nk_f64_t *result);
-/** @copydoc nk_kabsch_f64 */
-NUMKONG_API_COMPTIME void nk_kabsch_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
-                                                    nk_f64_t *a_centroid, nk_f64_t *b_centroid, nk_f64_t *rotation,
-                                                    nk_f64_t *scale, nk_f64_t *result);
-/** @copydoc nk_umeyama_f64 */
-NUMKONG_API_COMPTIME void nk_umeyama_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
-                                                     nk_f64_t *a_centroid, nk_f64_t *b_centroid, nk_f64_t *rotation,
-                                                     nk_f64_t *scale, nk_f64_t *result);
+                                                  nk_f64_t *scale, nk_f64_t *result, void *stream);
+/** @copydoc nk_umeyama_f64_best */
+NUMKONG_API nk_status_t nk_umeyama_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
+                                                   nk_f64_t *a_centroid, nk_f64_t *b_centroid, nk_f64_t *rotation,
+                                                   nk_f64_t *scale, nk_f64_t *result, void *stream);
 #endif // NUMKONG_TARGET_V128RELAXED
 
 /** Returns the metric output dtype for mesh alignment operations. Matches the C++ @c mesh_metric_t
  *  alias in types.hpp. */
-NUMKONG_HELPER_INLINE nk_dtype_t nk_mesh_metric_dtype(nk_dtype_t dtype) {
+NUMKONG_INLINE nk_dtype_t nk_mesh_metric_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k: return nk_f64_k;
     case nk_f32_k: return nk_f64_k;
@@ -547,7 +574,7 @@ NUMKONG_HELPER_INLINE nk_dtype_t nk_mesh_metric_dtype(nk_dtype_t dtype) {
 
 /** Returns the transform output dtype for mesh alignment operations. Matches the C++
  *  @c mesh_transform_t alias in types.hpp. */
-NUMKONG_HELPER_INLINE nk_dtype_t nk_mesh_transform_dtype(nk_dtype_t dtype) {
+NUMKONG_INLINE nk_dtype_t nk_mesh_transform_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k: return nk_f64_k;
     case nk_f32_k: return nk_f32_k;
@@ -557,10 +584,20 @@ NUMKONG_HELPER_INLINE nk_dtype_t nk_mesh_transform_dtype(nk_dtype_t dtype) {
     }
 }
 
+/**
+ *  @brief Finds the mesh kernel of @p kind for @p dtype from the best capability in @p capabilities.
+ *  @param[out] kernel The kernel, or null when no capability in @p capabilities has it.
+ *  @param[out] capability The capability the kernel belongs to, or zero.
+ *  @return @c nk_success_k, @c nk_missing_kernel_k, or @c nk_missing_library_k in header-only builds.
+ */
+NUMKONG_API nk_status_t nk_mesh_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
+                                            nk_kernel_punned_t *kernel, nk_capability_t *capability);
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
+#if NUMKONG_HEADER_ONLY
 #include "numkong/mesh/serial.h"
 #include "numkong/mesh/neon.h"
 #include "numkong/mesh/neonbfdot.h"
@@ -575,212 +612,112 @@ NUMKONG_HELPER_INLINE nk_dtype_t nk_mesh_transform_dtype(nk_dtype_t dtype) {
 extern "C" {
 #endif
 
-#if !NUMKONG_RUNTIME_DISPATCH
-
-NUMKONG_API_COMPTIME void nk_rmsd_f64(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
-                                      nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result) {
-#if NUMKONG_TARGET_SKYLAKE
-    nk_rmsd_f64_skylake(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_HASWELL
-    nk_rmsd_f64_haswell(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_NEON
-    nk_rmsd_f64_neon(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_RVV
-    nk_rmsd_f64_rvv(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_rmsd_f64_v128relaxed(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#else
-    nk_rmsd_f64_serial(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#endif
+NUMKONG_API nk_status_t nk_rmsd_f64_best(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+                                         nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result,
+                                         nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b), nk_unused_(n), nk_unused_(a_centroid), nk_unused_(b_centroid), nk_unused_(rotation),
+        nk_unused_(scale), nk_unused_(result), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-NUMKONG_API_COMPTIME void nk_rmsd_f32(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                      nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result) {
-#if NUMKONG_TARGET_SKYLAKE
-    nk_rmsd_f32_skylake(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_HASWELL
-    nk_rmsd_f32_haswell(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_NEON
-    nk_rmsd_f32_neon(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_RVV
-    nk_rmsd_f32_rvv(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_rmsd_f32_v128relaxed(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#else
-    nk_rmsd_f32_serial(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#endif
+NUMKONG_API nk_status_t nk_kabsch_f64_best(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+                                           nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result,
+                                           nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b), nk_unused_(n), nk_unused_(a_centroid), nk_unused_(b_centroid), nk_unused_(rotation),
+        nk_unused_(scale), nk_unused_(result), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-NUMKONG_API_COMPTIME void nk_rmsd_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                      nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
-#if NUMKONG_TARGET_SKYLAKE
-    nk_rmsd_f16_skylake(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_HASWELL
-    nk_rmsd_f16_haswell(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_NEONFHM
-    nk_rmsd_f16_neonfhm(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_NEON
-    nk_rmsd_f16_neon(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_RVV
-    nk_rmsd_f16_rvv(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#else
-    nk_rmsd_f16_serial(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#endif
+NUMKONG_API nk_status_t nk_umeyama_f64_best(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
+                                            nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result,
+                                            nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b), nk_unused_(n), nk_unused_(a_centroid), nk_unused_(b_centroid), nk_unused_(rotation),
+        nk_unused_(scale), nk_unused_(result), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-NUMKONG_API_COMPTIME void nk_rmsd_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                       nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
-#if NUMKONG_TARGET_SKYLAKE
-    //  Skylake f32-widen path wins on Intel where VDPBF16PS throughput matches FMA; on AMD Zen4+
-    //  where VDPBF16PS is faster than FMA, users can call `nk_rmsd_bf16_genoa` directly.
-    nk_rmsd_bf16_skylake(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_HASWELL
-    nk_rmsd_bf16_haswell(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_NEONBFDOT
-    nk_rmsd_bf16_neonbfdot(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_RVV
-    nk_rmsd_bf16_rvv(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#else
-    nk_rmsd_bf16_serial(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#endif
+NUMKONG_API nk_status_t nk_rmsd_f32_best(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                         nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result,
+                                         nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b), nk_unused_(n), nk_unused_(a_centroid), nk_unused_(b_centroid), nk_unused_(rotation),
+        nk_unused_(scale), nk_unused_(result), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-NUMKONG_API_COMPTIME void nk_kabsch_f64(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
-                                        nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result) {
-#if NUMKONG_TARGET_SKYLAKE
-    nk_kabsch_f64_skylake(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_HASWELL
-    nk_kabsch_f64_haswell(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_NEON
-    nk_kabsch_f64_neon(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_RVV
-    nk_kabsch_f64_rvv(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_kabsch_f64_v128relaxed(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#else
-    nk_kabsch_f64_serial(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#endif
+NUMKONG_API nk_status_t nk_kabsch_f32_best(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                           nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result,
+                                           nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b), nk_unused_(n), nk_unused_(a_centroid), nk_unused_(b_centroid), nk_unused_(rotation),
+        nk_unused_(scale), nk_unused_(result), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-NUMKONG_API_COMPTIME void nk_kabsch_f32(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                        nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result) {
-#if NUMKONG_TARGET_SKYLAKE
-    nk_kabsch_f32_skylake(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_HASWELL
-    nk_kabsch_f32_haswell(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_NEON
-    nk_kabsch_f32_neon(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_RVV
-    nk_kabsch_f32_rvv(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_kabsch_f32_v128relaxed(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#else
-    nk_kabsch_f32_serial(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#endif
+NUMKONG_API nk_status_t nk_umeyama_f32_best(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                            nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result,
+                                            nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b), nk_unused_(n), nk_unused_(a_centroid), nk_unused_(b_centroid), nk_unused_(rotation),
+        nk_unused_(scale), nk_unused_(result), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-NUMKONG_API_COMPTIME void nk_kabsch_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                        nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
-#if NUMKONG_TARGET_SKYLAKE
-    nk_kabsch_f16_skylake(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_HASWELL
-    nk_kabsch_f16_haswell(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_NEONFHM
-    nk_kabsch_f16_neonfhm(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_NEON
-    nk_kabsch_f16_neon(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_RVV
-    nk_kabsch_f16_rvv(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#else
-    nk_kabsch_f16_serial(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#endif
+NUMKONG_API nk_status_t nk_rmsd_bf16_best(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                          nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result,
+                                          nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b), nk_unused_(n), nk_unused_(a_centroid), nk_unused_(b_centroid), nk_unused_(rotation),
+        nk_unused_(scale), nk_unused_(result), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-NUMKONG_API_COMPTIME void nk_kabsch_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                         nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
-#if NUMKONG_TARGET_SKYLAKE
-    nk_kabsch_bf16_skylake(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_HASWELL
-    nk_kabsch_bf16_haswell(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_NEONBFDOT
-    nk_kabsch_bf16_neonbfdot(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_RVV
-    nk_kabsch_bf16_rvv(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#else
-    nk_kabsch_bf16_serial(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#endif
+NUMKONG_API nk_status_t nk_kabsch_bf16_best(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                            nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result,
+                                            nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b), nk_unused_(n), nk_unused_(a_centroid), nk_unused_(b_centroid), nk_unused_(rotation),
+        nk_unused_(scale), nk_unused_(result), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-NUMKONG_API_COMPTIME void nk_umeyama_f64(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
-                                         nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale, nk_f64_t *result) {
-#if NUMKONG_TARGET_SKYLAKE
-    nk_umeyama_f64_skylake(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_HASWELL
-    nk_umeyama_f64_haswell(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_NEON
-    nk_umeyama_f64_neon(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_RVV
-    nk_umeyama_f64_rvv(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_umeyama_f64_v128relaxed(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#else
-    nk_umeyama_f64_serial(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#endif
+NUMKONG_API nk_status_t nk_umeyama_bf16_best(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                             nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
+                                             nk_f32_t *result, nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b), nk_unused_(n), nk_unused_(a_centroid), nk_unused_(b_centroid), nk_unused_(rotation),
+        nk_unused_(scale), nk_unused_(result), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-NUMKONG_API_COMPTIME void nk_umeyama_f32(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                         nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result) {
-#if NUMKONG_TARGET_SKYLAKE
-    nk_umeyama_f32_skylake(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_HASWELL
-    nk_umeyama_f32_haswell(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_NEON
-    nk_umeyama_f32_neon(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_RVV
-    nk_umeyama_f32_rvv(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_umeyama_f32_v128relaxed(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#else
-    nk_umeyama_f32_serial(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#endif
+NUMKONG_API nk_status_t nk_rmsd_f16_best(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                         nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result,
+                                         nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b), nk_unused_(n), nk_unused_(a_centroid), nk_unused_(b_centroid), nk_unused_(rotation),
+        nk_unused_(scale), nk_unused_(result), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-NUMKONG_API_COMPTIME void nk_umeyama_f16(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                         nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
-#if NUMKONG_TARGET_SKYLAKE
-    nk_umeyama_f16_skylake(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_HASWELL
-    nk_umeyama_f16_haswell(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_NEONFHM
-    nk_umeyama_f16_neonfhm(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_NEON
-    nk_umeyama_f16_neon(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_RVV
-    nk_umeyama_f16_rvv(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#else
-    nk_umeyama_f16_serial(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#endif
+NUMKONG_API nk_status_t nk_kabsch_f16_best(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                           nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result,
+                                           nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b), nk_unused_(n), nk_unused_(a_centroid), nk_unused_(b_centroid), nk_unused_(rotation),
+        nk_unused_(scale), nk_unused_(result), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-NUMKONG_API_COMPTIME void nk_umeyama_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                          nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result) {
-#if NUMKONG_TARGET_SKYLAKE
-    nk_umeyama_bf16_skylake(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_HASWELL
-    nk_umeyama_bf16_haswell(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_NEONBFDOT
-    nk_umeyama_bf16_neonbfdot(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#elif NUMKONG_TARGET_RVV
-    nk_umeyama_bf16_rvv(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#else
-    nk_umeyama_bf16_serial(a, b, n, a_centroid, b_centroid, rotation, scale, result);
-#endif
+NUMKONG_API nk_status_t nk_umeyama_f16_best(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
+                                            nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result,
+                                            nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b), nk_unused_(n), nk_unused_(a_centroid), nk_unused_(b_centroid), nk_unused_(rotation),
+        nk_unused_(scale), nk_unused_(result), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-#endif // !NUMKONG_RUNTIME_DISPATCH
+NUMKONG_API nk_status_t nk_mesh_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
+                                            nk_kernel_punned_t *kernel, nk_capability_t *capability) {
+    nk_unused_(kind), nk_unused_(dtype), nk_unused_(capabilities);
+    *kernel = (nk_kernel_punned_t)NUMKONG_NULL, *capability = 0;
+    return nk_missing_library_k;
+}
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
+#endif // NUMKONG_HEADER_ONLY
 
 #endif // NUMKONG_MESH_H

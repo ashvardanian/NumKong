@@ -21,8 +21,8 @@
 #include <Python.h>
 
 #include <numkong/types.h>
-#include <numkong/cast.h>   // `nk_bf16_to_f32`
-#include <numkong/scalar.h> // `nk_bf16_order`
+#include <numkong/cast.h>   // `nk_bf16_to_f32_serial`
+#include <numkong/scalar.h> // `nk_bf16_order_serial`
 
 #ifdef __cplusplus
 extern "C" {

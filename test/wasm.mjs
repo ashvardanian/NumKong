@@ -38,7 +38,7 @@ async function loadNumKong(runtime) {
       return await import("../javascript/dist/esm/numkong.js");
 
     case "emscripten": {
-      // Load the wasm32 Emscripten build, the relaxed tier where both tiers were built
+      // Load the wasm32 Emscripten build, the relaxed capability where both capabilities were built
       const wasmWrapper = await import("../javascript/dist/esm/numkong-wasm.js");
       const emscriptenModule = resolveModule([
         "./build-wasm/numkong-wasm32-v128relaxed.js",
@@ -71,9 +71,9 @@ async function loadNumKong(runtime) {
         env: {},
       });
 
-      const wasiModule = resolveModule(["./build-wasi/numkong_test.wasm"]);
+      const wasiModule = resolveModule(["./build-wasi/numkong_cpu_test.wasm"]);
       if (!wasiModule) {
-        throw new Error("Missing build-wasi/numkong_test.wasm");
+        throw new Error("Missing build-wasi/numkong_cpu_test.wasm");
       }
       const wasmBytes = readFileSync(wasiModule);
 
@@ -223,9 +223,9 @@ test(`[${runtime}] Capability detection`, () => {
   assert.strictEqual(enabled, detected & compiled, "enabled must default to detected & compiled");
   assert.strictEqual(enabled & Capability.serial, Capability.serial, "serial must always be enabled");
 
-  // Names come from the C library at load: one per CPU tier, none for the GPU tiers from bit 42 up.
+  // Names come from the C library at load: one per CPU capability, none for the GPU capabilities from bit 48 up.
   assert(Object.isFrozen(Capability), "Capability must be frozen");
-  assert.strictEqual(Capability.v128, 1n << 41n);
+  assert.strictEqual(Capability.v128, 1n << 31n);
   assert.strictEqual(Capability.ampere, undefined);
 
   // Narrowing to nothing keeps serial, and asking for everything restores the default set.

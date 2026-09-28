@@ -31,32 +31,45 @@ namespace ashvardanian::numkong {
  *  @brief Estimates the memory requirements for packed B matrix.
  *  @param[in] row_count Number of rows in B (n)
  *  @param[in] depth Number of dimensions per row (k)
- *  @return Size in bytes for row-major B data plus stride metadata
+ *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
+ *  @return Size in bytes for row-major B data plus stride metadata, or zero when no capability in
+ *      @p capabilities packs @p in_type_
  *
  *  @tparam in_type_ Input element type
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
-template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
-NUMKONG_API_COMPTIME size_t dots_pack_size(size_t row_count, size_t depth) {
-    constexpr bool simd = allow_simd_ == prefer_simd_k;
-
-    if constexpr (std::is_same_v<in_type_, f64_t> && simd) return nk_dots_pack_size_f64(row_count, depth);
-    else if constexpr (std::is_same_v<in_type_, f32_t> && simd) return nk_dots_pack_size_f32(row_count, depth);
-    else if constexpr (std::is_same_v<in_type_, f16_t> && simd) return nk_dots_pack_size_f16(row_count, depth);
-    else if constexpr (std::is_same_v<in_type_, bf16_t> && simd) return nk_dots_pack_size_bf16(row_count, depth);
-    else if constexpr (std::is_same_v<in_type_, i8_t> && simd) return nk_dots_pack_size_i8(row_count, depth);
-    else if constexpr (std::is_same_v<in_type_, u8_t> && simd) return nk_dots_pack_size_u8(row_count, depth);
-    else if constexpr (std::is_same_v<in_type_, e4m3_t> && simd) return nk_dots_pack_size_e4m3(row_count, depth);
-    else if constexpr (std::is_same_v<in_type_, e5m2_t> && simd) return nk_dots_pack_size_e5m2(row_count, depth);
-    else if constexpr (std::is_same_v<in_type_, e2m3_t> && simd) return nk_dots_pack_size_e2m3(row_count, depth);
-    else if constexpr (std::is_same_v<in_type_, e2m1x2_t> && simd) return nk_dots_pack_size_e2m1(row_count, depth);
-    else if constexpr (std::is_same_v<in_type_, e3m2_t> && simd) return nk_dots_pack_size_e3m2(row_count, depth);
-    else if constexpr (std::is_same_v<in_type_, u4x2_t> && simd) return nk_dots_pack_size_u4(row_count, depth);
-    else if constexpr (std::is_same_v<in_type_, i4x2_t> && simd) return nk_dots_pack_size_i4(row_count, depth);
-    else {
-        // We need enough space for the pointer to the original B matrix and its stride
-        return sizeof(void *) + sizeof(size_t);
+template <numeric_dtype in_type_>
+size_t dots_pack_size(size_t row_count, size_t depth, nk_capability_t capabilities = cpu_capabilities()) {
+    nk_size_t bytes = 0;
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f64_t>)
+            return nk_dots_pack_size_f64_best(row_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+        else if constexpr (std::is_same_v<in_type_, f32_t>)
+            return nk_dots_pack_size_f32_best(row_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+        else if constexpr (std::is_same_v<in_type_, f16_t>)
+            return nk_dots_pack_size_f16_best(row_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+        else if constexpr (std::is_same_v<in_type_, bf16_t>)
+            return nk_dots_pack_size_bf16_best(row_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+        else if constexpr (std::is_same_v<in_type_, i8_t>)
+            return nk_dots_pack_size_i8_best(row_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+        else if constexpr (std::is_same_v<in_type_, u8_t>)
+            return nk_dots_pack_size_u8_best(row_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+        else if constexpr (std::is_same_v<in_type_, e4m3_t>)
+            return nk_dots_pack_size_e4m3_best(row_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+        else if constexpr (std::is_same_v<in_type_, e5m2_t>)
+            return nk_dots_pack_size_e5m2_best(row_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+        else if constexpr (std::is_same_v<in_type_, e2m3_t>)
+            return nk_dots_pack_size_e2m3_best(row_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+        else if constexpr (std::is_same_v<in_type_, e2m1x2_t>)
+            return nk_dots_pack_size_e2m1_best(row_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+        else if constexpr (std::is_same_v<in_type_, e3m2_t>)
+            return nk_dots_pack_size_e3m2_best(row_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+        else if constexpr (std::is_same_v<in_type_, u4x2_t>)
+            return nk_dots_pack_size_u4_best(row_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+        else if constexpr (std::is_same_v<in_type_, i4x2_t>)
+            return nk_dots_pack_size_i4_best(row_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
     }
+    // We need enough space for the pointer to the original B matrix and its stride
+    return sizeof(void *) + sizeof(size_t);
 }
 
 /**
@@ -66,80 +79,88 @@ NUMKONG_API_COMPTIME size_t dots_pack_size(size_t row_count, size_t depth) {
  *  @param[in] depth Number of dimensions per row (k)
  *  @param[in] b_stride_in_bytes Stride between rows of B in bytes
  *  @param[out] b_packed Output buffer for packed row-major B with metadata
+ *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *
  *  @tparam in_type_ Input element type
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
-template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
-NUMKONG_API_COMPTIME void dots_pack(in_type_ const *b, size_t row_count, size_t depth, size_t b_stride_in_bytes,
-                                    void *b_packed) {
+template <numeric_dtype in_type_>
+nk_status_t dots_pack(in_type_ const *b, size_t row_count, size_t depth, size_t b_stride_in_bytes, void *b_packed,
+                      nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) {
     using raw_t = typename in_type_::raw_t;
-    constexpr bool simd = allow_simd_ == prefer_simd_k;
+    raw_t const *b_raw = reinterpret_cast<raw_t const *>(b);
 
-    if constexpr (std::is_same_v<in_type_, f64_t> && simd)
-        nk_dots_pack_f64(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed, 0,
-                         row_count);
-    else if constexpr (std::is_same_v<in_type_, f32_t> && simd)
-        nk_dots_pack_f32(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed, 0,
-                         row_count);
-    else if constexpr (std::is_same_v<in_type_, f16_t> && simd)
-        nk_dots_pack_f16(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed, 0,
-                         row_count);
-    else if constexpr (std::is_same_v<in_type_, bf16_t> && simd)
-        nk_dots_pack_bf16(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed, 0,
-                          row_count);
-    else if constexpr (std::is_same_v<in_type_, i8_t> && simd)
-        nk_dots_pack_i8(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed, 0,
-                        row_count);
-    else if constexpr (std::is_same_v<in_type_, u8_t> && simd)
-        nk_dots_pack_u8(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed, 0,
-                        row_count);
-    else if constexpr (std::is_same_v<in_type_, e4m3_t> && simd)
-        nk_dots_pack_e4m3(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed, 0,
-                          row_count);
-    else if constexpr (std::is_same_v<in_type_, e5m2_t> && simd)
-        nk_dots_pack_e5m2(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed, 0,
-                          row_count);
-    else if constexpr (std::is_same_v<in_type_, e2m3_t> && simd)
-        nk_dots_pack_e2m3(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed, 0,
-                          row_count);
-    else if constexpr (std::is_same_v<in_type_, e2m1x2_t> && simd)
-        nk_dots_pack_e2m1(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed, 0,
-                          row_count);
-    else if constexpr (std::is_same_v<in_type_, e3m2_t> && simd)
-        nk_dots_pack_e3m2(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed, 0,
-                          row_count);
-    else if constexpr (std::is_same_v<in_type_, u4x2_t> && simd)
-        nk_dots_pack_u4(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed, 0,
-                        row_count);
-    else if constexpr (std::is_same_v<in_type_, i4x2_t> && simd)
-        nk_dots_pack_i4(reinterpret_cast<raw_t const *>(b), row_count, depth, b_stride_in_bytes, b_packed, 0,
-                        row_count);
-    else {
-        // Persist the pointer to the original B matrix and its stride
-        char *b_packed_bytes = reinterpret_cast<char *>(b_packed);
-        std::memcpy(b_packed_bytes, &b, sizeof(void *));
-        std::memcpy(b_packed_bytes + sizeof(void *), &b_stride_in_bytes, sizeof(size_t));
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f64_t>)
+            return nk_dots_pack_f64_best(b_raw, row_count, depth, b_stride_in_bytes, b_packed, 0, row_count,
+                                         capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f32_t>)
+            return nk_dots_pack_f32_best(b_raw, row_count, depth, b_stride_in_bytes, b_packed, 0, row_count,
+                                         capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f16_t>)
+            return nk_dots_pack_f16_best(b_raw, row_count, depth, b_stride_in_bytes, b_packed, 0, row_count,
+                                         capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, bf16_t>)
+            return nk_dots_pack_bf16_best(b_raw, row_count, depth, b_stride_in_bytes, b_packed, 0, row_count,
+                                          capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, i8_t>)
+            return nk_dots_pack_i8_best(b_raw, row_count, depth, b_stride_in_bytes, b_packed, 0, row_count,
+                                        capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u8_t>)
+            return nk_dots_pack_u8_best(b_raw, row_count, depth, b_stride_in_bytes, b_packed, 0, row_count,
+                                        capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, e4m3_t>)
+            return nk_dots_pack_e4m3_best(b_raw, row_count, depth, b_stride_in_bytes, b_packed, 0, row_count,
+                                          capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, e5m2_t>)
+            return nk_dots_pack_e5m2_best(b_raw, row_count, depth, b_stride_in_bytes, b_packed, 0, row_count,
+                                          capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, e2m3_t>)
+            return nk_dots_pack_e2m3_best(b_raw, row_count, depth, b_stride_in_bytes, b_packed, 0, row_count,
+                                          capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, e2m1x2_t>)
+            return nk_dots_pack_e2m1_best(b_raw, row_count, depth, b_stride_in_bytes, b_packed, 0, row_count,
+                                          capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, e3m2_t>)
+            return nk_dots_pack_e3m2_best(b_raw, row_count, depth, b_stride_in_bytes, b_packed, 0, row_count,
+                                          capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u4x2_t>)
+            return nk_dots_pack_u4_best(b_raw, row_count, depth, b_stride_in_bytes, b_packed, 0, row_count,
+                                        capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, i4x2_t>)
+            return nk_dots_pack_i4_best(b_raw, row_count, depth, b_stride_in_bytes, b_packed, 0, row_count,
+                                        capabilities, stream);
     }
+    // Persist the pointer to the original B matrix and its stride
+    char *b_packed_bytes = reinterpret_cast<char *>(b_packed);
+    std::memcpy(b_packed_bytes, &b, sizeof(void *));
+    std::memcpy(b_packed_bytes + sizeof(void *), &b_stride_in_bytes, sizeof(size_t));
+    return nk_success_k;
 }
 
 /**
  *  @brief Estimates the memory requirements for a maxsim packed vector set.
  *  @param[in] vector_count Number of vectors to pack.
  *  @param[in] depth Number of dimensions per vector.
- *  @return Size in bytes for the packed buffer.
+ *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template.
+ *  @return Size in bytes for the packed buffer, or zero when no capability in @p capabilities packs
+ *      @p in_type_.
  *
  *  @tparam in_type_ Input element type (bf16_t, f32_t, f16_t).
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k.
  */
-template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
-NUMKONG_API_COMPTIME std::size_t maxsim_pack_size(std::size_t vector_count, std::size_t depth) {
-    constexpr bool simd = allow_simd_ == prefer_simd_k;
-
-    if constexpr (std::is_same_v<in_type_, bf16_t> && simd) return nk_maxsim_pack_size_bf16(vector_count, depth);
-    else if constexpr (std::is_same_v<in_type_, f32_t> && simd) return nk_maxsim_pack_size_f32(vector_count, depth);
-    else if constexpr (std::is_same_v<in_type_, f16_t> && simd) return nk_maxsim_pack_size_f16(vector_count, depth);
-    else return sizeof(void *) + sizeof(std::size_t);
+template <numeric_dtype in_type_>
+std::size_t maxsim_pack_size(std::size_t vector_count, std::size_t depth,
+                             nk_capability_t capabilities = cpu_capabilities()) {
+    nk_size_t bytes = 0;
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, bf16_t>)
+            return nk_maxsim_pack_size_bf16_best(vector_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+        else if constexpr (std::is_same_v<in_type_, f32_t>)
+            return nk_maxsim_pack_size_f32_best(vector_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+        else if constexpr (std::is_same_v<in_type_, f16_t>)
+            return nk_maxsim_pack_size_f16_best(vector_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+    }
+    return sizeof(void *) + sizeof(std::size_t);
 }
 
 /**
@@ -149,26 +170,27 @@ NUMKONG_API_COMPTIME std::size_t maxsim_pack_size(std::size_t vector_count, std:
  *  @param[in] depth Number of dimensions per vector.
  *  @param[in] stride Row stride in bytes for the input vectors.
  *  @param[out] packed Output packed buffer from maxsim_pack_size.
+ *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template.
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
  *
  *  @tparam in_type_ Input element type (bf16_t, f32_t, f16_t).
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k.
  */
-template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
-NUMKONG_API_COMPTIME void maxsim_pack(typename in_type_::raw_t const *vectors, std::size_t vector_count,
-                                      std::size_t depth, std::size_t stride, void *packed) {
-    constexpr bool simd = allow_simd_ == prefer_simd_k;
-
-    if constexpr (std::is_same_v<in_type_, bf16_t> && simd)
-        nk_maxsim_pack_bf16(vectors, vector_count, depth, stride, packed);
-    else if constexpr (std::is_same_v<in_type_, f32_t> && simd)
-        nk_maxsim_pack_f32(vectors, vector_count, depth, stride, packed);
-    else if constexpr (std::is_same_v<in_type_, f16_t> && simd)
-        nk_maxsim_pack_f16(vectors, vector_count, depth, stride, packed);
-    else {
-        char *packed_bytes = reinterpret_cast<char *>(packed);
-        std::memcpy(packed_bytes, &vectors, sizeof(void *));
-        std::memcpy(packed_bytes + sizeof(void *), &stride, sizeof(std::size_t));
+template <numeric_dtype in_type_>
+nk_status_t maxsim_pack(typename in_type_::raw_t const *vectors, std::size_t vector_count, std::size_t depth,
+                        std::size_t stride, void *packed, nk_capability_t capabilities = cpu_capabilities(),
+                        void *stream = nullptr) {
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, bf16_t>)
+            return nk_maxsim_pack_bf16_best(vectors, vector_count, depth, stride, packed, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f32_t>)
+            return nk_maxsim_pack_f32_best(vectors, vector_count, depth, stride, packed, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f16_t>)
+            return nk_maxsim_pack_f16_best(vectors, vector_count, depth, stride, packed, capabilities, stream);
     }
+    char *packed_bytes = reinterpret_cast<char *>(packed);
+    std::memcpy(packed_bytes, &vectors, sizeof(void *));
+    std::memcpy(packed_bytes + sizeof(void *), &stride, sizeof(std::size_t));
+    return nk_success_k;
 }
 
 #pragma endregion Packing Utilities

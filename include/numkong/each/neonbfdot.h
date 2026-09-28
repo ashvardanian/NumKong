@@ -50,9 +50,8 @@ extern "C" {
 #pragma GCC target("arch=armv8.6-a+simd+bf16")
 #endif
 
-NUMKONG_API_COMPTIME nk_status_t nk_each_sum_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                            nk_bf16_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
+/** Adds @p n BF16 values of @p a and @p b elementwise, in F32. */
+NUMKONG_INLINE void nk_add_bf16_neonbfdot_(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_bf16_t *result) {
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         bfloat16x4_t a_bf16x4 = vld1_bf16((bfloat16_t const *)a + i);
@@ -77,14 +76,11 @@ NUMKONG_API_COMPTIME nk_status_t nk_each_sum_bf16_neonbfdot(nk_bf16_t const *a, 
         result_vec.u16x4 = vreinterpret_u16_bf16(result_bf16x4);
         nk_partial_store_b16x4_serial_(result + i, &result_vec, n - i);
     }
-    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_each_scale_bf16_neonbfdot(nk_bf16_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                              nk_f32_t const *beta, nk_bf16_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_f32_t alpha_val = *alpha;
-    nk_f32_t beta_val = *beta;
+/** Computes `alpha * a + beta` over @p n BF16 values, in F32. */
+NUMKONG_INLINE void nk_scale_bf16_neonbfdot_(nk_bf16_t const *a, nk_size_t n, nk_f32_t alpha_val, nk_f32_t beta_val,
+                                             nk_bf16_t *result) {
     float32x4_t alpha_f32x4 = vdupq_n_f32(alpha_val);
     float32x4_t beta_f32x4 = vdupq_n_f32(beta_val);
     nk_size_t i = 0;
@@ -106,11 +102,24 @@ NUMKONG_API_COMPTIME nk_status_t nk_each_scale_bf16_neonbfdot(nk_bf16_t const *a
         result_vec.u16x4 = vreinterpret_u16_bf16(result_bf16x4);
         nk_partial_store_b16x4_serial_(result + i, &result_vec, n - i);
     }
+}
+
+NUMKONG_API nk_status_t nk_each_sum_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                   nk_bf16_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_add_bf16_neonbfdot_(a, b, n, result);
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_each_blend_bf16_neonbfdot( //
-    nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,       //
+NUMKONG_API nk_status_t nk_each_scale_bf16_neonbfdot(nk_bf16_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                     nk_f32_t const *beta, nk_bf16_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_scale_bf16_neonbfdot_(a, n, *alpha, *beta, result);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_each_blend_bf16_neonbfdot(    //
+    nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, //
     nk_f32_t const *alpha, nk_f32_t const *beta, nk_bf16_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
@@ -121,14 +130,14 @@ NUMKONG_API_COMPTIME nk_status_t nk_each_blend_bf16_neonbfdot( //
     // 1. Simple addition, when both weights are equal to 1.0.
     if (alpha_val == 1 && beta_val == 1) {
         // In this case we can avoid expensive multiplications.
-        return nk_each_sum_bf16_neonbfdot(a, b, n, result, stream);
+        nk_add_bf16_neonbfdot_(a, b, n, result);
+        return nk_success_k;
     }
     // 2. Just scaling, when one of the weights is equal to zero.
     else if (alpha_val == 0 || beta_val == 0) {
         // In this case we can avoid half of the load instructions.
-        nk_f32_t zero = 0;
-        if (beta_val == 0) { nk_each_scale_bf16_neonbfdot(a, n, alpha, &zero, result, stream); }
-        else { nk_each_scale_bf16_neonbfdot(b, n, beta, &zero, result, stream); }
+        if (beta_val == 0) { nk_scale_bf16_neonbfdot_(a, n, alpha_val, 0, result); }
+        else { nk_scale_bf16_neonbfdot_(b, n, beta_val, 0, result); }
         return nk_success_k;
     }
 
@@ -164,7 +173,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_each_blend_bf16_neonbfdot( //
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_each_fma_bf16_neonbfdot(    //
+NUMKONG_API nk_status_t nk_each_fma_bf16_neonbfdot(             //
     nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, //
     nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta, nk_bf16_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);

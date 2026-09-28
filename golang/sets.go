@@ -23,13 +23,13 @@ func HammingsPackedU1(vectors []byte, query DotsPackedMatrix, result []uint32, h
 	if len(result) < height*query.width {
 		panic("output slice too short for the given height and width")
 	}
-	C.nk_hammings_packed_u1(
+	check(C.nk_hammings_packed_u1_best(
 		(*C.nk_u1x8_t)(&vectors[0]),
 		unsafe.Pointer(&query.data[0]),
 		(*C.nk_u32_t)(&result[0]),
 		C.nk_size_t(height), C.nk_size_t(query.width), C.nk_size_t(query.depth),
 		C.nk_size_t(bytesPerVec),
-		C.nk_size_t(query.width*4))
+		C.nk_size_t(query.width*4), capabilities(), nil))
 }
 
 // HammingsSymmetricU1 computes the Hamming distance between every pair of nVectors binary vectors
@@ -49,13 +49,13 @@ func HammingsSymmetricU1(vectors []byte, nVectors, depth int, result []uint32) {
 
 func hammingsSymmetricU1(vectors []byte, nVectors, depth int, result []uint32, rowStart, rowCount int) {
 	bytesPerVec := DimensionsToValues("u1", depth)
-	C.nk_hammings_symmetric_u1(
+	check(C.nk_hammings_symmetric_u1_best(
 		(*C.nk_u1x8_t)(&vectors[0]),
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(bytesPerVec),
 		(*C.nk_u32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount))
+		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
 }
 
 // JaccardsPackedU1 computes the Jaccard distance from each of height binary vectors to every packed
@@ -72,13 +72,13 @@ func JaccardsPackedU1(vectors []byte, query DotsPackedMatrix, result []float32, 
 	if len(result) < height*query.width {
 		panic("output slice too short for the given height and width")
 	}
-	C.nk_jaccards_packed_u1(
+	check(C.nk_jaccards_packed_u1_best(
 		(*C.nk_u1x8_t)(&vectors[0]),
 		unsafe.Pointer(&query.data[0]),
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(height), C.nk_size_t(query.width), C.nk_size_t(query.depth),
 		C.nk_size_t(bytesPerVec),
-		C.nk_size_t(query.width*4))
+		C.nk_size_t(query.width*4), capabilities(), nil))
 }
 
 // JaccardsSymmetricU1 computes the Jaccard distance between every pair of nVectors binary vectors
@@ -98,11 +98,11 @@ func JaccardsSymmetricU1(vectors []byte, nVectors, depth int, result []float32) 
 
 func jaccardsSymmetricU1(vectors []byte, nVectors, depth int, result []float32, rowStart, rowCount int) {
 	bytesPerVec := DimensionsToValues("u1", depth)
-	C.nk_jaccards_symmetric_u1(
+	check(C.nk_jaccards_symmetric_u1_best(
 		(*C.nk_u1x8_t)(&vectors[0]),
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(bytesPerVec),
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount))
+		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
 }

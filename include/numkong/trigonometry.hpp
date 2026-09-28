@@ -21,22 +21,27 @@ namespace ashvardanian::numkong {
  *  @param[in] in Input array
  *  @param[in] n Number of elements
  *  @param[out] out Output array
+ *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *
  *  @tparam in_type_ Element type (f32_t, f64_t, f16_t)
  *  @tparam precision_type_ Precision type for scalar fallback, defaults to @c in_type_
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
-template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
-void sin(in_type_ const *in, std::size_t n, in_type_ *out) noexcept {
-    constexpr bool simd = allow_simd_ == prefer_simd_k && std::is_same_v<in_type_, precision_type_>;
+template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
+nk_status_t sin(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t capabilities = cpu_capabilities(),
+                void *stream = nullptr) noexcept {
+    constexpr bool dispatch = std::is_same_v<in_type_, precision_type_>;
 
-    if constexpr (std::is_same_v<in_type_, f64_t> && simd) nk_trig_sin_f64(&in->raw_, n, &out->raw_);
-    else if constexpr (std::is_same_v<in_type_, f32_t> && simd) nk_trig_sin_f32(&in->raw_, n, &out->raw_);
-    else if constexpr (std::is_same_v<in_type_, f16_t> && simd) nk_trig_sin_f16(&in->raw_, n, &out->raw_);
-    // Scalar fallback
-    else {
-        for (std::size_t i = 0; i < n; i++) out[i] = in_type_(precision_type_(in[i]).sin());
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
+            return nk_trig_sin_f64_best(&in->raw_, n, &out->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+            return nk_trig_sin_f32_best(&in->raw_, n, &out->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
+            return nk_trig_sin_f16_best(&in->raw_, n, &out->raw_, capabilities, stream);
     }
+    for (std::size_t i = 0; i < n; i++) out[i] = in_type_(precision_type_(in[i]).sin());
+    return nk_success_k;
 }
 
 /**
@@ -44,22 +49,27 @@ void sin(in_type_ const *in, std::size_t n, in_type_ *out) noexcept {
  *  @param[in] in Input array
  *  @param[in] n Number of elements
  *  @param[out] out Output array
+ *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *
  *  @tparam in_type_ Element type (f32_t, f64_t, f16_t)
  *  @tparam precision_type_ Precision type for scalar fallback, defaults to @c in_type_
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
-template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
-void cos(in_type_ const *in, std::size_t n, in_type_ *out) noexcept {
-    constexpr bool simd = allow_simd_ == prefer_simd_k && std::is_same_v<in_type_, precision_type_>;
+template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
+nk_status_t cos(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t capabilities = cpu_capabilities(),
+                void *stream = nullptr) noexcept {
+    constexpr bool dispatch = std::is_same_v<in_type_, precision_type_>;
 
-    if constexpr (std::is_same_v<in_type_, f64_t> && simd) nk_trig_cos_f64(&in->raw_, n, &out->raw_);
-    else if constexpr (std::is_same_v<in_type_, f32_t> && simd) nk_trig_cos_f32(&in->raw_, n, &out->raw_);
-    else if constexpr (std::is_same_v<in_type_, f16_t> && simd) nk_trig_cos_f16(&in->raw_, n, &out->raw_);
-    // Scalar fallback
-    else {
-        for (std::size_t i = 0; i < n; i++) out[i] = in_type_(precision_type_(in[i]).cos());
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
+            return nk_trig_cos_f64_best(&in->raw_, n, &out->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+            return nk_trig_cos_f32_best(&in->raw_, n, &out->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
+            return nk_trig_cos_f16_best(&in->raw_, n, &out->raw_, capabilities, stream);
     }
+    for (std::size_t i = 0; i < n; i++) out[i] = in_type_(precision_type_(in[i]).cos());
+    return nk_success_k;
 }
 
 /**
@@ -67,22 +77,27 @@ void cos(in_type_ const *in, std::size_t n, in_type_ *out) noexcept {
  *  @param[in] in Input array
  *  @param[in] n Number of elements
  *  @param[out] out Output array
+ *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *
  *  @tparam in_type_ Element type (f32_t, f64_t, f16_t)
  *  @tparam precision_type_ Precision type for scalar fallback, defaults to @c in_type_
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
-template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
-void atan(in_type_ const *in, std::size_t n, in_type_ *out) noexcept {
-    constexpr bool simd = allow_simd_ == prefer_simd_k && std::is_same_v<in_type_, precision_type_>;
+template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
+nk_status_t atan(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t capabilities = cpu_capabilities(),
+                 void *stream = nullptr) noexcept {
+    constexpr bool dispatch = std::is_same_v<in_type_, precision_type_>;
 
-    if constexpr (std::is_same_v<in_type_, f64_t> && simd) nk_trig_atan_f64(&in->raw_, n, &out->raw_);
-    else if constexpr (std::is_same_v<in_type_, f32_t> && simd) nk_trig_atan_f32(&in->raw_, n, &out->raw_);
-    else if constexpr (std::is_same_v<in_type_, f16_t> && simd) nk_trig_atan_f16(&in->raw_, n, &out->raw_);
-    // Scalar fallback
-    else {
-        for (std::size_t i = 0; i < n; i++) out[i] = in_type_(precision_type_(in[i]).atan());
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
+            return nk_trig_atan_f64_best(&in->raw_, n, &out->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+            return nk_trig_atan_f32_best(&in->raw_, n, &out->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
+            return nk_trig_atan_f16_best(&in->raw_, n, &out->raw_, capabilities, stream);
     }
+    for (std::size_t i = 0; i < n; i++) out[i] = in_type_(precision_type_(in[i]).atan());
+    return nk_success_k;
 }
 
 /**
@@ -98,44 +113,47 @@ void atan(in_type_ const *in, std::size_t n, in_type_ *out) noexcept {
  *  @param[in] x_row_stride Row (token) stride of x in bytes
  *  @param[in] y_row_stride Row (token) stride of y in bytes
  *  @param[in] input_scale Scalar folded onto every loaded element (E4M3 descale; 1.0 for BF16/F32)
+ *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *
  *  @tparam in_type_ Element type
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
-template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
-void rope(in_type_ const *x, in_type_ *y, f32_t const *cos, f32_t const *sin, std::size_t rows, std::size_t heads,
-          std::size_t half_dim, std::size_t x_row_stride, std::size_t y_row_stride, float input_scale = 1.0f) noexcept {
-    constexpr bool simd = allow_simd_ == prefer_simd_k;
-    if constexpr (std::is_same_v<in_type_, f32_t> && simd)
-        nk_trig_rope_f32(&x->raw_, &y->raw_, &cos->raw_, &sin->raw_, rows, heads, half_dim, x_row_stride, y_row_stride,
-                         input_scale);
-    else if constexpr (std::is_same_v<in_type_, bf16_t> && simd)
-        nk_trig_rope_bf16(&x->raw_, &y->raw_, &cos->raw_, &sin->raw_, rows, heads, half_dim, x_row_stride, y_row_stride,
-                          input_scale);
-    else if constexpr (std::is_same_v<in_type_, e4m3_t> && simd)
-        nk_trig_rope_e4m3(&x->raw_, &y->raw_, &cos->raw_, &sin->raw_, rows, heads, half_dim, x_row_stride, y_row_stride,
-                          input_scale);
-    // Scalar fallback for other numeric dtypes or when SIMD is disabled.
-    else {
-        for (std::size_t row = 0; row < rows; ++row) {
-            f32_t const *cos_row = cos + row * half_dim;
-            f32_t const *sin_row = sin + row * half_dim;
-            in_type_ const *x_row = reinterpret_cast<in_type_ const *>(reinterpret_cast<char const *>(x) +
-                                                                       row * x_row_stride);
-            in_type_ *y_row = reinterpret_cast<in_type_ *>(reinterpret_cast<char *>(y) + row * y_row_stride);
-            for (std::size_t head = 0; head < heads; ++head) {
-                in_type_ const *x_base = x_row + head * 2 * half_dim;
-                in_type_ *y_base = y_row + head * 2 * half_dim;
-                for (std::size_t i = 0; i < half_dim; ++i) {
-                    float low = static_cast<float>(x_base[i]) * input_scale;
-                    float high = static_cast<float>(x_base[i + half_dim]) * input_scale;
-                    float cosine = static_cast<float>(cos_row[i]), sine = static_cast<float>(sin_row[i]);
-                    y_base[i] = f32_t(low * cosine - high * sine).template to<in_type_>();
-                    y_base[i + half_dim] = f32_t(low * sine + high * cosine).template to<in_type_>();
-                }
+template <numeric_dtype in_type_>
+nk_status_t rope(in_type_ const *x, in_type_ *y, f32_t const *cos, f32_t const *sin, std::size_t rows,
+                 std::size_t heads, std::size_t half_dim, std::size_t x_row_stride, std::size_t y_row_stride,
+                 float input_scale = 1.0f, nk_capability_t capabilities = cpu_capabilities(),
+                 void *stream = nullptr) noexcept {
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f32_t>)
+            return nk_trig_rope_f32_best(&x->raw_, &y->raw_, &cos->raw_, &sin->raw_, rows, heads, half_dim,
+                                         x_row_stride, y_row_stride, input_scale, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, bf16_t>)
+            return nk_trig_rope_bf16_best(&x->raw_, &y->raw_, &cos->raw_, &sin->raw_, rows, heads, half_dim,
+                                          x_row_stride, y_row_stride, input_scale, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, e4m3_t>)
+            return nk_trig_rope_e4m3_best(&x->raw_, &y->raw_, &cos->raw_, &sin->raw_, rows, heads, half_dim,
+                                          x_row_stride, y_row_stride, input_scale, capabilities, stream);
+    }
+    // Scalar fallback for other numeric dtypes or a mask of no capability.
+    for (std::size_t row = 0; row < rows; ++row) {
+        f32_t const *cos_row = cos + row * half_dim;
+        f32_t const *sin_row = sin + row * half_dim;
+        in_type_ const *x_row = reinterpret_cast<in_type_ const *>(reinterpret_cast<char const *>(x) +
+                                                                   row * x_row_stride);
+        in_type_ *y_row = reinterpret_cast<in_type_ *>(reinterpret_cast<char *>(y) + row * y_row_stride);
+        for (std::size_t head = 0; head < heads; ++head) {
+            in_type_ const *x_base = x_row + head * 2 * half_dim;
+            in_type_ *y_base = y_row + head * 2 * half_dim;
+            for (std::size_t i = 0; i < half_dim; ++i) {
+                float low = static_cast<float>(x_base[i]) * input_scale;
+                float high = static_cast<float>(x_base[i + half_dim]) * input_scale;
+                float cosine = static_cast<float>(cos_row[i]), sine = static_cast<float>(sin_row[i]);
+                y_base[i] = f32_t(low * cosine - high * sine).template to<in_type_>();
+                y_base[i + half_dim] = f32_t(low * sine + high * cosine).template to<in_type_>();
             }
         }
     }
+    return nk_success_k;
 }
 
 } // namespace ashvardanian::numkong
@@ -207,10 +225,9 @@ bool rope(matrix_view<value_type_> x, matrix_span<value_type_> y, vector_view<f3
     if (x.extent(0) != y.extent(0) || x.extent(1) != y.extent(1)) return false;
     if (x.extent(1) < heads * 2 * half_dim) return false;
     if (cos.size() < x.extent(0) * half_dim || sin.size() < x.extent(0) * half_dim) return false;
-    numkong::rope<value_type_>(x.data(), y.data(), cos.data(), sin.data(), x.extent(0), heads, half_dim,
-                               static_cast<std::size_t>(x.stride_bytes(0)), static_cast<std::size_t>(y.stride_bytes(0)),
-                               input_scale);
-    return true;
+    return numkong::rope<value_type_>(x.data(), y.data(), cos.data(), sin.data(), x.extent(0), heads, half_dim,
+                                      static_cast<std::size_t>(x.stride_bytes(0)),
+                                      static_cast<std::size_t>(y.stride_bytes(0)), input_scale) == nk_success_k;
 }
 
 /** Allocating atan. */

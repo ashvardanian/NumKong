@@ -49,8 +49,8 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+sve+dotprod")
 #endif
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_i8_svesdot(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars,
-                                                   nk_size_t count_scalars, nk_i32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_i8_svesdot(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
+                                          nk_i32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t idx_scalars = 0;
     svint32_t sum_i32x = svdup_s32(0);
@@ -65,8 +65,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_dot_i8_svesdot(nk_i8_t const *a_scalars, nk_
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_u8_svesdot(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars,
-                                                   nk_size_t count_scalars, nk_u32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_u8_svesdot(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
+                                          nk_u32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t idx_scalars = 0;
     svuint32_t sum_u32x = svdup_u32(0);

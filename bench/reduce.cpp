@@ -32,7 +32,9 @@ void measure_reduce_moments(bm::State &state, kernel_type_ kernel, std::size_t d
         typename output_t::raw_t sum;
         typename sumsq_t::raw_t sumsq;
         auto const &v = vectors[iterations & (vectors_count - 1)];
-        kernel(v.raw_values_data(), dimensions, sizeof(typename input_t::raw_t), &sum, &sumsq);
+        if (!succeeded(state,
+                       kernel(v.raw_values_data(), dimensions, sizeof(typename input_t::raw_t), &sum, &sumsq, nullptr)))
+            break;
         bm::DoNotOptimize(sum);
         bm::DoNotOptimize(sumsq);
         ++iterations;
@@ -68,8 +70,9 @@ void measure_rmsnorm(bm::State &state, kernel_type_ kernel, std::size_t dimensio
     std::size_t iterations = 0;
     for (auto _ : state) {
         std::size_t const index = iterations & (vectors_count - 1);
-        kernel(inputs[index].raw_values_data(), gamma.data(), outputs[index].raw_values_data(), 1, 1, dimensions,
-               stride, stride, 1e-6f, 1.0f);
+        if (!succeeded(state, kernel(inputs[index].raw_values_data(), gamma.data(), outputs[index].raw_values_data(), 1,
+                                     1, dimensions, stride, stride, 1e-6f, 1.0f, nullptr)))
+            break;
         bm::ClobberMemory();
         ++iterations;
     }
@@ -103,8 +106,9 @@ void measure_reduce_minmax(bm::State &state, kernel_type_ kernel, std::size_t di
         typename output_t::raw_t min_val, max_val;
         nk_size_t min_idx, max_idx;
         auto const &v = vectors[iterations & (vectors_count - 1)];
-        kernel(v.raw_values_data(), dimensions, sizeof(typename input_t::raw_t), &min_val, &min_idx, &max_val,
-               &max_idx);
+        if (!succeeded(state, kernel(v.raw_values_data(), dimensions, sizeof(typename input_t::raw_t), &min_val,
+                                     &min_idx, &max_val, &max_idx, nullptr)))
+            break;
         bm::DoNotOptimize(min_val);
         bm::DoNotOptimize(max_val);
         ++iterations;

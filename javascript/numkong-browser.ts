@@ -50,9 +50,9 @@ export class NumKongWasmSimdError extends Error {
 
 /* Auto-initialize: probe the engine, load the matching Emscripten glue relative to this module's
  * URL, instantiate the WASM module, and wire up the wrapper before any export is used. */
-const tier = detectWasmSimdTier();
-if (tier === 'serial') throw new NumKongWasmSimdError();
-const glueUrl = new URL(`./numkong-wasm32-${tier}.js`, import.meta.url);
+const capability = detectWasmSimdTier();
+if (capability === 'serial') throw new NumKongWasmSimdError();
+const glueUrl = new URL(`./numkong-wasm32-${capability}.js`, import.meta.url);
 const { default: NumKongModule } = await import(glueUrl.href);
 const wasmInstance = await NumKongModule({
     locateFile: (path: string) => new URL(path, glueUrl).href,

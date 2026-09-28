@@ -18,6 +18,7 @@
 
 #include "numkong/dot/loongsonasx.h"
 #include "numkong/cast/loongsonasx.h"
+#include "numkong/dots/serial.h"
 
 #if defined(__cplusplus)
 extern "C" {

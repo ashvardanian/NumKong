@@ -24,8 +24,8 @@
 #ifndef NUMKONG_SET_HASWELL_H
 #define NUMKONG_SET_HASWELL_H
 
-#if NUMKONG_ARCH_X86_64_
-#if NUMKONG_TARGET_HASWELL
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_HASWELL_
 
 #include "numkong/types.h"
 #include "numkong/set/serial.h" // `nk_u1x8_popcount_`
@@ -43,8 +43,9 @@ extern "C" {
 
 #pragma region Binary Sets
 
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_haswell(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                       nk_u32_t *result, void *stream) {
+#if NUMKONG_TARGET_HASWELL
+NUMKONG_API nk_status_t nk_hamming_u1_haswell(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
+                                              void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
     // x86 supports unaligned loads and works just fine with the scalar version for small vectors.
@@ -56,8 +57,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_haswell(nk_u1x8_t const *a, nk_u1
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_haswell(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                       nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_jaccard_u1_haswell(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result,
+                                              void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
     // x86 supports unaligned loads and works just fine with the scalar version for small vectors.
@@ -75,8 +76,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_haswell(nk_u1x8_t const *a, nk_u1
 
 #pragma region Integer Sets
 
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u32_haswell(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n,
-                                                        nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_jaccard_u32_haswell(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result,
+                                               void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t intersection_count = 0;
     nk_size_t n_remaining = n;
@@ -92,8 +93,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u32_haswell(nk_u32_t const *a, nk_u3
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
-                                                       nk_u32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_hamming_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
+                                              void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Process 32 bytes at a time using AVX2 (256-bit registers).
     // Compare bytes for equality, invert to get not-equal mask, then count mismatches.
@@ -141,8 +142,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_hamming_u8_haswell(nk_u8_t const *a, nk_u8_t
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u16_haswell(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n,
-                                                        nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_jaccard_u16_haswell(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result,
+                                               void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Process 16 u16 values at a time using AVX2 (256-bit registers).
     // Compare 16-bit integers for equality and count matches.
@@ -192,15 +193,16 @@ NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u16_haswell(nk_u16_t const *a, nk_u1
     *result = (n != 0) ? 1.0f - (nk_f32_t)matches / (nk_f32_t)n : 0.0f;
     return nk_success_k;
 }
+#endif // NUMKONG_TARGET_HASWELL
 
 #pragma endregion Integer Sets
 
 #pragma region Distances from Dot Products
 
 /** Hamming from_dot: computes pop_a + pop_b - 2*dot for 4 pairs (Haswell). */
-NUMKONG_HELPER_INLINE void nk_hamming_u32x4_from_dot_haswell_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
-                                                              nk_b128_vec_t const *target_pops_vec,
-                                                              nk_b128_vec_t *result_vec) {
+NUMKONG_INLINE void nk_hamming_u32x4_from_dot_haswell_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                       nk_b128_vec_t const *target_pops_vec,
+                                                       nk_b128_vec_t *result_vec) {
     __m128i dots_i32x4 = dots_vec->xmm;
     __m128i query_i32x4 = _mm_set1_epi32((int)query_pop);
     __m128i target_i32x4 = target_pops_vec->xmm;
@@ -208,9 +210,9 @@ NUMKONG_HELPER_INLINE void nk_hamming_u32x4_from_dot_haswell_(nk_b128_vec_t cons
 }
 
 /** Jaccard from_dot: computes 1 - dot / (pop_a + pop_b - dot) for 4 pairs (Haswell). */
-NUMKONG_HELPER_INLINE void nk_jaccard_f32x4_from_dot_haswell_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
-                                                              nk_b128_vec_t const *target_pops_vec,
-                                                              nk_b128_vec_t *result_vec) {
+NUMKONG_INLINE void nk_jaccard_f32x4_from_dot_haswell_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                       nk_b128_vec_t const *target_pops_vec,
+                                                       nk_b128_vec_t *result_vec) {
     __m128 dot_f32x4 = _mm_cvtepi32_ps(dots_vec->xmm);
     __m128 query_f32x4 = _mm_set1_ps((nk_f32_t)query_pop);
     __m128 target_f32x4 = _mm_cvtepi32_ps(target_pops_vec->xmm);
@@ -238,6 +240,6 @@ NUMKONG_HELPER_INLINE void nk_jaccard_f32x4_from_dot_haswell_(nk_b128_vec_t cons
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_HASWELL
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_HASWELL_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_SET_HASWELL_H

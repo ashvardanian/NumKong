@@ -37,17 +37,17 @@ extern "C" {
 #pragma GCC target("power9-vector")
 #endif
 
-NUMKONG_API_COMPTIME nk_f32_t nk_f32_sqrt_powervsx(nk_f32_t x) {
+NUMKONG_API nk_f32_t nk_f32_sqrt_powervsx(nk_f32_t x) {
     nk_f32_t result;
     __asm__("xssqrtsp %0, %1" : "=f"(result) : "f"(x));
     return result;
 }
-NUMKONG_API_COMPTIME nk_f64_t nk_f64_sqrt_powervsx(nk_f64_t x) {
+NUMKONG_API nk_f64_t nk_f64_sqrt_powervsx(nk_f64_t x) {
     nk_f64_t result;
     __asm__("xssqrtdp %0, %1" : "=d"(result) : "d"(x));
     return result;
 }
-NUMKONG_API_COMPTIME nk_f32_t nk_f32_rsqrt_powervsx(nk_f32_t x) {
+NUMKONG_API nk_f32_t nk_f32_rsqrt_powervsx(nk_f32_t x) {
     // xsrsqrtesp → ~12-bit estimate, then 2 Newton→Raphson iterations → ~24-bit precision
     nk_f32_t r;
     __asm__("xsrsqrtesp %0, %1" : "=f"(r) : "f"(x));
@@ -58,7 +58,7 @@ NUMKONG_API_COMPTIME nk_f32_t nk_f32_rsqrt_powervsx(nk_f32_t x) {
     r = r * (three_half - half_x * r * r);
     return r;
 }
-NUMKONG_API_COMPTIME nk_f64_t nk_f64_rsqrt_powervsx(nk_f64_t x) {
+NUMKONG_API nk_f64_t nk_f64_rsqrt_powervsx(nk_f64_t x) {
     // xsrsqrtedp → ~14-bit estimate, then 3 Newton→Raphson iterations → ~48-bit precision
     nk_f64_t r;
     __asm__("xsrsqrtedp %0, %1" : "=d"(r) : "d"(x));
@@ -70,13 +70,13 @@ NUMKONG_API_COMPTIME nk_f64_t nk_f64_rsqrt_powervsx(nk_f64_t x) {
     r = r * (three_half - half_x * r * r);
     return r;
 }
-NUMKONG_API_COMPTIME nk_f32_t nk_f32_fma_powervsx(nk_f32_t a, nk_f32_t b, nk_f32_t c) {
+NUMKONG_API nk_f32_t nk_f32_fma_powervsx(nk_f32_t a, nk_f32_t b, nk_f32_t c) {
     // xsmaddasp: result = a * b + c (scalar f32 FMA)
     nk_f32_t r = c;
     __asm__("xsmaddasp %0, %1, %2" : "+f"(r) : "f"(a), "f"(b));
     return r;
 }
-NUMKONG_API_COMPTIME nk_f64_t nk_f64_fma_powervsx(nk_f64_t a, nk_f64_t b, nk_f64_t c) {
+NUMKONG_API nk_f64_t nk_f64_fma_powervsx(nk_f64_t a, nk_f64_t b, nk_f64_t c) {
     // xsmaddadp: result = a * b + c (scalar f64 FMA)
     nk_f64_t r = c;
     __asm__("xsmaddadp %0, %1, %2" : "+d"(r) : "d"(a), "d"(b));

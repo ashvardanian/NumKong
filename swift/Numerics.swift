@@ -28,7 +28,7 @@ internal func dimensionsToValues(_ dimensions: Int, _ dtype: nk_dtype_t) -> Int 
 package func _nkWithDensePair<A: Sequence, B: Sequence, T, R>(
     _ a: A,
     _ b: B,
-    _ body: (UnsafePointer<T>, UnsafePointer<T>, Int) -> R
+    _ body: (UnsafePointer<T>, UnsafePointer<T>, Int) -> R?
 ) -> R?
 where A.Element == T, B.Element == T {
     let lhs = Array(a)
@@ -46,7 +46,7 @@ package func _nkWithDensePairRebound<A: Sequence, B: Sequence, E, T, R>(
     _ a: A,
     _ b: B,
     to: T.Type,
-    _ body: (UnsafePointer<T>, UnsafePointer<T>, Int) -> R
+    _ body: (UnsafePointer<T>, UnsafePointer<T>, Int) -> R?
 ) -> R?
 where A.Element == E, B.Element == E {
     _nkWithDensePair(a, b) { lhsPtr, rhsPtr, count in
@@ -60,7 +60,7 @@ where A.Element == E, B.Element == E {
 package func _nkF32ToBf16Bits(_ value: Float32) -> UInt16 {
     var src = value
     var dst: nk_bf16_t = 0
-    nk_f32_to_bf16(&src, &dst)
+    nk_f32_to_bf16_best(&src, &dst, Capabilities.enabled.native)
     return UInt16(dst)
 }
 
@@ -68,7 +68,7 @@ package func _nkF32ToBf16Bits(_ value: Float32) -> UInt16 {
 package func _nkBf16BitsToF32(_ bits: UInt16) -> Float32 {
     var src = nk_bf16_t(bits)
     var dst: Float32 = 0
-    nk_bf16_to_f32(&src, &dst)
+    nk_bf16_to_f32_best(&src, &dst, Capabilities.enabled.native)
     return dst
 }
 
@@ -76,7 +76,7 @@ package func _nkBf16BitsToF32(_ bits: UInt16) -> Float32 {
 package func _nkF32ToE4M3Bits(_ value: Float32) -> UInt8 {
     var src = value
     var dst: nk_e4m3_t = 0
-    nk_f32_to_e4m3(&src, &dst)
+    nk_f32_to_e4m3_best(&src, &dst, Capabilities.enabled.native)
     return UInt8(dst)
 }
 
@@ -84,7 +84,7 @@ package func _nkF32ToE4M3Bits(_ value: Float32) -> UInt8 {
 package func _nkE4M3BitsToF32(_ bits: UInt8) -> Float32 {
     var src = nk_e4m3_t(bits)
     var dst: Float32 = 0
-    nk_e4m3_to_f32(&src, &dst)
+    nk_e4m3_to_f32_best(&src, &dst, Capabilities.enabled.native)
     return dst
 }
 
@@ -92,7 +92,7 @@ package func _nkE4M3BitsToF32(_ bits: UInt8) -> Float32 {
 package func _nkF32ToE5M2Bits(_ value: Float32) -> UInt8 {
     var src = value
     var dst: nk_e5m2_t = 0
-    nk_f32_to_e5m2(&src, &dst)
+    nk_f32_to_e5m2_best(&src, &dst, Capabilities.enabled.native)
     return UInt8(dst)
 }
 
@@ -100,7 +100,7 @@ package func _nkF32ToE5M2Bits(_ value: Float32) -> UInt8 {
 package func _nkE5M2BitsToF32(_ bits: UInt8) -> Float32 {
     var src = nk_e5m2_t(bits)
     var dst: Float32 = 0
-    nk_e5m2_to_f32(&src, &dst)
+    nk_e5m2_to_f32_best(&src, &dst, Capabilities.enabled.native)
     return dst
 }
 
@@ -108,7 +108,7 @@ package func _nkE5M2BitsToF32(_ bits: UInt8) -> Float32 {
 package func _nkF32ToE2M3Bits(_ value: Float32) -> UInt8 {
     var src = value
     var dst: nk_e2m3_t = 0
-    nk_f32_to_e2m3(&src, &dst)
+    nk_f32_to_e2m3_best(&src, &dst, Capabilities.enabled.native)
     return UInt8(dst)
 }
 
@@ -116,7 +116,7 @@ package func _nkF32ToE2M3Bits(_ value: Float32) -> UInt8 {
 package func _nkE2M3BitsToF32(_ bits: UInt8) -> Float32 {
     var src = nk_e2m3_t(bits)
     var dst: Float32 = 0
-    nk_e2m3_to_f32(&src, &dst)
+    nk_e2m3_to_f32_best(&src, &dst, Capabilities.enabled.native)
     return dst
 }
 
@@ -124,7 +124,7 @@ package func _nkE2M3BitsToF32(_ bits: UInt8) -> Float32 {
 package func _nkF32ToE3M2Bits(_ value: Float32) -> UInt8 {
     var src = value
     var dst: nk_e3m2_t = 0
-    nk_f32_to_e3m2(&src, &dst)
+    nk_f32_to_e3m2_best(&src, &dst, Capabilities.enabled.native)
     return UInt8(dst)
 }
 
@@ -132,7 +132,7 @@ package func _nkF32ToE3M2Bits(_ value: Float32) -> UInt8 {
 package func _nkE3M2BitsToF32(_ bits: UInt8) -> Float32 {
     var src = nk_e3m2_t(bits)
     var dst: Float32 = 0
-    nk_e3m2_to_f32(&src, &dst)
+    nk_e3m2_to_f32_best(&src, &dst, Capabilities.enabled.native)
     return dst
 }
 
@@ -140,7 +140,7 @@ package func _nkE3M2BitsToF32(_ bits: UInt8) -> Float32 {
 package func _nkWithGeoQuad<A: Sequence, B: Sequence, C: Sequence, D: Sequence, T>(
     _ a: A, _ b: B, _ c: C, _ d: D,
     _ body: (UnsafePointer<T>, UnsafePointer<T>, UnsafePointer<T>, UnsafePointer<T>, UnsafeMutablePointer<T>, Int) ->
-        Void
+        nk_status_t
 ) -> [T]?
 where A.Element == T, B.Element == T, C.Element == T, D.Element == T, T: BinaryFloatingPoint {
     let aArr = Array(a)
@@ -150,7 +150,7 @@ where A.Element == T, B.Element == T, C.Element == T, D.Element == T, T: BinaryF
     let n = aArr.count
     guard n > 0 && n == bArr.count && n == cArr.count && n == dArr.count else { return nil }
     var result = [T](repeating: 0, count: n)
-    aArr.withUnsafeBufferPointer { ap in
+    let status = aArr.withUnsafeBufferPointer { ap in
         bArr.withUnsafeBufferPointer { bp in
             cArr.withUnsafeBufferPointer { cp in
                 dArr.withUnsafeBufferPointer { dp in
@@ -161,7 +161,7 @@ where A.Element == T, B.Element == T, C.Element == T, D.Element == T, T: BinaryF
             }
         }
     }
-    return result
+    return status == nk_success_k ? result : nil
 }
 
 // MARK: - Low-Precision Storage Types

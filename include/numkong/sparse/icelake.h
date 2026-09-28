@@ -22,11 +22,11 @@
 #ifndef NUMKONG_SPARSE_ICELAKE_H
 #define NUMKONG_SPARSE_ICELAKE_H
 
-#if NUMKONG_ARCH_X86_64_
-#if NUMKONG_TARGET_ICELAKE
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_ICELAKE_
 
 #include "numkong/types.h"
-#include "numkong/sparse/serial.h" // `nk_sparse_intersect_u16_serial`, `nk_sparse_intersect_u32_serial`
+#include "numkong/sparse/serial.h" // `nk_sparse_intersect_u16_`, `nk_sparse_dot_u32f32_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -35,12 +35,12 @@ extern "C" {
 /*  The helpers below are inlined by vector kernels that pin their own ISA, and GCC refuses an
  *  @c always_inline callee carrying options its caller lacks - so they let the compiler decide,
  *  which for one-liners it does anyway. */
-NUMKONG_HELPER_AUTO nk_u32_t nk_u32_rol(nk_u32_t x, int n) { return (x << n) | (x >> (32 - n)); }
-NUMKONG_HELPER_AUTO nk_u16_t nk_u16_rol(nk_u16_t x, int n) { return (x << n) | (x >> (16 - n)); }
-NUMKONG_HELPER_AUTO nk_u8_t nk_u8_rol(nk_u8_t x, int n) { return (x << n) | (x >> (8 - n)); }
-NUMKONG_HELPER_AUTO nk_u32_t nk_u32_ror(nk_u32_t x, int n) { return (x >> n) | (x << (32 - n)); }
-NUMKONG_HELPER_AUTO nk_u16_t nk_u16_ror(nk_u16_t x, int n) { return (x >> n) | (x << (16 - n)); }
-NUMKONG_HELPER_AUTO nk_u8_t nk_u8_ror(nk_u8_t x, int n) { return (x >> n) | (x << (8 - n)); }
+NUMKONG_CONSTEXPR nk_u32_t nk_u32_rol_(nk_u32_t x, int n) { return (x << n) | (x >> (32 - n)); }
+NUMKONG_CONSTEXPR nk_u16_t nk_u16_rol_(nk_u16_t x, int n) { return (x << n) | (x >> (16 - n)); }
+NUMKONG_CONSTEXPR nk_u8_t nk_u8_rol_(nk_u8_t x, int n) { return (x << n) | (x >> (8 - n)); }
+NUMKONG_CONSTEXPR nk_u32_t nk_u32_ror_(nk_u32_t x, int n) { return (x >> n) | (x << (32 - n)); }
+NUMKONG_CONSTEXPR nk_u16_t nk_u16_ror_(nk_u16_t x, int n) { return (x >> n) | (x << (16 - n)); }
+NUMKONG_CONSTEXPR nk_u8_t nk_u8_ror_(nk_u8_t x, int n) { return (x >> n) | (x << (8 - n)); }
 
 #if defined(__clang__)
 #pragma clang attribute push(                                                                         \
@@ -53,7 +53,7 @@ NUMKONG_HELPER_AUTO nk_u8_t nk_u8_ror(nk_u8_t x, int n) { return (x >> n) | (x <
 
 /** Analogous to @c _mm512_2intersect_epi16_mask, but compatible with Ice Lake CPUs, slightly faster
  *  than the native Tiger Lake implementation, but returns only one mask. */
-NUMKONG_HELPER_INLINE nk_u32_t nk_intersect_u16x32_icelake_(__m512i a, __m512i b) {
+NUMKONG_INLINE nk_u32_t nk_intersect_u16x32_icelake_(__m512i a, __m512i b) {
     __m512i a1_u16x32 = _mm512_alignr_epi32(a, a, 4);
     __m512i a2_u16x32 = _mm512_alignr_epi32(a, a, 8);
     __m512i a3_u16x32 = _mm512_alignr_epi32(a, a, 12);
@@ -107,12 +107,12 @@ NUMKONG_HELPER_INLINE nk_u32_t nk_intersect_u16x32_icelake_(__m512i a, __m512i b
     __mmask32 nm72_m32 = _mm512_mask_cmpneq_epi16_mask(nm62_m32, a2_u16x32, b31_u16x32);
     __mmask32 nm73_m32 = _mm512_mask_cmpneq_epi16_mask(nm63_m32, a3_u16x32, b31_u16x32);
 
-    return ~(nk_u32_t)(nm70_m32 & nk_u32_rol(nm71_m32, 8) & nk_u32_rol(nm72_m32, 16) & nk_u32_ror(nm73_m32, 8));
+    return ~(nk_u32_t)(nm70_m32 & nk_u32_rol_(nm71_m32, 8) & nk_u32_rol_(nm72_m32, 16) & nk_u32_ror_(nm73_m32, 8));
 }
 
 /** Analogous to @c _mm512_2intersect_epi32, but compatible with Ice Lake CPUs, slightly faster than
  *  the native Tiger Lake implementation, but returns only one mask. */
-NUMKONG_HELPER_INLINE nk_u16_t nk_intersect_u32x16_icelake_(__m512i a, __m512i b) {
+NUMKONG_INLINE nk_u16_t nk_intersect_u32x16_icelake_(__m512i a, __m512i b) {
     __m512i a1_u32x16 = _mm512_alignr_epi32(a, a, 4);
     __m512i b1_u32x16 = _mm512_shuffle_epi32(b, _MM_PERM_ADCB);
     __mmask16 nm00_m16 = _mm512_cmpneq_epi32_mask(a, b);
@@ -141,19 +141,21 @@ NUMKONG_HELPER_INLINE nk_u16_t nk_intersect_u32x16_icelake_(__m512i a, __m512i b
     __mmask16 nm2_m16 = _mm512_mask_cmpneq_epi32_mask(nm22_m16, a2_u32x16, b3_u32x16);
     __mmask16 nm3_m16 = _mm512_mask_cmpneq_epi32_mask(nm23_m16, a3_u32x16, b3_u32x16);
 
-    return ~(nk_u16_t)(nm0_m16 & nk_u16_rol(nm1_m16, 4) & nk_u16_rol(nm2_m16, 8) & nk_u16_ror(nm3_m16, 4));
+    return ~(nk_u16_t)(nm0_m16 & nk_u16_rol_(nm1_m16, 4) & nk_u16_rol_(nm2_m16, 8) & nk_u16_ror_(nm3_m16, 4));
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_sparse_intersect_u16_icelake( //
-    nk_u16_t const *a, nk_u16_t const *b,                         //
-    nk_size_t a_length, nk_size_t b_length,                       //
+#if NUMKONG_TARGET_ICELAKE
+NUMKONG_API nk_status_t nk_sparse_intersect_u16_icelake( //
+    nk_u16_t const *a, nk_u16_t const *b,                //
+    nk_size_t a_length, nk_size_t b_length,              //
     nk_u16_t *result, nk_size_t *count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
 #if NUMKONG_ALLOW_ISA_REDIRECT
     // The baseline implementation for very small arrays (2 registers or less) can be quite simple:
     if (a_length < 64 && b_length < 64) {
-        return nk_sparse_intersect_u16_serial(a, b, a_length, b_length, result, count, stream);
+        nk_sparse_intersect_u16_(a, b, a_length, b_length, result, count);
+        return nk_success_k;
     }
 #endif
 
@@ -203,21 +205,22 @@ NUMKONG_API_COMPTIME nk_status_t nk_sparse_intersect_u16_icelake( //
     }
 
     nk_size_t tail_count = 0;
-    nk_sparse_intersect_u16_serial(a, b, a_end - a, b_end - b, result ? result + c : 0, &tail_count, stream);
+    nk_sparse_intersect_u16_(a, b, a_end - a, b_end - b, result ? result + c : 0, &tail_count);
     *count = c + tail_count;
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_sparse_intersect_u32_icelake( //
-    nk_u32_t const *a, nk_u32_t const *b,                         //
-    nk_size_t a_length, nk_size_t b_length,                       //
+NUMKONG_API nk_status_t nk_sparse_intersect_u32_icelake( //
+    nk_u32_t const *a, nk_u32_t const *b,                //
+    nk_size_t a_length, nk_size_t b_length,              //
     nk_u32_t *result, nk_size_t *count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
 #if NUMKONG_ALLOW_ISA_REDIRECT
     // The baseline implementation for very small arrays (2 registers or less) can be quite simple:
     if (a_length < 32 && b_length < 32) {
-        return nk_sparse_intersect_u32_serial(a, b, a_length, b_length, result, count, stream);
+        nk_sparse_intersect_u32_(a, b, a_length, b_length, result, count);
+        return nk_success_k;
     }
 #endif
 
@@ -267,14 +270,15 @@ NUMKONG_API_COMPTIME nk_status_t nk_sparse_intersect_u32_icelake( //
     }
 
     nk_size_t tail_count = 0;
-    nk_sparse_intersect_u32_serial(a, b, a_end - a, b_end - b, result ? result + c : 0, &tail_count, stream);
+    nk_sparse_intersect_u32_(a, b, a_end - a, b_end - b, result ? result + c : 0, &tail_count);
     *count = c + tail_count;
     return nk_success_k;
 }
+#endif // NUMKONG_TARGET_ICELAKE
 
 /** Analogous to @c _mm512_2intersect_epi64, but compatible with Ice Lake CPUs, and returns only one
  *  mask indicating which elements in @p a have a match in @p b. */
-NUMKONG_HELPER_INLINE nk_u8_t nk_intersect_u64x8_icelake_(__m512i a, __m512i b) {
+NUMKONG_INLINE nk_u8_t nk_intersect_u64x8_icelake_(__m512i a, __m512i b) {
     __m512i a1_u64x8 = _mm512_alignr_epi64(a, a, 2);
     __m512i b1_u64x8 = _mm512_permutex_epi64(b, _MM_PERM_ADCB);
     __mmask8 nm00_m8 = _mm512_cmpneq_epi64_mask(a, b);
@@ -303,19 +307,21 @@ NUMKONG_HELPER_INLINE nk_u8_t nk_intersect_u64x8_icelake_(__m512i a, __m512i b) 
     __mmask8 nm2_m8 = _mm512_mask_cmpneq_epi64_mask(nm22_m8, a2_u64x8, b3_u64x8);
     __mmask8 nm3_m8 = _mm512_mask_cmpneq_epi64_mask(nm23_m8, a3_u64x8, b3_u64x8);
 
-    return ~(nk_u8_t)(nm0_m8 & nk_u8_rol(nm1_m8, 2) & nk_u8_rol(nm2_m8, 4) & nk_u8_ror(nm3_m8, 2));
+    return ~(nk_u8_t)(nm0_m8 & nk_u8_rol_(nm1_m8, 2) & nk_u8_rol_(nm2_m8, 4) & nk_u8_ror_(nm3_m8, 2));
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_sparse_intersect_u64_icelake( //
-    nk_u64_t const *a, nk_u64_t const *b,                         //
-    nk_size_t a_length, nk_size_t b_length,                       //
+#if NUMKONG_TARGET_ICELAKE
+NUMKONG_API nk_status_t nk_sparse_intersect_u64_icelake( //
+    nk_u64_t const *a, nk_u64_t const *b,                //
+    nk_size_t a_length, nk_size_t b_length,              //
     nk_u64_t *result, nk_size_t *count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
 #if NUMKONG_ALLOW_ISA_REDIRECT
     // The baseline implementation for very small arrays (2 registers or less) can be quite simple:
     if (a_length < 16 && b_length < 16) {
-        return nk_sparse_intersect_u64_serial(a, b, a_length, b_length, result, count, stream);
+        nk_sparse_intersect_u64_(a, b, a_length, b_length, result, count);
+        return nk_success_k;
     }
 #endif
 
@@ -365,21 +371,22 @@ NUMKONG_API_COMPTIME nk_status_t nk_sparse_intersect_u64_icelake( //
     }
 
     nk_size_t tail_count = 0;
-    nk_sparse_intersect_u64_serial(a, b, a_end - a, b_end - b, result ? result + c : 0, &tail_count, stream);
+    nk_sparse_intersect_u64_(a, b, a_end - a, b_end - b, result ? result + c : 0, &tail_count);
     *count = c + tail_count;
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_sparse_dot_u32f32_icelake( //
-    nk_u32_t const *a, nk_u32_t const *b,                      //
-    nk_f32_t const *a_weights, nk_f32_t const *b_weights,      //
+NUMKONG_API nk_status_t nk_sparse_dot_u32f32_icelake(     //
+    nk_u32_t const *a, nk_u32_t const *b,                 //
+    nk_f32_t const *a_weights, nk_f32_t const *b_weights, //
     nk_size_t a_length, nk_size_t b_length, nk_f64_t *product, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
 #if NUMKONG_ALLOW_ISA_REDIRECT
     // The baseline implementation for very small arrays (2 registers or less) can be quite simple:
     if (a_length < 32 && b_length < 32) {
-        return nk_sparse_dot_u32f32_serial(a, b, a_weights, b_weights, a_length, b_length, product, stream);
+        nk_sparse_dot_u32f32_(a, b, a_weights, b_weights, a_length, b_length, product);
+        return nk_success_k;
     }
 #endif
 
@@ -452,10 +459,11 @@ NUMKONG_API_COMPTIME nk_status_t nk_sparse_dot_u32f32_icelake( //
     }
 
     nk_f64_t tail_product = 0;
-    nk_sparse_dot_u32f32_serial(a, b, a_weights, b_weights, a_end - a, b_end - b, &tail_product, stream);
+    nk_sparse_dot_u32f32_(a, b, a_weights, b_weights, a_end - a, b_end - b, &tail_product);
     *product = _mm512_reduce_add_pd(product_low_f64x8) + _mm512_reduce_add_pd(product_high_f64x8) + tail_product;
     return nk_success_k;
 }
+#endif // NUMKONG_TARGET_ICELAKE
 
 #if defined(__clang__)
 #pragma clang attribute pop
@@ -467,6 +475,6 @@ NUMKONG_API_COMPTIME nk_status_t nk_sparse_dot_u32f32_icelake( //
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_ICELAKE
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_ICELAKE_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_SPARSE_ICELAKE_H

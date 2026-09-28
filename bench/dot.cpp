@@ -15,15 +15,17 @@ using namespace ashvardanian::numkong::bench;
 
 #if NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
 
-void dot_f32_with_blas(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+nk_status_t dot_f32_with_blas(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result, void *) {
     *result = cblas_dsdot(static_cast<int>(n), a, 1, b, 1);
+    return nk_success_k;
 }
 
-void dot_f64_with_blas(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+nk_status_t dot_f64_with_blas(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result, void *) {
     *result = cblas_ddot(static_cast<int>(n), a, 1, b, 1);
+    return nk_success_k;
 }
 
-void dot_f32c_with_blas(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n, nk_f64c_t *result) {
+nk_status_t dot_f32c_with_blas(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n, nk_f64c_t *result, void *) {
     nk_f32c_t reduced_result_f32;
 #if NUMKONG_COMPARE_TO_ACCELERATE
     cblas_cdotu_sub(static_cast<int>(n), reinterpret_cast<std::complex<float> const *>(a), 1,
@@ -35,9 +37,10 @@ void dot_f32c_with_blas(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n, nk_
 #endif
     result->real = (nk_f64_t)reduced_result_f32.real;
     result->imag = (nk_f64_t)reduced_result_f32.imag;
+    return nk_success_k;
 }
 
-void dot_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n, nk_f64c_t *result) {
+nk_status_t dot_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n, nk_f64c_t *result, void *) {
 #if NUMKONG_COMPARE_TO_ACCELERATE
     cblas_zdotu_sub(static_cast<int>(n), reinterpret_cast<std::complex<double> const *>(a), 1,
                     reinterpret_cast<std::complex<double> const *>(b), 1,
@@ -46,9 +49,10 @@ void dot_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n, nk_
     cblas_zdotu_sub(static_cast<int>(n), reinterpret_cast<nk_f64_t const *>(a), 1,
                     reinterpret_cast<nk_f64_t const *>(b), 1, reinterpret_cast<nk_f64_t *>(result));
 #endif
+    return nk_success_k;
 }
 
-void vdot_f32c_with_blas(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n, nk_f64c_t *result) {
+nk_status_t vdot_f32c_with_blas(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n, nk_f64c_t *result, void *) {
     nk_f32c_t reduced_result_f32;
 #if NUMKONG_COMPARE_TO_ACCELERATE
     cblas_cdotc_sub(static_cast<int>(n), reinterpret_cast<std::complex<float> const *>(a), 1,
@@ -60,9 +64,10 @@ void vdot_f32c_with_blas(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n, nk
 #endif
     result->real = (nk_f64_t)reduced_result_f32.real;
     result->imag = (nk_f64_t)reduced_result_f32.imag;
+    return nk_success_k;
 }
 
-void vdot_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n, nk_f64c_t *result) {
+nk_status_t vdot_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n, nk_f64c_t *result, void *) {
 #if NUMKONG_COMPARE_TO_ACCELERATE
     cblas_zdotc_sub(static_cast<int>(n), reinterpret_cast<std::complex<double> const *>(a), 1,
                     reinterpret_cast<std::complex<double> const *>(b), 1,
@@ -71,6 +76,7 @@ void vdot_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n, nk
     cblas_zdotc_sub(static_cast<int>(n), reinterpret_cast<nk_f64_t const *>(a), 1,
                     reinterpret_cast<nk_f64_t const *>(b), 1, reinterpret_cast<nk_f64_t *>(result));
 #endif
+    return nk_success_k;
 }
 
 #endif // NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE

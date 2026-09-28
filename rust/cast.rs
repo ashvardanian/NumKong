@@ -10,14 +10,24 @@
 //! File: rust/cast.rs
 //! Author: Ash Vardanian
 
+use crate::capabilities::{cpu_capabilities, Status};
 use crate::types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, StorageElement};
 use core::ffi::c_void;
+use core::ptr::null_mut;
 
 #[link(name = "numkong")]
 extern "C" {
-    fn nk_cast(from: *const c_void, from_type: u32, n: usize, to: *mut c_void, to_type: u32);
+    fn nk_cast_best(
+        from: *const c_void,
+        from_type: u32,
+        n: usize,
+        to: *mut c_void,
+        to_type: u32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
 
-    fn nk_cast_block_scaled(
+    fn nk_cast_block_scaled_best(
         from: *const c_void,
         from_scales: *const c_void,
         from_tensor_scale: *const ScalarBuffer,
@@ -27,7 +37,9 @@ extern "C" {
         to_tensor_scale: *mut ScalarBuffer,
         to_format: *const BlockScaledDescriptor,
         count: usize,
-    );
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
 }
 
 /// Internal dtype codes matching `nk_dtype_t` from C.
@@ -187,15 +199,17 @@ pub fn cast<S: CastDType, D: CastDType>(source: &[S], dest: &mut [D]) -> Option<
         return None;
     }
     unsafe {
-        nk_cast(
+        nk_cast_best(
             source.as_ptr() as *const c_void,
             S::dtype_code(),
             source.len(),
             dest.as_mut_ptr() as *mut c_void,
             D::dtype_code(),
-        );
+            cpu_capabilities(),
+            null_mut(),
+        )
     }
-    Some(())
+    .ok()
 }
 
 // region: Tensor-shaped cast
@@ -493,7 +507,7 @@ fn block_scaled_cast_(
     to_derives_scale: bool,
     to_format: &BlockScaledDescriptor,
     count: usize,
-) -> Option<f32> {
+) -> Result<Option<f32>, TensorError> {
     let from_scale_buf = from_tensor_scale.map(ScalarBuffer::from_f32);
     let from_scale_ptr = from_scale_buf
         .as_ref()
@@ -509,7 +523,7 @@ fn block_scaled_cast_(
     // the same shape, so both buffers cover `count` logical elements; the scale buffers live across
     // the call; the kernel reads the source and writes only the destination.
     unsafe {
-        nk_cast_block_scaled(
+        nk_cast_block_scaled_best(
             from_elements,
             from_scales,
             from_scale_ptr,
@@ -519,10 +533,12 @@ fn block_scaled_cast_(
             to_scale_ptr,
             to_format,
             count,
-        );
+            cpu_capabilities(),
+            null_mut(),
+        )
     }
-
-    to_derives_scale.then(|| to_scale_buf.to_f32())
+    .check()?;
+    Ok(to_derives_scale.then(|| to_scale_buf.to_f32()))
 }
 
 /// Encode a dense `f32` matrix into a [`ScaledTensor`].
@@ -556,7 +572,7 @@ pub trait DenseToScaledOps<const MAX_RANK: usize>: TensorRef<f32, MAX_RANK> {
             F::HAS_TENSOR_SCALE,
             &F::descriptor(),
             count,
-        );
+        )?;
         ScaledTensor::try_from_parts(elements, block_scales, tensor_scale)
     }
 }
@@ -586,7 +602,7 @@ impl<'a, F: BlockScaledFormat> ScaledTensorView<'a, F> {
             false,
             &BlockScaledDescriptor::plain(T::dtype_code()),
             count,
-        );
+        )?;
         Ok(out)
     }
 
@@ -619,7 +635,7 @@ impl<'a, F: BlockScaledFormat> ScaledTensorView<'a, F> {
             G::HAS_TENSOR_SCALE,
             &G::descriptor(),
             count,
-        );
+        )?;
         ScaledTensor::try_from_parts(elements, block_scales, tensor_scale)
     }
 }
@@ -1032,7 +1048,7 @@ mod tests {
         let mut ref_scales = vec![0u8; to_format.scales_size(count)];
         let mut ref_scale_buf = ScalarBuffer::from_f32(0.0);
         unsafe {
-            nk_cast_block_scaled(
+            nk_cast_block_scaled_best(
                 data.as_ptr() as *const c_void,
                 core::ptr::null(),
                 core::ptr::null(),
@@ -1046,8 +1062,11 @@ mod tests {
                 },
                 &to_format,
                 count,
-            );
+                cpu_capabilities(),
+                null_mut(),
+            )
         }
+        .unwrap();
 
         let elements_view = scaled.elements();
         let scales_view = scaled.block_scales();

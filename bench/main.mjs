@@ -111,7 +111,7 @@ function loadNative() {
 
 async function loadEmscripten() {
     try {
-        // The relaxed tier where both tiers were built, the strict tier otherwise
+        // The relaxed capability where both capabilities were built, the strict capability otherwise
         const wasmPath = ['numkong-wasm32-v128relaxed.js', 'numkong-wasm32-v128.js']
             .map((name) => path.join(rootDir, 'build-wasm', name))
             .find((candidate) => existsSync(candidate));
@@ -284,7 +284,7 @@ async function runBrowserBenchmarks() {
         console.error(`   Expected: ${wasmPath}`);
         console.error('   Build it with:');
         console.error('     source ~/emsdk/emsdk_env.sh');
-        console.error('     cmake -B build-wasm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake -DNUMKONG_WASM_SIMD=v128relaxed');
+        console.error('     cmake -B build-wasm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake -DNUMKONG_TARGET_ARCH=v128relaxed');
         console.error('     cmake --build build-wasm');
         process.exit(1);
     }

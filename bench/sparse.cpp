@@ -45,8 +45,9 @@ void measure_sparse(bm::State &state, kernel_type_ kernel, std::size_t first_siz
     for (auto _ : state) {
         nk_size_t count;
         std::size_t const index = iterations & (vectors_count - 1);
-        kernel(first_vectors[index].raw_values_data(), second_vectors[index].raw_values_data(), first_size, second_size,
-               nullptr, &count);
+        if (!succeeded(state, kernel(first_vectors[index].raw_values_data(), second_vectors[index].raw_values_data(),
+                                     first_size, second_size, nullptr, &count, nullptr)))
+            break;
         bm::DoNotOptimize(count);
         iterations++;
     }
@@ -146,9 +147,10 @@ void measure_sparse_dot(bm::State &state, kernel_type_ kernel, std::size_t first
     std::size_t iterations = 0;
     for (auto _ : state) {
         std::size_t const idx = iterations & (vectors_count - 1);
-        kernel(first_indices[idx].raw_values_data(), second_indices[idx].raw_values_data(),
-               first_weights[idx].raw_values_data(), second_weights[idx].raw_values_data(), first_size, second_size,
-               &product.raw_);
+        if (!succeeded(state, kernel(first_indices[idx].raw_values_data(), second_indices[idx].raw_values_data(),
+                                     first_weights[idx].raw_values_data(), second_weights[idx].raw_values_data(),
+                                     first_size, second_size, &product.raw_, nullptr)))
+            break;
         bm::DoNotOptimize(product);
         iterations++;
     }

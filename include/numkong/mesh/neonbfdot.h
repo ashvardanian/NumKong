@@ -27,11 +27,12 @@
  *  calculations while halving memory bandwidth compared to F32.
  *
  *  For Kabsch and Umeyama point cloud registration, BF16 data is loaded using VLD3 de-interleave
- *  operations and processed directly with BFDOT, @c vbfdotq_f32, which computes two BF16 products
- *  per 32-bit lane with FP32 accumulation. This skips the explicit bf16 → f32 widening that a
- *  vshll+fmaq approach requires, halving the front-end pressure on the covariance and centroid
- *  stats pass. RMSD keeps the widen+subtract+fmaq pipeline because it needs the a − b difference
- *  before squaring, which BFDOT cannot express directly.
+ *  operations and every moment, centroid sums included, goes through BFDOT, @c vbfdotq_f32, which
+ *  computes two BF16 products per 32-bit lane with FP32 accumulation. Each point is first shifted
+ *  by the first one, so the centering correction doesn't cancel far from the origin. With no BF16
+ *  subtraction, the shift widens with @c vshll_n_u16, subtracts in FP32 and rounds back with
+ *  BFCVTN, by at most half a ULP of the shifted value, below the quantization of the inputs.
+ *  RMSD keeps the widen+subtract+fmaq pipeline, as BFDOT can't express the a − b difference.
  */
 #ifndef NUMKONG_MESH_NEONBFDOT_H
 #define NUMKONG_MESH_NEONBFDOT_H
@@ -40,9 +41,8 @@
 #if NUMKONG_TARGET_NEONBFDOT
 
 #include "numkong/types.h"
-#include "numkong/cast/neon.h"    // `nk_u16x8_splat_`
-#include "numkong/spatial/neon.h" // `nk_f32_sqrt_neon`
-#include "numkong/mesh/serial.h"  // `nk_det3x3_f32_`, `nk_svd3x3_f32_`
+#include "numkong/cast/neon.h"   // `nk_u16x8_splat_`
+#include "numkong/mesh/serial.h" // `nk_det3x3_f32_`, `nk_svd3x3_f32_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -60,8 +60,8 @@ extern "C" {
  *
  *  Input: 12 contiguous bf16 [x0,y0,z0, x1,y1,z1, x2,y2,z2, x3,y3,z3]
  *  Output: x[4], y[4], z[4] vectors in f32 */
-NUMKONG_HELPER_INLINE void nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(nk_bf16_t const *ptr, float32x4_t *x_out,
-                                                                      float32x4_t *y_out, float32x4_t *z_out) {
+NUMKONG_INLINE void nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(nk_bf16_t const *ptr, float32x4_t *x_out,
+                                                               float32x4_t *y_out, float32x4_t *z_out) {
     // Load 12 bf16 values and de-interleave into x, y, z components
     uint16x4x3_t xyz_u16x4x3 = vld3_u16((nk_u16_t const *)ptr);
     // Convert bf16 to f32 by zero-extending to lower 16 bits, then shifting left by 16
@@ -73,18 +73,73 @@ NUMKONG_HELPER_INLINE void nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(nk_bf16_t 
     *z_out = vreinterpretq_f32_u32(z_u32x4);
 }
 
-NUMKONG_HELPER_INLINE void nk_partial_deinterleave_bf16_to_f32x4_neonbfdot_(nk_bf16_t const *ptr, nk_size_t n_points,
-                                                                            float32x4_t *x_out, float32x4_t *y_out,
-                                                                            float32x4_t *z_out) {
+NUMKONG_INLINE void nk_partial_deinterleave_bf16_to_f32x4_neonbfdot_(nk_bf16_t const *ptr, nk_size_t n_points,
+                                                                     float32x4_t *x_out, float32x4_t *y_out,
+                                                                     float32x4_t *z_out) {
     nk_u16_t buf[12] = {0};
     nk_u16_t const *src = (nk_u16_t const *)ptr;
     for (nk_size_t k = 0; k < n_points * 3; ++k) buf[k] = src[k];
     nk_deinterleave_bf16x4_to_f32x4_neonbfdot_((nk_bf16_t const *)buf, x_out, y_out, z_out);
 }
 
-NUMKONG_API_COMPTIME void nk_rmsd_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                 nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                                 nk_f32_t *scale, nk_f32_t *result) {
+/** Shifts 8 bf16 values by a pivot in f32 and rounds them back to bf16 for BFDOT. */
+NUMKONG_INLINE bfloat16x8_t nk_shift_bf16x8_neonbfdot_(uint16x8_t values_u16x8, float32x4_t pivot_f32x4) {
+    float32x4_t low_f32x4 = vsubq_f32(vreinterpretq_f32_u32(vshll_n_u16(vget_low_u16(values_u16x8), 16)), pivot_f32x4);
+    float32x4_t high_f32x4 = vsubq_f32(vreinterpretq_f32_u32(vshll_high_n_u16(values_u16x8, 16)), pivot_f32x4);
+    return vcvtq_high_bf16_f32(vcvtq_low_bf16_f32(low_f32x4), high_f32x4);
+}
+
+/** Centroids, centered cross-covariance, ‖a − ā‖² and ‖b − b̄‖² of bf16 clouds,
+ *  in one BFDOT pass shifted by the pivots. */
+NUMKONG_INLINE void nk_centered_moments_bf16_neonbfdot_(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                        nk_f32_t *centroid_a, nk_f32_t *centroid_b,
+                                                        nk_f32_t *cross_covariance, nk_f32_t *centered_norm_squared_a,
+                                                        nk_f32_t *centered_norm_squared_b) {
+    nk_u16_t const *a_u16 = (nk_u16_t const *)a, *b_u16 = (nk_u16_t const *)b;
+    // The wrapper keeps GCC from emitting an FP16 `fmov` of 1.0, which `+bf16` can't assemble.
+    bfloat16x8_t const ones_bf16x8 = vreinterpretq_bf16_u16(nk_u16x8_splat_(0x3F80));
+    nk_f32_t pivot_a[3], pivot_b[3];
+    float32x4_t pivot_a_f32x4[3], pivot_b_f32x4[3], sum_a_f32x4[3], sum_b_f32x4[3], covariance_f32x4[9];
+    float32x4_t norm_squared_a_f32x4 = vdupq_n_f32(0), norm_squared_b_f32x4 = vdupq_n_f32(0);
+    for (int j = 0; j != 3; ++j)
+        nk_bf16_to_f32_(a + j, pivot_a + j), nk_bf16_to_f32_(b + j, pivot_b + j),
+            pivot_a_f32x4[j] = vdupq_n_f32(pivot_a[j]), pivot_b_f32x4[j] = vdupq_n_f32(pivot_b[j]),
+            sum_a_f32x4[j] = vdupq_n_f32(0), sum_b_f32x4[j] = vdupq_n_f32(0);
+    for (int j = 0; j != 9; ++j) covariance_f32x4[j] = vdupq_n_f32(0);
+    // Pads the tail with pivots, which shift to zeros and add nothing to the moments.
+    nk_u16_t tail_a_u16[24], tail_b_u16[24];
+    for (int k = 0; k != 24; ++k) tail_a_u16[k] = a_u16[k % 3], tail_b_u16[k] = b_u16[k % 3];
+    for (nk_size_t i = 0; i < n; i += 8) {
+        nk_u16_t const *a_chunk_u16 = a_u16 + i * 3, *b_chunk_u16 = b_u16 + i * 3;
+        if (i + 8 > n) {
+            for (nk_size_t k = 0; k != (n - i) * 3; ++k) tail_a_u16[k] = a_chunk_u16[k], tail_b_u16[k] = b_chunk_u16[k];
+            a_chunk_u16 = tail_a_u16, b_chunk_u16 = tail_b_u16;
+        }
+        uint16x8x3_t a_u16x8x3 = vld3q_u16(a_chunk_u16), b_u16x8x3 = vld3q_u16(b_chunk_u16);
+        bfloat16x8_t a_bf16x8[3], b_bf16x8[3];
+        for (int j = 0; j != 3; ++j) {
+            a_bf16x8[j] = nk_shift_bf16x8_neonbfdot_(a_u16x8x3.val[j], pivot_a_f32x4[j]);
+            b_bf16x8[j] = nk_shift_bf16x8_neonbfdot_(b_u16x8x3.val[j], pivot_b_f32x4[j]);
+            sum_a_f32x4[j] = vbfdotq_f32(sum_a_f32x4[j], a_bf16x8[j], ones_bf16x8);
+            sum_b_f32x4[j] = vbfdotq_f32(sum_b_f32x4[j], b_bf16x8[j], ones_bf16x8);
+            norm_squared_a_f32x4 = vbfdotq_f32(norm_squared_a_f32x4, a_bf16x8[j], a_bf16x8[j]);
+            norm_squared_b_f32x4 = vbfdotq_f32(norm_squared_b_f32x4, b_bf16x8[j], b_bf16x8[j]);
+        }
+        for (int j = 0; j != 9; ++j)
+            covariance_f32x4[j] = vbfdotq_f32(covariance_f32x4[j], a_bf16x8[j / 3], b_bf16x8[j % 3]);
+    }
+    nk_f32_t sum_a[3], sum_b[3], covariance[9];
+    for (int j = 0; j != 3; ++j) sum_a[j] = vaddvq_f32(sum_a_f32x4[j]), sum_b[j] = vaddvq_f32(sum_b_f32x4[j]);
+    for (int j = 0; j != 9; ++j) covariance[j] = vaddvq_f32(covariance_f32x4[j]);
+    nk_centered_moments_finalize_f32_(n, pivot_a, pivot_b, sum_a, sum_b, covariance, vaddvq_f32(norm_squared_a_f32x4),
+                                      vaddvq_f32(norm_squared_b_f32x4), centroid_a, centroid_b, cross_covariance,
+                                      centered_norm_squared_a, centered_norm_squared_b);
+}
+
+NUMKONG_API nk_status_t nk_rmsd_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                               nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
+                                               nk_f32_t *scale, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     // RMSD uses identity rotation and scale=1.0
     if (rotation)
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
@@ -93,7 +148,7 @@ NUMKONG_API_COMPTIME void nk_rmsd_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t c
 
     if (n == 0) {
         *result = 0;
-        return;
+        return nk_success_k;
     }
     if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
     if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -140,12 +195,15 @@ NUMKONG_API_COMPTIME void nk_rmsd_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t c
     nk_f32_t total_squared_y = vaddvq_f32(sum_squared_y_f32x4);
     nk_f32_t total_squared_z = vaddvq_f32(sum_squared_z_f32x4);
 
-    *result = nk_f32_sqrt_neon((total_squared_x + total_squared_y + total_squared_z) / (nk_f32_t)n);
+    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32((total_squared_x + total_squared_y + total_squared_z) / (nk_f32_t)n)),
+                            0);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_kabsch_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                   nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                                   nk_f32_t *scale, nk_f32_t *result) {
+NUMKONG_API nk_status_t nk_kabsch_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                 nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
+                                                 nk_f32_t *scale, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -154,179 +212,16 @@ NUMKONG_API_COMPTIME void nk_kabsch_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t
             rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
         if (scale) *scale = 1.0f;
         *result = 0;
-        return;
+        return nk_success_k;
     }
 
-    float32x4_t const zeros_f32x4 = vdupq_n_f32(0);
-    // bf16 representation of 1.0 is 0x3F80; splatted across 8 lanes for BFDOT-based horizontal sums.
-    // The `nk_u16x8_splat_` wrapper prevents GCC from lowering this to `fmov v.8h, #1.0` (a FEAT_FP16
-    // encoding) that fails to assemble under a `+bf16`-only pragma.
-    bfloat16x8_t const ones_bf16x8 = vreinterpretq_bf16_u16(nk_u16x8_splat_(0x3F80));
+    nk_f32_t centroid_a[3], centroid_b[3], cross_covariance[9], centered_norm_squared_a, centered_norm_squared_b;
+    nk_centered_moments_bf16_neonbfdot_(a, b, n, centroid_a, centroid_b, cross_covariance, &centered_norm_squared_a,
+                                        &centered_norm_squared_b);
+    if (a_centroid) a_centroid[0] = centroid_a[0], a_centroid[1] = centroid_a[1], a_centroid[2] = centroid_a[2];
+    if (b_centroid) b_centroid[0] = centroid_b[0], b_centroid[1] = centroid_b[1], b_centroid[2] = centroid_b[2];
 
-    // Centroid numerators, norm-squared, and 3x3 cross-covariance accumulators.
-    float32x4_t sum_a_x_f32x4 = zeros_f32x4, sum_a_y_f32x4 = zeros_f32x4, sum_a_z_f32x4 = zeros_f32x4;
-    float32x4_t sum_b_x_f32x4 = zeros_f32x4, sum_b_y_f32x4 = zeros_f32x4, sum_b_z_f32x4 = zeros_f32x4;
-    float32x4_t covariance_xx_f32x4 = zeros_f32x4, covariance_xy_f32x4 = zeros_f32x4, covariance_xz_f32x4 = zeros_f32x4;
-    float32x4_t covariance_yx_f32x4 = zeros_f32x4, covariance_yy_f32x4 = zeros_f32x4, covariance_yz_f32x4 = zeros_f32x4;
-    float32x4_t covariance_zx_f32x4 = zeros_f32x4, covariance_zy_f32x4 = zeros_f32x4, covariance_zz_f32x4 = zeros_f32x4;
-    float32x4_t norm_squared_a_f32x4 = zeros_f32x4, norm_squared_b_f32x4 = zeros_f32x4;
-
-    nk_size_t i = 0;
-
-    // Main loop: 8 triplets per iteration via vld3q_u16 + vbfdotq_f32.
-    // Each vld3q_u16 de-interleaves 24 bf16 values into three 8-lane channel vectors.
-    // vbfdotq_f32(acc, p, q) computes per-32bit-lane: acc[l] += p[2l]*q[2l] + p[2l+1]*q[2l+1]
-    // with bf16 inputs and f32 accumulation. Summing the 4 lanes at the end yields the scalar.
-    for (; i + 8 <= n; i += 8) {
-        uint16x8x3_t a_xyz_u16x8x3 = vld3q_u16((nk_u16_t const *)(a + i * 3));
-        uint16x8x3_t b_xyz_u16x8x3 = vld3q_u16((nk_u16_t const *)(b + i * 3));
-        bfloat16x8_t a_x_bf16x8 = vreinterpretq_bf16_u16(a_xyz_u16x8x3.val[0]);
-        bfloat16x8_t a_y_bf16x8 = vreinterpretq_bf16_u16(a_xyz_u16x8x3.val[1]);
-        bfloat16x8_t a_z_bf16x8 = vreinterpretq_bf16_u16(a_xyz_u16x8x3.val[2]);
-        bfloat16x8_t b_x_bf16x8 = vreinterpretq_bf16_u16(b_xyz_u16x8x3.val[0]);
-        bfloat16x8_t b_y_bf16x8 = vreinterpretq_bf16_u16(b_xyz_u16x8x3.val[1]);
-        bfloat16x8_t b_z_bf16x8 = vreinterpretq_bf16_u16(b_xyz_u16x8x3.val[2]);
-
-        // Centroid numerators: Σ channel values (pairwise via BFDOT against bf16 1.0).
-        sum_a_x_f32x4 = vbfdotq_f32(sum_a_x_f32x4, a_x_bf16x8, ones_bf16x8);
-        sum_a_y_f32x4 = vbfdotq_f32(sum_a_y_f32x4, a_y_bf16x8, ones_bf16x8);
-        sum_a_z_f32x4 = vbfdotq_f32(sum_a_z_f32x4, a_z_bf16x8, ones_bf16x8);
-        sum_b_x_f32x4 = vbfdotq_f32(sum_b_x_f32x4, b_x_bf16x8, ones_bf16x8);
-        sum_b_y_f32x4 = vbfdotq_f32(sum_b_y_f32x4, b_y_bf16x8, ones_bf16x8);
-        sum_b_z_f32x4 = vbfdotq_f32(sum_b_z_f32x4, b_z_bf16x8, ones_bf16x8);
-
-        // 3x3 cross-covariance H cells: Σ a_j · b_k.
-        covariance_xx_f32x4 = vbfdotq_f32(covariance_xx_f32x4, a_x_bf16x8, b_x_bf16x8);
-        covariance_xy_f32x4 = vbfdotq_f32(covariance_xy_f32x4, a_x_bf16x8, b_y_bf16x8);
-        covariance_xz_f32x4 = vbfdotq_f32(covariance_xz_f32x4, a_x_bf16x8, b_z_bf16x8);
-        covariance_yx_f32x4 = vbfdotq_f32(covariance_yx_f32x4, a_y_bf16x8, b_x_bf16x8);
-        covariance_yy_f32x4 = vbfdotq_f32(covariance_yy_f32x4, a_y_bf16x8, b_y_bf16x8);
-        covariance_yz_f32x4 = vbfdotq_f32(covariance_yz_f32x4, a_y_bf16x8, b_z_bf16x8);
-        covariance_zx_f32x4 = vbfdotq_f32(covariance_zx_f32x4, a_z_bf16x8, b_x_bf16x8);
-        covariance_zy_f32x4 = vbfdotq_f32(covariance_zy_f32x4, a_z_bf16x8, b_y_bf16x8);
-        covariance_zz_f32x4 = vbfdotq_f32(covariance_zz_f32x4, a_z_bf16x8, b_z_bf16x8);
-
-        // Norm-squared per point set: Σ (x² + y² + z²).
-        norm_squared_a_f32x4 = vbfdotq_f32(norm_squared_a_f32x4, a_x_bf16x8, a_x_bf16x8);
-        norm_squared_a_f32x4 = vbfdotq_f32(norm_squared_a_f32x4, a_y_bf16x8, a_y_bf16x8);
-        norm_squared_a_f32x4 = vbfdotq_f32(norm_squared_a_f32x4, a_z_bf16x8, a_z_bf16x8);
-        norm_squared_b_f32x4 = vbfdotq_f32(norm_squared_b_f32x4, b_x_bf16x8, b_x_bf16x8);
-        norm_squared_b_f32x4 = vbfdotq_f32(norm_squared_b_f32x4, b_y_bf16x8, b_y_bf16x8);
-        norm_squared_b_f32x4 = vbfdotq_f32(norm_squared_b_f32x4, b_z_bf16x8, b_z_bf16x8);
-    }
-
-    // 4-point and partial (1-3) tails: keep the widen+fmaq path on f32x4 channel vectors.
-    // These branches run at most once each, so we skip another vbfdotq variant for them.
-    float32x4_t a_x_f32x4, a_y_f32x4, a_z_f32x4, b_x_f32x4, b_y_f32x4, b_z_f32x4;
-    for (; i + 4 <= n; i += 4) {
-        nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(a + i * 3, &a_x_f32x4, &a_y_f32x4, &a_z_f32x4);
-        nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(b + i * 3, &b_x_f32x4, &b_y_f32x4, &b_z_f32x4);
-        sum_a_x_f32x4 = vaddq_f32(sum_a_x_f32x4, a_x_f32x4);
-        sum_a_y_f32x4 = vaddq_f32(sum_a_y_f32x4, a_y_f32x4);
-        sum_a_z_f32x4 = vaddq_f32(sum_a_z_f32x4, a_z_f32x4);
-        sum_b_x_f32x4 = vaddq_f32(sum_b_x_f32x4, b_x_f32x4);
-        sum_b_y_f32x4 = vaddq_f32(sum_b_y_f32x4, b_y_f32x4);
-        sum_b_z_f32x4 = vaddq_f32(sum_b_z_f32x4, b_z_f32x4);
-        covariance_xx_f32x4 = vfmaq_f32(covariance_xx_f32x4, a_x_f32x4, b_x_f32x4);
-        covariance_xy_f32x4 = vfmaq_f32(covariance_xy_f32x4, a_x_f32x4, b_y_f32x4);
-        covariance_xz_f32x4 = vfmaq_f32(covariance_xz_f32x4, a_x_f32x4, b_z_f32x4);
-        covariance_yx_f32x4 = vfmaq_f32(covariance_yx_f32x4, a_y_f32x4, b_x_f32x4);
-        covariance_yy_f32x4 = vfmaq_f32(covariance_yy_f32x4, a_y_f32x4, b_y_f32x4);
-        covariance_yz_f32x4 = vfmaq_f32(covariance_yz_f32x4, a_y_f32x4, b_z_f32x4);
-        covariance_zx_f32x4 = vfmaq_f32(covariance_zx_f32x4, a_z_f32x4, b_x_f32x4);
-        covariance_zy_f32x4 = vfmaq_f32(covariance_zy_f32x4, a_z_f32x4, b_y_f32x4);
-        covariance_zz_f32x4 = vfmaq_f32(covariance_zz_f32x4, a_z_f32x4, b_z_f32x4);
-        norm_squared_a_f32x4 = vfmaq_f32(norm_squared_a_f32x4, a_x_f32x4, a_x_f32x4);
-        norm_squared_a_f32x4 = vfmaq_f32(norm_squared_a_f32x4, a_y_f32x4, a_y_f32x4);
-        norm_squared_a_f32x4 = vfmaq_f32(norm_squared_a_f32x4, a_z_f32x4, a_z_f32x4);
-        norm_squared_b_f32x4 = vfmaq_f32(norm_squared_b_f32x4, b_x_f32x4, b_x_f32x4);
-        norm_squared_b_f32x4 = vfmaq_f32(norm_squared_b_f32x4, b_y_f32x4, b_y_f32x4);
-        norm_squared_b_f32x4 = vfmaq_f32(norm_squared_b_f32x4, b_z_f32x4, b_z_f32x4);
-    }
-    if (i < n) {
-        nk_partial_deinterleave_bf16_to_f32x4_neonbfdot_(a + i * 3, n - i, &a_x_f32x4, &a_y_f32x4, &a_z_f32x4);
-        nk_partial_deinterleave_bf16_to_f32x4_neonbfdot_(b + i * 3, n - i, &b_x_f32x4, &b_y_f32x4, &b_z_f32x4);
-        sum_a_x_f32x4 = vaddq_f32(sum_a_x_f32x4, a_x_f32x4);
-        sum_a_y_f32x4 = vaddq_f32(sum_a_y_f32x4, a_y_f32x4);
-        sum_a_z_f32x4 = vaddq_f32(sum_a_z_f32x4, a_z_f32x4);
-        sum_b_x_f32x4 = vaddq_f32(sum_b_x_f32x4, b_x_f32x4);
-        sum_b_y_f32x4 = vaddq_f32(sum_b_y_f32x4, b_y_f32x4);
-        sum_b_z_f32x4 = vaddq_f32(sum_b_z_f32x4, b_z_f32x4);
-        covariance_xx_f32x4 = vfmaq_f32(covariance_xx_f32x4, a_x_f32x4, b_x_f32x4);
-        covariance_xy_f32x4 = vfmaq_f32(covariance_xy_f32x4, a_x_f32x4, b_y_f32x4);
-        covariance_xz_f32x4 = vfmaq_f32(covariance_xz_f32x4, a_x_f32x4, b_z_f32x4);
-        covariance_yx_f32x4 = vfmaq_f32(covariance_yx_f32x4, a_y_f32x4, b_x_f32x4);
-        covariance_yy_f32x4 = vfmaq_f32(covariance_yy_f32x4, a_y_f32x4, b_y_f32x4);
-        covariance_yz_f32x4 = vfmaq_f32(covariance_yz_f32x4, a_y_f32x4, b_z_f32x4);
-        covariance_zx_f32x4 = vfmaq_f32(covariance_zx_f32x4, a_z_f32x4, b_x_f32x4);
-        covariance_zy_f32x4 = vfmaq_f32(covariance_zy_f32x4, a_z_f32x4, b_y_f32x4);
-        covariance_zz_f32x4 = vfmaq_f32(covariance_zz_f32x4, a_z_f32x4, b_z_f32x4);
-        norm_squared_a_f32x4 = vfmaq_f32(norm_squared_a_f32x4, a_x_f32x4, a_x_f32x4);
-        norm_squared_a_f32x4 = vfmaq_f32(norm_squared_a_f32x4, a_y_f32x4, a_y_f32x4);
-        norm_squared_a_f32x4 = vfmaq_f32(norm_squared_a_f32x4, a_z_f32x4, a_z_f32x4);
-        norm_squared_b_f32x4 = vfmaq_f32(norm_squared_b_f32x4, b_x_f32x4, b_x_f32x4);
-        norm_squared_b_f32x4 = vfmaq_f32(norm_squared_b_f32x4, b_y_f32x4, b_y_f32x4);
-        norm_squared_b_f32x4 = vfmaq_f32(norm_squared_b_f32x4, b_z_f32x4, b_z_f32x4);
-    }
-
-    // Reduce vector accumulators
-    nk_f32_t sum_a_x = vaddvq_f32(sum_a_x_f32x4);
-    nk_f32_t sum_a_y = vaddvq_f32(sum_a_y_f32x4);
-    nk_f32_t sum_a_z = vaddvq_f32(sum_a_z_f32x4);
-    nk_f32_t sum_b_x = vaddvq_f32(sum_b_x_f32x4);
-    nk_f32_t sum_b_y = vaddvq_f32(sum_b_y_f32x4);
-    nk_f32_t sum_b_z = vaddvq_f32(sum_b_z_f32x4);
-
-    nk_f32_t covariance_x_x = vaddvq_f32(covariance_xx_f32x4);
-    nk_f32_t covariance_x_y = vaddvq_f32(covariance_xy_f32x4);
-    nk_f32_t covariance_x_z = vaddvq_f32(covariance_xz_f32x4);
-    nk_f32_t covariance_y_x = vaddvq_f32(covariance_yx_f32x4);
-    nk_f32_t covariance_y_y = vaddvq_f32(covariance_yy_f32x4);
-    nk_f32_t covariance_y_z = vaddvq_f32(covariance_yz_f32x4);
-    nk_f32_t covariance_z_x = vaddvq_f32(covariance_zx_f32x4);
-    nk_f32_t covariance_z_y = vaddvq_f32(covariance_zy_f32x4);
-    nk_f32_t covariance_z_z = vaddvq_f32(covariance_zz_f32x4);
-    nk_f32_t norm_squared_a = vaddvq_f32(norm_squared_a_f32x4);
-    nk_f32_t norm_squared_b = vaddvq_f32(norm_squared_b_f32x4);
-
-    // Compute centroids
-    nk_f32_t inv_n = 1.0f / (nk_f32_t)n;
-    nk_f32_t centroid_a_x = sum_a_x * inv_n;
-    nk_f32_t centroid_a_y = sum_a_y * inv_n;
-    nk_f32_t centroid_a_z = sum_a_z * inv_n;
-    nk_f32_t centroid_b_x = sum_b_x * inv_n;
-    nk_f32_t centroid_b_y = sum_b_y * inv_n;
-    nk_f32_t centroid_b_z = sum_b_z * inv_n;
-
-    if (a_centroid) a_centroid[0] = centroid_a_x, a_centroid[1] = centroid_a_y, a_centroid[2] = centroid_a_z;
-    if (b_centroid) b_centroid[0] = centroid_b_x, b_centroid[1] = centroid_b_y, b_centroid[2] = centroid_b_z;
-
-    // Centered norm-squared via parallel-axis identity; clamp at zero for numeric safety.
-    nk_f32_t centered_norm_squared_a = norm_squared_a -
-                                       (nk_f32_t)n * (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y +
-                                                      centroid_a_z * centroid_a_z);
-    nk_f32_t centered_norm_squared_b = norm_squared_b -
-                                       (nk_f32_t)n * (centroid_b_x * centroid_b_x + centroid_b_y * centroid_b_y +
-                                                      centroid_b_z * centroid_b_z);
-    if (centered_norm_squared_a < 0.0f) centered_norm_squared_a = 0.0f;
-    if (centered_norm_squared_b < 0.0f) centered_norm_squared_b = 0.0f;
-
-    // Apply centering correction: H_centered = H - n * centroid_a * centroid_bᵀ
-    covariance_x_x -= n * centroid_a_x * centroid_b_x;
-    covariance_x_y -= n * centroid_a_x * centroid_b_y;
-    covariance_x_z -= n * centroid_a_x * centroid_b_z;
-    covariance_y_x -= n * centroid_a_y * centroid_b_x;
-    covariance_y_y -= n * centroid_a_y * centroid_b_y;
-    covariance_y_z -= n * centroid_a_y * centroid_b_z;
-    covariance_z_x -= n * centroid_a_z * centroid_b_x;
-    covariance_z_y -= n * centroid_a_z * centroid_b_y;
-    covariance_z_z -= n * centroid_a_z * centroid_b_z;
-
-    // Compute SVD and optimal rotation
-    nk_f32_t cross_covariance[9] = {covariance_x_x, covariance_x_y, covariance_x_z, covariance_y_x, covariance_y_y,
-                                    covariance_y_z, covariance_z_x, covariance_z_y, covariance_z_z};
-
-    // Identity-dominant short-circuit: if H ≈ diag(positive), R = I and trace(R · H) = trace(H).
+    // Identity-dominant short-circuit: if H ≈ diag(positive), R = I.
     nk_f32_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
                                                 cross_covariance[4] * cross_covariance[4] +
                                                 cross_covariance[8] * cross_covariance[8];
@@ -335,13 +230,11 @@ NUMKONG_API_COMPTIME void nk_kabsch_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t
         cross_covariance[3] * cross_covariance[3] + cross_covariance[5] * cross_covariance[5] +
         cross_covariance[6] * cross_covariance[6] + cross_covariance[7] * cross_covariance[7];
     nk_f32_t optimal_rotation[9];
-    nk_f32_t trace_rotation_covariance;
     if (covariance_offdiagonal_norm_squared < 1e-12f * covariance_diagonal_norm_squared && cross_covariance[0] > 0.0f &&
         cross_covariance[4] > 0.0f && cross_covariance[8] > 0.0f) {
         optimal_rotation[0] = 1, optimal_rotation[1] = 0, optimal_rotation[2] = 0, optimal_rotation[3] = 0,
         optimal_rotation[4] = 1, optimal_rotation[5] = 0, optimal_rotation[6] = 0, optimal_rotation[7] = 0,
         optimal_rotation[8] = 1;
-        trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
     }
     else {
         nk_f32_t svd_left[9], svd_diagonal[9], svd_right[9];
@@ -371,13 +264,6 @@ NUMKONG_API_COMPTIME void nk_kabsch_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t
             optimal_rotation[7] = svd_right[6] * svd_left[3] + svd_right[7] * svd_left[4] + svd_right[8] * svd_left[5];
             optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
         }
-
-        trace_rotation_covariance =
-            optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +
-            optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +
-            optimal_rotation[4] * cross_covariance[4] + optimal_rotation[5] * cross_covariance[7] +
-            optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
-            optimal_rotation[8] * cross_covariance[8];
     }
 
     // Output rotation matrix and scale=1.0
@@ -385,15 +271,16 @@ NUMKONG_API_COMPTIME void nk_kabsch_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
     if (scale) *scale = 1.0f;
 
-    // Folded SSD via trace identity: SSD = ‖a-ā‖² + ‖b-b̄‖² − 2 · trace(R · H_centered).
-    nk_f32_t sum_squared = centered_norm_squared_a + centered_norm_squared_b - 2.0f * trace_rotation_covariance;
-    if (sum_squared < 0.0f) sum_squared = 0.0f;
-    *result = nk_f32_sqrt_neon(sum_squared * inv_n);
+    nk_f32_t sum_squared = nk_folded_ssd_f32_(optimal_rotation, 1.0f, cross_covariance, centered_norm_squared_a,
+                                              centered_norm_squared_b);
+    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(sum_squared / (nk_f32_t)n)), 0);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_umeyama_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                    nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                                    nk_f32_t *scale, nk_f32_t *result) {
+NUMKONG_API nk_status_t nk_umeyama_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                  nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
+                                                  nk_f32_t *scale, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
         if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
@@ -402,177 +289,14 @@ NUMKONG_API_COMPTIME void nk_umeyama_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_
             rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
         if (scale) *scale = 1.0f;
         *result = 0;
-        return;
+        return nk_success_k;
     }
 
-    float32x4_t const zeros_f32x4 = vdupq_n_f32(0);
-    // bf16 representation of 1.0 is 0x3F80; splatted across 8 lanes for BFDOT-based horizontal sums.
-    // The `nk_u16x8_splat_` wrapper prevents GCC from lowering this to `fmov v.8h, #1.0` (a FEAT_FP16
-    // encoding) that fails to assemble under a `+bf16`-only pragma.
-    bfloat16x8_t const ones_bf16x8 = vreinterpretq_bf16_u16(nk_u16x8_splat_(0x3F80));
-
-    // Centroid numerators, norm-squared, and 3x3 cross-covariance accumulators.
-    float32x4_t sum_a_x_f32x4 = zeros_f32x4, sum_a_y_f32x4 = zeros_f32x4, sum_a_z_f32x4 = zeros_f32x4;
-    float32x4_t sum_b_x_f32x4 = zeros_f32x4, sum_b_y_f32x4 = zeros_f32x4, sum_b_z_f32x4 = zeros_f32x4;
-    float32x4_t covariance_xx_f32x4 = zeros_f32x4, covariance_xy_f32x4 = zeros_f32x4, covariance_xz_f32x4 = zeros_f32x4;
-    float32x4_t covariance_yx_f32x4 = zeros_f32x4, covariance_yy_f32x4 = zeros_f32x4, covariance_yz_f32x4 = zeros_f32x4;
-    float32x4_t covariance_zx_f32x4 = zeros_f32x4, covariance_zy_f32x4 = zeros_f32x4, covariance_zz_f32x4 = zeros_f32x4;
-    float32x4_t norm_squared_a_f32x4 = zeros_f32x4, norm_squared_b_f32x4 = zeros_f32x4;
-
-    nk_size_t i = 0;
-
-    // Main loop: 8 triplets per iteration via vld3q_u16 + vbfdotq_f32.
-    // Each vld3q_u16 de-interleaves 24 bf16 values into three 8-lane channel vectors.
-    // vbfdotq_f32(acc, p, q) computes per-32bit-lane: acc[l] += p[2l]*q[2l] + p[2l+1]*q[2l+1]
-    // with bf16 inputs and f32 accumulation. Summing the 4 lanes at the end yields the scalar.
-    for (; i + 8 <= n; i += 8) {
-        uint16x8x3_t a_xyz_u16x8x3 = vld3q_u16((nk_u16_t const *)(a + i * 3));
-        uint16x8x3_t b_xyz_u16x8x3 = vld3q_u16((nk_u16_t const *)(b + i * 3));
-        bfloat16x8_t a_x_bf16x8 = vreinterpretq_bf16_u16(a_xyz_u16x8x3.val[0]);
-        bfloat16x8_t a_y_bf16x8 = vreinterpretq_bf16_u16(a_xyz_u16x8x3.val[1]);
-        bfloat16x8_t a_z_bf16x8 = vreinterpretq_bf16_u16(a_xyz_u16x8x3.val[2]);
-        bfloat16x8_t b_x_bf16x8 = vreinterpretq_bf16_u16(b_xyz_u16x8x3.val[0]);
-        bfloat16x8_t b_y_bf16x8 = vreinterpretq_bf16_u16(b_xyz_u16x8x3.val[1]);
-        bfloat16x8_t b_z_bf16x8 = vreinterpretq_bf16_u16(b_xyz_u16x8x3.val[2]);
-
-        // Centroid numerators: Σ channel values (pairwise via BFDOT against bf16 1.0).
-        sum_a_x_f32x4 = vbfdotq_f32(sum_a_x_f32x4, a_x_bf16x8, ones_bf16x8);
-        sum_a_y_f32x4 = vbfdotq_f32(sum_a_y_f32x4, a_y_bf16x8, ones_bf16x8);
-        sum_a_z_f32x4 = vbfdotq_f32(sum_a_z_f32x4, a_z_bf16x8, ones_bf16x8);
-        sum_b_x_f32x4 = vbfdotq_f32(sum_b_x_f32x4, b_x_bf16x8, ones_bf16x8);
-        sum_b_y_f32x4 = vbfdotq_f32(sum_b_y_f32x4, b_y_bf16x8, ones_bf16x8);
-        sum_b_z_f32x4 = vbfdotq_f32(sum_b_z_f32x4, b_z_bf16x8, ones_bf16x8);
-
-        // 3x3 cross-covariance H cells: Σ a_j · b_k.
-        covariance_xx_f32x4 = vbfdotq_f32(covariance_xx_f32x4, a_x_bf16x8, b_x_bf16x8);
-        covariance_xy_f32x4 = vbfdotq_f32(covariance_xy_f32x4, a_x_bf16x8, b_y_bf16x8);
-        covariance_xz_f32x4 = vbfdotq_f32(covariance_xz_f32x4, a_x_bf16x8, b_z_bf16x8);
-        covariance_yx_f32x4 = vbfdotq_f32(covariance_yx_f32x4, a_y_bf16x8, b_x_bf16x8);
-        covariance_yy_f32x4 = vbfdotq_f32(covariance_yy_f32x4, a_y_bf16x8, b_y_bf16x8);
-        covariance_yz_f32x4 = vbfdotq_f32(covariance_yz_f32x4, a_y_bf16x8, b_z_bf16x8);
-        covariance_zx_f32x4 = vbfdotq_f32(covariance_zx_f32x4, a_z_bf16x8, b_x_bf16x8);
-        covariance_zy_f32x4 = vbfdotq_f32(covariance_zy_f32x4, a_z_bf16x8, b_y_bf16x8);
-        covariance_zz_f32x4 = vbfdotq_f32(covariance_zz_f32x4, a_z_bf16x8, b_z_bf16x8);
-
-        // Norm-squared per point set: Σ (x² + y² + z²).
-        norm_squared_a_f32x4 = vbfdotq_f32(norm_squared_a_f32x4, a_x_bf16x8, a_x_bf16x8);
-        norm_squared_a_f32x4 = vbfdotq_f32(norm_squared_a_f32x4, a_y_bf16x8, a_y_bf16x8);
-        norm_squared_a_f32x4 = vbfdotq_f32(norm_squared_a_f32x4, a_z_bf16x8, a_z_bf16x8);
-        norm_squared_b_f32x4 = vbfdotq_f32(norm_squared_b_f32x4, b_x_bf16x8, b_x_bf16x8);
-        norm_squared_b_f32x4 = vbfdotq_f32(norm_squared_b_f32x4, b_y_bf16x8, b_y_bf16x8);
-        norm_squared_b_f32x4 = vbfdotq_f32(norm_squared_b_f32x4, b_z_bf16x8, b_z_bf16x8);
-    }
-
-    // 4-point and partial (1-3) tails: keep the widen+fmaq path on f32x4 channel vectors.
-    // These branches run at most once each, so we skip another vbfdotq variant for them.
-    float32x4_t a_x_f32x4, a_y_f32x4, a_z_f32x4, b_x_f32x4, b_y_f32x4, b_z_f32x4;
-    for (; i + 4 <= n; i += 4) {
-        nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(a + i * 3, &a_x_f32x4, &a_y_f32x4, &a_z_f32x4);
-        nk_deinterleave_bf16x4_to_f32x4_neonbfdot_(b + i * 3, &b_x_f32x4, &b_y_f32x4, &b_z_f32x4);
-        sum_a_x_f32x4 = vaddq_f32(sum_a_x_f32x4, a_x_f32x4);
-        sum_a_y_f32x4 = vaddq_f32(sum_a_y_f32x4, a_y_f32x4);
-        sum_a_z_f32x4 = vaddq_f32(sum_a_z_f32x4, a_z_f32x4);
-        sum_b_x_f32x4 = vaddq_f32(sum_b_x_f32x4, b_x_f32x4);
-        sum_b_y_f32x4 = vaddq_f32(sum_b_y_f32x4, b_y_f32x4);
-        sum_b_z_f32x4 = vaddq_f32(sum_b_z_f32x4, b_z_f32x4);
-        covariance_xx_f32x4 = vfmaq_f32(covariance_xx_f32x4, a_x_f32x4, b_x_f32x4);
-        covariance_xy_f32x4 = vfmaq_f32(covariance_xy_f32x4, a_x_f32x4, b_y_f32x4);
-        covariance_xz_f32x4 = vfmaq_f32(covariance_xz_f32x4, a_x_f32x4, b_z_f32x4);
-        covariance_yx_f32x4 = vfmaq_f32(covariance_yx_f32x4, a_y_f32x4, b_x_f32x4);
-        covariance_yy_f32x4 = vfmaq_f32(covariance_yy_f32x4, a_y_f32x4, b_y_f32x4);
-        covariance_yz_f32x4 = vfmaq_f32(covariance_yz_f32x4, a_y_f32x4, b_z_f32x4);
-        covariance_zx_f32x4 = vfmaq_f32(covariance_zx_f32x4, a_z_f32x4, b_x_f32x4);
-        covariance_zy_f32x4 = vfmaq_f32(covariance_zy_f32x4, a_z_f32x4, b_y_f32x4);
-        covariance_zz_f32x4 = vfmaq_f32(covariance_zz_f32x4, a_z_f32x4, b_z_f32x4);
-        norm_squared_a_f32x4 = vfmaq_f32(norm_squared_a_f32x4, a_x_f32x4, a_x_f32x4);
-        norm_squared_a_f32x4 = vfmaq_f32(norm_squared_a_f32x4, a_y_f32x4, a_y_f32x4);
-        norm_squared_a_f32x4 = vfmaq_f32(norm_squared_a_f32x4, a_z_f32x4, a_z_f32x4);
-        norm_squared_b_f32x4 = vfmaq_f32(norm_squared_b_f32x4, b_x_f32x4, b_x_f32x4);
-        norm_squared_b_f32x4 = vfmaq_f32(norm_squared_b_f32x4, b_y_f32x4, b_y_f32x4);
-        norm_squared_b_f32x4 = vfmaq_f32(norm_squared_b_f32x4, b_z_f32x4, b_z_f32x4);
-    }
-    if (i < n) {
-        nk_partial_deinterleave_bf16_to_f32x4_neonbfdot_(a + i * 3, n - i, &a_x_f32x4, &a_y_f32x4, &a_z_f32x4);
-        nk_partial_deinterleave_bf16_to_f32x4_neonbfdot_(b + i * 3, n - i, &b_x_f32x4, &b_y_f32x4, &b_z_f32x4);
-        sum_a_x_f32x4 = vaddq_f32(sum_a_x_f32x4, a_x_f32x4);
-        sum_a_y_f32x4 = vaddq_f32(sum_a_y_f32x4, a_y_f32x4);
-        sum_a_z_f32x4 = vaddq_f32(sum_a_z_f32x4, a_z_f32x4);
-        sum_b_x_f32x4 = vaddq_f32(sum_b_x_f32x4, b_x_f32x4);
-        sum_b_y_f32x4 = vaddq_f32(sum_b_y_f32x4, b_y_f32x4);
-        sum_b_z_f32x4 = vaddq_f32(sum_b_z_f32x4, b_z_f32x4);
-        covariance_xx_f32x4 = vfmaq_f32(covariance_xx_f32x4, a_x_f32x4, b_x_f32x4);
-        covariance_xy_f32x4 = vfmaq_f32(covariance_xy_f32x4, a_x_f32x4, b_y_f32x4);
-        covariance_xz_f32x4 = vfmaq_f32(covariance_xz_f32x4, a_x_f32x4, b_z_f32x4);
-        covariance_yx_f32x4 = vfmaq_f32(covariance_yx_f32x4, a_y_f32x4, b_x_f32x4);
-        covariance_yy_f32x4 = vfmaq_f32(covariance_yy_f32x4, a_y_f32x4, b_y_f32x4);
-        covariance_yz_f32x4 = vfmaq_f32(covariance_yz_f32x4, a_y_f32x4, b_z_f32x4);
-        covariance_zx_f32x4 = vfmaq_f32(covariance_zx_f32x4, a_z_f32x4, b_x_f32x4);
-        covariance_zy_f32x4 = vfmaq_f32(covariance_zy_f32x4, a_z_f32x4, b_y_f32x4);
-        covariance_zz_f32x4 = vfmaq_f32(covariance_zz_f32x4, a_z_f32x4, b_z_f32x4);
-        norm_squared_a_f32x4 = vfmaq_f32(norm_squared_a_f32x4, a_x_f32x4, a_x_f32x4);
-        norm_squared_a_f32x4 = vfmaq_f32(norm_squared_a_f32x4, a_y_f32x4, a_y_f32x4);
-        norm_squared_a_f32x4 = vfmaq_f32(norm_squared_a_f32x4, a_z_f32x4, a_z_f32x4);
-        norm_squared_b_f32x4 = vfmaq_f32(norm_squared_b_f32x4, b_x_f32x4, b_x_f32x4);
-        norm_squared_b_f32x4 = vfmaq_f32(norm_squared_b_f32x4, b_y_f32x4, b_y_f32x4);
-        norm_squared_b_f32x4 = vfmaq_f32(norm_squared_b_f32x4, b_z_f32x4, b_z_f32x4);
-    }
-
-    // Reduce vector accumulators
-    nk_f32_t sum_a_x = vaddvq_f32(sum_a_x_f32x4);
-    nk_f32_t sum_a_y = vaddvq_f32(sum_a_y_f32x4);
-    nk_f32_t sum_a_z = vaddvq_f32(sum_a_z_f32x4);
-    nk_f32_t sum_b_x = vaddvq_f32(sum_b_x_f32x4);
-    nk_f32_t sum_b_y = vaddvq_f32(sum_b_y_f32x4);
-    nk_f32_t sum_b_z = vaddvq_f32(sum_b_z_f32x4);
-
-    nk_f32_t covariance_x_x = vaddvq_f32(covariance_xx_f32x4);
-    nk_f32_t covariance_x_y = vaddvq_f32(covariance_xy_f32x4);
-    nk_f32_t covariance_x_z = vaddvq_f32(covariance_xz_f32x4);
-    nk_f32_t covariance_y_x = vaddvq_f32(covariance_yx_f32x4);
-    nk_f32_t covariance_y_y = vaddvq_f32(covariance_yy_f32x4);
-    nk_f32_t covariance_y_z = vaddvq_f32(covariance_yz_f32x4);
-    nk_f32_t covariance_z_x = vaddvq_f32(covariance_zx_f32x4);
-    nk_f32_t covariance_z_y = vaddvq_f32(covariance_zy_f32x4);
-    nk_f32_t covariance_z_z = vaddvq_f32(covariance_zz_f32x4);
-    nk_f32_t norm_squared_a = vaddvq_f32(norm_squared_a_f32x4);
-    nk_f32_t norm_squared_b = vaddvq_f32(norm_squared_b_f32x4);
-
-    // Compute centroids
-    nk_f32_t inv_n = 1.0f / (nk_f32_t)n;
-    nk_f32_t centroid_a_x = sum_a_x * inv_n;
-    nk_f32_t centroid_a_y = sum_a_y * inv_n;
-    nk_f32_t centroid_a_z = sum_a_z * inv_n;
-    nk_f32_t centroid_b_x = sum_b_x * inv_n;
-    nk_f32_t centroid_b_y = sum_b_y * inv_n;
-    nk_f32_t centroid_b_z = sum_b_z * inv_n;
-
-    if (a_centroid) a_centroid[0] = centroid_a_x, a_centroid[1] = centroid_a_y, a_centroid[2] = centroid_a_z;
-    if (b_centroid) b_centroid[0] = centroid_b_x, b_centroid[1] = centroid_b_y, b_centroid[2] = centroid_b_z;
-
-    // Centered norm-squared via parallel-axis identity; clamp at zero for numeric safety.
-    nk_f32_t centered_norm_squared_a = norm_squared_a -
-                                       (nk_f32_t)n * (centroid_a_x * centroid_a_x + centroid_a_y * centroid_a_y +
-                                                      centroid_a_z * centroid_a_z);
-    nk_f32_t centered_norm_squared_b = norm_squared_b -
-                                       (nk_f32_t)n * (centroid_b_x * centroid_b_x + centroid_b_y * centroid_b_y +
-                                                      centroid_b_z * centroid_b_z);
-    if (centered_norm_squared_a < 0.0f) centered_norm_squared_a = 0.0f;
-    if (centered_norm_squared_b < 0.0f) centered_norm_squared_b = 0.0f;
-
-    // Apply centering correction: H_centered = H - n * centroid_a * centroid_bᵀ
-    covariance_x_x -= n * centroid_a_x * centroid_b_x;
-    covariance_x_y -= n * centroid_a_x * centroid_b_y;
-    covariance_x_z -= n * centroid_a_x * centroid_b_z;
-    covariance_y_x -= n * centroid_a_y * centroid_b_x;
-    covariance_y_y -= n * centroid_a_y * centroid_b_y;
-    covariance_y_z -= n * centroid_a_y * centroid_b_z;
-    covariance_z_x -= n * centroid_a_z * centroid_b_x;
-    covariance_z_y -= n * centroid_a_z * centroid_b_y;
-    covariance_z_z -= n * centroid_a_z * centroid_b_z;
-
-    // Compute SVD
-    nk_f32_t cross_covariance[9] = {covariance_x_x, covariance_x_y, covariance_x_z, covariance_y_x, covariance_y_y,
-                                    covariance_y_z, covariance_z_x, covariance_z_y, covariance_z_z};
+    nk_f32_t centroid_a[3], centroid_b[3], cross_covariance[9], centered_norm_squared_a, centered_norm_squared_b;
+    nk_centered_moments_bf16_neonbfdot_(a, b, n, centroid_a, centroid_b, cross_covariance, &centered_norm_squared_a,
+                                        &centered_norm_squared_b);
+    if (a_centroid) a_centroid[0] = centroid_a[0], a_centroid[1] = centroid_a[1], a_centroid[2] = centroid_a[2];
+    if (b_centroid) b_centroid[0] = centroid_b[0], b_centroid[1] = centroid_b[1], b_centroid[2] = centroid_b[2];
 
     // Identity-dominant short-circuit: if H ≈ diag(positive), R = I and trace(R · H) = trace(H).
     nk_f32_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
@@ -583,15 +307,13 @@ NUMKONG_API_COMPTIME void nk_umeyama_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_
         cross_covariance[3] * cross_covariance[3] + cross_covariance[5] * cross_covariance[5] +
         cross_covariance[6] * cross_covariance[6] + cross_covariance[7] * cross_covariance[7];
     nk_f32_t optimal_rotation[9];
-    nk_f32_t trace_rotation_covariance;
     nk_f32_t c;
     if (covariance_offdiagonal_norm_squared < 1e-12f * covariance_diagonal_norm_squared && cross_covariance[0] > 0.0f &&
         cross_covariance[4] > 0.0f && cross_covariance[8] > 0.0f) {
         optimal_rotation[0] = 1, optimal_rotation[1] = 0, optimal_rotation[2] = 0, optimal_rotation[3] = 0,
         optimal_rotation[4] = 1, optimal_rotation[5] = 0, optimal_rotation[6] = 0, optimal_rotation[7] = 0,
         optimal_rotation[8] = 1;
-        trace_rotation_covariance = cross_covariance[0] + cross_covariance[4] + cross_covariance[8];
-        c = trace_rotation_covariance / centered_norm_squared_a;
+        c = (cross_covariance[0] + cross_covariance[4] + cross_covariance[8]) / centered_norm_squared_a;
     }
     else {
         nk_f32_t svd_left[9], svd_diagonal[9], svd_right[9];
@@ -627,13 +349,6 @@ NUMKONG_API_COMPTIME void nk_umeyama_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_
             optimal_rotation[7] = svd_right[6] * svd_left[3] + svd_right[7] * svd_left[4] + svd_right[8] * svd_left[5];
             optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
         }
-
-        trace_rotation_covariance =
-            optimal_rotation[0] * cross_covariance[0] + optimal_rotation[1] * cross_covariance[3] +
-            optimal_rotation[2] * cross_covariance[6] + optimal_rotation[3] * cross_covariance[1] +
-            optimal_rotation[4] * cross_covariance[4] + optimal_rotation[5] * cross_covariance[7] +
-            optimal_rotation[6] * cross_covariance[2] + optimal_rotation[7] * cross_covariance[5] +
-            optimal_rotation[8] * cross_covariance[8];
     }
     if (scale) *scale = c;
 
@@ -641,11 +356,10 @@ NUMKONG_API_COMPTIME void nk_umeyama_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_
     if (rotation)
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
 
-    // Folded SSD with scale: c² · ‖a-ā‖² + ‖b-b̄‖² − 2c · trace(R · H_centered).
-    nk_f32_t sum_squared = c * c * centered_norm_squared_a + centered_norm_squared_b -
-                           2.0f * c * trace_rotation_covariance;
-    if (sum_squared < 0.0f) sum_squared = 0.0f;
-    *result = nk_f32_sqrt_neon(sum_squared * inv_n);
+    nk_f32_t sum_squared = nk_folded_ssd_f32_(optimal_rotation, c, cross_covariance, centered_norm_squared_a,
+                                              centered_norm_squared_b);
+    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(sum_squared / (nk_f32_t)n)), 0);
+    return nk_success_k;
 }
 
 #if defined(__clang__)

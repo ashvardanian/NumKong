@@ -13,11 +13,12 @@
 #ifndef NUMKONG_DOTS_SIERRA_H
 #define NUMKONG_DOTS_SIERRA_H
 
-#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_ARCH_X8664_
 #if NUMKONG_TARGET_SIERRA
 
 #include "numkong/dot/sierra.h"     // Sierra-specific dot product helpers
 #include "numkong/dot/haswell.h"    // Haswell partial load functions
+#include "numkong/cast/serial.h"    // `nk_partial_load_b8x16_serial_`
 #include "numkong/dots/serial.h"    // GEMM macro definitions
 #include "numkong/reduce/haswell.h" // `nk_reduce_add_i32x8_haswell_`
 
@@ -120,5 +121,5 @@ nk_define_cross_packed_(dots, e2m1, sierra, e2m1x2, e2m1x2, f32, nk_b256_vec_t, 
 #endif
 
 #endif // NUMKONG_TARGET_SIERRA
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_DOTS_SIERRA_H

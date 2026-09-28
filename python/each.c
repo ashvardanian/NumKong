@@ -81,6 +81,8 @@ PyObject *api_fma(PyObject *self, PyObject *const *args, Py_ssize_t const positi
     // Once parsed, the arguments will be stored in these variables:
 
     nk_dtype_t dtype = nk_dtype_unknown_k;
+    nk_capability_t capabilities = default_capabilities;
+    void *stream = NULL;
 
     Py_buffer a_buffer, b_buffer, c_buffer, out_buffer;
     nk_buffer_backing_t a_backing, b_backing, c_backing, out_backing;
@@ -91,8 +93,8 @@ PyObject *api_fma(PyObject *self, PyObject *const *args, Py_ssize_t const positi
 
     Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
     Py_ssize_t const args_count = positional_args_count + args_names_count;
-    if (args_count < 3 || args_count > 7) {
-        PyErr_Format(PyExc_TypeError, "Function expects 3-7 arguments, got %zd", args_count);
+    if (args_count < 3 || args_count > 9) {
+        PyErr_Format(PyExc_TypeError, "Function expects 3-9 arguments, got %zd", args_count);
         return NULL;
     }
     if (positional_args_count > 4) {
@@ -117,10 +119,7 @@ PyObject *api_fma(PyObject *self, PyObject *const *args, Py_ssize_t const positi
         else if (PyUnicode_CompareWithASCIIString(key, "out") == 0 && !out_obj) { out_obj = value; }
         else if (PyUnicode_CompareWithASCIIString(key, "alpha") == 0 && !alpha_obj) { alpha_obj = value; }
         else if (PyUnicode_CompareWithASCIIString(key, "beta") == 0 && !beta_obj) { beta_obj = value; }
-        else {
-            PyErr_Format(PyExc_TypeError, "Got unexpected keyword argument: %S", key);
-            return NULL;
-        }
+        else if (!parse_dispatch_keyword(key, value, &capabilities, &stream)) return NULL;
     }
 
     // Convert `dtype_obj` to `dtype`
@@ -161,17 +160,17 @@ PyObject *api_fma(PyObject *self, PyObject *const *args, Py_ssize_t const positi
         if (alpha_obj) {
             if (!py_number_to_nk_scalar_buffer(alpha_obj, &alpha_buf, scalar_dtype)) goto cleanup;
         }
-        else nk_scalar_buffer_from_f64(&alpha_buf.f64, &alpha_buf, scalar_dtype);
+        else nk_scalar_buffer_from_f64_(&alpha_buf.f64, &alpha_buf, scalar_dtype);
         if (beta_obj) {
             if (!py_number_to_nk_scalar_buffer(beta_obj, &beta_buf, scalar_dtype)) goto cleanup;
         }
-        else nk_scalar_buffer_from_f64(&beta_buf.f64, &beta_buf, scalar_dtype);
+        else nk_scalar_buffer_from_f64_(&beta_buf.f64, &beta_buf, scalar_dtype);
     }
 
     // Look up the kernel and the capability
     nk_each_fma_punned_t kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_each_fma_k, dtype, (nk_kernel_punned_t *)&kernel, &capability);
+    nk_find_kernel_punned(nk_kernel_each_fma_k, dtype, capabilities, (nk_kernel_punned_t *)&kernel, &capability);
     if (!kernel || !capability) {
         PyErr_Format(PyExc_LookupError, "No fma kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
@@ -187,10 +186,12 @@ PyObject *api_fma(PyObject *self, PyObject *const *args, Py_ssize_t const positi
 
     {
         PyThreadState *gil = PyEval_SaveThread();
-        each_fma_recursive(kernel, a_buffer.buf, b_buffer.buf, c_buffer.buf, result_data, &alpha_buf, &beta_buf,
-                           a_buffer.shape, a_buffer.strides, b_buffer.strides, c_buffer.strides, result_strides,
-                           a_buffer.ndim, contiguous_tail);
+        nk_status_t const status = each_fma_recursive(kernel, stream, a_buffer.buf, b_buffer.buf, c_buffer.buf,
+                                                      result_data, &alpha_buf, &beta_buf, a_buffer.shape,
+                                                      a_buffer.strides, b_buffer.strides, c_buffer.strides,
+                                                      result_strides, a_buffer.ndim, contiguous_tail);
         PyEval_RestoreThread(gil);
+        if (!check_status(status)) Py_CLEAR(return_obj);
     }
 cleanup:
     PyBuffer_Release(&a_buffer);
@@ -232,6 +233,8 @@ PyObject *api_blend(PyObject *self, PyObject *const *args, Py_ssize_t const posi
     // Once parsed, the arguments will be stored in these variables:
 
     nk_dtype_t dtype = nk_dtype_unknown_k;
+    nk_capability_t capabilities = default_capabilities;
+    void *stream = NULL;
 
     Py_buffer a_buffer, b_buffer, out_buffer;
     nk_buffer_backing_t a_backing, b_backing, out_backing;
@@ -241,8 +244,8 @@ PyObject *api_blend(PyObject *self, PyObject *const *args, Py_ssize_t const posi
 
     Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
     Py_ssize_t const args_count = positional_args_count + args_names_count;
-    if (args_count < 2 || args_count > 6) {
-        PyErr_Format(PyExc_TypeError, "Function expects 2-6 arguments, got %zd", args_count);
+    if (args_count < 2 || args_count > 8) {
+        PyErr_Format(PyExc_TypeError, "Function expects 2-8 arguments, got %zd", args_count);
         return NULL;
     }
     if (positional_args_count > 3) {
@@ -266,10 +269,7 @@ PyObject *api_blend(PyObject *self, PyObject *const *args, Py_ssize_t const posi
         else if (PyUnicode_CompareWithASCIIString(key, "out") == 0 && !out_obj) { out_obj = value; }
         else if (PyUnicode_CompareWithASCIIString(key, "alpha") == 0 && !alpha_obj) { alpha_obj = value; }
         else if (PyUnicode_CompareWithASCIIString(key, "beta") == 0 && !beta_obj) { beta_obj = value; }
-        else {
-            PyErr_Format(PyExc_TypeError, "Got unexpected keyword argument: %S", key);
-            return NULL;
-        }
+        else if (!parse_dispatch_keyword(key, value, &capabilities, &stream)) return NULL;
     }
 
     // Convert `dtype_obj` to `dtype`
@@ -308,17 +308,17 @@ PyObject *api_blend(PyObject *self, PyObject *const *args, Py_ssize_t const posi
         if (alpha_obj) {
             if (!py_number_to_nk_scalar_buffer(alpha_obj, &alpha_buf, scalar_dtype)) goto cleanup;
         }
-        else nk_scalar_buffer_from_f64(&alpha_buf.f64, &alpha_buf, scalar_dtype);
+        else nk_scalar_buffer_from_f64_(&alpha_buf.f64, &alpha_buf, scalar_dtype);
         if (beta_obj) {
             if (!py_number_to_nk_scalar_buffer(beta_obj, &beta_buf, scalar_dtype)) goto cleanup;
         }
-        else nk_scalar_buffer_from_f64(&beta_buf.f64, &beta_buf, scalar_dtype);
+        else nk_scalar_buffer_from_f64_(&beta_buf.f64, &beta_buf, scalar_dtype);
     }
 
     // Look up the kernel and the capability
     nk_each_blend_punned_t kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_each_blend_k, dtype, (nk_kernel_punned_t *)&kernel, &capability);
+    nk_find_kernel_punned(nk_kernel_each_blend_k, dtype, capabilities, (nk_kernel_punned_t *)&kernel, &capability);
     if (!kernel || !capability) {
         PyErr_Format(PyExc_LookupError, "No blend kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
@@ -334,10 +334,12 @@ PyObject *api_blend(PyObject *self, PyObject *const *args, Py_ssize_t const posi
 
     {
         PyThreadState *gil = PyEval_SaveThread();
-        each_blend_recursive(kernel, a_buffer.buf, b_buffer.buf, result_data, &alpha_buf, &beta_buf, //
-                             a_buffer.shape, a_buffer.strides, b_buffer.strides, result_strides,     //
-                             a_buffer.ndim, contiguous_tail);
+        nk_status_t const status = each_blend_recursive(
+            kernel, stream, a_buffer.buf, b_buffer.buf, result_data, &alpha_buf, &beta_buf, //
+            a_buffer.shape, a_buffer.strides, b_buffer.strides, result_strides,             //
+            a_buffer.ndim, contiguous_tail);
         PyEval_RestoreThread(gil);
+        if (!check_status(status)) Py_CLEAR(return_obj);
     }
 cleanup:
     PyBuffer_Release(&a_buffer);
@@ -376,6 +378,8 @@ PyObject *api_scale(PyObject *self, PyObject *const *args, Py_ssize_t const posi
     // Once parsed, the arguments will be stored in these variables:
 
     nk_dtype_t dtype = nk_dtype_unknown_k;
+    nk_capability_t capabilities = default_capabilities;
+    void *stream = NULL;
 
     Py_buffer a_buffer, out_buffer;
     nk_buffer_backing_t a_backing, out_backing;
@@ -384,8 +388,8 @@ PyObject *api_scale(PyObject *self, PyObject *const *args, Py_ssize_t const posi
 
     Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
     Py_ssize_t const args_count = positional_args_count + args_names_count;
-    if (args_count < 1 || args_count > 5) {
-        PyErr_Format(PyExc_TypeError, "Function expects 1-5 arguments, got %zd", args_count);
+    if (args_count < 1 || args_count > 7) {
+        PyErr_Format(PyExc_TypeError, "Function expects 1-7 arguments, got %zd", args_count);
         return NULL;
     }
     if (positional_args_count > 2) {
@@ -408,10 +412,7 @@ PyObject *api_scale(PyObject *self, PyObject *const *args, Py_ssize_t const posi
         else if (PyUnicode_CompareWithASCIIString(key, "out") == 0 && !out_obj) { out_obj = value; }
         else if (PyUnicode_CompareWithASCIIString(key, "alpha") == 0 && !alpha_obj) { alpha_obj = value; }
         else if (PyUnicode_CompareWithASCIIString(key, "beta") == 0 && !beta_obj) { beta_obj = value; }
-        else {
-            PyErr_Format(PyExc_TypeError, "Got unexpected keyword argument: %S", key);
-            return NULL;
-        }
+        else if (!parse_dispatch_keyword(key, value, &capabilities, &stream)) return NULL;
     }
 
     // Convert `dtype_obj` to `dtype`
@@ -442,17 +443,17 @@ PyObject *api_scale(PyObject *self, PyObject *const *args, Py_ssize_t const posi
         if (alpha_obj) {
             if (!py_number_to_nk_scalar_buffer(alpha_obj, &alpha_buf, scalar_dtype)) goto cleanup;
         }
-        else nk_scalar_buffer_from_f64(&alpha_buf.f64, &alpha_buf, scalar_dtype);
+        else nk_scalar_buffer_from_f64_(&alpha_buf.f64, &alpha_buf, scalar_dtype);
         if (beta_obj) {
             if (!py_number_to_nk_scalar_buffer(beta_obj, &beta_buf, scalar_dtype)) goto cleanup;
         }
-        else nk_scalar_buffer_from_f64(&beta_buf.f64, &beta_buf, scalar_dtype);
+        else nk_scalar_buffer_from_f64_(&beta_buf.f64, &beta_buf, scalar_dtype);
     }
 
     // Look up the kernel and the capability
     nk_each_scale_punned_t kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_each_scale_k, dtype, (nk_kernel_punned_t *)&kernel, &capability);
+    nk_find_kernel_punned(nk_kernel_each_scale_k, dtype, capabilities, (nk_kernel_punned_t *)&kernel, &capability);
     if (!kernel || !capability) {
         PyErr_Format(PyExc_LookupError, "No scale kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
@@ -468,10 +469,11 @@ PyObject *api_scale(PyObject *self, PyObject *const *args, Py_ssize_t const posi
 
     {
         PyThreadState *gil = PyEval_SaveThread();
-        each_scale_recursive(kernel, a_buffer.buf, result_data, &alpha_buf, &beta_buf, //
-                             a_buffer.shape, a_buffer.strides, result_strides,         //
-                             a_buffer.ndim, contiguous_tail);
+        nk_status_t const status = each_scale_recursive(kernel, stream, a_buffer.buf, result_data, &alpha_buf,
+                                                        &beta_buf, a_buffer.shape, a_buffer.strides, result_strides,
+                                                        a_buffer.ndim, contiguous_tail);
         PyEval_RestoreThread(gil);
+        if (!check_status(status)) Py_CLEAR(return_obj);
     }
 cleanup:
     PyBuffer_Release(&a_buffer);
@@ -502,6 +504,8 @@ PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t const po
     PyObject *return_obj = NULL;
     PyObject *x_obj = NULL, *gamma_obj = NULL, *out_obj = NULL;
     PyObject *groups_obj = NULL, *eps_obj = NULL, *input_scale_obj = NULL;
+    nk_capability_t capabilities = default_capabilities;
+    void *stream = NULL;
 
     Py_buffer x_buffer, gamma_buffer, out_buffer;
     nk_buffer_backing_t x_backing, gamma_backing, out_backing;
@@ -512,8 +516,8 @@ PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t const po
 
     Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
     Py_ssize_t const args_count = positional_args_count + args_names_count;
-    if (args_count < 1 || args_count > 6) {
-        PyErr_Format(PyExc_TypeError, "Function expects 1-6 arguments, got %zd", args_count);
+    if (args_count < 1 || args_count > 8) {
+        PyErr_Format(PyExc_TypeError, "Function expects 1-8 arguments, got %zd", args_count);
         return NULL;
     }
     if (positional_args_count > 2) {
@@ -530,10 +534,7 @@ PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t const po
         else if (PyUnicode_CompareWithASCIIString(key, "groups") == 0 && !groups_obj) groups_obj = value;
         else if (PyUnicode_CompareWithASCIIString(key, "eps") == 0 && !eps_obj) eps_obj = value;
         else if (PyUnicode_CompareWithASCIIString(key, "input_scale") == 0 && !input_scale_obj) input_scale_obj = value;
-        else {
-            PyErr_Format(PyExc_TypeError, "Got unexpected keyword argument: %S", key);
-            return NULL;
-        }
+        else if (!parse_dispatch_keyword(key, value, &capabilities, &stream)) return NULL;
     }
 
     nk_size_t groups = 1;
@@ -609,7 +610,7 @@ PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t const po
 
     nk_reduce_rmsnorm_punned_t kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_reduce_rmsnorm_k, dtype, (nk_kernel_punned_t *)&kernel, &capability);
+    nk_find_kernel_punned(nk_kernel_reduce_rmsnorm_k, dtype, capabilities, (nk_kernel_punned_t *)&kernel, &capability);
     if (!kernel || !capability) {
         PyErr_Format(PyExc_LookupError, "No rmsnorm kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
@@ -626,8 +627,10 @@ PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t const po
 
     {
         PyThreadState *gil = PyEval_SaveThread();
-        kernel(x_buffer.buf, gamma_ptr, result_data, rows, groups, cols, x_row_stride, y_row_stride, eps, input_scale);
+        nk_status_t const status = kernel(x_buffer.buf, gamma_ptr, result_data, rows, groups, cols, x_row_stride,
+                                          y_row_stride, eps, input_scale, stream);
         PyEval_RestoreThread(gil);
+        if (!check_status(status)) Py_CLEAR(return_obj);
     }
 cleanup:
     PyBuffer_Release(&x_buffer);
@@ -655,6 +658,8 @@ PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t const pos
     nk_unused_(self);
     PyObject *return_obj = NULL;
     PyObject *gate_obj = NULL, *up_obj = NULL, *out_obj = NULL, *input_scale_obj = NULL;
+    nk_capability_t capabilities = default_capabilities;
+    void *stream = NULL;
 
     Py_buffer gate_buffer, up_buffer, out_buffer;
     nk_buffer_backing_t gate_backing, up_backing, out_backing;
@@ -665,8 +670,8 @@ PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t const pos
 
     Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
     Py_ssize_t const args_count = positional_args_count + args_names_count;
-    if (args_count < 1 || args_count > 4) {
-        PyErr_Format(PyExc_TypeError, "Function expects 1-4 arguments, got %zd", args_count);
+    if (args_count < 1 || args_count > 6) {
+        PyErr_Format(PyExc_TypeError, "Function expects 1-6 arguments, got %zd", args_count);
         return NULL;
     }
     if (positional_args_count > 2) {
@@ -681,10 +686,7 @@ PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t const pos
         if (PyUnicode_CompareWithASCIIString(key, "up") == 0 && !up_obj) up_obj = value;
         else if (PyUnicode_CompareWithASCIIString(key, "out") == 0 && !out_obj) out_obj = value;
         else if (PyUnicode_CompareWithASCIIString(key, "input_scale") == 0 && !input_scale_obj) input_scale_obj = value;
-        else {
-            PyErr_Format(PyExc_TypeError, "Got unexpected keyword argument: %S", key);
-            return NULL;
-        }
+        else if (!parse_dispatch_keyword(key, value, &capabilities, &stream)) return NULL;
     }
     if (up_obj == Py_None) up_obj = NULL;
 
@@ -742,7 +744,7 @@ PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t const pos
 
     nk_each_swiglu_punned_t kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_each_swiglu_k, dtype, (nk_kernel_punned_t *)&kernel, &capability);
+    nk_find_kernel_punned(nk_kernel_each_swiglu_k, dtype, capabilities, (nk_kernel_punned_t *)&kernel, &capability);
     if (!kernel || !capability) {
         PyErr_Format(PyExc_LookupError, "No swiglu kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
@@ -759,9 +761,10 @@ PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t const pos
 
     {
         PyThreadState *gil = PyEval_SaveThread();
-        kernel(gate_buffer.buf, up_ptr, result_data, rows, cols, gate_row_stride, up_row_stride, y_row_stride,
-               input_scale);
+        nk_status_t const status = kernel(gate_buffer.buf, up_ptr, result_data, rows, cols, gate_row_stride,
+                                          up_row_stride, y_row_stride, input_scale, stream);
         PyEval_RestoreThread(gil);
+        if (!check_status(status)) Py_CLEAR(return_obj);
     }
 cleanup:
     PyBuffer_Release(&gate_buffer);
@@ -787,8 +790,8 @@ char const doc_add[] =                                                          
     "    >>> def add(a, b, /, *, out, a_dtype, b_dtype, out_dtype) -> Optional[Tensor]: ...";
 
 /** Handle scalar + array addition: result = 1 * array + scalar. */
-static PyObject *add_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyObject *out_obj,
-                                  PyObject *out_dtype_obj) {
+static PyObject *add_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyObject *out_obj, PyObject *out_dtype_obj,
+                                  nk_capability_t capabilities, void *stream) {
     PyObject *return_obj = NULL;
     char *cast_staging = NULL;
     Py_buffer a_buffer, out_buffer;
@@ -815,7 +818,8 @@ static PyObject *add_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyO
 
     nk_each_scale_punned_t scale_kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_each_scale_k, dtype, (nk_kernel_punned_t *)&scale_kernel, &capability);
+    nk_find_kernel_punned(nk_kernel_each_scale_k, dtype, capabilities, (nk_kernel_punned_t *)&scale_kernel,
+                          &capability);
     if (!scale_kernel || !capability) {
         PyErr_Format(PyExc_LookupError, "No scale kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
@@ -824,7 +828,7 @@ static PyObject *add_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyO
     nk_scalar_buffer_t alpha_buf, beta_buf;
     alpha_buf.f64 = 1.0;
     nk_dtype_t scalar_dtype = nk_each_scale_input_dtype(dtype);
-    nk_scalar_buffer_from_f64(&alpha_buf.f64, &alpha_buf, scalar_dtype);
+    nk_scalar_buffer_from_f64_(&alpha_buf.f64, &alpha_buf, scalar_dtype);
     if (!py_number_to_nk_scalar_buffer(scalar_obj, &beta_buf, scalar_dtype)) goto cleanup;
 
     size_t const element_size = nk_dtype_bytes_per_value(dtype);
@@ -876,11 +880,12 @@ static PyObject *add_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyO
     }
 
     PyThreadState *gil = PyEval_SaveThread();
-    each_scale_recursive(scale_kernel, a_buffer.buf, result_data, &alpha_buf, &beta_buf, //
-                         a_buffer.shape, a_buffer.strides, result_strides,               //
-                         a_buffer.ndim, contiguous_tail);
-    if (cast_staging) flush_cast_staging(cast_staging, dtype, &out_buffer, out_buf_dtype);
+    nk_status_t const status = each_scale_recursive(scale_kernel, stream, a_buffer.buf, result_data, &alpha_buf,
+                                                    &beta_buf, a_buffer.shape, a_buffer.strides, result_strides,
+                                                    a_buffer.ndim, contiguous_tail);
+    if (status == nk_success_k && cast_staging) flush_cast_staging(cast_staging, dtype, &out_buffer, out_buf_dtype);
     PyEval_RestoreThread(gil);
+    if (!check_status(status)) Py_CLEAR(return_obj);
 
 cleanup:
     if (cast_staging) PyMem_Free(cast_staging);
@@ -890,7 +895,8 @@ cleanup:
 }
 
 /** Handle array + array addition using sum kernel with dtype promotion. */
-static PyObject *add_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out_obj, PyObject *out_dtype_obj) {
+static PyObject *add_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out_obj, PyObject *out_dtype_obj,
+                                 nk_capability_t capabilities, void *stream) {
     PyObject *return_obj = NULL;
     char *a_promoted = NULL;
     char *b_promoted = NULL;
@@ -942,7 +948,7 @@ static PyObject *add_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out
 
     nk_each_sum_punned_t sum_kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_each_sum_k, dtype, (nk_kernel_punned_t *)&sum_kernel, &capability);
+    nk_find_kernel_punned(nk_kernel_each_sum_k, dtype, capabilities, (nk_kernel_punned_t *)&sum_kernel, &capability);
     if (!sum_kernel || !capability) {
         PyErr_Format(PyExc_LookupError, "No sum kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
@@ -1008,10 +1014,12 @@ static PyObject *add_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out
     }
 
     PyThreadState *gil = PyEval_SaveThread();
-    each_sum_recursive(sum_kernel, a_promoted, b_promoted, result_data, a_buffer.shape, promoted_strides,
-                       promoted_strides, result_strides, num_dims, contiguous_tail);
-    if (cast_staging) flush_cast_staging(cast_staging, dtype, &out_buffer, out_buf_dtype);
+    nk_status_t const status = each_sum_recursive(sum_kernel, stream, a_promoted, b_promoted, result_data,
+                                                  a_buffer.shape, promoted_strides, promoted_strides, result_strides,
+                                                  num_dims, contiguous_tail);
+    if (status == nk_success_k && cast_staging) flush_cast_staging(cast_staging, dtype, &out_buffer, out_buf_dtype);
     PyEval_RestoreThread(gil);
+    if (!check_status(status)) Py_CLEAR(return_obj);
 
 cleanup:
     if (cast_staging) PyMem_Free(cast_staging);
@@ -1029,11 +1037,13 @@ PyObject *api_add(PyObject *self, PyObject *const *args, Py_ssize_t const positi
 
     PyObject *a_obj = NULL, *b_obj = NULL;
     PyObject *out_obj = NULL, *a_dtype_obj = NULL, *b_dtype_obj = NULL, *out_dtype_obj = NULL;
+    nk_capability_t capabilities = default_capabilities;
+    void *stream = NULL;
 
     Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
     Py_ssize_t const args_count = positional_args_count + args_names_count;
-    if (args_count < 2 || args_count > 6) {
-        PyErr_Format(PyExc_TypeError, "Function expects 2-6 arguments, got %zd", args_count);
+    if (args_count < 2 || args_count > 8) {
+        PyErr_Format(PyExc_TypeError, "Function expects 2-8 arguments, got %zd", args_count);
         return NULL;
     }
     if (positional_args_count > 2) {
@@ -1052,10 +1062,7 @@ PyObject *api_add(PyObject *self, PyObject *const *args, Py_ssize_t const positi
         else if (PyUnicode_CompareWithASCIIString(key, "a_dtype") == 0 && !a_dtype_obj) { a_dtype_obj = value; }
         else if (PyUnicode_CompareWithASCIIString(key, "b_dtype") == 0 && !b_dtype_obj) { b_dtype_obj = value; }
         else if (PyUnicode_CompareWithASCIIString(key, "out_dtype") == 0 && !out_dtype_obj) { out_dtype_obj = value; }
-        else {
-            PyErr_Format(PyExc_TypeError, "Got unexpected keyword argument: %S", key);
-            return NULL;
-        }
+        else if (!parse_dispatch_keyword(key, value, &capabilities, &stream)) return NULL;
     }
 
     int a_is_scalar = py_object_is_scalar(a_obj);
@@ -1070,11 +1077,11 @@ PyObject *api_add(PyObject *self, PyObject *const *args, Py_ssize_t const positi
     if (a_is_scalar || b_is_scalar) {
         PyObject *array_obj = a_is_scalar ? b_obj : a_obj;
         PyObject *scalar_obj = a_is_scalar ? a_obj : b_obj;
-        return add_scalar_array(array_obj, scalar_obj, out_obj, out_dtype_obj);
+        return add_scalar_array(array_obj, scalar_obj, out_obj, out_dtype_obj, capabilities, stream);
     }
 
     // nk.add(np.float32([1,2,3]), np.float32([4,5,6])) → array + array
-    return add_array_array(a_obj, b_obj, out_obj, out_dtype_obj);
+    return add_array_array(a_obj, b_obj, out_obj, out_dtype_obj, capabilities, stream);
 }
 
 char const doc_multiply[] =                                                                    //
@@ -1095,7 +1102,7 @@ char const doc_multiply[] =                                                     
 
 /** Handle scalar * array multiplication: result = scalar * array + 0. */
 static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyObject *out_obj,
-                                       PyObject *out_dtype_obj) {
+                                       PyObject *out_dtype_obj, nk_capability_t capabilities, void *stream) {
     PyObject *return_obj = NULL;
     char *cast_staging = NULL;
     Py_buffer a_buffer, out_buffer;
@@ -1122,7 +1129,8 @@ static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj
 
     nk_each_scale_punned_t scale_kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_each_scale_k, dtype, (nk_kernel_punned_t *)&scale_kernel, &capability);
+    nk_find_kernel_punned(nk_kernel_each_scale_k, dtype, capabilities, (nk_kernel_punned_t *)&scale_kernel,
+                          &capability);
     if (!scale_kernel || !capability) {
         PyErr_Format(PyExc_LookupError, "No scale kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
@@ -1132,7 +1140,7 @@ static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj
     beta_buf.f64 = 0.0;
     nk_dtype_t scalar_dtype = nk_each_scale_input_dtype(dtype);
     if (!py_number_to_nk_scalar_buffer(scalar_obj, &alpha_buf, scalar_dtype)) goto cleanup;
-    nk_scalar_buffer_from_f64(&beta_buf.f64, &beta_buf, scalar_dtype);
+    nk_scalar_buffer_from_f64_(&beta_buf.f64, &beta_buf, scalar_dtype);
 
     size_t const element_size = nk_dtype_bytes_per_value(dtype);
     nk_size_t total_elements = 1;
@@ -1183,11 +1191,12 @@ static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj
     }
 
     PyThreadState *gil = PyEval_SaveThread();
-    each_scale_recursive(scale_kernel, a_buffer.buf, result_data, &alpha_buf, &beta_buf, //
-                         a_buffer.shape, a_buffer.strides, result_strides,               //
-                         a_buffer.ndim, contiguous_tail);
-    if (cast_staging) flush_cast_staging(cast_staging, dtype, &out_buffer, out_buf_dtype);
+    nk_status_t const status = each_scale_recursive(scale_kernel, stream, a_buffer.buf, result_data, &alpha_buf,
+                                                    &beta_buf, a_buffer.shape, a_buffer.strides, result_strides,
+                                                    a_buffer.ndim, contiguous_tail);
+    if (status == nk_success_k && cast_staging) flush_cast_staging(cast_staging, dtype, &out_buffer, out_buf_dtype);
     PyEval_RestoreThread(gil);
+    if (!check_status(status)) Py_CLEAR(return_obj);
 
 cleanup:
     if (cast_staging) PyMem_Free(cast_staging);
@@ -1197,7 +1206,8 @@ cleanup:
 }
 
 /** Handle array * array multiplication using fma kernel with dtype promotion. */
-static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out_obj, PyObject *out_dtype_obj) {
+static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out_obj, PyObject *out_dtype_obj,
+                                      nk_capability_t capabilities, void *stream) {
     PyObject *return_obj = NULL;
     char *a_promoted = NULL;
     char *b_promoted = NULL;
@@ -1249,7 +1259,7 @@ static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject
 
     nk_each_fma_punned_t fma_kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_each_fma_k, dtype, (nk_kernel_punned_t *)&fma_kernel, &capability);
+    nk_find_kernel_punned(nk_kernel_each_fma_k, dtype, capabilities, (nk_kernel_punned_t *)&fma_kernel, &capability);
     if (!fma_kernel || !capability) {
         PyErr_Format(PyExc_LookupError, "No fma kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
@@ -1258,8 +1268,8 @@ static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject
     nk_scalar_buffer_t alpha_buf, beta_buf;
     alpha_buf.f64 = 1.0, beta_buf.f64 = 0.0;
     nk_dtype_t scalar_dtype = nk_each_scale_input_dtype(dtype);
-    nk_scalar_buffer_from_f64(&alpha_buf.f64, &alpha_buf, scalar_dtype);
-    nk_scalar_buffer_from_f64(&beta_buf.f64, &beta_buf, scalar_dtype);
+    nk_scalar_buffer_from_f64_(&alpha_buf.f64, &alpha_buf, scalar_dtype);
+    nk_scalar_buffer_from_f64_(&beta_buf.f64, &beta_buf, scalar_dtype);
 
     int const num_dims = a_buffer.ndim;
     nk_size_t total_elements = 1;
@@ -1323,11 +1333,12 @@ static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject
     }
 
     PyThreadState *gil = PyEval_SaveThread();
-    each_fma_recursive(fma_kernel, a_promoted, b_promoted, result_data, result_data, &alpha_buf, &beta_buf,
-                       a_buffer.shape, promoted_strides, promoted_strides, result_strides, result_strides, num_dims,
-                       contiguous_tail);
-    if (cast_staging) flush_cast_staging(cast_staging, dtype, &out_buffer, out_buf_dtype);
+    nk_status_t const status = each_fma_recursive(
+        fma_kernel, stream, a_promoted, b_promoted, result_data, result_data, &alpha_buf, &beta_buf, a_buffer.shape,
+        promoted_strides, promoted_strides, result_strides, result_strides, num_dims, contiguous_tail);
+    if (status == nk_success_k && cast_staging) flush_cast_staging(cast_staging, dtype, &out_buffer, out_buf_dtype);
     PyEval_RestoreThread(gil);
+    if (!check_status(status)) Py_CLEAR(return_obj);
 
 cleanup:
     if (cast_staging) PyMem_Free(cast_staging);
@@ -1345,11 +1356,13 @@ PyObject *api_multiply(PyObject *self, PyObject *const *args, Py_ssize_t const p
 
     PyObject *a_obj = NULL, *b_obj = NULL;
     PyObject *out_obj = NULL, *a_dtype_obj = NULL, *b_dtype_obj = NULL, *out_dtype_obj = NULL;
+    nk_capability_t capabilities = default_capabilities;
+    void *stream = NULL;
 
     Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
     Py_ssize_t const args_count = positional_args_count + args_names_count;
-    if (args_count < 2 || args_count > 6) {
-        PyErr_Format(PyExc_TypeError, "Function expects 2-6 arguments, got %zd", args_count);
+    if (args_count < 2 || args_count > 8) {
+        PyErr_Format(PyExc_TypeError, "Function expects 2-8 arguments, got %zd", args_count);
         return NULL;
     }
     if (positional_args_count > 2) {
@@ -1368,10 +1381,7 @@ PyObject *api_multiply(PyObject *self, PyObject *const *args, Py_ssize_t const p
         else if (PyUnicode_CompareWithASCIIString(key, "a_dtype") == 0 && !a_dtype_obj) { a_dtype_obj = value; }
         else if (PyUnicode_CompareWithASCIIString(key, "b_dtype") == 0 && !b_dtype_obj) { b_dtype_obj = value; }
         else if (PyUnicode_CompareWithASCIIString(key, "out_dtype") == 0 && !out_dtype_obj) { out_dtype_obj = value; }
-        else {
-            PyErr_Format(PyExc_TypeError, "Got unexpected keyword argument: %S", key);
-            return NULL;
-        }
+        else if (!parse_dispatch_keyword(key, value, &capabilities, &stream)) return NULL;
     }
 
     int a_is_scalar = py_object_is_scalar(a_obj);
@@ -1386,9 +1396,9 @@ PyObject *api_multiply(PyObject *self, PyObject *const *args, Py_ssize_t const p
     if (a_is_scalar || b_is_scalar) {
         PyObject *array_obj = a_is_scalar ? b_obj : a_obj;
         PyObject *scalar_obj = a_is_scalar ? a_obj : b_obj;
-        return multiply_scalar_array(array_obj, scalar_obj, out_obj, out_dtype_obj);
+        return multiply_scalar_array(array_obj, scalar_obj, out_obj, out_dtype_obj, capabilities, stream);
     }
 
     // nk.multiply(np.float32([1,2,3]), np.float32([4,5,6])) → array * array
-    return multiply_array_array(a_obj, b_obj, out_obj, out_dtype_obj);
+    return multiply_array_array(a_obj, b_obj, out_obj, out_dtype_obj, capabilities, stream);
 }

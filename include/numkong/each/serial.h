@@ -10,7 +10,7 @@
 #define NUMKONG_EACH_SERIAL_H
 
 #include "numkong/types.h"
-#include "numkong/cast/serial.h"   // `nk_f16_to_f32_serial`
+#include "numkong/cast/serial.h"   // `nk_f16_to_f32_`
 #include "numkong/scalar/serial.h" // `nk_f32_silu_serial_`
 
 #if defined(__cplusplus)
@@ -18,7 +18,7 @@ extern "C" {
 #endif
 
 #define nk_define_each_scale_(input_type, accumulator_type, load_and_convert, convert_and_store) \
-    NUMKONG_API_COMPTIME nk_status_t nk_each_scale_##input_type##_serial(                        \
+    NUMKONG_API nk_status_t nk_each_scale_##input_type##_serial(                                 \
         nk_##input_type##_t const *a, nk_size_t n, nk_##accumulator_type##_t const *alpha,       \
         nk_##accumulator_type##_t const *beta, nk_##input_type##_t *result, void *stream) {      \
         nk_assert_(stream == NUMKONG_NULL);                                                      \
@@ -32,23 +32,23 @@ extern "C" {
         }                                                                                        \
         return nk_success_k;                                                                     \
     }
-#define nk_define_each_sum_(input_type, accumulator_type, load_and_convert, convert_and_store)                      \
-    NUMKONG_API_COMPTIME nk_status_t nk_each_sum_##input_type##_serial(nk_##input_type##_t const *a,                \
-                                                                       nk_##input_type##_t const *b, nk_size_t n,   \
-                                                                       nk_##input_type##_t *result, void *stream) { \
-        nk_assert_(stream == NUMKONG_NULL);                                                                         \
-        nk_##accumulator_type##_t ai, bi, sum;                                                                      \
-        for (nk_size_t i = 0; i != n; ++i) {                                                                        \
-            load_and_convert(a + i, &ai);                                                                           \
-            load_and_convert(b + i, &bi);                                                                           \
-            sum = ai + bi;                                                                                          \
-            convert_and_store(&sum, result + i);                                                                    \
-        }                                                                                                           \
-        return nk_success_k;                                                                                        \
+#define nk_define_each_sum_(input_type, accumulator_type, load_and_convert, convert_and_store)             \
+    NUMKONG_API nk_status_t nk_each_sum_##input_type##_serial(nk_##input_type##_t const *a,                \
+                                                              nk_##input_type##_t const *b, nk_size_t n,   \
+                                                              nk_##input_type##_t *result, void *stream) { \
+        nk_assert_(stream == NUMKONG_NULL);                                                                \
+        nk_##accumulator_type##_t ai, bi, sum;                                                             \
+        for (nk_size_t i = 0; i != n; ++i) {                                                               \
+            load_and_convert(a + i, &ai);                                                                  \
+            load_and_convert(b + i, &bi);                                                                  \
+            sum = ai + bi;                                                                                 \
+            convert_and_store(&sum, result + i);                                                           \
+        }                                                                                                  \
+        return nk_success_k;                                                                               \
     }
 
 #define nk_define_each_blend_(input_type, accumulator_type, load_and_convert, convert_and_store)                    \
-    NUMKONG_API_COMPTIME nk_status_t nk_each_blend_##input_type##_serial(                                           \
+    NUMKONG_API nk_status_t nk_each_blend_##input_type##_serial(                                                    \
         nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_size_t n,                                    \
         nk_##accumulator_type##_t const *alpha, nk_##accumulator_type##_t const *beta, nk_##input_type##_t *result, \
         void *stream) {                                                                                             \
@@ -68,7 +68,7 @@ extern "C" {
     }
 
 #define nk_define_each_fma_(input_type, accumulator_type, load_and_convert, convert_and_store)                      \
-    NUMKONG_API_COMPTIME nk_status_t nk_each_fma_##input_type##_serial(                                             \
+    NUMKONG_API nk_status_t nk_each_fma_##input_type##_serial(                                                      \
         nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_##input_type##_t const *c, nk_size_t n,      \
         nk_##accumulator_type##_t const *alpha, nk_##accumulator_type##_t const *beta, nk_##input_type##_t *result, \
         void *stream) {                                                                                             \
@@ -88,6 +88,7 @@ extern "C" {
         return nk_success_k;                                                                                        \
     }
 
+#if NUMKONG_TARGET_SERIAL
 /*  Keep the serial instantiations below actually scalar, regardless of build type. Without this,
  *  -O3 + LTO can vectorize or clone the serial kernels under AVX-512 callers in dispatch_*.c, which
  *  wastes binary and breaks the nk_*_serial-as-scalar-oracle contract. See dots/serial.h. */
@@ -110,93 +111,99 @@ extern "C" {
 #endif
 #endif
 
-nk_define_each_sum_(f64, f64, nk_assign_from_to_, nk_assign_from_to_)        // nk_each_sum_f64_serial
-nk_define_each_sum_(f32, f32, nk_assign_from_to_, nk_assign_from_to_)        // nk_each_sum_f32_serial
-nk_define_each_sum_(f16, f32, nk_f16_to_f32_serial, nk_f32_to_f16_serial)    // nk_each_sum_f16_serial
-nk_define_each_sum_(bf16, f32, nk_bf16_to_f32_serial, nk_f32_to_bf16_serial) // nk_each_sum_bf16_serial
-nk_define_each_sum_(e4m3, f32, nk_e4m3_to_f32_serial, nk_f32_to_e4m3_serial) // nk_each_sum_e4m3_serial
-nk_define_each_sum_(e5m2, f32, nk_e5m2_to_f32_serial, nk_f32_to_e5m2_serial) // nk_each_sum_e5m2_serial
-nk_define_each_sum_(e2m3, f32, nk_e2m3_to_f32_serial, nk_f32_to_e2m3_serial) // nk_each_sum_e2m3_serial
-nk_define_each_sum_(e3m2, f32, nk_e3m2_to_f32_serial, nk_f32_to_e3m2_serial) // nk_each_sum_e3m2_serial
-nk_define_each_sum_(i8, i64, nk_assign_from_to_, nk_i64_to_i8_serial)        // nk_each_sum_i8_serial
-nk_define_each_sum_(u8, i64, nk_assign_from_to_, nk_i64_to_u8_serial)        // nk_each_sum_u8_serial
-nk_define_each_sum_(i16, i64, nk_assign_from_to_, nk_i64_to_i16_serial)      // nk_each_sum_i16_serial
-nk_define_each_sum_(u16, i64, nk_assign_from_to_, nk_i64_to_u16_serial)      // nk_each_sum_u16_serial
-nk_define_each_sum_(i32, i64, nk_assign_from_to_, nk_i64_to_i32_serial)      // nk_each_sum_i32_serial
-nk_define_each_sum_(u32, i64, nk_assign_from_to_, nk_i64_to_u32_serial)      // nk_each_sum_u32_serial
-nk_define_each_sum_(i64, i64, nk_assign_from_to_, nk_assign_from_to_)        // nk_each_sum_i64_serial
-nk_define_each_sum_(u64, u64, nk_assign_from_to_, nk_assign_from_to_)        // nk_each_sum_u64_serial
+nk_define_each_sum_(f64, f64, nk_assign_from_to_, nk_assign_from_to_)   // nk_each_sum_f64_serial
+nk_define_each_sum_(f32, f32, nk_assign_from_to_, nk_assign_from_to_)   // nk_each_sum_f32_serial
+nk_define_each_sum_(f16, f32, nk_f16_to_f32_, nk_f32_to_f16_)           // nk_each_sum_f16_serial
+nk_define_each_sum_(bf16, f32, nk_bf16_to_f32_, nk_f32_to_bf16_)        // nk_each_sum_bf16_serial
+nk_define_each_sum_(e4m3, f32, nk_e4m3_to_f32_, nk_f32_to_e4m3_)        // nk_each_sum_e4m3_serial
+nk_define_each_sum_(e5m2, f32, nk_e5m2_to_f32_, nk_f32_to_e5m2_)        // nk_each_sum_e5m2_serial
+nk_define_each_sum_(e2m3, f32, nk_e2m3_to_f32_, nk_f32_to_e2m3_)        // nk_each_sum_e2m3_serial
+nk_define_each_sum_(e3m2, f32, nk_e3m2_to_f32_, nk_f32_to_e3m2_)        // nk_each_sum_e3m2_serial
+nk_define_each_sum_(i8, i64, nk_assign_from_to_, nk_i64_to_i8_serial_)   // nk_each_sum_i8_serial
+nk_define_each_sum_(u8, i64, nk_assign_from_to_, nk_i64_to_u8_serial_)   // nk_each_sum_u8_serial
+nk_define_each_sum_(i16, i64, nk_assign_from_to_, nk_i64_to_i16_serial_) // nk_each_sum_i16_serial
+nk_define_each_sum_(u16, i64, nk_assign_from_to_, nk_i64_to_u16_serial_) // nk_each_sum_u16_serial
+nk_define_each_sum_(i32, i64, nk_assign_from_to_, nk_i64_to_i32_serial_) // nk_each_sum_i32_serial
+nk_define_each_sum_(u32, i64, nk_assign_from_to_, nk_i64_to_u32_serial_) // nk_each_sum_u32_serial
+nk_define_each_sum_(i64, i64, nk_assign_from_to_, nk_assign_from_to_)   // nk_each_sum_i64_serial
+nk_define_each_sum_(u64, u64, nk_assign_from_to_, nk_assign_from_to_)   // nk_each_sum_u64_serial
 
-nk_define_each_scale_(f64, f64, nk_assign_from_to_, nk_assign_from_to_)        // nk_each_scale_f64_serial
-nk_define_each_scale_(f32, f32, nk_assign_from_to_, nk_assign_from_to_)        // nk_each_scale_f32_serial
-nk_define_each_scale_(f16, f32, nk_f16_to_f32_serial, nk_f32_to_f16_serial)    // nk_each_scale_f16_serial
-nk_define_each_scale_(bf16, f32, nk_bf16_to_f32_serial, nk_f32_to_bf16_serial) // nk_each_scale_bf16_serial
-nk_define_each_scale_(e4m3, f32, nk_e4m3_to_f32_serial, nk_f32_to_e4m3_serial) // nk_each_scale_e4m3_serial
-nk_define_each_scale_(e5m2, f32, nk_e5m2_to_f32_serial, nk_f32_to_e5m2_serial) // nk_each_scale_e5m2_serial
-nk_define_each_scale_(e2m3, f32, nk_e2m3_to_f32_serial, nk_f32_to_e2m3_serial) // nk_each_scale_e2m3_serial
-nk_define_each_scale_(e3m2, f32, nk_e3m2_to_f32_serial, nk_f32_to_e3m2_serial) // nk_each_scale_e3m2_serial
-nk_define_each_scale_(i8, f32, nk_assign_from_to_, nk_f32_to_i8_serial)        // nk_each_scale_i8_serial
-nk_define_each_scale_(u8, f32, nk_assign_from_to_, nk_f32_to_u8_serial)        // nk_each_scale_u8_serial
-nk_define_each_scale_(i16, f32, nk_assign_from_to_, nk_f32_to_i16_serial)      // nk_each_scale_i16_serial
-nk_define_each_scale_(u16, f32, nk_assign_from_to_, nk_f32_to_u16_serial)      // nk_each_scale_u16_serial
-nk_define_each_scale_(i32, f64, nk_assign_from_to_, nk_f64_to_i32_serial)      // nk_each_scale_i32_serial
-nk_define_each_scale_(u32, f64, nk_assign_from_to_, nk_f64_to_u32_serial)      // nk_each_scale_u32_serial
-nk_define_each_scale_(i64, f64, nk_f64_from_i64_, nk_f64_to_i64_serial)        // nk_each_scale_i64_serial
-nk_define_each_scale_(u64, f64, nk_f64_from_u64_, nk_f64_to_u64_serial)        // nk_each_scale_u64_serial
+nk_define_each_scale_(f64, f64, nk_assign_from_to_, nk_assign_from_to_)   // nk_each_scale_f64_serial
+nk_define_each_scale_(f32, f32, nk_assign_from_to_, nk_assign_from_to_)   // nk_each_scale_f32_serial
+nk_define_each_scale_(f16, f32, nk_f16_to_f32_, nk_f32_to_f16_)           // nk_each_scale_f16_serial
+nk_define_each_scale_(bf16, f32, nk_bf16_to_f32_, nk_f32_to_bf16_)        // nk_each_scale_bf16_serial
+nk_define_each_scale_(e4m3, f32, nk_e4m3_to_f32_, nk_f32_to_e4m3_)        // nk_each_scale_e4m3_serial
+nk_define_each_scale_(e5m2, f32, nk_e5m2_to_f32_, nk_f32_to_e5m2_)        // nk_each_scale_e5m2_serial
+nk_define_each_scale_(e2m3, f32, nk_e2m3_to_f32_, nk_f32_to_e2m3_)        // nk_each_scale_e2m3_serial
+nk_define_each_scale_(e3m2, f32, nk_e3m2_to_f32_, nk_f32_to_e3m2_)        // nk_each_scale_e3m2_serial
+nk_define_each_scale_(i8, f32, nk_assign_from_to_, nk_f32_to_i8_serial_)   // nk_each_scale_i8_serial
+nk_define_each_scale_(u8, f32, nk_assign_from_to_, nk_f32_to_u8_serial_)   // nk_each_scale_u8_serial
+nk_define_each_scale_(i16, f32, nk_assign_from_to_, nk_f32_to_i16_serial_) // nk_each_scale_i16_serial
+nk_define_each_scale_(u16, f32, nk_assign_from_to_, nk_f32_to_u16_serial_) // nk_each_scale_u16_serial
+nk_define_each_scale_(i32, f64, nk_assign_from_to_, nk_f64_to_i32_serial_) // nk_each_scale_i32_serial
+nk_define_each_scale_(u32, f64, nk_assign_from_to_, nk_f64_to_u32_serial_) // nk_each_scale_u32_serial
+nk_define_each_scale_(i64, f64, nk_f64_from_i64_, nk_f64_to_i64_serial_)   // nk_each_scale_i64_serial
+nk_define_each_scale_(u64, f64, nk_f64_from_u64_, nk_f64_to_u64_serial_)   // nk_each_scale_u64_serial
 
-nk_define_each_blend_(f64, f64, nk_assign_from_to_, nk_assign_from_to_)        // nk_each_blend_f64_serial
-nk_define_each_blend_(f32, f32, nk_assign_from_to_, nk_assign_from_to_)        // nk_each_blend_f32_serial
-nk_define_each_blend_(f16, f32, nk_f16_to_f32_serial, nk_f32_to_f16_serial)    // nk_each_blend_f16_serial
-nk_define_each_blend_(bf16, f32, nk_bf16_to_f32_serial, nk_f32_to_bf16_serial) // nk_each_blend_bf16_serial
-nk_define_each_blend_(e4m3, f32, nk_e4m3_to_f32_serial, nk_f32_to_e4m3_serial) // nk_each_blend_e4m3_serial
-nk_define_each_blend_(e5m2, f32, nk_e5m2_to_f32_serial, nk_f32_to_e5m2_serial) // nk_each_blend_e5m2_serial
-nk_define_each_blend_(e2m3, f32, nk_e2m3_to_f32_serial, nk_f32_to_e2m3_serial) // nk_each_blend_e2m3_serial
-nk_define_each_blend_(e3m2, f32, nk_e3m2_to_f32_serial, nk_f32_to_e3m2_serial) // nk_each_blend_e3m2_serial
-nk_define_each_blend_(i8, f32, nk_assign_from_to_, nk_f32_to_i8_serial)        // nk_each_blend_i8_serial
-nk_define_each_blend_(u8, f32, nk_assign_from_to_, nk_f32_to_u8_serial)        // nk_each_blend_u8_serial
-nk_define_each_blend_(i16, f32, nk_assign_from_to_, nk_f32_to_i16_serial)      // nk_each_blend_i16_serial
-nk_define_each_blend_(u16, f32, nk_assign_from_to_, nk_f32_to_u16_serial)      // nk_each_blend_u16_serial
-nk_define_each_blend_(i32, f64, nk_assign_from_to_, nk_f64_to_i32_serial)      // nk_each_blend_i32_serial
-nk_define_each_blend_(u32, f64, nk_assign_from_to_, nk_f64_to_u32_serial)      // nk_each_blend_u32_serial
-nk_define_each_blend_(i64, f64, nk_f64_from_i64_, nk_f64_to_i64_serial)        // nk_each_blend_i64_serial
-nk_define_each_blend_(u64, f64, nk_f64_from_u64_, nk_f64_to_u64_serial)        // nk_each_blend_u64_serial
+nk_define_each_blend_(f64, f64, nk_assign_from_to_, nk_assign_from_to_)   // nk_each_blend_f64_serial
+nk_define_each_blend_(f32, f32, nk_assign_from_to_, nk_assign_from_to_)   // nk_each_blend_f32_serial
+nk_define_each_blend_(f16, f32, nk_f16_to_f32_, nk_f32_to_f16_)           // nk_each_blend_f16_serial
+nk_define_each_blend_(bf16, f32, nk_bf16_to_f32_, nk_f32_to_bf16_)        // nk_each_blend_bf16_serial
+nk_define_each_blend_(e4m3, f32, nk_e4m3_to_f32_, nk_f32_to_e4m3_)        // nk_each_blend_e4m3_serial
+nk_define_each_blend_(e5m2, f32, nk_e5m2_to_f32_, nk_f32_to_e5m2_)        // nk_each_blend_e5m2_serial
+nk_define_each_blend_(e2m3, f32, nk_e2m3_to_f32_, nk_f32_to_e2m3_)        // nk_each_blend_e2m3_serial
+nk_define_each_blend_(e3m2, f32, nk_e3m2_to_f32_, nk_f32_to_e3m2_)        // nk_each_blend_e3m2_serial
+nk_define_each_blend_(i8, f32, nk_assign_from_to_, nk_f32_to_i8_serial_)   // nk_each_blend_i8_serial
+nk_define_each_blend_(u8, f32, nk_assign_from_to_, nk_f32_to_u8_serial_)   // nk_each_blend_u8_serial
+nk_define_each_blend_(i16, f32, nk_assign_from_to_, nk_f32_to_i16_serial_) // nk_each_blend_i16_serial
+nk_define_each_blend_(u16, f32, nk_assign_from_to_, nk_f32_to_u16_serial_) // nk_each_blend_u16_serial
+nk_define_each_blend_(i32, f64, nk_assign_from_to_, nk_f64_to_i32_serial_) // nk_each_blend_i32_serial
+nk_define_each_blend_(u32, f64, nk_assign_from_to_, nk_f64_to_u32_serial_) // nk_each_blend_u32_serial
+nk_define_each_blend_(i64, f64, nk_f64_from_i64_, nk_f64_to_i64_serial_)   // nk_each_blend_i64_serial
+nk_define_each_blend_(u64, f64, nk_f64_from_u64_, nk_f64_to_u64_serial_)   // nk_each_blend_u64_serial
 
-nk_define_each_fma_(f64, f64, nk_assign_from_to_, nk_assign_from_to_)        // nk_each_fma_f64_serial
-nk_define_each_fma_(f32, f32, nk_assign_from_to_, nk_assign_from_to_)        // nk_each_fma_f32_serial
-nk_define_each_fma_(f16, f32, nk_f16_to_f32_serial, nk_f32_to_f16_serial)    // nk_each_fma_f16_serial
-nk_define_each_fma_(bf16, f32, nk_bf16_to_f32_serial, nk_f32_to_bf16_serial) // nk_each_fma_bf16_serial
-nk_define_each_fma_(e4m3, f32, nk_e4m3_to_f32_serial, nk_f32_to_e4m3_serial) // nk_each_fma_e4m3_serial
-nk_define_each_fma_(e5m2, f32, nk_e5m2_to_f32_serial, nk_f32_to_e5m2_serial) // nk_each_fma_e5m2_serial
-nk_define_each_fma_(e2m3, f32, nk_e2m3_to_f32_serial, nk_f32_to_e2m3_serial) // nk_each_fma_e2m3_serial
-nk_define_each_fma_(e3m2, f32, nk_e3m2_to_f32_serial, nk_f32_to_e3m2_serial) // nk_each_fma_e3m2_serial
-nk_define_each_fma_(i8, f32, nk_assign_from_to_, nk_f32_to_i8_serial)        // nk_each_fma_i8_serial
-nk_define_each_fma_(u8, f32, nk_assign_from_to_, nk_f32_to_u8_serial)        // nk_each_fma_u8_serial
-nk_define_each_fma_(i16, f32, nk_assign_from_to_, nk_f32_to_i16_serial)      // nk_each_fma_i16_serial
-nk_define_each_fma_(u16, f32, nk_assign_from_to_, nk_f32_to_u16_serial)      // nk_each_fma_u16_serial
-nk_define_each_fma_(i32, f64, nk_assign_from_to_, nk_f64_to_i32_serial)      // nk_each_fma_i32_serial
-nk_define_each_fma_(u32, f64, nk_assign_from_to_, nk_f64_to_u32_serial)      // nk_each_fma_u32_serial
-nk_define_each_fma_(i64, f64, nk_f64_from_i64_, nk_f64_to_i64_serial)        // nk_each_fma_i64_serial
-nk_define_each_fma_(u64, f64, nk_f64_from_u64_, nk_f64_to_u64_serial)        // nk_each_fma_u64_serial
+nk_define_each_fma_(f64, f64, nk_assign_from_to_, nk_assign_from_to_)   // nk_each_fma_f64_serial
+nk_define_each_fma_(f32, f32, nk_assign_from_to_, nk_assign_from_to_)   // nk_each_fma_f32_serial
+nk_define_each_fma_(f16, f32, nk_f16_to_f32_, nk_f32_to_f16_)           // nk_each_fma_f16_serial
+nk_define_each_fma_(bf16, f32, nk_bf16_to_f32_, nk_f32_to_bf16_)        // nk_each_fma_bf16_serial
+nk_define_each_fma_(e4m3, f32, nk_e4m3_to_f32_, nk_f32_to_e4m3_)        // nk_each_fma_e4m3_serial
+nk_define_each_fma_(e5m2, f32, nk_e5m2_to_f32_, nk_f32_to_e5m2_)        // nk_each_fma_e5m2_serial
+nk_define_each_fma_(e2m3, f32, nk_e2m3_to_f32_, nk_f32_to_e2m3_)        // nk_each_fma_e2m3_serial
+nk_define_each_fma_(e3m2, f32, nk_e3m2_to_f32_, nk_f32_to_e3m2_)        // nk_each_fma_e3m2_serial
+nk_define_each_fma_(i8, f32, nk_assign_from_to_, nk_f32_to_i8_serial_)   // nk_each_fma_i8_serial
+nk_define_each_fma_(u8, f32, nk_assign_from_to_, nk_f32_to_u8_serial_)   // nk_each_fma_u8_serial
+nk_define_each_fma_(i16, f32, nk_assign_from_to_, nk_f32_to_i16_serial_) // nk_each_fma_i16_serial
+nk_define_each_fma_(u16, f32, nk_assign_from_to_, nk_f32_to_u16_serial_) // nk_each_fma_u16_serial
+nk_define_each_fma_(i32, f64, nk_assign_from_to_, nk_f64_to_i32_serial_) // nk_each_fma_i32_serial
+nk_define_each_fma_(u32, f64, nk_assign_from_to_, nk_f64_to_u32_serial_) // nk_each_fma_u32_serial
+nk_define_each_fma_(i64, f64, nk_f64_from_i64_, nk_f64_to_i64_serial_)   // nk_each_fma_i64_serial
+nk_define_each_fma_(u64, f64, nk_f64_from_u64_, nk_f64_to_u64_serial_)   // nk_each_fma_u64_serial
 
 #undef nk_define_each_scale_
 #undef nk_define_each_sum_
 #undef nk_define_each_blend_
 #undef nk_define_each_fma_
 
-NUMKONG_API_COMPTIME nk_status_t nk_each_sum_f32c_serial(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n,
-                                                         nk_f32c_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_each_sum_f32c_serial(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n, nk_f32c_t *result,
+                                                void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_each_sum_f32_serial((nk_f32_t const *)a, (nk_f32_t const *)b, 2 * n, (nk_f32_t *)result, stream);
+    nk_f32_t const *a_scalars = (nk_f32_t const *)a, *b_scalars = (nk_f32_t const *)b;
+    nk_f32_t *result_scalars = (nk_f32_t *)result;
+    for (nk_size_t i = 0; i != 2 * n; ++i) result_scalars[i] = a_scalars[i] + b_scalars[i];
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_each_sum_f64c_serial(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n,
-                                                         nk_f64c_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_each_sum_f64c_serial(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n, nk_f64c_t *result,
+                                                void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_each_sum_f64_serial((nk_f64_t const *)a, (nk_f64_t const *)b, 2 * n, (nk_f64_t *)result, stream);
+    nk_f64_t const *a_scalars = (nk_f64_t const *)a, *b_scalars = (nk_f64_t const *)b;
+    nk_f64_t *result_scalars = (nk_f64_t *)result;
+    for (nk_size_t i = 0; i != 2 * n; ++i) result_scalars[i] = a_scalars[i] + b_scalars[i];
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_each_scale_f32c_serial(nk_f32c_t const *a, nk_size_t n, nk_f32c_t const *alpha,
-                                                           nk_f32c_t const *beta, nk_f32c_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_each_scale_f32c_serial(nk_f32c_t const *a, nk_size_t n, nk_f32c_t const *alpha,
+                                                  nk_f32c_t const *beta, nk_f32c_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_real = alpha->real, alpha_imag = alpha->imag;
     nk_f32_t beta_real = beta->real, beta_imag = beta->imag;
@@ -208,8 +215,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_each_scale_f32c_serial(nk_f32c_t const *a, n
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_each_scale_f64c_serial(nk_f64c_t const *a, nk_size_t n, nk_f64c_t const *alpha,
-                                                           nk_f64c_t const *beta, nk_f64c_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_each_scale_f64c_serial(nk_f64c_t const *a, nk_size_t n, nk_f64c_t const *alpha,
+                                                  nk_f64c_t const *beta, nk_f64c_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_real = alpha->real, alpha_imag = alpha->imag;
     nk_f64_t beta_real = beta->real, beta_imag = beta->imag;
@@ -221,9 +228,9 @@ NUMKONG_API_COMPTIME nk_status_t nk_each_scale_f64c_serial(nk_f64c_t const *a, n
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_each_blend_f32c_serial(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n,
-                                                           nk_f32c_t const *alpha, nk_f32c_t const *beta,
-                                                           nk_f32c_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_each_blend_f32c_serial(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n,
+                                                  nk_f32c_t const *alpha, nk_f32c_t const *beta, nk_f32c_t *result,
+                                                  void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_real = alpha->real, alpha_imag = alpha->imag;
     nk_f32_t beta_real = beta->real, beta_imag = beta->imag;
@@ -240,9 +247,9 @@ NUMKONG_API_COMPTIME nk_status_t nk_each_blend_f32c_serial(nk_f32c_t const *a, n
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_each_blend_f64c_serial(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n,
-                                                           nk_f64c_t const *alpha, nk_f64c_t const *beta,
-                                                           nk_f64c_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_each_blend_f64c_serial(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n,
+                                                  nk_f64c_t const *alpha, nk_f64c_t const *beta, nk_f64c_t *result,
+                                                  void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_real = alpha->real, alpha_imag = alpha->imag;
     nk_f64_t beta_real = beta->real, beta_imag = beta->imag;
@@ -259,9 +266,9 @@ NUMKONG_API_COMPTIME nk_status_t nk_each_blend_f64c_serial(nk_f64c_t const *a, n
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_each_fma_f32c_serial(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c,
-                                                         nk_size_t n, nk_f32c_t const *alpha, nk_f32c_t const *beta,
-                                                         nk_f32c_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_each_fma_f32c_serial(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c, nk_size_t n,
+                                                nk_f32c_t const *alpha, nk_f32c_t const *beta, nk_f32c_t *result,
+                                                void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_real = alpha->real, alpha_imag = alpha->imag;
     nk_f32_t beta_real = beta->real, beta_imag = beta->imag;
@@ -281,9 +288,9 @@ NUMKONG_API_COMPTIME nk_status_t nk_each_fma_f32c_serial(nk_f32c_t const *a, nk_
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_each_fma_f64c_serial(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c,
-                                                         nk_size_t n, nk_f64c_t const *alpha, nk_f64c_t const *beta,
-                                                         nk_f64c_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_each_fma_f64c_serial(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c, nk_size_t n,
+                                                nk_f64c_t const *alpha, nk_f64c_t const *beta, nk_f64c_t *result,
+                                                void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_real = alpha->real, alpha_imag = alpha->imag;
     nk_f64_t beta_real = beta->real, beta_imag = beta->imag;
@@ -319,7 +326,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_each_fma_f64c_serial(nk_f64c_t const *a, nk_
  *  other split-weight models fit without a v2, and let the FFN head's fc1 → SiLU → fc2 pass a NULL
  *  @c up. @c input_scale folds an E4M3 descale onto the load, and is 1.0 for BF16 and F32. */
 #define nk_define_each_swiglu_(input_type, load_and_convert, convert_and_store)                                     \
-    NUMKONG_API_COMPTIME nk_status_t nk_each_swiglu_##input_type##_serial(                                          \
+    NUMKONG_API nk_status_t nk_each_swiglu_##input_type##_serial(                                                   \
         nk_##input_type##_t const *gate, nk_##input_type##_t const *up, nk_##input_type##_t *y, nk_size_t rows,     \
         nk_size_t cols, nk_size_t gate_row_stride, nk_size_t up_row_stride, nk_size_t y_row_stride,                 \
         nk_f32_t input_scale, void *stream) {                                                                       \
@@ -347,8 +354,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_each_fma_f64c_serial(nk_f64c_t const *a, nk_
     }
 
 nk_define_each_swiglu_(f32, nk_assign_from_to_, nk_assign_from_to_)
-nk_define_each_swiglu_(bf16, nk_bf16_to_f32_serial, nk_f32_to_bf16_serial)
-nk_define_each_swiglu_(e4m3, nk_e4m3_to_f32_serial, nk_f32_to_e4m3_serial)
+nk_define_each_swiglu_(bf16, nk_bf16_to_f32_, nk_f32_to_bf16_)
+nk_define_each_swiglu_(e4m3, nk_e4m3_to_f32_, nk_f32_to_e4m3_)
 #undef nk_define_each_swiglu_
 
 #if defined(__clang__)
@@ -356,6 +363,7 @@ nk_define_each_swiglu_(e4m3, nk_e4m3_to_f32_serial, nk_f32_to_e4m3_serial)
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_SERIAL
 
 #if defined(__cplusplus)
 } // extern "C"

@@ -39,7 +39,7 @@ Internally every backend uses the streaming base-2 softmax: the scale folds $\lo
 | `e4m3`     | `f32`       | 8-bit Float8; widened to the ISA's compute format at the pack boundary     |
 | `i8`       | `f32`       | 8-bit signed integers; exact `i32` scores, probabilities quantized to `u8` |
 
-Shape envelope: any `head_dim ≥ 1` (SIMD fast paths cover 1…256 with zero-padded channels; wider heads route to the width-agnostic serial tier), arbitrary segment lengths including empty PAD segments, and any integer GQA ratio.
+Shape envelope: any `head_dim ≥ 1` (SIMD fast paths cover 1…256 with zero-padded channels; wider heads route to the width-agnostic serial kernel), arbitrary segment lengths including empty PAD segments, and any integer GQA ratio.
 Quantization scales fold into the `scale` argument for `i8` (queries and keys) or stay with the caller (values), so all three dtypes share one signature.
 
 ## Optimizations
@@ -74,7 +74,7 @@ Scores stay exact in `i32` integer arithmetic; only the probabilities round.
 
 ## Performance
 
-The tables below follow the house methodology: pinned single-core runs (`numactl --membind=0 taskset -c <core>`), `4 \cdot h \cdot n_q \cdot n_{kv} \cdot d` FLOP accounting, and separate passes for frequency-heavy AMX workloads.
+The tables below follow the [benchmark methodology](../../../bench/README.md#methodology) on one core pinned with `numactl --membind=0 taskset -c <core>`, counting `4 \cdot h \cdot n_q \cdot n_{kv} \cdot d` FLOPs.
 Rows are kernels, columns are square self-attention shapes at `head_dim = 128`, 8 heads; accuracy is the maximum absolute error against an `f64` reference over dtype-rounded inputs.
 Cells marked `⋯` await measurement on the corresponding platform.
 

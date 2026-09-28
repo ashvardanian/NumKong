@@ -35,11 +35,11 @@
 #define NUMKONG_SPATIAL_SVE_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_SVE
+#if NUMKONG_ARCH_ARM64_SVE_
 
 #include "numkong/types.h"
 #include "numkong/reduce/sve.h"   // `nk_svaddv_f64_`
-#include "numkong/spatial/neon.h" // `nk_f64_sqrt_neon`
+#include "numkong/spatial/neon.h" // `nk_angular_normalize_f64_neon_`
 #include "numkong/dot/sve.h"      // `nk_dot_stable_sum_f64_sve_`
 
 #if defined(__cplusplus)
@@ -53,9 +53,8 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+sve")
 #endif
 
-NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
-                                                        nk_f64_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
+/** Sums the squared differences of @p n F32 pairs, widened to F64. */
+NUMKONG_INLINE void nk_squared_distance_f32_sve_(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
     nk_size_t i = 0;
     svfloat64_t dist_sq_f64x = svdupq_n_f64(0.0, 0.0);
     for (; i < n; i += svcntw()) {
@@ -79,19 +78,26 @@ NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_f32_sve(nk_f32_t const *a, nk_f3
     }
     nk_f64_t dist_sq_f64 = nk_svaddv_f64_(svptrue_b64(), dist_sq_f64x);
     *result = dist_sq_f64;
-    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_euclidean_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
-                                                      nk_f64_t *result, void *stream) {
+#if NUMKONG_TARGET_SVE
+NUMKONG_API nk_status_t nk_sqeuclidean_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                               void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_sqeuclidean_f32_sve(a, b, n, result, stream);
-    *result = nk_f64_sqrt_neon(*result);
+    nk_squared_distance_f32_sve_(a, b, n, result);
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_angular_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
-                                                    void *stream) {
+NUMKONG_API nk_status_t nk_euclidean_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                             void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_f32_sve_(a, b, n, result);
+    *result = vget_lane_f64(vsqrt_f64(vdup_n_f64(*result)), 0);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                           void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     svfloat64_t ab_f64x = svdupq_n_f64(0.0, 0.0);
@@ -126,9 +132,10 @@ NUMKONG_API_COMPTIME nk_status_t nk_angular_f32_sve(nk_f32_t const *a, nk_f32_t 
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
-                                                        nk_f64_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
+#endif // NUMKONG_TARGET_SVE
+
+/** Sums the squared differences of @p n F64 pairs with Neumaier compensation. */
+NUMKONG_INLINE void nk_squared_distance_f64_sve_(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     // Neumaier compensated summation for numerical stability
     nk_size_t i = 0;
     svfloat64_t sum_f64x = svdupq_n_f64(0.0, 0.0);
@@ -156,19 +163,26 @@ NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_f64_sve(nk_f64_t const *a, nk_f6
         i += svcntd();
     } while (i < n);
     *result = nk_dot_stable_sum_f64_sve_(predicate_all_b64x, sum_f64x, compensation_f64x);
-    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_euclidean_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
-                                                      nk_f64_t *result, void *stream) {
+#if NUMKONG_TARGET_SVE
+NUMKONG_API nk_status_t nk_sqeuclidean_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                               void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_sqeuclidean_f64_sve(a, b, n, result, stream);
-    *result = nk_f64_sqrt_neon(*result);
+    nk_squared_distance_f64_sve_(a, b, n, result);
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_angular_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
-                                                    void *stream) {
+NUMKONG_API nk_status_t nk_euclidean_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                             void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_f64_sve_(a, b, n, result);
+    *result = vget_lane_f64(vsqrt_f64(vdup_n_f64(*result)), 0);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                           void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Dot2 (Ogita-Rump-Oishi) for cross-product ab (may have cancellation),
     // simple FMA for self-products a2/b2 (all positive, no cancellation)
@@ -208,6 +222,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_angular_f64_sve(nk_f64_t const *a, nk_f64_t 
     *result = nk_angular_normalize_f64_neon_(ab_f64, a2_f64, b2_f64);
     return nk_success_k;
 }
+#endif // NUMKONG_TARGET_SVE
 
 #if defined(__clang__)
 #pragma clang attribute pop
@@ -219,6 +234,6 @@ NUMKONG_API_COMPTIME nk_status_t nk_angular_f64_sve(nk_f64_t const *a, nk_f64_t 
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_SVE
+#endif // NUMKONG_ARCH_ARM64_SVE_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_SPATIAL_SVE_H

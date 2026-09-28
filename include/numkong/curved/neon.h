@@ -27,12 +27,12 @@
 #define NUMKONG_CURVED_NEON_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_NEON
+#if NUMKONG_ARCH_ARM64_NEON_
 
 #include "numkong/types.h"
-#include "numkong/scalar/neon.h" // `nk_f64_sqrt_neon`
-#include "numkong/dot/serial.h"   // `nk_dot_f16c_serial`, `nk_vdot_f16c_serial`
+#include "numkong/cast/serial.h" // `nk_f16_to_f32_`
 
+#if NUMKONG_TARGET_NEON
 #if defined(__cplusplus)
 extern "C" {
 #endif
@@ -44,8 +44,8 @@ extern "C" {
 #pragma GCC target("arch=armv8-a+simd")
 #endif
 
-NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c,
-                                                      nk_size_t n, nk_f64_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_bilinear_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
+                                             nk_f64_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t outer_sum_f64 = 0;
 
@@ -85,8 +85,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f32_neon(nk_f32_t const *a, nk_f32_
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_mahalanobis_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c,
-                                                         nk_size_t n, nk_f64_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_mahalanobis_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
+                                                nk_f64_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t outer_sum_f64 = 0;
 
@@ -129,13 +129,12 @@ NUMKONG_API_COMPTIME nk_status_t nk_mahalanobis_f32_neon(nk_f32_t const *a, nk_f
     }
 
     // Take square root of the result (clamp to 0 for numerical stability)
-    *result = nk_f64_sqrt_neon(outer_sum_f64 > 0 ? outer_sum_f64 : 0);
+    *result = vget_lane_f64(vsqrt_f64(vdup_n_f64(outer_sum_f64 > 0 ? outer_sum_f64 : 0)), 0);
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f32c_neon(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs,
-                                                       nk_f32c_t const *c_pairs, nk_size_t n, nk_f64c_t *results,
-                                                       void *stream) {
+NUMKONG_API nk_status_t nk_bilinear_f32c_neon(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs,
+                                              nk_f32c_t const *c_pairs, nk_size_t n, nk_f64c_t *results, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // ARMv8.3-A FCMLA (`vcmlaq_f32`) was benchmarked for this complex inner loop.
     // The deinterleave+4FMA pattern is 2.3x faster on Apple M4 — see `dot/neon.h` comment.
@@ -198,14 +197,14 @@ NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f32c_neon(nk_f32c_t const *a_pairs,
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c,
-                                                      nk_size_t n, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_bilinear_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
+                                             nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t outer_sum = 0;
     for (nk_size_t row = 0; row != n; ++row) {
         nk_f16_t const *c_row = c + row * n;
         nk_f32_t a_row;
-        nk_f16_to_f32_serial(a + row, &a_row);
+        nk_f16_to_f32_(a + row, &a_row);
         float32x4_t inner_sum_f32x4 = vdupq_n_f32(0);
         nk_size_t column = 0;
         for (; column + 8 <= n; column += 8) {
@@ -221,8 +220,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f16_neon(nk_f16_t const *a, nk_f16_
         nk_f32_t inner_sum = vaddvq_f32(inner_sum_f32x4);
         for (; column < n; ++column) {
             nk_f32_t b_val, c_val;
-            nk_f16_to_f32_serial(b + column, &b_val);
-            nk_f16_to_f32_serial(c_row + column, &c_val);
+            nk_f16_to_f32_(b + column, &b_val);
+            nk_f16_to_f32_(c_row + column, &c_val);
             inner_sum += c_val * b_val;
         }
         outer_sum += a_row * inner_sum;
@@ -231,15 +230,15 @@ NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f16_neon(nk_f16_t const *a, nk_f16_
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_mahalanobis_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c,
-                                                         nk_size_t n, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_mahalanobis_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
+                                                nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t outer_sum = 0;
     for (nk_size_t row = 0; row != n; ++row) {
         nk_f16_t const *c_row = c + row * n;
         nk_f32_t a_row, b_row;
-        nk_f16_to_f32_serial(a + row, &a_row);
-        nk_f16_to_f32_serial(b + row, &b_row);
+        nk_f16_to_f32_(a + row, &a_row);
+        nk_f16_to_f32_(b + row, &b_row);
         nk_f32_t diff_row = a_row - b_row;
         float32x4_t inner_sum_f32x4 = vdupq_n_f32(0);
         nk_size_t column = 0;
@@ -261,29 +260,28 @@ NUMKONG_API_COMPTIME nk_status_t nk_mahalanobis_f16_neon(nk_f16_t const *a, nk_f
         nk_f32_t inner_sum = vaddvq_f32(inner_sum_f32x4);
         for (; column < n; ++column) {
             nk_f32_t a_val, b_val, c_val;
-            nk_f16_to_f32_serial(a + column, &a_val);
-            nk_f16_to_f32_serial(b + column, &b_val);
-            nk_f16_to_f32_serial(c_row + column, &c_val);
+            nk_f16_to_f32_(a + column, &a_val);
+            nk_f16_to_f32_(b + column, &b_val);
+            nk_f16_to_f32_(c_row + column, &c_val);
             inner_sum += c_val * (a_val - b_val);
         }
         outer_sum += diff_row * inner_sum;
     }
     nk_f32_t quadratic = outer_sum;
-    *result = nk_f32_sqrt_neon(quadratic > 0 ? quadratic : 0);
+    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(quadratic > 0 ? quadratic : 0)), 0);
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f16c_neon(nk_f16c_t const *a_pairs, nk_f16c_t const *b_pairs,
-                                                       nk_f16c_t const *c_pairs, nk_size_t n, nk_f32c_t *results,
-                                                       void *stream) {
+NUMKONG_API nk_status_t nk_bilinear_f16c_neon(nk_f16c_t const *a_pairs, nk_f16c_t const *b_pairs,
+                                              nk_f16c_t const *c_pairs, nk_size_t n, nk_f32c_t *results, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t outer_sum_real = 0;
     nk_f32_t outer_sum_imag = 0;
     for (nk_size_t row = 0; row != n; ++row) {
         nk_f16c_t const *c_row = c_pairs + row * n;
         nk_f32_t a_real, a_imag;
-        nk_f16_to_f32_serial(&(a_pairs + row)->real, &a_real);
-        nk_f16_to_f32_serial(&(a_pairs + row)->imag, &a_imag);
+        nk_f16_to_f32_(&(a_pairs + row)->real, &a_real);
+        nk_f16_to_f32_(&(a_pairs + row)->imag, &a_imag);
         float32x4_t inner_sum_real_f32x4 = vdupq_n_f32(0);
         float32x4_t inner_sum_imag_f32x4 = vdupq_n_f32(0);
         nk_size_t column = 0;
@@ -315,10 +313,10 @@ NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f16c_neon(nk_f16c_t const *a_pairs,
         nk_f32_t inner_sum_imag = vaddvq_f32(inner_sum_imag_f32x4);
         for (; column < n; ++column) {
             nk_f32_t b_real, b_imag, c_real, c_imag;
-            nk_f16_to_f32_serial(&(b_pairs + column)->real, &b_real);
-            nk_f16_to_f32_serial(&(b_pairs + column)->imag, &b_imag);
-            nk_f16_to_f32_serial(&(c_row + column)->real, &c_real);
-            nk_f16_to_f32_serial(&(c_row + column)->imag, &c_imag);
+            nk_f16_to_f32_(&(b_pairs + column)->real, &b_real);
+            nk_f16_to_f32_(&(b_pairs + column)->imag, &b_imag);
+            nk_f16_to_f32_(&(c_row + column)->real, &c_real);
+            nk_f16_to_f32_(&(c_row + column)->imag, &c_imag);
             inner_sum_real += c_real * b_real - c_imag * b_imag;
             inner_sum_imag += c_real * b_imag + c_imag * b_real;
         }
@@ -339,7 +337,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f16c_neon(nk_f16c_t const *a_pairs,
 #if defined(__cplusplus)
 } // extern "C"
 #endif
-
 #endif // NUMKONG_TARGET_NEON
+
+#endif // NUMKONG_ARCH_ARM64_NEON_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_CURVED_NEON_H

@@ -67,11 +67,11 @@ jobs:
       - name: Build Locally
         run: |
           cmake --preset debug -D CMAKE_C_COMPILER=gcc-14 -D CMAKE_CXX_COMPILER=g++-14
-          cmake --build --preset debug --target numkong_test
+          cmake --build --preset debug --target numkong_cpu_test
 
       # The `debug` test preset pins small shapes: at the default ones, unoptimized kernels under ASan take hours.
       - name: Test
-        run: ctest --preset debug -R '^numkong_test$'
+        run: ctest --preset debug -R '^numkong_cpu_test$'
 
   test_macos_homebrew_llvm:
     name: Test C on macOS with Homebrew LLVM
@@ -110,7 +110,7 @@ jobs:
               -k 'image lookup -a {frame.pc}' \
               -k 'disassemble -c 8 -s {frame.pc}' \
               -k 'quit' \
-              -- build_release/numkong_test
+              -- build_release/numkong_cpu_test
         env:
           NUMKONG_FILTER: __nk_impossible_filter__
           NUMKONG_BUDGET_SECS: 0.05
@@ -178,9 +178,9 @@ jobs:
 
       - name: Verify Binary
         run: |
-          file build_android_arm64/libnumkong.so
-          file build_android_arm64/libnumkong.so | grep -q "ELF 64-bit.*aarch64"
-          readelf -d build_android_arm64/libnumkong.so | head -20
+          file build_android_arm64/libnumkong_shared.so
+          file build_android_arm64/libnumkong_shared.so | grep -q "ELF 64-bit.*aarch64"
+          readelf -d build_android_arm64/libnumkong_shared.so | head -20
 
       - name: Install Rust Toolchain
         uses: moonrepo/setup-rust@v1
@@ -216,8 +216,8 @@ jobs:
 
       - name: Verify Binary
         run: |
-          file build_android_armv7/libnumkong.so
-          file build_android_armv7/libnumkong.so | grep -q "ELF 32-bit.*ARM"
+          file build_android_armv7/libnumkong_shared.so
+          file build_android_armv7/libnumkong_shared.so | grep -q "ELF 32-bit.*ARM"
 
       - name: Install Rust Toolchain
         uses: moonrepo/setup-rust@v1
@@ -252,8 +252,8 @@ jobs:
 
       - name: Verify Binary
         run: |
-          file build_linux_armv7/libnumkong.so
-          file build_linux_armv7/libnumkong.so | grep -q "ELF 32-bit.*ARM"
+          file build_linux_armv7/libnumkong_shared.so
+          file build_linux_armv7/libnumkong_shared.so | grep -q "ELF 32-bit.*ARM"
 
       - name: Install Rust Toolchain
         uses: moonrepo/setup-rust@v1
@@ -325,22 +325,22 @@ jobs:
         include:
           # `sve-max-vq` is VL/128; the NEON leg needs `sve=off` or dispatch prefers SVE2.
           - name: AArch64 NEON
-            arch: aarch64
+            arch: arm64
             prefix: AARCH64
             triple: aarch64-linux-gnu
             qemu_cpu: max,sve=off
           - name: AArch64 SVE 128
-            arch: aarch64
+            arch: arm64
             prefix: AARCH64
             triple: aarch64-linux-gnu
             qemu_cpu: max,sve-max-vq=1
           - name: AArch64 SVE 256
-            arch: aarch64
+            arch: arm64
             prefix: AARCH64
             triple: aarch64-linux-gnu
             qemu_cpu: max,sve-max-vq=2
           - name: AArch64 SVE 512
-            arch: aarch64
+            arch: arm64
             prefix: AARCH64
             triple: aarch64-linux-gnu
             qemu_cpu: max,sve-max-vq=4
@@ -397,9 +397,47 @@ jobs:
       - name: Build with All x86 ISAs
         run: |
           cmake --preset release
-          cmake --build --preset release --target numkong_test
+          cmake --build --preset release --target numkong_cpu_test
 
       - name: Test Under Granite Rapids Emulation
-        run: "$SDE_PATH/sde64 -gnr -- build_release/numkong_test"
+        run: "$SDE_PATH/sde64 -gnr -- build_release/numkong_cpu_test"
         env:
           NUMKONG_BUDGET_SECS: 0
+
+  # No hosted runner has a GPU, so the three backends are compile checks; the Metal suite also runs on the paravirtual GPU.
+  build_cuda:
+    name: Build CUDA Backend
+    runs-on: ubuntu-26.04
+    # NVIDIA publishes no Ubuntu 26.04 CUDA image yet, so the toolkit comes in a 24.04 container.
+    container: nvidia/cuda:13.0.1-devel-ubuntu24.04
+    steps:
+      - name: Install Dependencies
+        run: apt-get update && apt-get install -y cmake ninja-build g++ git
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Build and Test
+        run: cmake --workflow --preset cuda
+
+  build_rocm:
+    name: Build ROCm Backend
+    runs-on: ubuntu-26.04
+    container: rocm/dev-ubuntu-26.04:latest
+    steps:
+      - name: Install Dependencies
+        run: |
+          apt-get update && apt-get install -y cmake ninja-build git
+          # The image leaves the HIP runtime off the loader path, so the tests could link but not start
+          dirname "$(find /opt/rocm/ -name libamdhip64.so.7 | head -1)" > /etc/ld.so.conf.d/rocm.conf && ldconfig
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Build and Test
+        run: cmake --workflow --preset rocm
+
+  test_metal:
+    name: Test Metal Backend
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Build and Test
+        run: cmake --workflow --preset metal

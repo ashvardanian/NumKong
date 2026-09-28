@@ -100,6 +100,12 @@ const X86_PROBES: &[IsaProbe] = &[
         msvc_flags: &["/arch:AVX10.2"],
     },
     IsaProbe {
+        name: "NUMKONG_TARGET_DIAMONDAMX",
+        probe_file: "probes/x86_diamondamx.c",
+        gcc_flags: &["-mamx-tile", "-mamx-fp8", "-mamx-avx512", "-mavx10.2"],
+        msvc_flags: &["/arch:AVX10.2"],
+    },
+    IsaProbe {
         name: "NUMKONG_TARGET_TURIN",
         probe_file: "probes/x86_turin.c",
         gcc_flags: &["-mavx512vp2intersect"], // implies F+DQ
@@ -277,45 +283,70 @@ fn build_numkong() -> Result<HashMap<String, bool>, String> {
     // Source files
     build
         // Prefer portable flags to support MSVC and older toolchains
-        .std("c99") // Enforce C99 standard when supported
+        .std("c11") // The library uses C11 atomics; its headers stay C99
         .file("c/numkong.c")
-        // Complex float dispatch files
-        .file("c/dispatch_f64c.c")
-        .file("c/dispatch_f32c.c")
-        .file("c/dispatch_bf16c.c")
-        .file("c/dispatch_f16c.c")
-        // Real float dispatch files
-        .file("c/dispatch_f64.c")
-        .file("c/dispatch_f32.c")
-        .file("c/dispatch_bf16.c")
-        .file("c/dispatch_f16.c")
-        // Exotic float dispatch files
-        .file("c/dispatch_e5m2.c")
-        .file("c/dispatch_e4m3.c")
-        .file("c/dispatch_e3m2.c")
-        .file("c/dispatch_e2m3.c")
-        .file("c/dispatch_e2m1.c")
-        // Signed integer dispatch files
-        .file("c/dispatch_i64.c")
-        .file("c/dispatch_i32.c")
-        .file("c/dispatch_i16.c")
-        .file("c/dispatch_i8.c")
-        .file("c/dispatch_i4.c")
-        // Unsigned integer dispatch files
-        .file("c/dispatch_u64.c")
-        .file("c/dispatch_u32.c")
-        .file("c/dispatch_u16.c")
-        .file("c/dispatch_u8.c")
-        .file("c/dispatch_u4.c")
-        .file("c/dispatch_u1.c")
-        // Special dispatch files
-        .file("c/dispatch_other.c")
+        // Family dispatch points
+        .file("c/dispatch/attention.c")
+        .file("c/dispatch/cast.c")
+        .file("c/dispatch/curved.c")
+        .file("c/dispatch/dot.c")
+        .file("c/dispatch/dots.c")
+        .file("c/dispatch/each.c")
+        .file("c/dispatch/geospatial.c")
+        .file("c/dispatch/maxsim.c")
+        .file("c/dispatch/mesh.c")
+        .file("c/dispatch/probability.c")
+        .file("c/dispatch/reduce.c")
+        .file("c/dispatch/scalar.c")
+        .file("c/dispatch/set.c")
+        .file("c/dispatch/sets.c")
+        .file("c/dispatch/sparse.c")
+        .file("c/dispatch/spatial.c")
+        .file("c/dispatch/spatials.c")
+        .file("c/dispatch/trigonometry.c")
+        // Capability kernels, each compiling to nothing off its architecture
+        .file("c/cpu/serial.c")
+        .file("c/cpu/haswell.c")
+        .file("c/cpu/alder.c")
+        .file("c/cpu/sierra.c")
+        .file("c/cpu/skylake.c")
+        .file("c/cpu/icelake.c")
+        .file("c/cpu/genoa.c")
+        .file("c/cpu/turin.c")
+        .file("c/cpu/sapphire.c")
+        .file("c/cpu/diamond.c")
+        .file("c/cpu/sapphireamx.c")
+        .file("c/cpu/graniteamx.c")
+        .file("c/cpu/diamondamx.c")
+        .file("c/cpu/neon.c")
+        .file("c/cpu/neonhalf.c")
+        .file("c/cpu/neonbfdot.c")
+        .file("c/cpu/neonfhm.c")
+        .file("c/cpu/neonsdot.c")
+        .file("c/cpu/neonfp8.c")
+        .file("c/cpu/sve.c")
+        .file("c/cpu/svehalf.c")
+        .file("c/cpu/svesdot.c")
+        .file("c/cpu/svebfdot.c")
+        .file("c/cpu/sve2.c")
+        .file("c/cpu/sme.c")
+        .file("c/cpu/smef64.c")
+        .file("c/cpu/smebi32.c")
+        .file("c/cpu/rvv.c")
+        .file("c/cpu/rvvhalf.c")
+        .file("c/cpu/rvvbf16.c")
+        .file("c/cpu/rvvbb.c")
+        .file("c/cpu/v128.c")
+        .file("c/cpu/v128relaxed.c")
+        .file("c/cpu/powervsx.c")
+        .file("c/cpu/loongsonasx.c")
         .include("include")
+        .include("c")
         .define("NUMKONG_NATIVE_F16", "0")
         .define("NUMKONG_NATIVE_BF16", "0")
-        .define("NUMKONG_RUNTIME_DISPATCH", "1")
         .opt_level(3)
         .flag_if_supported("-pedantic") // Strict compliance when supported
+        .flag_if_supported("/experimental:c11atomics") // MSVC's <stdatomic.h>, which `c/numkong.c` caches detection in
         .flag_if_supported("-Wno-psabi") // Suppress GCC ABI note for 32-byte aligned params
         .warnings(false);
 

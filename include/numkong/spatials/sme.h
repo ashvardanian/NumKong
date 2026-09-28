@@ -10,7 +10,7 @@
 #define NUMKONG_SPATIALS_SME_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_SME
+#if NUMKONG_ARCH_ARM64_SME_
 
 #include "numkong/dots/serial.h"
 #include "numkong/reduce/sve.h" // `nk_svaddv_f64_`
@@ -27,7 +27,7 @@ extern "C" {
 #pragma GCC target("+sme")
 #endif
 
-NUMKONG_HELPER_AUTO nk_f32_t nk_dots_reduce_sumsq_f16_ssve_(nk_f16_t const *data, nk_size_t count) NUMKONG_STREAMING_ {
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_f16_ssve_(nk_f16_t const *data, nk_size_t count) NUMKONG_STREAMING_ {
     svfloat32_t accumulator_even_f32x = svdup_f32(0.0f);
     svfloat32_t accumulator_odd_f32x = svdup_f32(0.0f);
     nk_size_t const vector_length = svcnth();
@@ -46,8 +46,7 @@ NUMKONG_HELPER_AUTO nk_f32_t nk_dots_reduce_sumsq_f16_ssve_(nk_f16_t const *data
     return nk_svaddv_f32_(svptrue_b32(), accumulator_even_f32x) + nk_svaddv_f32_(svptrue_b32(), accumulator_odd_f32x);
 }
 
-NUMKONG_HELPER_AUTO nk_f32_t nk_dots_reduce_sumsq_bf16_ssve_(nk_bf16_t const *data,
-                                                             nk_size_t count) NUMKONG_STREAMING_ {
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_bf16_ssve_(nk_bf16_t const *data, nk_size_t count) NUMKONG_STREAMING_ {
     svfloat32_t accumulator_f32x = svdup_f32(0.0f);
     nk_size_t const vector_length = svcnth();
     for (nk_size_t i = 0; i < count; i += vector_length) {
@@ -58,8 +57,7 @@ NUMKONG_HELPER_AUTO nk_f32_t nk_dots_reduce_sumsq_bf16_ssve_(nk_bf16_t const *da
     return nk_svaddv_f32_(svptrue_b32(), accumulator_f32x);
 }
 
-NUMKONG_HELPER_AUTO nk_f32_t nk_dots_reduce_sumsq_e4m3_ssve_(nk_e4m3_t const *data,
-                                                             nk_size_t count) NUMKONG_STREAMING_ {
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e4m3_ssve_(nk_e4m3_t const *data, nk_size_t count) NUMKONG_STREAMING_ {
     svfloat32_t accumulator_even_f32x = svdup_f32(0.0f);
     svfloat32_t accumulator_odd_f32x = svdup_f32(0.0f);
     nk_size_t const vector_length = svcnth();
@@ -81,8 +79,7 @@ NUMKONG_HELPER_AUTO nk_f32_t nk_dots_reduce_sumsq_e4m3_ssve_(nk_e4m3_t const *da
     return nk_svaddv_f32_(svptrue_b32(), accumulator_even_f32x) + nk_svaddv_f32_(svptrue_b32(), accumulator_odd_f32x);
 }
 
-NUMKONG_HELPER_AUTO nk_f32_t nk_dots_reduce_sumsq_e5m2_ssve_(nk_e5m2_t const *data,
-                                                             nk_size_t count) NUMKONG_STREAMING_ {
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e5m2_ssve_(nk_e5m2_t const *data, nk_size_t count) NUMKONG_STREAMING_ {
     svfloat32_t accumulator_even_f32x = svdup_f32(0.0f);
     svfloat32_t accumulator_odd_f32x = svdup_f32(0.0f);
     nk_size_t const vector_length = svcnth();
@@ -104,8 +101,7 @@ NUMKONG_HELPER_AUTO nk_f32_t nk_dots_reduce_sumsq_e5m2_ssve_(nk_e5m2_t const *da
     return nk_svaddv_f32_(svptrue_b32(), accumulator_even_f32x) + nk_svaddv_f32_(svptrue_b32(), accumulator_odd_f32x);
 }
 
-NUMKONG_HELPER_AUTO nk_f32_t nk_dots_reduce_sumsq_e2m3_ssve_(nk_e2m3_t const *data,
-                                                             nk_size_t count) NUMKONG_STREAMING_ {
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e2m3_ssve_(nk_e2m3_t const *data, nk_size_t count) NUMKONG_STREAMING_ {
     svint32_t accumulator_i32x = svdup_s32(0);
     nk_size_t const vector_length = svcntb();
     for (nk_size_t i = 0; i < count; i += vector_length) {
@@ -117,8 +113,7 @@ NUMKONG_HELPER_AUTO nk_f32_t nk_dots_reduce_sumsq_e2m3_ssve_(nk_e2m3_t const *da
     return (nk_f32_t)nk_svaddv_s32_(svptrue_b32(), accumulator_i32x) / 256.0f;
 }
 
-NUMKONG_HELPER_AUTO nk_f32_t nk_dots_reduce_sumsq_e2m1_ssve_(nk_e2m1x2_t const *data,
-                                                             nk_size_t count) NUMKONG_STREAMING_ {
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e2m1_ssve_(nk_e2m1x2_t const *data, nk_size_t count) NUMKONG_STREAMING_ {
     svint32_t accumulator_i32x = svdup_s32(0);
     nk_size_t const vector_length = svcntb();
     for (nk_size_t i = 0; i < count; i += vector_length) {
@@ -128,8 +123,7 @@ NUMKONG_HELPER_AUTO nk_f32_t nk_dots_reduce_sumsq_e2m1_ssve_(nk_e2m1x2_t const *
     return (nk_f32_t)nk_svaddv_s32_(svptrue_b32(), accumulator_i32x) * 0.25f;
 }
 
-NUMKONG_HELPER_AUTO nk_f32_t nk_dots_reduce_sumsq_e3m2_ssve_(nk_e3m2_t const *data,
-                                                             nk_size_t count) NUMKONG_STREAMING_ {
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e3m2_ssve_(nk_e3m2_t const *data, nk_size_t count) NUMKONG_STREAMING_ {
     svfloat32_t accumulator_even_f32x = svdup_f32(0.0f);
     svfloat32_t accumulator_odd_f32x = svdup_f32(0.0f);
     nk_size_t const vector_length = svcnth();
@@ -151,7 +145,7 @@ NUMKONG_HELPER_AUTO nk_f32_t nk_dots_reduce_sumsq_e3m2_ssve_(nk_e3m2_t const *da
     return nk_svaddv_f32_(svptrue_b32(), accumulator_even_f32x) + nk_svaddv_f32_(svptrue_b32(), accumulator_odd_f32x);
 }
 
-NUMKONG_HELPER_AUTO nk_u32_t nk_dots_reduce_sumsq_i8_ssve_(nk_i8_t const *data, nk_size_t count) NUMKONG_STREAMING_ {
+NUMKONG_INLINE nk_u32_t nk_dots_reduce_sumsq_i8_ssve_(nk_i8_t const *data, nk_size_t count) NUMKONG_STREAMING_ {
     svint32_t accumulator_i32x = svdup_s32(0);
     nk_size_t const vector_length = svcntb();
     for (nk_size_t i = 0; i < count; i += vector_length) {
@@ -162,7 +156,7 @@ NUMKONG_HELPER_AUTO nk_u32_t nk_dots_reduce_sumsq_i8_ssve_(nk_i8_t const *data, 
     return (nk_u32_t)nk_svaddv_s32_(svptrue_b32(), accumulator_i32x);
 }
 
-NUMKONG_HELPER_AUTO nk_u32_t nk_dots_reduce_sumsq_u8_ssve_(nk_u8_t const *data, nk_size_t count) NUMKONG_STREAMING_ {
+NUMKONG_INLINE nk_u32_t nk_dots_reduce_sumsq_u8_ssve_(nk_u8_t const *data, nk_size_t count) NUMKONG_STREAMING_ {
     svuint32_t accumulator_u32x = svdup_u32(0);
     nk_size_t const vector_length = svcntb();
     for (nk_size_t i = 0; i < count; i += vector_length) {
@@ -173,7 +167,7 @@ NUMKONG_HELPER_AUTO nk_u32_t nk_dots_reduce_sumsq_u8_ssve_(nk_u8_t const *data, 
     return (nk_u32_t)nk_svaddv_u32_(svptrue_b32(), accumulator_u32x);
 }
 
-NUMKONG_HELPER_AUTO nk_u32_t nk_dots_reduce_sumsq_i4_ssve_(nk_i4x2_t const *data, nk_size_t count) NUMKONG_STREAMING_ {
+NUMKONG_INLINE nk_u32_t nk_dots_reduce_sumsq_i4_ssve_(nk_i4x2_t const *data, nk_size_t count) NUMKONG_STREAMING_ {
     svint32_t accumulator_i32x = svdup_s32(0);
     nk_u8_t const *bytes = (nk_u8_t const *)data;
     nk_size_t const byte_count = count / NUMKONG_NIBBLES_PER_BYTE;
@@ -193,7 +187,7 @@ NUMKONG_HELPER_AUTO nk_u32_t nk_dots_reduce_sumsq_i4_ssve_(nk_i4x2_t const *data
     return (nk_u32_t)nk_svaddv_s32_(svptrue_b32(), accumulator_i32x);
 }
 
-NUMKONG_HELPER_AUTO nk_u32_t nk_dots_reduce_sumsq_u4_ssve_(nk_u4x2_t const *data, nk_size_t count) NUMKONG_STREAMING_ {
+NUMKONG_INLINE nk_u32_t nk_dots_reduce_sumsq_u4_ssve_(nk_u4x2_t const *data, nk_size_t count) NUMKONG_STREAMING_ {
     svuint32_t accumulator_u32x = svdup_u32(0);
     nk_u8_t const *bytes = (nk_u8_t const *)data;
     nk_size_t const byte_count = count / NUMKONG_NIBBLES_PER_BYTE;
@@ -209,9 +203,9 @@ NUMKONG_HELPER_AUTO nk_u32_t nk_dots_reduce_sumsq_u4_ssve_(nk_u4x2_t const *data
     return (nk_u32_t)nk_svaddv_u32_(svptrue_b32(), accumulator_u32x);
 }
 
-NUMKONG_HELPER_AUTO svfloat32_t nk_angulars_from_dot_f32x_ssve_(svbool_t predicate_b32x, svfloat32_t dots_f32x,
-                                                                svfloat32_t query_norm_sq_f32x,
-                                                                svfloat32_t target_norms_sq_f32x) NUMKONG_STREAMING_ {
+NUMKONG_INLINE svfloat32_t nk_angulars_from_dot_f32x_ssve_(svbool_t predicate_b32x, svfloat32_t dots_f32x,
+                                                           svfloat32_t query_norm_sq_f32x,
+                                                           svfloat32_t target_norms_sq_f32x) NUMKONG_STREAMING_ {
     // Separate reciprocal square roots avoid overflowing the product of two finite-but-large norms.
     svfloat32_t query_rsqrt_f32x = svrsqrte_f32(query_norm_sq_f32x);
     query_rsqrt_f32x = svmul_f32_x(
@@ -230,12 +224,15 @@ NUMKONG_HELPER_AUTO svfloat32_t nk_angulars_from_dot_f32x_ssve_(svbool_t predica
     svfloat32_t rsqrt_f32x = svmul_f32_x(predicate_b32x, query_rsqrt_f32x, target_rsqrt_f32x);
     svfloat32_t angular_f32x = svsub_f32_x(predicate_b32x, svdup_n_f32(1.0f),
                                            svmul_f32_x(predicate_b32x, dots_f32x, rsqrt_f32x));
-    return svmax_f32_x(predicate_b32x, angular_f32x, svdup_n_f32(0.0f));
+    // A zero norm makes the Newton step 0 × ∞ = NaN, and its distance is 0 like the serial kernel
+    svbool_t const normed_b32x = svand_b_z(predicate_b32x, svcmpgt_n_f32(predicate_b32x, query_norm_sq_f32x, 0.0f),
+                                           svcmpgt_n_f32(predicate_b32x, target_norms_sq_f32x, 0.0f));
+    return svmax_f32_z(normed_b32x, angular_f32x, svdup_n_f32(0.0f));
 }
 
-NUMKONG_HELPER_AUTO svfloat32_t nk_euclideans_from_dot_f32x_ssve_(svbool_t predicate_b32x, svfloat32_t dots_f32x,
-                                                                  svfloat32_t query_norm_sq_f32x,
-                                                                  svfloat32_t target_norms_sq_f32x) NUMKONG_STREAMING_ {
+NUMKONG_INLINE svfloat32_t nk_euclideans_from_dot_f32x_ssve_(svbool_t predicate_b32x, svfloat32_t dots_f32x,
+                                                             svfloat32_t query_norm_sq_f32x,
+                                                             svfloat32_t target_norms_sq_f32x) NUMKONG_STREAMING_ {
     svfloat32_t sum_sq_f32x = svadd_f32_x(predicate_b32x, query_norm_sq_f32x, target_norms_sq_f32x);
     svfloat32_t dist_sq_f32x = svsub_f32_x(predicate_b32x, sum_sq_f32x,
                                            svmul_f32_x(predicate_b32x, svdup_n_f32(2.0f), dots_f32x));
@@ -243,9 +240,10 @@ NUMKONG_HELPER_AUTO svfloat32_t nk_euclideans_from_dot_f32x_ssve_(svbool_t predi
     return svsqrt_f32_x(predicate_b32x, dist_sq_f32x);
 }
 
+#if NUMKONG_TARGET_SME
 #pragma region F16 Floats
 
-static void nk_angulars_packed_f16_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_angulars_packed_f16_sme_finalize_ssve_( //
     nk_f16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -266,9 +264,11 @@ static void nk_angulars_packed_f16_sme_finalize_ssve_( //
     }
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_packed_f16_sme( //
+NUMKONG_API nk_status_t nk_angulars_packed_f16_sme( //
     nk_f16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
+    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_f16_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
@@ -276,9 +276,10 @@ NUMKONG_API_COMPTIME void nk_angulars_packed_f16_sme( //
     nk_angulars_packed_f16_sme_finalize_ssve_(a, b_packed, c, rows, columns, depth, a_stride_elements,
                                               c_stride_elements);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_euclideans_packed_f16_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_euclideans_packed_f16_sme_finalize_ssve_( //
     nk_f16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -299,9 +300,11 @@ static void nk_euclideans_packed_f16_sme_finalize_ssve_( //
     }
 }
 
-NUMKONG_API_COMPTIME void nk_euclideans_packed_f16_sme( //
+NUMKONG_API nk_status_t nk_euclideans_packed_f16_sme( //
     nk_f16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
+    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_f16_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
@@ -309,9 +312,10 @@ NUMKONG_API_COMPTIME void nk_euclideans_packed_f16_sme( //
     nk_euclideans_packed_f16_sme_finalize_ssve_(a, b_packed, c, rows, columns, depth, a_stride_elements,
                                                 c_stride_elements);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_angulars_symmetric_f16_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_angulars_symmetric_f16_sme_finalize_ssve_( //
     nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -345,9 +349,10 @@ static void nk_angulars_symmetric_f16_sme_finalize_ssve_( //
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_f16_sme( //
+NUMKONG_API nk_status_t nk_angulars_symmetric_f16_sme( //
     nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
-    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
     nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_f16_t);
@@ -358,9 +363,10 @@ NUMKONG_API_COMPTIME void nk_angulars_symmetric_f16_sme( //
     nk_angulars_symmetric_f16_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
                                                  result_stride_elements, row_start, row_count);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_euclideans_symmetric_f16_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_euclideans_symmetric_f16_sme_finalize_ssve_( //
     nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -394,9 +400,10 @@ static void nk_euclideans_symmetric_f16_sme_finalize_ssve_( //
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f16_sme( //
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_sme( //
     nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
-    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
     nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_f16_t);
@@ -407,13 +414,14 @@ NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f16_sme( //
     nk_euclideans_symmetric_f16_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
                                                    result_stride_elements, row_start, row_count);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
 #pragma endregion F16 Floats
 
 #pragma region BF16 Floats
 
-static void nk_angulars_packed_bf16_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_angulars_packed_bf16_sme_finalize_ssve_( //
     nk_bf16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -434,9 +442,11 @@ static void nk_angulars_packed_bf16_sme_finalize_ssve_( //
     }
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_packed_bf16_sme( //
+NUMKONG_API nk_status_t nk_angulars_packed_bf16_sme( //
     nk_bf16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
+    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_bf16_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
@@ -444,9 +454,10 @@ NUMKONG_API_COMPTIME void nk_angulars_packed_bf16_sme( //
     nk_angulars_packed_bf16_sme_finalize_ssve_(a, b_packed, c, rows, columns, depth, a_stride_elements,
                                                c_stride_elements);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_euclideans_packed_bf16_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_euclideans_packed_bf16_sme_finalize_ssve_( //
     nk_bf16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -467,9 +478,11 @@ static void nk_euclideans_packed_bf16_sme_finalize_ssve_( //
     }
 }
 
-NUMKONG_API_COMPTIME void nk_euclideans_packed_bf16_sme( //
+NUMKONG_API nk_status_t nk_euclideans_packed_bf16_sme( //
     nk_bf16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
+    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_bf16_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
@@ -477,9 +490,10 @@ NUMKONG_API_COMPTIME void nk_euclideans_packed_bf16_sme( //
     nk_euclideans_packed_bf16_sme_finalize_ssve_(a, b_packed, c, rows, columns, depth, a_stride_elements,
                                                  c_stride_elements);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_angulars_symmetric_bf16_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_angulars_symmetric_bf16_sme_finalize_ssve_( //
     nk_bf16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -513,9 +527,10 @@ static void nk_angulars_symmetric_bf16_sme_finalize_ssve_( //
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_bf16_sme( //
+NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_sme( //
     nk_bf16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
-    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
     nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_bf16_t);
@@ -526,9 +541,10 @@ NUMKONG_API_COMPTIME void nk_angulars_symmetric_bf16_sme( //
     nk_angulars_symmetric_bf16_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
                                                   result_stride_elements, row_start, row_count);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_euclideans_symmetric_bf16_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_euclideans_symmetric_bf16_sme_finalize_ssve_( //
     nk_bf16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -562,9 +578,10 @@ static void nk_euclideans_symmetric_bf16_sme_finalize_ssve_( //
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_bf16_sme( //
+NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_sme( //
     nk_bf16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
-    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
     nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_bf16_t);
@@ -575,13 +592,14 @@ NUMKONG_API_COMPTIME void nk_euclideans_symmetric_bf16_sme( //
     nk_euclideans_symmetric_bf16_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
                                                     result_stride_elements, row_start, row_count);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
 #pragma endregion BF16 Floats
 
 #pragma region E4M3 Floats
 
-static void nk_angulars_packed_e4m3_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_angulars_packed_e4m3_sme_finalize_ssve_( //
     nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -602,9 +620,11 @@ static void nk_angulars_packed_e4m3_sme_finalize_ssve_( //
     }
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_packed_e4m3_sme( //
+NUMKONG_API nk_status_t nk_angulars_packed_e4m3_sme( //
     nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
+    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e4m3_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
@@ -612,9 +632,10 @@ NUMKONG_API_COMPTIME void nk_angulars_packed_e4m3_sme( //
     nk_angulars_packed_e4m3_sme_finalize_ssve_(a, b_packed, c, rows, columns, depth, a_stride_elements,
                                                c_stride_elements);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_euclideans_packed_e4m3_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_euclideans_packed_e4m3_sme_finalize_ssve_( //
     nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -635,9 +656,11 @@ static void nk_euclideans_packed_e4m3_sme_finalize_ssve_( //
     }
 }
 
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e4m3_sme( //
+NUMKONG_API nk_status_t nk_euclideans_packed_e4m3_sme( //
     nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
+    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e4m3_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
@@ -645,9 +668,10 @@ NUMKONG_API_COMPTIME void nk_euclideans_packed_e4m3_sme( //
     nk_euclideans_packed_e4m3_sme_finalize_ssve_(a, b_packed, c, rows, columns, depth, a_stride_elements,
                                                  c_stride_elements);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_angulars_symmetric_e4m3_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_angulars_symmetric_e4m3_sme_finalize_ssve_( //
     nk_e4m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -681,9 +705,10 @@ static void nk_angulars_symmetric_e4m3_sme_finalize_ssve_( //
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e4m3_sme( //
+NUMKONG_API nk_status_t nk_angulars_symmetric_e4m3_sme( //
     nk_e4m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
-    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
     nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_e4m3_t);
@@ -694,9 +719,10 @@ NUMKONG_API_COMPTIME void nk_angulars_symmetric_e4m3_sme( //
     nk_angulars_symmetric_e4m3_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
                                                   result_stride_elements, row_start, row_count);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_euclideans_symmetric_e4m3_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_euclideans_symmetric_e4m3_sme_finalize_ssve_( //
     nk_e4m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -730,9 +756,10 @@ static void nk_euclideans_symmetric_e4m3_sme_finalize_ssve_( //
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e4m3_sme( //
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e4m3_sme( //
     nk_e4m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
-    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
     nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_e4m3_t);
@@ -743,13 +770,14 @@ NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e4m3_sme( //
     nk_euclideans_symmetric_e4m3_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
                                                     result_stride_elements, row_start, row_count);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
 #pragma endregion E4M3 Floats
 
 #pragma region E5M2 Floats
 
-static void nk_angulars_packed_e5m2_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_angulars_packed_e5m2_sme_finalize_ssve_( //
     nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -770,9 +798,11 @@ static void nk_angulars_packed_e5m2_sme_finalize_ssve_( //
     }
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_packed_e5m2_sme( //
+NUMKONG_API nk_status_t nk_angulars_packed_e5m2_sme( //
     nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
+    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e5m2_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
@@ -780,9 +810,10 @@ NUMKONG_API_COMPTIME void nk_angulars_packed_e5m2_sme( //
     nk_angulars_packed_e5m2_sme_finalize_ssve_(a, b_packed, c, rows, columns, depth, a_stride_elements,
                                                c_stride_elements);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_euclideans_packed_e5m2_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_euclideans_packed_e5m2_sme_finalize_ssve_( //
     nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -803,9 +834,11 @@ static void nk_euclideans_packed_e5m2_sme_finalize_ssve_( //
     }
 }
 
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e5m2_sme( //
+NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_sme( //
     nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
+    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e5m2_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
@@ -813,9 +846,10 @@ NUMKONG_API_COMPTIME void nk_euclideans_packed_e5m2_sme( //
     nk_euclideans_packed_e5m2_sme_finalize_ssve_(a, b_packed, c, rows, columns, depth, a_stride_elements,
                                                  c_stride_elements);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_angulars_symmetric_e5m2_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_angulars_symmetric_e5m2_sme_finalize_ssve_( //
     nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -849,9 +883,10 @@ static void nk_angulars_symmetric_e5m2_sme_finalize_ssve_( //
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e5m2_sme( //
+NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_sme( //
     nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
-    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
     nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_e5m2_t);
@@ -862,9 +897,10 @@ NUMKONG_API_COMPTIME void nk_angulars_symmetric_e5m2_sme( //
     nk_angulars_symmetric_e5m2_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
                                                   result_stride_elements, row_start, row_count);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_euclideans_symmetric_e5m2_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_euclideans_symmetric_e5m2_sme_finalize_ssve_( //
     nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -898,9 +934,10 @@ static void nk_euclideans_symmetric_e5m2_sme_finalize_ssve_( //
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e5m2_sme( //
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_sme( //
     nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
-    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
     nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_e5m2_t);
@@ -911,13 +948,14 @@ NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e5m2_sme( //
     nk_euclideans_symmetric_e5m2_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
                                                     result_stride_elements, row_start, row_count);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
 #pragma endregion E5M2 Floats
 
 #pragma region E2M3 Floats
 
-static void nk_angulars_packed_e2m3_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_angulars_packed_e2m3_sme_finalize_ssve_( //
     nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -938,9 +976,11 @@ static void nk_angulars_packed_e2m3_sme_finalize_ssve_( //
     }
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_packed_e2m3_sme( //
+NUMKONG_API nk_status_t nk_angulars_packed_e2m3_sme( //
     nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
+    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e2m3_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
@@ -948,9 +988,10 @@ NUMKONG_API_COMPTIME void nk_angulars_packed_e2m3_sme( //
     nk_angulars_packed_e2m3_sme_finalize_ssve_(a, b_packed, c, rows, columns, depth, a_stride_elements,
                                                c_stride_elements);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_euclideans_packed_e2m3_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_euclideans_packed_e2m3_sme_finalize_ssve_( //
     nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -971,9 +1012,11 @@ static void nk_euclideans_packed_e2m3_sme_finalize_ssve_( //
     }
 }
 
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m3_sme( //
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_sme( //
     nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
+    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e2m3_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
@@ -981,9 +1024,10 @@ NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m3_sme( //
     nk_euclideans_packed_e2m3_sme_finalize_ssve_(a, b_packed, c, rows, columns, depth, a_stride_elements,
                                                  c_stride_elements);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_angulars_symmetric_e2m3_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_angulars_symmetric_e2m3_sme_finalize_ssve_( //
     nk_e2m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -1017,9 +1061,10 @@ static void nk_angulars_symmetric_e2m3_sme_finalize_ssve_( //
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m3_sme( //
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_sme( //
     nk_e2m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
-    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
     nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_e2m3_t);
@@ -1030,9 +1075,10 @@ NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m3_sme( //
     nk_angulars_symmetric_e2m3_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
                                                   result_stride_elements, row_start, row_count);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_euclideans_symmetric_e2m3_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_euclideans_symmetric_e2m3_sme_finalize_ssve_( //
     nk_e2m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -1066,9 +1112,10 @@ static void nk_euclideans_symmetric_e2m3_sme_finalize_ssve_( //
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m3_sme( //
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_sme( //
     nk_e2m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
-    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
     nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_e2m3_t);
@@ -1079,13 +1126,14 @@ NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m3_sme( //
     nk_euclideans_symmetric_e2m3_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
                                                     result_stride_elements, row_start, row_count);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
 #pragma endregion E2M3 Floats
 
 #pragma region E2M1 Floats
 
-static void nk_angulars_packed_e2m1_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_angulars_packed_e2m1_sme_finalize_ssve_( //
     nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1106,9 +1154,11 @@ static void nk_angulars_packed_e2m1_sme_finalize_ssve_( //
     }
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_packed_e2m1_sme( //
+NUMKONG_API nk_status_t nk_angulars_packed_e2m1_sme( //
     nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
+    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e2m1x2_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
@@ -1116,9 +1166,10 @@ NUMKONG_API_COMPTIME void nk_angulars_packed_e2m1_sme( //
     nk_angulars_packed_e2m1_sme_finalize_ssve_(a, b_packed, c, rows, columns, depth, a_stride_elements,
                                                c_stride_elements);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_euclideans_packed_e2m1_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_euclideans_packed_e2m1_sme_finalize_ssve_( //
     nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1139,9 +1190,11 @@ static void nk_euclideans_packed_e2m1_sme_finalize_ssve_( //
     }
 }
 
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m1_sme( //
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_sme( //
     nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
+    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e2m1x2_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
@@ -1149,9 +1202,10 @@ NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m1_sme( //
     nk_euclideans_packed_e2m1_sme_finalize_ssve_(a, b_packed, c, rows, columns, depth, a_stride_elements,
                                                  c_stride_elements);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_angulars_symmetric_e2m1_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_angulars_symmetric_e2m1_sme_finalize_ssve_( //
     nk_e2m1x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -1185,9 +1239,10 @@ static void nk_angulars_symmetric_e2m1_sme_finalize_ssve_( //
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m1_sme( //
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_sme( //
     nk_e2m1x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
-    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 &&
                stride_in_bytes >= nk_size_divide_round_up_(depth, 2) * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
@@ -1199,9 +1254,10 @@ NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m1_sme( //
     nk_angulars_symmetric_e2m1_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
                                                   result_stride_elements, row_start, row_count);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_euclideans_symmetric_e2m1_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_euclideans_symmetric_e2m1_sme_finalize_ssve_( //
     nk_e2m1x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -1235,9 +1291,10 @@ static void nk_euclideans_symmetric_e2m1_sme_finalize_ssve_( //
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m1_sme( //
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_sme( //
     nk_e2m1x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
-    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 &&
                stride_in_bytes >= nk_size_divide_round_up_(depth, 2) * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
@@ -1249,13 +1306,14 @@ NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m1_sme( //
     nk_euclideans_symmetric_e2m1_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
                                                     result_stride_elements, row_start, row_count);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
 #pragma endregion E2M1 Floats
 
 #pragma region E3M2 Floats
 
-static void nk_angulars_packed_e3m2_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_angulars_packed_e3m2_sme_finalize_ssve_( //
     nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1276,9 +1334,11 @@ static void nk_angulars_packed_e3m2_sme_finalize_ssve_( //
     }
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_packed_e3m2_sme( //
+NUMKONG_API nk_status_t nk_angulars_packed_e3m2_sme( //
     nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
+    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e3m2_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
@@ -1286,9 +1346,10 @@ NUMKONG_API_COMPTIME void nk_angulars_packed_e3m2_sme( //
     nk_angulars_packed_e3m2_sme_finalize_ssve_(a, b_packed, c, rows, columns, depth, a_stride_elements,
                                                c_stride_elements);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_euclideans_packed_e3m2_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_euclideans_packed_e3m2_sme_finalize_ssve_( //
     nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1309,9 +1370,11 @@ static void nk_euclideans_packed_e3m2_sme_finalize_ssve_( //
     }
 }
 
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e3m2_sme( //
+NUMKONG_API nk_status_t nk_euclideans_packed_e3m2_sme( //
     nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
+    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e3m2_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
@@ -1319,9 +1382,10 @@ NUMKONG_API_COMPTIME void nk_euclideans_packed_e3m2_sme( //
     nk_euclideans_packed_e3m2_sme_finalize_ssve_(a, b_packed, c, rows, columns, depth, a_stride_elements,
                                                  c_stride_elements);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_angulars_symmetric_e3m2_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_angulars_symmetric_e3m2_sme_finalize_ssve_( //
     nk_e3m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -1355,9 +1419,10 @@ static void nk_angulars_symmetric_e3m2_sme_finalize_ssve_( //
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e3m2_sme( //
+NUMKONG_API nk_status_t nk_angulars_symmetric_e3m2_sme( //
     nk_e3m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
-    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
     nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_e3m2_t);
@@ -1368,9 +1433,10 @@ NUMKONG_API_COMPTIME void nk_angulars_symmetric_e3m2_sme( //
     nk_angulars_symmetric_e3m2_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
                                                   result_stride_elements, row_start, row_count);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_euclideans_symmetric_e3m2_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_euclideans_symmetric_e3m2_sme_finalize_ssve_( //
     nk_e3m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
@@ -1404,9 +1470,10 @@ static void nk_euclideans_symmetric_e3m2_sme_finalize_ssve_( //
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e3m2_sme( //
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e3m2_sme( //
     nk_e3m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
-    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
     nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_e3m2_t);
@@ -1417,12 +1484,13 @@ NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e3m2_sme( //
     nk_euclideans_symmetric_e3m2_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
                                                     result_stride_elements, row_start, row_count);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
 #pragma endregion E3M2 Floats
 #pragma region I8 Integers
 
-static void nk_angulars_packed_i8_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_angulars_packed_i8_sme_finalize_ssve_( //
     nk_i8_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1445,9 +1513,11 @@ static void nk_angulars_packed_i8_sme_finalize_ssve_( //
     }
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_packed_i8_sme( //
+NUMKONG_API nk_status_t nk_angulars_packed_i8_sme( //
     nk_i8_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
+    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_i8_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
@@ -1456,9 +1526,10 @@ NUMKONG_API_COMPTIME void nk_angulars_packed_i8_sme( //
     nk_angulars_packed_i8_sme_finalize_ssve_(a, b_packed, c, rows, columns, depth, a_stride_elements,
                                              c_stride_elements);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_euclideans_packed_i8_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_euclideans_packed_i8_sme_finalize_ssve_( //
     nk_i8_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1481,9 +1552,11 @@ static void nk_euclideans_packed_i8_sme_finalize_ssve_( //
     }
 }
 
-NUMKONG_API_COMPTIME void nk_euclideans_packed_i8_sme( //
+NUMKONG_API nk_status_t nk_euclideans_packed_i8_sme( //
     nk_i8_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
+    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_i8_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
@@ -1492,9 +1565,10 @@ NUMKONG_API_COMPTIME void nk_euclideans_packed_i8_sme( //
     nk_euclideans_packed_i8_sme_finalize_ssve_(a, b_packed, c, rows, columns, depth, a_stride_elements,
                                                c_stride_elements);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_angulars_symmetric_i8_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_angulars_symmetric_i8_sme_finalize_ssve_( //
     nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
     // cache row norms on diagonal (store as u32 in f32 slot)
@@ -1531,9 +1605,10 @@ static void nk_angulars_symmetric_i8_sme_finalize_ssve_( //
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_i8_sme( //
+NUMKONG_API nk_status_t nk_angulars_symmetric_i8_sme( //
     nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
-    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
     nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_i8_t);
@@ -1544,9 +1619,10 @@ NUMKONG_API_COMPTIME void nk_angulars_symmetric_i8_sme( //
     nk_angulars_symmetric_i8_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
                                                 result_stride_elements, row_start, row_count);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_euclideans_symmetric_i8_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_euclideans_symmetric_i8_sme_finalize_ssve_( //
     nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
     // cache row norms on diagonal (store as u32 in f32 slot)
@@ -1583,9 +1659,10 @@ static void nk_euclideans_symmetric_i8_sme_finalize_ssve_( //
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_i8_sme( //
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_sme( //
     nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
-    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
     nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_i8_t);
@@ -1596,13 +1673,14 @@ NUMKONG_API_COMPTIME void nk_euclideans_symmetric_i8_sme( //
     nk_euclideans_symmetric_i8_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
                                                   result_stride_elements, row_start, row_count);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
 #pragma endregion I8 Integers
 
 #pragma region U8 Integers
 
-static void nk_angulars_packed_u8_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_angulars_packed_u8_sme_finalize_ssve_( //
     nk_u8_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1625,9 +1703,11 @@ static void nk_angulars_packed_u8_sme_finalize_ssve_( //
     }
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_packed_u8_sme( //
+NUMKONG_API nk_status_t nk_angulars_packed_u8_sme( //
     nk_u8_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
+    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_u8_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
@@ -1636,9 +1716,10 @@ NUMKONG_API_COMPTIME void nk_angulars_packed_u8_sme( //
     nk_angulars_packed_u8_sme_finalize_ssve_(a, b_packed, c, rows, columns, depth, a_stride_elements,
                                              c_stride_elements);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_euclideans_packed_u8_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_euclideans_packed_u8_sme_finalize_ssve_( //
     nk_u8_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1661,9 +1742,11 @@ static void nk_euclideans_packed_u8_sme_finalize_ssve_( //
     }
 }
 
-NUMKONG_API_COMPTIME void nk_euclideans_packed_u8_sme( //
+NUMKONG_API nk_status_t nk_euclideans_packed_u8_sme( //
     nk_u8_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
+    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_u8_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
@@ -1672,9 +1755,10 @@ NUMKONG_API_COMPTIME void nk_euclideans_packed_u8_sme( //
     nk_euclideans_packed_u8_sme_finalize_ssve_(a, b_packed, c, rows, columns, depth, a_stride_elements,
                                                c_stride_elements);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_angulars_symmetric_u8_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_angulars_symmetric_u8_sme_finalize_ssve_( //
     nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
     // cache row norms on diagonal (store as u32 in f32 slot)
@@ -1711,9 +1795,10 @@ static void nk_angulars_symmetric_u8_sme_finalize_ssve_( //
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_u8_sme( //
+NUMKONG_API nk_status_t nk_angulars_symmetric_u8_sme( //
     nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
-    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
     nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_u8_t);
@@ -1724,9 +1809,10 @@ NUMKONG_API_COMPTIME void nk_angulars_symmetric_u8_sme( //
     nk_angulars_symmetric_u8_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
                                                 result_stride_elements, row_start, row_count);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_euclideans_symmetric_u8_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_euclideans_symmetric_u8_sme_finalize_ssve_( //
     nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
     // cache row norms on diagonal (store as u32 in f32 slot)
@@ -1763,9 +1849,10 @@ static void nk_euclideans_symmetric_u8_sme_finalize_ssve_( //
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_u8_sme( //
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_sme( //
     nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
-    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
     nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_u8_t);
@@ -1776,13 +1863,14 @@ NUMKONG_API_COMPTIME void nk_euclideans_symmetric_u8_sme( //
     nk_euclideans_symmetric_u8_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
                                                   result_stride_elements, row_start, row_count);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
 #pragma endregion U8 Integers
 
 #pragma region I4 Integers
 
-static void nk_angulars_packed_i4_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_angulars_packed_i4_sme_finalize_ssve_( //
     nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1805,9 +1893,11 @@ static void nk_angulars_packed_i4_sme_finalize_ssve_( //
     }
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_packed_i4_sme( //
+NUMKONG_API nk_status_t nk_angulars_packed_i4_sme( //
     nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
+    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_i4x2_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
@@ -1816,9 +1906,10 @@ NUMKONG_API_COMPTIME void nk_angulars_packed_i4_sme( //
     nk_angulars_packed_i4_sme_finalize_ssve_(a, b_packed, c, rows, columns, depth, a_stride_elements,
                                              c_stride_elements);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_euclideans_packed_i4_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_euclideans_packed_i4_sme_finalize_ssve_( //
     nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1841,9 +1932,11 @@ static void nk_euclideans_packed_i4_sme_finalize_ssve_( //
     }
 }
 
-NUMKONG_API_COMPTIME void nk_euclideans_packed_i4_sme( //
+NUMKONG_API nk_status_t nk_euclideans_packed_i4_sme( //
     nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
+    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_i4x2_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
@@ -1852,9 +1945,10 @@ NUMKONG_API_COMPTIME void nk_euclideans_packed_i4_sme( //
     nk_euclideans_packed_i4_sme_finalize_ssve_(a, b_packed, c, rows, columns, depth, a_stride_elements,
                                                c_stride_elements);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_angulars_symmetric_i4_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_angulars_symmetric_i4_sme_finalize_ssve_( //
     nk_i4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
     // cache row norms on diagonal (store as u32 in f32 slot)
@@ -1891,9 +1985,10 @@ static void nk_angulars_symmetric_i4_sme_finalize_ssve_( //
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_i4_sme( //
+NUMKONG_API nk_status_t nk_angulars_symmetric_i4_sme( //
     nk_i4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
-    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 &&
                stride_in_bytes >= nk_size_divide_round_up_(depth, 2) * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
@@ -1905,9 +2000,10 @@ NUMKONG_API_COMPTIME void nk_angulars_symmetric_i4_sme( //
     nk_angulars_symmetric_i4_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
                                                 result_stride_elements, row_start, row_count);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_euclideans_symmetric_i4_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_euclideans_symmetric_i4_sme_finalize_ssve_( //
     nk_i4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
     // cache row norms on diagonal (store as u32 in f32 slot)
@@ -1944,9 +2040,10 @@ static void nk_euclideans_symmetric_i4_sme_finalize_ssve_( //
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_i4_sme( //
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i4_sme( //
     nk_i4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
-    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 &&
                stride_in_bytes >= nk_size_divide_round_up_(depth, 2) * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
@@ -1958,13 +2055,14 @@ NUMKONG_API_COMPTIME void nk_euclideans_symmetric_i4_sme( //
     nk_euclideans_symmetric_i4_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
                                                   result_stride_elements, row_start, row_count);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
 #pragma endregion Signed Integers
 
 #pragma region U4 Integers
 
-static void nk_angulars_packed_u4_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_angulars_packed_u4_sme_finalize_ssve_( //
     nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1987,9 +2085,11 @@ static void nk_angulars_packed_u4_sme_finalize_ssve_( //
     }
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_packed_u4_sme( //
+NUMKONG_API nk_status_t nk_angulars_packed_u4_sme( //
     nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
+    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_u4x2_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
@@ -1998,9 +2098,10 @@ NUMKONG_API_COMPTIME void nk_angulars_packed_u4_sme( //
     nk_angulars_packed_u4_sme_finalize_ssve_(a, b_packed, c, rows, columns, depth, a_stride_elements,
                                              c_stride_elements);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_euclideans_packed_u4_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_euclideans_packed_u4_sme_finalize_ssve_( //
     nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -2023,9 +2124,11 @@ static void nk_euclideans_packed_u4_sme_finalize_ssve_( //
     }
 }
 
-NUMKONG_API_COMPTIME void nk_euclideans_packed_u4_sme( //
+NUMKONG_API nk_status_t nk_euclideans_packed_u4_sme( //
     nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes) {
+    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_u4x2_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
@@ -2034,9 +2137,10 @@ NUMKONG_API_COMPTIME void nk_euclideans_packed_u4_sme( //
     nk_euclideans_packed_u4_sme_finalize_ssve_(a, b_packed, c, rows, columns, depth, a_stride_elements,
                                                c_stride_elements);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_angulars_symmetric_u4_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_angulars_symmetric_u4_sme_finalize_ssve_( //
     nk_u4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
     // cache row norms on diagonal (store as u32 in f32 slot)
@@ -2073,9 +2177,10 @@ static void nk_angulars_symmetric_u4_sme_finalize_ssve_( //
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_u4_sme( //
+NUMKONG_API nk_status_t nk_angulars_symmetric_u4_sme( //
     nk_u4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
-    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 &&
                stride_in_bytes >= nk_size_divide_round_up_(depth, 2) * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
@@ -2087,9 +2192,10 @@ NUMKONG_API_COMPTIME void nk_angulars_symmetric_u4_sme( //
     nk_angulars_symmetric_u4_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
                                                 result_stride_elements, row_start, row_count);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
-static void nk_euclideans_symmetric_u4_sme_finalize_ssve_( //
+NUMKONG_OUTLINED_ void nk_euclideans_symmetric_u4_sme_finalize_ssve_( //
     nk_u4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
     // cache row norms on diagonal (store as u32 in f32 slot)
@@ -2126,9 +2232,10 @@ static void nk_euclideans_symmetric_u4_sme_finalize_ssve_( //
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_u4_sme( //
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u4_sme( //
     nk_u4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
-    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count) {
+    nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 &&
                stride_in_bytes >= nk_size_divide_round_up_(depth, 2) * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
@@ -2140,9 +2247,11 @@ NUMKONG_API_COMPTIME void nk_euclideans_symmetric_u4_sme( //
     nk_euclideans_symmetric_u4_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
                                                   result_stride_elements, row_start, row_count);
     nk_sme_stop_streaming_();
+    return nk_success_k;
 }
 
 #pragma endregion Unsigned Integers
+#endif // NUMKONG_TARGET_SME
 
 #if defined(__clang__)
 #pragma clang attribute pop
@@ -2154,6 +2263,6 @@ NUMKONG_API_COMPTIME void nk_euclideans_symmetric_u4_sme( //
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_SME
+#endif // NUMKONG_ARCH_ARM64_SME_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_SPATIALS_SME_H

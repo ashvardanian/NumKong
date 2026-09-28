@@ -9,11 +9,12 @@
 #ifndef NUMKONG_SPATIALS_GENOA_H
 #define NUMKONG_SPATIALS_GENOA_H
 
-#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_ARCH_X8664_
 #if NUMKONG_TARGET_GENOA
 
 #include "numkong/spatial/haswell.h"
 #include "numkong/dots/genoa.h"
+#include "numkong/dots/serial.h"
 #include "numkong/cast/icelake.h"   // `nk_e5m2x32_to_bf16x32_icelake_`
 #include "numkong/dot/skylake.h"    // `nk_dot_through_f32_finalize_skylake_`
 #include "numkong/reduce/skylake.h" // `nk_reduce_add_f32x16_skylake_`
@@ -93,5 +94,5 @@ nk_define_cross_normalized_symmetric_(euclidean, e5m2, genoa, e5m2, f32, /*norm_
 #endif
 
 #endif // NUMKONG_TARGET_GENOA
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_SPATIALS_GENOA_H

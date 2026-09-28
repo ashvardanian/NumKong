@@ -21,6 +21,9 @@ typedef struct MaxSimPackedMatrix {
     PyObject_HEAD nk_dtype_t dtype;
     nk_size_t vectors;
     nk_size_t depth;
+
+    /** The mask that packed it; later calls default to it, as only its capability reads the layout. */
+    nk_capability_t capabilities;
     char start[];
 } MaxSimPackedMatrix;
 

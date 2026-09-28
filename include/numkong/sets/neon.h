@@ -10,11 +10,12 @@
 #define NUMKONG_SETS_NEON_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_NEON
+#if NUMKONG_ARCH_ARM64_NEON_
 
 #include "numkong/set/neon.h"
 #include "numkong/dots/neon.h"
 
+#if NUMKONG_TARGET_NEON
 #if defined(__cplusplus)
 extern "C" {
 #endif
@@ -55,7 +56,8 @@ nk_define_cross_normalized_symmetric_(jaccard, u1, neon, u1x8, u32, /*norm_value
 #if defined(__cplusplus)
 } // extern "C"
 #endif
-
 #endif // NUMKONG_TARGET_NEON
+
+#endif // NUMKONG_ARCH_ARM64_NEON_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_SETS_NEON_H

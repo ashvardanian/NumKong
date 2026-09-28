@@ -163,12 +163,19 @@ char const doc_rmsd[] =                                                         
     "    MeshAlignmentResult: rotation, scale, rmsd, a_centroid, b_centroid fields.\n";
 
 static PyObject *implement_mesh_alignment(nk_kernel_kind_t metric_kind, PyObject *const *args,
-                                          Py_ssize_t positional_args_count) {
+                                          Py_ssize_t positional_args_count, PyObject *args_names_tuple) {
     // We expect exactly 2 positional arguments: a and b
     if (positional_args_count != 2) {
         PyErr_SetString(PyExc_TypeError, "Expected exactly 2 positional arguments (a, b)");
         return NULL;
     }
+    nk_capability_t capabilities = default_capabilities;
+    void *stream = NULL;
+    Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
+    for (Py_ssize_t i = 0; i < args_names_count; ++i)
+        if (!parse_dispatch_keyword(PyTuple_GET_ITEM(args_names_tuple, i), args[positional_args_count + i],
+                                    &capabilities, &stream))
+            return NULL;
 
     Py_buffer a_buffer, b_buffer;
     nk_buffer_backing_t a_backing, b_backing;
@@ -250,7 +257,7 @@ static PyObject *implement_mesh_alignment(nk_kernel_kind_t metric_kind, PyObject
     // Find the appropriate kernel
     nk_metric_mesh_punned_t kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(metric_kind, dtype, (nk_kernel_punned_t *)&kernel, &capability);
+    nk_find_kernel_punned(metric_kind, dtype, capabilities, (nk_kernel_punned_t *)&kernel, &capability);
     if (!kernel || !capability) {
         PyErr_SetString(PyExc_RuntimeError, "No suitable mesh kernel found for this data type");
         goto cleanup;
@@ -286,8 +293,9 @@ static PyObject *implement_mesh_alignment(nk_kernel_kind_t metric_kind, PyObject
 
         if (!rot_tensor || !scale_tensor || !rmsd_tensor || !a_cent_tensor || !b_cent_tensor) goto cleanup;
 
-        kernel(a_buffer.buf, b_buffer.buf, num_points, a_cent_tensor->data, b_cent_tensor->data, rot_tensor->data,
-               scale_tensor->data, rmsd_tensor->data);
+        if (!check_status(kernel(a_buffer.buf, b_buffer.buf, num_points, a_cent_tensor->data, b_cent_tensor->data,
+                                 rot_tensor->data, scale_tensor->data, rmsd_tensor->data, stream)))
+            goto cleanup;
     }
     else {
         // Batched case: (B, N, 3) → rotation (B,3,3), scale (B,), rmsd (B,), centroids (B,3)
@@ -309,11 +317,13 @@ static PyObject *implement_mesh_alignment(nk_kernel_kind_t metric_kind, PyObject
         size_t const metric_bytes = nk_dtype_bytes_per_value(metric_dtype);
 
         for (Py_ssize_t batch_idx = 0; batch_idx < batch_size; ++batch_idx) {
-            kernel(a_ptr + batch_idx * batch_stride_a, b_ptr + batch_idx * batch_stride_b, num_points,
-                   a_cent_tensor->data + batch_idx * 3 * transform_bytes,
-                   b_cent_tensor->data + batch_idx * 3 * transform_bytes,
-                   rot_tensor->data + batch_idx * 9 * transform_bytes, scale_tensor->data + batch_idx * transform_bytes,
-                   rmsd_tensor->data + batch_idx * metric_bytes);
+            if (!check_status(kernel(a_ptr + batch_idx * batch_stride_a, b_ptr + batch_idx * batch_stride_b, num_points,
+                                     a_cent_tensor->data + batch_idx * 3 * transform_bytes,
+                                     b_cent_tensor->data + batch_idx * 3 * transform_bytes,
+                                     rot_tensor->data + batch_idx * 9 * transform_bytes,
+                                     scale_tensor->data + batch_idx * transform_bytes,
+                                     rmsd_tensor->data + batch_idx * metric_bytes, stream)))
+                goto cleanup;
         }
     }
 
@@ -348,20 +358,17 @@ cleanup:
 PyObject *api_kabsch(PyObject *self, PyObject *const *args, Py_ssize_t positional_args_count,
                      PyObject *args_names_tuple) {
     nk_unused_(self);
-    nk_unused_(args_names_tuple);
-    return implement_mesh_alignment(nk_kernel_kabsch_k, args, positional_args_count);
+    return implement_mesh_alignment(nk_kernel_kabsch_k, args, positional_args_count, args_names_tuple);
 }
 
 PyObject *api_umeyama(PyObject *self, PyObject *const *args, Py_ssize_t positional_args_count,
                       PyObject *args_names_tuple) {
     nk_unused_(self);
-    nk_unused_(args_names_tuple);
-    return implement_mesh_alignment(nk_kernel_umeyama_k, args, positional_args_count);
+    return implement_mesh_alignment(nk_kernel_umeyama_k, args, positional_args_count, args_names_tuple);
 }
 
 PyObject *api_rmsd(PyObject *self, PyObject *const *args, Py_ssize_t positional_args_count,
                    PyObject *args_names_tuple) {
     nk_unused_(self);
-    nk_unused_(args_names_tuple);
-    return implement_mesh_alignment(nk_kernel_rmsd_k, args, positional_args_count);
+    return implement_mesh_alignment(nk_kernel_rmsd_k, args, positional_args_count, args_names_tuple);
 }

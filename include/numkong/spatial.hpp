@@ -21,35 +21,47 @@ namespace ashvardanian::numkong {
  *  @param[in] a,b First and second vectors
  *  @param[in] d Counts dimensions, a multiple of the values per byte.
  *  @param[out] r Pointer to output distance value
+ *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *
  *  @tparam in_type_ Input vector element type
  *  @tparam result_type_ Accumulator type, defaults to @c in_type_::euclidean_result_t
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::euclidean_result_t,
-          allow_simd_t allow_simd_ = prefer_simd_k>
-void euclidean(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *r) noexcept {
-    constexpr bool simd = allow_simd_ == prefer_simd_k &&
-                          std::is_same_v<result_type_, typename in_type_::euclidean_result_t>;
+template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::euclidean_result_t>
+nk_status_t euclidean(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *r,
+                      nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+    constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::euclidean_result_t>;
 
-    if constexpr (std::is_same_v<in_type_, f64_t> && simd) nk_euclidean_f64(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, f32_t> && simd) nk_euclidean_f32(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, f16_t> && simd) nk_euclidean_f16(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, bf16_t> && simd) nk_euclidean_bf16(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, e4m3_t> && simd) nk_euclidean_e4m3(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, e5m2_t> && simd) nk_euclidean_e5m2(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, e2m3_t> && simd) nk_euclidean_e2m3(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, e3m2_t> && simd) nk_euclidean_e3m2(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, i8_t> && simd) nk_euclidean_i8(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, u8_t> && simd) nk_euclidean_u8(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, i4x2_t> && simd) nk_euclidean_i4(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, u4x2_t> && simd) nk_euclidean_u4(&a->raw_, &b->raw_, d, &r->raw_);
-    // Scalar fallback
-    else {
-        result_type_ sum {};
-        for (std::size_t i = 0; i < d / dimensions_per_value<in_type_>(); i++) sum = fdsa(a[i], b[i], sum);
-        *r = sum.sqrt();
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
+            return nk_euclidean_f64_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+            return nk_euclidean_f32_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
+            return nk_euclidean_f16_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
+            return nk_euclidean_bf16_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, e4m3_t> && dispatch)
+            return nk_euclidean_e4m3_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, e5m2_t> && dispatch)
+            return nk_euclidean_e5m2_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, e2m3_t> && dispatch)
+            return nk_euclidean_e2m3_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, e3m2_t> && dispatch)
+            return nk_euclidean_e3m2_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, i8_t> && dispatch)
+            return nk_euclidean_i8_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u8_t> && dispatch)
+            return nk_euclidean_u8_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, i4x2_t> && dispatch)
+            return nk_euclidean_i4_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u4x2_t> && dispatch)
+            return nk_euclidean_u4_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
     }
+    result_type_ sum {};
+    for (std::size_t i = 0; i < d / dimensions_per_value<in_type_>(); i++) sum = fdsa(a[i], b[i], sum);
+    *r = sum.sqrt();
+    return nk_success_k;
 }
 
 /**
@@ -57,35 +69,47 @@ void euclidean(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_
  *  @param[in] a,b First and second vectors
  *  @param[in] d Counts dimensions, a multiple of the values per byte.
  *  @param[out] r Pointer to output distance value
+ *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *
  *  @tparam in_type_ Input vector element type
  *  @tparam result_type_ Accumulator type, defaults to @c in_type_::sqeuclidean_result_t
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::sqeuclidean_result_t,
-          allow_simd_t allow_simd_ = prefer_simd_k>
-void sqeuclidean(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *r) noexcept {
-    constexpr bool simd = allow_simd_ == prefer_simd_k &&
-                          std::is_same_v<result_type_, typename in_type_::sqeuclidean_result_t>;
+template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::sqeuclidean_result_t>
+nk_status_t sqeuclidean(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *r,
+                        nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+    constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::sqeuclidean_result_t>;
 
-    if constexpr (std::is_same_v<in_type_, f64_t> && simd) nk_sqeuclidean_f64(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, f32_t> && simd) nk_sqeuclidean_f32(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, f16_t> && simd) nk_sqeuclidean_f16(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, bf16_t> && simd) nk_sqeuclidean_bf16(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, e4m3_t> && simd) nk_sqeuclidean_e4m3(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, e5m2_t> && simd) nk_sqeuclidean_e5m2(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, e2m3_t> && simd) nk_sqeuclidean_e2m3(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, e3m2_t> && simd) nk_sqeuclidean_e3m2(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, i8_t> && simd) nk_sqeuclidean_i8(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, u8_t> && simd) nk_sqeuclidean_u8(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, i4x2_t> && simd) nk_sqeuclidean_i4(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, u4x2_t> && simd) nk_sqeuclidean_u4(&a->raw_, &b->raw_, d, &r->raw_);
-    // Scalar fallback
-    else {
-        result_type_ sum {};
-        for (std::size_t i = 0; i < d / dimensions_per_value<in_type_>(); i++) sum = fdsa(a[i], b[i], sum);
-        *r = sum;
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
+            return nk_sqeuclidean_f64_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+            return nk_sqeuclidean_f32_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
+            return nk_sqeuclidean_f16_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
+            return nk_sqeuclidean_bf16_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, e4m3_t> && dispatch)
+            return nk_sqeuclidean_e4m3_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, e5m2_t> && dispatch)
+            return nk_sqeuclidean_e5m2_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, e2m3_t> && dispatch)
+            return nk_sqeuclidean_e2m3_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, e3m2_t> && dispatch)
+            return nk_sqeuclidean_e3m2_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, i8_t> && dispatch)
+            return nk_sqeuclidean_i8_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u8_t> && dispatch)
+            return nk_sqeuclidean_u8_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, i4x2_t> && dispatch)
+            return nk_sqeuclidean_i4_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u4x2_t> && dispatch)
+            return nk_sqeuclidean_u4_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
     }
+    result_type_ sum {};
+    for (std::size_t i = 0; i < d / dimensions_per_value<in_type_>(); i++) sum = fdsa(a[i], b[i], sum);
+    *r = sum;
+    return nk_success_k;
 }
 
 /**
@@ -93,42 +117,54 @@ void sqeuclidean(in_type_ const *a, in_type_ const *b, std::size_t d, result_typ
  *  @param[in] a,b First and second vectors
  *  @param[in] d Counts dimensions, a multiple of the values per byte.
  *  @param[out] r Pointer to output distance value
+ *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *
  *  @tparam in_type_ Input vector element type
  *  @tparam result_type_ Accumulator type, defaults to @c in_type_::angular_result_t
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::angular_result_t,
-          allow_simd_t allow_simd_ = prefer_simd_k>
-void angular(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *r) noexcept {
-    constexpr bool simd = allow_simd_ == prefer_simd_k &&
-                          std::is_same_v<result_type_, typename in_type_::angular_result_t>;
+template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::angular_result_t>
+nk_status_t angular(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *r,
+                    nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+    constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::angular_result_t>;
 
-    if constexpr (std::is_same_v<in_type_, f64_t> && simd) nk_angular_f64(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, f32_t> && simd) nk_angular_f32(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, f16_t> && simd) nk_angular_f16(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, bf16_t> && simd) nk_angular_bf16(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, e4m3_t> && simd) nk_angular_e4m3(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, e5m2_t> && simd) nk_angular_e5m2(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, e2m3_t> && simd) nk_angular_e2m3(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, e3m2_t> && simd) nk_angular_e3m2(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, i8_t> && simd) nk_angular_i8(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, u8_t> && simd) nk_angular_u8(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, i4x2_t> && simd) nk_angular_i4(&a->raw_, &b->raw_, d, &r->raw_);
-    else if constexpr (std::is_same_v<in_type_, u4x2_t> && simd) nk_angular_u4(&a->raw_, &b->raw_, d, &r->raw_);
-    // Scalar fallback
-    else {
-        result_type_ ab {}, aa {}, bb {};
-        for (std::size_t i = 0; i < d / dimensions_per_value<in_type_>(); i++) {
-            ab = fma(a[i], b[i], ab);
-            aa = fma(a[i], a[i], aa);
-            bb = fma(b[i], b[i], bb);
-        }
-        // Angular distance = 1 - cosine_similarity, clamped to [0, 2]
-        result_type_ cos_sim = ab / (aa.sqrt() * bb.sqrt());
-        result_type_ distance = result_type_(1) - cos_sim;
-        *r = distance > result_type_(0) ? distance : result_type_(0);
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
+            return nk_angular_f64_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+            return nk_angular_f32_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
+            return nk_angular_f16_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
+            return nk_angular_bf16_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, e4m3_t> && dispatch)
+            return nk_angular_e4m3_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, e5m2_t> && dispatch)
+            return nk_angular_e5m2_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, e2m3_t> && dispatch)
+            return nk_angular_e2m3_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, e3m2_t> && dispatch)
+            return nk_angular_e3m2_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, i8_t> && dispatch)
+            return nk_angular_i8_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u8_t> && dispatch)
+            return nk_angular_u8_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, i4x2_t> && dispatch)
+            return nk_angular_i4_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u4x2_t> && dispatch)
+            return nk_angular_u4_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
     }
+    result_type_ ab {}, aa {}, bb {};
+    for (std::size_t i = 0; i < d / dimensions_per_value<in_type_>(); i++) {
+        ab = fma(a[i], b[i], ab);
+        aa = fma(a[i], a[i], aa);
+        bb = fma(b[i], b[i], bb);
+    }
+    // Angular distance = 1 - cosine_similarity, clamped to [0, 2]
+    result_type_ cos_sim = ab / (aa.sqrt() * bb.sqrt());
+    result_type_ distance = result_type_(1) - cos_sim;
+    *r = distance > result_type_(0) ? distance : result_type_(0);
+    return nk_success_k;
 }
 
 } // namespace ashvardanian::numkong
@@ -138,42 +174,45 @@ void angular(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *
 namespace ashvardanian::numkong {
 
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::euclidean_result_t,
-          allow_simd_t allow_simd_ = prefer_simd_k, std::size_t max_rank_a_, std::size_t max_rank_b_>
-void euclidean(tensor_view<in_type_, max_rank_a_> a, tensor_view<in_type_, max_rank_b_> b, std::size_t d,
-               result_type_ *r) noexcept {
-    euclidean<in_type_, result_type_, allow_simd_>(a.data(), b.data(), d, r);
+          std::size_t max_rank_a_, std::size_t max_rank_b_>
+nk_status_t euclidean(tensor_view<in_type_, max_rank_a_> a, tensor_view<in_type_, max_rank_b_> b, std::size_t d,
+                      result_type_ *r, nk_capability_t capabilities = cpu_capabilities(),
+                      void *stream = nullptr) noexcept {
+    return euclidean<in_type_, result_type_>(a.data(), b.data(), d, r, capabilities, stream);
 }
 
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::euclidean_result_t,
-          allow_simd_t allow_simd_ = prefer_simd_k>
-void euclidean(vector_view<in_type_> a, vector_view<in_type_> b, std::size_t d, result_type_ *r) noexcept {
-    euclidean<in_type_, result_type_, allow_simd_>(a.data(), b.data(), d, r);
-}
-
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::sqeuclidean_result_t,
-          allow_simd_t allow_simd_ = prefer_simd_k, std::size_t max_rank_a_, std::size_t max_rank_b_>
-void sqeuclidean(tensor_view<in_type_, max_rank_a_> a, tensor_view<in_type_, max_rank_b_> b, std::size_t d,
-                 result_type_ *r) noexcept {
-    sqeuclidean<in_type_, result_type_, allow_simd_>(a.data(), b.data(), d, r);
+template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::euclidean_result_t>
+nk_status_t euclidean(vector_view<in_type_> a, vector_view<in_type_> b, std::size_t d, result_type_ *r,
+                      nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+    return euclidean<in_type_, result_type_>(a.data(), b.data(), d, r, capabilities, stream);
 }
 
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::sqeuclidean_result_t,
-          allow_simd_t allow_simd_ = prefer_simd_k>
-void sqeuclidean(vector_view<in_type_> a, vector_view<in_type_> b, std::size_t d, result_type_ *r) noexcept {
-    sqeuclidean<in_type_, result_type_, allow_simd_>(a.data(), b.data(), d, r);
+          std::size_t max_rank_a_, std::size_t max_rank_b_>
+nk_status_t sqeuclidean(tensor_view<in_type_, max_rank_a_> a, tensor_view<in_type_, max_rank_b_> b, std::size_t d,
+                        result_type_ *r, nk_capability_t capabilities = cpu_capabilities(),
+                        void *stream = nullptr) noexcept {
+    return sqeuclidean<in_type_, result_type_>(a.data(), b.data(), d, r, capabilities, stream);
+}
+
+template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::sqeuclidean_result_t>
+nk_status_t sqeuclidean(vector_view<in_type_> a, vector_view<in_type_> b, std::size_t d, result_type_ *r,
+                        nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+    return sqeuclidean<in_type_, result_type_>(a.data(), b.data(), d, r, capabilities, stream);
 }
 
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::angular_result_t,
-          allow_simd_t allow_simd_ = prefer_simd_k, std::size_t max_rank_a_, std::size_t max_rank_b_>
-void angular(tensor_view<in_type_, max_rank_a_> a, tensor_view<in_type_, max_rank_b_> b, std::size_t d,
-             result_type_ *r) noexcept {
-    angular<in_type_, result_type_, allow_simd_>(a.data(), b.data(), d, r);
+          std::size_t max_rank_a_, std::size_t max_rank_b_>
+nk_status_t angular(tensor_view<in_type_, max_rank_a_> a, tensor_view<in_type_, max_rank_b_> b, std::size_t d,
+                    result_type_ *r, nk_capability_t capabilities = cpu_capabilities(),
+                    void *stream = nullptr) noexcept {
+    return angular<in_type_, result_type_>(a.data(), b.data(), d, r, capabilities, stream);
 }
 
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::angular_result_t,
-          allow_simd_t allow_simd_ = prefer_simd_k>
-void angular(vector_view<in_type_> a, vector_view<in_type_> b, std::size_t d, result_type_ *r) noexcept {
-    angular<in_type_, result_type_, allow_simd_>(a.data(), b.data(), d, r);
+template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::angular_result_t>
+nk_status_t angular(vector_view<in_type_> a, vector_view<in_type_> b, std::size_t d, result_type_ *r,
+                    nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+    return angular<in_type_, result_type_>(a.data(), b.data(), d, r, capabilities, stream);
 }
 
 } // namespace ashvardanian::numkong

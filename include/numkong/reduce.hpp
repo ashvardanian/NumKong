@@ -26,63 +26,85 @@ namespace ashvardanian::numkong {
  *  @param[in] stride_bytes Stride between elements in bytes, `sizeof(in_type_)` for contiguous.
  *  @param[out] sum Output sum.
  *  @param[out] sumsq Output sum of squares.
+ *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template.
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
  *
  *  @tparam in_type_ Input vector element type.
  *  @tparam sum_type_ Accumulator, defaults to @c in_type_::reduce_moments_sum_t, often widened.
  *  @tparam sumsq_type_ Sum-of-squares accumulator type, defaults to @c sum_type_.
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k.
  */
 template <numeric_dtype in_type_, numeric_dtype sum_type_ = typename in_type_::reduce_moments_sum_t,
-          numeric_dtype sumsq_type_ = typename in_type_::reduce_moments_sumsq_t,
-          allow_simd_t allow_simd_ = prefer_simd_k>
-void reduce_moments(in_type_ const *data, std::size_t count, std::size_t stride_bytes, sum_type_ *sum,
-                    sumsq_type_ *sumsq) noexcept {
-    constexpr bool simd = allow_simd_ == prefer_simd_k &&
-                          std::is_same_v<sum_type_, typename in_type_::reduce_moments_sum_t> &&
-                          std::is_same_v<sumsq_type_, typename in_type_::reduce_moments_sumsq_t>;
+          numeric_dtype sumsq_type_ = typename in_type_::reduce_moments_sumsq_t>
+nk_status_t reduce_moments(in_type_ const *data, std::size_t count, std::size_t stride_bytes, sum_type_ *sum,
+                           sumsq_type_ *sumsq, nk_capability_t capabilities = cpu_capabilities(),
+                           void *stream = nullptr) noexcept {
+    constexpr bool dispatch = std::is_same_v<sum_type_, typename in_type_::reduce_moments_sum_t> &&
+                              std::is_same_v<sumsq_type_, typename in_type_::reduce_moments_sumsq_t>;
 
-    if constexpr (std::is_same_v<in_type_, f64_t> && simd)
-        nk_reduce_moments_f64(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_);
-    else if constexpr (std::is_same_v<in_type_, f32_t> && simd)
-        nk_reduce_moments_f32(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_);
-    else if constexpr (std::is_same_v<in_type_, f16_t> && simd)
-        nk_reduce_moments_f16(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_);
-    else if constexpr (std::is_same_v<in_type_, bf16_t> && simd)
-        nk_reduce_moments_bf16(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_);
-    else if constexpr (std::is_same_v<in_type_, e4m3_t> && simd)
-        nk_reduce_moments_e4m3(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_);
-    else if constexpr (std::is_same_v<in_type_, e5m2_t> && simd)
-        nk_reduce_moments_e5m2(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_);
-    else if constexpr (std::is_same_v<in_type_, e2m3_t> && simd)
-        nk_reduce_moments_e2m3(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_);
-    else if constexpr (std::is_same_v<in_type_, e2m1x2_t> && simd)
-        nk_reduce_moments_e2m1_serial(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_);
-    else if constexpr (std::is_same_v<in_type_, e3m2_t> && simd)
-        nk_reduce_moments_e3m2(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_);
-    else if constexpr (std::is_same_v<in_type_, i4x2_t> && simd)
-        nk_reduce_moments_i4(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_);
-    else if constexpr (std::is_same_v<in_type_, u4x2_t> && simd)
-        nk_reduce_moments_u4(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_);
-    else if constexpr (std::is_same_v<in_type_, u1x8_t> && simd)
-        nk_reduce_moments_u1(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_);
-    else if constexpr (std::is_same_v<in_type_, i8_t> && simd)
-        nk_reduce_moments_i8(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_);
-    else if constexpr (std::is_same_v<in_type_, u8_t> && simd)
-        nk_reduce_moments_u8(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_);
-    else if constexpr (std::is_same_v<in_type_, i16_t> && simd)
-        nk_reduce_moments_i16(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_);
-    else if constexpr (std::is_same_v<in_type_, u16_t> && simd)
-        nk_reduce_moments_u16(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_);
-    else if constexpr (std::is_same_v<in_type_, i32_t> && simd)
-        nk_reduce_moments_i32(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_);
-    else if constexpr (std::is_same_v<in_type_, u32_t> && simd)
-        nk_reduce_moments_u32(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_);
-    else if constexpr (std::is_same_v<in_type_, i64_t> && simd)
-        nk_reduce_moments_i64(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_);
-    else if constexpr (std::is_same_v<in_type_, u64_t> && simd)
-        nk_reduce_moments_u64(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_);
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
+            return nk_reduce_moments_f64_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
+                                              stream);
+        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+            return nk_reduce_moments_f32_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
+                                              stream);
+        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
+            return nk_reduce_moments_f16_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
+                                              stream);
+        else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
+            return nk_reduce_moments_bf16_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
+                                               stream);
+        else if constexpr (std::is_same_v<in_type_, e4m3_t> && dispatch)
+            return nk_reduce_moments_e4m3_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
+                                               stream);
+        else if constexpr (std::is_same_v<in_type_, e5m2_t> && dispatch)
+            return nk_reduce_moments_e5m2_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
+                                               stream);
+        else if constexpr (std::is_same_v<in_type_, e2m3_t> && dispatch)
+            return nk_reduce_moments_e2m3_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
+                                               stream);
+        else if constexpr (std::is_same_v<in_type_, e2m1x2_t> && dispatch)
+            return nk_reduce_moments_e2m1_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
+                                               stream);
+        else if constexpr (std::is_same_v<in_type_, e3m2_t> && dispatch)
+            return nk_reduce_moments_e3m2_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
+                                               stream);
+        else if constexpr (std::is_same_v<in_type_, i4x2_t> && dispatch)
+            return nk_reduce_moments_i4_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
+                                             stream);
+        else if constexpr (std::is_same_v<in_type_, u4x2_t> && dispatch)
+            return nk_reduce_moments_u4_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
+                                             stream);
+        else if constexpr (std::is_same_v<in_type_, u1x8_t> && dispatch)
+            return nk_reduce_moments_u1_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
+                                             stream);
+        else if constexpr (std::is_same_v<in_type_, i8_t> && dispatch)
+            return nk_reduce_moments_i8_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
+                                             stream);
+        else if constexpr (std::is_same_v<in_type_, u8_t> && dispatch)
+            return nk_reduce_moments_u8_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
+                                             stream);
+        else if constexpr (std::is_same_v<in_type_, i16_t> && dispatch)
+            return nk_reduce_moments_i16_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
+                                              stream);
+        else if constexpr (std::is_same_v<in_type_, u16_t> && dispatch)
+            return nk_reduce_moments_u16_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
+                                              stream);
+        else if constexpr (std::is_same_v<in_type_, i32_t> && dispatch)
+            return nk_reduce_moments_i32_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
+                                              stream);
+        else if constexpr (std::is_same_v<in_type_, u32_t> && dispatch)
+            return nk_reduce_moments_u32_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
+                                              stream);
+        else if constexpr (std::is_same_v<in_type_, i64_t> && dispatch)
+            return nk_reduce_moments_i64_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
+                                              stream);
+        else if constexpr (std::is_same_v<in_type_, u64_t> && dispatch)
+            return nk_reduce_moments_u64_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
+                                              stream);
+    }
     // Sub-byte views yield raw FP4 codes, so pairs decode through their nibble accessors
-    else if constexpr (std::is_same_v<in_type_, e2m1x2_t>) {
+    if constexpr (std::is_same_v<in_type_, e2m1x2_t>) {
         sum_type_ running_sum {};
         sumsq_type_ running_sumsq {};
         char const *bytes = reinterpret_cast<char const *>(data);
@@ -108,6 +130,7 @@ void reduce_moments(in_type_ const *data, std::size_t count, std::size_t stride_
         *sum = running_sum;
         *sumsq = running_sumsq;
     }
+    return nk_success_k;
 }
 
 /**
@@ -119,82 +142,88 @@ void reduce_moments(in_type_ const *data, std::size_t count, std::size_t stride_
  *  @param[out] min_index Output index of minimum value, @c NUMKONG_SIZE_MAX if every value is NaN
  *  @param[out] max_value Output maximum value
  *  @param[out] max_index Output index of maximum value, @c NUMKONG_SIZE_MAX if every value is NaN
+ *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *
  *  @tparam in_type_ Input vector element type
  *  @tparam minmax_type_ Result type for min/max values, defaults to
  *      @c in_type_::reduce_minmax_value_t
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
-template <numeric_dtype in_type_, numeric_dtype minmax_type_ = typename in_type_::reduce_minmax_value_t,
-          allow_simd_t allow_simd_ = prefer_simd_k>
-void reduce_minmax(in_type_ const *data, std::size_t count, std::size_t stride_bytes, minmax_type_ *min_value,
-                   std::size_t *min_index, minmax_type_ *max_value, std::size_t *max_index) noexcept {
-    constexpr bool simd = allow_simd_ == prefer_simd_k &&
-                          std::is_same_v<minmax_type_, typename in_type_::reduce_minmax_value_t>;
+template <numeric_dtype in_type_, numeric_dtype minmax_type_ = typename in_type_::reduce_minmax_value_t>
+nk_status_t reduce_minmax(in_type_ const *data, std::size_t count, std::size_t stride_bytes, minmax_type_ *min_value,
+                          std::size_t *min_index, minmax_type_ *max_value, std::size_t *max_index,
+                          nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+    constexpr bool dispatch = std::is_same_v<minmax_type_, typename in_type_::reduce_minmax_value_t>;
     static_assert(sizeof(std::size_t) == sizeof(nk_size_t), "size_t and nk_size_t must have the same width");
     nk_size_t min_offset = NUMKONG_SIZE_MAX, max_offset = NUMKONG_SIZE_MAX;
+    nk_status_t status = nk_success_k;
+    bool dispatched = false;
 
     // For types where minmax_type_ matches the C function output type directly,
     // dispatch to the C kernel and pass raw pointers through.
-    if constexpr (std::is_same_v<in_type_, f64_t> && simd)
-        nk_reduce_minmax_f64(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset, &max_value->raw_,
-                             &max_offset);
-    else if constexpr (std::is_same_v<in_type_, f32_t> && simd)
-        nk_reduce_minmax_f32(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset, &max_value->raw_,
-                             &max_offset);
-    else if constexpr (std::is_same_v<in_type_, i8_t> && simd)
-        nk_reduce_minmax_i8(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset, &max_value->raw_,
-                            &max_offset);
-    else if constexpr (std::is_same_v<in_type_, u8_t> && simd)
-        nk_reduce_minmax_u8(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset, &max_value->raw_,
-                            &max_offset);
-    else if constexpr (std::is_same_v<in_type_, i16_t> && simd)
-        nk_reduce_minmax_i16(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset, &max_value->raw_,
-                             &max_offset);
-    else if constexpr (std::is_same_v<in_type_, u16_t> && simd)
-        nk_reduce_minmax_u16(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset, &max_value->raw_,
-                             &max_offset);
-    else if constexpr (std::is_same_v<in_type_, i32_t> && simd)
-        nk_reduce_minmax_i32(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset, &max_value->raw_,
-                             &max_offset);
-    else if constexpr (std::is_same_v<in_type_, u32_t> && simd)
-        nk_reduce_minmax_u32(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset, &max_value->raw_,
-                             &max_offset);
-    else if constexpr (std::is_same_v<in_type_, i64_t> && simd)
-        nk_reduce_minmax_i64(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset, &max_value->raw_,
-                             &max_offset);
-    else if constexpr (std::is_same_v<in_type_, u64_t> && simd)
-        nk_reduce_minmax_u64(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset, &max_value->raw_,
-                             &max_offset);
-    else if constexpr (std::is_same_v<in_type_, e2m3_t> && simd)
-        nk_reduce_minmax_e2m3(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset, &max_value->raw_,
-                              &max_offset);
-    else if constexpr (std::is_same_v<in_type_, e3m2_t> && simd)
-        nk_reduce_minmax_e3m2(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset, &max_value->raw_,
-                              &max_offset);
-    else if constexpr (std::is_same_v<in_type_, f16_t> && simd)
-        nk_reduce_minmax_f16(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset, &max_value->raw_,
-                             &max_offset);
-    else if constexpr (std::is_same_v<in_type_, bf16_t> && simd)
-        nk_reduce_minmax_bf16(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset, &max_value->raw_,
-                              &max_offset);
-    else if constexpr (std::is_same_v<in_type_, e4m3_t> && simd)
-        nk_reduce_minmax_e4m3(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset, &max_value->raw_,
-                              &max_offset);
-    else if constexpr (std::is_same_v<in_type_, e5m2_t> && simd)
-        nk_reduce_minmax_e5m2(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset, &max_value->raw_,
-                              &max_offset);
-    else if constexpr (std::is_same_v<in_type_, i4x2_t> && simd)
-        nk_reduce_minmax_i4(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset, &max_value->raw_,
-                            &max_offset);
-    else if constexpr (std::is_same_v<in_type_, u4x2_t> && simd)
-        nk_reduce_minmax_u4(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset, &max_value->raw_,
-                            &max_offset);
-    else if constexpr (std::is_same_v<in_type_, u1x8_t> && simd)
-        nk_reduce_minmax_u1(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset, &max_value->raw_,
-                            &max_offset);
+    if (capabilities) {
+        dispatched = true;
+        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
+            status = nk_reduce_minmax_f64_best(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset,
+                                               &max_value->raw_, &max_offset, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+            status = nk_reduce_minmax_f32_best(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset,
+                                               &max_value->raw_, &max_offset, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, i8_t> && dispatch)
+            status = nk_reduce_minmax_i8_best(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset,
+                                              &max_value->raw_, &max_offset, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u8_t> && dispatch)
+            status = nk_reduce_minmax_u8_best(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset,
+                                              &max_value->raw_, &max_offset, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, i16_t> && dispatch)
+            status = nk_reduce_minmax_i16_best(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset,
+                                               &max_value->raw_, &max_offset, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u16_t> && dispatch)
+            status = nk_reduce_minmax_u16_best(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset,
+                                               &max_value->raw_, &max_offset, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, i32_t> && dispatch)
+            status = nk_reduce_minmax_i32_best(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset,
+                                               &max_value->raw_, &max_offset, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u32_t> && dispatch)
+            status = nk_reduce_minmax_u32_best(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset,
+                                               &max_value->raw_, &max_offset, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, i64_t> && dispatch)
+            status = nk_reduce_minmax_i64_best(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset,
+                                               &max_value->raw_, &max_offset, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u64_t> && dispatch)
+            status = nk_reduce_minmax_u64_best(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset,
+                                               &max_value->raw_, &max_offset, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, e2m3_t> && dispatch)
+            status = nk_reduce_minmax_e2m3_best(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset,
+                                                &max_value->raw_, &max_offset, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, e3m2_t> && dispatch)
+            status = nk_reduce_minmax_e3m2_best(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset,
+                                                &max_value->raw_, &max_offset, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
+            status = nk_reduce_minmax_f16_best(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset,
+                                               &max_value->raw_, &max_offset, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
+            status = nk_reduce_minmax_bf16_best(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset,
+                                                &max_value->raw_, &max_offset, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, e4m3_t> && dispatch)
+            status = nk_reduce_minmax_e4m3_best(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset,
+                                                &max_value->raw_, &max_offset, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, e5m2_t> && dispatch)
+            status = nk_reduce_minmax_e5m2_best(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset,
+                                                &max_value->raw_, &max_offset, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, i4x2_t> && dispatch)
+            status = nk_reduce_minmax_i4_best(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset,
+                                              &max_value->raw_, &max_offset, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u4x2_t> && dispatch)
+            status = nk_reduce_minmax_u4_best(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset,
+                                              &max_value->raw_, &max_offset, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u1x8_t> && dispatch)
+            status = nk_reduce_minmax_u1_best(&data->raw_, count, stride_bytes, &min_value->raw_, &min_offset,
+                                              &max_value->raw_, &max_offset, capabilities, stream);
+        else dispatched = false;
+    }
     // Scalar fallback, where the first value that isn't NaN takes both sides
-    else {
+    if (!dispatched) {
         minmax_type_ best_min = finite_max<minmax_type_>(), best_max = finite_min<minmax_type_>();
         if constexpr (infinity_capable_dtype<minmax_type_>)
             best_min = minmax_type_::positive_infinity(), best_max = minmax_type_::negative_infinity();
@@ -207,8 +236,10 @@ void reduce_minmax(in_type_ const *data, std::size_t count, std::size_t stride_b
         }
         *min_value = best_min, *max_value = best_max;
     }
+    if (status != nk_success_k) return status;
     if (min_index) *min_index = static_cast<std::size_t>(min_offset);
     if (max_index) *max_index = static_cast<std::size_t>(max_offset);
+    return nk_success_k;
 }
 
 /**
@@ -224,67 +255,70 @@ void reduce_minmax(in_type_ const *data, std::size_t count, std::size_t stride_b
  *  @param[in] x_row_stride, @p y_row_stride Row (outer) strides in bytes
  *  @param[in] eps Variance epsilon added before the reciprocal square root
  *  @param[in] input_scale Scalar folded onto every loaded element (E4M3 descale; 1.0 for BF16/F32)
+ *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *
  *  @tparam in_type_ Element type
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
-template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
-void rmsnorm(in_type_ const *x, f32_t const *gamma, in_type_ *y, std::size_t rows, std::size_t groups, std::size_t cols,
-             std::size_t x_row_stride, std::size_t y_row_stride, float eps, float input_scale = 1.0f) noexcept {
-    constexpr bool simd = allow_simd_ == prefer_simd_k;
+template <numeric_dtype in_type_>
+nk_status_t rmsnorm(in_type_ const *x, f32_t const *gamma, in_type_ *y, std::size_t rows, std::size_t groups,
+                    std::size_t cols, std::size_t x_row_stride, std::size_t y_row_stride, float eps,
+                    float input_scale = 1.0f, nk_capability_t capabilities = cpu_capabilities(),
+                    void *stream = nullptr) noexcept {
     nk_f32_t const *gamma_raw = gamma ? &gamma->raw_ : nullptr;
-    if constexpr (std::is_same_v<in_type_, f32_t> && simd)
-        nk_reduce_rmsnorm_f32(&x->raw_, gamma_raw, &y->raw_, rows, groups, cols, x_row_stride, y_row_stride, eps,
-                              input_scale);
-    else if constexpr (std::is_same_v<in_type_, bf16_t> && simd)
-        nk_reduce_rmsnorm_bf16(&x->raw_, gamma_raw, &y->raw_, rows, groups, cols, x_row_stride, y_row_stride, eps,
-                               input_scale);
-    else if constexpr (std::is_same_v<in_type_, e4m3_t> && simd)
-        nk_reduce_rmsnorm_e4m3(&x->raw_, gamma_raw, &y->raw_, rows, groups, cols, x_row_stride, y_row_stride, eps,
-                               input_scale);
-    // Scalar fallback for other numeric dtypes or when SIMD is disabled.
-    else {
-        for (std::size_t row = 0; row < rows; ++row) {
-            in_type_ const *row_input = reinterpret_cast<in_type_ const *>(reinterpret_cast<char const *>(x) +
-                                                                           row * x_row_stride);
-            in_type_ *row_output = reinterpret_cast<in_type_ *>(reinterpret_cast<char *>(y) + row * y_row_stride);
-            for (std::size_t group = 0; group < groups; ++group) {
-                in_type_ const *group_input = row_input + group * cols;
-                in_type_ *group_output = row_output + group * cols;
-                double mean_square = 0;
-                for (std::size_t column = 0; column < cols; ++column) {
-                    float value = static_cast<float>(group_input[column]) * input_scale;
-                    mean_square += static_cast<double>(value) * static_cast<double>(value);
-                }
-                float inverse_rms = static_cast<float>(
-                    f32_t(static_cast<float>(mean_square / static_cast<double>(cols)) + eps).rsqrt());
-                for (std::size_t column = 0; column < cols; ++column) {
-                    float value = static_cast<float>(group_input[column]) * input_scale;
-                    float gamma_value = gamma ? static_cast<float>(gamma[column]) : 1.0f;
-                    group_output[column] = f32_t(value * inverse_rms * gamma_value).template to<in_type_>();
-                }
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f32_t>)
+            return nk_reduce_rmsnorm_f32_best(&x->raw_, gamma_raw, &y->raw_, rows, groups, cols, x_row_stride,
+                                              y_row_stride, eps, input_scale, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, bf16_t>)
+            return nk_reduce_rmsnorm_bf16_best(&x->raw_, gamma_raw, &y->raw_, rows, groups, cols, x_row_stride,
+                                               y_row_stride, eps, input_scale, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, e4m3_t>)
+            return nk_reduce_rmsnorm_e4m3_best(&x->raw_, gamma_raw, &y->raw_, rows, groups, cols, x_row_stride,
+                                               y_row_stride, eps, input_scale, capabilities, stream);
+    }
+    // Scalar fallback for other numeric dtypes or a mask of no capability.
+    for (std::size_t row = 0; row < rows; ++row) {
+        in_type_ const *row_input = reinterpret_cast<in_type_ const *>(reinterpret_cast<char const *>(x) +
+                                                                       row * x_row_stride);
+        in_type_ *row_output = reinterpret_cast<in_type_ *>(reinterpret_cast<char *>(y) + row * y_row_stride);
+        for (std::size_t group = 0; group < groups; ++group) {
+            in_type_ const *group_input = row_input + group * cols;
+            in_type_ *group_output = row_output + group * cols;
+            double mean_square = 0;
+            for (std::size_t column = 0; column < cols; ++column) {
+                float value = static_cast<float>(group_input[column]) * input_scale;
+                mean_square += static_cast<double>(value) * static_cast<double>(value);
+            }
+            float inverse_rms = static_cast<float>(
+                f32_t(static_cast<float>(mean_square / static_cast<double>(cols)) + eps).rsqrt());
+            for (std::size_t column = 0; column < cols; ++column) {
+                float value = static_cast<float>(group_input[column]) * input_scale;
+                float gamma_value = gamma ? static_cast<float>(gamma[column]) : 1.0f;
+                group_output[column] = f32_t(value * inverse_rms * gamma_value).template to<in_type_>();
             }
         }
     }
+    return nk_success_k;
 }
 
 /** Compute sum and sum-of-squares over a vector view. */
 template <numeric_dtype in_type_, numeric_dtype sum_type_ = typename in_type_::reduce_moments_sum_t,
-          numeric_dtype sumsq_type_ = typename in_type_::reduce_moments_sumsq_t,
-          allow_simd_t allow_simd_ = prefer_simd_k>
-void reduce_moments(vector_view<in_type_> input, sum_type_ *sum, sumsq_type_ *sumsq) noexcept {
-    reduce_moments<in_type_, sum_type_, sumsq_type_, allow_simd_>(
-        input.data(), input.size(), static_cast<std::size_t>(input.stride_bytes()), sum, sumsq);
+          numeric_dtype sumsq_type_ = typename in_type_::reduce_moments_sumsq_t>
+nk_status_t reduce_moments(vector_view<in_type_> input, sum_type_ *sum, sumsq_type_ *sumsq,
+                           nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+    return reduce_moments<in_type_, sum_type_, sumsq_type_>(
+        input.data(), input.size(), static_cast<std::size_t>(input.stride_bytes()), sum, sumsq, capabilities, stream);
 }
 
 /** Find minimum and maximum elements with their indices over a vector view. */
-template <numeric_dtype in_type_, numeric_dtype minmax_type_ = typename in_type_::reduce_minmax_value_t,
-          allow_simd_t allow_simd_ = prefer_simd_k>
-void reduce_minmax(vector_view<in_type_> input, minmax_type_ *min_value, std::size_t *min_index,
-                   minmax_type_ *max_value, std::size_t *max_index) noexcept {
-    reduce_minmax<in_type_, minmax_type_, allow_simd_>(input.data(), input.size(),
-                                                       static_cast<std::size_t>(input.stride_bytes()), min_value,
-                                                       min_index, max_value, max_index);
+template <numeric_dtype in_type_, numeric_dtype minmax_type_ = typename in_type_::reduce_minmax_value_t>
+nk_status_t reduce_minmax(vector_view<in_type_> input, minmax_type_ *min_value, std::size_t *min_index,
+                          minmax_type_ *max_value, std::size_t *max_index,
+                          nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+    return reduce_minmax<in_type_, minmax_type_>(input.data(), input.size(),
+                                                 static_cast<std::size_t>(input.stride_bytes()), min_value, min_index,
+                                                 max_value, max_index, capabilities, stream);
 }
 
 } // namespace ashvardanian::numkong
@@ -305,10 +339,10 @@ bool rmsnorm(matrix_view<value_type_> input, vector_view<f32_t> gamma, matrix_sp
     if (groups == 0 || columns_total % groups != 0) return false;
     if (!gamma.empty() && gamma.size() != columns_total / groups) return false;
     f32_t const *gamma_ptr = gamma.empty() ? nullptr : gamma.data();
-    numkong::rmsnorm<value_type_>(input.data(), gamma_ptr, output.data(), input.extent(0), groups,
-                                  columns_total / groups, static_cast<std::size_t>(input.stride_bytes(0)),
-                                  static_cast<std::size_t>(output.stride_bytes(0)), eps, input_scale);
-    return true;
+    return numkong::rmsnorm<value_type_>(input.data(), gamma_ptr, output.data(), input.extent(0), groups,
+                                         columns_total / groups, static_cast<std::size_t>(input.stride_bytes(0)),
+                                         static_cast<std::size_t>(output.stride_bytes(0)), eps,
+                                         input_scale) == nk_success_k;
 }
 
 /** Allocating grouped RMSNorm returning a fresh matrix. */
@@ -433,8 +467,8 @@ bool reduce_rank1_minmax_(tensor_view<value_type_, max_rank_> input,
         }
         return true;
     }
-    numkong::reduce_minmax<value_type_, minmax_t, no_simd_k>(input.as_vector(), &result.min_value, &result.min_index,
-                                                             &result.max_value, &result.max_index);
+    numkong::reduce_minmax<value_type_, minmax_t>(input.as_vector(), &result.min_value, &result.min_index,
+                                                  &result.max_value, &result.max_index, 0);
     return true;
 }
 
@@ -746,8 +780,8 @@ std::size_t argmax(vector_view<value_type_> input) noexcept {
     return minmax(input).max_index;
 }
 
-/** Population count of a packed bit tensor, number of set bits. Wraps @c nk_reduce_moments_u1 via
- *  @c sum; returns 0 for empty inputs. */
+/** Population count of a packed bit tensor. Wraps @c nk_reduce_moments_u1_best via @c sum;
+ *  returns 0 for empty inputs. */
 template <std::size_t max_rank_ = 8>
 u64_t popcount(tensor_view<u1x8_t, max_rank_> input) noexcept {
     return sum<u1x8_t, max_rank_>(input);

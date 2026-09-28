@@ -4,8 +4,8 @@
  *  @date March 5, 2026
  *  @brief Batch operation tests - WASM ISA family.
  *
- *  The strict tier carries the bf16, i8, u8 and u1 GEMMs and the packing routines every module
- *  shares; the relaxed tier carries every other dtype and its own bf16, i8 and u8 twins.
+ *  The strict capability carries the bf16, i8, u8 and u1 GEMMs and the packing routines every module
+ *  shares; the relaxed capability carries every other dtype and its own bf16, i8 and u8 twins.
  */
 #include "harness.hpp"
 #include "cross.hpp"
@@ -116,8 +116,12 @@ void test_cross_wasm() {
           nk_dots_pack_e2m1_v128relaxed, nk_angulars_packed_e2m1_v128relaxed);
     check("angulars_packed_i8_v128relaxed", test_angulars_packed<i8_t>, nk_dots_pack_size_i8_v128relaxed,
           nk_dots_pack_i8_v128relaxed, nk_angulars_packed_i8_v128relaxed);
+    check("angulars_packed_i4_v128relaxed", test_angulars_packed<i4x2_t>, nk_dots_pack_size_i4_v128relaxed,
+          nk_dots_pack_i4_v128relaxed, nk_angulars_packed_i4_v128relaxed);
     check("angulars_packed_u8_v128relaxed", test_angulars_packed<u8_t>, nk_dots_pack_size_u8_v128relaxed,
           nk_dots_pack_u8_v128relaxed, nk_angulars_packed_u8_v128relaxed);
+    check("angulars_packed_u4_v128relaxed", test_angulars_packed<u4x2_t>, nk_dots_pack_size_u4_v128relaxed,
+          nk_dots_pack_u4_v128relaxed, nk_angulars_packed_u4_v128relaxed);
 
     check("angulars_symmetric_f64_v128relaxed", test_angulars_symmetric<f64_t>, nk_angulars_symmetric_f64_v128relaxed);
     check("angulars_symmetric_f32_v128relaxed", test_angulars_symmetric<f32_t>, nk_angulars_symmetric_f32_v128relaxed);
@@ -135,7 +139,9 @@ void test_cross_wasm() {
     check("angulars_symmetric_e2m1_v128relaxed", test_angulars_symmetric<e2m1x2_t>,
           nk_angulars_symmetric_e2m1_v128relaxed);
     check("angulars_symmetric_i8_v128relaxed", test_angulars_symmetric<i8_t>, nk_angulars_symmetric_i8_v128relaxed);
+    check("angulars_symmetric_i4_v128relaxed", test_angulars_symmetric<i4x2_t>, nk_angulars_symmetric_i4_v128relaxed);
     check("angulars_symmetric_u8_v128relaxed", test_angulars_symmetric<u8_t>, nk_angulars_symmetric_u8_v128relaxed);
+    check("angulars_symmetric_u4_v128relaxed", test_angulars_symmetric<u4x2_t>, nk_angulars_symmetric_u4_v128relaxed);
 
     check("euclideans_packed_f64_v128relaxed", test_euclideans_packed<f64_t>, nk_dots_pack_size_f64_v128relaxed,
           nk_dots_pack_f64_v128relaxed, nk_euclideans_packed_f64_v128relaxed);
@@ -157,8 +163,12 @@ void test_cross_wasm() {
           nk_dots_pack_e2m1_v128relaxed, nk_euclideans_packed_e2m1_v128relaxed);
     check("euclideans_packed_i8_v128relaxed", test_euclideans_packed<i8_t>, nk_dots_pack_size_i8_v128relaxed,
           nk_dots_pack_i8_v128relaxed, nk_euclideans_packed_i8_v128relaxed);
+    check("euclideans_packed_i4_v128relaxed", test_euclideans_packed<i4x2_t>, nk_dots_pack_size_i4_v128relaxed,
+          nk_dots_pack_i4_v128relaxed, nk_euclideans_packed_i4_v128relaxed);
     check("euclideans_packed_u8_v128relaxed", test_euclideans_packed<u8_t>, nk_dots_pack_size_u8_v128relaxed,
           nk_dots_pack_u8_v128relaxed, nk_euclideans_packed_u8_v128relaxed);
+    check("euclideans_packed_u4_v128relaxed", test_euclideans_packed<u4x2_t>, nk_dots_pack_size_u4_v128relaxed,
+          nk_dots_pack_u4_v128relaxed, nk_euclideans_packed_u4_v128relaxed);
 
     check("euclideans_symmetric_f64_v128relaxed", test_euclideans_symmetric<f64_t>,
           nk_euclideans_symmetric_f64_v128relaxed);
@@ -180,23 +190,31 @@ void test_cross_wasm() {
           nk_euclideans_symmetric_e2m1_v128relaxed);
     check("euclideans_symmetric_i8_v128relaxed", test_euclideans_symmetric<i8_t>,
           nk_euclideans_symmetric_i8_v128relaxed);
+    check("euclideans_symmetric_i4_v128relaxed", test_euclideans_symmetric<i4x2_t>,
+          nk_euclideans_symmetric_i4_v128relaxed);
     check("euclideans_symmetric_u8_v128relaxed", test_euclideans_symmetric<u8_t>,
           nk_euclideans_symmetric_u8_v128relaxed);
+    check("euclideans_symmetric_u4_v128relaxed", test_euclideans_symmetric<u4x2_t>,
+          nk_euclideans_symmetric_u4_v128relaxed);
 
     check("attention_bidirectional_packed_bf16_v128relaxed", test_attention_bidirectional_packed<bf16_t>,
-          nk_attention_pack_size_bf16_v128, nk_attention_pack_bf16_v128,
+          nk_attention_pack_size_bf16_v128relaxed, nk_attention_pack_bf16_v128relaxed,
           nk_attention_bidirectional_packed_bf16_v128relaxed);
     check("attention_causal_packed_bf16_v128relaxed", test_attention_causal_packed<bf16_t>,
-          nk_attention_pack_size_bf16_v128, nk_attention_pack_bf16_v128, nk_attention_causal_packed_bf16_v128relaxed);
+          nk_attention_pack_size_bf16_v128relaxed, nk_attention_pack_bf16_v128relaxed,
+          nk_attention_causal_packed_bf16_v128relaxed);
     check("attention_bidirectional_packed_e4m3_v128relaxed", test_attention_bidirectional_packed<e4m3_t>,
-          nk_attention_pack_size_e4m3_v128, nk_attention_pack_e4m3_v128,
+          nk_attention_pack_size_e4m3_v128relaxed, nk_attention_pack_e4m3_v128relaxed,
           nk_attention_bidirectional_packed_e4m3_v128relaxed);
     check("attention_causal_packed_e4m3_v128relaxed", test_attention_causal_packed<e4m3_t>,
-          nk_attention_pack_size_e4m3_v128, nk_attention_pack_e4m3_v128, nk_attention_causal_packed_e4m3_v128relaxed);
+          nk_attention_pack_size_e4m3_v128relaxed, nk_attention_pack_e4m3_v128relaxed,
+          nk_attention_causal_packed_e4m3_v128relaxed);
     check("attention_bidirectional_packed_i8_v128relaxed", test_attention_bidirectional_packed<i8_t>,
-          nk_attention_pack_size_i8_v128, nk_attention_pack_i8_v128, nk_attention_bidirectional_packed_i8_v128relaxed);
-    check("attention_causal_packed_i8_v128relaxed", test_attention_causal_packed<i8_t>, nk_attention_pack_size_i8_v128,
-          nk_attention_pack_i8_v128, nk_attention_causal_packed_i8_v128relaxed);
+          nk_attention_pack_size_i8_v128relaxed, nk_attention_pack_i8_v128relaxed,
+          nk_attention_bidirectional_packed_i8_v128relaxed);
+    check("attention_causal_packed_i8_v128relaxed", test_attention_causal_packed<i8_t>,
+          nk_attention_pack_size_i8_v128relaxed, nk_attention_pack_i8_v128relaxed,
+          nk_attention_causal_packed_i8_v128relaxed);
 #endif // NUMKONG_TARGET_V128RELAXED
 
 #if NUMKONG_TARGET_V128
@@ -251,18 +269,5 @@ void test_cross_wasm() {
           nk_jaccards_packed_u1_v128);
     check("hammings_symmetric_u1_v128", test_hammings_symmetric<u1x8_t>, nk_hammings_symmetric_u1_v128);
     check("jaccards_symmetric_u1_v128", test_jaccards_symmetric<u1x8_t>, nk_jaccards_symmetric_u1_v128);
-
-    check("attention_bidirectional_packed_bf16_v128", test_attention_bidirectional_packed<bf16_t>,
-          nk_attention_pack_size_bf16_v128, nk_attention_pack_bf16_v128, nk_attention_bidirectional_packed_bf16_serial);
-    check("attention_causal_packed_bf16_v128", test_attention_causal_packed<bf16_t>, nk_attention_pack_size_bf16_v128,
-          nk_attention_pack_bf16_v128, nk_attention_causal_packed_bf16_serial);
-    check("attention_bidirectional_packed_e4m3_v128", test_attention_bidirectional_packed<e4m3_t>,
-          nk_attention_pack_size_e4m3_v128, nk_attention_pack_e4m3_v128, nk_attention_bidirectional_packed_e4m3_serial);
-    check("attention_causal_packed_e4m3_v128", test_attention_causal_packed<e4m3_t>, nk_attention_pack_size_e4m3_v128,
-          nk_attention_pack_e4m3_v128, nk_attention_causal_packed_e4m3_serial);
-    check("attention_bidirectional_packed_i8_v128", test_attention_bidirectional_packed<i8_t>,
-          nk_attention_pack_size_i8_v128, nk_attention_pack_i8_v128, nk_attention_bidirectional_packed_i8_serial);
-    check("attention_causal_packed_i8_v128", test_attention_causal_packed<i8_t>, nk_attention_pack_size_i8_v128,
-          nk_attention_pack_i8_v128, nk_attention_causal_packed_i8_serial);
 #endif // NUMKONG_TARGET_V128
 }

@@ -31,8 +31,9 @@ error_stats_t test_maxsim_packed(typename scalar_type_::dots_pack_size_kernel_t 
     auto queries = make_vector<scalar_t>(query_count * depth);
     auto documents = make_vector<scalar_t>(document_count * depth);
 
-    nk_size_t query_pack_size = packed_size_fn(query_count, depth);
-    nk_size_t document_pack_size = packed_size_fn(document_count, depth);
+    nk_size_t query_pack_size = 0, document_pack_size = 0;
+    stats.expect(packed_size_fn(query_count, depth, &query_pack_size));
+    stats.expect(packed_size_fn(document_count, depth, &document_pack_size));
     auto query_packed = make_vector<char>(query_pack_size);
     auto document_packed = make_vector<char>(document_pack_size);
 
@@ -41,17 +42,19 @@ error_stats_t test_maxsim_packed(typename scalar_type_::dots_pack_size_kernel_t 
         fill_random(generator, documents);
 
         // Pack and compute with kernel under test
-        pack_fn(queries.raw_values_data(), query_count, depth, stride, query_packed.raw_values_data());
-        pack_fn(documents.raw_values_data(), document_count, depth, stride, document_packed.raw_values_data());
+        stats.expect(
+            pack_fn(queries.raw_values_data(), query_count, depth, stride, query_packed.raw_values_data(), nullptr));
+        stats.expect(pack_fn(documents.raw_values_data(), document_count, depth, stride,
+                             document_packed.raw_values_data(), nullptr));
         result_t result;
-        maxsim_fn(query_packed.raw_values_data(), document_packed.raw_values_data(), query_count, document_count, depth,
-                  &result.raw_);
+        stats.expect(maxsim_fn(query_packed.raw_values_data(), document_packed.raw_values_data(), query_count,
+                               document_count, depth, &result.raw_, nullptr));
 
         // Exhaustive scalar reference
         reference_t reference;
-        nk::maxsim_reference<scalar_t, reference_t, nk::no_simd_k>(queries.raw_values_data(), query_count, stride,
-                                                                   documents.raw_values_data(), document_count, stride,
-                                                                   depth, &reference);
+        nk::maxsim_reference<scalar_t, reference_t>(queries.raw_values_data(), query_count, stride,
+                                                    documents.raw_values_data(), document_count, stride, depth,
+                                                    &reference, no_tiers_k);
 
         stats.accumulate(result, reference);
     }
@@ -69,14 +72,14 @@ void test_maxsim() {
     check("maxsim_packed_f16_serial", test_maxsim_packed<f16_t>, nk_maxsim_pack_size_f16_serial,
           nk_maxsim_pack_f16_serial, nk_maxsim_packed_f16_serial);
 
-#if NUMKONG_RUNTIME_DISPATCH
+#if !NUMKONG_HEADER_ONLY
     check.section("MaxSim Runtime Dispatch", nk_cap_serial_k);
-    check("maxsim_packed_bf16", test_maxsim_packed<bf16_t>, nk_maxsim_pack_size_bf16, nk_maxsim_pack_bf16,
-          nk_maxsim_packed_bf16);
-    check("maxsim_packed_f32", test_maxsim_packed<f32_t>, nk_maxsim_pack_size_f32, nk_maxsim_pack_f32,
-          nk_maxsim_packed_f32);
-    check("maxsim_packed_f16", test_maxsim_packed<f16_t>, nk_maxsim_pack_size_f16, nk_maxsim_pack_f16,
-          nk_maxsim_packed_f16);
+    check("maxsim_packed_bf16", test_maxsim_packed<bf16_t>, cpu_best<nk_maxsim_pack_size_bf16_best>,
+          cpu_best<nk_maxsim_pack_bf16_best>, cpu_best<nk_maxsim_packed_bf16_best>);
+    check("maxsim_packed_f32", test_maxsim_packed<f32_t>, cpu_best<nk_maxsim_pack_size_f32_best>,
+          cpu_best<nk_maxsim_pack_f32_best>, cpu_best<nk_maxsim_packed_f32_best>);
+    check("maxsim_packed_f16", test_maxsim_packed<f16_t>, cpu_best<nk_maxsim_pack_size_f16_best>,
+          cpu_best<nk_maxsim_pack_f16_best>, cpu_best<nk_maxsim_packed_f16_best>);
 #endif
 
 #if NUMKONG_TARGET_HASWELL
@@ -135,23 +138,13 @@ void test_maxsim() {
 
 #if NUMKONG_TARGET_V128RELAXED
     check.section("MaxSim V128 Relaxed", nk_cap_v128relaxed_k);
-    check("maxsim_packed_bf16_v128relaxed", test_maxsim_packed<bf16_t>, nk_maxsim_pack_size_bf16_v128,
-          nk_maxsim_pack_bf16_v128, nk_maxsim_packed_bf16_v128relaxed);
-    check("maxsim_packed_f32_v128relaxed", test_maxsim_packed<f32_t>, nk_maxsim_pack_size_f32_v128,
-          nk_maxsim_pack_f32_v128, nk_maxsim_packed_f32_v128relaxed);
-    check("maxsim_packed_f16_v128relaxed", test_maxsim_packed<f16_t>, nk_maxsim_pack_size_f16_v128,
-          nk_maxsim_pack_f16_v128, nk_maxsim_packed_f16_v128relaxed);
+    check("maxsim_packed_bf16_v128relaxed", test_maxsim_packed<bf16_t>, nk_maxsim_pack_size_bf16_v128relaxed,
+          nk_maxsim_pack_bf16_v128relaxed, nk_maxsim_packed_bf16_v128relaxed);
+    check("maxsim_packed_f32_v128relaxed", test_maxsim_packed<f32_t>, nk_maxsim_pack_size_f32_v128relaxed,
+          nk_maxsim_pack_f32_v128relaxed, nk_maxsim_packed_f32_v128relaxed);
+    check("maxsim_packed_f16_v128relaxed", test_maxsim_packed<f16_t>, nk_maxsim_pack_size_f16_v128relaxed,
+          nk_maxsim_pack_f16_v128relaxed, nk_maxsim_packed_f16_v128relaxed);
 #endif // NUMKONG_TARGET_V128RELAXED
-
-#if NUMKONG_TARGET_V128
-    check.section("MaxSim V128", nk_cap_v128_k);
-    check("maxsim_packed_bf16_v128", test_maxsim_packed<bf16_t>, nk_maxsim_pack_size_bf16_v128,
-          nk_maxsim_pack_bf16_v128, nk_maxsim_packed_bf16_serial);
-    check("maxsim_packed_f32_v128", test_maxsim_packed<f32_t>, nk_maxsim_pack_size_f32_v128, nk_maxsim_pack_f32_v128,
-          nk_maxsim_packed_f32_serial);
-    check("maxsim_packed_f16_v128", test_maxsim_packed<f16_t>, nk_maxsim_pack_size_f16_v128, nk_maxsim_pack_f16_v128,
-          nk_maxsim_packed_f16_serial);
-#endif // NUMKONG_TARGET_V128
 
 #if NUMKONG_TARGET_SME
     check.section("MaxSim SME", nk_cap_sme_k);

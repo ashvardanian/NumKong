@@ -9,11 +9,12 @@
 #ifndef NUMKONG_SPATIALS_V128_H
 #define NUMKONG_SPATIALS_V128_H
 
-#if NUMKONG_TARGET_V128
+#if NUMKONG_ARCH_WASM_V128_
 
 #include "numkong/spatial/v128.h"
 #include "numkong/dots/v128.h"
 
+#if NUMKONG_TARGET_V128
 #if defined(__cplusplus)
 extern "C" {
 #endif
@@ -80,6 +81,7 @@ nk_define_cross_normalized_symmetric_(euclidean, u8, v128, u8, u32, /*norm_value
 #if defined(__cplusplus)
 } // extern "C"
 #endif
-
 #endif // NUMKONG_TARGET_V128
+
+#endif // NUMKONG_ARCH_WASM_V128_
 #endif // NUMKONG_SPATIALS_V128_H

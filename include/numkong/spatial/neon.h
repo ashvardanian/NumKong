@@ -31,11 +31,10 @@
 #define NUMKONG_SPATIAL_NEON_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_NEON
+#if NUMKONG_ARCH_ARM64_NEON_
 
 #include "numkong/types.h"
-#include "numkong/scalar/neon.h" // `nk_f32_sqrt_neon`
-#include "numkong/dot/neon.h"    // `nk_dot_stable_sum_f64x2_neon_`
+#include "numkong/dot/neon.h" // `nk_dot_stable_sum_f64x2_neon_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -55,7 +54,7 @@ extern "C" {
  *  via @c vrsqrtsq_f32, achieving ~23-bit precision — sufficient for f32.
  *  Much faster than @c vsqrtq_f32 (2 cy vs 9-12 cy latency, 2/cy vs 0.25/cy throughput).
  */
-NUMKONG_HELPER_INLINE float32x4_t nk_rsqrt_f32x4_neon_(float32x4_t x) {
+NUMKONG_INLINE float32x4_t nk_rsqrt_f32x4_neon_(float32x4_t x) {
     float32x4_t rsqrt_f32x4 = vrsqrteq_f32(x);
     rsqrt_f32x4 = vmulq_f32(rsqrt_f32x4, vrsqrtsq_f32(vmulq_f32(x, rsqrt_f32x4), rsqrt_f32x4));
     rsqrt_f32x4 = vmulq_f32(rsqrt_f32x4, vrsqrtsq_f32(vmulq_f32(x, rsqrt_f32x4), rsqrt_f32x4));
@@ -69,7 +68,7 @@ NUMKONG_HELPER_INLINE float32x4_t nk_rsqrt_f32x4_neon_(float32x4_t x) {
  *  @c vrsqrtsq_f64, achieving ~48-bit precision. That is reasonable for f64 distance computations,
  *  whose result is often narrowed to f32, while full 52-bit mantissa fidelity needs @c vsqrtq_f64.
  */
-NUMKONG_HELPER_INLINE float64x2_t nk_rsqrt_f64x2_neon_(float64x2_t x) {
+NUMKONG_INLINE float64x2_t nk_rsqrt_f64x2_neon_(float64x2_t x) {
     float64x2_t rsqrt_f64x2 = vrsqrteq_f64(x);
     rsqrt_f64x2 = vmulq_f64(rsqrt_f64x2, vrsqrtsq_f64(vmulq_f64(x, rsqrt_f64x2), rsqrt_f64x2));
     rsqrt_f64x2 = vmulq_f64(rsqrt_f64x2, vrsqrtsq_f64(vmulq_f64(x, rsqrt_f64x2), rsqrt_f64x2));
@@ -77,7 +76,7 @@ NUMKONG_HELPER_INLINE float64x2_t nk_rsqrt_f64x2_neon_(float64x2_t x) {
     return rsqrt_f64x2;
 }
 
-NUMKONG_HELPER_INLINE nk_f32_t nk_angular_normalize_f32_neon_(nk_f32_t ab, nk_f32_t a2, nk_f32_t b2) {
+NUMKONG_INLINE nk_f32_t nk_angular_normalize_f32_neon_(nk_f32_t ab, nk_f32_t a2, nk_f32_t b2) {
     if (a2 == 0 && b2 == 0) return 0;
     if (ab == 0) return 1;
     nk_f32_t squares_arr[2] = {a2, b2};
@@ -97,7 +96,7 @@ NUMKONG_HELPER_INLINE nk_f32_t nk_angular_normalize_f32_neon_(nk_f32_t ab, nk_f3
     return result > 0 ? result : 0;
 }
 
-NUMKONG_HELPER_INLINE nk_f64_t nk_angular_normalize_f64_neon_(nk_f64_t ab, nk_f64_t a2, nk_f64_t b2) {
+NUMKONG_INLINE nk_f64_t nk_angular_normalize_f64_neon_(nk_f64_t ab, nk_f64_t a2, nk_f64_t b2) {
     if (a2 == 0 && b2 == 0) return 0;
     if (ab == 0) return 1;
     nk_f64_t squares_arr[2] = {a2, b2};
@@ -121,37 +120,53 @@ NUMKONG_HELPER_INLINE nk_f64_t nk_angular_normalize_f64_neon_(nk_f64_t ab, nk_f6
 
 #pragma region F32 and F64 Floats
 
-NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
-                                                         nk_f64_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    // Accumulate in f64 for numerical stability (2 f32s per iteration, avoids slow vget_low/high)
-    float64x2_t sum_f64x2 = vdupq_n_f64(0);
+/** Adds the squares of @p diff_f64x2 to @p sum_f64x2, keeping every rounding error, TwoProd's and
+ *  TwoSum's, in @p compensation_f64x2. */
+NUMKONG_INLINE void nk_squared_distance_dot2_f64x2_neon_(float64x2_t diff_f64x2, float64x2_t *sum_f64x2,
+                                                         float64x2_t *compensation_f64x2) {
+    float64x2_t square_f64x2 = vmulq_f64(diff_f64x2, diff_f64x2);
+    float64x2_t square_error_f64x2 = vnegq_f64(vfmsq_f64(square_f64x2, diff_f64x2, diff_f64x2));
+    float64x2_t tentative_sum_f64x2 = vaddq_f64(*sum_f64x2, square_f64x2);
+    float64x2_t virtual_addend_f64x2 = vsubq_f64(tentative_sum_f64x2, *sum_f64x2);
+    float64x2_t sum_error_f64x2 = vaddq_f64(vsubq_f64(*sum_f64x2, vsubq_f64(tentative_sum_f64x2, virtual_addend_f64x2)),
+                                            vsubq_f64(square_f64x2, virtual_addend_f64x2));
+    *sum_f64x2 = tentative_sum_f64x2;
+    *compensation_f64x2 = vaddq_f64(*compensation_f64x2, vaddq_f64(sum_error_f64x2, square_error_f64x2));
+}
+
+/** Sums the squared differences of @p n F32 pairs, widened to F64 and compensated. */
+NUMKONG_INLINE void nk_squared_distance_f32_neon_(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+    float64x2_t sum_f64x2 = vdupq_n_f64(0), compensation_f64x2 = vdupq_n_f64(0);
     nk_size_t i = 0;
     for (; i + 2 <= n; i += 2) {
-        float32x2_t a_f32x2 = vld1_f32(a + i);
-        float32x2_t b_f32x2 = vld1_f32(b + i);
-        float64x2_t diff_f64x2 = vsubq_f64(vcvt_f64_f32(a_f32x2), vcvt_f64_f32(b_f32x2));
-        sum_f64x2 = vfmaq_f64(sum_f64x2, diff_f64x2, diff_f64x2);
+        float64x2_t diff_f64x2 = vsubq_f64(vcvt_f64_f32(vld1_f32(a + i)), vcvt_f64_f32(vld1_f32(b + i)));
+        nk_squared_distance_dot2_f64x2_neon_(diff_f64x2, &sum_f64x2, &compensation_f64x2);
     }
-    nk_f64_t sum_f64 = vaddvq_f64(sum_f64x2);
-    for (; i < n; ++i) {
-        nk_f64_t diff_f64 = (nk_f64_t)a[i] - (nk_f64_t)b[i];
-        sum_f64 += diff_f64 * diff_f64;
+    if (i < n) {
+        float64x2_t diff_f64x2 = vsetq_lane_f64((nk_f64_t)a[i] - (nk_f64_t)b[i], vdupq_n_f64(0), 0);
+        nk_squared_distance_dot2_f64x2_neon_(diff_f64x2, &sum_f64x2, &compensation_f64x2);
     }
-    *result = sum_f64;
-    return nk_success_k;
+    *result = nk_dot_stable_sum_f64x2_neon_(sum_f64x2, compensation_f64x2);
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_euclidean_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
-                                                       nk_f64_t *result, void *stream) {
+#if NUMKONG_TARGET_NEON
+NUMKONG_API nk_status_t nk_sqeuclidean_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                                void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_sqeuclidean_f32_neon(a, b, n, result, stream);
-    *result = nk_f64_sqrt_neon(*result);
+    nk_squared_distance_f32_neon_(a, b, n, result);
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_angular_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
-                                                     nk_f64_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_euclidean_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                              void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_f32_neon_(a, b, n, result);
+    *result = vget_lane_f64(vsqrt_f64(vdup_n_f64(*result)), 0);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                            void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Accumulate in f64 for numerical stability (2 f32s per iteration, avoids slow vget_low/high)
     float64x2_t ab_f64x2 = vdupq_n_f64(0);
@@ -178,10 +193,11 @@ NUMKONG_API_COMPTIME nk_status_t nk_angular_f32_neon(nk_f32_t const *a, nk_f32_t
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
-                                                         nk_f64_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    float64x2_t sum_f64x2 = vdupq_n_f64(0);
+#endif // NUMKONG_TARGET_NEON
+
+/** Sums the squared differences of @p n F64 pairs, compensated. */
+NUMKONG_INLINE void nk_squared_distance_f64_neon_(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+    float64x2_t sum_f64x2 = vdupq_n_f64(0), compensation_f64x2 = vdupq_n_f64(0);
     float64x2_t a_f64x2, b_f64x2;
 
 nk_sqeuclidean_f64_neon_cycle:
@@ -198,24 +214,30 @@ nk_sqeuclidean_f64_neon_cycle:
         b_f64x2 = vld1q_f64(b);
         a += 2, b += 2, n -= 2;
     }
-    float64x2_t diff_f64x2 = vsubq_f64(a_f64x2, b_f64x2);
-    sum_f64x2 = vfmaq_f64(sum_f64x2, diff_f64x2, diff_f64x2);
+    nk_squared_distance_dot2_f64x2_neon_(vsubq_f64(a_f64x2, b_f64x2), &sum_f64x2, &compensation_f64x2);
     if (n) goto nk_sqeuclidean_f64_neon_cycle;
 
-    *result = vaddvq_f64(sum_f64x2);
-    return nk_success_k;
+    *result = nk_dot_stable_sum_f64x2_neon_(sum_f64x2, compensation_f64x2);
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_euclidean_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
-                                                       nk_f64_t *result, void *stream) {
+#if NUMKONG_TARGET_NEON
+NUMKONG_API nk_status_t nk_sqeuclidean_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                                void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_sqeuclidean_f64_neon(a, b, n, result, stream);
-    *result = nk_f64_sqrt_neon(*result);
+    nk_squared_distance_f64_neon_(a, b, n, result);
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_angular_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
-                                                     nk_f64_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_euclidean_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                              void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_f64_neon_(a, b, n, result);
+    *result = vget_lane_f64(vsqrt_f64(vdup_n_f64(*result)), 0);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                            void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Dot2 (Ogita-Rump-Oishi) for cross-product ab (may have cancellation),
     // simple FMA for self-products a2/b2 (all positive, no cancellation)
@@ -263,9 +285,11 @@ nk_angular_f64_neon_cycle:
 #pragma endregion F32 and F64 Floats
 #pragma region F16 and BF16 Floats
 
-NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_bf16_neon(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                          nk_f32_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
+#endif // NUMKONG_TARGET_NEON
+
+/** Sums the squared differences of @p n BF16 pairs, widened to F32. */
+NUMKONG_INLINE void nk_squared_distance_bf16_neon_(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                   nk_f32_t *result) {
     uint16x8_t a_u16x8, b_u16x8;
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
 nk_sqeuclidean_bf16_neon_cycle:
@@ -292,19 +316,26 @@ nk_sqeuclidean_bf16_neon_cycle:
     sum_f32x4 = vfmaq_f32(sum_f32x4, diff_high_f32x4, diff_high_f32x4);
     if (n) goto nk_sqeuclidean_bf16_neon_cycle;
     *result = vaddvq_f32(sum_f32x4);
-    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_euclidean_bf16_neon(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                        nk_f32_t *result, void *stream) {
+#if NUMKONG_TARGET_NEON
+NUMKONG_API nk_status_t nk_sqeuclidean_bf16_neon(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                 void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_sqeuclidean_bf16_neon(a, b, n, result, stream);
-    *result = nk_f32_sqrt_neon(*result);
+    nk_squared_distance_bf16_neon_(a, b, n, result);
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_angular_bf16_neon(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                      nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_euclidean_bf16_neon(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
+                                               void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_bf16_neon_(a, b, n, result);
+    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(*result)), 0);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_bf16_neon(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
+                                             void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     uint16x8_t a_u16x8, b_u16x8;
     float32x4_t ab_f32x4 = vdupq_n_f32(0);
@@ -342,9 +373,10 @@ nk_angular_bf16_neon_cycle:
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
-                                                         nk_f32_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
+#endif // NUMKONG_TARGET_NEON
+
+/** Sums the squared differences of @p n F16 pairs, widened to F32. */
+NUMKONG_INLINE void nk_squared_distance_f16_neon_(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
     uint16x8_t a_u16x8, b_u16x8;
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
 nk_sqeuclidean_f16_neon_cycle:
@@ -373,19 +405,26 @@ nk_sqeuclidean_f16_neon_cycle:
     sum_f32x4 = vfmaq_f32(sum_f32x4, diff_high_f32x4, diff_high_f32x4);
     if (n) goto nk_sqeuclidean_f16_neon_cycle;
     *result = vaddvq_f32(sum_f32x4);
-    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_euclidean_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
-                                                       nk_f32_t *result, void *stream) {
+#if NUMKONG_TARGET_NEON
+NUMKONG_API nk_status_t nk_sqeuclidean_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_sqeuclidean_f16_neon(a, b, n, result, stream);
-    *result = nk_f32_sqrt_neon(*result);
+    nk_squared_distance_f16_neon_(a, b, n, result);
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_angular_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
-                                                     nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_euclidean_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                              void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_f16_neon_(a, b, n, result);
+    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(*result)), 0);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                            void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     uint16x8_t a_u16x8, b_u16x8;
     float32x4_t ab_f32x4 = vdupq_n_f32(0);
@@ -425,9 +464,11 @@ nk_angular_f16_neon_cycle:
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_e2m3_neon(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
-                                                          nk_f32_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
+#endif // NUMKONG_TARGET_NEON
+
+/** Sums the squared differences of @p n E2M3 pairs, widened to F32. */
+NUMKONG_INLINE void nk_squared_distance_e2m3_neon_(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                   nk_f32_t *result) {
     float16x8_t a_f16x8, b_f16x8;
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
 nk_sqeuclidean_e2m3_neon_cycle:
@@ -454,19 +495,26 @@ nk_sqeuclidean_e2m3_neon_cycle:
     sum_f32x4 = vfmaq_f32(sum_f32x4, diff_high_f32x4, diff_high_f32x4);
     if (n) goto nk_sqeuclidean_e2m3_neon_cycle;
     *result = vaddvq_f32(sum_f32x4);
-    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_euclidean_e2m3_neon(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
-                                                        nk_f32_t *result, void *stream) {
+#if NUMKONG_TARGET_NEON
+NUMKONG_API nk_status_t nk_sqeuclidean_e2m3_neon(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result,
+                                                 void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_sqeuclidean_e2m3_neon(a, b, n, result, stream);
-    *result = nk_f32_sqrt_neon(*result);
+    nk_squared_distance_e2m3_neon_(a, b, n, result);
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_angular_e2m3_neon(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
-                                                      nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_euclidean_e2m3_neon(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result,
+                                               void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_e2m3_neon_(a, b, n, result);
+    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(*result)), 0);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_e2m3_neon(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result,
+                                             void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     float16x8_t a_f16x8, b_f16x8;
     float32x4_t ab_f32x4 = vdupq_n_f32(0);
@@ -504,9 +552,11 @@ nk_angular_e2m3_neon_cycle:
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_e3m2_neon(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
-                                                          nk_f32_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
+#endif // NUMKONG_TARGET_NEON
+
+/** Sums the squared differences of @p n E3M2 pairs, widened to F32. */
+NUMKONG_INLINE void nk_squared_distance_e3m2_neon_(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                   nk_f32_t *result) {
     float16x8_t a_f16x8, b_f16x8;
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
 nk_sqeuclidean_e3m2_neon_cycle:
@@ -533,19 +583,26 @@ nk_sqeuclidean_e3m2_neon_cycle:
     sum_f32x4 = vfmaq_f32(sum_f32x4, diff_high_f32x4, diff_high_f32x4);
     if (n) goto nk_sqeuclidean_e3m2_neon_cycle;
     *result = vaddvq_f32(sum_f32x4);
-    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_euclidean_e3m2_neon(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
-                                                        nk_f32_t *result, void *stream) {
+#if NUMKONG_TARGET_NEON
+NUMKONG_API nk_status_t nk_sqeuclidean_e3m2_neon(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result,
+                                                 void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_sqeuclidean_e3m2_neon(a, b, n, result, stream);
-    *result = nk_f32_sqrt_neon(*result);
+    nk_squared_distance_e3m2_neon_(a, b, n, result);
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_angular_e3m2_neon(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
-                                                      nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_euclidean_e3m2_neon(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result,
+                                               void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_e3m2_neon_(a, b, n, result);
+    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(*result)), 0);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_e3m2_neon(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result,
+                                             void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     float16x8_t a_f16x8, b_f16x8;
     float32x4_t ab_f32x4 = vdupq_n_f32(0);
@@ -583,9 +640,11 @@ nk_angular_e3m2_neon_cycle:
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_e4m3_neon(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
-                                                          nk_f32_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
+#endif // NUMKONG_TARGET_NEON
+
+/** Sums the squared differences of @p n E4M3 pairs, widened to F32. */
+NUMKONG_INLINE void nk_squared_distance_e4m3_neon_(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                   nk_f32_t *result) {
     float16x8_t a_f16x8, b_f16x8;
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
 nk_sqeuclidean_e4m3_neon_cycle:
@@ -612,19 +671,26 @@ nk_sqeuclidean_e4m3_neon_cycle:
     sum_f32x4 = vfmaq_f32(sum_f32x4, diff_high_f32x4, diff_high_f32x4);
     if (n) goto nk_sqeuclidean_e4m3_neon_cycle;
     *result = vaddvq_f32(sum_f32x4);
-    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_euclidean_e4m3_neon(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
-                                                        nk_f32_t *result, void *stream) {
+#if NUMKONG_TARGET_NEON
+NUMKONG_API nk_status_t nk_sqeuclidean_e4m3_neon(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result,
+                                                 void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_sqeuclidean_e4m3_neon(a, b, n, result, stream);
-    *result = nk_f32_sqrt_neon(*result);
+    nk_squared_distance_e4m3_neon_(a, b, n, result);
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_angular_e4m3_neon(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
-                                                      nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_euclidean_e4m3_neon(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result,
+                                               void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_e4m3_neon_(a, b, n, result);
+    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(*result)), 0);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_e4m3_neon(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result,
+                                             void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     float16x8_t a_f16x8, b_f16x8;
     float32x4_t ab_f32x4 = vdupq_n_f32(0);
@@ -662,9 +728,11 @@ nk_angular_e4m3_neon_cycle:
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_e5m2_neon(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
-                                                          nk_f32_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
+#endif // NUMKONG_TARGET_NEON
+
+/** Sums the squared differences of @p n E5M2 pairs, widened to F32. */
+NUMKONG_INLINE void nk_squared_distance_e5m2_neon_(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                   nk_f32_t *result) {
     float16x8_t a_f16x8, b_f16x8;
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
 nk_sqeuclidean_e5m2_neon_cycle:
@@ -691,19 +759,26 @@ nk_sqeuclidean_e5m2_neon_cycle:
     sum_f32x4 = vfmaq_f32(sum_f32x4, diff_high_f32x4, diff_high_f32x4);
     if (n) goto nk_sqeuclidean_e5m2_neon_cycle;
     *result = vaddvq_f32(sum_f32x4);
-    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_euclidean_e5m2_neon(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
-                                                        nk_f32_t *result, void *stream) {
+#if NUMKONG_TARGET_NEON
+NUMKONG_API nk_status_t nk_sqeuclidean_e5m2_neon(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result,
+                                                 void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_sqeuclidean_e5m2_neon(a, b, n, result, stream);
-    *result = nk_f32_sqrt_neon(*result);
+    nk_squared_distance_e5m2_neon_(a, b, n, result);
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_angular_e5m2_neon(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
-                                                      nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_euclidean_e5m2_neon(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result,
+                                               void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_e5m2_neon_(a, b, n, result);
+    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(*result)), 0);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_e5m2_neon(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result,
+                                             void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     float16x8_t a_f16x8, b_f16x8;
     float32x4_t ab_f32x4 = vdupq_n_f32(0);
@@ -740,13 +815,14 @@ nk_angular_e5m2_neon_cycle:
     *result = nk_angular_normalize_f32_neon_(ab, a2, b2);
     return nk_success_k;
 }
+#endif // NUMKONG_TARGET_NEON
 
 /** Angular from_dot: computes 1 − dot × rsqrt(q) × rsqrt(t) for 4 pairs in f64, where q is
  *  @p query_sumsq and t each target's sum of squares. Separate reciprocal square roots avoid
  *  overflowing the product of two finite-but-large norms. */
-NUMKONG_HELPER_INLINE void nk_angular_through_f64_from_dot_neon_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
-                                                                 nk_b256_vec_t const *target_sumsqs_vec,
-                                                                 nk_b256_vec_t *result_vec) {
+NUMKONG_INLINE void nk_angular_through_f64_from_dot_neon_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
+                                                          nk_b256_vec_t const *target_sumsqs_vec,
+                                                          nk_b256_vec_t *result_vec) {
     float64x2_t dots_ab_f64x2 = dots_vec->f64x2s[0];
     float64x2_t dots_cd_f64x2 = dots_vec->f64x2s[1];
     float64x2_t query_sumsq_f64x2 = vdupq_n_f64(query_sumsq);
@@ -794,9 +870,9 @@ NUMKONG_HELPER_INLINE void nk_angular_through_f64_from_dot_neon_(nk_b256_vec_t c
 
 /** Euclidean from_dot: computes √(q + t − 2 × dot) for 4 pairs in f64, where q is @p query_sumsq
  *  and t each target's sum of squares. */
-NUMKONG_HELPER_INLINE void nk_euclidean_through_f64_from_dot_neon_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
-                                                                   nk_b256_vec_t const *target_sumsqs_vec,
-                                                                   nk_b256_vec_t *result_vec) {
+NUMKONG_INLINE void nk_euclidean_through_f64_from_dot_neon_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
+                                                            nk_b256_vec_t const *target_sumsqs_vec,
+                                                            nk_b256_vec_t *result_vec) {
     float64x2_t dots_ab_f64x2 = dots_vec->f64x2s[0];
     float64x2_t dots_cd_f64x2 = dots_vec->f64x2s[1];
     float64x2_t query_sumsq_f64x2 = vdupq_n_f64(query_sumsq);
@@ -824,24 +900,28 @@ NUMKONG_HELPER_INLINE void nk_euclidean_through_f64_from_dot_neon_(nk_b256_vec_t
 /** Angular from_dot: computes 1 − dot × rsqrt(q) × rsqrt(t) for 4 pairs in f32, where q is
  *  @p query_sumsq and t each target's sum of squares. Separate reciprocal square roots avoid
  *  overflowing the product of two finite-but-large norms. */
-NUMKONG_HELPER_INLINE void nk_angular_through_f32_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
-                                                                 nk_b128_vec_t const *target_sumsqs_vec,
-                                                                 nk_b128_vec_t *result_vec) {
+NUMKONG_INLINE void nk_angular_through_f32_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
+                                                          nk_b128_vec_t const *target_sumsqs_vec,
+                                                          nk_b128_vec_t *result_vec) {
     float32x4_t dots_f32x4 = dots_vec->f32x4;
-    float32x4_t query_rsqrt_f32x4 = nk_rsqrt_f32x4_neon_(vdupq_n_f32(query_sumsq));
-    float32x4_t target_rsqrt_f32x4 = nk_rsqrt_f32x4_neon_(target_sumsqs_vec->f32x4);
+    float32x4_t query_sumsq_f32x4 = vdupq_n_f32(query_sumsq), target_sumsqs_f32x4 = target_sumsqs_vec->f32x4;
+    float32x4_t query_rsqrt_f32x4 = nk_rsqrt_f32x4_neon_(query_sumsq_f32x4);
+    float32x4_t target_rsqrt_f32x4 = nk_rsqrt_f32x4_neon_(target_sumsqs_f32x4);
     float32x4_t rsqrt_f32x4 = vmulq_f32(query_rsqrt_f32x4, target_rsqrt_f32x4);
 
     float32x4_t normalized_f32x4 = vmulq_f32(dots_f32x4, rsqrt_f32x4);
     float32x4_t angular_f32x4 = vsubq_f32(vdupq_n_f32(1.0f), normalized_f32x4);
-    result_vec->f32x4 = vmaxq_f32(angular_f32x4, vdupq_n_f32(0.0f));
+    // A zero norm makes the Newton step 0 × ∞ = NaN, and its distance is 0 like the serial kernel
+    uint32x4_t const normed_u32x4 = vandq_u32(vcgtq_f32(query_sumsq_f32x4, vdupq_n_f32(0.0f)),
+                                              vcgtq_f32(target_sumsqs_f32x4, vdupq_n_f32(0.0f)));
+    result_vec->f32x4 = vbslq_f32(normed_u32x4, vmaxq_f32(angular_f32x4, vdupq_n_f32(0.0f)), vdupq_n_f32(0.0f));
 }
 
 /** Euclidean from_dot: computes √(q + t − 2 × dot) for 4 pairs in f32, where q is @p query_sumsq
  *  and t each target's sum of squares. */
-NUMKONG_HELPER_INLINE void nk_euclidean_through_f32_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
-                                                                   nk_b128_vec_t const *target_sumsqs_vec,
-                                                                   nk_b128_vec_t *result_vec) {
+NUMKONG_INLINE void nk_euclidean_through_f32_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
+                                                            nk_b128_vec_t const *target_sumsqs_vec,
+                                                            nk_b128_vec_t *result_vec) {
     float32x4_t dots_f32x4 = dots_vec->f32x4;
     float32x4_t query_sumsq_f32x4 = vdupq_n_f32(query_sumsq);
     float32x4_t sum_sq_f32x4 = vaddq_f32(query_sumsq_f32x4, target_sumsqs_vec->f32x4);
@@ -853,22 +933,27 @@ NUMKONG_HELPER_INLINE void nk_euclidean_through_f32_from_dot_neon_(nk_b128_vec_t
 }
 
 /** Angular from_dot for i32 accumulators: cast to f32, separate rsqrt+NR, clamp. 4 pairs. */
-NUMKONG_HELPER_INLINE void nk_angular_through_i32_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
-                                                                 nk_b128_vec_t const *target_sumsqs_vec,
-                                                                 nk_b128_vec_t *result_vec) {
+NUMKONG_INLINE void nk_angular_through_i32_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
+                                                          nk_b128_vec_t const *target_sumsqs_vec,
+                                                          nk_b128_vec_t *result_vec) {
     float32x4_t dots_f32x4 = vcvtq_f32_s32(dots_vec->i32x4);
-    float32x4_t query_rsqrt_f32x4 = nk_rsqrt_f32x4_neon_(vdupq_n_f32((nk_f32_t)query_sumsq));
-    float32x4_t target_rsqrt_f32x4 = nk_rsqrt_f32x4_neon_(vcvtq_f32_s32(target_sumsqs_vec->i32x4));
+    float32x4_t query_sumsq_f32x4 = vdupq_n_f32((nk_f32_t)query_sumsq),
+                target_sumsqs_f32x4 = vcvtq_f32_s32(target_sumsqs_vec->i32x4);
+    float32x4_t query_rsqrt_f32x4 = nk_rsqrt_f32x4_neon_(query_sumsq_f32x4);
+    float32x4_t target_rsqrt_f32x4 = nk_rsqrt_f32x4_neon_(target_sumsqs_f32x4);
     float32x4_t rsqrt_f32x4 = vmulq_f32(query_rsqrt_f32x4, target_rsqrt_f32x4);
     float32x4_t normalized_f32x4 = vmulq_f32(dots_f32x4, rsqrt_f32x4);
     float32x4_t angular_f32x4 = vsubq_f32(vdupq_n_f32(1.0f), normalized_f32x4);
-    result_vec->f32x4 = vmaxq_f32(angular_f32x4, vdupq_n_f32(0.0f));
+    // A zero norm makes the Newton step 0 × ∞ = NaN, and its distance is 0 like the serial kernel
+    uint32x4_t const normed_u32x4 = vandq_u32(vcgtq_f32(query_sumsq_f32x4, vdupq_n_f32(0.0f)),
+                                              vcgtq_f32(target_sumsqs_f32x4, vdupq_n_f32(0.0f)));
+    result_vec->f32x4 = vbslq_f32(normed_u32x4, vmaxq_f32(angular_f32x4, vdupq_n_f32(0.0f)), vdupq_n_f32(0.0f));
 }
 
 /** Euclidean from_dot for i32 accumulators: cast to f32, then √(a² + b² − 2ab). 4 pairs. */
-NUMKONG_HELPER_INLINE void nk_euclidean_through_i32_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
-                                                                   nk_b128_vec_t const *target_sumsqs_vec,
-                                                                   nk_b128_vec_t *result_vec) {
+NUMKONG_INLINE void nk_euclidean_through_i32_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
+                                                            nk_b128_vec_t const *target_sumsqs_vec,
+                                                            nk_b128_vec_t *result_vec) {
     float32x4_t dots_f32x4 = vcvtq_f32_s32(dots_vec->i32x4);
     float32x4_t query_sumsq_f32x4 = vdupq_n_f32((nk_f32_t)query_sumsq);
     float32x4_t sum_sq_f32x4 = vaddq_f32(query_sumsq_f32x4, vcvtq_f32_s32(target_sumsqs_vec->i32x4));
@@ -878,22 +963,27 @@ NUMKONG_HELPER_INLINE void nk_euclidean_through_i32_from_dot_neon_(nk_b128_vec_t
 }
 
 /** Angular from_dot for u32 accumulators: cast to f32, separate rsqrt+NR, clamp. 4 pairs. */
-NUMKONG_HELPER_INLINE void nk_angular_through_u32_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
-                                                                 nk_b128_vec_t const *target_sumsqs_vec,
-                                                                 nk_b128_vec_t *result_vec) {
+NUMKONG_INLINE void nk_angular_through_u32_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
+                                                          nk_b128_vec_t const *target_sumsqs_vec,
+                                                          nk_b128_vec_t *result_vec) {
     float32x4_t dots_f32x4 = vcvtq_f32_u32(dots_vec->u32x4);
-    float32x4_t query_rsqrt_f32x4 = nk_rsqrt_f32x4_neon_(vdupq_n_f32((nk_f32_t)query_sumsq));
-    float32x4_t target_rsqrt_f32x4 = nk_rsqrt_f32x4_neon_(vcvtq_f32_u32(target_sumsqs_vec->u32x4));
+    float32x4_t query_sumsq_f32x4 = vdupq_n_f32((nk_f32_t)query_sumsq),
+                target_sumsqs_f32x4 = vcvtq_f32_u32(target_sumsqs_vec->u32x4);
+    float32x4_t query_rsqrt_f32x4 = nk_rsqrt_f32x4_neon_(query_sumsq_f32x4);
+    float32x4_t target_rsqrt_f32x4 = nk_rsqrt_f32x4_neon_(target_sumsqs_f32x4);
     float32x4_t rsqrt_f32x4 = vmulq_f32(query_rsqrt_f32x4, target_rsqrt_f32x4);
     float32x4_t normalized_f32x4 = vmulq_f32(dots_f32x4, rsqrt_f32x4);
     float32x4_t angular_f32x4 = vsubq_f32(vdupq_n_f32(1.0f), normalized_f32x4);
-    result_vec->f32x4 = vmaxq_f32(angular_f32x4, vdupq_n_f32(0.0f));
+    // A zero norm makes the Newton step 0 × ∞ = NaN, and its distance is 0 like the serial kernel
+    uint32x4_t const normed_u32x4 = vandq_u32(vcgtq_f32(query_sumsq_f32x4, vdupq_n_f32(0.0f)),
+                                              vcgtq_f32(target_sumsqs_f32x4, vdupq_n_f32(0.0f)));
+    result_vec->f32x4 = vbslq_f32(normed_u32x4, vmaxq_f32(angular_f32x4, vdupq_n_f32(0.0f)), vdupq_n_f32(0.0f));
 }
 
 /** Euclidean from_dot for u32 accumulators: cast to f32, then √(a² + b² − 2ab). 4 pairs. */
-NUMKONG_HELPER_INLINE void nk_euclidean_through_u32_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
-                                                                   nk_b128_vec_t const *target_sumsqs_vec,
-                                                                   nk_b128_vec_t *result_vec) {
+NUMKONG_INLINE void nk_euclidean_through_u32_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
+                                                            nk_b128_vec_t const *target_sumsqs_vec,
+                                                            nk_b128_vec_t *result_vec) {
     float32x4_t dots_f32x4 = vcvtq_f32_u32(dots_vec->u32x4);
     float32x4_t query_sumsq_f32x4 = vdupq_n_f32((nk_f32_t)query_sumsq);
     float32x4_t sum_sq_f32x4 = vaddq_f32(query_sumsq_f32x4, vcvtq_f32_u32(target_sumsqs_vec->u32x4));
@@ -913,6 +1003,6 @@ NUMKONG_HELPER_INLINE void nk_euclidean_through_u32_from_dot_neon_(nk_b128_vec_t
 #endif
 
 #pragma endregion F16 and BF16 Floats
-#endif // NUMKONG_TARGET_NEON
+#endif // NUMKONG_ARCH_ARM64_NEON_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_SPATIAL_NEON_H

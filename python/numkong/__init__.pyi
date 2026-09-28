@@ -6,7 +6,7 @@ Date: August 3, 2024
 """
 
 from enum import IntFlag
-from typing import Any, Literal, TypeAlias
+from typing import Any, Literal, TypeAlias, TypedDict, Unpack
 
 # Many annotation features depend on the Python version:
 # - `typing.TypeAlias` type aliases are supported in Python 3.10-3.11.
@@ -408,37 +408,67 @@ class Tensor(memoryview):
         ...
 
     def sum(
-        self, axis: int | tuple[int, ...] | None = None, *, keepdims: bool = False, out: Tensor | None = None
+        self,
+        axis: int | tuple[int, ...] | None = None,
+        *,
+        keepdims: bool = False,
+        out: Tensor | None = None,
+        **dispatch: Unpack[_Dispatch],
     ) -> float | int | Tensor:
         """Return the sum of all elements."""
         ...
 
     def norm(
-        self, axis: int | tuple[int, ...] | None = None, *, keepdims: bool = False, out: Tensor | None = None
+        self,
+        axis: int | tuple[int, ...] | None = None,
+        *,
+        keepdims: bool = False,
+        out: Tensor | None = None,
+        **dispatch: Unpack[_Dispatch],
     ) -> float | Tensor:
         """Return the L2 norm."""
         ...
 
     def min(
-        self, axis: int | tuple[int, ...] | None = None, *, keepdims: bool = False, out: Tensor | None = None
+        self,
+        axis: int | tuple[int, ...] | None = None,
+        *,
+        keepdims: bool = False,
+        out: Tensor | None = None,
+        **dispatch: Unpack[_Dispatch],
     ) -> float | int | Tensor | None:
         """Return the minimum element, or None if all elements are NaN."""
         ...
 
     def max(
-        self, axis: int | tuple[int, ...] | None = None, *, keepdims: bool = False, out: Tensor | None = None
+        self,
+        axis: int | tuple[int, ...] | None = None,
+        *,
+        keepdims: bool = False,
+        out: Tensor | None = None,
+        **dispatch: Unpack[_Dispatch],
     ) -> float | int | Tensor | None:
         """Return the maximum element, or None if all elements are NaN."""
         ...
 
     def argmin(
-        self, axis: int | None = None, *, keepdims: bool = False, out: Tensor | None = None
+        self,
+        axis: int | None = None,
+        *,
+        keepdims: bool = False,
+        out: Tensor | None = None,
+        **dispatch: Unpack[_Dispatch],
     ) -> int | Tensor | None:
         """Return the index of the minimum element, or None if all elements are NaN."""
         ...
 
     def argmax(
-        self, axis: int | None = None, *, keepdims: bool = False, out: Tensor | None = None
+        self,
+        axis: int | None = None,
+        *,
+        keepdims: bool = False,
+        out: Tensor | None = None,
+        **dispatch: Unpack[_Dispatch],
     ) -> int | Tensor | None:
         """Return the index of the maximum element, or None if all elements are NaN."""
         ...
@@ -640,50 +670,51 @@ class AttentionPackedMatrix:
 # region Capabilities
 
 class Capability(IntFlag):
-    """CPU SIMD tiers, one bit each, as the `capabilities_*` functions report and set them."""
+    """CPU SIMD capabilities, one bit each, as the `capabilities_*` functions report and set them."""
 
     SERIAL = ...
     NEON = ...
-    HASWELL = ...
-    SKYLAKE = ...
     NEONHALF = ...
-    NEONSDOT = ...
-    NEONFHM = ...
-    ICELAKE = ...
-    GENOA = ...
     NEONBFDOT = ...
+    NEONFHM = ...
+    NEONSDOT = ...
+    NEONFP8 = ...
     SVE = ...
     SVEHALF = ...
     SVESDOT = ...
-    ALDER = ...
     SVEBFDOT = ...
     SVE2 = ...
-    V128RELAXED = ...
-    SAPPHIRE = ...
-    SAPPHIREAMX = ...
-    RVV = ...
-    RVVHALF = ...
-    RVVBF16 = ...
-    GRANITEAMX = ...
-    TURIN = ...
     SME = ...
-    SME2 = ...
     SMEF64 = ...
-    SMEFA64 = ...
-    SVE2P1 = ...
-    SME2P1 = ...
-    SMEHALF = ...
-    SMEBF16 = ...
-    SMELUT2 = ...
-    RVVBB = ...
-    SIERRA = ...
     SMEBI32 = ...
-    LOONGSONASX = ...
-    POWERVSX = ...
+    HASWELL = ...
+    ALDER = ...
+    SIERRA = ...
+    SKYLAKE = ...
+    ICELAKE = ...
+    GENOA = ...
+    TURIN = ...
+    SAPPHIRE = ...
     DIAMOND = ...
-    NEONFP8 = ...
+    SAPPHIREAMX = ...
+    GRANITEAMX = ...
     DIAMONDAMX = ...
+    RVV = ...
+    RVVBF16 = ...
+    RVVHALF = ...
+    RVVBB = ...
     V128 = ...
+    V128RELAXED = ...
+    POWERVSX = ...
+    LOONGSONASX = ...
+
+class _Dispatch(TypedDict, total=False):
+    """Keywords every function that runs kernels accepts, after its own."""
+
+    capabilities: Capability | int | None
+    """Capabilities to run, defaulting to `capabilities_enabled()`, or for packed operands to the mask that packed them."""
+    stream: int | None
+    """A GPU stream pointer, left None on the CPU."""
 
 # CPU capability controls.
 def capabilities_detected() -> Capability: ...
@@ -691,7 +722,8 @@ def capabilities_compiled() -> Capability: ...
 def capabilities_enabled() -> Capability: ...
 def capabilities_enable(wanted: Capability, /) -> Capability: ...
 
-# Kernel pointer accessors.
+# Kernel pointer accessors, to the capabilities `capabilities_enabled()` picks.
+# Each takes a trailing `void *stream`, null on the CPU, and returns an `nk_status_t`.
 def pointer_to_euclidean(dtype: _IntegralTypeName | _FloatTypeName | _MiniFloatType, /) -> int: ...
 def pointer_to_sqeuclidean(dtype: _IntegralTypeName | _FloatTypeName | _MiniFloatType, /) -> int: ...
 def pointer_to_angular(dtype: _IntegralTypeName | _FloatTypeName | _MiniFloatType, /) -> int: ...
@@ -717,6 +749,7 @@ def cdist(
     dtype: _IntegralTypeName | _FloatTypeName | _ComplexTypeName | _MiniFloatType | None = None,
     out: _BufferType | None = None,
     out_dtype: _FloatTypeName | _ComplexTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> float | complex | Tensor | None: ...
 
 # endregion Pairwise Distances
@@ -734,6 +767,7 @@ def inner(
     *,
     out: _BufferType | None = None,
     out_dtype: _FloatTypeName | _ComplexTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> float | complex | Tensor | None: ...
 
 # Dot product, similar to: `numpy.dot`.
@@ -746,6 +780,7 @@ def dot(
     *,
     out: _BufferType | None = None,
     out_dtype: _FloatTypeName | _ComplexTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> float | complex | Tensor | None: ...
 
 # Vector-vector dot product for complex conjugates, similar to: `numpy.vdot`.
@@ -758,6 +793,7 @@ def vdot(
     *,
     out: _BufferType | None = None,
     out_dtype: _ComplexTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> complex | Tensor | None: ...
 
 # endregion Vector Dot Products
@@ -776,6 +812,7 @@ def sqeuclidean(
     *,
     out: _BufferType | None = None,
     out_dtype: _FloatTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> float | Tensor | None: ...
 
 # Vector-vector angular distance, also known as cosine distance, similar to:
@@ -789,6 +826,7 @@ def angular(
     *,
     out: _BufferType | None = None,
     out_dtype: _FloatTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> float | Tensor | None: ...
 
 # Vector-vector Euclidean distance, similar to: `scipy.spatial.distance.euclidean`.
@@ -801,6 +839,7 @@ def euclidean(
     *,
     out: _BufferType | None = None,
     out_dtype: _FloatTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> float | Tensor | None: ...
 
 # endregion Spatial Distance Metrics
@@ -818,6 +857,7 @@ def hamming(
     *,
     out: _BufferType | None = None,
     out_dtype: _FloatTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> float | Tensor | None: ...
 
 # Vector-vector Jaccard distance, similar to: `scipy.spatial.distance.jaccard`.
@@ -830,6 +870,7 @@ def jaccard(
     *,
     out: _BufferType | None = None,
     out_dtype: _FloatTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> float | Tensor | None: ...
 
 # endregion Binary Similarity
@@ -847,6 +888,7 @@ def jensenshannon(
     *,
     out: _BufferType | None = None,
     out_dtype: _FloatTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> float | Tensor | None: ...
 def jsd(
     a: _BufferType,
@@ -856,6 +898,7 @@ def jsd(
     *,
     out: _BufferType | None = None,
     out_dtype: _FloatTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> float | Tensor | None: ...
 
 # Vector-vector Kullback-Leibler divergence, similar to: `scipy.spatial.distance.kullback_leibler`.
@@ -868,6 +911,7 @@ def kullbackleibler(
     *,
     out: _BufferType | None = None,
     out_dtype: _FloatTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> float | Tensor | None: ...
 def kld(
     a: _BufferType,
@@ -877,6 +921,7 @@ def kld(
     *,
     out: _BufferType | None = None,
     out_dtype: _FloatTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> float | Tensor | None: ...
 
 # endregion Probability Distances
@@ -892,6 +937,7 @@ def bilinear(
     metric_tensor: _BufferType,
     /,
     dtype: _FloatTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> float: ...
 
 # Vector-vector Mahalanobis distance, similar to: `scipy.spatial.distance.mahalanobis`.
@@ -902,6 +948,7 @@ def mahalanobis(
     inverse_covariance: _BufferType,
     /,
     dtype: _FloatTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> float: ...
 
 # endregion Curved Space Metrics
@@ -917,6 +964,7 @@ def haversine(
     dtype: _FloatTypeName | _MiniFloatType | None = None,
     *,
     out: _BufferType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> float | Tensor | None: ...
 def vincenty(
     a_lats: _BufferType,
@@ -927,6 +975,7 @@ def vincenty(
     dtype: _FloatTypeName | _MiniFloatType | None = None,
     *,
     out: _BufferType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> float | Tensor | None: ...
 
 # endregion Geospatial Distances
@@ -936,13 +985,14 @@ def vincenty(
 
 # Vector-vector intersection similarity, similar to: `numpy.intersect1d`.
 # https://numpy.org/doc/stable/reference/generated/numpy.intersect1d.html
-def intersect(a: _BufferType, b: _BufferType, /) -> int: ...
+def intersect(a: _BufferType, b: _BufferType, /, **dispatch: Unpack[_Dispatch]) -> int: ...
 def sparse_dot(
     a_indices: _BufferType,
     a_values: _BufferType,
     b_indices: _BufferType,
     b_values: _BufferType,
     /,
+    **dispatch: Unpack[_Dispatch],
 ) -> float: ...
 
 # endregion Sparse Similarity
@@ -1043,10 +1093,18 @@ def astype(
 # region Reductions
 
 def moments(
-    a: _BufferType, /, *, dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None
+    a: _BufferType,
+    /,
+    *,
+    dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> tuple[float, float]: ...
 def minmax(
-    a: _BufferType, /, *, dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None
+    a: _BufferType,
+    /,
+    *,
+    dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> tuple[float, int, float, int] | None: ...
 def sum(
     a: _BufferType,
@@ -1056,6 +1114,7 @@ def sum(
     keepdims: bool = False,
     out: Tensor | None = None,
     dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> float | int | Tensor: ...
 def norm(
     a: _BufferType,
@@ -1065,6 +1124,7 @@ def norm(
     keepdims: bool = False,
     out: Tensor | None = None,
     dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> float | Tensor: ...
 def min(
     a: _BufferType,
@@ -1074,6 +1134,7 @@ def min(
     keepdims: bool = False,
     out: Tensor | None = None,
     dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> float | int | Tensor | None: ...
 def max(
     a: _BufferType,
@@ -1083,6 +1144,7 @@ def max(
     keepdims: bool = False,
     out: Tensor | None = None,
     dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> float | int | Tensor | None: ...
 def argmin(
     a: _BufferType,
@@ -1092,6 +1154,7 @@ def argmin(
     keepdims: bool = False,
     out: Tensor | None = None,
     dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> int | Tensor | None: ...
 def argmax(
     a: _BufferType,
@@ -1101,6 +1164,7 @@ def argmax(
     keepdims: bool = False,
     out: Tensor | None = None,
     dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> int | Tensor | None: ...
 
 # endregion Reductions
@@ -1118,6 +1182,7 @@ def fma(
     alpha: float = 1,
     beta: float = 1,
     out: _BufferType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> Tensor | None: ...
 
 # Vector-vector element-wise blend.
@@ -1130,6 +1195,7 @@ def blend(
     alpha: float = 1,
     beta: float = 1,
     out: _BufferType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> Tensor | None: ...
 
 # endregion Vector Math
@@ -1143,6 +1209,7 @@ def sin(
     dtype: _FloatTypeName | _MiniFloatType | None = None,
     *,
     out: _BufferType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> Tensor | None: ...
 
 # Element-wise trigonometric cosine.
@@ -1152,6 +1219,7 @@ def cos(
     dtype: _FloatTypeName | _MiniFloatType | None = None,
     *,
     out: _BufferType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> Tensor | None: ...
 
 # Element-wise trigonometric arctangent.
@@ -1161,6 +1229,7 @@ def atan(
     dtype: _FloatTypeName | _MiniFloatType | None = None,
     *,
     out: _BufferType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> Tensor | None: ...
 
 # NeoX split-half rotary position embedding.
@@ -1174,6 +1243,7 @@ def rope(
     *,
     out: _BufferType | None = None,
     input_scale: float = 1.0,
+    **dispatch: Unpack[_Dispatch],
 ) -> None:
     """Rotate every channel pair of each head by the per-token angle grids, in place unless `out` is given.
 
@@ -1201,6 +1271,7 @@ def scale(
     alpha: float = 1,
     beta: float = 0,
     out: _BufferType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> Tensor | None: ...
 
 # Element-wise add, NumPy-compatible with broadcasting.
@@ -1213,6 +1284,7 @@ def add(
     a_dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
     b_dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
     out_dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> Tensor | None: ...
 
 # Element-wise multiply, NumPy-compatible with broadcasting.
@@ -1225,6 +1297,7 @@ def multiply(
     a_dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
     b_dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
     out_dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> Tensor | None: ...
 
 # endregion Elementwise Arithmetic
@@ -1240,6 +1313,7 @@ def rmsnorm(
     groups: int = 1,
     eps: float = 1e-6,
     input_scale: float = 1.0,
+    **dispatch: Unpack[_Dispatch],
 ) -> Tensor | None:
     """Grouped RMSNorm, `y = x * rsqrt(mean(x^2) + eps) * gamma`, in place unless `out` is given.
 
@@ -1263,6 +1337,7 @@ def swiglu(
     *,
     out: _BufferType | None = None,
     input_scale: float = 1.0,
+    **dispatch: Unpack[_Dispatch],
 ) -> Tensor | None:
     """Fused SwiGLU, `y = silu(input_scale * gate) * (input_scale * up)`, in place unless `out` is given.
 
@@ -1288,6 +1363,7 @@ def dots_symmetric(
     start_row: int | None = None,
     end_row: int | None = None,
     threads: int = 1,
+    **dispatch: Unpack[_Dispatch],
 ) -> Tensor: ...
 def hammings_symmetric(
     vectors: _BufferType,
@@ -1298,6 +1374,7 @@ def hammings_symmetric(
     start_row: int | None = None,
     end_row: int | None = None,
     threads: int = 1,
+    **dispatch: Unpack[_Dispatch],
 ) -> Tensor: ...
 def jaccards_symmetric(
     vectors: _BufferType,
@@ -1308,6 +1385,7 @@ def jaccards_symmetric(
     start_row: int | None = None,
     end_row: int | None = None,
     threads: int = 1,
+    **dispatch: Unpack[_Dispatch],
 ) -> Tensor: ...
 def angulars_symmetric(
     vectors: _BufferType,
@@ -1318,6 +1396,7 @@ def angulars_symmetric(
     start_row: int | None = None,
     end_row: int | None = None,
     threads: int = 1,
+    **dispatch: Unpack[_Dispatch],
 ) -> Tensor: ...
 def euclideans_symmetric(
     vectors: _BufferType,
@@ -1328,6 +1407,7 @@ def euclideans_symmetric(
     start_row: int | None = None,
     end_row: int | None = None,
     threads: int = 1,
+    **dispatch: Unpack[_Dispatch],
 ) -> Tensor: ...
 
 # endregion Symmetric Pairwise Operations
@@ -1339,6 +1419,7 @@ def dots_pack(
     b: _BufferType,
     /,
     dtype: _IntegralTypeName | _FloatTypeName | _ComplexTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> PackedMatrix: ...
 
 # Dot-product matrix multiplication with a pre-packed B matrix.
@@ -1351,6 +1432,7 @@ def dots_packed(
     start_row: int | None = None,
     end_row: int | None = None,
     threads: int = 1,
+    **dispatch: Unpack[_Dispatch],
 ) -> Tensor: ...
 
 # Pack a matrix for repeated Hamming distance computation.
@@ -1358,6 +1440,7 @@ def hammings_pack(
     b: _BufferType,
     /,
     dtype: _IntegralTypeName | _FloatTypeName | _ComplexTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> PackedMatrix: ...
 
 # Hamming distance computation with a pre-packed B matrix.
@@ -1370,6 +1453,7 @@ def hammings_packed(
     start_row: int | None = None,
     end_row: int | None = None,
     threads: int = 1,
+    **dispatch: Unpack[_Dispatch],
 ) -> Tensor: ...
 
 # Jaccard distance computation with a pre-packed B matrix.
@@ -1382,6 +1466,7 @@ def jaccards_packed(
     start_row: int | None = None,
     end_row: int | None = None,
     threads: int = 1,
+    **dispatch: Unpack[_Dispatch],
 ) -> Tensor: ...
 
 # Angular distance computation with a pre-packed B matrix.
@@ -1394,6 +1479,7 @@ def angulars_packed(
     start_row: int | None = None,
     end_row: int | None = None,
     threads: int = 1,
+    **dispatch: Unpack[_Dispatch],
 ) -> Tensor: ...
 
 # Euclidean distance computation with a pre-packed B matrix.
@@ -1406,13 +1492,18 @@ def euclideans_packed(
     start_row: int | None = None,
     end_row: int | None = None,
     threads: int = 1,
+    **dispatch: Unpack[_Dispatch],
 ) -> Tensor: ...
 
 # endregion Packed Matrix Operations
 
 # region MaxSim
-def maxsim_pack(b: _BufferType, /, dtype: _FloatTypeName | _MiniFloatType | None = None) -> MaxSimPackedMatrix: ...
-def maxsim_packed(queries: MaxSimPackedMatrix, documents: MaxSimPackedMatrix, /) -> float: ...
+def maxsim_pack(
+    b: _BufferType, /, dtype: _FloatTypeName | _MiniFloatType | None = None, **dispatch: Unpack[_Dispatch]
+) -> MaxSimPackedMatrix: ...
+def maxsim_packed(
+    queries: MaxSimPackedMatrix, documents: MaxSimPackedMatrix, /, **dispatch: Unpack[_Dispatch]
+) -> float: ...
 def attention_pack(
     k: _BufferType,
     v: _BufferType,
@@ -1421,6 +1512,7 @@ def attention_pack(
     segment_lengths: _BufferType | None = None,
     depth: int | None = None,
     threads: int = 1,
+    **dispatch: Unpack[_Dispatch],
 ) -> AttentionPackedMatrix:
     """Pack ragged K/V token matrices into a backend-opaque KV-cache blob."""
     ...
@@ -1433,6 +1525,7 @@ def attention_bidirectional_packed(
     out: Tensor | None = None,
     scale: float | None = None,
     threads: int = 1,
+    **dispatch: Unpack[_Dispatch],
 ) -> Tensor:
     """Compute ragged bidirectional scaled-dot-product attention against a packed KV-cache."""
     ...
@@ -1447,12 +1540,17 @@ def attention_causal_packed(
     diagonal_offset: int = 0,
     window: int | None = None,
     threads: int = 1,
+    **dispatch: Unpack[_Dispatch],
 ) -> Tensor:
     """Compute ragged causal attention, row r seeing the `window` keys ending at `r + diagonal_offset`."""
     ...
 
 def maxsim(
-    queries: _BufferType, documents: _BufferType, /, dtype: _FloatTypeName | _MiniFloatType | None = None
+    queries: _BufferType,
+    documents: _BufferType,
+    /,
+    dtype: _FloatTypeName | _MiniFloatType | None = None,
+    **dispatch: Unpack[_Dispatch],
 ) -> float: ...
 
 # endregion MaxSim
@@ -1500,15 +1598,15 @@ class MeshAlignmentResult:
 
 # Point clouds accepted by kabsch, umeyama, and rmsd: shape [points,3] for a single pair, or
 # [batch,points,3] for a batch, float16, bfloat16, float32, or float64.
-def kabsch(a: _BufferType, b: _BufferType, /) -> MeshAlignmentResult:
+def kabsch(a: _BufferType, b: _BufferType, /, **dispatch: Unpack[_Dispatch]) -> MeshAlignmentResult:
     """Compute the optimal rigid transformation, the Kabsch algorithm, aligning `a` onto `b`."""
     ...
 
-def umeyama(a: _BufferType, b: _BufferType, /) -> MeshAlignmentResult:
+def umeyama(a: _BufferType, b: _BufferType, /, **dispatch: Unpack[_Dispatch]) -> MeshAlignmentResult:
     """Compute the optimal similarity transformation, the Umeyama algorithm, aligning `a` onto `b`."""
     ...
 
-def rmsd(a: _BufferType, b: _BufferType, /) -> MeshAlignmentResult:
+def rmsd(a: _BufferType, b: _BufferType, /, **dispatch: Unpack[_Dispatch]) -> MeshAlignmentResult:
     """Compute raw RMSD between `a` and `b` without centering or alignment.
 
     Returns identity rotation, scale 1.0, and zeroed centroids alongside the RMSD.

@@ -22,7 +22,7 @@
 #define NUMKONG_SCALAR_NEON_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_NEON
+#if NUMKONG_ARCH_ARM64_NEON_
 
 #include "numkong/types.h"
 
@@ -37,22 +37,39 @@ extern "C" {
 #pragma GCC target("arch=armv8-a+simd")
 #endif
 
-NUMKONG_API_COMPTIME nk_f32_t nk_f32_sqrt_neon(nk_f32_t x) { return vget_lane_f32(vsqrt_f32(vdup_n_f32(x)), 0); }
-NUMKONG_API_COMPTIME nk_f64_t nk_f64_sqrt_neon(nk_f64_t x) { return vget_lane_f64(vsqrt_f64(vdup_n_f64(x)), 0); }
-NUMKONG_API_COMPTIME nk_f32_t nk_f32_rsqrt_neon(nk_f32_t x) {
+/** Reciprocal square root: the hardware estimate refined by two Newton steps. */
+NUMKONG_INLINE nk_f32_t nk_f32_rsqrt_refined_neon_(nk_f32_t x) {
     nk_f32_t r = vrsqrtes_f32(x);
     r *= vrsqrtss_f32(x * r, r);
     r *= vrsqrtss_f32(x * r, r);
     return r;
 }
-NUMKONG_API_COMPTIME nk_f64_t nk_f64_rsqrt_neon(nk_f64_t x) {
+
+/** Reciprocal square root: the hardware estimate refined by three Newton steps. */
+NUMKONG_INLINE nk_f64_t nk_f64_rsqrt_refined_neon_(nk_f64_t x) {
     nk_f64_t r = vrsqrted_f64(x);
     r *= vrsqrtsd_f64(x * r, r);
     r *= vrsqrtsd_f64(x * r, r);
     r *= vrsqrtsd_f64(x * r, r);
     return r;
 }
-NUMKONG_API_COMPTIME nk_f32_t nk_f32_fma_neon(nk_f32_t a, nk_f32_t b, nk_f32_t c) {
+
+NUMKONG_INLINE nk_u64_t nk_u64_mulhigh_neon_(nk_u64_t a, nk_u64_t b) {
+#if defined(_MSC_VER)
+    return __umulh(a, b);
+#else
+    nk_u64_t high;
+    __asm__("umulh %0, %1, %2" : "=r"(high) : "r"(a), "r"(b));
+    return high;
+#endif
+}
+
+#if NUMKONG_TARGET_NEON
+NUMKONG_API nk_f32_t nk_f32_sqrt_neon(nk_f32_t x) { return vget_lane_f32(vsqrt_f32(vdup_n_f32(x)), 0); }
+NUMKONG_API nk_f64_t nk_f64_sqrt_neon(nk_f64_t x) { return vget_lane_f64(vsqrt_f64(vdup_n_f64(x)), 0); }
+NUMKONG_API nk_f32_t nk_f32_rsqrt_neon(nk_f32_t x) { return nk_f32_rsqrt_refined_neon_(x); }
+NUMKONG_API nk_f64_t nk_f64_rsqrt_neon(nk_f64_t x) { return nk_f64_rsqrt_refined_neon_(x); }
+NUMKONG_API nk_f32_t nk_f32_fma_neon(nk_f32_t a, nk_f32_t b, nk_f32_t c) {
     // MSVC lacks both GCC inline asm and scalar ACLE FMA intrinsics (vfmas_f32/vfmad_f64).
     // GCC/Clang: use inline asm for scalar FMADD.
     // MSVC: use vector FMA + lane extract (compiler may optimize to scalar FMADD).
@@ -64,7 +81,7 @@ NUMKONG_API_COMPTIME nk_f32_t nk_f32_fma_neon(nk_f32_t a, nk_f32_t b, nk_f32_t c
     return r;
 #endif
 }
-NUMKONG_API_COMPTIME nk_f64_t nk_f64_fma_neon(nk_f64_t a, nk_f64_t b, nk_f64_t c) {
+NUMKONG_API nk_f64_t nk_f64_fma_neon(nk_f64_t a, nk_f64_t b, nk_f64_t c) {
     // MSVC lacks both GCC inline asm and scalar ACLE FMA intrinsics (vfmas_f32/vfmad_f64).
     // GCC/Clang: use inline asm for scalar FMADD.
     // MSVC: use vector FMA + lane extract (compiler may optimize to scalar FMADD).
@@ -77,28 +94,19 @@ NUMKONG_API_COMPTIME nk_f64_t nk_f64_fma_neon(nk_f64_t a, nk_f64_t b, nk_f64_t c
 #endif
 }
 
-NUMKONG_API_COMPTIME nk_u8_t nk_u8_saturating_add_neon(nk_u8_t a, nk_u8_t b) { return vqaddb_u8(a, b); }
-NUMKONG_API_COMPTIME nk_i8_t nk_i8_saturating_add_neon(nk_i8_t a, nk_i8_t b) { return vqaddb_s8(a, b); }
-NUMKONG_API_COMPTIME nk_u16_t nk_u16_saturating_add_neon(nk_u16_t a, nk_u16_t b) { return vqaddh_u16(a, b); }
-NUMKONG_API_COMPTIME nk_i16_t nk_i16_saturating_add_neon(nk_i16_t a, nk_i16_t b) { return vqaddh_s16(a, b); }
-NUMKONG_API_COMPTIME nk_u32_t nk_u32_saturating_add_neon(nk_u32_t a, nk_u32_t b) { return vqadds_u32(a, b); }
-NUMKONG_API_COMPTIME nk_i32_t nk_i32_saturating_add_neon(nk_i32_t a, nk_i32_t b) { return vqadds_s32(a, b); }
-NUMKONG_API_COMPTIME nk_u64_t nk_u64_saturating_add_neon(nk_u64_t a, nk_u64_t b) { return vqaddd_u64(a, b); }
-NUMKONG_API_COMPTIME nk_i64_t nk_i64_saturating_add_neon(nk_i64_t a, nk_i64_t b) { return vqaddd_s64(a, b); }
+NUMKONG_API nk_u8_t nk_u8_saturating_add_neon(nk_u8_t a, nk_u8_t b) { return vqaddb_u8(a, b); }
+NUMKONG_API nk_i8_t nk_i8_saturating_add_neon(nk_i8_t a, nk_i8_t b) { return vqaddb_s8(a, b); }
+NUMKONG_API nk_u16_t nk_u16_saturating_add_neon(nk_u16_t a, nk_u16_t b) { return vqaddh_u16(a, b); }
+NUMKONG_API nk_i16_t nk_i16_saturating_add_neon(nk_i16_t a, nk_i16_t b) { return vqaddh_s16(a, b); }
+NUMKONG_API nk_u32_t nk_u32_saturating_add_neon(nk_u32_t a, nk_u32_t b) { return vqadds_u32(a, b); }
+NUMKONG_API nk_i32_t nk_i32_saturating_add_neon(nk_i32_t a, nk_i32_t b) { return vqadds_s32(a, b); }
+NUMKONG_API nk_u64_t nk_u64_saturating_add_neon(nk_u64_t a, nk_u64_t b) { return vqaddd_u64(a, b); }
+NUMKONG_API nk_i64_t nk_i64_saturating_add_neon(nk_i64_t a, nk_i64_t b) { return vqaddd_s64(a, b); }
 
-NUMKONG_HELPER_INLINE nk_u64_t nk_u64_mulhigh_neon_(nk_u64_t a, nk_u64_t b) {
-#if defined(_MSC_VER)
-    return __umulh(a, b);
-#else
-    nk_u64_t high;
-    __asm__("umulh %0, %1, %2" : "=r"(high) : "r"(a), "r"(b));
-    return high;
-#endif
-}
-NUMKONG_API_COMPTIME nk_u64_t nk_u64_saturating_mul_neon(nk_u64_t a, nk_u64_t b) {
+NUMKONG_API nk_u64_t nk_u64_saturating_mul_neon(nk_u64_t a, nk_u64_t b) {
     return nk_u64_mulhigh_neon_(a, b) ? 18446744073709551615ull : (a * b);
 }
-NUMKONG_API_COMPTIME nk_i64_t nk_i64_saturating_mul_neon(nk_i64_t a, nk_i64_t b) {
+NUMKONG_API nk_i64_t nk_i64_saturating_mul_neon(nk_i64_t a, nk_i64_t b) {
     int sign = (a < 0) ^ (b < 0);
     nk_u64_t abs_a = a < 0 ? (0u - (nk_u64_t)a) : (nk_u64_t)a;
     nk_u64_t abs_b = b < 0 ? (0u - (nk_u64_t)b) : (nk_u64_t)b;
@@ -108,6 +116,7 @@ NUMKONG_API_COMPTIME nk_i64_t nk_i64_saturating_mul_neon(nk_i64_t a, nk_i64_t b)
         return sign ? (-9223372036854775807ll - 1ll) : 9223372036854775807ll;
     return sign ? -(nk_i64_t)low : (nk_i64_t)low;
 }
+#endif // NUMKONG_TARGET_NEON
 
 #if defined(__clang__)
 #pragma clang attribute pop
@@ -119,6 +128,6 @@ NUMKONG_API_COMPTIME nk_i64_t nk_i64_saturating_mul_neon(nk_i64_t a, nk_i64_t b)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_NEON
+#endif // NUMKONG_ARCH_ARM64_NEON_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_SCALAR_NEON_H

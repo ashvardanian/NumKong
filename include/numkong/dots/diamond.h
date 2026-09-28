@@ -12,10 +12,11 @@
 #ifndef NUMKONG_DOTS_DIAMOND_H
 #define NUMKONG_DOTS_DIAMOND_H
 
-#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_ARCH_X8664_
 #if NUMKONG_TARGET_DIAMOND
 
 #include "numkong/dot/diamond.h"
+#include "numkong/dots/serial.h" // `nk_define_cross_pack_size_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -88,5 +89,5 @@ nk_define_cross_packed_(dots, e5m2, diamond, e5m2, e5m2, f32, nk_b512_vec_t, nk_
 #endif
 
 #endif // NUMKONG_TARGET_DIAMOND
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_DOTS_DIAMOND_H

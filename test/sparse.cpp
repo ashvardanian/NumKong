@@ -31,12 +31,13 @@ error_stats_t test_intersect(typename index_type_::sparse_intersect_kernel_t ker
         // Same input twice: NEON has no compress-store, so it delegates the storing form to serial
         // and only the counting form reaches its SIMD loop.
         nk_size_t count, stored_count;
-        kernel(a.raw_values_data(), b.raw_values_data(), a_length, b_length, nullptr, &count);
-        kernel(a.raw_values_data(), b.raw_values_data(), a_length, b_length, matched.raw_values_data(), &stored_count);
+        stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), a_length, b_length, nullptr, &count, nullptr));
+        stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), a_length, b_length, matched.raw_values_data(),
+                            &stored_count, nullptr));
 
         nk_size_t ref;
-        nk::sparse_intersect<index_t, nk::no_simd_k>(a.values_data(), b.values_data(), a_length, b_length,
-                                                     expected.values_data(), &ref);
+        nk::sparse_intersect<index_t>(a.values_data(), b.values_data(), a_length, b_length, expected.values_data(),
+                                      &ref, no_tiers_k);
         stats.accumulate(count, ref);
         stats.accumulate(stored_count, ref);
         for (nk_size_t k = 0; k < ref; ++k) stats.accumulate(matched[k], expected[k]);
@@ -70,12 +71,13 @@ error_stats_t test_sparse_dot(typename weight_type_::sparse_dot_kernel_t kernel)
         fill_random(generator, b_weights);
 
         typename weight_t::dot_result_t result;
-        kernel(a_idx.raw_values_data(), b_idx.raw_values_data(), a_weights.raw_values_data(),
-               b_weights.raw_values_data(), dim, dim, &result.raw_);
+        stats.expect(kernel(a_idx.raw_values_data(), b_idx.raw_values_data(), a_weights.raw_values_data(),
+                            b_weights.raw_values_data(), dim, dim, &result.raw_, nullptr));
 
         reference_t ref;
-        nk::sparse_dot<index_t, weight_t, reference_t, nk::no_simd_k>(
-            a_idx.values_data(), b_idx.values_data(), a_weights.values_data(), b_weights.values_data(), dim, dim, &ref);
+        nk::sparse_dot<index_t, weight_t, reference_t>(a_idx.values_data(), b_idx.values_data(),
+                                                       a_weights.values_data(), b_weights.values_data(), dim, dim, &ref,
+                                                       no_tiers_k);
         stats.accumulate(result, ref);
     }
     return stats;
@@ -91,13 +93,13 @@ void test_sparse() {
     check("sparse_dot_u32f32_serial", test_sparse_dot<f32_t>, nk_sparse_dot_u32f32_serial);
     check("sparse_dot_u16bf16_serial", test_sparse_dot<bf16_t>, nk_sparse_dot_u16bf16_serial);
 
-#if NUMKONG_RUNTIME_DISPATCH
+#if !NUMKONG_HEADER_ONLY
     check.section("Sparse Operations Runtime Dispatch", nk_cap_serial_k);
-    check("sparse_intersect_u16", test_intersect<u16_t>, nk_sparse_intersect_u16);
-    check("sparse_intersect_u32", test_intersect<u32_t>, nk_sparse_intersect_u32);
-    check("sparse_intersect_u64", test_intersect<u64_t>, nk_sparse_intersect_u64);
-    check("sparse_dot_u32f32", test_sparse_dot<f32_t>, nk_sparse_dot_u32f32);
-    check("sparse_dot_u16bf16", test_sparse_dot<bf16_t>, nk_sparse_dot_u16bf16);
+    check("sparse_intersect_u16", test_intersect<u16_t>, cpu_best<nk_sparse_intersect_u16_best>);
+    check("sparse_intersect_u32", test_intersect<u32_t>, cpu_best<nk_sparse_intersect_u32_best>);
+    check("sparse_intersect_u64", test_intersect<u64_t>, cpu_best<nk_sparse_intersect_u64_best>);
+    check("sparse_dot_u32f32", test_sparse_dot<f32_t>, cpu_best<nk_sparse_dot_u32f32_best>);
+    check("sparse_dot_u16bf16", test_sparse_dot<bf16_t>, cpu_best<nk_sparse_dot_u16bf16_best>);
 #endif
 
 #if NUMKONG_TARGET_NEON

@@ -15,6 +15,7 @@
  *  We define both to avoid struct layout mismatches that caused crashes on NumPy 2.4.
  */
 
+#include "numkong.h" // `default_capabilities`
 #include "numpy_interop.h"
 #include "types.h"
 
@@ -189,18 +190,18 @@ typedef struct {
 typedef void (*nk_to_f32_fn_t)(void const *, nk_f32_t *);
 typedef void (*nk_from_f32_fn_t)(nk_f32_t const *, void *);
 
-static nk_np_dtype_ops_t const nk_ops_bf16 = {sizeof(nk_bf16_t), (nk_to_f32_fn_t)nk_bf16_to_f32,
-                                              (nk_from_f32_fn_t)nk_f32_to_bf16};
-static nk_np_dtype_ops_t const nk_ops_f16 = {sizeof(nk_f16_t), (nk_to_f32_fn_t)nk_f16_to_f32,
-                                             (nk_from_f32_fn_t)nk_f32_to_f16};
-static nk_np_dtype_ops_t const nk_ops_e4m3 = {sizeof(nk_e4m3_t), (nk_to_f32_fn_t)nk_e4m3_to_f32,
-                                              (nk_from_f32_fn_t)nk_f32_to_e4m3};
-static nk_np_dtype_ops_t const nk_ops_e5m2 = {sizeof(nk_e5m2_t), (nk_to_f32_fn_t)nk_e5m2_to_f32,
-                                              (nk_from_f32_fn_t)nk_f32_to_e5m2};
-static nk_np_dtype_ops_t const nk_ops_e2m3 = {sizeof(nk_e2m3_t), (nk_to_f32_fn_t)nk_e2m3_to_f32,
-                                              (nk_from_f32_fn_t)nk_f32_to_e2m3};
-static nk_np_dtype_ops_t const nk_ops_e3m2 = {sizeof(nk_e3m2_t), (nk_to_f32_fn_t)nk_e3m2_to_f32,
-                                              (nk_from_f32_fn_t)nk_f32_to_e3m2};
+static nk_np_dtype_ops_t const nk_ops_bf16 = {sizeof(nk_bf16_t), (nk_to_f32_fn_t)nk_bf16_to_f32_serial,
+                                              (nk_from_f32_fn_t)nk_f32_to_bf16_serial};
+static nk_np_dtype_ops_t const nk_ops_f16 = {sizeof(nk_f16_t), (nk_to_f32_fn_t)nk_f16_to_f32_serial,
+                                             (nk_from_f32_fn_t)nk_f32_to_f16_serial};
+static nk_np_dtype_ops_t const nk_ops_e4m3 = {sizeof(nk_e4m3_t), (nk_to_f32_fn_t)nk_e4m3_to_f32_serial,
+                                              (nk_from_f32_fn_t)nk_f32_to_e4m3_serial};
+static nk_np_dtype_ops_t const nk_ops_e5m2 = {sizeof(nk_e5m2_t), (nk_to_f32_fn_t)nk_e5m2_to_f32_serial,
+                                              (nk_from_f32_fn_t)nk_f32_to_e5m2_serial};
+static nk_np_dtype_ops_t const nk_ops_e2m3 = {sizeof(nk_e2m3_t), (nk_to_f32_fn_t)nk_e2m3_to_f32_serial,
+                                              (nk_from_f32_fn_t)nk_f32_to_e2m3_serial};
+static nk_np_dtype_ops_t const nk_ops_e3m2 = {sizeof(nk_e3m2_t), (nk_to_f32_fn_t)nk_e3m2_to_f32_serial,
+                                              (nk_from_f32_fn_t)nk_f32_to_e3m2_serial};
 
 /*  Generic ArrFuncs implementations, parameterized by ops. */
 
@@ -240,7 +241,7 @@ static int nk_np_nonzero_generic(void *data, nk_np_dtype_ops_t const *ops) {
 
 /*  Per-dtype trampolines: NumPy's ArrFuncs/cast signatures don't carry user-data, so each dtype
  *  needs thin wrappers that close over the ops struct. 5 ArrFuncs × 6 dtypes = 30, plus 4 cast
- *  directions × 6 dtypes = 24 using nk_cast. */
+ *  directions × 6 dtypes = 24 using nk_cast_best. */
 
 // clang-format off
 static PyObject *nk_np_getitem_bf16(void *d, void *a) { nk_unused_(a); return nk_np_getitem_generic(d, &nk_ops_bf16); }
@@ -279,34 +280,35 @@ static int nk_np_nonzero_e2m3(void *d, void *a) { nk_unused_(a); return nk_np_no
 static int nk_np_nonzero_e3m2(void *d, void *a) { nk_unused_(a); return nk_np_nonzero_generic(d, &nk_ops_e3m2); }
 // clang-format on
 
+/*  Void callbacks drop the status: the default mask keeps serial, whose casts never fail. */
 // clang-format off
-static void nk_np_cast_bf16_to_f32(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast(f, nk_bf16_k, (nk_size_t)n, t, nk_f32_k); }
-static void nk_np_cast_f16_to_f32(void *f, void *t, npy_intp n, void *fa, void *ta)  { nk_unused_(fa); nk_unused_(ta); nk_cast(f, nk_f16_k,  (nk_size_t)n, t, nk_f32_k); }
-static void nk_np_cast_e4m3_to_f32(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast(f, nk_e4m3_k, (nk_size_t)n, t, nk_f32_k); }
-static void nk_np_cast_e5m2_to_f32(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast(f, nk_e5m2_k, (nk_size_t)n, t, nk_f32_k); }
-static void nk_np_cast_e2m3_to_f32(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast(f, nk_e2m3_k, (nk_size_t)n, t, nk_f32_k); }
-static void nk_np_cast_e3m2_to_f32(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast(f, nk_e3m2_k, (nk_size_t)n, t, nk_f32_k); }
+static void nk_np_cast_bf16_to_f32(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_bf16_k, (nk_size_t)n, t, nk_f32_k, default_capabilities, NULL); }
+static void nk_np_cast_f16_to_f32(void *f, void *t, npy_intp n, void *fa, void *ta)  { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f16_k,  (nk_size_t)n, t, nk_f32_k, default_capabilities, NULL); }
+static void nk_np_cast_e4m3_to_f32(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_e4m3_k, (nk_size_t)n, t, nk_f32_k, default_capabilities, NULL); }
+static void nk_np_cast_e5m2_to_f32(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_e5m2_k, (nk_size_t)n, t, nk_f32_k, default_capabilities, NULL); }
+static void nk_np_cast_e2m3_to_f32(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_e2m3_k, (nk_size_t)n, t, nk_f32_k, default_capabilities, NULL); }
+static void nk_np_cast_e3m2_to_f32(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_e3m2_k, (nk_size_t)n, t, nk_f32_k, default_capabilities, NULL); }
 
-static void nk_np_cast_f32_to_bf16(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast(f, nk_f32_k, (nk_size_t)n, t, nk_bf16_k); }
-static void nk_np_cast_f32_to_f16(void *f, void *t, npy_intp n, void *fa, void *ta)  { nk_unused_(fa); nk_unused_(ta); nk_cast(f, nk_f32_k, (nk_size_t)n, t, nk_f16_k); }
-static void nk_np_cast_f32_to_e4m3(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast(f, nk_f32_k, (nk_size_t)n, t, nk_e4m3_k); }
-static void nk_np_cast_f32_to_e5m2(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast(f, nk_f32_k, (nk_size_t)n, t, nk_e5m2_k); }
-static void nk_np_cast_f32_to_e2m3(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast(f, nk_f32_k, (nk_size_t)n, t, nk_e2m3_k); }
-static void nk_np_cast_f32_to_e3m2(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast(f, nk_f32_k, (nk_size_t)n, t, nk_e3m2_k); }
+static void nk_np_cast_f32_to_bf16(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f32_k, (nk_size_t)n, t, nk_bf16_k, default_capabilities, NULL); }
+static void nk_np_cast_f32_to_f16(void *f, void *t, npy_intp n, void *fa, void *ta)  { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f32_k, (nk_size_t)n, t, nk_f16_k, default_capabilities, NULL); }
+static void nk_np_cast_f32_to_e4m3(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f32_k, (nk_size_t)n, t, nk_e4m3_k, default_capabilities, NULL); }
+static void nk_np_cast_f32_to_e5m2(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f32_k, (nk_size_t)n, t, nk_e5m2_k, default_capabilities, NULL); }
+static void nk_np_cast_f32_to_e2m3(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f32_k, (nk_size_t)n, t, nk_e2m3_k, default_capabilities, NULL); }
+static void nk_np_cast_f32_to_e3m2(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f32_k, (nk_size_t)n, t, nk_e3m2_k, default_capabilities, NULL); }
 
-static void nk_np_cast_bf16_to_f64(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast(f, nk_bf16_k, (nk_size_t)n, t, nk_f64_k); }
-static void nk_np_cast_f16_to_f64(void *f, void *t, npy_intp n, void *fa, void *ta)  { nk_unused_(fa); nk_unused_(ta); nk_cast(f, nk_f16_k,  (nk_size_t)n, t, nk_f64_k); }
-static void nk_np_cast_e4m3_to_f64(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast(f, nk_e4m3_k, (nk_size_t)n, t, nk_f64_k); }
-static void nk_np_cast_e5m2_to_f64(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast(f, nk_e5m2_k, (nk_size_t)n, t, nk_f64_k); }
-static void nk_np_cast_e2m3_to_f64(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast(f, nk_e2m3_k, (nk_size_t)n, t, nk_f64_k); }
-static void nk_np_cast_e3m2_to_f64(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast(f, nk_e3m2_k, (nk_size_t)n, t, nk_f64_k); }
+static void nk_np_cast_bf16_to_f64(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_bf16_k, (nk_size_t)n, t, nk_f64_k, default_capabilities, NULL); }
+static void nk_np_cast_f16_to_f64(void *f, void *t, npy_intp n, void *fa, void *ta)  { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f16_k,  (nk_size_t)n, t, nk_f64_k, default_capabilities, NULL); }
+static void nk_np_cast_e4m3_to_f64(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_e4m3_k, (nk_size_t)n, t, nk_f64_k, default_capabilities, NULL); }
+static void nk_np_cast_e5m2_to_f64(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_e5m2_k, (nk_size_t)n, t, nk_f64_k, default_capabilities, NULL); }
+static void nk_np_cast_e2m3_to_f64(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_e2m3_k, (nk_size_t)n, t, nk_f64_k, default_capabilities, NULL); }
+static void nk_np_cast_e3m2_to_f64(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_e3m2_k, (nk_size_t)n, t, nk_f64_k, default_capabilities, NULL); }
 
-static void nk_np_cast_f64_to_bf16(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast(f, nk_f64_k, (nk_size_t)n, t, nk_bf16_k); }
-static void nk_np_cast_f64_to_f16(void *f, void *t, npy_intp n, void *fa, void *ta)  { nk_unused_(fa); nk_unused_(ta); nk_cast(f, nk_f64_k, (nk_size_t)n, t, nk_f16_k); }
-static void nk_np_cast_f64_to_e4m3(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast(f, nk_f64_k, (nk_size_t)n, t, nk_e4m3_k); }
-static void nk_np_cast_f64_to_e5m2(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast(f, nk_f64_k, (nk_size_t)n, t, nk_e5m2_k); }
-static void nk_np_cast_f64_to_e2m3(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast(f, nk_f64_k, (nk_size_t)n, t, nk_e2m3_k); }
-static void nk_np_cast_f64_to_e3m2(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast(f, nk_f64_k, (nk_size_t)n, t, nk_e3m2_k); }
+static void nk_np_cast_f64_to_bf16(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f64_k, (nk_size_t)n, t, nk_bf16_k, default_capabilities, NULL); }
+static void nk_np_cast_f64_to_f16(void *f, void *t, npy_intp n, void *fa, void *ta)  { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f64_k, (nk_size_t)n, t, nk_f16_k, default_capabilities, NULL); }
+static void nk_np_cast_f64_to_e4m3(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f64_k, (nk_size_t)n, t, nk_e4m3_k, default_capabilities, NULL); }
+static void nk_np_cast_f64_to_e5m2(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f64_k, (nk_size_t)n, t, nk_e5m2_k, default_capabilities, NULL); }
+static void nk_np_cast_f64_to_e2m3(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f64_k, (nk_size_t)n, t, nk_e2m3_k, default_capabilities, NULL); }
+static void nk_np_cast_f64_to_e3m2(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f64_k, (nk_size_t)n, t, nk_e3m2_k, default_capabilities, NULL); }
 // clang-format on
 
 /** Initialize an ArrFuncs struct with the 5 required function pointers. */

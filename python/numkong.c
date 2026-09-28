@@ -589,12 +589,12 @@ PyObject *nk_scalar_buffer_to_py_number(nk_scalar_buffer_t const *buf, nk_dtype_
     case nk_f32_k: return PyFloat_FromDouble((double)buf->f32);
     case nk_f16_k: {
         nk_f32_t f32_tmp;
-        nk_f16_to_f32(&buf->f16, &f32_tmp);
+        nk_f16_to_f32_serial(&buf->f16, &f32_tmp);
         return PyFloat_FromDouble((double)f32_tmp);
     }
     case nk_bf16_k: {
         nk_f32_t f32_tmp;
-        nk_bf16_to_f32(&buf->bf16, &f32_tmp);
+        nk_bf16_to_f32_serial(&buf->bf16, &f32_tmp);
         return PyFloat_FromDouble((double)f32_tmp);
     }
     case nk_f64c_k: return PyComplex_FromDoubles(buf->f64c.real, buf->f64c.imag);
@@ -609,22 +609,22 @@ PyObject *nk_scalar_buffer_to_py_number(nk_scalar_buffer_t const *buf, nk_dtype_
     case nk_u8_k: return PyLong_FromUnsignedLong(buf->u8);
     case nk_e4m3_k: {
         nk_f32_t f32_tmp;
-        nk_e4m3_to_f32(&buf->u8, &f32_tmp);
+        nk_e4m3_to_f32_serial(&buf->u8, &f32_tmp);
         return PyFloat_FromDouble((double)f32_tmp);
     }
     case nk_e5m2_k: {
         nk_f32_t f32_tmp;
-        nk_e5m2_to_f32(&buf->u8, &f32_tmp);
+        nk_e5m2_to_f32_serial(&buf->u8, &f32_tmp);
         return PyFloat_FromDouble((double)f32_tmp);
     }
     case nk_e2m3_k: {
         nk_f32_t f32_tmp;
-        nk_e2m3_to_f32(&buf->u8, &f32_tmp);
+        nk_e2m3_to_f32_serial(&buf->u8, &f32_tmp);
         return PyFloat_FromDouble((double)f32_tmp);
     }
     case nk_e3m2_k: {
         nk_f32_t f32_tmp;
-        nk_e3m2_to_f32(&buf->u8, &f32_tmp);
+        nk_e3m2_to_f32_serial(&buf->u8, &f32_tmp);
         return PyFloat_FromDouble((double)f32_tmp);
     }
     default: return PyFloat_FromDouble(0.0);
@@ -652,7 +652,7 @@ int py_number_to_nk_scalar_buffer(PyObject *obj, nk_scalar_buffer_t *buf, nk_dty
     nk_f64_t value;
     if (!py_number_to_f64(obj, &value)) return 0;
     buf->f64 = value;
-    nk_scalar_buffer_from_f64(&buf->f64, buf, dtype);
+    nk_scalar_buffer_from_f64_(&buf->f64, buf, dtype);
     return 1;
 }
 
@@ -660,20 +660,11 @@ int nk_scalar_buffer_export(                                   //
     nk_scalar_buffer_t const *source, nk_dtype_t source_dtype, //
     void *target, nk_dtype_t target_dtype) {                   //
     nk_scalar_buffer_t converted;
-    if (!nk_scalar_buffer_to_f64c(source, source_dtype, &converted.f64c)) return 0;
-    if (!nk_scalar_buffer_from_f64c(&converted.f64c, &converted, target_dtype)) return 0;
+    if (!nk_scalar_buffer_to_f64c_(source, source_dtype, &converted.f64c)) return 0;
+    if (!nk_scalar_buffer_from_f64c_(&converted.f64c, &converted, target_dtype)) return 0;
     nk_size_t target_size = nk_dtype_bits(target_dtype) / NUMKONG_BITS_PER_BYTE;
     nk_copy_bytes_(target, &converted, target_size);
     return 1;
-}
-
-int nk_kernel_is_commutative(nk_kernel_kind_t kind) {
-    switch (kind) {
-    case nk_kernel_kld_k: return 0;
-    case nk_kernel_vdot_k: return 0;
-    case nk_kernel_bilinear_k: return 0;
-    default: return 1;
-    }
 }
 
 int py_object_is_scalar(PyObject *obj) {
@@ -984,12 +975,39 @@ int parse_tensor_nd(PyObject *obj, Py_buffer *buffer, TensorView *view, nk_buffe
 /** The `numkong.Capability` flags class, built at import, that every capability function speaks. */
 static PyObject *capability_type = NULL;
 
+nk_capability_t default_capabilities = nk_cap_serial_k;
+
+int parse_dispatch_keyword(PyObject *key, PyObject *value, nk_capability_t *capabilities, void **stream) {
+    if (PyUnicode_CompareWithASCIIString(key, "capabilities") == 0) {
+        if (value == Py_None) return 1;
+        unsigned long long const bits = PyLong_AsUnsignedLongLong(value);
+        if (bits == (unsigned long long)-1 && PyErr_Occurred()) return 0;
+        nk_capability_t detected = nk_cap_serial_k;
+        nk_cpu_capabilities_detected(&detected);
+        // A capability this CPU lacks would fault on its first instruction, not report a status.
+        *capabilities = (nk_capability_t)bits & (detected | ~nk_cap_cpus_k);
+        return 1;
+    }
+    if (PyUnicode_CompareWithASCIIString(key, "stream") == 0) {
+        *stream = value == Py_None ? NULL : PyLong_AsVoidPtr(value);
+        return !PyErr_Occurred();
+    }
+    PyErr_Format(PyExc_TypeError, "Got unexpected keyword argument: %S", key);
+    return 0;
+}
+
+int check_status(nk_status_t status) {
+    if (status == nk_success_k) return 1;
+    PyErr_SetString(PyExc_RuntimeError, nk_status_to_string(status));
+    return 0;
+}
+
 char const doc_capabilities_detected[] =                                                                 //
     "Get the CPU capabilities this machine can execute.\n\n"                                             //
     "Detected from CPUID or HWCAP. Says nothing about whether the kernels were compiled in — for that\n" //
     "see `capabilities_compiled`, and for what dispatch uses see `capabilities_enabled`.\n\n"            //
     "Returns:\n"                                                                                         //
-    "    Capability: One flag per CPU tier, like `Capability.HASWELL`.\n\n"                              //
+    "    Capability: One flag per CPU capability, like `Capability.HASWELL`.\n\n"                        //
     "Signature:\n"                                                                                       //
     "    >>> def capabilities_detected() -> Capability: ...";
 
@@ -1002,43 +1020,47 @@ char const doc_capabilities_compiled[] =                                        
     "    >>> def capabilities_compiled() -> Capability: ...";
 
 char const doc_capabilities_enabled[] =                                                                     //
-    "Get the CPU capabilities dispatch uses.\n\n"                                                           //
+    "Get the CPU capabilities kernels run with, unless a call passes its own `capabilities=`.\n\n"          //
     "Starts as `capabilities_detected() & capabilities_compiled()`, the honest answer to 'will NumKong\n"   //
     "use AVX-512 on this machine?', and changes only through `capabilities_enable`. Always has SERIAL.\n\n" //
     "Signature:\n"                                                                                          //
     "    >>> def capabilities_enabled() -> Capability: ...";
 
-char const doc_capabilities_enable[] =                                                                    //
-    "Make `wanted` the CPU capabilities dispatch uses, and configure the calling thread for them.\n\n"    //
-    "Tiers this CPU cannot execute or this binary lacks are dropped and SERIAL is always kept, so\n"      //
-    "dispatch never reaches a kernel that cannot run here. Mostly useful to test one tier at a time.\n\n" //
-    "Args:\n"                                                                                             //
-    "    wanted (Capability): Tiers to dispatch between, for example `Capability.HASWELL`.\n\n"           //
-    "Returns:\n"                                                                                          //
-    "    Capability: The tiers enabled after clamping.\n\n"                                               //
-    "Signature:\n"                                                                                        //
+char const doc_capabilities_enable[] =                                                                          //
+    "Make `wanted` the CPU capabilities kernels run with, and configure the calling thread for them.\n\n"       //
+    "Capabilities this CPU cannot execute or this binary lacks are dropped and SERIAL is always kept, so\n"     //
+    "dispatch never reaches a kernel that cannot run here. Mostly useful to test one capability at a time.\n\n" //
+    "Args:\n"                                                                                                   //
+    "    wanted (Capability): Capabilities to dispatch between, for example `Capability.HASWELL`.\n\n"          //
+    "Returns:\n"                                                                                                //
+    "    Capability: The capabilities enabled after clamping.\n\n"                                              //
+    "Signature:\n"                                                                                              //
     "    >>> def capabilities_enable(wanted, /) -> Capability: ...";
 
 PyObject *api_capabilities_detected(PyObject *self) {
-    return PyObject_CallFunction(capability_type, "K", (unsigned long long)nk_cpu_capabilities_detected());
+    nk_capability_t detected = nk_cap_serial_k;
+    if (!check_status(nk_cpu_capabilities_detected(&detected))) return NULL;
+    return PyObject_CallFunction(capability_type, "K", (unsigned long long)detected);
 }
 
 PyObject *api_capabilities_compiled(PyObject *self) {
-    return PyObject_CallFunction(capability_type, "K", (unsigned long long)nk_cpu_capabilities_compiled());
+    nk_capability_t compiled = nk_cap_serial_k;
+    if (!check_status(nk_cpu_capabilities_compiled(&compiled))) return NULL;
+    return PyObject_CallFunction(capability_type, "K", (unsigned long long)compiled);
 }
 
 PyObject *api_capabilities_enabled(PyObject *self) {
-    return PyObject_CallFunction(capability_type, "K", (unsigned long long)nk_cpu_capabilities_enabled());
+    return PyObject_CallFunction(capability_type, "K", (unsigned long long)default_capabilities);
 }
 
 PyObject *api_capabilities_enable(PyObject *self, PyObject *wanted) {
     unsigned long long const wanted_bits = PyLong_AsUnsignedLongLong(wanted);
     if (wanted_bits == (unsigned long long)-1 && PyErr_Occurred()) return NULL;
-    nk_capability_t const enabled = nk_cpu_capabilities_enable((nk_capability_t)wanted_bits);
-    if (!nk_cpu_configure_thread(enabled)) {
-        PyErr_SetString(PyExc_RuntimeError, "Failed to configure the calling thread for the enabled capabilities");
-        return NULL;
-    }
+    nk_capability_t available = nk_cap_serial_k;
+    if (!check_status(nk_cpu_capabilities_enabled(&available))) return NULL;
+    nk_capability_t const enabled = ((nk_capability_t)wanted_bits & available) | nk_cap_serial_k;
+    if (!check_status(nk_cpu_configure_thread(enabled))) return NULL;
+    default_capabilities = enabled;
     return PyObject_CallFunction(capability_type, "K", (unsigned long long)enabled);
 }
 
@@ -1083,8 +1105,8 @@ static PyMethodDef nk_methods[] = {
     {"pointer_to_jensenshannon", (PyCFunction)api_jsd_pointer, METH_O, doc_jsd_pointer},
 
     // Set operations
-    {"intersect", (PyCFunction)api_intersect, METH_FASTCALL, doc_intersect},
-    {"sparse_dot", (PyCFunction)api_sparse_dot, METH_FASTCALL, doc_sparse_dot},
+    {"intersect", (PyCFunction)api_intersect, METH_FASTCALL | METH_KEYWORDS, doc_intersect},
+    {"sparse_dot", (PyCFunction)api_sparse_dot, METH_FASTCALL | METH_KEYWORDS, doc_sparse_dot},
 
     // Symmetric pairwise operations
     {"dots_symmetric", (PyCFunction)api_dots_symmetric, METH_FASTCALL | METH_KEYWORDS, doc_dots_symmetric},
@@ -1195,6 +1217,11 @@ static char const doc_module[] =                                                
     "   kernel invocations. Many kernels compute 1-to-1 distances between vectors, as well as\n"    //
     "   1-to-N and N-to-N distances between batches of vectors packed into matrices.\n"             //
     "\n"                                                                                            //
+    "Dispatch:\n"                                                                                   //
+    " - Kernel-running functions take `capabilities=`, a `Capability` mask defaulting to\n"         //
+    "   `capabilities_enabled()`, or for packed operands to the mask that packed them.\n"           //
+    " - They also take `stream=`, a GPU stream pointer as an integer, None on the CPU.\n"           //
+    "\n"                                                                                            //
     "Example:\n"                                                                                    //
     "    >>> import numkong\n"                                                                      //
     "    >>> numkong.euclidean(a, b)\n"                                                             //
@@ -1291,7 +1318,7 @@ PyMODINIT_FUNC PyInit__numkong(void) {
         return NULL;
     }
 
-    // Register the Capability flags, one member per CPU tier, named after the C library's spelling
+    // Register the Capability flags, one member per CPU capability, named after the C library's spelling
     PyObject *capability_members = PyDict_New();
     for (unsigned bit = 0; capability_members && bit != 64; ++bit) {
         nk_capability_t const flag = (nk_capability_t)1 << bit;
@@ -1320,7 +1347,8 @@ PyMODINIT_FUNC PyInit__numkong(void) {
         return NULL;
     }
 
-    nk_cpu_configure_thread(nk_cpu_capabilities_enabled());
+    nk_cpu_capabilities_enabled(&default_capabilities);
+    nk_cpu_configure_thread(default_capabilities);
 
     // Register scalar types (bfloat16, float8_e4m3, float8_e5m2)
     if (nk_register_scalar_types(m) < 0) {

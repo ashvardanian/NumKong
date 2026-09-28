@@ -25,12 +25,13 @@
 #ifndef NUMKONG_TRIGONOMETRY_HASWELL_H
 #define NUMKONG_TRIGONOMETRY_HASWELL_H
 
-#if NUMKONG_ARCH_X86_64_
-#if NUMKONG_TARGET_HASWELL
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_HASWELL_
 
 #include "numkong/types.h"
+#include "numkong/cast/serial.h"  // `nk_bf16_to_f32_`, `nk_f32_to_e4m3_`
+#include "numkong/cast/haswell.h" // `nk_load_bf16x8_to_f32x8_haswell_`, `nk_partial_load_b64x4_haswell_`
 #include "numkong/reduce/haswell.h"
-#include "numkong/trigonometry/serial.h" // `nk_rope_angle_t`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -46,7 +47,7 @@ extern "C" {
 /*  Haswell AVX2 trigonometry kernels, 8-way f32 and 4-way f64. These implement the same polynomial
  *  approximations as Skylake but with 256-bit vectors. */
 
-NUMKONG_HELPER_INLINE __m256 nk_sin_f32x8_haswell_(__m256 const angles_radians) {
+NUMKONG_INLINE __m256 nk_sin_f32x8_haswell_(__m256 const angles_radians) {
     // Cody-Waite constants for argument reduction
     __m256 const pi_high_f32x8 = _mm256_set1_ps(3.1415927f);
     __m256 const pi_low_f32x8 = _mm256_set1_ps(-8.742278e-8f);
@@ -85,7 +86,7 @@ NUMKONG_HELPER_INLINE __m256 nk_sin_f32x8_haswell_(__m256 const angles_radians) 
     return results_f32x8;
 }
 
-NUMKONG_HELPER_INLINE __m256 nk_cos_f32x8_haswell_(__m256 const angles_radians) {
+NUMKONG_INLINE __m256 nk_cos_f32x8_haswell_(__m256 const angles_radians) {
     // Cody-Waite constants for argument reduction
     __m256 const pi_high_f32x8 = _mm256_set1_ps(3.1415927f);
     __m256 const pi_low_f32x8 = _mm256_set1_ps(-8.742278e-8f);
@@ -126,7 +127,7 @@ NUMKONG_HELPER_INLINE __m256 nk_cos_f32x8_haswell_(__m256 const angles_radians) 
     return results_f32x8;
 }
 
-NUMKONG_HELPER_INLINE __m256 nk_atan_f32x8_haswell_(__m256 const inputs) {
+NUMKONG_INLINE __m256 nk_atan_f32x8_haswell_(__m256 const inputs) {
     // Polynomial coefficients for atan approximation (8 terms)
     // These coefficients approximate: atan(x) ≈ x + c8 × x³ + c7 × x⁵ + c6 × x⁷ + ... + c1 × x¹⁵
     __m256 const coeff_8_f32x8 = _mm256_set1_ps(-0.333331018686294555664062f);
@@ -180,7 +181,7 @@ NUMKONG_HELPER_INLINE __m256 nk_atan_f32x8_haswell_(__m256 const inputs) {
     return result_f32x8;
 }
 
-NUMKONG_HELPER_INLINE __m256 nk_atan2_f32x8_haswell_(__m256 const ys_inputs, __m256 const xs_inputs) {
+NUMKONG_INLINE __m256 nk_atan2_f32x8_haswell_(__m256 const ys_inputs, __m256 const xs_inputs) {
     // Polynomial coefficients (same as atan)
     __m256 const coeff_8_f32x8 = _mm256_set1_ps(-0.333331018686294555664062f);
     __m256 const coeff_7_f32x8 = _mm256_set1_ps(+0.199926957488059997558594f);
@@ -246,7 +247,7 @@ NUMKONG_HELPER_INLINE __m256 nk_atan2_f32x8_haswell_(__m256 const ys_inputs, __m
     return results_f32x8;
 }
 
-NUMKONG_HELPER_INLINE __m256d nk_sin_f64x4_haswell_(__m256d const angles_radians) {
+NUMKONG_INLINE __m256d nk_sin_f64x4_haswell_(__m256d const angles_radians) {
     // Constants for argument reduction
     __m256d const pi_high_f64x4 = _mm256_set1_pd(3.141592653589793116);         // High-digits part of π
     __m256d const pi_low_f64x4 = _mm256_set1_pd(1.2246467991473532072e-16);     // Low-digits part of π
@@ -311,7 +312,7 @@ NUMKONG_HELPER_INLINE __m256d nk_sin_f64x4_haswell_(__m256d const angles_radians
     return results_f64x4;
 }
 
-NUMKONG_HELPER_INLINE __m256d nk_cos_f64x4_haswell_(__m256d const angles_radians) {
+NUMKONG_INLINE __m256d nk_cos_f64x4_haswell_(__m256d const angles_radians) {
     // Constants for argument reduction
     __m256d const pi_high_half_f64x4 = _mm256_set1_pd(3.141592653589793116 * 0.5);     // High-digits part of π/2
     __m256d const pi_low_half_f64x4 = _mm256_set1_pd(1.2246467991473532072e-16 * 0.5); // Low-digits part of π/2
@@ -373,7 +374,7 @@ NUMKONG_HELPER_INLINE __m256d nk_cos_f64x4_haswell_(__m256d const angles_radians
     return results_f64x4;
 }
 
-NUMKONG_HELPER_INLINE __m256d nk_atan_f64x4_haswell_(__m256d const inputs) {
+NUMKONG_INLINE __m256d nk_atan_f64x4_haswell_(__m256d const inputs) {
     // Polynomial coefficients for atan approximation (19 coefficients)
     // The polynomial approximates: atan(x) ≈ x + x³ * P(x²) where P has 19 terms
     __m256d const coeff_19_f64x4 = _mm256_set1_pd(-1.88796008463073496563746e-05);
@@ -450,7 +451,7 @@ NUMKONG_HELPER_INLINE __m256d nk_atan_f64x4_haswell_(__m256d const inputs) {
     return result_f64x4;
 }
 
-NUMKONG_HELPER_INLINE __m256d nk_atan2_f64x4_haswell_(__m256d const ys_inputs, __m256d const xs_inputs) {
+NUMKONG_INLINE __m256d nk_atan2_f64x4_haswell_(__m256d const ys_inputs, __m256d const xs_inputs) {
     // Polynomial coefficients for atan approximation (19 coefficients, same as atan)
     __m256d const coeff_19_f64x4 = _mm256_set1_pd(-1.88796008463073496563746e-05);
     __m256d const coeff_18_f64x4 = _mm256_set1_pd(+0.000209850076645816976906797);
@@ -538,8 +539,8 @@ NUMKONG_HELPER_INLINE __m256d nk_atan2_f64x4_haswell_(__m256d const ys_inputs, _
     return results_f64x4;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
-                                                         void *stream) {
+#if NUMKONG_TARGET_HASWELL
+NUMKONG_API nk_status_t nk_trig_sin_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
@@ -558,8 +559,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f32_haswell(nk_f32_t const *ins, nk
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
-                                                         void *stream) {
+NUMKONG_API nk_status_t nk_trig_cos_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
@@ -578,8 +578,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f32_haswell(nk_f32_t const *ins, nk
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
-                                                          void *stream) {
+NUMKONG_API nk_status_t nk_trig_atan_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
@@ -598,8 +597,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f32_haswell(nk_f32_t const *ins, n
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
-                                                         void *stream) {
+NUMKONG_API nk_status_t nk_trig_sin_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
@@ -618,8 +616,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f64_haswell(nk_f64_t const *ins, nk
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
-                                                         void *stream) {
+NUMKONG_API nk_status_t nk_trig_cos_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
@@ -638,8 +635,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f64_haswell(nk_f64_t const *ins, nk
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
-                                                          void *stream) {
+NUMKONG_API nk_status_t nk_trig_atan_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
@@ -658,10 +654,10 @@ NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f64_haswell(nk_f64_t const *ins, n
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_f32_haswell(nk_f32_t const *x, nk_f32_t *y, nk_rope_angle_t const *cos,
-                                                          nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
-                                                          nk_size_t half_dim, nk_size_t x_row_stride,
-                                                          nk_size_t y_row_stride, nk_f32_t input_scale, void *stream) {
+NUMKONG_API nk_status_t nk_trig_rope_f32_haswell(nk_f32_t const *x, nk_f32_t *y, nk_rope_angle_t const *cos,
+                                                 nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
+                                                 nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,
+                                                 nk_f32_t input_scale, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 scale_f32x8 = _mm256_set1_ps(input_scale);
     for (nk_size_t r = 0; r != rows; ++r) {
@@ -693,10 +689,10 @@ NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_f32_haswell(nk_f32_t const *x, nk_
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_bf16_haswell(nk_bf16_t const *x, nk_bf16_t *y, nk_rope_angle_t const *cos,
-                                                           nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
-                                                           nk_size_t half_dim, nk_size_t x_row_stride,
-                                                           nk_size_t y_row_stride, nk_f32_t input_scale, void *stream) {
+NUMKONG_API nk_status_t nk_trig_rope_bf16_haswell(nk_bf16_t const *x, nk_bf16_t *y, nk_rope_angle_t const *cos,
+                                                  nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
+                                                  nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,
+                                                  nk_f32_t input_scale, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 scale_f32x8 = _mm256_set1_ps(input_scale);
     for (nk_size_t r = 0; r != rows; ++r) {
@@ -724,23 +720,23 @@ NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_bf16_haswell(nk_bf16_t const *x, n
             }
             for (; i != half_dim; ++i) {
                 nk_f32_t low, high;
-                nk_bf16_to_f32_serial(x_base + i, &low);
-                nk_bf16_to_f32_serial(x_base + i + half_dim, &high);
+                nk_bf16_to_f32_(x_base + i, &low);
+                nk_bf16_to_f32_(x_base + i + half_dim, &high);
                 low *= input_scale, high *= input_scale;
                 nk_f32_t cosine = cos_row[i], sine = sin_row[i], rotated_low = low * cosine - high * sine,
                          rotated_high = low * sine + high * cosine;
-                nk_f32_to_bf16_serial(&rotated_low, y_base + i);
-                nk_f32_to_bf16_serial(&rotated_high, y_base + i + half_dim);
+                nk_f32_to_bf16_(&rotated_low, y_base + i);
+                nk_f32_to_bf16_(&rotated_high, y_base + i + half_dim);
             }
         }
     }
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_e4m3_haswell(nk_e4m3_t const *x, nk_e4m3_t *y, nk_rope_angle_t const *cos,
-                                                           nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
-                                                           nk_size_t half_dim, nk_size_t x_row_stride,
-                                                           nk_size_t y_row_stride, nk_f32_t input_scale, void *stream) {
+NUMKONG_API nk_status_t nk_trig_rope_e4m3_haswell(nk_e4m3_t const *x, nk_e4m3_t *y, nk_rope_angle_t const *cos,
+                                                  nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
+                                                  nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,
+                                                  nk_f32_t input_scale, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 scale_f32x8 = _mm256_set1_ps(input_scale);
     for (nk_size_t r = 0; r != rows; ++r) {
@@ -768,18 +764,19 @@ NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_e4m3_haswell(nk_e4m3_t const *x, n
             }
             for (; i != half_dim; ++i) {
                 nk_f32_t low, high;
-                nk_e4m3_to_f32_serial(x_base + i, &low);
-                nk_e4m3_to_f32_serial(x_base + i + half_dim, &high);
+                nk_e4m3_to_f32_(x_base + i, &low);
+                nk_e4m3_to_f32_(x_base + i + half_dim, &high);
                 low *= input_scale, high *= input_scale;
                 nk_f32_t cosine = cos_row[i], sine = sin_row[i], rotated_low = low * cosine - high * sine,
                          rotated_high = low * sine + high * cosine;
-                nk_f32_to_e4m3_serial(&rotated_low, y_base + i);
-                nk_f32_to_e4m3_serial(&rotated_high, y_base + i + half_dim);
+                nk_f32_to_e4m3_(&rotated_low, y_base + i);
+                nk_f32_to_e4m3_(&rotated_high, y_base + i + half_dim);
             }
         }
     }
     return nk_success_k;
 }
+#endif // NUMKONG_TARGET_HASWELL
 
 #if defined(__clang__)
 #pragma clang attribute pop
@@ -791,6 +788,6 @@ NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_e4m3_haswell(nk_e4m3_t const *x, n
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_HASWELL
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_HASWELL_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_TRIGONOMETRY_HASWELL_H

@@ -38,7 +38,7 @@ if sys.platform == "darwin":
 
 def is_64bit_x86() -> bool:
     """Detect x86-64 architecture with environment override support."""
-    override = os.environ.get("NUMKONG_ARCH_X86_64_")
+    override = os.environ.get("NUMKONG_ARCH_X8664_")
     if override is not None:
         return override == "1"
     arch = platform.machine().lower()
@@ -220,6 +220,7 @@ PROBE_TABLE_X86: ProbeTable = [
     ("SAPPHIREAMX", "probes/x86_sapphireamx.c", ["-mamx-tile", "-mamx-int8"], ["/arch:AVX512"]),
     ("GRANITEAMX", "probes/x86_graniteamx.c", ["-mamx-tile", "-mamx-fp16"], ["/arch:AVX512"]),
     ("DIAMOND", "probes/x86_diamond.c", ["-mavx10.2-512"], ["/arch:AVX10.2"]),
+    ("DIAMONDAMX", "probes/x86_diamondamx.c", ["-mamx-tile", "-mamx-fp8", "-mamx-avx512", "-mavx10.2"], ["/arch:AVX10.2"]),
     ("TURIN", "probes/x86_turin.c", ["-mavx512vp2intersect"], ["/arch:AVX512"]),
     ("ALDER", "probes/x86_alder.c", ["-mavxvnni"], ["/arch:AVX2"]),
     ("SIERRA", "probes/x86_sierra.c", ["-mavxvnniint8"], ["/arch:AVX2"]),
@@ -364,7 +365,6 @@ def linux_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
         "-lm",  # Add vectorized `logf` implementation from the `glibc`
     ]
     macros: list[tuple[str, str]] = [
-        ("NUMKONG_RUNTIME_DISPATCH", "1"),
         ("NUMKONG_NATIVE_F16", "0"),
         ("NUMKONG_NATIVE_BF16", "0"),
     ]
@@ -383,7 +383,6 @@ def darwin_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
     link_args: list[str] = []
     # No OpenMP: `libdispatch` in libSystem runs the tile pools.
     macros: list[tuple[str, str]] = [
-        ("NUMKONG_RUNTIME_DISPATCH", "1"),
         ("NUMKONG_NATIVE_F16", "0"),
         ("NUMKONG_NATIVE_BF16", "0"),
     ]
@@ -409,7 +408,6 @@ def freebsd_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
         "-lm",  # Math library
     ]
     macros: list[tuple[str, str]] = [
-        ("NUMKONG_RUNTIME_DISPATCH", "1"),
         ("NUMKONG_NATIVE_F16", "0"),
         ("NUMKONG_NATIVE_BF16", "0"),
     ]
@@ -421,6 +419,7 @@ def windows_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
     """Build settings for Windows."""
     compile_args = [
         "/std:c11",
+        "/experimental:c11atomics",
         "/O2",
         # Dealing with MinGW linking errors
         # https://cibuildwheel.readthedocs.io/en/stable/faq/#windows-importerror-dll-load-failed-the-specific-module-could-not-be-found
@@ -431,7 +430,6 @@ def windows_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
     link_args: list[str] = []
     # No OpenMP: the kernel32 thread pool runs the tile pools.
     macros: list[tuple[str, str]] = [
-        ("NUMKONG_RUNTIME_DISPATCH", "1"),
         ("NUMKONG_NATIVE_F16", "0"),
         ("NUMKONG_NATIVE_BF16", "0"),
     ]
@@ -453,13 +451,7 @@ def emscripten_settings() -> tuple[list[str], list[str], list[tuple[str, str]]]:
         "-w",
     ]
     link_args: list[str] = []
-    # Runtime dispatch is needed for the Python bindings, which look kernels up through
-    # nk_find_kernel_punned. The EM_JS runtime probes in c/numkong.c are guarded by
-    # NUMKONG_RUNTIME_DISPATCH and __EMSCRIPTEN__; when building as a Pyodide side module, we define
-    # NUMKONG_PYODIDE_SIDE_MODULE_ to report the compiled capabilities as detected instead.
     macros: list[tuple[str, str]] = [
-        ("NUMKONG_RUNTIME_DISPATCH", "1"),
-        ("NUMKONG_PYODIDE_SIDE_MODULE_", "1"),
         ("NUMKONG_NATIVE_F16", "0"),
         ("NUMKONG_NATIVE_BF16", "0"),
     ]
@@ -495,7 +487,6 @@ SETUP_KWARGS = {
 }
 
 
-# Use glob to find all dispatch files
 base_sources = [
     "python/numkong.c",
     "python/tensor.c",
@@ -513,13 +504,14 @@ base_sources = [
     "c/parallel.c",  # Shared with the Node addon; no CMake or Cargo build compiles it
 ]
 
-dispatch_sources = sorted(glob.glob("c/dispatch_*.c"))
+# Each capability unit compiles to nothing on other architectures, so every one is listed.
+library_sources = sorted(glob.glob("c/dispatch/*.c")) + sorted(glob.glob("c/cpu/*.c"))
 
 ext_modules = [
     Extension(
         # Lives under the `numkong` package so `numkong/__init__.py` runs first.
         "numkong._numkong",
-        sources=base_sources + dispatch_sources,
+        sources=base_sources + library_sources,
         include_dirs=["include", "python", "c"],
         language="c",
         extra_compile_args=compile_args,

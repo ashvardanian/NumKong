@@ -10,7 +10,7 @@
 
 using namespace ashvardanian::numkong::test;
 
-/** Test sine approximation kernel against `nk::sin<scalar_t, f118_t, nk::no_simd_k>`. */
+/** Test sine approximation kernel against the `nk::sin<scalar_t, f118_t>` template. */
 template <typename scalar_type_>
 error_stats_t test_sin(typename scalar_type_::trigonometry_kernel_t kernel) {
     using scalar_t = scalar_type_;
@@ -27,16 +27,17 @@ error_stats_t test_sin(typename scalar_type_::trigonometry_kernel_t kernel) {
         nk::fill_uniform(generator, inputs.values_data(), inputs.size_values(), -scalar_t::two_pi_k(),
                          scalar_t::two_pi_k());
 
-        kernel(inputs.raw_values_data(), global_config.dense_dimensions, outputs.raw_values_data());
-        nk::sin<scalar_t, reference_t, nk::no_simd_k>(inputs.values_data(), global_config.dense_dimensions,
-                                                      reference.values_data());
+        stats.expect(
+            kernel(inputs.raw_values_data(), global_config.dense_dimensions, outputs.raw_values_data(), nullptr));
+        nk::sin<scalar_t, reference_t>(inputs.values_data(), global_config.dense_dimensions, reference.values_data(),
+                                       no_tiers_k);
 
         for (std::size_t i = 0; i < global_config.dense_dimensions; i++) stats.accumulate(outputs[i], reference[i]);
     }
     return stats;
 }
 
-/** Test cosine approximation kernel against `nk::cos<scalar_t, f118_t, nk::no_simd_k>`. */
+/** Test cosine approximation kernel against the `nk::cos<scalar_t, f118_t>` template. */
 template <typename scalar_type_>
 error_stats_t test_cos(typename scalar_type_::trigonometry_kernel_t kernel) {
     using scalar_t = scalar_type_;
@@ -53,16 +54,17 @@ error_stats_t test_cos(typename scalar_type_::trigonometry_kernel_t kernel) {
         nk::fill_uniform(generator, inputs.values_data(), inputs.size_values(), -scalar_t::two_pi_k(),
                          scalar_t::two_pi_k());
 
-        kernel(inputs.raw_values_data(), global_config.dense_dimensions, outputs.raw_values_data());
-        nk::cos<scalar_t, reference_t, nk::no_simd_k>(inputs.values_data(), global_config.dense_dimensions,
-                                                      reference.values_data());
+        stats.expect(
+            kernel(inputs.raw_values_data(), global_config.dense_dimensions, outputs.raw_values_data(), nullptr));
+        nk::cos<scalar_t, reference_t>(inputs.values_data(), global_config.dense_dimensions, reference.values_data(),
+                                       no_tiers_k);
 
         for (std::size_t i = 0; i < global_config.dense_dimensions; i++) stats.accumulate(outputs[i], reference[i]);
     }
     return stats;
 }
 
-/** Test atan approximation kernel against `nk::atan<scalar_t, f118_t, nk::no_simd_k>`. */
+/** Test atan approximation kernel against the `nk::atan<scalar_t, f118_t>` template. */
 template <typename scalar_type_>
 error_stats_t test_atan(typename scalar_type_::trigonometry_kernel_t kernel) {
     using scalar_t = scalar_type_;
@@ -78,9 +80,10 @@ error_stats_t test_atan(typename scalar_type_::trigonometry_kernel_t kernel) {
     for (auto start = test_start_time(); within_time_budget(start);) {
         nk::fill_uniform(generator, inputs.values_data(), inputs.size_values(), scalar_t(-10.0), scalar_t(10.0));
 
-        kernel(inputs.raw_values_data(), global_config.dense_dimensions, outputs.raw_values_data());
-        nk::atan<scalar_t, reference_t, nk::no_simd_k>(inputs.values_data(), global_config.dense_dimensions,
-                                                       reference.values_data());
+        stats.expect(
+            kernel(inputs.raw_values_data(), global_config.dense_dimensions, outputs.raw_values_data(), nullptr));
+        nk::atan<scalar_t, reference_t>(inputs.values_data(), global_config.dense_dimensions, reference.values_data(),
+                                        no_tiers_k);
 
         for (std::size_t i = 0; i < global_config.dense_dimensions; i++) stats.accumulate(outputs[i], reference[i]);
     }
@@ -101,14 +104,14 @@ void test_trigonometry() {
     check("trig_cos_f16_serial", test_cos<f16_t>, nk_trig_cos_f16_serial);
     check("trig_atan_f16_serial", test_atan<f16_t>, nk_trig_atan_f16_serial);
 
-#if NUMKONG_RUNTIME_DISPATCH
+#if !NUMKONG_HEADER_ONLY
     check.section("Trigonometry Runtime Dispatch", nk_cap_serial_k);
-    check("trig_sin_f32", test_sin<f32_t>, nk_trig_sin_f32);
-    check("trig_cos_f32", test_cos<f32_t>, nk_trig_cos_f32);
-    check("trig_atan_f32", test_atan<f32_t>, nk_trig_atan_f32);
-    check("trig_sin_f64", test_sin<f64_t>, nk_trig_sin_f64);
-    check("trig_cos_f64", test_cos<f64_t>, nk_trig_cos_f64);
-    check("trig_atan_f64", test_atan<f64_t>, nk_trig_atan_f64);
+    check("trig_sin_f32", test_sin<f32_t>, cpu_best<nk_trig_sin_f32_best>);
+    check("trig_cos_f32", test_cos<f32_t>, cpu_best<nk_trig_cos_f32_best>);
+    check("trig_atan_f32", test_atan<f32_t>, cpu_best<nk_trig_atan_f32_best>);
+    check("trig_sin_f64", test_sin<f64_t>, cpu_best<nk_trig_sin_f64_best>);
+    check("trig_cos_f64", test_cos<f64_t>, cpu_best<nk_trig_cos_f64_best>);
+    check("trig_atan_f64", test_atan<f64_t>, cpu_best<nk_trig_atan_f64_best>);
 #endif
 
 #if NUMKONG_TARGET_NEON

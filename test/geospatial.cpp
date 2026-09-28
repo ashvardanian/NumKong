@@ -33,14 +33,15 @@ error_stats_t test_haversine(typename scalar_type_::geospatial_kernel_t kernel) 
         nk::fill_nearby_coordinates(generator, a_lats.values_data(), a_lons.values_data(), b_lats.values_data(),
                                     b_lons.values_data(), global_config.dense_dimensions, max_separation_rad);
 
-        kernel(a_lats.raw_values_data(), a_lons.raw_values_data(), b_lats.raw_values_data(), b_lons.raw_values_data(),
-               global_config.dense_dimensions, results.raw_values_data());
-        nk::haversine<scalar_t, reference_t, nk::no_simd_k>(
-            a_lats.values_data(), a_lons.values_data(), b_lats.values_data(), b_lons.values_data(),
-            global_config.dense_dimensions, haversine_ref.values_data());
-        nk::vincenty<scalar_t, reference_t, nk::no_simd_k>(a_lats.values_data(), a_lons.values_data(),
-                                                           b_lats.values_data(), b_lons.values_data(),
-                                                           global_config.dense_dimensions, vincenty_ref.values_data());
+        ulp_stats.expect(kernel(a_lats.raw_values_data(), a_lons.raw_values_data(), b_lats.raw_values_data(),
+                                b_lons.raw_values_data(), global_config.dense_dimensions, results.raw_values_data(),
+                                nullptr));
+        nk::haversine<scalar_t, reference_t>(a_lats.values_data(), a_lons.values_data(), b_lats.values_data(),
+                                             b_lons.values_data(), global_config.dense_dimensions,
+                                             haversine_ref.values_data(), no_tiers_k);
+        nk::vincenty<scalar_t, reference_t>(a_lats.values_data(), a_lons.values_data(), b_lats.values_data(),
+                                            b_lons.values_data(), global_config.dense_dimensions,
+                                            vincenty_ref.values_data(), no_tiers_k);
 
         for (std::size_t i = 0; i < global_config.dense_dimensions; i++) {
             ulp_stats.accumulate(results[i], haversine_ref[i]);
@@ -62,6 +63,8 @@ error_stats_t test_haversine(typename scalar_type_::geospatial_kernel_t kernel) 
     combined.min_rel_err = abs_stats.min_rel_err;
     combined.max_rel_err = abs_stats.max_rel_err;
     combined.sum_rel_err = abs_stats.sum_rel_err;
+    combined.failed_expectations = ulp_stats.failed_expectations;
+    combined.first_failure = ulp_stats.first_failure;
     return combined;
 }
 
@@ -87,11 +90,12 @@ error_stats_t test_vincenty(typename scalar_type_::geospatial_kernel_t kernel) {
         nk::fill_nearby_coordinates(generator, a_lats.values_data(), a_lons.values_data(), b_lats.values_data(),
                                     b_lons.values_data(), global_config.dense_dimensions, max_separation_rad);
 
-        kernel(a_lats.raw_values_data(), a_lons.raw_values_data(), b_lats.raw_values_data(), b_lons.raw_values_data(),
-               global_config.dense_dimensions, results.raw_values_data());
-        nk::vincenty<scalar_t, reference_t, nk::no_simd_k>(a_lats.values_data(), a_lons.values_data(),
-                                                           b_lats.values_data(), b_lons.values_data(),
-                                                           global_config.dense_dimensions, reference.values_data());
+        stats.expect(kernel(a_lats.raw_values_data(), a_lons.raw_values_data(), b_lats.raw_values_data(),
+                            b_lons.raw_values_data(), global_config.dense_dimensions, results.raw_values_data(),
+                            nullptr));
+        nk::vincenty<scalar_t, reference_t>(a_lats.values_data(), a_lons.values_data(), b_lats.values_data(),
+                                            b_lons.values_data(), global_config.dense_dimensions,
+                                            reference.values_data(), no_tiers_k);
 
         for (std::size_t i = 0; i < global_config.dense_dimensions; i++) stats.accumulate(results[i], reference[i]);
     }
@@ -107,12 +111,12 @@ void test_geospatial() {
     check("vincenty_f64_serial", test_vincenty<f64_t>, nk_vincenty_f64_serial);
     check("vincenty_f32_serial", test_vincenty<f32_t>, nk_vincenty_f32_serial);
 
-#if NUMKONG_RUNTIME_DISPATCH
+#if !NUMKONG_HEADER_ONLY
     check.section("Geospatial Functions Runtime Dispatch", nk_cap_serial_k);
-    check("haversine_f64", test_haversine<f64_t>, nk_haversine_f64);
-    check("haversine_f32", test_haversine<f32_t>, nk_haversine_f32);
-    check("vincenty_f64", test_vincenty<f64_t>, nk_vincenty_f64);
-    check("vincenty_f32", test_vincenty<f32_t>, nk_vincenty_f32);
+    check("haversine_f64", test_haversine<f64_t>, cpu_best<nk_haversine_f64_best>);
+    check("haversine_f32", test_haversine<f32_t>, cpu_best<nk_haversine_f32_best>);
+    check("vincenty_f64", test_vincenty<f64_t>, cpu_best<nk_vincenty_f64_best>);
+    check("vincenty_f32", test_vincenty<f32_t>, cpu_best<nk_vincenty_f32_best>);
 #endif
 
 #if NUMKONG_TARGET_NEON

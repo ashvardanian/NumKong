@@ -431,6 +431,9 @@ pub enum TensorError {
     CapacityExceeded { requested: usize, capacity: usize },
     /// Operation not supported for sub-byte types: i4x2, u4x2, u1x8.
     SubByteUnsupported,
+    /// A kernel refused its operands with this `nk_status_t`, like a matrix packed under other
+    /// capabilities than the current [`crate::Capabilities::enabled`].
+    KernelFailed { status: i32 },
 }
 
 #[cfg(feature = "std")]
@@ -465,6 +468,7 @@ impl core::fmt::Display for TensorError {
             TensorError::SubByteUnsupported => {
                 write!(f, "operation not supported for sub-byte types")
             }
+            TensorError::KernelFailed { status } => write!(f, "kernel failed with status {status}"),
         }
     }
 }
@@ -5555,7 +5559,7 @@ unsafe fn reduce_moments_recursive<Scalar>(
     data: *const Scalar,
     shape: &[usize],
     strides: &[isize],
-) -> (Scalar::SumOutput, Scalar::SumSqOutput)
+) -> Result<(Scalar::SumOutput, Scalar::SumSqOutput), TensorError>
 where
     Scalar: ReduceMoments,
     Scalar::SumOutput: Default + core::ops::AddAssign,
@@ -5565,7 +5569,7 @@ where
         return Scalar::reduce_moments(core::slice::from_raw_parts(data, 1), core::mem::size_of::<Scalar>());
     }
     if shape[0] == 0 {
-        return (Scalar::SumOutput::default(), Scalar::SumSqOutput::default());
+        return Ok((Scalar::SumOutput::default(), Scalar::SumSqOutput::default()));
     }
     // Re-analyze remaining dimensions for collapsibility at each recursive level.
     if shape.len() >= 2 {
@@ -5601,11 +5605,11 @@ where
     let mut sumsq = Scalar::SumSqOutput::default();
     for index in 0..shape[0] {
         let child_ptr = (data as *const u8).offset(index as isize * strides[0]) as *const Scalar;
-        let (child_sum, child_sumsq) = reduce_moments_recursive::<Scalar>(child_ptr, &shape[1..], &strides[1..]);
+        let (child_sum, child_sumsq) = reduce_moments_recursive::<Scalar>(child_ptr, &shape[1..], &strides[1..])?;
         sum += child_sum;
         sumsq += child_sumsq;
     }
-    (sum, sumsq)
+    Ok((sum, sumsq))
 }
 
 unsafe fn reduce_minmax_recursive<Scalar>(
@@ -6468,7 +6472,7 @@ where
     Scalar::SumSqOutput: Clone + Default + core::ops::AddAssign + SumSqToF64,
 {
     pub fn try_moments_all(&self) -> Result<(Scalar::SumOutput, Scalar::SumSqOutput), TensorError> {
-        Ok(unsafe { reduce_moments_recursive::<Scalar>(self.data, self.shape(), &self.strides[..self.ndim]) })
+        unsafe { reduce_moments_recursive::<Scalar>(self.data, self.shape(), &self.strides[..self.ndim]) }
     }
 
     pub fn try_moments_axis<AnyIndex: VectorIndex>(
@@ -6517,11 +6521,19 @@ where
         let sum_base = sum_out.as_mut_ptr() as *mut u8;
         let sumsq_base = sumsq_out.as_mut_ptr() as *mut u8;
 
+        let mut outcome = Ok(());
         for_each_axis_lane(self, axis, |lane_ptr, lane_len, lane_stride, output_index| {
             let (lane_ptr, lane_len, lane_stride, _) =
                 unsafe { normalize_reduction_lane(lane_ptr, lane_len, lane_stride) };
-            let (sum, sumsq) =
+            let moments =
                 unsafe { Scalar::reduce_moments(core::slice::from_raw_parts(lane_ptr, lane_len), lane_stride) };
+            let (sum, sumsq) = match moments {
+                Ok(moments) => moments,
+                Err(error) => {
+                    outcome = Err(error);
+                    return;
+                }
+            };
             let sum_offset = logical_index_byte_offset(output_index, expected_shape, &sum_strides[..out_ndim]);
             let sumsq_offset = logical_index_byte_offset(output_index, expected_shape, &sumsq_strides[..out_ndim]);
             unsafe {
@@ -6529,7 +6541,7 @@ where
                 *(sumsq_base.offset(sumsq_offset) as *mut Scalar::SumSqOutput) = sumsq;
             }
         });
-        Ok(())
+        outcome
     }
 
     pub fn try_sum_all(&self) -> Result<Scalar::SumOutput, TensorError> { Ok(self.try_moments_all()?.0) }

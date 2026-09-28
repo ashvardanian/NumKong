@@ -36,7 +36,7 @@
 #define NUMKONG_GEOSPATIAL_RVV_H
 
 #if NUMKONG_ARCH_RISCV64_
-#if NUMKONG_TARGET_RVV
+#if NUMKONG_ARCH_RISCV64_RVV_
 
 #include "numkong/types.h"
 #include "numkong/trigonometry/rvv.h" // nk_f64m4_sin_rvv_, nk_f64m4_cos_rvv_, nk_f64m4_atan2_rvv_, etc.
@@ -70,9 +70,9 @@ extern "C" {
  *      distance = R × c
  *  @endverbatim
  */
-NUMKONG_HELPER_INLINE void nk_haversine_f64_rvv_kernel_( //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons,      //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons,      //
+NUMKONG_INLINE void nk_haversine_f64_rvv_kernel_(   //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t vector_length, nk_f64_t *results) {
 
     vfloat64m4_t lat1_f64m4 = __riscv_vle64_v_f64m4(a_lats, vector_length);
@@ -123,9 +123,10 @@ NUMKONG_HELPER_INLINE void nk_haversine_f64_rvv_kernel_( //
     __riscv_vse64_v_f64m4(results, distances_f64m4, vector_length);
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_haversine_f64_rvv( //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons,    //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons,    //
+#if NUMKONG_TARGET_RVV
+NUMKONG_API nk_status_t nk_haversine_f64_rvv(       //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
@@ -136,11 +137,12 @@ NUMKONG_API_COMPTIME nk_status_t nk_haversine_f64_rvv( //
     }
     return nk_success_k;
 }
+#endif // NUMKONG_TARGET_RVV
 
 /** RVV internal kernel for Haversine distance on vector_length f32 point pairs. */
-NUMKONG_HELPER_INLINE void nk_haversine_f32_rvv_kernel_( //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons,      //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons,      //
+NUMKONG_INLINE void nk_haversine_f32_rvv_kernel_(   //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t vector_length, nk_f32_t *results) {
 
     vfloat32m4_t lat1_f32m4 = __riscv_vle32_v_f32m4(a_lats, vector_length);
@@ -191,9 +193,10 @@ NUMKONG_HELPER_INLINE void nk_haversine_f32_rvv_kernel_( //
     __riscv_vse32_v_f32m4(results, distances_f32m4, vector_length);
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_haversine_f32_rvv( //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons,    //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons,    //
+#if NUMKONG_TARGET_RVV
+NUMKONG_API nk_status_t nk_haversine_f32_rvv(       //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
@@ -204,6 +207,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_haversine_f32_rvv( //
     }
     return nk_success_k;
 }
+#endif // NUMKONG_TARGET_RVV
 
 #pragma endregion Haversine Distance
 
@@ -217,9 +221,9 @@ NUMKONG_API_COMPTIME nk_status_t nk_haversine_f32_rvv( //
  *  SIMD lane tracks its own convergence state via mask registers. The loop terminates when all
  *  lanes have converged (vcpop == vector_length) or after NUMKONG_VINCENTY_MAX_ITERATIONS.
  */
-NUMKONG_HELPER_INLINE void nk_vincenty_f64_rvv_kernel_( //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons,     //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons,     //
+NUMKONG_INLINE void nk_vincenty_f64_rvv_kernel_(    //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t vector_length, nk_f64_t *results) {
 
     vfloat64m4_t lat1_f64m4 = __riscv_vle64_v_f64m4(a_lats, vector_length);
@@ -479,9 +483,10 @@ NUMKONG_HELPER_INLINE void nk_vincenty_f64_rvv_kernel_( //
     __riscv_vse64_v_f64m4(results, distances_f64m4, vector_length);
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f64_rvv( //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons,   //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons,   //
+#if NUMKONG_TARGET_RVV
+NUMKONG_API nk_status_t nk_vincenty_f64_rvv(        //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
@@ -492,14 +497,15 @@ NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f64_rvv( //
     }
     return nk_success_k;
 }
+#endif // NUMKONG_TARGET_RVV
 
 /**
  *  @brief RVV internal kernel for Vincenty's geodesic distance on vector_length f32 point pairs.
  *  @note This is a true SIMD implementation using masked convergence tracking via vmerge.
  */
-NUMKONG_HELPER_INLINE void nk_vincenty_f32_rvv_kernel_( //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons,     //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons,     //
+NUMKONG_INLINE void nk_vincenty_f32_rvv_kernel_(    //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t vector_length, nk_f32_t *results) {
 
     vfloat32m4_t lat1_f32m4 = __riscv_vle32_v_f32m4(a_lats, vector_length);
@@ -749,9 +755,10 @@ NUMKONG_HELPER_INLINE void nk_vincenty_f32_rvv_kernel_( //
     __riscv_vse32_v_f32m4(results, distances_f32m4, vector_length);
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f32_rvv( //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons,   //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons,   //
+#if NUMKONG_TARGET_RVV
+NUMKONG_API nk_status_t nk_vincenty_f32_rvv(        //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
@@ -762,6 +769,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f32_rvv( //
     }
     return nk_success_k;
 }
+#endif // NUMKONG_TARGET_RVV
 
 #pragma endregion Vincenty Distance
 
@@ -775,6 +783,6 @@ NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f32_rvv( //
 #pragma GCC pop_options
 #endif
 
-#endif // NUMKONG_TARGET_RVV
+#endif // NUMKONG_ARCH_RISCV64_RVV_
 #endif // NUMKONG_ARCH_RISCV64_
 #endif // NUMKONG_GEOSPATIAL_RVV_H

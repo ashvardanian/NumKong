@@ -10,7 +10,7 @@
  *
  *  The @c svaddv intrinsic stays inside a macro so it expands in the caller's target context — SVE
  *  and SME streaming translation units carry incompatible target attributes. The unpoisoning runs
- *  on the already-reduced scalar, so it lives in a target-agnostic @c NUMKONG_HELPER_INLINE helper
+ *  on the already-reduced scalar, so it lives in a target-agnostic @c NUMKONG_INLINE helper
  *  called from the macro.
  *
  *  @sa include/numkong/reduce.h
@@ -19,23 +19,23 @@
 #define NUMKONG_REDUCE_SVE_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_SVE || NUMKONG_TARGET_SVE2 || NUMKONG_TARGET_SME
+#if NUMKONG_ARCH_ARM64_SVE_
 
 #include "numkong/types.h"
 
-NUMKONG_HELPER_INLINE nk_f64_t nk_unpoison_f64_(nk_f64_t v) NUMKONG_STREAMING_COMPATIBLE_ {
+NUMKONG_INLINE nk_f64_t nk_unpoison_f64_(nk_f64_t v) NUMKONG_STREAMABLE_ {
     nk_unpoison_(&v, sizeof(v));
     return v;
 }
-NUMKONG_HELPER_INLINE nk_f32_t nk_unpoison_f32_(nk_f32_t v) NUMKONG_STREAMING_COMPATIBLE_ {
+NUMKONG_INLINE nk_f32_t nk_unpoison_f32_(nk_f32_t v) NUMKONG_STREAMABLE_ {
     nk_unpoison_(&v, sizeof(v));
     return v;
 }
-NUMKONG_HELPER_INLINE nk_u64_t nk_unpoison_u64_(nk_u64_t v) NUMKONG_STREAMING_COMPATIBLE_ {
+NUMKONG_INLINE nk_u64_t nk_unpoison_u64_(nk_u64_t v) NUMKONG_STREAMABLE_ {
     nk_unpoison_(&v, sizeof(v));
     return v;
 }
-NUMKONG_HELPER_INLINE nk_i64_t nk_unpoison_i64_(nk_i64_t v) NUMKONG_STREAMING_COMPATIBLE_ {
+NUMKONG_INLINE nk_i64_t nk_unpoison_i64_(nk_i64_t v) NUMKONG_STREAMABLE_ {
     nk_unpoison_(&v, sizeof(v));
     return v;
 }
@@ -46,6 +46,6 @@ NUMKONG_HELPER_INLINE nk_i64_t nk_unpoison_i64_(nk_i64_t v) NUMKONG_STREAMING_CO
 #define nk_svaddv_s32_(predicate, vector) nk_unpoison_i64_(svaddv_s32((predicate), (vector)))
 #define nk_svaddv_u8_(predicate, vector)  nk_unpoison_u64_(svaddv_u8((predicate), (vector)))
 
-#endif // NUMKONG_TARGET_SVE || NUMKONG_TARGET_SVE2 || NUMKONG_TARGET_SME
+#endif // NUMKONG_ARCH_ARM64_SVE_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_REDUCE_SVE_H

@@ -33,7 +33,7 @@ func NewWorkerPool(n int) *WorkerPool {
 			defer p.done.Done()
 			runtime.LockOSThread()
 			defer runtime.UnlockOSThread()
-			C.nk_cpu_configure_thread(C.nk_cpu_capabilities_enabled())
+			C.nk_cpu_configure_thread(capabilities())
 			for fn := range ch {
 				fn()
 			}

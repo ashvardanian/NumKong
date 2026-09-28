@@ -1,6 +1,6 @@
 # NumKong: Mixed Precision for All
 
-Portable mixed-precision math, linear-algebra, & retrieval library with 2'000+ SIMD kernels for x86, Arm, RISC-V, LoongArch, Power, & WebAssembly, leveraging rare algebraic transforms with both 1D & 2D registers like AMX & SME, covering 15+ numeric types from 4-bit integers & 6-bit floats to 128-bit complex numbers, validated against 118-bit extended-precision baselines with saturation, casting, & rounding edge-case coverage, in a 5-100x smaller binary than other BLAS-like alternatives, co-designed with Tensor abstractions in C++, Python, Rust, JavaScript, GoLang, & Swift.
+Portable mixed-precision math, linear-algebra, & retrieval library with 2'000+ SIMD kernels for x86, Arm, RISC-V, LoongArch, Power, & WebAssembly, leveraging rare algebraic transforms with both 1D & 2D registers like AMX & SME, covering 15+ numeric types from 4-bit integers & floats to 128-bit complex numbers, validated against 118-bit extended-precision baselines with saturation, casting, & rounding edge-case coverage, in a 5-100x smaller binary than other BLAS-like alternatives, co-designed with Tensor abstractions in C++, Python, Rust, JavaScript, GoLang, & Swift.
 
 ![NumKong banner](https://github.com/ashvardanian/ashvardanian/blob/master/repositories/NumKong-v7.png?raw=true)
 
@@ -73,11 +73,11 @@ A broader throughput comparison is maintained in [NumWars](https://github.com/as
 
 ## What's Inside
 
-NumKong covers 17 numeric types — from 6-bit floats to 128-bit complex numbers — across dozens of operations and 30+ SIMD backends, with hardware-aware defaults: Arm prioritizes `f16`, x86 prioritizes `bf16`.
+NumKong covers 18 numeric types — from 4-bit floats to 128-bit complex numbers — across dozens of operations, 30+ SIMD backends, and NVIDIA, AMD, & Apple GPUs, with hardware-aware defaults: Arm prioritizes `f16`, x86 prioritizes `bf16`.
 
 ### Language Bindings
 
-| Operation                   | [C 99 & C++ 23][c] | [Python][py] | [Rust][rs] | [JavaScript][js] | [Swift][swift] | [GoLang][go] |
+| Operation                   | [C 99 & C++ 20][c] | [Python][py] | [Rust][rs] | [JavaScript][js] | [Swift][swift] | [GoLang][go] |
 | :-------------------------- | :----------------: | :----------: | :--------: | :--------------: | :------------: | :----------: |
 | __Vector Ops__              |                    |              |            |                  |                |              |
 | [Dot] Product               |         ●          |      ●       |     ●      |        ●         |       ●        |      ●       |
@@ -133,7 +133,7 @@ NumKong covers 17 numeric types — from 6-bit floats to 128-bit complex numbers
 - Don't constrain ourselves to traditional BLAS-like Matrix Multiplication APIs.
 - Don't throw exceptions and pass values by pointers.
 - Prefer saturated arithmetic and avoid overflows, where needed.
-- Cover most modern CPUs with flexible dispatch and wait for them to converge with GPUs.
+- Cover most modern CPUs and GPUs with one dispatch model, treating GPUs as more ISAs.
 
 The rest of this document unpacks the functionality and the logic behind the design decisions.
 
@@ -319,47 +319,67 @@ NumKong selects the iteration count per platform so the final ULP bound is consi
 __E2M3 and E3M2 can outperform E4M3 and E5M2.__
 6-bit [MX formats](https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf) can be scaled to exact integers, enabling integer accumulation that avoids E5M2's catastrophic cancellation risk.
 This works because E2M3's narrower exponent range means every representable value maps to an integer after a fixed shift — no rounding, no cancellation.
-See [Mini-Floats](#mini-floats-e4m3-e5m2-e3m2--e2m3) for a worked example.
+See [Mini-Floats](#mini-floats-e4m3-e5m2-e3m2-e2m3--e2m1) for a worked example.
 
 Every such decision — saturation thresholds, Newton-Raphson iteration counts, integer vs floating-point paths — is documented per operation and per type in the [module-specific READMEs](include/numkong/).
 
 ### Calling Convention & Error Handling
 
 NumKong never throws exceptions, never sets `errno`, and never calls `setjmp`/`longjmp` on any kernel path — [exceptions bloat call sites with unwind tables](https://monkeywritescode.blogspot.com/p/c-exceptions-under-hood.html) and are invisible to C, Python, Rust, Swift, Go, and JavaScript FFI; `errno` is thread-local state whose [storage model varies across C runtimes](https://en.cppreference.com/w/c/error/errno).
-Instead, every function takes inputs as `const` pointers, writes outputs through caller-provided pointers, and returns `void`:
+Instead, every batch kernel takes inputs as `const` pointers, writes outputs through caller-provided pointers, and returns an `nk_status_t`:
 
 ```c
-void nk_dot_f32(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result);
-void nk_dot_bf16(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result);
+nk_status_t nk_dot_f32_best(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                            nk_capability_t capabilities, void *stream);
+nk_status_t nk_dot_bf16_best(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
+                             nk_capability_t capabilities, void *stream);
 ```
 
 Pointers eliminate implicit casts for types with platform-dependent storage — this is why they matter for half-precision types.
 `nk_f16_t` and `nk_bf16_t` resolve to native `__fp16` / `__bf16` when available but fall back to `unsigned short` otherwise — if passed by value, the compiler would silently apply integer promotion instead of preserving the bit pattern.
 Passing by pointer keeps the representation opaque: kernels read raw and convert explicitly when needed, so the same binary works regardless of whether the compiler understands `_Float16`.
 
-The only place that requires error signaling is [runtime dispatch](#compile-time-and-run-time-dispatch) — looking up the best kernel for the current CPU at runtime.
-When no kernel matches, the dispatcher sets the [capabilities mask](c/dispatch.h) to zero and fills the function pointer with a family-specific error stub such as `nk_error_dense_` from [c/dispatch.h](c/dispatch.h) and [c/numkong.c](c/numkong.c) that writes `0xFF` into the output — `NaN` for floats, `−1` for signed integers, `TYPE_MAX` for unsigned.
+A status of zero, `nk_success_k`, means the output was written, and a negative status means nothing was written:
 
-### Compile-Time and Run-Time Dispatch
+- `nk_missing_kernel_k` when no capability in `capabilities` has the kernel, like a GPU mask passed to a CPU-only build.
+- `nk_pack_mismatch_k` when a packed operand was packed by another capability, whose layout differs.
+- `nk_missing_gpu_k`, `nk_device_code_mismatch_k`, and `nk_device_memory_mismatch_k` when a GPU capability cannot run.
 
-NumKong provides two dispatch mechanisms.
-__Compile-time dispatch__ selects the fastest kernel supported by the target platform at build time — thinner binaries, no indirection overhead, but requires knowing your deployment hardware.
-__Run-time dispatch__ compiles every supported kernel into the binary and picks the best one on the target machine via `nk_cpu_capabilities_enabled()` — one pointer indirection per call, but a single binary runs everywhere.
-The run-time path is common in DBMS products (ClickHouse), web browsers (Chromium), and other upstream projects that ship to heterogeneous fleets.
+Positive statuses are reserved for results written with a caveat.
+Scalar functions, like `nk_bf16_to_f32_best` and `nk_f32_sqrt_best`, keep their plain signatures, take the mask alone, and always fall back to `serial`.
+
+### Dispatch Points & Capability Masks
+
+Every operation has one dispatch point, like `nk_dot_f32_best`, beside its capability kernels, like `nk_dot_f32_serial`, `nk_dot_f32_haswell`, and `nk_dot_f32_neon`, all named `nk_{operation}_{type}_{capability}`.
+Each capability is one capability bit, and a capability mask names the capabilities of one device.
+The dispatch point holds a constant list of its capabilities for every capability group, `serial` first on the CPU, and runs the best capability the mask shares with the group that mask describes.
+GPUs are more ISAs behind the same names: a mask holding `nk_cap_cuda_k` picks among the NVIDIA capabilities, `nk_cap_rocm_k` among the AMD ones, and `nk_cap_metal_k` among the Apple ones.
+The stream is that device's `cudaStream_t`, `hipStream_t`, or `nk_metal_queue_t *`, and null on the CPU.
+
+```c
+nk_capability_t cpu = nk_cap_serial_k, gpu = 0;
+nk_cpu_capabilities_enabled(&cpu);    // detected on this CPU and compiled into this binary
+nk_cuda_capabilities_enabled(0, &gpu); // the same for CUDA device 0
+nk_dots_symmetric_bf16_best(vectors, count, depth, stride, gram, gram_stride, 0, count, cpu, NULL);
+nk_dots_symmetric_bf16_best(vectors_on_gpu, count, depth, stride, gram_on_gpu, gram_stride, 0, count, gpu, cuda_stream);
+```
+
+Narrowing the mask narrows the choice: `cpu & ~nk_cap_sapphireamx_k` skips AMX, and `nk_cap_serial_k` alone runs the reference kernel.
+Header-only builds, with `NUMKONG_HEADER_ONLY=1`, inline the capability kernels their compiler flags enable, and their dispatch points report `nk_missing_library_k`.
+Library builds, the default, compile every capability the toolchain builds into one binary and export the dispatch points, so a single binary runs everywhere — the model of DBMS products (ClickHouse), web browsers (Chromium), and other projects that ship to heterogeneous fleets.
 Distributed artifacts (Rust crate, Python wheels, JS native modules, shared libs from the default CMake build) pin the translation-unit baseline to each architecture's ABI floor so the library runs on any CPU matching the ABI, not just the build host — see [CONTRIBUTING.md](CONTRIBUTING.md#target-baseline-policy) for the per-arch table and the `NUMKONG_TARGET_ARCH` override used for host-tuned local builds.
 
-All kernel names follow the pattern `nk_{operation}_{type}_{backend}`.
-If you need to resolve the best kernel manually, use `nk_cpu_find_kernel_punned` with a `nk_kernel_kind_t` and a `nk_dtype_t`:
+To resolve a kernel once and call it many times, library builds provide `nk_find_kernel_punned` over a kernel kind, an input type, and a mask:
 
 ```c
 nk_metric_dense_punned_t angular = 0;
-nk_capability_t used = nk_cap_serial_k;
-nk_cpu_find_kernel_punned(
-    nk_kernel_angular_k, nk_f32_k,            // what functionality? for which input type?
-    (nk_kernel_punned_t *)&angular, &used);   // the kernel found and capabilities used!
+nk_capability_t capability = 0;
+nk_find_kernel_punned(nk_kernel_angular_k, nk_f32_k, cpu,      // what functionality, for which input, within which mask
+                      (nk_kernel_punned_t *)&angular, &capability);  // the kernel found and its capability
+angular(a, b, n, &distance, NULL);
 ```
 
-The search is bounded by `nk_cpu_capabilities_enabled()`, the same mask the dispatch table was built from, so a manually resolved kernel and a direct call always agree. The library initializes itself on load and again on first use, so lookups are lock-free.
+It picks exactly what the dispatch point picks for the same mask, and returns `nk_missing_kernel_k` when no capability in the mask has the kernel.
 
 ## Numeric Types
 
@@ -421,9 +441,9 @@ On Arm, ARMv8.4-A adds __FMLAL/FMLAL2__ instructions for fused Float16 → Float
 > Sapphire Rapids has native `VFMADDPH` for Float16 arithmetic, but NumKong does not use it for general dot products — Float16 accumulation loses precision.
 > It is only used for mini-float (E2M3/E3M2) paths where periodic flush-to-Float32 windows keep error bounded.
 > The table above covers only vector dot-product paths - GEMMs also leverage Arm SME and Intel AMX instructions.
-> Beyond x86, Arm, and RISC-V, NumKong also ships LoongArch and PowerPC backends, and two WebAssembly tiers — strict SIMD128 as `v128` and Relaxed SIMD as `v128relaxed` — all excluded from the table.
+> Beyond x86, Arm, and RISC-V, NumKong also ships LoongArch and PowerPC backends, and two WebAssembly capabilities — strict SIMD128 as `v128` and Relaxed SIMD as `v128relaxed` — all excluded from the table.
 
-### Mini-Floats: E4M3, E5M2, E3M2, & E2M3
+### Mini-Floats: E4M3, E5M2, E3M2, E2M3, & E2M1
 
 | Format       |  Bits |  Range | NumKong Promotion Rules               | Support in GPUs   |
 | :----------- | ----: | -----: | ------------------------------------- | ----------------- |
@@ -431,13 +451,14 @@ On Arm, ARMv8.4-A adds __FMLAL/FMLAL2__ instructions for fused Float16 → Float
 | E4M3FN       |     8 |   ±448 | BFloat16 → Float32                    | H100+, MI300+     |
 | E3M2FN       | 6 → 8 |    ±28 | B- & Float16 → Float32, Int16 → Int32 | only block-scaled |
 | E2M3FN       | 6 → 8 |   ±7.5 | B- & Float16 → Float32, Int8 → Int32  | only block-scaled |
-| Scaled NVFP4 |     4 |     ±6 | …                                     | B200+             |
-| Scaled MXFP4 |     4 |     ±6 | …                                     | B200+, MI325+     |
+| E2M1FN       |     4 |     ±6 | Int8 → Int32                          | only block-scaled |
+| Scaled NVFP4 |     4 |     ±6 | cast only                             | B200+             |
+| Scaled MXFP4 |     4 |     ±6 | cast only                             | B200+, MI325+     |
 
 > __Block scaling.__
-> NumKong does not implement block-scaled variants (MXFP4, NVFP4, or block-scaled E3M2/E2M3).
+> NumKong's kernels treat each element independently, so E2M1, E3M2, and E2M3 inputs carry no block scale into dot products or distances.
 > Block scaling couples elements through a shared exponent per block, introducing structural bias into a fundamentally uniform operation.
-> NumKong treats each element independently; block-scaled inputs should be dequantized before processing.
+> `nk_cast_block_scaled_best` converts between plain buffers and the MXFP4, MXFP6, MXFP8, MXINT8, and NVFP4 layouts, deriving or applying the scales.
 
 > __FNUZ variants.__
 > AMD MI300 (CDNA 3) uses FNUZ encoding (negative-zero-is-NaN) rather than the OCP standard.
@@ -510,6 +531,9 @@ Without the integer path, E5M2 falls back to Float32 accumulation — where its 
 > At that magnitude the Float32 ULP is 0.5 — so the small meaningful terms (−0.049, 1.563, −1.313, −0.0001) are all below one ULP and get absorbed during lane reduction.
 > The large terms then cancel exactly to zero, and the information is gone.
 > Final Float32 result: __0.0__ instead of __0.201__.
+
+__4-bit floats (E2M1)__ are the elements of the OCP MXFP4 and NVIDIA NVFP4 formats, stored two per byte as `nk_e2m1x2_t`.
+Doubled, every E2M1 value is an integer in [−12, 12], so dot products take an integer path like E2M3's, accumulate in Int32 without rounding, and scale the sum by ¼ once at the end.
 
 ### Int8 & Int4: Integer Types
 

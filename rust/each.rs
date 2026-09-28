@@ -47,71 +47,452 @@
 //! File: rust/each.rs
 //! Author: Ash Vardanian
 
+use core::ffi::c_void;
+use core::ptr::null_mut;
+
+use crate::capabilities::{cpu_capabilities, Status};
 use crate::tensor::{Global, Tensor, TensorError, TensorMut, TensorRef};
 use crate::types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, StorageElement};
 
 #[link(name = "numkong")]
 extern "C" {
     // Elementwise operations
-    fn nk_each_scale_f64(a: *const f64, n: usize, alpha: *const f64, beta: *const f64, result: *mut f64);
-    fn nk_each_scale_f32(a: *const f32, n: usize, alpha: *const f32, beta: *const f32, result: *mut f32);
-    fn nk_each_scale_f16(a: *const u16, n: usize, alpha: *const f32, beta: *const f32, result: *mut u16);
-    fn nk_each_scale_bf16(a: *const u16, n: usize, alpha: *const f32, beta: *const f32, result: *mut u16);
-    fn nk_each_scale_i8(a: *const i8, n: usize, alpha: *const f32, beta: *const f32, result: *mut i8);
-    fn nk_each_scale_u8(a: *const u8, n: usize, alpha: *const f32, beta: *const f32, result: *mut u8);
-    fn nk_each_scale_i16(a: *const i16, n: usize, alpha: *const f32, beta: *const f32, result: *mut i16);
-    fn nk_each_scale_u16(a: *const u16, n: usize, alpha: *const f32, beta: *const f32, result: *mut u16);
-    fn nk_each_scale_i32(a: *const i32, n: usize, alpha: *const f64, beta: *const f64, result: *mut i32);
-    fn nk_each_scale_u32(a: *const u32, n: usize, alpha: *const f64, beta: *const f64, result: *mut u32);
-    fn nk_each_scale_i64(a: *const i64, n: usize, alpha: *const f64, beta: *const f64, result: *mut i64);
-    fn nk_each_scale_u64(a: *const u64, n: usize, alpha: *const f64, beta: *const f64, result: *mut u64);
-    fn nk_each_scale_e4m3(a: *const u8, n: usize, alpha: *const f32, beta: *const f32, result: *mut u8);
-    fn nk_each_scale_e5m2(a: *const u8, n: usize, alpha: *const f32, beta: *const f32, result: *mut u8);
-    fn nk_each_scale_e2m3(a: *const u8, n: usize, alpha: *const f32, beta: *const f32, result: *mut u8);
-    fn nk_each_scale_e3m2(a: *const u8, n: usize, alpha: *const f32, beta: *const f32, result: *mut u8);
+    fn nk_each_scale_f64_best(
+        a: *const f64,
+        n: usize,
+        alpha: *const f64,
+        beta: *const f64,
+        result: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_scale_f32_best(
+        a: *const f32,
+        n: usize,
+        alpha: *const f32,
+        beta: *const f32,
+        result: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_scale_f16_best(
+        a: *const u16,
+        n: usize,
+        alpha: *const f32,
+        beta: *const f32,
+        result: *mut u16,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_scale_bf16_best(
+        a: *const u16,
+        n: usize,
+        alpha: *const f32,
+        beta: *const f32,
+        result: *mut u16,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_scale_i8_best(
+        a: *const i8,
+        n: usize,
+        alpha: *const f32,
+        beta: *const f32,
+        result: *mut i8,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_scale_u8_best(
+        a: *const u8,
+        n: usize,
+        alpha: *const f32,
+        beta: *const f32,
+        result: *mut u8,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_scale_i16_best(
+        a: *const i16,
+        n: usize,
+        alpha: *const f32,
+        beta: *const f32,
+        result: *mut i16,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_scale_u16_best(
+        a: *const u16,
+        n: usize,
+        alpha: *const f32,
+        beta: *const f32,
+        result: *mut u16,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_scale_i32_best(
+        a: *const i32,
+        n: usize,
+        alpha: *const f64,
+        beta: *const f64,
+        result: *mut i32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_scale_u32_best(
+        a: *const u32,
+        n: usize,
+        alpha: *const f64,
+        beta: *const f64,
+        result: *mut u32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_scale_i64_best(
+        a: *const i64,
+        n: usize,
+        alpha: *const f64,
+        beta: *const f64,
+        result: *mut i64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_scale_u64_best(
+        a: *const u64,
+        n: usize,
+        alpha: *const f64,
+        beta: *const f64,
+        result: *mut u64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_scale_e4m3_best(
+        a: *const u8,
+        n: usize,
+        alpha: *const f32,
+        beta: *const f32,
+        result: *mut u8,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_scale_e5m2_best(
+        a: *const u8,
+        n: usize,
+        alpha: *const f32,
+        beta: *const f32,
+        result: *mut u8,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_scale_e2m3_best(
+        a: *const u8,
+        n: usize,
+        alpha: *const f32,
+        beta: *const f32,
+        result: *mut u8,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_scale_e3m2_best(
+        a: *const u8,
+        n: usize,
+        alpha: *const f32,
+        beta: *const f32,
+        result: *mut u8,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
 
-    fn nk_each_sum_f64(a: *const f64, b: *const f64, n: usize, result: *mut f64);
-    fn nk_each_sum_f32(a: *const f32, b: *const f32, n: usize, result: *mut f32);
-    fn nk_each_sum_f16(a: *const u16, b: *const u16, n: usize, result: *mut u16);
-    fn nk_each_sum_bf16(a: *const u16, b: *const u16, n: usize, result: *mut u16);
-    fn nk_each_sum_i8(a: *const i8, b: *const i8, n: usize, result: *mut i8);
-    fn nk_each_sum_u8(a: *const u8, b: *const u8, n: usize, result: *mut u8);
-    fn nk_each_sum_i16(a: *const i16, b: *const i16, n: usize, result: *mut i16);
-    fn nk_each_sum_u16(a: *const u16, b: *const u16, n: usize, result: *mut u16);
-    fn nk_each_sum_i32(a: *const i32, b: *const i32, n: usize, result: *mut i32);
-    fn nk_each_sum_u32(a: *const u32, b: *const u32, n: usize, result: *mut u32);
-    fn nk_each_sum_i64(a: *const i64, b: *const i64, n: usize, result: *mut i64);
-    fn nk_each_sum_u64(a: *const u64, b: *const u64, n: usize, result: *mut u64);
-    fn nk_each_sum_e4m3(a: *const u8, b: *const u8, n: usize, result: *mut u8);
-    fn nk_each_sum_e5m2(a: *const u8, b: *const u8, n: usize, result: *mut u8);
-    fn nk_each_sum_e2m3(a: *const u8, b: *const u8, n: usize, result: *mut u8);
-    fn nk_each_sum_e3m2(a: *const u8, b: *const u8, n: usize, result: *mut u8);
+    fn nk_each_sum_f64_best(
+        a: *const f64,
+        b: *const f64,
+        n: usize,
+        result: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_sum_f32_best(
+        a: *const f32,
+        b: *const f32,
+        n: usize,
+        result: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_sum_f16_best(
+        a: *const u16,
+        b: *const u16,
+        n: usize,
+        result: *mut u16,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_sum_bf16_best(
+        a: *const u16,
+        b: *const u16,
+        n: usize,
+        result: *mut u16,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_sum_i8_best(
+        a: *const i8,
+        b: *const i8,
+        n: usize,
+        result: *mut i8,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_sum_u8_best(
+        a: *const u8,
+        b: *const u8,
+        n: usize,
+        result: *mut u8,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_sum_i16_best(
+        a: *const i16,
+        b: *const i16,
+        n: usize,
+        result: *mut i16,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_sum_u16_best(
+        a: *const u16,
+        b: *const u16,
+        n: usize,
+        result: *mut u16,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_sum_i32_best(
+        a: *const i32,
+        b: *const i32,
+        n: usize,
+        result: *mut i32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_sum_u32_best(
+        a: *const u32,
+        b: *const u32,
+        n: usize,
+        result: *mut u32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_sum_i64_best(
+        a: *const i64,
+        b: *const i64,
+        n: usize,
+        result: *mut i64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_sum_u64_best(
+        a: *const u64,
+        b: *const u64,
+        n: usize,
+        result: *mut u64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_sum_e4m3_best(
+        a: *const u8,
+        b: *const u8,
+        n: usize,
+        result: *mut u8,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_sum_e5m2_best(
+        a: *const u8,
+        b: *const u8,
+        n: usize,
+        result: *mut u8,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_sum_e2m3_best(
+        a: *const u8,
+        b: *const u8,
+        n: usize,
+        result: *mut u8,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_sum_e3m2_best(
+        a: *const u8,
+        b: *const u8,
+        n: usize,
+        result: *mut u8,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
 
-    fn nk_each_blend_f64(a: *const f64, b: *const f64, n: usize, alpha: *const f64, beta: *const f64, result: *mut f64);
-    fn nk_each_blend_f32(a: *const f32, b: *const f32, n: usize, alpha: *const f32, beta: *const f32, result: *mut f32);
-    fn nk_each_blend_f16(a: *const u16, b: *const u16, n: usize, alpha: *const f32, beta: *const f32, result: *mut u16);
-    fn nk_each_blend_bf16(
+    fn nk_each_blend_f64_best(
+        a: *const f64,
+        b: *const f64,
+        n: usize,
+        alpha: *const f64,
+        beta: *const f64,
+        result: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_blend_f32_best(
+        a: *const f32,
+        b: *const f32,
+        n: usize,
+        alpha: *const f32,
+        beta: *const f32,
+        result: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_blend_f16_best(
         a: *const u16,
         b: *const u16,
         n: usize,
         alpha: *const f32,
         beta: *const f32,
         result: *mut u16,
-    );
-    fn nk_each_blend_i8(a: *const i8, b: *const i8, n: usize, alpha: *const f32, beta: *const f32, result: *mut i8);
-    fn nk_each_blend_u8(a: *const u8, b: *const u8, n: usize, alpha: *const f32, beta: *const f32, result: *mut u8);
-    fn nk_each_blend_i16(a: *const i16, b: *const i16, n: usize, alpha: *const f32, beta: *const f32, result: *mut i16);
-    fn nk_each_blend_u16(a: *const u16, b: *const u16, n: usize, alpha: *const f32, beta: *const f32, result: *mut u16);
-    fn nk_each_blend_i32(a: *const i32, b: *const i32, n: usize, alpha: *const f64, beta: *const f64, result: *mut i32);
-    fn nk_each_blend_u32(a: *const u32, b: *const u32, n: usize, alpha: *const f64, beta: *const f64, result: *mut u32);
-    fn nk_each_blend_i64(a: *const i64, b: *const i64, n: usize, alpha: *const f64, beta: *const f64, result: *mut i64);
-    fn nk_each_blend_u64(a: *const u64, b: *const u64, n: usize, alpha: *const f64, beta: *const f64, result: *mut u64);
-    fn nk_each_blend_e4m3(a: *const u8, b: *const u8, n: usize, alpha: *const f32, beta: *const f32, result: *mut u8);
-    fn nk_each_blend_e5m2(a: *const u8, b: *const u8, n: usize, alpha: *const f32, beta: *const f32, result: *mut u8);
-    fn nk_each_blend_e2m3(a: *const u8, b: *const u8, n: usize, alpha: *const f32, beta: *const f32, result: *mut u8);
-    fn nk_each_blend_e3m2(a: *const u8, b: *const u8, n: usize, alpha: *const f32, beta: *const f32, result: *mut u8);
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_blend_bf16_best(
+        a: *const u16,
+        b: *const u16,
+        n: usize,
+        alpha: *const f32,
+        beta: *const f32,
+        result: *mut u16,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_blend_i8_best(
+        a: *const i8,
+        b: *const i8,
+        n: usize,
+        alpha: *const f32,
+        beta: *const f32,
+        result: *mut i8,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_blend_u8_best(
+        a: *const u8,
+        b: *const u8,
+        n: usize,
+        alpha: *const f32,
+        beta: *const f32,
+        result: *mut u8,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_blend_i16_best(
+        a: *const i16,
+        b: *const i16,
+        n: usize,
+        alpha: *const f32,
+        beta: *const f32,
+        result: *mut i16,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_blend_u16_best(
+        a: *const u16,
+        b: *const u16,
+        n: usize,
+        alpha: *const f32,
+        beta: *const f32,
+        result: *mut u16,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_blend_i32_best(
+        a: *const i32,
+        b: *const i32,
+        n: usize,
+        alpha: *const f64,
+        beta: *const f64,
+        result: *mut i32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_blend_u32_best(
+        a: *const u32,
+        b: *const u32,
+        n: usize,
+        alpha: *const f64,
+        beta: *const f64,
+        result: *mut u32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_blend_i64_best(
+        a: *const i64,
+        b: *const i64,
+        n: usize,
+        alpha: *const f64,
+        beta: *const f64,
+        result: *mut i64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_blend_u64_best(
+        a: *const u64,
+        b: *const u64,
+        n: usize,
+        alpha: *const f64,
+        beta: *const f64,
+        result: *mut u64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_blend_e4m3_best(
+        a: *const u8,
+        b: *const u8,
+        n: usize,
+        alpha: *const f32,
+        beta: *const f32,
+        result: *mut u8,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_blend_e5m2_best(
+        a: *const u8,
+        b: *const u8,
+        n: usize,
+        alpha: *const f32,
+        beta: *const f32,
+        result: *mut u8,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_blend_e2m3_best(
+        a: *const u8,
+        b: *const u8,
+        n: usize,
+        alpha: *const f32,
+        beta: *const f32,
+        result: *mut u8,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_blend_e3m2_best(
+        a: *const u8,
+        b: *const u8,
+        n: usize,
+        alpha: *const f32,
+        beta: *const f32,
+        result: *mut u8,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
 
-    fn nk_each_fma_f64(
+    fn nk_each_fma_f64_best(
         a: *const f64,
         b: *const f64,
         c: *const f64,
@@ -119,8 +500,10 @@ extern "C" {
         alpha: *const f64,
         beta: *const f64,
         result: *mut f64,
-    );
-    fn nk_each_fma_f32(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_fma_f32_best(
         a: *const f32,
         b: *const f32,
         c: *const f32,
@@ -128,8 +511,10 @@ extern "C" {
         alpha: *const f32,
         beta: *const f32,
         result: *mut f32,
-    );
-    fn nk_each_fma_f16(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_fma_f16_best(
         a: *const u16,
         b: *const u16,
         c: *const u16,
@@ -137,8 +522,10 @@ extern "C" {
         alpha: *const f32,
         beta: *const f32,
         result: *mut u16,
-    );
-    fn nk_each_fma_bf16(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_fma_bf16_best(
         a: *const u16,
         b: *const u16,
         c: *const u16,
@@ -146,8 +533,10 @@ extern "C" {
         alpha: *const f32,
         beta: *const f32,
         result: *mut u16,
-    );
-    fn nk_each_fma_i8(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_fma_i8_best(
         a: *const i8,
         b: *const i8,
         c: *const i8,
@@ -155,8 +544,10 @@ extern "C" {
         alpha: *const f32,
         beta: *const f32,
         result: *mut i8,
-    );
-    fn nk_each_fma_u8(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_fma_u8_best(
         a: *const u8,
         b: *const u8,
         c: *const u8,
@@ -164,8 +555,10 @@ extern "C" {
         alpha: *const f32,
         beta: *const f32,
         result: *mut u8,
-    );
-    fn nk_each_fma_e4m3(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_fma_e4m3_best(
         a: *const u8,
         b: *const u8,
         c: *const u8,
@@ -173,8 +566,10 @@ extern "C" {
         alpha: *const f32,
         beta: *const f32,
         result: *mut u8,
-    );
-    fn nk_each_fma_e5m2(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_fma_e5m2_best(
         a: *const u8,
         b: *const u8,
         c: *const u8,
@@ -182,8 +577,10 @@ extern "C" {
         alpha: *const f32,
         beta: *const f32,
         result: *mut u8,
-    );
-    fn nk_each_fma_e2m3(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_fma_e2m3_best(
         a: *const u8,
         b: *const u8,
         c: *const u8,
@@ -191,8 +588,10 @@ extern "C" {
         alpha: *const f32,
         beta: *const f32,
         result: *mut u8,
-    );
-    fn nk_each_fma_e3m2(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_fma_e3m2_best(
         a: *const u8,
         b: *const u8,
         c: *const u8,
@@ -200,8 +599,10 @@ extern "C" {
         alpha: *const f32,
         beta: *const f32,
         result: *mut u8,
-    );
-    fn nk_each_fma_i16(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_fma_i16_best(
         a: *const i16,
         b: *const i16,
         c: *const i16,
@@ -209,8 +610,10 @@ extern "C" {
         alpha: *const f32,
         beta: *const f32,
         r: *mut i16,
-    );
-    fn nk_each_fma_u16(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_fma_u16_best(
         a: *const u16,
         b: *const u16,
         c: *const u16,
@@ -218,8 +621,10 @@ extern "C" {
         alpha: *const f32,
         beta: *const f32,
         r: *mut u16,
-    );
-    fn nk_each_fma_i32(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_fma_i32_best(
         a: *const i32,
         b: *const i32,
         c: *const i32,
@@ -227,8 +632,10 @@ extern "C" {
         alpha: *const f64,
         beta: *const f64,
         r: *mut i32,
-    );
-    fn nk_each_fma_u32(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_fma_u32_best(
         a: *const u32,
         b: *const u32,
         c: *const u32,
@@ -236,8 +643,10 @@ extern "C" {
         alpha: *const f64,
         beta: *const f64,
         r: *mut u32,
-    );
-    fn nk_each_fma_i64(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_fma_i64_best(
         a: *const i64,
         b: *const i64,
         c: *const i64,
@@ -245,8 +654,10 @@ extern "C" {
         alpha: *const f64,
         beta: *const f64,
         r: *mut i64,
-    );
-    fn nk_each_fma_u64(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_fma_u64_best(
         a: *const u64,
         b: *const u64,
         c: *const u64,
@@ -254,30 +665,66 @@ extern "C" {
         alpha: *const f64,
         beta: *const f64,
         r: *mut u64,
-    );
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
 
     // Complex elementwise operations — interleaved real/imag layout, n = number of complex pairs
-    fn nk_each_sum_f32c(a: *const f32, b: *const f32, n: usize, result: *mut f32);
-    fn nk_each_sum_f64c(a: *const f64, b: *const f64, n: usize, result: *mut f64);
-    fn nk_each_scale_f32c(a: *const f32, n: usize, alpha: *const f32, beta: *const f32, result: *mut f32);
-    fn nk_each_scale_f64c(a: *const f64, n: usize, alpha: *const f64, beta: *const f64, result: *mut f64);
-    fn nk_each_blend_f32c(
+    fn nk_each_sum_f32c_best(
+        a: *const f32,
+        b: *const f32,
+        n: usize,
+        result: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_sum_f64c_best(
+        a: *const f64,
+        b: *const f64,
+        n: usize,
+        result: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_scale_f32c_best(
+        a: *const f32,
+        n: usize,
+        alpha: *const f32,
+        beta: *const f32,
+        result: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_scale_f64c_best(
+        a: *const f64,
+        n: usize,
+        alpha: *const f64,
+        beta: *const f64,
+        result: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_blend_f32c_best(
         a: *const f32,
         b: *const f32,
         n: usize,
         alpha: *const f32,
         beta: *const f32,
         result: *mut f32,
-    );
-    fn nk_each_blend_f64c(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_blend_f64c_best(
         a: *const f64,
         b: *const f64,
         n: usize,
         alpha: *const f64,
         beta: *const f64,
         result: *mut f64,
-    );
-    fn nk_each_fma_f32c(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_fma_f32c_best(
         a: *const f32,
         b: *const f32,
         c: *const f32,
@@ -285,8 +732,10 @@ extern "C" {
         alpha: *const f32,
         beta: *const f32,
         result: *mut f32,
-    );
-    fn nk_each_fma_f64c(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_fma_f64c_best(
         a: *const f64,
         b: *const f64,
         c: *const f64,
@@ -294,8 +743,10 @@ extern "C" {
         alpha: *const f64,
         beta: *const f64,
         result: *mut f64,
-    );
-    fn nk_each_swiglu_f32(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_swiglu_f32_best(
         gate: *const f32,
         up: *const f32,
         y: *mut f32,
@@ -305,8 +756,10 @@ extern "C" {
         up_row_stride: usize,
         y_row_stride: usize,
         input_scale: f32,
-    );
-    fn nk_each_swiglu_bf16(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_swiglu_bf16_best(
         gate: *const u16,
         up: *const u16,
         y: *mut u16,
@@ -316,8 +769,10 @@ extern "C" {
         up_row_stride: usize,
         y_row_stride: usize,
         input_scale: f32,
-    );
-    fn nk_each_swiglu_e4m3(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_each_swiglu_e4m3_best(
         gate: *const u8,
         up: *const u8,
         y: *mut u8,
@@ -327,7 +782,9 @@ extern "C" {
         up_row_stride: usize,
         y_row_stride: usize,
         input_scale: f32,
-    );
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
 }
 
 // Complex fallback helpers
@@ -505,14 +962,26 @@ impl EachScale for f64 {
         if a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_scale_f64(a.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
+        unsafe {
+            nk_each_scale_f64_best(
+                a.as_ptr(),
+                a.len(),
+                &alpha,
+                &beta,
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
     fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Option<()> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_scale_f64(p as *const f64, len, &alpha, &beta, p) };
+        unsafe { nk_each_scale_f64_best(p as *const f64, len, &alpha, &beta, p, cpu_capabilities(), null_mut()) }
+            .ok()?;
         Some(())
     }
 }
@@ -523,14 +992,26 @@ impl EachScale for f32 {
         if a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_scale_f32(a.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
+        unsafe {
+            nk_each_scale_f32_best(
+                a.as_ptr(),
+                a.len(),
+                &alpha,
+                &beta,
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
     fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_scale_f32(p as *const f32, len, &alpha, &beta, p) };
+        unsafe { nk_each_scale_f32_best(p as *const f32, len, &alpha, &beta, p, cpu_capabilities(), null_mut()) }
+            .ok()?;
         Some(())
     }
 }
@@ -542,21 +1023,35 @@ impl EachScale for f16 {
             return None;
         }
         unsafe {
-            nk_each_scale_f16(
+            nk_each_scale_f16_best(
                 a.as_ptr() as *const u16,
                 a.len(),
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u16,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
     fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_scale_f16(p as *const u16, len, &alpha, &beta, p as *mut u16) };
+        unsafe {
+            nk_each_scale_f16_best(
+                p as *const u16,
+                len,
+                &alpha,
+                &beta,
+                p as *mut u16,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -568,21 +1063,35 @@ impl EachScale for bf16 {
             return None;
         }
         unsafe {
-            nk_each_scale_bf16(
+            nk_each_scale_bf16_best(
                 a.as_ptr() as *const u16,
                 a.len(),
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u16,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
     fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_scale_bf16(p as *const u16, len, &alpha, &beta, p as *mut u16) };
+        unsafe {
+            nk_each_scale_bf16_best(
+                p as *const u16,
+                len,
+                &alpha,
+                &beta,
+                p as *mut u16,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -593,14 +1102,25 @@ impl EachScale for i8 {
         if a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_scale_i8(a.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
+        unsafe {
+            nk_each_scale_i8_best(
+                a.as_ptr(),
+                a.len(),
+                &alpha,
+                &beta,
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
     fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_scale_i8(p as *const i8, len, &alpha, &beta, p) };
+        unsafe { nk_each_scale_i8_best(p as *const i8, len, &alpha, &beta, p, cpu_capabilities(), null_mut()) }.ok()?;
         Some(())
     }
 }
@@ -611,14 +1131,25 @@ impl EachScale for u8 {
         if a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_scale_u8(a.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
+        unsafe {
+            nk_each_scale_u8_best(
+                a.as_ptr(),
+                a.len(),
+                &alpha,
+                &beta,
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
     fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_scale_u8(p as *const u8, len, &alpha, &beta, p) };
+        unsafe { nk_each_scale_u8_best(p as *const u8, len, &alpha, &beta, p, cpu_capabilities(), null_mut()) }.ok()?;
         Some(())
     }
 }
@@ -629,14 +1160,26 @@ impl EachScale for i16 {
         if a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_scale_i16(a.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
+        unsafe {
+            nk_each_scale_i16_best(
+                a.as_ptr(),
+                a.len(),
+                &alpha,
+                &beta,
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
     fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_scale_i16(p as *const i16, len, &alpha, &beta, p) };
+        unsafe { nk_each_scale_i16_best(p as *const i16, len, &alpha, &beta, p, cpu_capabilities(), null_mut()) }
+            .ok()?;
         Some(())
     }
 }
@@ -647,14 +1190,26 @@ impl EachScale for u16 {
         if a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_scale_u16(a.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
+        unsafe {
+            nk_each_scale_u16_best(
+                a.as_ptr(),
+                a.len(),
+                &alpha,
+                &beta,
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
     fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_scale_u16(p as *const u16, len, &alpha, &beta, p) };
+        unsafe { nk_each_scale_u16_best(p as *const u16, len, &alpha, &beta, p, cpu_capabilities(), null_mut()) }
+            .ok()?;
         Some(())
     }
 }
@@ -665,14 +1220,26 @@ impl EachScale for i32 {
         if a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_scale_i32(a.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
+        unsafe {
+            nk_each_scale_i32_best(
+                a.as_ptr(),
+                a.len(),
+                &alpha,
+                &beta,
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
     fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Option<()> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_scale_i32(p as *const i32, len, &alpha, &beta, p) };
+        unsafe { nk_each_scale_i32_best(p as *const i32, len, &alpha, &beta, p, cpu_capabilities(), null_mut()) }
+            .ok()?;
         Some(())
     }
 }
@@ -683,14 +1250,26 @@ impl EachScale for u32 {
         if a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_scale_u32(a.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
+        unsafe {
+            nk_each_scale_u32_best(
+                a.as_ptr(),
+                a.len(),
+                &alpha,
+                &beta,
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
     fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Option<()> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_scale_u32(p as *const u32, len, &alpha, &beta, p) };
+        unsafe { nk_each_scale_u32_best(p as *const u32, len, &alpha, &beta, p, cpu_capabilities(), null_mut()) }
+            .ok()?;
         Some(())
     }
 }
@@ -701,14 +1280,26 @@ impl EachScale for i64 {
         if a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_scale_i64(a.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
+        unsafe {
+            nk_each_scale_i64_best(
+                a.as_ptr(),
+                a.len(),
+                &alpha,
+                &beta,
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
     fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Option<()> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_scale_i64(p as *const i64, len, &alpha, &beta, p) };
+        unsafe { nk_each_scale_i64_best(p as *const i64, len, &alpha, &beta, p, cpu_capabilities(), null_mut()) }
+            .ok()?;
         Some(())
     }
 }
@@ -719,14 +1310,26 @@ impl EachScale for u64 {
         if a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_scale_u64(a.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
+        unsafe {
+            nk_each_scale_u64_best(
+                a.as_ptr(),
+                a.len(),
+                &alpha,
+                &beta,
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
     fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Option<()> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_scale_u64(p as *const u64, len, &alpha, &beta, p) };
+        unsafe { nk_each_scale_u64_best(p as *const u64, len, &alpha, &beta, p, cpu_capabilities(), null_mut()) }
+            .ok()?;
         Some(())
     }
 }
@@ -738,21 +1341,35 @@ impl EachScale for e4m3 {
             return None;
         }
         unsafe {
-            nk_each_scale_e4m3(
+            nk_each_scale_e4m3_best(
                 a.as_ptr() as *const u8,
                 a.len(),
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
     fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_scale_e4m3(p as *const u8, len, &alpha, &beta, p as *mut u8) };
+        unsafe {
+            nk_each_scale_e4m3_best(
+                p as *const u8,
+                len,
+                &alpha,
+                &beta,
+                p as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -764,21 +1381,35 @@ impl EachScale for e5m2 {
             return None;
         }
         unsafe {
-            nk_each_scale_e5m2(
+            nk_each_scale_e5m2_best(
                 a.as_ptr() as *const u8,
                 a.len(),
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
     fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_scale_e5m2(p as *const u8, len, &alpha, &beta, p as *mut u8) };
+        unsafe {
+            nk_each_scale_e5m2_best(
+                p as *const u8,
+                len,
+                &alpha,
+                &beta,
+                p as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -790,21 +1421,35 @@ impl EachScale for e2m3 {
             return None;
         }
         unsafe {
-            nk_each_scale_e2m3(
+            nk_each_scale_e2m3_best(
                 a.as_ptr() as *const u8,
                 a.len(),
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
     fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_scale_e2m3(p as *const u8, len, &alpha, &beta, p as *mut u8) };
+        unsafe {
+            nk_each_scale_e2m3_best(
+                p as *const u8,
+                len,
+                &alpha,
+                &beta,
+                p as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -816,21 +1461,35 @@ impl EachScale for e3m2 {
             return None;
         }
         unsafe {
-            nk_each_scale_e3m2(
+            nk_each_scale_e3m2_best(
                 a.as_ptr() as *const u8,
                 a.len(),
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
     fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_scale_e3m2(p as *const u8, len, &alpha, &beta, p as *mut u8) };
+        unsafe {
+            nk_each_scale_e3m2_best(
+                p as *const u8,
+                len,
+                &alpha,
+                &beta,
+                p as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -842,21 +1501,35 @@ impl EachScale for f64c {
             return None;
         }
         unsafe {
-            nk_each_scale_f64c(
+            nk_each_scale_f64c_best(
                 a.as_ptr() as *const f64,
                 a.len(),
                 &alpha.re,
                 &beta.re,
                 result.as_mut_ptr() as *mut f64,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
     fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_scale_f64c(p as *const f64, len, &alpha.re, &beta.re, p as *mut f64) };
+        unsafe {
+            nk_each_scale_f64c_best(
+                p as *const f64,
+                len,
+                &alpha.re,
+                &beta.re,
+                p as *mut f64,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -868,21 +1541,35 @@ impl EachScale for f32c {
             return None;
         }
         unsafe {
-            nk_each_scale_f32c(
+            nk_each_scale_f32c_best(
                 a.as_ptr() as *const f32,
                 a.len(),
                 &alpha.re,
                 &beta.re,
                 result.as_mut_ptr() as *mut f32,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
     fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_scale_f32c(p as *const f32, len, &alpha.re, &beta.re, p as *mut f32) };
+        unsafe {
+            nk_each_scale_f32c_best(
+                p as *const f32,
+                len,
+                &alpha.re,
+                &beta.re,
+                p as *mut f32,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -937,7 +1624,17 @@ impl EachSum for f64 {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_sum_f64(a.as_ptr(), b.as_ptr(), a.len(), result.as_mut_ptr()) };
+        unsafe {
+            nk_each_sum_f64_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
@@ -947,7 +1644,8 @@ impl EachSum for f64 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_sum_f64(p as *const f64, other.as_ptr(), len, p) };
+        unsafe { nk_each_sum_f64_best(p as *const f64, other.as_ptr(), len, p, cpu_capabilities(), null_mut()) }
+            .ok()?;
         Some(())
     }
 }
@@ -957,7 +1655,17 @@ impl EachSum for f32 {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_sum_f32(a.as_ptr(), b.as_ptr(), a.len(), result.as_mut_ptr()) };
+        unsafe {
+            nk_each_sum_f32_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
@@ -967,7 +1675,8 @@ impl EachSum for f32 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_sum_f32(p as *const f32, other.as_ptr(), len, p) };
+        unsafe { nk_each_sum_f32_best(p as *const f32, other.as_ptr(), len, p, cpu_capabilities(), null_mut()) }
+            .ok()?;
         Some(())
     }
 }
@@ -978,13 +1687,16 @@ impl EachSum for f16 {
             return None;
         }
         unsafe {
-            nk_each_sum_f16(
+            nk_each_sum_f16_best(
                 a.as_ptr() as *const u16,
                 b.as_ptr() as *const u16,
                 a.len(),
                 result.as_mut_ptr() as *mut u16,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -994,7 +1706,17 @@ impl EachSum for f16 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_sum_f16(p as *const u16, other.as_ptr() as *const u16, len, p as *mut u16) };
+        unsafe {
+            nk_each_sum_f16_best(
+                p as *const u16,
+                other.as_ptr() as *const u16,
+                len,
+                p as *mut u16,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -1005,13 +1727,16 @@ impl EachSum for bf16 {
             return None;
         }
         unsafe {
-            nk_each_sum_bf16(
+            nk_each_sum_bf16_best(
                 a.as_ptr() as *const u16,
                 b.as_ptr() as *const u16,
                 a.len(),
                 result.as_mut_ptr() as *mut u16,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1021,7 +1746,17 @@ impl EachSum for bf16 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_sum_bf16(p as *const u16, other.as_ptr() as *const u16, len, p as *mut u16) };
+        unsafe {
+            nk_each_sum_bf16_best(
+                p as *const u16,
+                other.as_ptr() as *const u16,
+                len,
+                p as *mut u16,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -1031,7 +1766,17 @@ impl EachSum for i8 {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_sum_i8(a.as_ptr(), b.as_ptr(), a.len(), result.as_mut_ptr()) };
+        unsafe {
+            nk_each_sum_i8_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1041,7 +1786,7 @@ impl EachSum for i8 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_sum_i8(p as *const i8, other.as_ptr(), len, p) };
+        unsafe { nk_each_sum_i8_best(p as *const i8, other.as_ptr(), len, p, cpu_capabilities(), null_mut()) }.ok()?;
         Some(())
     }
 }
@@ -1051,7 +1796,17 @@ impl EachSum for u8 {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_sum_u8(a.as_ptr(), b.as_ptr(), a.len(), result.as_mut_ptr()) };
+        unsafe {
+            nk_each_sum_u8_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1061,7 +1816,7 @@ impl EachSum for u8 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_sum_u8(p as *const u8, other.as_ptr(), len, p) };
+        unsafe { nk_each_sum_u8_best(p as *const u8, other.as_ptr(), len, p, cpu_capabilities(), null_mut()) }.ok()?;
         Some(())
     }
 }
@@ -1071,7 +1826,17 @@ impl EachSum for i16 {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_sum_i16(a.as_ptr(), b.as_ptr(), a.len(), result.as_mut_ptr()) };
+        unsafe {
+            nk_each_sum_i16_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1081,7 +1846,8 @@ impl EachSum for i16 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_sum_i16(p as *const i16, other.as_ptr(), len, p) };
+        unsafe { nk_each_sum_i16_best(p as *const i16, other.as_ptr(), len, p, cpu_capabilities(), null_mut()) }
+            .ok()?;
         Some(())
     }
 }
@@ -1091,7 +1857,17 @@ impl EachSum for u16 {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_sum_u16(a.as_ptr(), b.as_ptr(), a.len(), result.as_mut_ptr()) };
+        unsafe {
+            nk_each_sum_u16_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1101,7 +1877,8 @@ impl EachSum for u16 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_sum_u16(p as *const u16, other.as_ptr(), len, p) };
+        unsafe { nk_each_sum_u16_best(p as *const u16, other.as_ptr(), len, p, cpu_capabilities(), null_mut()) }
+            .ok()?;
         Some(())
     }
 }
@@ -1111,7 +1888,17 @@ impl EachSum for i32 {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_sum_i32(a.as_ptr(), b.as_ptr(), a.len(), result.as_mut_ptr()) };
+        unsafe {
+            nk_each_sum_i32_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1121,7 +1908,8 @@ impl EachSum for i32 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_sum_i32(p as *const i32, other.as_ptr(), len, p) };
+        unsafe { nk_each_sum_i32_best(p as *const i32, other.as_ptr(), len, p, cpu_capabilities(), null_mut()) }
+            .ok()?;
         Some(())
     }
 }
@@ -1131,7 +1919,17 @@ impl EachSum for u32 {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_sum_u32(a.as_ptr(), b.as_ptr(), a.len(), result.as_mut_ptr()) };
+        unsafe {
+            nk_each_sum_u32_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1141,7 +1939,8 @@ impl EachSum for u32 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_sum_u32(p as *const u32, other.as_ptr(), len, p) };
+        unsafe { nk_each_sum_u32_best(p as *const u32, other.as_ptr(), len, p, cpu_capabilities(), null_mut()) }
+            .ok()?;
         Some(())
     }
 }
@@ -1151,7 +1950,17 @@ impl EachSum for i64 {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_sum_i64(a.as_ptr(), b.as_ptr(), a.len(), result.as_mut_ptr()) };
+        unsafe {
+            nk_each_sum_i64_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1161,7 +1970,8 @@ impl EachSum for i64 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_sum_i64(p as *const i64, other.as_ptr(), len, p) };
+        unsafe { nk_each_sum_i64_best(p as *const i64, other.as_ptr(), len, p, cpu_capabilities(), null_mut()) }
+            .ok()?;
         Some(())
     }
 }
@@ -1171,7 +1981,17 @@ impl EachSum for u64 {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_sum_u64(a.as_ptr(), b.as_ptr(), a.len(), result.as_mut_ptr()) };
+        unsafe {
+            nk_each_sum_u64_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1181,7 +2001,8 @@ impl EachSum for u64 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_sum_u64(p as *const u64, other.as_ptr(), len, p) };
+        unsafe { nk_each_sum_u64_best(p as *const u64, other.as_ptr(), len, p, cpu_capabilities(), null_mut()) }
+            .ok()?;
         Some(())
     }
 }
@@ -1192,13 +2013,16 @@ impl EachSum for e4m3 {
             return None;
         }
         unsafe {
-            nk_each_sum_e4m3(
+            nk_each_sum_e4m3_best(
                 a.as_ptr() as *const u8,
                 b.as_ptr() as *const u8,
                 a.len(),
                 result.as_mut_ptr() as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1208,7 +2032,17 @@ impl EachSum for e4m3 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_sum_e4m3(p as *const u8, other.as_ptr() as *const u8, len, p as *mut u8) };
+        unsafe {
+            nk_each_sum_e4m3_best(
+                p as *const u8,
+                other.as_ptr() as *const u8,
+                len,
+                p as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -1219,13 +2053,16 @@ impl EachSum for e5m2 {
             return None;
         }
         unsafe {
-            nk_each_sum_e5m2(
+            nk_each_sum_e5m2_best(
                 a.as_ptr() as *const u8,
                 b.as_ptr() as *const u8,
                 a.len(),
                 result.as_mut_ptr() as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1235,7 +2072,17 @@ impl EachSum for e5m2 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_sum_e5m2(p as *const u8, other.as_ptr() as *const u8, len, p as *mut u8) };
+        unsafe {
+            nk_each_sum_e5m2_best(
+                p as *const u8,
+                other.as_ptr() as *const u8,
+                len,
+                p as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -1246,13 +2093,16 @@ impl EachSum for e2m3 {
             return None;
         }
         unsafe {
-            nk_each_sum_e2m3(
+            nk_each_sum_e2m3_best(
                 a.as_ptr() as *const u8,
                 b.as_ptr() as *const u8,
                 a.len(),
                 result.as_mut_ptr() as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1262,7 +2112,17 @@ impl EachSum for e2m3 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_sum_e2m3(p as *const u8, other.as_ptr() as *const u8, len, p as *mut u8) };
+        unsafe {
+            nk_each_sum_e2m3_best(
+                p as *const u8,
+                other.as_ptr() as *const u8,
+                len,
+                p as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -1273,13 +2133,16 @@ impl EachSum for e3m2 {
             return None;
         }
         unsafe {
-            nk_each_sum_e3m2(
+            nk_each_sum_e3m2_best(
                 a.as_ptr() as *const u8,
                 b.as_ptr() as *const u8,
                 a.len(),
                 result.as_mut_ptr() as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1289,7 +2152,17 @@ impl EachSum for e3m2 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_sum_e3m2(p as *const u8, other.as_ptr() as *const u8, len, p as *mut u8) };
+        unsafe {
+            nk_each_sum_e3m2_best(
+                p as *const u8,
+                other.as_ptr() as *const u8,
+                len,
+                p as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -1300,13 +2173,16 @@ impl EachSum for f64c {
             return None;
         }
         unsafe {
-            nk_each_sum_f64c(
+            nk_each_sum_f64c_best(
                 a.as_ptr() as *const f64,
                 b.as_ptr() as *const f64,
                 a.len(),
                 result.as_mut_ptr() as *mut f64,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1316,7 +2192,17 @@ impl EachSum for f64c {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_sum_f64c(p as *const f64, other.as_ptr() as *const f64, len, p as *mut f64) };
+        unsafe {
+            nk_each_sum_f64c_best(
+                p as *const f64,
+                other.as_ptr() as *const f64,
+                len,
+                p as *mut f64,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -1327,13 +2213,16 @@ impl EachSum for f32c {
             return None;
         }
         unsafe {
-            nk_each_sum_f32c(
+            nk_each_sum_f32c_best(
                 a.as_ptr() as *const f32,
                 b.as_ptr() as *const f32,
                 a.len(),
                 result.as_mut_ptr() as *mut f32,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1343,7 +2232,17 @@ impl EachSum for f32c {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_sum_f32c(p as *const f32, other.as_ptr() as *const f32, len, p as *mut f32) };
+        unsafe {
+            nk_each_sum_f32c_best(
+                p as *const f32,
+                other.as_ptr() as *const f32,
+                len,
+                p as *mut f32,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -1394,7 +2293,19 @@ impl EachBlend for f64 {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_blend_f64(a.as_ptr(), b.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
+        unsafe {
+            nk_each_blend_f64_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                &alpha,
+                &beta,
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1404,7 +2315,19 @@ impl EachBlend for f64 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_blend_f64(p as *const f64, other.as_ptr(), len, &alpha, &beta, p) };
+        unsafe {
+            nk_each_blend_f64_best(
+                p as *const f64,
+                other.as_ptr(),
+                len,
+                &alpha,
+                &beta,
+                p,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -1415,7 +2338,19 @@ impl EachBlend for f32 {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_blend_f32(a.as_ptr(), b.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
+        unsafe {
+            nk_each_blend_f32_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                &alpha,
+                &beta,
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1425,7 +2360,19 @@ impl EachBlend for f32 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_blend_f32(p as *const f32, other.as_ptr(), len, &alpha, &beta, p) };
+        unsafe {
+            nk_each_blend_f32_best(
+                p as *const f32,
+                other.as_ptr(),
+                len,
+                &alpha,
+                &beta,
+                p,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -1437,15 +2384,18 @@ impl EachBlend for f16 {
             return None;
         }
         unsafe {
-            nk_each_blend_f16(
+            nk_each_blend_f16_best(
                 a.as_ptr() as *const u16,
                 b.as_ptr() as *const u16,
                 a.len(),
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u16,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1456,15 +2406,18 @@ impl EachBlend for f16 {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
-            nk_each_blend_f16(
+            nk_each_blend_f16_best(
                 p as *const u16,
                 other.as_ptr() as *const u16,
                 len,
                 &alpha,
                 &beta,
                 p as *mut u16,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -1476,15 +2429,18 @@ impl EachBlend for bf16 {
             return None;
         }
         unsafe {
-            nk_each_blend_bf16(
+            nk_each_blend_bf16_best(
                 a.as_ptr() as *const u16,
                 b.as_ptr() as *const u16,
                 a.len(),
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u16,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1495,15 +2451,18 @@ impl EachBlend for bf16 {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
-            nk_each_blend_bf16(
+            nk_each_blend_bf16_best(
                 p as *const u16,
                 other.as_ptr() as *const u16,
                 len,
                 &alpha,
                 &beta,
                 p as *mut u16,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -1514,7 +2473,19 @@ impl EachBlend for i8 {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_blend_i8(a.as_ptr(), b.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
+        unsafe {
+            nk_each_blend_i8_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                &alpha,
+                &beta,
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1524,7 +2495,19 @@ impl EachBlend for i8 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_blend_i8(p as *const i8, other.as_ptr(), len, &alpha, &beta, p) };
+        unsafe {
+            nk_each_blend_i8_best(
+                p as *const i8,
+                other.as_ptr(),
+                len,
+                &alpha,
+                &beta,
+                p,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -1535,7 +2518,19 @@ impl EachBlend for u8 {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_blend_u8(a.as_ptr(), b.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
+        unsafe {
+            nk_each_blend_u8_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                &alpha,
+                &beta,
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1545,7 +2540,19 @@ impl EachBlend for u8 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_blend_u8(p as *const u8, other.as_ptr(), len, &alpha, &beta, p) };
+        unsafe {
+            nk_each_blend_u8_best(
+                p as *const u8,
+                other.as_ptr(),
+                len,
+                &alpha,
+                &beta,
+                p,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -1556,7 +2563,19 @@ impl EachBlend for i16 {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_blend_i16(a.as_ptr(), b.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
+        unsafe {
+            nk_each_blend_i16_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                &alpha,
+                &beta,
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1566,7 +2585,19 @@ impl EachBlend for i16 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_blend_i16(p as *const i16, other.as_ptr(), len, &alpha, &beta, p) };
+        unsafe {
+            nk_each_blend_i16_best(
+                p as *const i16,
+                other.as_ptr(),
+                len,
+                &alpha,
+                &beta,
+                p,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -1577,7 +2608,19 @@ impl EachBlend for u16 {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_blend_u16(a.as_ptr(), b.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
+        unsafe {
+            nk_each_blend_u16_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                &alpha,
+                &beta,
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1587,7 +2630,19 @@ impl EachBlend for u16 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_blend_u16(p as *const u16, other.as_ptr(), len, &alpha, &beta, p) };
+        unsafe {
+            nk_each_blend_u16_best(
+                p as *const u16,
+                other.as_ptr(),
+                len,
+                &alpha,
+                &beta,
+                p,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -1598,7 +2653,19 @@ impl EachBlend for i32 {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_blend_i32(a.as_ptr(), b.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
+        unsafe {
+            nk_each_blend_i32_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                &alpha,
+                &beta,
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1608,7 +2675,19 @@ impl EachBlend for i32 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_blend_i32(p as *const i32, other.as_ptr(), len, &alpha, &beta, p) };
+        unsafe {
+            nk_each_blend_i32_best(
+                p as *const i32,
+                other.as_ptr(),
+                len,
+                &alpha,
+                &beta,
+                p,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -1619,7 +2698,19 @@ impl EachBlend for u32 {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_blend_u32(a.as_ptr(), b.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
+        unsafe {
+            nk_each_blend_u32_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                &alpha,
+                &beta,
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1629,7 +2720,19 @@ impl EachBlend for u32 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_blend_u32(p as *const u32, other.as_ptr(), len, &alpha, &beta, p) };
+        unsafe {
+            nk_each_blend_u32_best(
+                p as *const u32,
+                other.as_ptr(),
+                len,
+                &alpha,
+                &beta,
+                p,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -1640,7 +2743,19 @@ impl EachBlend for i64 {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_blend_i64(a.as_ptr(), b.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
+        unsafe {
+            nk_each_blend_i64_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                &alpha,
+                &beta,
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1650,7 +2765,19 @@ impl EachBlend for i64 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_blend_i64(p as *const i64, other.as_ptr(), len, &alpha, &beta, p) };
+        unsafe {
+            nk_each_blend_i64_best(
+                p as *const i64,
+                other.as_ptr(),
+                len,
+                &alpha,
+                &beta,
+                p,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -1661,7 +2788,19 @@ impl EachBlend for u64 {
         if a.len() != b.len() || a.len() != result.len() {
             return None;
         }
-        unsafe { nk_each_blend_u64(a.as_ptr(), b.as_ptr(), a.len(), &alpha, &beta, result.as_mut_ptr()) };
+        unsafe {
+            nk_each_blend_u64_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                &alpha,
+                &beta,
+                result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1671,7 +2810,19 @@ impl EachBlend for u64 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_blend_u64(p as *const u64, other.as_ptr(), len, &alpha, &beta, p) };
+        unsafe {
+            nk_each_blend_u64_best(
+                p as *const u64,
+                other.as_ptr(),
+                len,
+                &alpha,
+                &beta,
+                p,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -1683,15 +2834,18 @@ impl EachBlend for e4m3 {
             return None;
         }
         unsafe {
-            nk_each_blend_e4m3(
+            nk_each_blend_e4m3_best(
                 a.as_ptr() as *const u8,
                 b.as_ptr() as *const u8,
                 a.len(),
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1702,15 +2856,18 @@ impl EachBlend for e4m3 {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
-            nk_each_blend_e4m3(
+            nk_each_blend_e4m3_best(
                 p as *const u8,
                 other.as_ptr() as *const u8,
                 len,
                 &alpha,
                 &beta,
                 p as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -1722,15 +2879,18 @@ impl EachBlend for e5m2 {
             return None;
         }
         unsafe {
-            nk_each_blend_e5m2(
+            nk_each_blend_e5m2_best(
                 a.as_ptr() as *const u8,
                 b.as_ptr() as *const u8,
                 a.len(),
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1741,15 +2901,18 @@ impl EachBlend for e5m2 {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
-            nk_each_blend_e5m2(
+            nk_each_blend_e5m2_best(
                 p as *const u8,
                 other.as_ptr() as *const u8,
                 len,
                 &alpha,
                 &beta,
                 p as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -1761,15 +2924,18 @@ impl EachBlend for e2m3 {
             return None;
         }
         unsafe {
-            nk_each_blend_e2m3(
+            nk_each_blend_e2m3_best(
                 a.as_ptr() as *const u8,
                 b.as_ptr() as *const u8,
                 a.len(),
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1780,15 +2946,18 @@ impl EachBlend for e2m3 {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
-            nk_each_blend_e2m3(
+            nk_each_blend_e2m3_best(
                 p as *const u8,
                 other.as_ptr() as *const u8,
                 len,
                 &alpha,
                 &beta,
                 p as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -1800,15 +2969,18 @@ impl EachBlend for e3m2 {
             return None;
         }
         unsafe {
-            nk_each_blend_e3m2(
+            nk_each_blend_e3m2_best(
                 a.as_ptr() as *const u8,
                 b.as_ptr() as *const u8,
                 a.len(),
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1819,15 +2991,18 @@ impl EachBlend for e3m2 {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
-            nk_each_blend_e3m2(
+            nk_each_blend_e3m2_best(
                 p as *const u8,
                 other.as_ptr() as *const u8,
                 len,
                 &alpha,
                 &beta,
                 p as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -1839,15 +3014,18 @@ impl EachBlend for f64c {
             return None;
         }
         unsafe {
-            nk_each_blend_f64c(
+            nk_each_blend_f64c_best(
                 a.as_ptr() as *const f64,
                 b.as_ptr() as *const f64,
                 a.len(),
                 &alpha.re,
                 &beta.re,
                 result.as_mut_ptr() as *mut f64,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1858,15 +3036,18 @@ impl EachBlend for f64c {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
-            nk_each_blend_f64c(
+            nk_each_blend_f64c_best(
                 p as *const f64,
                 other.as_ptr() as *const f64,
                 len,
                 &alpha.re,
                 &beta.re,
                 p as *mut f64,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -1878,15 +3059,18 @@ impl EachBlend for f32c {
             return None;
         }
         unsafe {
-            nk_each_blend_f32c(
+            nk_each_blend_f32c_best(
                 a.as_ptr() as *const f32,
                 b.as_ptr() as *const f32,
                 a.len(),
                 &alpha.re,
                 &beta.re,
                 result.as_mut_ptr() as *mut f32,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1897,15 +3081,18 @@ impl EachBlend for f32c {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
-            nk_each_blend_f32c(
+            nk_each_blend_f32c_best(
                 p as *const f32,
                 other.as_ptr() as *const f32,
                 len,
                 &alpha.re,
                 &beta.re,
                 p as *mut f32,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -1972,7 +3159,7 @@ impl EachFMA for f64 {
             return None;
         }
         unsafe {
-            nk_each_fma_f64(
+            nk_each_fma_f64_best(
                 a.as_ptr(),
                 b.as_ptr(),
                 c.as_ptr(),
@@ -1980,8 +3167,11 @@ impl EachFMA for f64 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -1991,7 +3181,20 @@ impl EachFMA for f64 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_fma_f64(p as *const f64, b.as_ptr(), p as *const f64, len, &alpha, &beta, p) };
+        unsafe {
+            nk_each_fma_f64_best(
+                p as *const f64,
+                b.as_ptr(),
+                p as *const f64,
+                len,
+                &alpha,
+                &beta,
+                p,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -2003,7 +3206,7 @@ impl EachFMA for f32 {
             return None;
         }
         unsafe {
-            nk_each_fma_f32(
+            nk_each_fma_f32_best(
                 a.as_ptr(),
                 b.as_ptr(),
                 c.as_ptr(),
@@ -2011,8 +3214,11 @@ impl EachFMA for f32 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -2022,7 +3228,20 @@ impl EachFMA for f32 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_fma_f32(p as *const f32, b.as_ptr(), p as *const f32, len, &alpha, &beta, p) };
+        unsafe {
+            nk_each_fma_f32_best(
+                p as *const f32,
+                b.as_ptr(),
+                p as *const f32,
+                len,
+                &alpha,
+                &beta,
+                p,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -2034,7 +3253,7 @@ impl EachFMA for f16 {
             return None;
         }
         unsafe {
-            nk_each_fma_f16(
+            nk_each_fma_f16_best(
                 a.as_ptr() as *const u16,
                 b.as_ptr() as *const u16,
                 c.as_ptr() as *const u16,
@@ -2042,8 +3261,11 @@ impl EachFMA for f16 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u16,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -2054,7 +3276,7 @@ impl EachFMA for f16 {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
-            nk_each_fma_f16(
+            nk_each_fma_f16_best(
                 p as *const u16,
                 b.as_ptr() as *const u16,
                 p as *const u16,
@@ -2062,8 +3284,11 @@ impl EachFMA for f16 {
                 &alpha,
                 &beta,
                 p as *mut u16,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -2075,7 +3300,7 @@ impl EachFMA for bf16 {
             return None;
         }
         unsafe {
-            nk_each_fma_bf16(
+            nk_each_fma_bf16_best(
                 a.as_ptr() as *const u16,
                 b.as_ptr() as *const u16,
                 c.as_ptr() as *const u16,
@@ -2083,8 +3308,11 @@ impl EachFMA for bf16 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u16,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -2095,7 +3323,7 @@ impl EachFMA for bf16 {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
-            nk_each_fma_bf16(
+            nk_each_fma_bf16_best(
                 p as *const u16,
                 b.as_ptr() as *const u16,
                 p as *const u16,
@@ -2103,8 +3331,11 @@ impl EachFMA for bf16 {
                 &alpha,
                 &beta,
                 p as *mut u16,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -2116,7 +3347,7 @@ impl EachFMA for i8 {
             return None;
         }
         unsafe {
-            nk_each_fma_i8(
+            nk_each_fma_i8_best(
                 a.as_ptr(),
                 b.as_ptr(),
                 c.as_ptr(),
@@ -2124,8 +3355,11 @@ impl EachFMA for i8 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -2135,7 +3369,20 @@ impl EachFMA for i8 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_fma_i8(p as *const i8, b.as_ptr(), p as *const i8, len, &alpha, &beta, p) };
+        unsafe {
+            nk_each_fma_i8_best(
+                p as *const i8,
+                b.as_ptr(),
+                p as *const i8,
+                len,
+                &alpha,
+                &beta,
+                p,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -2147,7 +3394,7 @@ impl EachFMA for u8 {
             return None;
         }
         unsafe {
-            nk_each_fma_u8(
+            nk_each_fma_u8_best(
                 a.as_ptr(),
                 b.as_ptr(),
                 c.as_ptr(),
@@ -2155,8 +3402,11 @@ impl EachFMA for u8 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -2166,7 +3416,20 @@ impl EachFMA for u8 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_fma_u8(p as *const u8, b.as_ptr(), p as *const u8, len, &alpha, &beta, p) };
+        unsafe {
+            nk_each_fma_u8_best(
+                p as *const u8,
+                b.as_ptr(),
+                p as *const u8,
+                len,
+                &alpha,
+                &beta,
+                p,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -2178,7 +3441,7 @@ impl EachFMA for e4m3 {
             return None;
         }
         unsafe {
-            nk_each_fma_e4m3(
+            nk_each_fma_e4m3_best(
                 a.as_ptr() as *const u8,
                 b.as_ptr() as *const u8,
                 c.as_ptr() as *const u8,
@@ -2186,8 +3449,11 @@ impl EachFMA for e4m3 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -2198,7 +3464,7 @@ impl EachFMA for e4m3 {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
-            nk_each_fma_e4m3(
+            nk_each_fma_e4m3_best(
                 p as *const u8,
                 b.as_ptr() as *const u8,
                 p as *const u8,
@@ -2206,8 +3472,11 @@ impl EachFMA for e4m3 {
                 &alpha,
                 &beta,
                 p as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -2219,7 +3488,7 @@ impl EachFMA for e5m2 {
             return None;
         }
         unsafe {
-            nk_each_fma_e5m2(
+            nk_each_fma_e5m2_best(
                 a.as_ptr() as *const u8,
                 b.as_ptr() as *const u8,
                 c.as_ptr() as *const u8,
@@ -2227,8 +3496,11 @@ impl EachFMA for e5m2 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -2239,7 +3511,7 @@ impl EachFMA for e5m2 {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
-            nk_each_fma_e5m2(
+            nk_each_fma_e5m2_best(
                 p as *const u8,
                 b.as_ptr() as *const u8,
                 p as *const u8,
@@ -2247,8 +3519,11 @@ impl EachFMA for e5m2 {
                 &alpha,
                 &beta,
                 p as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -2260,7 +3535,7 @@ impl EachFMA for e2m3 {
             return None;
         }
         unsafe {
-            nk_each_fma_e2m3(
+            nk_each_fma_e2m3_best(
                 a.as_ptr() as *const u8,
                 b.as_ptr() as *const u8,
                 c.as_ptr() as *const u8,
@@ -2268,8 +3543,11 @@ impl EachFMA for e2m3 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -2280,7 +3558,7 @@ impl EachFMA for e2m3 {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
-            nk_each_fma_e2m3(
+            nk_each_fma_e2m3_best(
                 p as *const u8,
                 b.as_ptr() as *const u8,
                 p as *const u8,
@@ -2288,8 +3566,11 @@ impl EachFMA for e2m3 {
                 &alpha,
                 &beta,
                 p as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -2301,7 +3582,7 @@ impl EachFMA for e3m2 {
             return None;
         }
         unsafe {
-            nk_each_fma_e3m2(
+            nk_each_fma_e3m2_best(
                 a.as_ptr() as *const u8,
                 b.as_ptr() as *const u8,
                 c.as_ptr() as *const u8,
@@ -2309,8 +3590,11 @@ impl EachFMA for e3m2 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -2321,7 +3605,7 @@ impl EachFMA for e3m2 {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
-            nk_each_fma_e3m2(
+            nk_each_fma_e3m2_best(
                 p as *const u8,
                 b.as_ptr() as *const u8,
                 p as *const u8,
@@ -2329,8 +3613,11 @@ impl EachFMA for e3m2 {
                 &alpha,
                 &beta,
                 p as *mut u8,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -2342,7 +3629,7 @@ impl EachFMA for i16 {
             return None;
         }
         unsafe {
-            nk_each_fma_i16(
+            nk_each_fma_i16_best(
                 a.as_ptr(),
                 b.as_ptr(),
                 c.as_ptr(),
@@ -2350,8 +3637,11 @@ impl EachFMA for i16 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -2361,7 +3651,20 @@ impl EachFMA for i16 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_fma_i16(p as *const i16, b.as_ptr(), p as *const i16, len, &alpha, &beta, p) };
+        unsafe {
+            nk_each_fma_i16_best(
+                p as *const i16,
+                b.as_ptr(),
+                p as *const i16,
+                len,
+                &alpha,
+                &beta,
+                p,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -2373,7 +3676,7 @@ impl EachFMA for u16 {
             return None;
         }
         unsafe {
-            nk_each_fma_u16(
+            nk_each_fma_u16_best(
                 a.as_ptr(),
                 b.as_ptr(),
                 c.as_ptr(),
@@ -2381,8 +3684,11 @@ impl EachFMA for u16 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -2392,7 +3698,20 @@ impl EachFMA for u16 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_fma_u16(p as *const u16, b.as_ptr(), p as *const u16, len, &alpha, &beta, p) };
+        unsafe {
+            nk_each_fma_u16_best(
+                p as *const u16,
+                b.as_ptr(),
+                p as *const u16,
+                len,
+                &alpha,
+                &beta,
+                p,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -2404,7 +3723,7 @@ impl EachFMA for i32 {
             return None;
         }
         unsafe {
-            nk_each_fma_i32(
+            nk_each_fma_i32_best(
                 a.as_ptr(),
                 b.as_ptr(),
                 c.as_ptr(),
@@ -2412,8 +3731,11 @@ impl EachFMA for i32 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -2423,7 +3745,20 @@ impl EachFMA for i32 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_fma_i32(p as *const i32, b.as_ptr(), p as *const i32, len, &alpha, &beta, p) };
+        unsafe {
+            nk_each_fma_i32_best(
+                p as *const i32,
+                b.as_ptr(),
+                p as *const i32,
+                len,
+                &alpha,
+                &beta,
+                p,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -2435,7 +3770,7 @@ impl EachFMA for u32 {
             return None;
         }
         unsafe {
-            nk_each_fma_u32(
+            nk_each_fma_u32_best(
                 a.as_ptr(),
                 b.as_ptr(),
                 c.as_ptr(),
@@ -2443,8 +3778,11 @@ impl EachFMA for u32 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -2454,7 +3792,20 @@ impl EachFMA for u32 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_fma_u32(p as *const u32, b.as_ptr(), p as *const u32, len, &alpha, &beta, p) };
+        unsafe {
+            nk_each_fma_u32_best(
+                p as *const u32,
+                b.as_ptr(),
+                p as *const u32,
+                len,
+                &alpha,
+                &beta,
+                p,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -2466,7 +3817,7 @@ impl EachFMA for i64 {
             return None;
         }
         unsafe {
-            nk_each_fma_i64(
+            nk_each_fma_i64_best(
                 a.as_ptr(),
                 b.as_ptr(),
                 c.as_ptr(),
@@ -2474,8 +3825,11 @@ impl EachFMA for i64 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -2485,7 +3839,20 @@ impl EachFMA for i64 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_fma_i64(p as *const i64, b.as_ptr(), p as *const i64, len, &alpha, &beta, p) };
+        unsafe {
+            nk_each_fma_i64_best(
+                p as *const i64,
+                b.as_ptr(),
+                p as *const i64,
+                len,
+                &alpha,
+                &beta,
+                p,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -2497,7 +3864,7 @@ impl EachFMA for u64 {
             return None;
         }
         unsafe {
-            nk_each_fma_u64(
+            nk_each_fma_u64_best(
                 a.as_ptr(),
                 b.as_ptr(),
                 c.as_ptr(),
@@ -2505,8 +3872,11 @@ impl EachFMA for u64 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -2516,7 +3886,20 @@ impl EachFMA for u64 {
         }
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_fma_u64(p as *const u64, b.as_ptr(), p as *const u64, len, &alpha, &beta, p) };
+        unsafe {
+            nk_each_fma_u64_best(
+                p as *const u64,
+                b.as_ptr(),
+                p as *const u64,
+                len,
+                &alpha,
+                &beta,
+                p,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -2535,7 +3918,7 @@ impl EachFMA for f64c {
             return None;
         }
         unsafe {
-            nk_each_fma_f64c(
+            nk_each_fma_f64c_best(
                 a.as_ptr() as *const f64,
                 b.as_ptr() as *const f64,
                 c.as_ptr() as *const f64,
@@ -2543,8 +3926,11 @@ impl EachFMA for f64c {
                 &alpha.re,
                 &beta.re,
                 result.as_mut_ptr() as *mut f64,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -2555,7 +3941,7 @@ impl EachFMA for f64c {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
-            nk_each_fma_f64c(
+            nk_each_fma_f64c_best(
                 p as *const f64,
                 b.as_ptr() as *const f64,
                 p as *const f64,
@@ -2563,8 +3949,11 @@ impl EachFMA for f64c {
                 &alpha.re,
                 &beta.re,
                 p as *mut f64,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -2583,7 +3972,7 @@ impl EachFMA for f32c {
             return None;
         }
         unsafe {
-            nk_each_fma_f32c(
+            nk_each_fma_f32c_best(
                 a.as_ptr() as *const f32,
                 b.as_ptr() as *const f32,
                 c.as_ptr() as *const f32,
@@ -2591,8 +3980,11 @@ impl EachFMA for f32c {
                 &alpha.re,
                 &beta.re,
                 result.as_mut_ptr() as *mut f32,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
@@ -2603,7 +3995,7 @@ impl EachFMA for f32c {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
-            nk_each_fma_f32c(
+            nk_each_fma_f32c_best(
                 p as *const f32,
                 b.as_ptr() as *const f32,
                 p as *const f32,
@@ -2611,8 +4003,11 @@ impl EachFMA for f32c {
                 &alpha.re,
                 &beta.re,
                 p as *mut f32,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -3056,7 +4451,7 @@ impl EachSwiglu for f32 {
             return Ok(());
         };
         unsafe {
-            nk_each_swiglu_f32(
+            nk_each_swiglu_f32_best(
                 gate.as_ptr(),
                 up_ptr,
                 y.as_mut_ptr(),
@@ -3066,7 +4461,10 @@ impl EachSwiglu for f32 {
                 up_stride,
                 y_stride,
                 input_scale,
-            );
+                cpu_capabilities(),
+                null_mut(),
+            )
+            .check()?;
         }
         Ok(())
     }
@@ -3096,7 +4494,7 @@ impl EachSwiglu for bf16 {
             return Ok(());
         };
         unsafe {
-            nk_each_swiglu_bf16(
+            nk_each_swiglu_bf16_best(
                 gate.as_ptr() as *const u16,
                 up_ptr as *const u16,
                 y.as_mut_ptr() as *mut u16,
@@ -3106,7 +4504,10 @@ impl EachSwiglu for bf16 {
                 up_stride,
                 y_stride,
                 input_scale,
-            );
+                cpu_capabilities(),
+                null_mut(),
+            )
+            .check()?;
         }
         Ok(())
     }
@@ -3136,7 +4537,7 @@ impl EachSwiglu for e4m3 {
             return Ok(());
         };
         unsafe {
-            nk_each_swiglu_e4m3(
+            nk_each_swiglu_e4m3_best(
                 gate.as_ptr() as *const u8,
                 up_ptr as *const u8,
                 y.as_mut_ptr() as *mut u8,
@@ -3146,7 +4547,10 @@ impl EachSwiglu for e4m3 {
                 up_stride,
                 y_stride,
                 input_scale,
-            );
+                cpu_capabilities(),
+                null_mut(),
+            )
+            .check()?;
         }
         Ok(())
     }

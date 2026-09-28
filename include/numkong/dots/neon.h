@@ -10,10 +10,12 @@
 #define NUMKONG_DOTS_NEON_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_NEON
+#if NUMKONG_ARCH_ARM64_NEON_
 
+#include "numkong/dots/serial.h"
 #include "numkong/dot/neon.h"
 
+#if NUMKONG_TARGET_NEON
 #if defined(__cplusplus)
 extern "C" {
 #endif
@@ -128,7 +130,8 @@ nk_define_cross_packed_(dots, f64, neon, f64, f64, f64, nk_b128_vec_t, nk_dot_f6
 #if defined(__cplusplus)
 } // extern "C"
 #endif
-
 #endif // NUMKONG_TARGET_NEON
+
+#endif // NUMKONG_ARCH_ARM64_NEON_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_DOTS_NEON_H

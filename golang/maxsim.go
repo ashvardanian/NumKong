@@ -32,7 +32,7 @@ func (p MaxSimPackedMatrix) Shape() (vectors, depth int) {
 		return 0, 0
 	}
 	var v, d C.nk_size_t
-	C.nk_maxsim_packed_shape_f32(unsafe.Pointer(&p.data[0]), &v, &d)
+	check(C.nk_maxsim_packed_shape_f32_best(unsafe.Pointer(&p.data[0]), &v, &d, capabilities(), nil))
 	return int(v), int(d)
 }
 
@@ -42,13 +42,14 @@ func NewMaxSimPackedMatrixF32(vectorsData []float32, vectorsCount, depth int) Ma
 	if len(vectorsData) < vectorsCount*depth {
 		panic("input slice too short for the given vectorsCount and depth")
 	}
-	size := int(C.nk_maxsim_pack_size_f32(C.nk_size_t(vectorsCount), C.nk_size_t(depth)))
+	var size C.nk_size_t
+	check(C.nk_maxsim_pack_size_f32_best(C.nk_size_t(vectorsCount), C.nk_size_t(depth), capabilities(), &size))
 	data := make([]byte, size)
-	C.nk_maxsim_pack_f32(
+	check(C.nk_maxsim_pack_f32_best(
 		(*C.nk_f32_t)(&vectorsData[0]),
 		C.nk_size_t(vectorsCount), C.nk_size_t(depth),
 		C.nk_size_t(depth*4),
-		unsafe.Pointer(&data[0]))
+		unsafe.Pointer(&data[0]), capabilities(), nil))
 	return MaxSimPackedMatrix{data: data, vectors: vectorsCount, depth: depth}
 }
 
@@ -59,10 +60,10 @@ func MaxSimF32(query, document MaxSimPackedMatrix) float64 {
 		panic("query and document must have the same depth")
 	}
 	var result C.nk_f64_t
-	C.nk_maxsim_packed_f32(
+	check(C.nk_maxsim_packed_f32_best(
 		unsafe.Pointer(&query.data[0]),
 		unsafe.Pointer(&document.data[0]),
 		C.nk_size_t(query.vectors), C.nk_size_t(document.vectors), C.nk_size_t(query.depth),
-		&result)
+		&result, capabilities(), nil))
 	return float64(result)
 }

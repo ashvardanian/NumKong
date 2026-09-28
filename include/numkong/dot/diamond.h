@@ -29,7 +29,7 @@
 #ifndef NUMKONG_DOT_DIAMOND_H
 #define NUMKONG_DOT_DIAMOND_H
 
-#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_ARCH_X8664_
 #if NUMKONG_TARGET_DIAMOND
 
 #include "numkong/types.h"
@@ -55,8 +55,8 @@ extern "C" {
                    "bmi", "bmi2")
 #endif
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_e4m3_diamond(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
-                                                     nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_e4m3_diamond(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
+                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256i a_e4m3x32, b_e4m3x32;
     __m512 sum_f32x16 = _mm512_setzero_ps();
@@ -82,8 +82,8 @@ nk_dot_e4m3_diamond_cycle:
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_e5m2_diamond(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
-                                                     nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_e5m2_diamond(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
+                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256i a_e5m2x32, b_e5m2x32;
     __m512 sum_f32x16 = _mm512_setzero_ps();
@@ -109,8 +109,8 @@ nk_dot_e5m2_diamond_cycle:
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_f16_diamond(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
-                                                    nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_f16_diamond(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
+                                           nk_size_t count_scalars, nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m512h a_f16x32, b_f16x32;
     __m512 sum_f32x16 = _mm512_setzero_ps();
@@ -136,19 +136,19 @@ nk_dot_f16_diamond_cycle:
 
 typedef nk_dot_through_f32_state_skylake_t_ nk_dot_through_f16_state_diamond_t_;
 
-NUMKONG_HELPER_INLINE void nk_dot_through_f16_init_diamond_(nk_dot_through_f16_state_diamond_t_ *state) {
+NUMKONG_INLINE void nk_dot_through_f16_init_diamond_(nk_dot_through_f16_state_diamond_t_ *state) {
     state->sum_f32x16 = _mm512_setzero();
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_through_f16_update_diamond_(nk_dot_through_f16_state_diamond_t_ *state,
-                                                              nk_b512_vec_t a, nk_b512_vec_t b, nk_size_t depth_offset,
-                                                              nk_size_t active_dimensions) {
+NUMKONG_INLINE void nk_dot_through_f16_update_diamond_(nk_dot_through_f16_state_diamond_t_ *state, nk_b512_vec_t a,
+                                                       nk_b512_vec_t b, nk_size_t depth_offset,
+                                                       nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     state->sum_f32x16 = _mm512_dpph_ps(state->sum_f32x16, nk_m512h_from_m512i_(a.zmm), nk_m512h_from_m512i_(b.zmm));
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_through_f16_finalize_diamond_(                                            //
+NUMKONG_INLINE void nk_dot_through_f16_finalize_diamond_(                                                   //
     nk_dot_through_f16_state_diamond_t_ const *state_a, nk_dot_through_f16_state_diamond_t_ const *state_b, //
     nk_dot_through_f16_state_diamond_t_ const *state_c, nk_dot_through_f16_state_diamond_t_ const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -166,5 +166,5 @@ NUMKONG_HELPER_INLINE void nk_dot_through_f16_finalize_diamond_(                
 #endif
 
 #endif // NUMKONG_TARGET_DIAMOND
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_DOT_DIAMOND_H

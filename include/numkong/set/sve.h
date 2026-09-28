@@ -32,12 +32,13 @@
 #define NUMKONG_SET_SVE_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_SVE
+#if NUMKONG_ARCH_ARM64_SVE_
 
 #include "numkong/types.h"      // `nk_u1x8_t`
-#include "numkong/reduce/sve.h" // `nk_svaddv_f64_`
-#include "numkong/set/neon.h"   // `nk_hamming_u1_neon`
+#include "numkong/reduce/sve.h" // `nk_svaddv_u8_`
+#include "numkong/set/neon.h"   // `nk_u1_xor_popcount_neon_`, `nk_u1_and_or_popcounts_neon_`
 
+#if NUMKONG_TARGET_SVE
 #if defined(__cplusplus)
 extern "C" {
 #endif
@@ -51,14 +52,17 @@ extern "C" {
 
 #pragma region Binary Sets
 
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_sve(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                   nk_u32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_hamming_u1_sve(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
+                                          void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
 
     // On very small register sizes, NEON is at least as fast as SVE.
     nk_size_t const words_per_register = svcntb();
-    if (words_per_register <= 32) { return nk_hamming_u1_neon(a, b, n, result, stream); }
+    if (words_per_register <= 32) {
+        *result = nk_u1_xor_popcount_neon_(a, b, n);
+        return nk_success_k;
+    }
 
     // On larger register sizes, SVE is faster.
     nk_size_t i = 0, cycle = 0;
@@ -84,14 +88,19 @@ NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_sve(nk_u1x8_t const *a, nk_u1x8_t
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_sve(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                   nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_jaccard_u1_sve(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result,
+                                          void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
 
     // On very small register sizes, NEON is at least as fast as SVE.
     nk_size_t const words_per_register = svcntb();
-    if (words_per_register <= 32) { return nk_jaccard_u1_neon(a, b, n, result, stream); }
+    if (words_per_register <= 32) {
+        nk_u32_t intersection_count, union_count;
+        nk_u1_and_or_popcounts_neon_(a, b, n, &intersection_count, &union_count);
+        *result = (union_count != 0) ? 1.0f - (nk_f32_t)intersection_count / (nk_f32_t)union_count : 0.0f;
+        return nk_success_k;
+    }
 
     // On larger register sizes, SVE is faster.
     nk_size_t i = 0, cycle = 0;
@@ -127,8 +136,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_sve(nk_u1x8_t const *a, nk_u1x8_t
 
 #pragma region Integer Sets
 
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u32_sve(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result,
-                                                    void *stream) {
+NUMKONG_API nk_status_t nk_jaccard_u32_sve(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result,
+                                           void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const words_per_register = svcntw();
     nk_size_t i = 0;
@@ -145,8 +154,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u32_sve(nk_u32_t const *a, nk_u32_t 
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u8_sve(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                                   void *stream) {
+NUMKONG_API nk_status_t nk_hamming_u8_sve(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
+                                          void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const bytes_per_register = svcntb();
     nk_size_t i = 0;
@@ -163,8 +172,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_hamming_u8_sve(nk_u8_t const *a, nk_u8_t con
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u16_sve(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result,
-                                                    void *stream) {
+NUMKONG_API nk_status_t nk_jaccard_u16_sve(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result,
+                                           void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const halfwords_per_register = svcnth();
     nk_size_t i = 0;
@@ -192,7 +201,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u16_sve(nk_u16_t const *a, nk_u16_t 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
-
 #endif // NUMKONG_TARGET_SVE
+
+#endif // NUMKONG_ARCH_ARM64_SVE_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_SET_SVE_H

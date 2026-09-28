@@ -11,88 +11,79 @@
 #define NUMKONG_TRIGONOMETRY_SERIAL_H
 
 #include "numkong/types.h"
-#include "numkong/cast/serial.h"   // `nk_f16_to_f32_serial`
-#include "numkong/scalar/serial.h" // `nk_f32_sin_serial`, `nk_f64_atan_serial`
+#include "numkong/cast/serial.h"   // `nk_f16_to_f32_`
+#include "numkong/scalar/serial.h" // `nk_f32_sin_`, `nk_f64_atan_`
 
 #if defined(__cplusplus)
 extern "C" {
 #endif
 
-/** RoPE rotation-coefficient type for the cos/sin angle grids. */
-typedef nk_f32_t nk_rope_angle_t;
+#if NUMKONG_TARGET_SERIAL
 
-NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f32_serial(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
-                                                        void *stream) {
+NUMKONG_API nk_status_t nk_trig_sin_f32_serial(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    for (nk_size_t i = 0; i != n; ++i) outs[i] = nk_f32_sin_serial(ins[i]);
+    for (nk_size_t i = 0; i != n; ++i) outs[i] = nk_f32_sin_(ins[i]);
     return nk_success_k;
 }
-NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f32_serial(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
-                                                        void *stream) {
+NUMKONG_API nk_status_t nk_trig_cos_f32_serial(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    for (nk_size_t i = 0; i != n; ++i) outs[i] = nk_f32_cos_serial(ins[i]);
+    for (nk_size_t i = 0; i != n; ++i) outs[i] = nk_f32_cos_(ins[i]);
     return nk_success_k;
 }
-NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f32_serial(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
-                                                         void *stream) {
+NUMKONG_API nk_status_t nk_trig_atan_f32_serial(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    for (nk_size_t i = 0; i != n; ++i) outs[i] = nk_f32_atan_serial(ins[i]);
+    for (nk_size_t i = 0; i != n; ++i) outs[i] = nk_f32_atan_(ins[i]);
     return nk_success_k;
 }
-NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f64_serial(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
-                                                        void *stream) {
+NUMKONG_API nk_status_t nk_trig_sin_f64_serial(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    for (nk_size_t i = 0; i != n; ++i) outs[i] = nk_f64_sin_serial(ins[i]);
+    for (nk_size_t i = 0; i != n; ++i) outs[i] = nk_f64_sin_(ins[i]);
     return nk_success_k;
 }
-NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f64_serial(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
-                                                        void *stream) {
+NUMKONG_API nk_status_t nk_trig_cos_f64_serial(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    for (nk_size_t i = 0; i != n; ++i) outs[i] = nk_f64_cos_serial(ins[i]);
+    for (nk_size_t i = 0; i != n; ++i) outs[i] = nk_f64_cos_(ins[i]);
     return nk_success_k;
 }
-NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f64_serial(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
-                                                         void *stream) {
+NUMKONG_API nk_status_t nk_trig_atan_f64_serial(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    for (nk_size_t i = 0; i != n; ++i) outs[i] = nk_f64_atan_serial(ins[i]);
+    for (nk_size_t i = 0; i != n; ++i) outs[i] = nk_f64_atan_(ins[i]);
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f16_serial(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs,
-                                                        void *stream) {
+NUMKONG_API nk_status_t nk_trig_sin_f16_serial(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t i = 0; i != n; ++i) {
         nk_f32_t angle_f32;
-        nk_f16_to_f32_serial(&ins[i], &angle_f32);
-        nk_f32_t const result_f32 = nk_f32_sin_serial(angle_f32);
-        nk_f32_to_f16_serial(&result_f32, &outs[i]);
+        nk_f16_to_f32_(&ins[i], &angle_f32);
+        nk_f32_t const result_f32 = nk_f32_sin_(angle_f32);
+        nk_f32_to_f16_(&result_f32, &outs[i]);
     }
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f16_serial(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs,
-                                                        void *stream) {
+NUMKONG_API nk_status_t nk_trig_cos_f16_serial(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t i = 0; i != n; ++i) {
         nk_f32_t angle_f32;
-        nk_f16_to_f32_serial(&ins[i], &angle_f32);
-        nk_f32_t const result_f32 = nk_f32_cos_serial(angle_f32);
-        nk_f32_to_f16_serial(&result_f32, &outs[i]);
+        nk_f16_to_f32_(&ins[i], &angle_f32);
+        nk_f32_t const result_f32 = nk_f32_cos_(angle_f32);
+        nk_f32_to_f16_(&result_f32, &outs[i]);
     }
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f16_serial(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs,
-                                                         void *stream) {
+NUMKONG_API nk_status_t nk_trig_atan_f16_serial(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t i = 0; i != n; ++i) {
         nk_f32_t value_f32;
-        nk_f16_to_f32_serial(&ins[i], &value_f32);
-        nk_f32_t const result_f32 = nk_f32_atan_serial(value_f32);
-        nk_f32_to_f16_serial(&result_f32, &outs[i]);
+        nk_f16_to_f32_(&ins[i], &value_f32);
+        nk_f32_t const result_f32 = nk_f32_atan_(value_f32);
+        nk_f32_to_f16_(&result_f32, &outs[i]);
     }
     return nk_success_k;
 }
+#endif // NUMKONG_TARGET_SERIAL
 
 /** RoPE, the NeoX split-half rotary position embedding. Each row, a token with byte stride
  *  @c x_row_stride, holds @c heads heads of 2 × half_dim channels. Every pair @c i rotates channel
@@ -103,7 +94,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f16_serial(nk_f16_t const *ins, nk
  *  bakes position lookup and M-RoPE axis assignment into the grids. @c input_scale folds an E4M3
  *  descale onto the load, and is 1.0 for BF16 and F32. */
 #define nk_define_trig_rope_(input_type, load_and_convert, convert_and_store)                                         \
-    NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_##input_type##_serial(                                              \
+    NUMKONG_API nk_status_t nk_trig_rope_##input_type##_serial(                                                       \
         nk_##input_type##_t const *x, nk_##input_type##_t *y, nk_rope_angle_t const *cos, nk_rope_angle_t const *sin, \
         nk_size_t rows, nk_size_t heads, nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,          \
         nk_f32_t input_scale, void *stream) {                                                                         \
@@ -133,9 +124,11 @@ NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f16_serial(nk_f16_t const *ins, nk
         return nk_success_k;                                                                                          \
     }
 
+#if NUMKONG_TARGET_SERIAL
 nk_define_trig_rope_(f32, nk_assign_from_to_, nk_assign_from_to_)
-nk_define_trig_rope_(bf16, nk_bf16_to_f32_serial, nk_f32_to_bf16_serial)
-nk_define_trig_rope_(e4m3, nk_e4m3_to_f32_serial, nk_f32_to_e4m3_serial)
+nk_define_trig_rope_(bf16, nk_bf16_to_f32_, nk_f32_to_bf16_)
+nk_define_trig_rope_(e4m3, nk_e4m3_to_f32_, nk_f32_to_e4m3_)
+#endif // NUMKONG_TARGET_SERIAL
 #undef nk_define_trig_rope_
 
 #if defined(__cplusplus)

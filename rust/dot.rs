@@ -47,37 +47,188 @@
 //! File: rust/dot.rs
 //! Author: Ash Vardanian
 
+use core::ffi::c_void;
+use core::ptr::null_mut;
+
+use crate::capabilities::{cpu_capabilities, Status};
 use crate::types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i4x2, u1x8, u4x2, StorageElement};
 
 #[link(name = "numkong")]
 extern "C" {
 
     // Vector dot products
-    fn nk_dot_i8(a: *const i8, b: *const i8, c: usize, d: *mut i32);
-    fn nk_dot_u8(a: *const u8, b: *const u8, c: usize, d: *mut u32);
-    fn nk_dot_f16(a: *const u16, b: *const u16, c: usize, d: *mut f32);
-    fn nk_dot_bf16(a: *const u16, b: *const u16, c: usize, d: *mut f32);
-    fn nk_dot_e4m3(a: *const u8, b: *const u8, c: usize, d: *mut f32);
-    fn nk_dot_e5m2(a: *const u8, b: *const u8, c: usize, d: *mut f32);
-    fn nk_dot_e2m3(a: *const u8, b: *const u8, c: usize, d: *mut f32);
-    fn nk_dot_e3m2(a: *const u8, b: *const u8, c: usize, d: *mut f32);
-    fn nk_dot_f32(a: *const f32, b: *const f32, c: usize, d: *mut f64);
-    fn nk_dot_f64(a: *const f64, b: *const f64, c: usize, d: *mut f64);
+    fn nk_dot_i8_best(
+        a: *const i8,
+        b: *const i8,
+        c: usize,
+        d: *mut i32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_dot_u8_best(
+        a: *const u8,
+        b: *const u8,
+        c: usize,
+        d: *mut u32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_dot_f16_best(
+        a: *const u16,
+        b: *const u16,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_dot_bf16_best(
+        a: *const u16,
+        b: *const u16,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_dot_e4m3_best(
+        a: *const u8,
+        b: *const u8,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_dot_e5m2_best(
+        a: *const u8,
+        b: *const u8,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_dot_e2m3_best(
+        a: *const u8,
+        b: *const u8,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_dot_e3m2_best(
+        a: *const u8,
+        b: *const u8,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_dot_f32_best(
+        a: *const f32,
+        b: *const f32,
+        c: usize,
+        d: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_dot_f64_best(
+        a: *const f64,
+        b: *const f64,
+        c: usize,
+        d: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
 
-    fn nk_dot_f16c(a: *const u16, b: *const u16, c: usize, d: *mut f32);
-    fn nk_dot_bf16c(a: *const u16, b: *const u16, c: usize, d: *mut f32);
-    fn nk_dot_f32c(a: *const f32, b: *const f32, c: usize, d: *mut f64);
-    fn nk_dot_f64c(a: *const f64, b: *const f64, c: usize, d: *mut f64);
+    fn nk_dot_f16c_best(
+        a: *const u16,
+        b: *const u16,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_dot_bf16c_best(
+        a: *const u16,
+        b: *const u16,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_dot_f32c_best(
+        a: *const f32,
+        b: *const f32,
+        c: usize,
+        d: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_dot_f64c_best(
+        a: *const f64,
+        b: *const f64,
+        c: usize,
+        d: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
 
-    fn nk_vdot_f16c(a: *const u16, b: *const u16, c: usize, d: *mut f32);
-    fn nk_vdot_bf16c(a: *const u16, b: *const u16, c: usize, d: *mut f32);
-    fn nk_vdot_f32c(a: *const f32, b: *const f32, c: usize, d: *mut f64);
-    fn nk_vdot_f64c(a: *const f64, b: *const f64, c: usize, d: *mut f64);
+    fn nk_vdot_f16c_best(
+        a: *const u16,
+        b: *const u16,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_vdot_bf16c_best(
+        a: *const u16,
+        b: *const u16,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_vdot_f32c_best(
+        a: *const f32,
+        b: *const f32,
+        c: usize,
+        d: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_vdot_f64c_best(
+        a: *const f64,
+        b: *const f64,
+        c: usize,
+        d: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
 
     // Sub-byte integer kernels
-    fn nk_dot_i4(a: *const u8, b: *const u8, n: usize, result: *mut i32);
-    fn nk_dot_u4(a: *const u8, b: *const u8, n: usize, result: *mut u32);
-    fn nk_dot_u1(a: *const u8, b: *const u8, n: usize, result: *mut u32);
+    fn nk_dot_i4_best(
+        a: *const u8,
+        b: *const u8,
+        n: usize,
+        result: *mut i32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_dot_u4_best(
+        a: *const u8,
+        b: *const u8,
+        n: usize,
+        result: *mut u32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_dot_u1_best(
+        a: *const u8,
+        b: *const u8,
+        n: usize,
+        result: *mut u32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
 }
 
 // region: Dot
@@ -118,7 +269,17 @@ impl Dot for f64 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_dot_f64(first.as_ptr(), second.as_ptr(), first.len(), &mut result) };
+        unsafe {
+            nk_dot_f64_best(
+                first.as_ptr(),
+                second.as_ptr(),
+                first.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -130,7 +291,17 @@ impl Dot for f32 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_dot_f32(first.as_ptr(), second.as_ptr(), first.len(), &mut result) };
+        unsafe {
+            nk_dot_f32_best(
+                first.as_ptr(),
+                second.as_ptr(),
+                first.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -143,13 +314,16 @@ impl Dot for f16 {
         }
         let mut result: Self::Output = 0.0;
         unsafe {
-            nk_dot_f16(
+            nk_dot_f16_best(
                 first.as_ptr() as *const u16,
                 second.as_ptr() as *const u16,
                 first.len(),
                 &mut result,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -162,13 +336,16 @@ impl Dot for bf16 {
         }
         let mut result: Self::Output = 0.0;
         unsafe {
-            nk_dot_bf16(
+            nk_dot_bf16_best(
                 first.as_ptr() as *const u16,
                 second.as_ptr() as *const u16,
                 first.len(),
                 &mut result,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -180,7 +357,17 @@ impl Dot for i8 {
             return None;
         }
         let mut result: Self::Output = 0;
-        unsafe { nk_dot_i8(first.as_ptr(), second.as_ptr(), first.len(), &mut result) };
+        unsafe {
+            nk_dot_i8_best(
+                first.as_ptr(),
+                second.as_ptr(),
+                first.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -192,7 +379,17 @@ impl Dot for u8 {
             return None;
         }
         let mut result: Self::Output = 0;
-        unsafe { nk_dot_u8(first.as_ptr(), second.as_ptr(), first.len(), &mut result) };
+        unsafe {
+            nk_dot_u8_best(
+                first.as_ptr(),
+                second.as_ptr(),
+                first.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -205,13 +402,16 @@ impl Dot for e4m3 {
         }
         let mut result: Self::Output = 0.0;
         unsafe {
-            nk_dot_e4m3(
+            nk_dot_e4m3_best(
                 first.as_ptr() as *const u8,
                 second.as_ptr() as *const u8,
                 first.len(),
                 &mut result,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -224,13 +424,16 @@ impl Dot for e5m2 {
         }
         let mut result: Self::Output = 0.0;
         unsafe {
-            nk_dot_e5m2(
+            nk_dot_e5m2_best(
                 first.as_ptr() as *const u8,
                 second.as_ptr() as *const u8,
                 first.len(),
                 &mut result,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -243,13 +446,16 @@ impl Dot for e2m3 {
         }
         let mut result: Self::Output = 0.0;
         unsafe {
-            nk_dot_e2m3(
+            nk_dot_e2m3_best(
                 first.as_ptr() as *const u8,
                 second.as_ptr() as *const u8,
                 first.len(),
                 &mut result,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -262,13 +468,16 @@ impl Dot for e3m2 {
         }
         let mut result: Self::Output = 0.0;
         unsafe {
-            nk_dot_e3m2(
+            nk_dot_e3m2_best(
                 first.as_ptr() as *const u8,
                 second.as_ptr() as *const u8,
                 first.len(),
                 &mut result,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -282,13 +491,16 @@ impl Dot for i4x2 {
         let mut result: Self::Output = 0;
         let element_count = first.len() * Self::dimensions_per_value();
         unsafe {
-            nk_dot_i4(
+            nk_dot_i4_best(
                 first.as_ptr() as *const u8,
                 second.as_ptr() as *const u8,
                 element_count,
                 &mut result,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -302,13 +514,16 @@ impl Dot for u4x2 {
         let mut result: Self::Output = 0;
         let element_count = first.len() * Self::dimensions_per_value();
         unsafe {
-            nk_dot_u4(
+            nk_dot_u4_best(
                 first.as_ptr() as *const u8,
                 second.as_ptr() as *const u8,
                 element_count,
                 &mut result,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -322,13 +537,16 @@ impl Dot for u1x8 {
         let mut result: Self::Output = 0;
         let n = first.len() * Self::dimensions_per_value();
         unsafe {
-            nk_dot_u1(
+            nk_dot_u1_best(
                 first.as_ptr() as *const u8,
                 second.as_ptr() as *const u8,
                 n,
                 &mut result,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -341,13 +559,16 @@ impl Dot for f16c {
         }
         let mut result = [0.0f32; 2];
         unsafe {
-            nk_dot_f16c(
+            nk_dot_f16c_best(
                 first.as_ptr() as *const u16,
                 second.as_ptr() as *const u16,
                 first.len(),
                 result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(f32c {
             re: result[0],
             im: result[1],
@@ -363,13 +584,16 @@ impl Dot for bf16c {
         }
         let mut result = [0.0f32; 2];
         unsafe {
-            nk_dot_bf16c(
+            nk_dot_bf16c_best(
                 first.as_ptr() as *const u16,
                 second.as_ptr() as *const u16,
                 first.len(),
                 result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(f32c {
             re: result[0],
             im: result[1],
@@ -385,13 +609,16 @@ impl Dot for f32c {
         }
         let mut result = [0.0f64; 2];
         unsafe {
-            nk_dot_f32c(
+            nk_dot_f32c_best(
                 first.as_ptr() as *const f32,
                 second.as_ptr() as *const f32,
                 first.len(),
                 result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(f64c {
             re: result[0],
             im: result[1],
@@ -407,13 +634,16 @@ impl Dot for f64c {
         }
         let mut result = [0.0f64; 2];
         unsafe {
-            nk_dot_f64c(
+            nk_dot_f64c_best(
                 first.as_ptr() as *const f64,
                 second.as_ptr() as *const f64,
                 first.len(),
                 result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(f64c {
             re: result[0],
             im: result[1],
@@ -463,13 +693,16 @@ impl VDot for f16c {
         }
         let mut result = [0.0f32; 2];
         unsafe {
-            nk_vdot_f16c(
+            nk_vdot_f16c_best(
                 first.as_ptr() as *const u16,
                 second.as_ptr() as *const u16,
                 first.len(),
                 result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(f32c {
             re: result[0],
             im: result[1],
@@ -484,13 +717,16 @@ impl VDot for bf16c {
         }
         let mut result = [0.0f32; 2];
         unsafe {
-            nk_vdot_bf16c(
+            nk_vdot_bf16c_best(
                 first.as_ptr() as *const u16,
                 second.as_ptr() as *const u16,
                 first.len(),
                 result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(f32c {
             re: result[0],
             im: result[1],
@@ -505,13 +741,16 @@ impl VDot for f32c {
         }
         let mut result = [0.0f64; 2];
         unsafe {
-            nk_vdot_f32c(
+            nk_vdot_f32c_best(
                 first.as_ptr() as *const f32,
                 second.as_ptr() as *const f32,
                 first.len(),
                 result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(f64c {
             re: result[0],
             im: result[1],
@@ -526,13 +765,16 @@ impl VDot for f64c {
         }
         let mut result = [0.0f64; 2];
         unsafe {
-            nk_vdot_f64c(
+            nk_vdot_f64c_best(
                 first.as_ptr() as *const f64,
                 second.as_ptr() as *const f64,
                 first.len(),
                 result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(f64c {
             re: result[0],
             im: result[1],

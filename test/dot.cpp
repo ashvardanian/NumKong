@@ -30,10 +30,10 @@ error_stats_t test_dot(typename scalar_type_::dot_kernel_t kernel) {
         fill_random(generator, b);
 
         result_t result;
-        kernel(a.raw_values_data(), b.raw_values_data(), n, &result.raw_);
+        stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), n, &result.raw_, nullptr));
 
         reference_t reference;
-        nk::dot<scalar_t, reference_t, nk::no_simd_k>(a.values_data(), b.values_data(), n, &reference);
+        nk::dot<scalar_t, reference_t>(a.values_data(), b.values_data(), n, &reference, no_tiers_k);
 
         stats.accumulate(result, reference);
     }
@@ -58,11 +58,12 @@ error_stats_t test_vdot(typename scalar_type_::vdot_kernel_t kernel) {
         fill_random(generator, b);
 
         result_t result;
-        kernel(a.raw_values_data(), b.raw_values_data(), global_config.dense_dimensions, &result.raw_);
+        stats.expect(
+            kernel(a.raw_values_data(), b.raw_values_data(), global_config.dense_dimensions, &result.raw_, nullptr));
 
         reference_t reference;
-        nk::vdot<scalar_t, reference_t, nk::no_simd_k>(a.values_data(), b.values_data(), global_config.dense_dimensions,
-                                                       &reference);
+        nk::vdot<scalar_t, reference_t>(a.values_data(), b.values_data(), global_config.dense_dimensions, &reference,
+                                        no_tiers_k);
 
         stats.accumulate(result, reference);
     }
@@ -96,30 +97,30 @@ void test_dot() {
     check("dot_bf16c_serial", test_dot<bf16c_t>, nk_dot_bf16c_serial);
     check("vdot_bf16c_serial", test_vdot<bf16c_t>, nk_vdot_bf16c_serial);
 
-#if NUMKONG_RUNTIME_DISPATCH
+#if !NUMKONG_HEADER_ONLY
     check.section("Dot Products Runtime Dispatch", nk_cap_serial_k);
-    check("dot_f64", test_dot<f64_t>, nk_dot_f64);
-    check("dot_f32", test_dot<f32_t>, nk_dot_f32);
-    check("dot_bf16", test_dot<bf16_t>, nk_dot_bf16);
-    check("dot_f16", test_dot<f16_t>, nk_dot_f16);
-    check("dot_e5m2", test_dot<e5m2_t>, nk_dot_e5m2);
-    check("dot_e4m3", test_dot<e4m3_t>, nk_dot_e4m3);
-    check("dot_e3m2", test_dot<e3m2_t>, nk_dot_e3m2);
-    check("dot_e2m3", test_dot<e2m3_t>, nk_dot_e2m3);
-    check("dot_e2m1", test_dot<e2m1x2_t>, nk_dot_e2m1);
-    check("dot_i8", test_dot<i8_t>, nk_dot_i8);
-    check("dot_i4", test_dot<i4x2_t>, nk_dot_i4);
-    check("dot_u8", test_dot<u8_t>, nk_dot_u8);
-    check("dot_u4", test_dot<u4x2_t>, nk_dot_u4);
-    check("dot_u1", test_dot<u1x8_t>, nk_dot_u1);
-    check("dot_f32c", test_dot<f32c_t>, nk_dot_f32c);
-    check("vdot_f32c", test_vdot<f32c_t>, nk_vdot_f32c);
-    check("dot_f64c", test_dot<f64c_t>, nk_dot_f64c);
-    check("vdot_f64c", test_vdot<f64c_t>, nk_vdot_f64c);
-    check("dot_f16c", test_dot<f16c_t>, nk_dot_f16c);
-    check("vdot_f16c", test_vdot<f16c_t>, nk_vdot_f16c);
-    check("dot_bf16c", test_dot<bf16c_t>, nk_dot_bf16c);
-    check("vdot_bf16c", test_vdot<bf16c_t>, nk_vdot_bf16c);
+    check("dot_f64", test_dot<f64_t>, cpu_best<nk_dot_f64_best>);
+    check("dot_f32", test_dot<f32_t>, cpu_best<nk_dot_f32_best>);
+    check("dot_bf16", test_dot<bf16_t>, cpu_best<nk_dot_bf16_best>);
+    check("dot_f16", test_dot<f16_t>, cpu_best<nk_dot_f16_best>);
+    check("dot_e5m2", test_dot<e5m2_t>, cpu_best<nk_dot_e5m2_best>);
+    check("dot_e4m3", test_dot<e4m3_t>, cpu_best<nk_dot_e4m3_best>);
+    check("dot_e3m2", test_dot<e3m2_t>, cpu_best<nk_dot_e3m2_best>);
+    check("dot_e2m3", test_dot<e2m3_t>, cpu_best<nk_dot_e2m3_best>);
+    check("dot_e2m1", test_dot<e2m1x2_t>, cpu_best<nk_dot_e2m1_best>);
+    check("dot_i8", test_dot<i8_t>, cpu_best<nk_dot_i8_best>);
+    check("dot_i4", test_dot<i4x2_t>, cpu_best<nk_dot_i4_best>);
+    check("dot_u8", test_dot<u8_t>, cpu_best<nk_dot_u8_best>);
+    check("dot_u4", test_dot<u4x2_t>, cpu_best<nk_dot_u4_best>);
+    check("dot_u1", test_dot<u1x8_t>, cpu_best<nk_dot_u1_best>);
+    check("dot_f32c", test_dot<f32c_t>, cpu_best<nk_dot_f32c_best>);
+    check("vdot_f32c", test_vdot<f32c_t>, cpu_best<nk_vdot_f32c_best>);
+    check("dot_f64c", test_dot<f64c_t>, cpu_best<nk_dot_f64c_best>);
+    check("vdot_f64c", test_vdot<f64c_t>, cpu_best<nk_vdot_f64c_best>);
+    check("dot_f16c", test_dot<f16c_t>, cpu_best<nk_dot_f16c_best>);
+    check("vdot_f16c", test_vdot<f16c_t>, cpu_best<nk_vdot_f16c_best>);
+    check("dot_bf16c", test_dot<bf16c_t>, cpu_best<nk_dot_bf16c_best>);
+    check("vdot_bf16c", test_vdot<bf16c_t>, cpu_best<nk_vdot_bf16c_best>);
 #endif
 
 #if NUMKONG_TARGET_NEON

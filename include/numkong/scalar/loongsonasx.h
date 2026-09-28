@@ -23,28 +23,28 @@ extern "C" {
 #endif
 
 /** Broadcast f32 scalar into all 4 lanes of a 128-bit register (GCC/Clang portable). */
-NUMKONG_HELPER_INLINE __m128 nk_xvreplgr2vr_s_128_(float x) {
+NUMKONG_INLINE __m128 nk_xvreplgr2vr_s_128_(float x) {
     nk_fui32_t c;
     c.f = x;
     return (__m128)__lsx_vreplgr2vr_w((int)c.u);
 }
 
 /** Broadcast f32 scalar into all 8 lanes of a 256-bit register (GCC/Clang portable). */
-NUMKONG_HELPER_INLINE __m256 nk_xvfreplgr2vr_s_(float x) {
+NUMKONG_INLINE __m256 nk_xvfreplgr2vr_s_(float x) {
     nk_fui32_t c;
     c.f = x;
     return (__m256)__lasx_xvreplgr2vr_w((int)c.u);
 }
 
 /** Broadcast f64 scalar into all 4 lanes of a 256-bit register (GCC/Clang portable). */
-NUMKONG_HELPER_INLINE __m256d nk_xvfreplgr2vr_d_(double x) {
+NUMKONG_INLINE __m256d nk_xvfreplgr2vr_d_(double x) {
     nk_fui64_t c;
     c.f = x;
     return (__m256d)__lasx_xvreplgr2vr_d((long long)c.u);
 }
 
-NUMKONG_API_COMPTIME nk_f32_t nk_f32_rsqrt_loongsonasx(nk_f32_t x) {
-    // xvfrsqrt.s is full precision — no Newton-Raphson needed
+/** Reciprocal square root of @p x in the first lane of a full-precision @c xvfrsqrt.s. */
+NUMKONG_INLINE nk_f32_t nk_f32_rsqrt_lane_loongsonasx_(nk_f32_t x) {
     __m256 x_f32x8 = nk_xvfreplgr2vr_s_(x);
     __m256 result_f32x8 = __lasx_xvfrsqrt_s(x_f32x8);
     nk_fui32_t c;
@@ -52,11 +52,8 @@ NUMKONG_API_COMPTIME nk_f32_t nk_f32_rsqrt_loongsonasx(nk_f32_t x) {
     return c.f;
 }
 
-NUMKONG_API_COMPTIME nk_f32_t nk_f32_sqrt_loongsonasx(nk_f32_t x) {
-    return x > 0 ? x * nk_f32_rsqrt_loongsonasx(x) : 0;
-}
-
-NUMKONG_API_COMPTIME nk_f64_t nk_f64_sqrt_loongsonasx(nk_f64_t x) {
+/** Square root of @p x in the first lane of @c xvfsqrt.d. */
+NUMKONG_INLINE nk_f64_t nk_f64_sqrt_lane_loongsonasx_(nk_f64_t x) {
     __m256d x_f64x4 = nk_xvfreplgr2vr_d_(x);
     __m256d result_f64x4 = __lasx_xvfsqrt_d(x_f64x4);
     nk_fui64_t c;
@@ -64,7 +61,13 @@ NUMKONG_API_COMPTIME nk_f64_t nk_f64_sqrt_loongsonasx(nk_f64_t x) {
     return c.f;
 }
 
-NUMKONG_API_COMPTIME nk_f64_t nk_f64_rsqrt_loongsonasx(nk_f64_t x) { return 1.0 / nk_f64_sqrt_loongsonasx(x); }
+NUMKONG_API nk_f32_t nk_f32_rsqrt_loongsonasx(nk_f32_t x) { return nk_f32_rsqrt_lane_loongsonasx_(x); }
+
+NUMKONG_API nk_f32_t nk_f32_sqrt_loongsonasx(nk_f32_t x) { return x > 0 ? x * nk_f32_rsqrt_lane_loongsonasx_(x) : 0; }
+
+NUMKONG_API nk_f64_t nk_f64_sqrt_loongsonasx(nk_f64_t x) { return nk_f64_sqrt_lane_loongsonasx_(x); }
+
+NUMKONG_API nk_f64_t nk_f64_rsqrt_loongsonasx(nk_f64_t x) { return 1.0 / nk_f64_sqrt_lane_loongsonasx_(x); }
 
 #if defined(__cplusplus)
 } // extern "C"

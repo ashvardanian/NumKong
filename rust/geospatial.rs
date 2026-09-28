@@ -22,40 +22,53 @@
 //! File: rust/geospatial.rs
 //! Author: Ash Vardanian
 
+use core::ffi::c_void;
+use core::ptr::null_mut;
+
+use crate::capabilities::{cpu_capabilities, Status};
+
 #[link(name = "numkong")]
 extern "C" {
-    fn nk_haversine_f32(
+    fn nk_haversine_f32_best(
         a_lats: *const f32,
         a_lons: *const f32,
         b_lats: *const f32,
         b_lons: *const f32,
         n: usize,
         results: *mut f32,
-    );
-    fn nk_haversine_f64(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_haversine_f64_best(
         a_lats: *const f64,
         a_lons: *const f64,
         b_lats: *const f64,
         b_lons: *const f64,
         n: usize,
         results: *mut f64,
-    );
-    fn nk_vincenty_f32(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_vincenty_f32_best(
         a_lats: *const f32,
         a_lons: *const f32,
         b_lats: *const f32,
         b_lons: *const f32,
         n: usize,
         results: *mut f32,
-    );
-    fn nk_vincenty_f64(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_vincenty_f64_best(
         a_lats: *const f64,
         a_lons: *const f64,
         b_lats: *const f64,
         b_lons: *const f64,
         n: usize,
         results: *mut f64,
-    );
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
 }
 
 /// Computes __great-circle distances__ between geographic coordinates on Earth.
@@ -121,15 +134,18 @@ impl Haversine for f64 {
             return None;
         }
         unsafe {
-            nk_haversine_f64(
+            nk_haversine_f64_best(
                 a_lat.as_ptr(),
                 a_lon.as_ptr(),
                 b_lat.as_ptr(),
                 b_lon.as_ptr(),
                 coordinate_count,
                 result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -145,15 +161,18 @@ impl Vincenty for f64 {
             return None;
         }
         unsafe {
-            nk_vincenty_f64(
+            nk_vincenty_f64_best(
                 a_lat.as_ptr(),
                 a_lon.as_ptr(),
                 b_lat.as_ptr(),
                 b_lon.as_ptr(),
                 coordinate_count,
                 result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -171,15 +190,18 @@ impl Haversine for f32 {
             return None;
         }
         unsafe {
-            nk_haversine_f32(
+            nk_haversine_f32_best(
                 a_lat.as_ptr(),
                 a_lon.as_ptr(),
                 b_lat.as_ptr(),
                 b_lon.as_ptr(),
                 coordinate_count,
                 result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 }
@@ -195,15 +217,18 @@ impl Vincenty for f32 {
             return None;
         }
         unsafe {
-            nk_vincenty_f32(
+            nk_vincenty_f32_best(
                 a_lat.as_ptr(),
                 a_lon.as_ptr(),
                 b_lat.as_ptr(),
                 b_lon.as_ptr(),
                 coordinate_count,
                 result.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 }

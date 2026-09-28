@@ -36,7 +36,7 @@ extern "C" {
 #endif
 
 /** Returns the output dtype for a given metric kind and input dtype. */
-NUMKONG_API_COMPTIME nk_dtype_t nk_kernel_output_dtype(nk_kernel_kind_t kind, nk_dtype_t input) {
+NUMKONG_CONSTEXPR nk_dtype_t nk_kernel_output_dtype(nk_kernel_kind_t kind, nk_dtype_t input) {
     switch (kind) {
     case nk_kernel_dot_k:
     case nk_kernel_vdot_k:
@@ -73,7 +73,7 @@ NUMKONG_API_COMPTIME nk_dtype_t nk_kernel_output_dtype(nk_kernel_kind_t kind, nk
 }
 
 /** Whether swapping the two inputs of @p kind leaves its result unchanged. */
-NUMKONG_API_COMPTIME int nk_kernel_is_commutative(nk_kernel_kind_t kind) {
+NUMKONG_CONSTEXPR int nk_kernel_is_commutative(nk_kernel_kind_t kind) {
     switch (kind) {
     case nk_kernel_kld_k: return 0;
     case nk_kernel_vdot_k: return 0;

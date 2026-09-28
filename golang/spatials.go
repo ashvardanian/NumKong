@@ -24,13 +24,13 @@ func AngularsPackedF64(a []float64, b DotsPackedMatrix, result []float64, height
 	if len(result) < height*b.width {
 		panic("output slice too short for the given height and width")
 	}
-	C.nk_angulars_packed_f64(
+	check(C.nk_angulars_packed_f64_best(
 		(*C.nk_f64_t)(&a[0]),
 		unsafe.Pointer(&b.data[0]),
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(height), C.nk_size_t(b.width), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth*8),
-		C.nk_size_t(b.width*8))
+		C.nk_size_t(b.width*8), capabilities(), nil))
 }
 
 // AngularsPackedF32 computes the angular distance from each of height float32 rows of a to every
@@ -46,13 +46,13 @@ func AngularsPackedF32(a []float32, b DotsPackedMatrix, result []float64, height
 	if len(result) < height*b.width {
 		panic("output slice too short for the given height and width")
 	}
-	C.nk_angulars_packed_f32(
+	check(C.nk_angulars_packed_f32_best(
 		(*C.nk_f32_t)(&a[0]),
 		unsafe.Pointer(&b.data[0]),
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(height), C.nk_size_t(b.width), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth*4),
-		C.nk_size_t(b.width*8))
+		C.nk_size_t(b.width*8), capabilities(), nil))
 }
 
 // AngularsPackedI8 computes the angular distance from each of height int8 rows of a to every packed
@@ -68,13 +68,13 @@ func AngularsPackedI8(a []int8, b DotsPackedMatrix, result []float32, height int
 	if len(result) < height*b.width {
 		panic("output slice too short for the given height and width")
 	}
-	C.nk_angulars_packed_i8(
+	check(C.nk_angulars_packed_i8_best(
 		(*C.nk_i8_t)(&a[0]),
 		unsafe.Pointer(&b.data[0]),
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(height), C.nk_size_t(b.width), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth),
-		C.nk_size_t(b.width*4))
+		C.nk_size_t(b.width*4), capabilities(), nil))
 }
 
 // AngularsPackedU8 computes the angular distance from each of height uint8 rows of a to every
@@ -90,13 +90,13 @@ func AngularsPackedU8(a []uint8, b DotsPackedMatrix, result []float32, height in
 	if len(result) < height*b.width {
 		panic("output slice too short for the given height and width")
 	}
-	C.nk_angulars_packed_u8(
+	check(C.nk_angulars_packed_u8_best(
 		(*C.nk_u8_t)(&a[0]),
 		unsafe.Pointer(&b.data[0]),
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(height), C.nk_size_t(b.width), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth),
-		C.nk_size_t(b.width*4))
+		C.nk_size_t(b.width*4), capabilities(), nil))
 }
 
 // EuclideansPackedF64 computes the Euclidean distance from each of height float64 rows of a to
@@ -112,13 +112,13 @@ func EuclideansPackedF64(a []float64, b DotsPackedMatrix, result []float64, heig
 	if len(result) < height*b.width {
 		panic("output slice too short for the given height and width")
 	}
-	C.nk_euclideans_packed_f64(
+	check(C.nk_euclideans_packed_f64_best(
 		(*C.nk_f64_t)(&a[0]),
 		unsafe.Pointer(&b.data[0]),
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(height), C.nk_size_t(b.width), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth*8),
-		C.nk_size_t(b.width*8))
+		C.nk_size_t(b.width*8), capabilities(), nil))
 }
 
 // EuclideansPackedF32 computes the Euclidean distance from each of height float32 rows of a to
@@ -134,13 +134,13 @@ func EuclideansPackedF32(a []float32, b DotsPackedMatrix, result []float64, heig
 	if len(result) < height*b.width {
 		panic("output slice too short for the given height and width")
 	}
-	C.nk_euclideans_packed_f32(
+	check(C.nk_euclideans_packed_f32_best(
 		(*C.nk_f32_t)(&a[0]),
 		unsafe.Pointer(&b.data[0]),
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(height), C.nk_size_t(b.width), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth*4),
-		C.nk_size_t(b.width*8))
+		C.nk_size_t(b.width*8), capabilities(), nil))
 }
 
 // EuclideansPackedI8 computes the Euclidean distance from each of height int8 rows of a to every
@@ -156,13 +156,13 @@ func EuclideansPackedI8(a []int8, b DotsPackedMatrix, result []float32, height i
 	if len(result) < height*b.width {
 		panic("output slice too short for the given height and width")
 	}
-	C.nk_euclideans_packed_i8(
+	check(C.nk_euclideans_packed_i8_best(
 		(*C.nk_i8_t)(&a[0]),
 		unsafe.Pointer(&b.data[0]),
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(height), C.nk_size_t(b.width), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth),
-		C.nk_size_t(b.width*4))
+		C.nk_size_t(b.width*4), capabilities(), nil))
 }
 
 // EuclideansPackedU8 computes the Euclidean distance from each of height uint8 rows of a to every
@@ -178,13 +178,13 @@ func EuclideansPackedU8(a []uint8, b DotsPackedMatrix, result []float32, height 
 	if len(result) < height*b.width {
 		panic("output slice too short for the given height and width")
 	}
-	C.nk_euclideans_packed_u8(
+	check(C.nk_euclideans_packed_u8_best(
 		(*C.nk_u8_t)(&a[0]),
 		unsafe.Pointer(&b.data[0]),
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(height), C.nk_size_t(b.width), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth),
-		C.nk_size_t(b.width*4))
+		C.nk_size_t(b.width*4), capabilities(), nil))
 }
 
 // endregion
@@ -205,13 +205,13 @@ func AngularsSymmetricF64(vectors []float64, nVectors, depth int, result []float
 }
 
 func angularsSymmetricF64(vectors []float64, nVectors, depth int, result []float64, rowStart, rowCount int) {
-	C.nk_angulars_symmetric_f64(
+	check(C.nk_angulars_symmetric_f64_best(
 		(*C.nk_f64_t)(&vectors[0]),
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth*8),
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(nVectors*8),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount))
+		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
 }
 
 // AngularsSymmetricF32 computes the angular distance between every pair of nVectors row-major
@@ -228,13 +228,13 @@ func AngularsSymmetricF32(vectors []float32, nVectors, depth int, result []float
 }
 
 func angularsSymmetricF32(vectors []float32, nVectors, depth int, result []float64, rowStart, rowCount int) {
-	C.nk_angulars_symmetric_f32(
+	check(C.nk_angulars_symmetric_f32_best(
 		(*C.nk_f32_t)(&vectors[0]),
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth*4),
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(nVectors*8),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount))
+		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
 }
 
 // AngularsSymmetricI8 computes the angular distance between every pair of nVectors row-major int8
@@ -251,13 +251,13 @@ func AngularsSymmetricI8(vectors []int8, nVectors, depth int, result []float32) 
 }
 
 func angularsSymmetricI8(vectors []int8, nVectors, depth int, result []float32, rowStart, rowCount int) {
-	C.nk_angulars_symmetric_i8(
+	check(C.nk_angulars_symmetric_i8_best(
 		(*C.nk_i8_t)(&vectors[0]),
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth),
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount))
+		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
 }
 
 // AngularsSymmetricU8 computes the angular distance between every pair of nVectors row-major uint8
@@ -274,13 +274,13 @@ func AngularsSymmetricU8(vectors []uint8, nVectors, depth int, result []float32)
 }
 
 func angularsSymmetricU8(vectors []uint8, nVectors, depth int, result []float32, rowStart, rowCount int) {
-	C.nk_angulars_symmetric_u8(
+	check(C.nk_angulars_symmetric_u8_best(
 		(*C.nk_u8_t)(&vectors[0]),
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth),
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount))
+		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
 }
 
 // EuclideansSymmetricF64 computes the Euclidean distance between every pair of nVectors row-major
@@ -297,13 +297,13 @@ func EuclideansSymmetricF64(vectors []float64, nVectors, depth int, result []flo
 }
 
 func euclideansSymmetricF64(vectors []float64, nVectors, depth int, result []float64, rowStart, rowCount int) {
-	C.nk_euclideans_symmetric_f64(
+	check(C.nk_euclideans_symmetric_f64_best(
 		(*C.nk_f64_t)(&vectors[0]),
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth*8),
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(nVectors*8),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount))
+		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
 }
 
 // EuclideansSymmetricF32 computes the Euclidean distance between every pair of nVectors row-major
@@ -320,13 +320,13 @@ func EuclideansSymmetricF32(vectors []float32, nVectors, depth int, result []flo
 }
 
 func euclideansSymmetricF32(vectors []float32, nVectors, depth int, result []float64, rowStart, rowCount int) {
-	C.nk_euclideans_symmetric_f32(
+	check(C.nk_euclideans_symmetric_f32_best(
 		(*C.nk_f32_t)(&vectors[0]),
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth*4),
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(nVectors*8),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount))
+		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
 }
 
 // EuclideansSymmetricI8 computes the Euclidean distance between every pair of nVectors row-major
@@ -343,13 +343,13 @@ func EuclideansSymmetricI8(vectors []int8, nVectors, depth int, result []float32
 }
 
 func euclideansSymmetricI8(vectors []int8, nVectors, depth int, result []float32, rowStart, rowCount int) {
-	C.nk_euclideans_symmetric_i8(
+	check(C.nk_euclideans_symmetric_i8_best(
 		(*C.nk_i8_t)(&vectors[0]),
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth),
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount))
+		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
 }
 
 // EuclideansSymmetricU8 computes the Euclidean distance between every pair of nVectors row-major
@@ -366,13 +366,13 @@ func EuclideansSymmetricU8(vectors []uint8, nVectors, depth int, result []float3
 }
 
 func euclideansSymmetricU8(vectors []uint8, nVectors, depth int, result []float32, rowStart, rowCount int) {
-	C.nk_euclideans_symmetric_u8(
+	check(C.nk_euclideans_symmetric_u8_best(
 		(*C.nk_u8_t)(&vectors[0]),
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth),
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount))
+		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
 }
 
 // endregion

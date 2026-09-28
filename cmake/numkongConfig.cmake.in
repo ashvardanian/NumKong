@@ -1,3 +1,11 @@
 @PACKAGE_INIT@
 
+# The libraries link the GPU runtime they were built for.
+include(CMakeFindDependencyMacro)
+if (@NUMKONG_BUILD_SHARED@ AND @NUMKONG_BUILD_CUDA@)
+    find_dependency(CUDAToolkit)
+elseif (@NUMKONG_BUILD_SHARED@ AND @NUMKONG_BUILD_ROCM@)
+    find_dependency(hip)
+endif ()
+
 include("${CMAKE_CURRENT_LIST_DIR}/numkongTargets.cmake")

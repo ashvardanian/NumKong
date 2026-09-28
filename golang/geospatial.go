@@ -18,10 +18,10 @@ func HaversineF64(aLat, aLon, bLat, bLon, result []float64) {
 	if n == 0 {
 		return
 	}
-	C.nk_haversine_f64(
+	check(C.nk_haversine_f64_best(
 		(*C.nk_f64_t)(&aLat[0]), (*C.nk_f64_t)(&aLon[0]),
 		(*C.nk_f64_t)(&bLat[0]), (*C.nk_f64_t)(&bLon[0]),
-		C.nk_size_t(n), (*C.nk_f64_t)(&result[0]))
+		C.nk_size_t(n), (*C.nk_f64_t)(&result[0]), capabilities(), nil))
 }
 
 // HaversineF32 writes the great-circle distance in meters between each pair of float32 coordinates
@@ -34,10 +34,10 @@ func HaversineF32(aLat, aLon, bLat, bLon, result []float32) {
 	if n == 0 {
 		return
 	}
-	C.nk_haversine_f32(
+	check(C.nk_haversine_f32_best(
 		(*C.nk_f32_t)(&aLat[0]), (*C.nk_f32_t)(&aLon[0]),
 		(*C.nk_f32_t)(&bLat[0]), (*C.nk_f32_t)(&bLon[0]),
-		C.nk_size_t(n), (*C.nk_f32_t)(&result[0]))
+		C.nk_size_t(n), (*C.nk_f32_t)(&result[0]), capabilities(), nil))
 }
 
 // VincentyF64 writes the ellipsoidal geodesic distance in meters between each pair of float64
@@ -50,10 +50,10 @@ func VincentyF64(aLat, aLon, bLat, bLon, result []float64) {
 	if n == 0 {
 		return
 	}
-	C.nk_vincenty_f64(
+	check(C.nk_vincenty_f64_best(
 		(*C.nk_f64_t)(&aLat[0]), (*C.nk_f64_t)(&aLon[0]),
 		(*C.nk_f64_t)(&bLat[0]), (*C.nk_f64_t)(&bLon[0]),
-		C.nk_size_t(n), (*C.nk_f64_t)(&result[0]))
+		C.nk_size_t(n), (*C.nk_f64_t)(&result[0]), capabilities(), nil))
 }
 
 // VincentyF32 writes the ellipsoidal geodesic distance in meters between each pair of float32
@@ -66,8 +66,8 @@ func VincentyF32(aLat, aLon, bLat, bLon, result []float32) {
 	if n == 0 {
 		return
 	}
-	C.nk_vincenty_f32(
+	check(C.nk_vincenty_f32_best(
 		(*C.nk_f32_t)(&aLat[0]), (*C.nk_f32_t)(&aLon[0]),
 		(*C.nk_f32_t)(&bLat[0]), (*C.nk_f32_t)(&bLon[0]),
-		C.nk_size_t(n), (*C.nk_f32_t)(&result[0]))
+		C.nk_size_t(n), (*C.nk_f32_t)(&result[0]), capabilities(), nil))
 }

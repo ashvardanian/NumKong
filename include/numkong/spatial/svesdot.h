@@ -37,7 +37,7 @@
 
 #include "numkong/types.h"
 #include "numkong/reduce/sve.h"   // `nk_svaddv_f64_`
-#include "numkong/spatial/neon.h" // `nk_angular_normalize_f32_neon_`, `nk_f32_sqrt_neon`
+#include "numkong/spatial/neon.h" // `nk_angular_normalize_f32_neon_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -50,9 +50,8 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+sve+dotprod")
 #endif
 
-NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_i8_svesdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n,
-                                                           nk_u32_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
+/** Sums the squared differences of @p n I8 pairs. */
+NUMKONG_INLINE void nk_squared_distance_i8_svesdot_(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result) {
     nk_size_t i = 0;
     svuint32_t distance_sq_u32x = svdup_u32(0);
     do {
@@ -64,19 +63,26 @@ NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_i8_svesdot(nk_i8_t const *a, nk_
         i += svcntb();
     } while (i < n);
     *result = (nk_u32_t)nk_svaddv_u32_(svptrue_b32(), distance_sq_u32x);
-    return nk_success_k;
 }
-NUMKONG_API_COMPTIME nk_status_t nk_euclidean_i8_svesdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n,
-                                                         nk_f32_t *result, void *stream) {
+
+NUMKONG_API nk_status_t nk_sqeuclidean_i8_svesdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result,
+                                                  void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_u32_t distance_sq_u32;
-    nk_sqeuclidean_i8_svesdot(a, b, n, &distance_sq_u32, stream);
-    *result = nk_f32_sqrt_neon((nk_f32_t)distance_sq_u32);
+    nk_squared_distance_i8_svesdot_(a, b, n, result);
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_angular_i8_svesdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n,
-                                                       nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_euclidean_i8_svesdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result,
+                                                void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_u32_t distance_sq_u32;
+    nk_squared_distance_i8_svesdot_(a, b, n, &distance_sq_u32);
+    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32((nk_f32_t)distance_sq_u32)), 0);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_i8_svesdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result,
+                                              void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     svint32_t ab_i32x = svdup_s32(0);
@@ -99,9 +105,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_angular_i8_svesdot(nk_i8_t const *a, nk_i8_t
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_u8_svesdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
-                                                           nk_u32_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
+/** Sums the squared differences of @p n U8 pairs. */
+NUMKONG_INLINE void nk_squared_distance_u8_svesdot_(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
     nk_size_t i = 0;
     svuint32_t distance_sq_u32x = svdup_u32(0);
     do {
@@ -113,19 +118,26 @@ NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_u8_svesdot(nk_u8_t const *a, nk_
         i += svcntb();
     } while (i < n);
     *result = (nk_u32_t)nk_svaddv_u32_(svptrue_b32(), distance_sq_u32x);
-    return nk_success_k;
 }
-NUMKONG_API_COMPTIME nk_status_t nk_euclidean_u8_svesdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
-                                                         nk_f32_t *result, void *stream) {
+
+NUMKONG_API nk_status_t nk_sqeuclidean_u8_svesdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
+                                                  void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_u32_t distance_sq_u32;
-    nk_sqeuclidean_u8_svesdot(a, b, n, &distance_sq_u32, stream);
-    *result = nk_f32_sqrt_neon((nk_f32_t)distance_sq_u32);
+    nk_squared_distance_u8_svesdot_(a, b, n, result);
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_angular_u8_svesdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
-                                                       nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_euclidean_u8_svesdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result,
+                                                void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_u32_t distance_sq_u32;
+    nk_squared_distance_u8_svesdot_(a, b, n, &distance_sq_u32);
+    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32((nk_f32_t)distance_sq_u32)), 0);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_u8_svesdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result,
+                                              void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     svuint32_t ab_u32x = svdup_u32(0);

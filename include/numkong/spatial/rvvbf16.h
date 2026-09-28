@@ -18,7 +18,7 @@
 #if NUMKONG_TARGET_RVVBF16
 
 #include "numkong/types.h"
-#include "numkong/spatial/rvv.h" // `nk_f32_sqrt_rvv`
+#include "numkong/spatial/rvv.h" // `nk_f32_rsqrt_newton_rvv_`
 
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=+v,+zvfbfwma"))), apply_to = function)
@@ -31,9 +31,8 @@
 extern "C" {
 #endif
 
-NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_bf16_rvvbf16(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                                             nk_size_t count_scalars, nk_f32_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
+NUMKONG_INLINE void nk_squared_distance_bf16_rvvbf16_(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
+                                                      nk_size_t count_scalars, nk_f32_t *result) {
     // Per-lane accumulators — deferred horizontal reduction
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m2_t sq_sum_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length); // a² + b²
@@ -60,20 +59,27 @@ NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_bf16_rvvbf16(nk_bf16_t const *a_
     nk_f32_t ab_sum = __riscv_vfmv_f_s_f32m1_f32(
         __riscv_vfredusum_vs_f32m2_f32m1(ab_sum_f32m2, zero_f32m1, max_vector_length));
     *result = sq_sum - 2.0f * ab_sum;
-    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_euclidean_bf16_rvvbf16(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                                           nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_sqeuclidean_bf16_rvvbf16(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
+                                                    nk_size_t count_scalars, nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_sqeuclidean_bf16_rvvbf16(a_scalars, b_scalars, count_scalars, result, stream);
-    // Handle potential negative values from floating point errors
-    *result = *result > 0.0f ? nk_f32_sqrt_rvv(*result) : 0.0f;
+    nk_squared_distance_bf16_rvvbf16_(a_scalars, b_scalars, count_scalars, result);
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_angular_bf16_rvvbf16(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                                         nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_euclidean_bf16_rvvbf16(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
+                                                  nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_bf16_rvvbf16_(a_scalars, b_scalars, count_scalars, result);
+    // Handle potential negative values from floating point errors
+    *result = *result > 0.0f ? __riscv_vfmv_f_s_f32m1_f32(__riscv_vfsqrt_v_f32m1(__riscv_vfmv_s_f_f32m1(*result, 1), 1))
+                             : 0.0f;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_bf16_rvvbf16(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
+                                                nk_size_t count_scalars, nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Per-lane accumulators — deferred horizontal reduction
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
@@ -110,7 +116,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_angular_bf16_rvvbf16(nk_bf16_t const *a_scal
     if (a_sq == 0.0f && b_sq == 0.0f) { *result = 0.0f; }
     else if (dot == 0.0f) { *result = 1.0f; }
     else {
-        nk_f32_t unclipped = 1.0f - dot * nk_f32_rsqrt_rvv(a_sq) * nk_f32_rsqrt_rvv(b_sq);
+        nk_f32_t unclipped = 1.0f - dot * nk_f32_rsqrt_newton_rvv_(a_sq) * nk_f32_rsqrt_newton_rvv_(b_sq);
         *result = unclipped > 0.0f ? unclipped : 0.0f;
     }
     return nk_success_k;

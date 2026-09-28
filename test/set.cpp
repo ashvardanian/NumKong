@@ -27,11 +27,12 @@ error_stats_t test_hamming(typename scalar_type_::hamming_kernel_t kernel) {
         fill_random(generator, b);
 
         result_t result;
-        kernel(a.raw_values_data(), b.raw_values_data(), global_config.dense_dimensions, &result.raw_);
+        stats.expect(
+            kernel(a.raw_values_data(), b.raw_values_data(), global_config.dense_dimensions, &result.raw_, nullptr));
 
         result_t reference;
-        nk::hamming<scalar_t, result_t, nk::no_simd_k>(a.values_data(), b.values_data(), global_config.dense_dimensions,
-                                                       &reference);
+        nk::hamming<scalar_t, result_t>(a.values_data(), b.values_data(), global_config.dense_dimensions, &reference,
+                                        no_tiers_k);
 
         stats.accumulate(result, reference);
     }
@@ -56,11 +57,12 @@ error_stats_t test_jaccard(typename scalar_type_::jaccard_kernel_t kernel) {
         fill_random(generator, b);
 
         result_t result;
-        kernel(a.raw_values_data(), b.raw_values_data(), global_config.dense_dimensions, &result.raw_);
+        stats.expect(
+            kernel(a.raw_values_data(), b.raw_values_data(), global_config.dense_dimensions, &result.raw_, nullptr));
 
         result_t reference;
-        nk::jaccard<scalar_t, result_t, nk::no_simd_k>(a.values_data(), b.values_data(), global_config.dense_dimensions,
-                                                       &reference);
+        nk::jaccard<scalar_t, result_t>(a.values_data(), b.values_data(), global_config.dense_dimensions, &reference,
+                                        no_tiers_k);
 
         stats.accumulate(result, reference);
     }
@@ -78,10 +80,10 @@ void test_set() {
     check("jaccard_u16_serial", test_jaccard<u16_t>, nk_jaccard_u16_serial);
     check("jaccard_u32_serial", test_jaccard<u32_t>, nk_jaccard_u32_serial);
 
-#if NUMKONG_RUNTIME_DISPATCH
+#if !NUMKONG_HEADER_ONLY
     check.section("Binary Distances Runtime Dispatch", nk_cap_serial_k);
-    check("hamming_u1", test_hamming<u1x8_t>, nk_hamming_u1);
-    check("jaccard_u1", test_jaccard<u1x8_t>, nk_jaccard_u1);
+    check("hamming_u1", test_hamming<u1x8_t>, cpu_best<nk_hamming_u1_best>);
+    check("jaccard_u1", test_jaccard<u1x8_t>, cpu_best<nk_jaccard_u1_best>);
 #endif
 
 #if NUMKONG_TARGET_NEON

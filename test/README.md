@@ -12,7 +12,7 @@ No GTest dependency — the framework is self-contained in `harness.hpp`.
 ```sh
 cmake -B build_release -D CMAKE_BUILD_TYPE=Release -D NUMKONG_BUILD_TEST=1
 cmake --build build_release --config Release --parallel
-build_release/numkong_test
+build_release/numkong_cpu_test
 ```
 
 To compile with BLAS cross-validation:
@@ -23,14 +23,23 @@ cmake -B build_release -D CMAKE_BUILD_TYPE=Release -D NUMKONG_BUILD_TEST=1 -D NU
 
 Compiler requirements vary by ISA target — see [CONTRIBUTING.md](../CONTRIBUTING.md#compiler-requirements) for the full table.
 
+The GPU suites build with their backend, and the `cuda`, `rocm`, and `metal` presets run them through `cmake --workflow --preset <name>`.
+By hand, the CUDA suite of `test/main_cuda.cu`, whose docstring covers what it tests and on which GPUs, needs `nvcc` on `PATH`:
+
+```sh
+cmake -B build_cuda -D NUMKONG_BUILD_TEST=ON -D NUMKONG_BUILD_CUDA=ON
+cmake --build build_cuda
+ctest --test-dir build_cuda -R cuda --output-on-failure
+```
+
 ### Running
 
 ```sh
-build_release/numkong_test --filter=dot           # run only tests matching "dot"
-build_release/numkong_test --filter="dot|spatial"  # regex filter
-build_release/numkong_test --assert               # exit 1 when any kernel fails its accuracy check
-build_release/numkong_test --verbose              # per-dimension ULP breakdown
-build_release/numkong_test --budget-secs=5        # 5 seconds per kernel
+build_release/numkong_cpu_test --filter=dot           # run only tests matching "dot"
+build_release/numkong_cpu_test --filter="dot|spatial"  # regex filter
+build_release/numkong_cpu_test --assert               # exit 1 when any kernel fails its accuracy check
+build_release/numkong_cpu_test --verbose              # per-dimension ULP breakdown
+build_release/numkong_cpu_test --budget-secs=5        # 5 seconds per kernel
 ```
 
 Foreign flag mapping for muscle-memory compatibility:
@@ -82,7 +91,7 @@ Put that name into the template the run opens with:
 
 ```
 - Seed: 42
-- Rerun one test: NUMKONG_SEED=42 NUMKONG_FILTER='^<name>$' build_release/numkong_test
+- Rerun one test: NUMKONG_SEED=42 NUMKONG_FILTER='^<name>$' build_release/numkong_cpu_test
 ```
 
 ### Precision Families
@@ -121,7 +130,7 @@ The baseline type depends on the input dtype, selected by the `reference_for<inp
 
 ### WASM
 
-A WebAssembly module carries one SIMD tier, so every wasm toolchain fixes it through `NUMKONG_WASM_SIMD` — `v128` or `v128relaxed` — and one build directory holds one tier.
+A WebAssembly module carries one SIMD capability, so every wasm toolchain fixes it through `NUMKONG_TARGET_ARCH` — `v128` or `v128relaxed` — and one build directory holds one capability.
 
 __Emscripten__
 
@@ -131,10 +140,10 @@ cmake -B build-wasm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cma
 cmake --build build-wasm --parallel
 ```
 
-For the relaxed tier of the same 32-bit module, and for wasm64 — Memory64:
+For the relaxed capability of the same 32-bit module, and for wasm64 — Memory64:
 
 ```sh
-cmake -B build-wasm-relaxed -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake -DNUMKONG_WASM_SIMD=v128relaxed -DNUMKONG_BUILD_TEST=1
+cmake -B build-wasm-relaxed -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake -DNUMKONG_TARGET_ARCH=v128relaxed -DNUMKONG_BUILD_TEST=1
 cmake --build build-wasm-relaxed --parallel
 cmake -B build-wasm64 -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm64-emscripten.cmake -DNUMKONG_BUILD_TEST=1
 cmake --build build-wasm64 --parallel
@@ -157,14 +166,14 @@ cmake --build build-wasi-threads --parallel
 
 __Running WASM Tests__
 
-`ctest` runs the WASI binary through the runtime `NUMKONG_WASM_RUNTIME` names — `wasmtime` by default, or `wasmer` or `node` — with the flags each module needs.
+`ctest` runs the WASI binary through `CMAKE_CROSSCOMPILING_EMULATOR`: `wasmtime` by default, or `wasmer` or `node` with `test/wasi.mjs` when the build names them, with the flags each module needs.
 The same runs by hand:
 
 ```sh
-wasmtime run -W relaxed-simd=y ./build-wasi/numkong_test.wasm
-wasmer run --enable-simd --enable-relaxed-simd ./build-wasi/numkong_test.wasm
-wasmtime run -W relaxed-simd=y,threads=y -S threads=y,inherit-env=y ./build-wasi-threads/numkong_test.wasm
-node ./build-wasm/numkong_test.js
+wasmtime run -W relaxed-simd=y ./build-wasi/numkong_cpu_test.wasm
+wasmer run --enable-simd --enable-relaxed-simd ./build-wasi/numkong_cpu_test.wasm
+wasmtime run -W relaxed-simd=y,threads=y -S threads=y,inherit-env=y ./build-wasi-threads/numkong_cpu_test.wasm
+node ./build-wasm/numkong_cpu_test.js
 ```
 
 __Memory Model__
@@ -184,8 +193,8 @@ Only the WASI threads build uses `wasm32-wasip1-threads` with `-pthread`; the ke
 __SIMD and Relaxed SIMD Support__
 
 All WASM builds require fixed-width SIMD — 128-bit `v128`.
-The `v128relaxed` tier adds Relaxed SIMD instructions like `f32x4.relaxed_madd` and the fused `i8` dot product; an engine without them refuses the whole module at instantiation, which is why the tier is a build choice rather than a runtime one.
-Inside a module, `nk_cpu_capabilities_detected` still reports what the host validates — through `EM_JS` probes under Emscripten and through the `env.nk_has_*` imports a Node host supplies under `NUMKONG_WASI_HOSTED` — and `nk_cpu_capabilities_enabled` intersects that with what was compiled.
+The `v128relaxed` capability adds Relaxed SIMD instructions like `f32x4.relaxed_madd` and the fused `i8` dot product; an engine without them refuses the whole module at instantiation, which is why the capability is a build choice rather than a runtime one.
+Inside a module, `nk_cpu_capabilities_detected` still reports what the host validates — through the `env.nk_has_*` imports a Node host supplies under `NUMKONG_WITH_HOST_PROBES`, and as the compiled capabilities otherwise — and `nk_cpu_capabilities_enabled` intersects that with what was compiled.
 
 | Engine   | SIMD128 | Relaxed SIMD | Threads | Memory64 |
 | :------- | ------: | -----------: | ------: | -------: |
@@ -200,54 +209,9 @@ For up-to-date engine support, see [WebAssembly Roadmap](https://webassembly.org
 
 ### Cross-Compilation
 
-NumKong ships 12 toolchain files in `cmake/` for cross-compiling to non-native targets.
-Tests run transparently under QEMU via `CMAKE_CROSSCOMPILING_EMULATOR`.
+Tests run under QEMU through `CMAKE_CROSSCOMPILING_EMULATOR`, so `ctest --test-dir <build>` runs a cross build like a native one.
 Set `NUMKONG_IN_QEMU=1` to shrink test shapes under emulation, and repetitions too in Python.
-
-__ARM64 Linux__
-
-```sh
-cmake -B build_arm64 -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-aarch64-gnu.cmake \
-      -DNUMKONG_BUILD_TEST=1
-cmake --build build_arm64 --parallel
-NUMKONG_IN_QEMU=1 ctest --test-dir build_arm64 # runs under qemu-aarch64 -cpu max
-```
-
-The ISA floor is `armv8-a`; individual kernels are gated by the compile probes in `cmake/`.
-
-__RISC-V 64 with GCC__
-
-```sh
-cmake -B build_riscv -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscv64-gnu.cmake \
-      -DNUMKONG_BUILD_TEST=1
-cmake --build build_riscv --parallel
-NUMKONG_IN_QEMU=1 ctest --test-dir build_riscv    # runs under qemu-riscv64 -cpu max
-```
-
-Default arch: `rv64gcv_zvfh_zvfbfwma_zvbb`.
-Needs GCC 16 or newer for the RVV kernels.
-
-__RISC-V 64 with LLVM__
-
-```sh
-export LLVM_ROOT=/path/to/llvm # optional
-cmake -B build_riscv_llvm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscv64-llvm.cmake \
-      -DNUMKONG_BUILD_TEST=1
-cmake --build build_riscv_llvm --parallel
-NUMKONG_IN_QEMU=1 ctest --test-dir build_riscv_llvm
-```
-
-Set `RISCV_SYSROOT` only for a self-contained toolchain; distribution cross packages need none.
-
-__Android ARM64__
-
-```sh
-cmake -B build_android -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-android-arm64.cmake \
-      -DNUMKONG_BUILD_TEST=1
-cmake --build build_android --parallel
-adb push build_android/numkong_test /data/local/tmp/
-adb shell /data/local/tmp/numkong_test
-```
+[CONTRIBUTING.md](../CONTRIBUTING.md#cross-compilation) lists the toolchain files, their emulators and prerequisites, and a recipe per target, Android's device run included.
 
 ## Rust
 
@@ -292,19 +256,20 @@ pytest test/ -s -x -Wd -k "dot or spatial"
 
 ### Environment Variables
 
-| Variable                    |          Default | Description                                              |
-| :-------------------------- | ---------------: | :------------------------------------------------------- |
-| `NUMKONG_DENSE_DIMENSIONS`  | `1,2,3,...,1536` | Comma-separated vector dimensions                        |
-| `NUMKONG_CURVED_DIMENSIONS` |          `11,97` | Dimensions for curved-space tests                        |
-| `NUMKONG_MATRIX_HEIGHT`     |           `1024` | GEMM M dimension                                         |
-| `NUMKONG_MATRIX_WIDTH`      |            `128` | GEMM N dimension                                         |
-| `NUMKONG_MATRIX_DEPTH`      |           `1536` | GEMM K dimension                                         |
-| `NUMKONG_SEED`              |             `42` | Seed for `np.random`, or `random` to draw one            |
-| `NUMKONG_REPETITIONS`       |             `10` | Randomized test repeat count                             |
-| `NUMKONG_IN_QEMU`           |            unset | Shrink dimensions and repetitions; `0` or `false` is off |
-| `NUMKONG_SPARSE_DIMENSIONS` |            `256` | Universe size for sparse tests                           |
-| `NUMKONG_MESH_POINTS`       |            `100` | Point count for mesh alignment tests                     |
-| `NUMKONG_MAX_COORD_ANGLE`   |            `180` | Maximum angle in degrees for geospatial                  |
+| Variable                    |       Default | Description                                                          |
+| :-------------------------- | ------------: | :------------------------------------------------------------------- |
+| `NUMKONG_DENSE_DIMENSIONS`  | `1,2,...,128` | Comma-separated vector dimensions, 19 sizes around powers of two     |
+| `NUMKONG_CURVED_DIMENSIONS` |     5 sampled | Dimensions for curved-space tests, drawn from the dense ones         |
+| `NUMKONG_MATRIX_HEIGHT`     |     6 sampled | GEMM M dimensions, drawn from the dense ones                         |
+| `NUMKONG_MATRIX_WIDTH`      |     6 sampled | GEMM N dimensions, drawn from the dense ones                         |
+| `NUMKONG_MATRIX_DEPTH`      |     6 sampled | GEMM K dimensions, drawn from the dense ones                         |
+| `NUMKONG_SEED`              |          `42` | Seed for `np.random`, or `random` to draw one                        |
+| `NUMKONG_REPETITIONS`       |          `10` | Randomized test repeat count, `3` under `NUMKONG_IN_QEMU`            |
+| `NUMKONG_IN_QEMU`           |         unset | Shrink dimensions and repetitions; `0` or `false` is off             |
+| `NUMKONG_SPARSE_DIMENSIONS` |         `256` | Universe size for sparse tests                                       |
+| `NUMKONG_MESH_POINTS`       |         `100` | Point count for mesh alignment tests                                 |
+| `NUMKONG_MAX_COORD_ANGLE`   |         `180` | Maximum angle in degrees for geospatial                              |
+| `NUMKONG_EXPECT_SIMD`       |         unset | `0` skips the check that a SIMD-capable machine dispatches to SIMD   |
 
 The pytest header names the seed as `seed: <n>, pin with NUMKONG_SEED`, so a `random` draw replays.
 A seed that is neither a number nor `random` stops the session, naming the variable.
@@ -357,6 +322,6 @@ xcodebuild test -scheme NumKong -destination 'platform=iOS Simulator,name=iPhone
 On Linux without a native Swift installation, use the official Docker image:
 
 ```sh
-sudo docker run --rm -v "$PWD:/workspace" -w /workspace swift:5.9 \
-  /bin/bash -cl "swift build -c release --static-swift-stdlib && swift test -c release --enable-test-discovery"
+sudo docker run --rm -v "$PWD:/workspace" -w /workspace swift:6.4 \
+  /bin/bash -cl "swift build -c release --static-swift-stdlib && swift test -c release"
 ```

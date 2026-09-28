@@ -23,42 +23,38 @@ extern "C" {
 #pragma region Type Punned Loads and Stores
 
 /** Type-agnostic 32-bit full load (scalar). */
-NUMKONG_HELPER_INLINE void nk_load_b32_serial_(void const *src, nk_b32_vec_t *dst) {
-    dst->u32 = *(nk_u32_t const *)src;
-}
+NUMKONG_INLINE void nk_load_b32_serial_(void const *src, nk_b32_vec_t *dst) { dst->u32 = *(nk_u32_t const *)src; }
 
 /** Type-agnostic 64-bit full load. */
-NUMKONG_HELPER_INLINE void nk_load_b64_serial_(void const *src, nk_b64_vec_t *dst) {
-    dst->u64 = *(nk_u64_t const *)src;
-}
+NUMKONG_INLINE void nk_load_b64_serial_(void const *src, nk_b64_vec_t *dst) { dst->u64 = *(nk_u64_t const *)src; }
 
 /** Type-agnostic 128-bit full load. */
-NUMKONG_HELPER_INLINE void nk_load_b128_serial_(void const *src, nk_b128_vec_t *dst) {
+NUMKONG_INLINE void nk_load_b128_serial_(void const *src, nk_b128_vec_t *dst) {
     nk_u64_t const *s = (nk_u64_t const *)src;
     dst->u64s[0] = s[0], dst->u64s[1] = s[1];
 }
 
 /** Type-agnostic 256-bit full load. */
-NUMKONG_HELPER_INLINE void nk_load_b256_serial_(void const *src, nk_b256_vec_t *dst) {
+NUMKONG_INLINE void nk_load_b256_serial_(void const *src, nk_b256_vec_t *dst) {
     nk_u64_t const *s = (nk_u64_t const *)src;
     dst->u64s[0] = s[0], dst->u64s[1] = s[1], dst->u64s[2] = s[2], dst->u64s[3] = s[3];
 }
 
 /** Type-agnostic 32-bit full store (scalar). */
-NUMKONG_HELPER_INLINE void nk_store_b32_serial_(nk_b32_vec_t const *src, void *dst) { *(nk_u32_t *)dst = src->u32; }
+NUMKONG_INLINE void nk_store_b32_serial_(nk_b32_vec_t const *src, void *dst) { *(nk_u32_t *)dst = src->u32; }
 
 /** Type-agnostic 64-bit full store (scalar). */
-NUMKONG_HELPER_INLINE void nk_store_b64_serial_(nk_b64_vec_t const *src, void *dst) { *(nk_u64_t *)dst = src->u64; }
+NUMKONG_INLINE void nk_store_b64_serial_(nk_b64_vec_t const *src, void *dst) { *(nk_u64_t *)dst = src->u64; }
 
 /** Type-agnostic 128-bit store (serial, word-by-word). */
-NUMKONG_HELPER_INLINE void nk_store_b128_serial_(nk_b128_vec_t const *src, void *dst) {
+NUMKONG_INLINE void nk_store_b128_serial_(nk_b128_vec_t const *src, void *dst) {
     nk_u64_t *d = (nk_u64_t *)dst;
     d[0] = src->u64s[0];
     d[1] = src->u64s[1];
 }
 
 /** Type-agnostic 256-bit store (serial, word-by-word). */
-NUMKONG_HELPER_INLINE void nk_store_b256_serial_(nk_b256_vec_t const *src, void *dst) {
+NUMKONG_INLINE void nk_store_b256_serial_(nk_b256_vec_t const *src, void *dst) {
     nk_u64_t *d = (nk_u64_t *)dst;
     d[0] = src->u64s[0];
     d[1] = src->u64s[1];
@@ -67,7 +63,7 @@ NUMKONG_HELPER_INLINE void nk_store_b256_serial_(nk_b256_vec_t const *src, void 
 }
 
 /** Type-agnostic partial load for 64-bit elements (4 elements max) into 256-bit vector. */
-NUMKONG_HELPER_INLINE void nk_partial_load_b64x4_serial_(void const *src, nk_b256_vec_t *dst, nk_size_t n) {
+NUMKONG_INLINE void nk_partial_load_b64x4_serial_(void const *src, nk_b256_vec_t *dst, nk_size_t n) {
     nk_u64_t const *s = (nk_u64_t const *)src;
     dst->u64s[0] = 0, dst->u64s[1] = 0, dst->u64s[2] = 0, dst->u64s[3] = 0;
     switch (n) {
@@ -81,7 +77,7 @@ NUMKONG_HELPER_INLINE void nk_partial_load_b64x4_serial_(void const *src, nk_b25
 }
 
 /** Type-agnostic partial store for 64-bit elements (4 elements max) from 256-bit vector. */
-NUMKONG_HELPER_INLINE void nk_partial_store_b64x4_serial_(nk_b256_vec_t const *src, void *dst, nk_size_t n) {
+NUMKONG_INLINE void nk_partial_store_b64x4_serial_(nk_b256_vec_t const *src, void *dst, nk_size_t n) {
     nk_u64_t *d = (nk_u64_t *)dst;
     switch (n) {
     default:
@@ -93,7 +89,7 @@ NUMKONG_HELPER_INLINE void nk_partial_store_b64x4_serial_(nk_b256_vec_t const *s
     }
 }
 
-NUMKONG_HELPER_INLINE void nk_partial_load_b64x2_serial_(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
+NUMKONG_INLINE void nk_partial_load_b64x2_serial_(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
     dst->u64s[0] = 0, dst->u64s[1] = 0;
     nk_u64_t const *s = (nk_u64_t const *)src;
     switch (n) {
@@ -105,7 +101,7 @@ NUMKONG_HELPER_INLINE void nk_partial_load_b64x2_serial_(void const *src, nk_b12
 }
 
 /** Type-agnostic partial store for 64-bit elements (2 elements max) from 128-bit vector. */
-NUMKONG_HELPER_INLINE void nk_partial_store_b64x2_serial_(nk_b128_vec_t const *src, void *dst, nk_size_t n) {
+NUMKONG_INLINE void nk_partial_store_b64x2_serial_(nk_b128_vec_t const *src, void *dst, nk_size_t n) {
     nk_u64_t *d = (nk_u64_t *)dst;
     switch (n) {
     default:
@@ -116,7 +112,7 @@ NUMKONG_HELPER_INLINE void nk_partial_store_b64x2_serial_(nk_b128_vec_t const *s
 }
 
 /** Type-agnostic partial load for 32-bit elements (8 elements max) into 256-bit vector. */
-NUMKONG_HELPER_INLINE void nk_partial_load_b32x8_serial_(void const *src, nk_b256_vec_t *dst, nk_size_t n) {
+NUMKONG_INLINE void nk_partial_load_b32x8_serial_(void const *src, nk_b256_vec_t *dst, nk_size_t n) {
     dst->u64s[0] = 0, dst->u64s[1] = 0, dst->u64s[2] = 0, dst->u64s[3] = 0;
     nk_u32_t const *s = (nk_u32_t const *)src;
     switch (n) {
@@ -134,7 +130,7 @@ NUMKONG_HELPER_INLINE void nk_partial_load_b32x8_serial_(void const *src, nk_b25
 }
 
 /** Type-agnostic partial store for 32-bit elements (8 elements max) from 256-bit vector. */
-NUMKONG_HELPER_INLINE void nk_partial_store_b32x8_serial_(nk_b256_vec_t const *src, void *dst, nk_size_t n) {
+NUMKONG_INLINE void nk_partial_store_b32x8_serial_(nk_b256_vec_t const *src, void *dst, nk_size_t n) {
     nk_u32_t *d = (nk_u32_t *)dst;
     switch (n) {
     default:
@@ -151,7 +147,7 @@ NUMKONG_HELPER_INLINE void nk_partial_store_b32x8_serial_(nk_b256_vec_t const *s
 }
 
 /** Type-agnostic partial load for 32-bit elements (4 elements max) into 128-bit vector. */
-NUMKONG_HELPER_INLINE void nk_partial_load_b32x4_serial_(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
+NUMKONG_INLINE void nk_partial_load_b32x4_serial_(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
     dst->u64s[0] = 0, dst->u64s[1] = 0;
     nk_u32_t const *s = (nk_u32_t const *)src;
     switch (n) {
@@ -165,7 +161,7 @@ NUMKONG_HELPER_INLINE void nk_partial_load_b32x4_serial_(void const *src, nk_b12
 }
 
 /** Type-agnostic partial store for 32-bit elements (4 elements max) from 128-bit vector. */
-NUMKONG_HELPER_INLINE void nk_partial_store_b32x4_serial_(nk_b128_vec_t const *src, void *dst, nk_size_t n) {
+NUMKONG_INLINE void nk_partial_store_b32x4_serial_(nk_b128_vec_t const *src, void *dst, nk_size_t n) {
     nk_u32_t *d = (nk_u32_t *)dst;
     switch (n) {
     default:
@@ -178,7 +174,7 @@ NUMKONG_HELPER_INLINE void nk_partial_store_b32x4_serial_(nk_b128_vec_t const *s
 }
 
 /** Type-agnostic partial load for 32-bit elements (2 elements max) into 64-bit vector. */
-NUMKONG_HELPER_INLINE void nk_partial_load_b32x2_serial_(void const *src, nk_b64_vec_t *dst, nk_size_t n) {
+NUMKONG_INLINE void nk_partial_load_b32x2_serial_(void const *src, nk_b64_vec_t *dst, nk_size_t n) {
     dst->u64 = 0;
     nk_u32_t const *s = (nk_u32_t const *)src;
     switch (n) {
@@ -190,7 +186,7 @@ NUMKONG_HELPER_INLINE void nk_partial_load_b32x2_serial_(void const *src, nk_b64
 }
 
 /** Type-agnostic partial load for 16-bit elements (8 elements max) into 128-bit vector. */
-NUMKONG_HELPER_INLINE void nk_partial_load_b16x8_serial_(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
+NUMKONG_INLINE void nk_partial_load_b16x8_serial_(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
     dst->u64s[0] = 0, dst->u64s[1] = 0;
     nk_u16_t const *s = (nk_u16_t const *)src;
     switch (n) {
@@ -208,7 +204,7 @@ NUMKONG_HELPER_INLINE void nk_partial_load_b16x8_serial_(void const *src, nk_b12
 }
 
 /** Type-agnostic partial store for 16-bit elements (8 elements max) from 128-bit vector. */
-NUMKONG_HELPER_INLINE void nk_partial_store_b16x8_serial_(nk_b128_vec_t const *src, void *dst, nk_size_t n) {
+NUMKONG_INLINE void nk_partial_store_b16x8_serial_(nk_b128_vec_t const *src, void *dst, nk_size_t n) {
     nk_u16_t *d = (nk_u16_t *)dst;
     switch (n) {
     default:
@@ -225,7 +221,7 @@ NUMKONG_HELPER_INLINE void nk_partial_store_b16x8_serial_(nk_b128_vec_t const *s
 }
 
 /** Type-agnostic partial load for 16-bit elements (16 elements max) into 256-bit vector. */
-NUMKONG_HELPER_INLINE void nk_partial_load_b16x16_serial_(void const *src, nk_b256_vec_t *dst, nk_size_t n) {
+NUMKONG_INLINE void nk_partial_load_b16x16_serial_(void const *src, nk_b256_vec_t *dst, nk_size_t n) {
     dst->u64s[0] = 0, dst->u64s[1] = 0, dst->u64s[2] = 0, dst->u64s[3] = 0;
     nk_u16_t const *s = (nk_u16_t const *)src;
     switch (n) {
@@ -251,7 +247,7 @@ NUMKONG_HELPER_INLINE void nk_partial_load_b16x16_serial_(void const *src, nk_b2
 }
 
 /** Type-agnostic partial store for 16-bit elements (16 elements max) from 256-bit vector. */
-NUMKONG_HELPER_INLINE void nk_partial_store_b16x16_serial_(nk_b256_vec_t const *src, void *dst, nk_size_t n) {
+NUMKONG_INLINE void nk_partial_store_b16x16_serial_(nk_b256_vec_t const *src, void *dst, nk_size_t n) {
     nk_u16_t *d = (nk_u16_t *)dst;
     switch (n) {
     default:
@@ -276,7 +272,7 @@ NUMKONG_HELPER_INLINE void nk_partial_store_b16x16_serial_(nk_b256_vec_t const *
 }
 
 /** Type-agnostic partial load for 16-bit elements (4 elements max) into 64-bit vector. */
-NUMKONG_HELPER_INLINE void nk_partial_load_b16x4_serial_(void const *src, nk_b64_vec_t *dst, nk_size_t n) {
+NUMKONG_INLINE void nk_partial_load_b16x4_serial_(void const *src, nk_b64_vec_t *dst, nk_size_t n) {
     dst->u64 = 0;
     nk_u16_t const *s = (nk_u16_t const *)src;
     switch (n) {
@@ -290,7 +286,7 @@ NUMKONG_HELPER_INLINE void nk_partial_load_b16x4_serial_(void const *src, nk_b64
 }
 
 /** Type-agnostic partial store for 16-bit elements (4 elements max) from 64-bit vector. */
-NUMKONG_HELPER_INLINE void nk_partial_store_b16x4_serial_(void *dst, nk_b64_vec_t const *src, nk_size_t n) {
+NUMKONG_INLINE void nk_partial_store_b16x4_serial_(void *dst, nk_b64_vec_t const *src, nk_size_t n) {
     nk_u16_t *d = (nk_u16_t *)dst;
     switch (n) {
     default:
@@ -303,7 +299,7 @@ NUMKONG_HELPER_INLINE void nk_partial_store_b16x4_serial_(void *dst, nk_b64_vec_
 }
 
 /** Type-agnostic partial load for 8-bit elements (8 elements max) into 64-bit vector. */
-NUMKONG_HELPER_INLINE void nk_partial_load_b8x8_serial_(void const *src, nk_b64_vec_t *dst, nk_size_t n) {
+NUMKONG_INLINE void nk_partial_load_b8x8_serial_(void const *src, nk_b64_vec_t *dst, nk_size_t n) {
     dst->u64 = 0;
     nk_u8_t const *s = (nk_u8_t const *)src;
     switch (n) {
@@ -321,7 +317,7 @@ NUMKONG_HELPER_INLINE void nk_partial_load_b8x8_serial_(void const *src, nk_b64_
 }
 
 /** Type-agnostic partial store for 8-bit elements (8 elements max) from 64-bit vector. */
-NUMKONG_HELPER_INLINE void nk_partial_store_b8x8_serial_(nk_b64_vec_t const *src, void *dst, nk_size_t n) {
+NUMKONG_INLINE void nk_partial_store_b8x8_serial_(nk_b64_vec_t const *src, void *dst, nk_size_t n) {
     nk_u8_t *d = (nk_u8_t *)dst;
     switch (n) {
     default:
@@ -338,7 +334,7 @@ NUMKONG_HELPER_INLINE void nk_partial_store_b8x8_serial_(nk_b64_vec_t const *src
 }
 
 /** Type-agnostic partial store for 8-bit elements (16 elements max) from 128-bit vector. */
-NUMKONG_HELPER_INLINE void nk_partial_store_b8x16_serial_(nk_b128_vec_t const *src, void *dst, nk_size_t n) {
+NUMKONG_INLINE void nk_partial_store_b8x16_serial_(nk_b128_vec_t const *src, void *dst, nk_size_t n) {
     nk_u8_t *d = (nk_u8_t *)dst;
     switch (n) {
     default:
@@ -363,7 +359,7 @@ NUMKONG_HELPER_INLINE void nk_partial_store_b8x16_serial_(nk_b128_vec_t const *s
 }
 
 /** Type-agnostic partial store for 8-bit elements (32 elements max) from 256-bit vector. */
-NUMKONG_HELPER_INLINE void nk_partial_store_b8x32_serial_(nk_b256_vec_t const *src, void *dst, nk_size_t n) {
+NUMKONG_INLINE void nk_partial_store_b8x32_serial_(nk_b256_vec_t const *src, void *dst, nk_size_t n) {
     nk_u8_t *d = (nk_u8_t *)dst;
     switch (n) {
     default:
@@ -404,7 +400,7 @@ NUMKONG_HELPER_INLINE void nk_partial_store_b8x32_serial_(nk_b256_vec_t const *s
 }
 
 /** Type-agnostic partial load for 8-bit elements (16 elements max) into 128-bit vector. */
-NUMKONG_HELPER_INLINE void nk_partial_load_b8x16_serial_(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
+NUMKONG_INLINE void nk_partial_load_b8x16_serial_(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
     dst->u64s[0] = 0, dst->u64s[1] = 0;
     nk_u8_t const *s = (nk_u8_t const *)src;
     switch (n) {
@@ -430,7 +426,7 @@ NUMKONG_HELPER_INLINE void nk_partial_load_b8x16_serial_(void const *src, nk_b12
 }
 
 /** Type-agnostic partial load for 8-bit elements (4 elements max) into 32-bit vector. */
-NUMKONG_HELPER_INLINE nk_b32_vec_t nk_partial_load_b8x4_serial_(void const *src, nk_size_t n) {
+NUMKONG_INLINE nk_b32_vec_t nk_partial_load_b8x4_serial_(void const *src, nk_size_t n) {
     nk_b32_vec_t dst = {0};
     nk_u8_t const *s = (nk_u8_t const *)src;
     switch (n) {
@@ -445,7 +441,7 @@ NUMKONG_HELPER_INLINE nk_b32_vec_t nk_partial_load_b8x4_serial_(void const *src,
 }
 
 /** Partial store for 8-bit elements (up to 4) from nk_b32_vec_t. */
-NUMKONG_HELPER_INLINE void nk_partial_store_b8x4_serial_(nk_b32_vec_t const *src, void *dst, nk_size_t n) {
+NUMKONG_INLINE void nk_partial_store_b8x4_serial_(nk_b32_vec_t const *src, void *dst, nk_size_t n) {
     nk_u8_t *d = (nk_u8_t *)dst;
     switch (n) {
     default:
@@ -458,7 +454,7 @@ NUMKONG_HELPER_INLINE void nk_partial_store_b8x4_serial_(nk_b32_vec_t const *src
 }
 
 /** Partial load for 8-bit elements (32 max) into 256-bit vector (zeros in remaining slots). */
-NUMKONG_HELPER_INLINE void nk_partial_load_b8x32_serial_(void const *src, nk_b256_vec_t *dst, nk_size_t n) {
+NUMKONG_INLINE void nk_partial_load_b8x32_serial_(void const *src, nk_b256_vec_t *dst, nk_size_t n) {
     dst->u64s[0] = 0, dst->u64s[1] = 0, dst->u64s[2] = 0, dst->u64s[3] = 0;
     nk_u8_t const *s = (nk_u8_t const *)src;
     switch (n) {
@@ -501,7 +497,7 @@ NUMKONG_HELPER_INLINE void nk_partial_load_b8x32_serial_(void const *src, nk_b25
 
 /** Partial load for 4-bit nibbles (64 max = 32 bytes) into 256-bit vector (zeros in remaining
  *  slots). */
-NUMKONG_HELPER_INLINE void nk_partial_load_b4x64_serial_(void const *src, nk_b256_vec_t *dst, nk_size_t n) {
+NUMKONG_INLINE void nk_partial_load_b4x64_serial_(void const *src, nk_b256_vec_t *dst, nk_size_t n) {
     dst->u64s[0] = 0, dst->u64s[1] = 0, dst->u64s[2] = 0, dst->u64s[3] = 0;
     nk_u8_t const *s = (nk_u8_t const *)src;
     nk_size_t const n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
@@ -510,7 +506,7 @@ NUMKONG_HELPER_INLINE void nk_partial_load_b4x64_serial_(void const *src, nk_b25
 
 /** Partial load for 4-bit nibbles (32 max = 16 bytes) into 128-bit vector (zeros in remaining
  *  slots). */
-NUMKONG_HELPER_INLINE void nk_partial_load_b4x32_serial_(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
+NUMKONG_INLINE void nk_partial_load_b4x32_serial_(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
     dst->u64s[0] = 0, dst->u64s[1] = 0;
     nk_u8_t const *s = (nk_u8_t const *)src;
     nk_size_t const n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
@@ -519,7 +515,7 @@ NUMKONG_HELPER_INLINE void nk_partial_load_b4x32_serial_(void const *src, nk_b12
 
 /** Partial load for 1-bit elements (128 max = 16 bytes) into 128-bit vector (zeros in remaining
  *  slots). */
-NUMKONG_HELPER_INLINE void nk_partial_load_b1x128_serial_(void const *src, nk_b128_vec_t *dst, nk_size_t n_bits) {
+NUMKONG_INLINE void nk_partial_load_b1x128_serial_(void const *src, nk_b128_vec_t *dst, nk_size_t n_bits) {
     dst->u64s[0] = 0, dst->u64s[1] = 0;
     nk_u8_t const *s = (nk_u8_t const *)src;
     nk_size_t const n_bytes = n_bits / NUMKONG_BITS_PER_BYTE;
@@ -527,14 +523,14 @@ NUMKONG_HELPER_INLINE void nk_partial_load_b1x128_serial_(void const *src, nk_b1
 }
 
 /** Partial load for binary (u1) data into 256-bit vector, converting @p n_bits → n_bytes. */
-NUMKONG_HELPER_INLINE void nk_partial_load_b1x256_serial_(void const *src, nk_b256_vec_t *dst, nk_size_t n_bits) {
+NUMKONG_INLINE void nk_partial_load_b1x256_serial_(void const *src, nk_b256_vec_t *dst, nk_size_t n_bits) {
     nk_size_t const n_bytes = n_bits / NUMKONG_BITS_PER_BYTE;
     nk_partial_load_b8x32_serial_(src, dst, n_bytes);
 }
 
 /** Partial load for 4-bit nibbles (16 max = 8 bytes) into 64-bit vector (zeros in remaining
  *  slots). */
-NUMKONG_HELPER_INLINE void nk_partial_load_b4x16_serial_(void const *src, nk_b64_vec_t *dst, nk_size_t n) {
+NUMKONG_INLINE void nk_partial_load_b4x16_serial_(void const *src, nk_b64_vec_t *dst, nk_size_t n) {
     dst->u64 = 0;
     nk_u8_t const *s = (nk_u8_t const *)src;
     nk_size_t const n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
@@ -542,24 +538,24 @@ NUMKONG_HELPER_INLINE void nk_partial_load_b4x16_serial_(void const *src, nk_b64
 }
 
 /** Strided partial load for 32-bit elements (4 max) into 128-bit vector. */
-NUMKONG_HELPER_INLINE void nk_strided_load_b32x4_serial_(void const *src, nk_size_t stride_elements, nk_b128_vec_t *dst,
-                                                         nk_size_t n) {
+NUMKONG_INLINE void nk_strided_load_b32x4_serial_(void const *src, nk_size_t stride_elements, nk_b128_vec_t *dst,
+                                                  nk_size_t n) {
     dst->u64s[0] = 0, dst->u64s[1] = 0;
     nk_u32_t const *s = (nk_u32_t const *)src;
     for (nk_size_t i = 0; i < n && i < 4; ++i) dst->u32s[i] = s[i * stride_elements];
 }
 
 /** Strided partial load for 16-bit elements (8 max) into 128-bit vector. */
-NUMKONG_HELPER_INLINE void nk_strided_load_b16x8_serial_(void const *src, nk_size_t stride_elements, nk_b128_vec_t *dst,
-                                                         nk_size_t n) {
+NUMKONG_INLINE void nk_strided_load_b16x8_serial_(void const *src, nk_size_t stride_elements, nk_b128_vec_t *dst,
+                                                  nk_size_t n) {
     dst->u64s[0] = 0, dst->u64s[1] = 0;
     nk_u16_t const *s = (nk_u16_t const *)src;
     for (nk_size_t i = 0; i < n && i < 8; ++i) dst->u16s[i] = s[i * stride_elements];
 }
 
 /** Strided partial load for 8-bit elements (16 max) into 128-bit vector. */
-NUMKONG_HELPER_INLINE void nk_strided_load_b8x16_serial_(void const *src, nk_size_t stride_elements, nk_b128_vec_t *dst,
-                                                         nk_size_t n) {
+NUMKONG_INLINE void nk_strided_load_b8x16_serial_(void const *src, nk_size_t stride_elements, nk_b128_vec_t *dst,
+                                                  nk_size_t n) {
     dst->u64s[0] = 0, dst->u64s[1] = 0;
     nk_u8_t const *s = (nk_u8_t const *)src;
     for (nk_size_t i = 0; i < n && i < 16; ++i) dst->u8s[i] = s[i * stride_elements];
@@ -567,17 +563,8 @@ NUMKONG_HELPER_INLINE void nk_strided_load_b8x16_serial_(void const *src, nk_siz
 
 #pragma endregion Type Punned Loads and Stores
 
-/*  Keep the serial conversions below scalar regardless of build type, as dots/serial.h does.
- *  Without this, -O3 and LTO can vectorize or clone the serial kernels under AVX-512 callers in
- *  dispatch_*.c, which wastes binary size and breaks the nk_*_serial scalar-oracle contract. */
-#if defined(__clang__)
-#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
-#elif defined(__GNUC__)
-#pragma GCC push_options
-#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
-#endif
-
-NUMKONG_API_COMPTIME void nk_f16_to_f32_serial(nk_f16_t const *src, nk_f32_t *dest) {
+/** Widens one F16 value to F32, exactly, keeping NaN payloads and subnormals. */
+NUMKONG_INLINE void nk_f16_to_f32_(nk_f16_t const *src, nk_f32_t *dest) {
 #if NUMKONG_NATIVE_F16
     *dest = (nk_f32_t)(*src);
 #else
@@ -616,35 +603,10 @@ NUMKONG_API_COMPTIME void nk_f16_to_f32_serial(nk_f16_t const *src, nk_f32_t *de
 #endif
 }
 
-#if defined(__clang__)
-#pragma clang attribute pop
-#elif defined(__GNUC__)
-#pragma GCC pop_options
-#endif
-
-/** Load 4 × f16 from memory and upcast them to 4 × f32. */
-NUMKONG_HELPER_INLINE void nk_load_f16x4_to_f32x4_serial_(void const *src, nk_b128_vec_t *dst) {
-    nk_f16_t const *scalars = (nk_f16_t const *)src;
-    nk_f16_to_f32_serial(scalars + 0, dst->f32s + 0);
-    nk_f16_to_f32_serial(scalars + 1, dst->f32s + 1);
-    nk_f16_to_f32_serial(scalars + 2, dst->f32s + 2);
-    nk_f16_to_f32_serial(scalars + 3, dst->f32s + 3);
-}
-
-/** Partial load for up to 4 × f16 with upcast to 4 × f32. */
-NUMKONG_HELPER_INLINE void nk_partial_load_f16x4_to_f32x4_serial_(nk_f16_t const *src, nk_b128_vec_t *dst,
-                                                                  nk_size_t n) {
-    dst->u64s[0] = 0, dst->u64s[1] = 0;
-    switch (n) {
-    default:
-    case 4: nk_f16_to_f32_serial(src + 3, dst->f32s + 3); // fallthrough
-    case 3: nk_f16_to_f32_serial(src + 2, dst->f32s + 2); // fallthrough
-    case 2: nk_f16_to_f32_serial(src + 1, dst->f32s + 1); // fallthrough
-    case 1: nk_f16_to_f32_serial(src + 0, dst->f32s + 0); // fallthrough
-    case 0: break;
-    }
-}
-
+/*  Keep the serial conversions below scalar regardless of build type, as dots/serial.h does.
+ *  Without this, -O3 and LTO can vectorize or clone the serial kernels under AVX-512 callers in
+ *  dispatch_*.c, which wastes binary size and breaks the nk_*_serial scalar-oracle contract. */
+#if NUMKONG_TARGET_SERIAL
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((noinline)), apply_to = function)
 #elif defined(__GNUC__)
@@ -652,7 +614,39 @@ NUMKONG_HELPER_INLINE void nk_partial_load_f16x4_to_f32x4_serial_(nk_f16_t const
 #pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
 #endif
 
-NUMKONG_API_COMPTIME void nk_f32_to_f16_serial(nk_f32_t const *src, nk_f16_t *dest) {
+NUMKONG_API void nk_f16_to_f32_serial(nk_f16_t const *src, nk_f32_t *dest) { nk_f16_to_f32_(src, dest); }
+
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
+#endif // NUMKONG_TARGET_SERIAL
+
+/** Load 4 × f16 from memory and upcast them to 4 × f32. */
+NUMKONG_INLINE void nk_load_f16x4_to_f32x4_serial_(void const *src, nk_b128_vec_t *dst) {
+    nk_f16_t const *scalars = (nk_f16_t const *)src;
+    nk_f16_to_f32_(scalars + 0, dst->f32s + 0);
+    nk_f16_to_f32_(scalars + 1, dst->f32s + 1);
+    nk_f16_to_f32_(scalars + 2, dst->f32s + 2);
+    nk_f16_to_f32_(scalars + 3, dst->f32s + 3);
+}
+
+/** Partial load for up to 4 × f16 with upcast to 4 × f32. */
+NUMKONG_INLINE void nk_partial_load_f16x4_to_f32x4_serial_(nk_f16_t const *src, nk_b128_vec_t *dst, nk_size_t n) {
+    dst->u64s[0] = 0, dst->u64s[1] = 0;
+    switch (n) {
+    default:
+    case 4: nk_f16_to_f32_(src + 3, dst->f32s + 3); // fallthrough
+    case 3: nk_f16_to_f32_(src + 2, dst->f32s + 2); // fallthrough
+    case 2: nk_f16_to_f32_(src + 1, dst->f32s + 1); // fallthrough
+    case 1: nk_f16_to_f32_(src + 0, dst->f32s + 0); // fallthrough
+    case 0: break;
+    }
+}
+
+/** Narrows one F32 value to F16, rounding to nearest even and keeping NaNs. */
+NUMKONG_INLINE void nk_f32_to_f16_(nk_f32_t const *src, nk_f16_t *dest) {
 #if NUMKONG_NATIVE_F16
     *dest = (nk_f16_t)(*src);
 #else
@@ -726,7 +720,8 @@ NUMKONG_API_COMPTIME void nk_f32_to_f16_serial(nk_f32_t const *src, nk_f16_t *de
 #endif
 }
 
-NUMKONG_API_COMPTIME void nk_bf16_to_f32_serial(nk_bf16_t const *src, nk_f32_t *dest) {
+/** Widens one BF16 value to F32, exactly. */
+NUMKONG_INLINE void nk_bf16_to_f32_(nk_bf16_t const *src, nk_f32_t *dest) {
 #if NUMKONG_NATIVE_BF16
     *dest = (nk_f32_t)(*src);
 #else
@@ -738,7 +733,8 @@ NUMKONG_API_COMPTIME void nk_bf16_to_f32_serial(nk_bf16_t const *src, nk_f32_t *
 #endif
 }
 
-NUMKONG_API_COMPTIME void nk_f32_to_bf16_serial(nk_f32_t const *src, nk_bf16_t *dest) {
+/** Narrows one F32 value to BF16, rounding to nearest even and keeping NaNs. */
+NUMKONG_INLINE void nk_f32_to_bf16_(nk_f32_t const *src, nk_bf16_t *dest) {
 #if NUMKONG_NATIVE_BF16
     *dest = (nk_bf16_t)(*src);
 #else
@@ -760,7 +756,8 @@ NUMKONG_API_COMPTIME void nk_f32_to_bf16_serial(nk_f32_t const *src, nk_bf16_t *
 #endif
 }
 
-NUMKONG_API_COMPTIME void nk_e4m3_to_f32_serial(nk_e4m3_t const *src, nk_f32_t *dest) {
+/** Widens one E4M3FN value to F32, exactly. */
+NUMKONG_INLINE void nk_e4m3_to_f32_(nk_e4m3_t const *src, nk_f32_t *dest) {
     nk_u8_t raw = *src;
     nk_u32_t sign = (nk_u32_t)(raw & 0x80) << 24;
     nk_u32_t exponent = (raw >> 3) & 0x0Fu;
@@ -791,7 +788,8 @@ NUMKONG_API_COMPTIME void nk_e4m3_to_f32_serial(nk_e4m3_t const *src, nk_f32_t *
     *dest = conv.f;
 }
 
-NUMKONG_API_COMPTIME void nk_f32_to_e4m3_serial(nk_f32_t const *src, nk_e4m3_t *dest) {
+/** Narrows one F32 value to E4M3FN, rounding to nearest even and saturating at 448. */
+NUMKONG_INLINE void nk_f32_to_e4m3_(nk_f32_t const *src, nk_e4m3_t *dest) {
     nk_f32_t x = *src;
     nk_fui32_t conv;
     conv.f = x;
@@ -874,11 +872,26 @@ NUMKONG_API_COMPTIME void nk_f32_to_e4m3_serial(nk_f32_t const *src, nk_e4m3_t *
     *dest = (nk_e4m3_t)(sign | (exp_field << 3) | mant_field);
 }
 
+#if NUMKONG_TARGET_SERIAL
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#endif
+
+NUMKONG_API void nk_f32_to_f16_serial(nk_f32_t const *src, nk_f16_t *dest) { nk_f32_to_f16_(src, dest); }
+NUMKONG_API void nk_bf16_to_f32_serial(nk_bf16_t const *src, nk_f32_t *dest) { nk_bf16_to_f32_(src, dest); }
+NUMKONG_API void nk_f32_to_bf16_serial(nk_f32_t const *src, nk_bf16_t *dest) { nk_f32_to_bf16_(src, dest); }
+NUMKONG_API void nk_e4m3_to_f32_serial(nk_e4m3_t const *src, nk_f32_t *dest) { nk_e4m3_to_f32_(src, dest); }
+NUMKONG_API void nk_f32_to_e4m3_serial(nk_f32_t const *src, nk_e4m3_t *dest) { nk_f32_to_e4m3_(src, dest); }
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_SERIAL
 
 /**
  *  @brief Convert FP8 E4M3 to IEEE 754 half-precision float.
@@ -891,7 +904,7 @@ NUMKONG_API_COMPTIME void nk_f32_to_e4m3_serial(nk_f32_t const *src, nk_e4m3_t *
  *  - Subnormals: mant × 2⁻⁹ (where 2⁻⁹ = 0x1800 in F16)
  *  - NaN (0x7F): maps to F16 quiet NaN (0x7E00)
  */
-NUMKONG_HELPER_INLINE void nk_e4m3_to_f16_serial(nk_e4m3_t const *src, nk_f16_t *dest) {
+NUMKONG_INLINE void nk_e4m3_to_f16_serial_(nk_e4m3_t const *src, nk_f16_t *dest) {
     nk_u8_t raw = *src;
     nk_u16_t sign = ((nk_u16_t)(raw & 0x80)) << 8;
     nk_u16_t mag = raw & 0x7F;
@@ -917,13 +930,6 @@ NUMKONG_HELPER_INLINE void nk_e4m3_to_f16_serial(nk_e4m3_t const *src, nk_f16_t 
     }
     *dest = result.f;
 }
-
-#if defined(__clang__)
-#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
-#elif defined(__GNUC__)
-#pragma GCC push_options
-#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
-#endif
 
 /**
  *  @brief Convert FP8 E5M2 to IEEE 754 single-precision float.
@@ -952,7 +958,7 @@ NUMKONG_HELPER_INLINE void nk_e4m3_to_f16_serial(nk_e4m3_t const *src, nk_f16_t 
  *  @see OCP 8-bit Floating Point Specification: https://www.opencompute.org/documents/ocp-8-bit-floating-point-specification-ofp8-revision-1-0-2023-12-01-pdf-1
  *  @see ONNX Float8 types: https://onnx.ai/onnx/technical/float8.html
  */
-NUMKONG_API_COMPTIME void nk_e5m2_to_f32_serial(nk_e5m2_t const *src, nk_f32_t *dest) {
+NUMKONG_INLINE void nk_e5m2_to_f32_(nk_e5m2_t const *src, nk_f32_t *dest) {
     static nk_u32_t const lut[128] = {
         0x00000000, 0x37800000, 0x38000000, 0x38400000, // exp=0  sub
         0x38800000, 0x38A00000, 0x38C00000, 0x38E00000, // exp=1
@@ -994,7 +1000,8 @@ NUMKONG_API_COMPTIME void nk_e5m2_to_f32_serial(nk_e5m2_t const *src, nk_f32_t *
     *dest = conv.f;
 }
 
-NUMKONG_API_COMPTIME void nk_f32_to_e5m2_serial(nk_f32_t const *src, nk_e5m2_t *dest) {
+/** Narrows one F32 value to E5M2, rounding to nearest even and keeping infinities and NaNs. */
+NUMKONG_INLINE void nk_f32_to_e5m2_(nk_f32_t const *src, nk_e5m2_t *dest) {
     nk_f32_t x = *src;
     nk_fui32_t conv;
     conv.f = x;
@@ -1069,19 +1076,6 @@ NUMKONG_API_COMPTIME void nk_f32_to_e5m2_serial(nk_f32_t const *src, nk_e5m2_t *
     *dest = (nk_e5m2_t)(sign | (exp_field << 2) | mant_field);
 }
 
-#if defined(__clang__)
-#pragma clang attribute pop
-#elif defined(__GNUC__)
-#pragma GCC pop_options
-#endif
-
-#if defined(__clang__)
-#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
-#elif defined(__GNUC__)
-#pragma GCC push_options
-#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
-#endif
-
 /**
  *  @brief Convert FP6 E2M3FN to IEEE 754 single-precision float.
  *
@@ -1092,7 +1086,7 @@ NUMKONG_API_COMPTIME void nk_f32_to_e5m2_serial(nk_f32_t const *src, nk_e5m2_t *
  *  @see OCP Microscaling Formats Specification: https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf
  *  @see FP6-LLM: https://arxiv.org/abs/2401.14112
  */
-NUMKONG_API_COMPTIME void nk_e2m3_to_f32_serial(nk_e2m3_t const *src, nk_f32_t *dest) {
+NUMKONG_INLINE void nk_e2m3_to_f32_(nk_e2m3_t const *src, nk_f32_t *dest) {
     static nk_u32_t const lut[32] = {
         0x00000000, 0x3E000000, 0x3E800000, 0x3EC00000, 0x3F000000, 0x3F200000, 0x3F400000, 0x3F600000, // exp=0 sub
         0x3F800000, 0x3F900000, 0x3FA00000, 0x3FB00000, 0x3FC00000, 0x3FD00000, 0x3FE00000, 0x3FF00000, // exp=1
@@ -1106,7 +1100,8 @@ NUMKONG_API_COMPTIME void nk_e2m3_to_f32_serial(nk_e2m3_t const *src, nk_f32_t *
     *dest = conv.f;
 }
 
-NUMKONG_API_COMPTIME void nk_f32_to_e2m3_serial(nk_f32_t const *src, nk_e2m3_t *dest) {
+/** Narrows one F32 value to E2M3FN, rounding to nearest even and saturating at 7.5. */
+NUMKONG_INLINE void nk_f32_to_e2m3_(nk_f32_t const *src, nk_e2m3_t *dest) {
     nk_f32_t x = *src;
     nk_fui32_t conv;
     conv.f = x;
@@ -1184,26 +1179,13 @@ NUMKONG_API_COMPTIME void nk_f32_to_e2m3_serial(nk_f32_t const *src, nk_e2m3_t *
     *dest = (nk_e2m3_t)(sign | (exp_field << 3) | mant_field);
 }
 
-#if defined(__clang__)
-#pragma clang attribute pop
-#elif defined(__GNUC__)
-#pragma GCC pop_options
-#endif
-
-#if defined(__clang__)
-#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
-#elif defined(__GNUC__)
-#pragma GCC push_options
-#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
-#endif
-
 /**
  *  @brief Convert FP6 E3M2FN to IEEE 754 single-precision float.
  *
  *  E3M2FN (FP6) format: 1 sign bit, 3 exponent bits (bias=3), 2 mantissa bits.
  *  Range: [-28, +28], no infinity or NaN (OCP Microscaling FN format).
  */
-NUMKONG_API_COMPTIME void nk_e3m2_to_f32_serial(nk_e3m2_t const *src, nk_f32_t *dest) {
+NUMKONG_INLINE void nk_e3m2_to_f32_(nk_e3m2_t const *src, nk_f32_t *dest) {
     static nk_u32_t const lut[32] = {
         0x00000000, 0x3D800000, 0x3E000000, 0x3E400000, // exp=0 sub
         0x3E800000, 0x3EA00000, 0x3EC00000, 0x3EE00000, // exp=1
@@ -1221,7 +1203,8 @@ NUMKONG_API_COMPTIME void nk_e3m2_to_f32_serial(nk_e3m2_t const *src, nk_f32_t *
     *dest = conv.f;
 }
 
-NUMKONG_API_COMPTIME void nk_f32_to_e3m2_serial(nk_f32_t const *src, nk_e3m2_t *dest) {
+/** Narrows one F32 value to E3M2FN, rounding to nearest even and saturating at 28. */
+NUMKONG_INLINE void nk_f32_to_e3m2_(nk_f32_t const *src, nk_e3m2_t *dest) {
     nk_f32_t x = *src;
     nk_fui32_t conv;
     conv.f = x;
@@ -1300,30 +1283,46 @@ NUMKONG_API_COMPTIME void nk_f32_to_e3m2_serial(nk_f32_t const *src, nk_e3m2_t *
     *dest = (nk_e3m2_t)(sign | (exp_field << 2) | mant_field);
 }
 
+#if NUMKONG_TARGET_SERIAL
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#endif
+
+NUMKONG_API void nk_e5m2_to_f32_serial(nk_e5m2_t const *src, nk_f32_t *dest) { nk_e5m2_to_f32_(src, dest); }
+NUMKONG_API void nk_f32_to_e5m2_serial(nk_f32_t const *src, nk_e5m2_t *dest) { nk_f32_to_e5m2_(src, dest); }
+NUMKONG_API void nk_e2m3_to_f32_serial(nk_e2m3_t const *src, nk_f32_t *dest) { nk_e2m3_to_f32_(src, dest); }
+NUMKONG_API void nk_f32_to_e2m3_serial(nk_f32_t const *src, nk_e2m3_t *dest) { nk_f32_to_e2m3_(src, dest); }
+NUMKONG_API void nk_e3m2_to_f32_serial(nk_e3m2_t const *src, nk_f32_t *dest) { nk_e3m2_to_f32_(src, dest); }
+NUMKONG_API void nk_f32_to_e3m2_serial(nk_f32_t const *src, nk_e3m2_t *dest) { nk_f32_to_e3m2_(src, dest); }
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_SERIAL
 
 /** Convert a single E2M1 nibble (low 4 bits) to f32. E2M1 format: sign(1) + exponent(2) +
  *  mantissa(1), bias=1. Magnitudes indexed by bits 2..0: {0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0}. No
  *  Inf or NaN. */
-NUMKONG_HELPER_INLINE void nk_e2m1_nibble_to_f32_serial_(nk_u8_t nibble, nk_f32_t *dest) {
+NUMKONG_INLINE void nk_e2m1_nibble_to_f32_serial_(nk_u8_t nibble, nk_f32_t *dest) {
     static nk_f32_t const magnitudes[8] = {0.0f, 0.5f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f};
     nk_f32_t magnitude = magnitudes[nibble & 0x7];
     *dest = (nibble & 0x8) ? -magnitude : magnitude;
 }
 
 /** Twice a single E2M1 nibble (low 4 bits) as an exact i8 in [-12, +12]. */
-NUMKONG_HELPER_INLINE nk_i8_t nk_e2m1_nibble_to_i8x2_serial_(nk_u8_t nibble) {
+NUMKONG_INLINE nk_i8_t nk_e2m1_nibble_to_i8x2_serial_(nk_u8_t nibble) {
     static nk_i8_t const doubled_values[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12};
     return doubled_values[nibble & 0x0F];
 }
 
 /** Convert a single f32 to an E2M1 nibble (returned in low 4 bits of @p nibble_out). RNE rounding,
  *  saturation at ±6.0, NaN → ±6.0 with sign preserved (OCP MX: FP4 has no NaN). */
-NUMKONG_HELPER_INLINE void nk_f32_to_e2m1_nibble_serial_(nk_f32_t src, nk_u8_t *nibble_out) {
+NUMKONG_INLINE void nk_f32_to_e2m1_nibble_serial_(nk_f32_t src, nk_u8_t *nibble_out) {
     nk_fui32_t conv;
     conv.f = src;
     nk_u8_t sign_bit = (nk_u8_t)((conv.u >> 31) << 3);
@@ -1370,27 +1369,23 @@ NUMKONG_HELPER_INLINE void nk_f32_to_e2m1_nibble_serial_(nk_f32_t src, nk_u8_t *
     *nibble_out = sign_bit | mag;
 }
 
-#if defined(__clang__)
-#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
-#elif defined(__GNUC__)
-#pragma GCC push_options
-#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
-#endif
-
-NUMKONG_API_COMPTIME void nk_e2m1x2_to_f32x2_serial(nk_e2m1x2_t const *src, nk_f32_t *dest) {
+/** Widens the two E2M1 nibbles of one byte to F32, the high nibble first. */
+NUMKONG_INLINE void nk_e2m1x2_to_f32x2_(nk_e2m1x2_t const *src, nk_f32_t *dest) {
     nk_u8_t byte = *(nk_u8_t const *)src;
     nk_e2m1_nibble_to_f32_serial_(byte >> 4, &dest[0]);
     nk_e2m1_nibble_to_f32_serial_(byte & 0x0F, &dest[1]);
 }
 
-NUMKONG_API_COMPTIME void nk_f32x2_to_e2m1x2_serial(nk_f32_t const *src, nk_e2m1x2_t *dest) {
+/** Narrows two F32 values to the E2M1 nibbles of one byte, the first into the high nibble. */
+NUMKONG_INLINE void nk_f32x2_to_e2m1x2_(nk_f32_t const *src, nk_e2m1x2_t *dest) {
     nk_u8_t high_nibble, low_nibble;
     nk_f32_to_e2m1_nibble_serial_(src[0], &high_nibble);
     nk_f32_to_e2m1_nibble_serial_(src[1], &low_nibble);
     *(nk_u8_t *)dest = (nk_u8_t)((high_nibble << 4) | (low_nibble & 0x0F));
 }
 
-NUMKONG_API_COMPTIME void nk_ue8m0_to_f32_serial(nk_ue8m0_t const *src, nk_f32_t *dest) {
+/** Decodes one UE8M0 power-of-two scale to F32, 0xFF to a NaN and 0x00 to zero. */
+NUMKONG_INLINE void nk_ue8m0_to_f32_(nk_ue8m0_t const *src, nk_f32_t *dest) {
     nk_u8_t raw = *src;
     nk_fui32_t conv;
     if (raw == 0) {
@@ -1407,7 +1402,8 @@ NUMKONG_API_COMPTIME void nk_ue8m0_to_f32_serial(nk_ue8m0_t const *src, nk_f32_t
     *dest = conv.f;
 }
 
-NUMKONG_API_COMPTIME void nk_f32_to_ue8m0_serial(nk_f32_t const *src, nk_ue8m0_t *dest) {
+/** Encodes one F32 magnitude as the nearest UE8M0 power of two, saturating at 0xFE. */
+NUMKONG_INLINE void nk_f32_to_ue8m0_(nk_f32_t const *src, nk_ue8m0_t *dest) {
     nk_fui32_t conv;
     conv.f = *src;
     nk_u32_t abs_bits = conv.u & 0x7FFFFFFFu;
@@ -1435,11 +1431,25 @@ NUMKONG_API_COMPTIME void nk_f32_to_ue8m0_serial(nk_f32_t const *src, nk_ue8m0_t
     *dest = (nk_ue8m0_t)exp_biased;
 }
 
+#if NUMKONG_TARGET_SERIAL
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#endif
+
+NUMKONG_API void nk_e2m1x2_to_f32x2_serial(nk_e2m1x2_t const *src, nk_f32_t *dest) { nk_e2m1x2_to_f32x2_(src, dest); }
+NUMKONG_API void nk_f32x2_to_e2m1x2_serial(nk_f32_t const *src, nk_e2m1x2_t *dest) { nk_f32x2_to_e2m1x2_(src, dest); }
+NUMKONG_API void nk_ue8m0_to_f32_serial(nk_ue8m0_t const *src, nk_f32_t *dest) { nk_ue8m0_to_f32_(src, dest); }
+NUMKONG_API void nk_f32_to_ue8m0_serial(nk_f32_t const *src, nk_ue8m0_t *dest) { nk_f32_to_ue8m0_(src, dest); }
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_SERIAL
 
 /**
  *  @brief OCP MX v1.0 shared-scale byte for a block of abs-max @p amax whose element format has the
@@ -1463,7 +1473,7 @@ NUMKONG_API_COMPTIME void nk_f32_to_ue8m0_serial(nk_f32_t const *src, nk_ue8m0_t
  *  of two. A NaN amax maps to 0xFF as the block-NaN sentinel, an infinite one saturates to 0xFE,
  *  and a zero or subnormal one maps to 0x00.
  */
-NUMKONG_HELPER_INLINE nk_u8_t nk_f32_block_amax_to_ue8m0_serial_(nk_f32_t amax, nk_f32_t element_max) {
+NUMKONG_INLINE nk_u8_t nk_f32_block_amax_to_ue8m0_serial_(nk_f32_t amax, nk_f32_t element_max) {
     nk_fui32_t amax_conv, element_conv;
     amax_conv.f = amax;
     element_conv.f = element_max;
@@ -1479,19 +1489,14 @@ NUMKONG_HELPER_INLINE nk_u8_t nk_f32_block_amax_to_ue8m0_serial_(nk_f32_t amax, 
     return (nk_u8_t)scale_byte;
 }
 
-#if defined(__clang__)
-#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
-#elif defined(__GNUC__)
-#pragma GCC push_options
-#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
-#endif
-
-NUMKONG_API_COMPTIME void nk_ue4m3_to_f32_serial(nk_ue4m3_t const *src, nk_f32_t *dest) {
+/** Decodes one UE4M3 scale, an E4M3FN without the sign bit, to F32. */
+NUMKONG_INLINE void nk_ue4m3_to_f32_(nk_ue4m3_t const *src, nk_f32_t *dest) {
     nk_e4m3_t raw = (nk_e4m3_t)(*src & 0x7F);
-    nk_e4m3_to_f32_serial(&raw, dest);
+    nk_e4m3_to_f32_(&raw, dest);
 }
 
-NUMKONG_API_COMPTIME void nk_f32_to_ue4m3_serial(nk_f32_t const *src, nk_ue4m3_t *dest) {
+/** Encodes the magnitude of one F32 value as UE4M3, rounding to nearest even, a NaN to 0x7F. */
+NUMKONG_INLINE void nk_f32_to_ue4m3_(nk_f32_t const *src, nk_ue4m3_t *dest) {
     nk_fui32_t conv;
     conv.f = *src;
     conv.u &= 0x7FFFFFFFu; // take absolute value before encoding
@@ -1500,19 +1505,31 @@ NUMKONG_API_COMPTIME void nk_f32_to_ue4m3_serial(nk_f32_t const *src, nk_ue4m3_t
         return;
     } // NaN → E4M3 NaN code
     nk_e4m3_t encoded;
-    nk_f32_to_e4m3_serial(&conv.f, &encoded); // RNE
+    nk_f32_to_e4m3_(&conv.f, &encoded); // RNE
     *dest = (nk_ue4m3_t)((nk_u8_t)encoded & 0x7F);
 }
+
+#if NUMKONG_TARGET_SERIAL
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#endif
+
+NUMKONG_API void nk_ue4m3_to_f32_serial(nk_ue4m3_t const *src, nk_f32_t *dest) { nk_ue4m3_to_f32_(src, dest); }
+NUMKONG_API void nk_f32_to_ue4m3_serial(nk_f32_t const *src, nk_ue4m3_t *dest) { nk_f32_to_ue4m3_(src, dest); }
 
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_SERIAL
 
 /*  Convert floating-point numbers to integers with the project-wide narrowing policy: finite values
  *  are clamped and rounded to nearest, ties to even, infinities saturate, and NaNs map to zero. */
-NUMKONG_HELPER_INLINE nk_i64_t nk_rint_even_f64_to_i64_serial_(nk_f64_t x) {
+NUMKONG_INLINE nk_i64_t nk_rint_even_f64_to_i64_serial_(nk_f64_t x) {
     nk_i64_t integer = (nk_i64_t)x;
     nk_f64_t fraction = x - (nk_f64_t)integer;
     if (fraction > 0.5 || (fraction == 0.5 && (integer & 1))) ++integer;
@@ -1520,131 +1537,127 @@ NUMKONG_HELPER_INLINE nk_i64_t nk_rint_even_f64_to_i64_serial_(nk_f64_t x) {
     return integer;
 }
 
-NUMKONG_HELPER_INLINE nk_u64_t nk_rint_even_f64_to_u64_serial_(nk_f64_t x) {
+NUMKONG_INLINE nk_u64_t nk_rint_even_f64_to_u64_serial_(nk_f64_t x) {
     nk_u64_t integer = (nk_u64_t)x;
     nk_f64_t fraction = x - (nk_f64_t)integer;
     if (fraction > 0.5 || (fraction == 0.5 && (integer & 1))) ++integer;
     return integer;
 }
 
-NUMKONG_HELPER_INLINE void nk_f32_to_i8_serial(nk_f32_t const *x, nk_i8_t *y) {
+NUMKONG_INLINE void nk_f32_to_i8_serial_(nk_f32_t const *x, nk_i8_t *y) {
     if (*x != *x) *y = 0; // For IEEE floating-point, NaN is the one value that is not equal to itself
     else *y = (nk_i8_t)nk_rint_even_f64_to_i64_serial_(*x > 127.0f ? 127.0 : (*x < -128.0f ? -128.0 : (nk_f64_t)*x));
 }
 
-NUMKONG_HELPER_INLINE void nk_f32_to_u8_serial(nk_f32_t const *x, nk_u8_t *y) {
+NUMKONG_INLINE void nk_f32_to_u8_serial_(nk_f32_t const *x, nk_u8_t *y) {
     if (*x != *x) *y = 0; // For IEEE floating-point, NaN is the one value that is not equal to itself
     else *y = (nk_u8_t)nk_rint_even_f64_to_u64_serial_(*x > 255.0f ? 255.0 : (*x < 0 ? 0.0 : (nk_f64_t)*x));
 }
 
-NUMKONG_HELPER_INLINE void nk_f32_to_i16_serial(nk_f32_t const *x, nk_i16_t *y) {
+NUMKONG_INLINE void nk_f32_to_i16_serial_(nk_f32_t const *x, nk_i16_t *y) {
     if (*x != *x) *y = 0; // For IEEE floating-point, NaN is the one value that is not equal to itself
     else
         *y = (nk_i16_t)nk_rint_even_f64_to_i64_serial_(*x > 32767.0f ? 32767.0
                                                                      : (*x < -32768.0f ? -32768.0 : (nk_f64_t)*x));
 }
 
-NUMKONG_HELPER_INLINE void nk_f32_to_u16_serial(nk_f32_t const *x, nk_u16_t *y) {
+NUMKONG_INLINE void nk_f32_to_u16_serial_(nk_f32_t const *x, nk_u16_t *y) {
     if (*x != *x) *y = 0; // For IEEE floating-point, NaN is the one value that is not equal to itself
     else *y = (nk_u16_t)nk_rint_even_f64_to_u64_serial_(*x > 65535.0f ? 65535.0 : (*x < 0 ? 0.0 : (nk_f64_t)*x));
 }
 
-NUMKONG_HELPER_INLINE void nk_f64_to_i8_serial(nk_f64_t const *x, nk_i8_t *y) {
+NUMKONG_INLINE void nk_f64_to_i8_serial_(nk_f64_t const *x, nk_i8_t *y) {
     if (*x != *x) *y = 0; // For IEEE floating-point, NaN is the one value that is not equal to itself
     else *y = (nk_i8_t)nk_rint_even_f64_to_i64_serial_(*x > 127.0 ? 127.0 : (*x < -128.0 ? -128.0 : *x));
 }
 
-NUMKONG_HELPER_INLINE void nk_f64_to_u8_serial(nk_f64_t const *x, nk_u8_t *y) {
+NUMKONG_INLINE void nk_f64_to_u8_serial_(nk_f64_t const *x, nk_u8_t *y) {
     if (*x != *x) *y = 0; // For IEEE floating-point, NaN is the one value that is not equal to itself
     else *y = (nk_u8_t)nk_rint_even_f64_to_u64_serial_(*x > 255.0 ? 255.0 : (*x < 0 ? 0.0 : *x));
 }
 
-NUMKONG_HELPER_INLINE void nk_f64_to_i16_serial(nk_f64_t const *x, nk_i16_t *y) {
+NUMKONG_INLINE void nk_f64_to_i16_serial_(nk_f64_t const *x, nk_i16_t *y) {
     if (*x != *x) *y = 0; // For IEEE floating-point, NaN is the one value that is not equal to itself
     else *y = (nk_i16_t)nk_rint_even_f64_to_i64_serial_(*x > 32767.0 ? 32767.0 : (*x < -32768.0 ? -32768.0 : *x));
 }
 
-NUMKONG_HELPER_INLINE void nk_f64_to_u16_serial(nk_f64_t const *x, nk_u16_t *y) {
+NUMKONG_INLINE void nk_f64_to_u16_serial_(nk_f64_t const *x, nk_u16_t *y) {
     if (*x != *x) *y = 0; // For IEEE floating-point, NaN is the one value that is not equal to itself
     else *y = (nk_u16_t)nk_rint_even_f64_to_u64_serial_(*x > 65535.0 ? 65535.0 : (*x < 0 ? 0.0 : *x));
 }
 
-NUMKONG_HELPER_INLINE void nk_f64_to_i32_serial(nk_f64_t const *x, nk_i32_t *y) {
+NUMKONG_INLINE void nk_f64_to_i32_serial_(nk_f64_t const *x, nk_i32_t *y) {
     if (*x != *x) *y = 0; // For IEEE floating-point, NaN is the one value that is not equal to itself
     else
         *y = (nk_i32_t)nk_rint_even_f64_to_i64_serial_(*x > 2147483647.0 ? 2147483647.0
                                                                          : (*x < -2147483648.0 ? -2147483648.0 : *x));
 }
 
-NUMKONG_HELPER_INLINE void nk_f64_to_u32_serial(nk_f64_t const *x, nk_u32_t *y) {
+NUMKONG_INLINE void nk_f64_to_u32_serial_(nk_f64_t const *x, nk_u32_t *y) {
     if (*x != *x) *y = 0; // For IEEE floating-point, NaN is the one value that is not equal to itself
     else *y = (nk_u32_t)nk_rint_even_f64_to_u64_serial_(*x > 4294967295.0 ? 4294967295.0 : (*x < 0 ? 0.0 : *x));
 }
 
-NUMKONG_HELPER_INLINE void nk_f64_to_i64_serial(nk_f64_t const *x, nk_i64_t *y) {
+NUMKONG_INLINE void nk_f64_to_i64_serial_(nk_f64_t const *x, nk_i64_t *y) {
     if (*x != *x) *y = 0; // For IEEE floating-point, NaN is the one value that is not equal to itself
     else if (*x >= 9223372036854775808.0) *y = NUMKONG_I64_MAX; // 2⁶³ itself would overflow the cast
     else *y = nk_rint_even_f64_to_i64_serial_(*x < -9223372036854775808.0 ? -9223372036854775808.0 : *x);
 }
 
-NUMKONG_HELPER_INLINE void nk_f64_to_u64_serial(nk_f64_t const *x, nk_u64_t *y) {
+NUMKONG_INLINE void nk_f64_to_u64_serial_(nk_f64_t const *x, nk_u64_t *y) {
     if (*x != *x) *y = 0; // For IEEE floating-point, NaN is the one value that is not equal to itself
     else if (*x >= 18446744073709551616.0) *y = NUMKONG_U64_MAX; // 2⁶⁴ itself would overflow the cast
     else *y = nk_rint_even_f64_to_u64_serial_(*x < 0 ? 0.0 : *x);
 }
 
-NUMKONG_HELPER_INLINE void nk_i64_to_i8_serial(nk_i64_t const *x, nk_i8_t *y) {
+NUMKONG_INLINE void nk_i64_to_i8_serial_(nk_i64_t const *x, nk_i8_t *y) {
     *y = (nk_i8_t)(*x > 127ll ? 127ll : (*x < -128ll ? -128ll : *x));
 }
 
-NUMKONG_HELPER_INLINE void nk_i64_to_u8_serial(nk_i64_t const *x, nk_u8_t *y) {
+NUMKONG_INLINE void nk_i64_to_u8_serial_(nk_i64_t const *x, nk_u8_t *y) {
     *y = (nk_u8_t)(*x > 255ll ? 255ll : (*x < 0ll ? 0ll : *x));
 }
 
-NUMKONG_HELPER_INLINE void nk_i64_to_i16_serial(nk_i64_t const *x, nk_i16_t *y) {
+NUMKONG_INLINE void nk_i64_to_i16_serial_(nk_i64_t const *x, nk_i16_t *y) {
     *y = (nk_i16_t)(*x > 32767ll ? 32767ll : (*x < -32768ll ? -32768ll : *x));
 }
 
-NUMKONG_HELPER_INLINE void nk_i64_to_u16_serial(nk_i64_t const *x, nk_u16_t *y) {
+NUMKONG_INLINE void nk_i64_to_u16_serial_(nk_i64_t const *x, nk_u16_t *y) {
     *y = (nk_u16_t)(*x > 65535ll ? 65535ll : (*x < 0ll ? 0ll : *x));
 }
 
-NUMKONG_HELPER_INLINE void nk_i64_to_i32_serial(nk_i64_t const *x, nk_i32_t *y) {
+NUMKONG_INLINE void nk_i64_to_i32_serial_(nk_i64_t const *x, nk_i32_t *y) {
     *y = (nk_i32_t)(*x > 2147483647ll ? 2147483647ll : (*x < -2147483648ll ? -2147483648ll : *x));
 }
 
-NUMKONG_HELPER_INLINE void nk_i64_to_u32_serial(nk_i64_t const *x, nk_u32_t *y) {
+NUMKONG_INLINE void nk_i64_to_u32_serial_(nk_i64_t const *x, nk_u32_t *y) {
     *y = (nk_u32_t)(*x > 4294967295ll ? 4294967295ll : (*x < 0ll ? 0ll : *x));
 }
 
-NUMKONG_HELPER_INLINE void nk_u64_to_i8_serial(nk_u64_t const *x, nk_i8_t *y) {
-    *y = (nk_i8_t)(*x > 127ull ? 127ull : *x);
-}
-NUMKONG_HELPER_INLINE void nk_u64_to_u8_serial(nk_u64_t const *x, nk_u8_t *y) {
-    *y = (nk_u8_t)(*x > 255ull ? 255ull : *x);
-}
-NUMKONG_HELPER_INLINE void nk_u64_to_i16_serial(nk_u64_t const *x, nk_i16_t *y) {
+NUMKONG_INLINE void nk_u64_to_i8_serial_(nk_u64_t const *x, nk_i8_t *y) { *y = (nk_i8_t)(*x > 127ull ? 127ull : *x); }
+NUMKONG_INLINE void nk_u64_to_u8_serial_(nk_u64_t const *x, nk_u8_t *y) { *y = (nk_u8_t)(*x > 255ull ? 255ull : *x); }
+NUMKONG_INLINE void nk_u64_to_i16_serial_(nk_u64_t const *x, nk_i16_t *y) {
     *y = (nk_i16_t)(*x > 32767ull ? 32767ull : *x);
 }
-NUMKONG_HELPER_INLINE void nk_u64_to_u16_serial(nk_u64_t const *x, nk_u16_t *y) {
+NUMKONG_INLINE void nk_u64_to_u16_serial_(nk_u64_t const *x, nk_u16_t *y) {
     *y = (nk_u16_t)(*x > 65535ull ? 65535ull : *x);
 }
 
-NUMKONG_HELPER_INLINE void nk_u64_to_i32_serial(nk_u64_t const *x, nk_i32_t *y) {
+NUMKONG_INLINE void nk_u64_to_i32_serial_(nk_u64_t const *x, nk_i32_t *y) {
     *y = (nk_i32_t)(*x > 2147483647ull ? 2147483647ull : *x);
 }
 
-NUMKONG_HELPER_INLINE void nk_u64_to_u32_serial(nk_u64_t const *x, nk_u32_t *y) {
+NUMKONG_INLINE void nk_u64_to_u32_serial_(nk_u64_t const *x, nk_u32_t *y) {
     *y = (nk_u32_t)(*x > 4294967295ull ? 4294967295ull : *x);
 }
 
-NUMKONG_HELPER_INLINE void nk_u64_to_i64_serial(nk_u64_t const *x, nk_i64_t *y) {
+NUMKONG_INLINE void nk_u64_to_i64_serial_(nk_u64_t const *x, nk_i64_t *y) {
     *y = (nk_i64_t)(*x >= 9223372036854775807ull ? 9223372036854775807ll : *x);
 }
 
-NUMKONG_HELPER_INLINE void nk_i64_to_u64_serial(nk_i64_t const *x, nk_u64_t *y) { *y = (nk_u64_t)(*x < 0 ? 0 : *x); }
+NUMKONG_INLINE void nk_i64_to_u64_serial_(nk_i64_t const *x, nk_u64_t *y) { *y = (nk_u64_t)(*x < 0 ? 0 : *x); }
 
-NUMKONG_HELPER_INLINE void nk_i4x2_to_i8x2_serial_(nk_i4x2_t const *src, nk_i8_t *dest) {
+NUMKONG_INLINE void nk_i4x2_to_i8x2_serial_(nk_i4x2_t const *src, nk_i8_t *dest) {
     // Each nibble is a signed 4-bit integer in [-8, 7]
     nk_u8_t byte = *(nk_u8_t const *)src;
     nk_u8_t high_nibble = byte >> 4;
@@ -1654,7 +1667,7 @@ NUMKONG_HELPER_INLINE void nk_i4x2_to_i8x2_serial_(nk_i4x2_t const *src, nk_i8_t
     dest[1] = (nk_i8_t)((low_nibble ^ 8) - 8);
 }
 
-NUMKONG_HELPER_INLINE void nk_u4x2_to_u8x2_serial_(nk_u4x2_t const *src, nk_u8_t *dest) {
+NUMKONG_INLINE void nk_u4x2_to_u8x2_serial_(nk_u4x2_t const *src, nk_u8_t *dest) {
     // Each nibble is an unsigned 4-bit integer in [0, 15]
     nk_u8_t byte = *(nk_u8_t const *)src;
     dest[0] = byte >> 4;
@@ -1668,7 +1681,7 @@ NUMKONG_HELPER_INLINE void nk_u4x2_to_u8x2_serial_(nk_u4x2_t const *src, nk_u8_t
  *
  *  @return 1 on success, 0 for unsupported types, such as sub-byte or unknown ones.
  */
-NUMKONG_HELPER_INLINE int nk_scalar_buffer_to_f64c(nk_scalar_buffer_t const *buf, nk_dtype_t dtype, nk_f64c_t *result) {
+NUMKONG_INLINE int nk_scalar_buffer_to_f64c_(nk_scalar_buffer_t const *buf, nk_dtype_t dtype, nk_f64c_t *result) {
     // Snapshot input so `result` may alias `buf` (e.g. in-place conversion within a union).
     nk_scalar_buffer_t local;
     local.f64c = buf->f64c;
@@ -1677,25 +1690,25 @@ NUMKONG_HELPER_INLINE int nk_scalar_buffer_to_f64c(nk_scalar_buffer_t const *buf
     case nk_f64_k: result->real = local.f64; break;
     case nk_f32_k: result->real = (nk_f64_t)local.f32; break;
     case nk_f16_k:
-        nk_f16_to_f32_serial(&local.f16, &local.f32);
+        nk_f16_to_f32_(&local.f16, &local.f32);
         result->real = (nk_f64_t)local.f32;
         break;
     case nk_bf16_k:
-        nk_bf16_to_f32_serial(&local.bf16, &local.f32);
+        nk_bf16_to_f32_(&local.bf16, &local.f32);
         result->real = (nk_f64_t)local.f32;
         break;
     case nk_f64c_k: result->real = local.f64c.real, result->imag = local.f64c.imag; break;
     case nk_f32c_k: result->real = (nk_f64_t)local.f32c.real, result->imag = (nk_f64_t)local.f32c.imag; break;
     case nk_f16c_k:
-        nk_f16_to_f32_serial(&local.f16c.real, &local.f32);
+        nk_f16_to_f32_(&local.f16c.real, &local.f32);
         result->real = (nk_f64_t)local.f32;
-        nk_f16_to_f32_serial(&local.f16c.imag, &local.f32);
+        nk_f16_to_f32_(&local.f16c.imag, &local.f32);
         result->imag = (nk_f64_t)local.f32;
         break;
     case nk_bf16c_k:
-        nk_bf16_to_f32_serial(&local.bf16c.real, &local.f32);
+        nk_bf16_to_f32_(&local.bf16c.real, &local.f32);
         result->real = (nk_f64_t)local.f32;
-        nk_bf16_to_f32_serial(&local.bf16c.imag, &local.f32);
+        nk_bf16_to_f32_(&local.bf16c.imag, &local.f32);
         result->imag = (nk_f64_t)local.f32;
         break;
     case nk_i64_k: result->real = (nk_f64_t)local.i64; break;
@@ -1707,27 +1720,27 @@ NUMKONG_HELPER_INLINE int nk_scalar_buffer_to_f64c(nk_scalar_buffer_t const *buf
     case nk_i8_k: result->real = (nk_f64_t)local.i8; break;
     case nk_u8_k: result->real = (nk_f64_t)local.u8; break;
     case nk_e4m3_k:
-        nk_e4m3_to_f32_serial(&local.u8, &local.f32);
+        nk_e4m3_to_f32_(&local.u8, &local.f32);
         result->real = (nk_f64_t)local.f32;
         break;
     case nk_e5m2_k:
-        nk_e5m2_to_f32_serial(&local.u8, &local.f32);
+        nk_e5m2_to_f32_(&local.u8, &local.f32);
         result->real = (nk_f64_t)local.f32;
         break;
     case nk_e2m3_k:
-        nk_e2m3_to_f32_serial(&local.u8, &local.f32);
+        nk_e2m3_to_f32_(&local.u8, &local.f32);
         result->real = (nk_f64_t)local.f32;
         break;
     case nk_e3m2_k:
-        nk_e3m2_to_f32_serial(&local.u8, &local.f32);
+        nk_e3m2_to_f32_(&local.u8, &local.f32);
         result->real = (nk_f64_t)local.f32;
         break;
     case nk_ue8m0_k:
-        nk_ue8m0_to_f32_serial(&local.u8, &local.f32);
+        nk_ue8m0_to_f32_(&local.u8, &local.f32);
         result->real = (nk_f64_t)local.f32;
         break;
     case nk_ue4m3_k:
-        nk_ue4m3_to_f32_serial(&local.u8, &local.f32);
+        nk_ue4m3_to_f32_(&local.u8, &local.f32);
         result->real = (nk_f64_t)local.f32;
         break;
     default: return 0;
@@ -1737,7 +1750,7 @@ NUMKONG_HELPER_INLINE int nk_scalar_buffer_to_f64c(nk_scalar_buffer_t const *buf
 
 /** Converts up to 8x values from @c from_ptr buffer into 8x puned buffer objects into a complex
  *  64-bit floating point representation. */
-NUMKONG_HELPER_INLINE void nk_scalar_buffers_to_f64c_(                 //
+NUMKONG_INLINE void nk_scalar_buffers_to_f64c_(                        //
     void const *from_ptr, nk_dtype_t from_dtype, nk_size_t from_count, //
     nk_scalar_buffer_t to_buffers[nk_at_least_(8)]) {
 
@@ -1773,7 +1786,7 @@ NUMKONG_HELPER_INLINE void nk_scalar_buffers_to_f64c_(                 //
         nk_e2m1x2_t const *pairs = (nk_e2m1x2_t const *)from_ptr;
         nk_f32_t unpacked[2];
         for (i = 0; i < from_count / NUMKONG_NIBBLES_PER_BYTE; ++i) {
-            nk_e2m1x2_to_f32x2_serial(&pairs[i], unpacked);
+            nk_e2m1x2_to_f32x2_(&pairs[i], unpacked);
             to_buffers[i * 2].f64c.real = (nk_f64_t)unpacked[0], to_buffers[i * 2].f64c.imag = 0;
             to_buffers[i * 2 + 1].f64c.real = (nk_f64_t)unpacked[1], to_buffers[i * 2 + 1].f64c.imag = 0;
         }
@@ -1787,7 +1800,7 @@ NUMKONG_HELPER_INLINE void nk_scalar_buffers_to_f64c_(                 //
         for (i = 0; i < from_count; ++i) {
             staged.u64 = 0;
             nk_copy_bytes_(&staged, (char const *)from_ptr + i * stride, stride);
-            nk_scalar_buffer_to_f64c(&staged, from_dtype, &to_buffers[i].f64c);
+            nk_scalar_buffer_to_f64c_(&staged, from_dtype, &to_buffers[i].f64c);
         }
     } break;
     }
@@ -1802,8 +1815,7 @@ NUMKONG_HELPER_INLINE void nk_scalar_buffers_to_f64c_(                 //
  *  @note Integer targets, like i64 and i32, round through f64, losing precision beyond 2^53.
  *  @return 1 on success, 0 for unsupported types, such as sub-byte or unknown ones.
  */
-NUMKONG_HELPER_INLINE int nk_scalar_buffer_from_f64c(nk_f64c_t const *value, nk_scalar_buffer_t *buf,
-                                                     nk_dtype_t dtype) {
+NUMKONG_INLINE int nk_scalar_buffer_from_f64c_(nk_f64c_t const *value, nk_scalar_buffer_t *buf, nk_dtype_t dtype) {
     // Snapshot input so `value` may point into `buf` (e.g. in-place conversion within a union).
     nk_f64c_t local = *value;
     nk_f32_t temporary_f32;
@@ -1812,11 +1824,11 @@ NUMKONG_HELPER_INLINE int nk_scalar_buffer_from_f64c(nk_f64c_t const *value, nk_
     case nk_f32_k: buf->f32 = (nk_f32_t)local.real; break;
     case nk_f16_k:
         temporary_f32 = (nk_f32_t)local.real;
-        nk_f32_to_f16_serial(&temporary_f32, &buf->f16);
+        nk_f32_to_f16_(&temporary_f32, &buf->f16);
         break;
     case nk_bf16_k:
         temporary_f32 = (nk_f32_t)local.real;
-        nk_f32_to_bf16_serial(&temporary_f32, &buf->bf16);
+        nk_f32_to_bf16_(&temporary_f32, &buf->bf16);
         break;
     case nk_f64c_k:
         buf->f64c.real = local.real;
@@ -1828,47 +1840,47 @@ NUMKONG_HELPER_INLINE int nk_scalar_buffer_from_f64c(nk_f64c_t const *value, nk_
         break;
     case nk_f16c_k:
         temporary_f32 = (nk_f32_t)local.real;
-        nk_f32_to_f16_serial(&temporary_f32, &buf->f16c.real);
+        nk_f32_to_f16_(&temporary_f32, &buf->f16c.real);
         temporary_f32 = (nk_f32_t)local.imag;
-        nk_f32_to_f16_serial(&temporary_f32, &buf->f16c.imag);
+        nk_f32_to_f16_(&temporary_f32, &buf->f16c.imag);
         break;
     case nk_bf16c_k:
         temporary_f32 = (nk_f32_t)local.real;
-        nk_f32_to_bf16_serial(&temporary_f32, &buf->bf16c.real);
+        nk_f32_to_bf16_(&temporary_f32, &buf->bf16c.real);
         temporary_f32 = (nk_f32_t)local.imag;
-        nk_f32_to_bf16_serial(&temporary_f32, &buf->bf16c.imag);
+        nk_f32_to_bf16_(&temporary_f32, &buf->bf16c.imag);
         break;
-    case nk_i64_k: nk_f64_to_i64_serial(&local.real, &buf->i64); break;
-    case nk_u64_k: nk_f64_to_u64_serial(&local.real, &buf->u64); break;
-    case nk_i32_k: nk_f64_to_i32_serial(&local.real, &buf->i32); break;
-    case nk_u32_k: nk_f64_to_u32_serial(&local.real, &buf->u32); break;
-    case nk_i16_k: nk_f64_to_i16_serial(&local.real, &buf->i16); break;
-    case nk_u16_k: nk_f64_to_u16_serial(&local.real, &buf->u16); break;
-    case nk_i8_k: nk_f64_to_i8_serial(&local.real, &buf->i8); break;
-    case nk_u8_k: nk_f64_to_u8_serial(&local.real, &buf->u8); break;
+    case nk_i64_k: nk_f64_to_i64_serial_(&local.real, &buf->i64); break;
+    case nk_u64_k: nk_f64_to_u64_serial_(&local.real, &buf->u64); break;
+    case nk_i32_k: nk_f64_to_i32_serial_(&local.real, &buf->i32); break;
+    case nk_u32_k: nk_f64_to_u32_serial_(&local.real, &buf->u32); break;
+    case nk_i16_k: nk_f64_to_i16_serial_(&local.real, &buf->i16); break;
+    case nk_u16_k: nk_f64_to_u16_serial_(&local.real, &buf->u16); break;
+    case nk_i8_k: nk_f64_to_i8_serial_(&local.real, &buf->i8); break;
+    case nk_u8_k: nk_f64_to_u8_serial_(&local.real, &buf->u8); break;
     case nk_e4m3_k:
         temporary_f32 = (nk_f32_t)local.real;
-        nk_f32_to_e4m3_serial(&temporary_f32, &buf->u8);
+        nk_f32_to_e4m3_(&temporary_f32, &buf->u8);
         break;
     case nk_e5m2_k:
         temporary_f32 = (nk_f32_t)local.real;
-        nk_f32_to_e5m2_serial(&temporary_f32, &buf->u8);
+        nk_f32_to_e5m2_(&temporary_f32, &buf->u8);
         break;
     case nk_e2m3_k:
         temporary_f32 = (nk_f32_t)local.real;
-        nk_f32_to_e2m3_serial(&temporary_f32, &buf->u8);
+        nk_f32_to_e2m3_(&temporary_f32, &buf->u8);
         break;
     case nk_e3m2_k:
         temporary_f32 = (nk_f32_t)local.real;
-        nk_f32_to_e3m2_serial(&temporary_f32, &buf->u8);
+        nk_f32_to_e3m2_(&temporary_f32, &buf->u8);
         break;
     case nk_ue8m0_k:
         temporary_f32 = (nk_f32_t)local.real;
-        nk_f32_to_ue8m0_serial(&temporary_f32, &buf->u8);
+        nk_f32_to_ue8m0_(&temporary_f32, &buf->u8);
         break;
     case nk_ue4m3_k:
         temporary_f32 = (nk_f32_t)local.real;
-        nk_f32_to_ue4m3_serial(&temporary_f32, &buf->u8);
+        nk_f32_to_ue4m3_(&temporary_f32, &buf->u8);
         break;
     default: return 0;
     }
@@ -1876,7 +1888,7 @@ NUMKONG_HELPER_INLINE int nk_scalar_buffer_from_f64c(nk_f64c_t const *value, nk_
 }
 
 /** Converts up to 8x values from @c from_buffers buffer into 8x typed scalars. */
-NUMKONG_HELPER_INLINE void nk_scalar_buffers_from_f64c_(    //
+NUMKONG_INLINE void nk_scalar_buffers_from_f64c_(           //
     nk_scalar_buffer_t const from_buffers[nk_at_least_(8)], //
     void *to_ptr, nk_dtype_t to_dtype, nk_size_t to_count) {
 
@@ -1918,7 +1930,7 @@ NUMKONG_HELPER_INLINE void nk_scalar_buffers_from_f64c_(    //
             nk_f32_t paired[2];
             paired[0] = (nk_f32_t)from_buffers[i * 2].f64c.real;
             paired[1] = (i * 2 + 1 < to_count) ? (nk_f32_t)from_buffers[i * 2 + 1].f64c.real : 0.0f;
-            nk_f32x2_to_e2m1x2_serial(paired, &pairs[i]);
+            nk_f32x2_to_e2m1x2_(paired, &pairs[i]);
         }
     } break;
     // All byte-or-larger types: convert, then store relevant bytes
@@ -1926,7 +1938,7 @@ NUMKONG_HELPER_INLINE void nk_scalar_buffers_from_f64c_(    //
         nk_size_t stride = nk_size_divide_round_up_(nk_dtype_bits(to_dtype), NUMKONG_BITS_PER_BYTE);
         nk_scalar_buffer_t tmp;
         for (i = 0; i < to_count; ++i) {
-            nk_scalar_buffer_from_f64c(&from_buffers[i].f64c, &tmp, to_dtype);
+            nk_scalar_buffer_from_f64c_(&from_buffers[i].f64c, &tmp, to_dtype);
             nk_copy_bytes_((char *)to_ptr + i * stride, &tmp, stride);
         }
     } break;
@@ -1934,7 +1946,7 @@ NUMKONG_HELPER_INLINE void nk_scalar_buffers_from_f64c_(    //
 }
 
 /** Load 8 values from typed buffer into `buf[i].i64` (lossless widening for signed integers). */
-NUMKONG_HELPER_INLINE void nk_scalar_buffers_to_i64_(                  //
+NUMKONG_INLINE void nk_scalar_buffers_to_i64_(                         //
     void const *from_ptr, nk_dtype_t from_dtype, nk_size_t from_count, //
     nk_scalar_buffer_t to_buffers[nk_at_least_(8)]) {                  //
     nk_size_t i;
@@ -1996,7 +2008,7 @@ NUMKONG_HELPER_INLINE void nk_scalar_buffers_to_i64_(                  //
  *  @brief Export 8 `buf[i].i64` values to typed buffer with saturation on downcast.
  *  @note Only handles integer and sub-byte targets. Float/complex targets are silently skipped.
  */
-NUMKONG_HELPER_INLINE void nk_scalar_buffers_from_i64_(      //
+NUMKONG_INLINE void nk_scalar_buffers_from_i64_(             //
     nk_scalar_buffer_t const from_buffers[nk_at_least_(8)],  //
     void *to_ptr, nk_dtype_t to_dtype, nk_size_t to_count) { //
     nk_size_t i;
@@ -2007,32 +2019,32 @@ NUMKONG_HELPER_INLINE void nk_scalar_buffers_from_i64_(      //
     } break;
     case nk_i32_k: {
         nk_i32_t *p = (nk_i32_t *)to_ptr;
-        for (i = 0; i < to_count; ++i) nk_i64_to_i32_serial(&from_buffers[i].i64, &p[i]);
+        for (i = 0; i < to_count; ++i) nk_i64_to_i32_serial_(&from_buffers[i].i64, &p[i]);
     } break;
     case nk_i16_k: {
         nk_i16_t *p = (nk_i16_t *)to_ptr;
-        for (i = 0; i < to_count; ++i) nk_i64_to_i16_serial(&from_buffers[i].i64, &p[i]);
+        for (i = 0; i < to_count; ++i) nk_i64_to_i16_serial_(&from_buffers[i].i64, &p[i]);
     } break;
     case nk_i8_k: {
         nk_i8_t *p = (nk_i8_t *)to_ptr;
-        for (i = 0; i < to_count; ++i) nk_i64_to_i8_serial(&from_buffers[i].i64, &p[i]);
+        for (i = 0; i < to_count; ++i) nk_i64_to_i8_serial_(&from_buffers[i].i64, &p[i]);
     } break;
     // Unsigned targets: clamp negatives to 0
     case nk_u64_k: {
         nk_u64_t *p = (nk_u64_t *)to_ptr;
-        for (i = 0; i < to_count; ++i) nk_i64_to_u64_serial(&from_buffers[i].i64, &p[i]);
+        for (i = 0; i < to_count; ++i) nk_i64_to_u64_serial_(&from_buffers[i].i64, &p[i]);
     } break;
     case nk_u32_k: {
         nk_u32_t *p = (nk_u32_t *)to_ptr;
-        for (i = 0; i < to_count; ++i) nk_i64_to_u32_serial(&from_buffers[i].i64, &p[i]);
+        for (i = 0; i < to_count; ++i) nk_i64_to_u32_serial_(&from_buffers[i].i64, &p[i]);
     } break;
     case nk_u16_k: {
         nk_u16_t *p = (nk_u16_t *)to_ptr;
-        for (i = 0; i < to_count; ++i) nk_i64_to_u16_serial(&from_buffers[i].i64, &p[i]);
+        for (i = 0; i < to_count; ++i) nk_i64_to_u16_serial_(&from_buffers[i].i64, &p[i]);
     } break;
     case nk_u8_k: {
         nk_u8_t *p = (nk_u8_t *)to_ptr;
-        for (i = 0; i < to_count; ++i) nk_i64_to_u8_serial(&from_buffers[i].i64, &p[i]);
+        for (i = 0; i < to_count; ++i) nk_i64_to_u8_serial_(&from_buffers[i].i64, &p[i]);
     } break;
     // Sub-byte: i4 - 8 nibbles to 4 bytes, clamp [-8,7]
     case nk_i4_k: {
@@ -2050,7 +2062,7 @@ NUMKONG_HELPER_INLINE void nk_scalar_buffers_from_i64_(      //
 }
 
 /** Load 8 values from typed buffer into `buf[i].u64` (lossless widening for unsigned integers). */
-NUMKONG_HELPER_INLINE void nk_scalar_buffers_to_u64_(                  //
+NUMKONG_INLINE void nk_scalar_buffers_to_u64_(                         //
     void const *from_ptr, nk_dtype_t from_dtype, nk_size_t from_count, //
     nk_scalar_buffer_t to_buffers[nk_at_least_(8)]) {                  //
     nk_size_t i;
@@ -2094,7 +2106,7 @@ NUMKONG_HELPER_INLINE void nk_scalar_buffers_to_u64_(                  //
  *  @brief Export 8 `buf[i].u64` values to typed buffer with saturation on downcast.
  *  @note Only handles integer and sub-byte targets. Float/complex targets are silently skipped.
  */
-NUMKONG_HELPER_INLINE void nk_scalar_buffers_from_u64_(      //
+NUMKONG_INLINE void nk_scalar_buffers_from_u64_(             //
     nk_scalar_buffer_t const from_buffers[nk_at_least_(8)],  //
     void *to_ptr, nk_dtype_t to_dtype, nk_size_t to_count) { //
     nk_size_t i;
@@ -2105,32 +2117,32 @@ NUMKONG_HELPER_INLINE void nk_scalar_buffers_from_u64_(      //
     } break;
     case nk_u32_k: {
         nk_u32_t *p = (nk_u32_t *)to_ptr;
-        for (i = 0; i < to_count; ++i) nk_u64_to_u32_serial(&from_buffers[i].u64, &p[i]);
+        for (i = 0; i < to_count; ++i) nk_u64_to_u32_serial_(&from_buffers[i].u64, &p[i]);
     } break;
     case nk_u16_k: {
         nk_u16_t *p = (nk_u16_t *)to_ptr;
-        for (i = 0; i < to_count; ++i) nk_u64_to_u16_serial(&from_buffers[i].u64, &p[i]);
+        for (i = 0; i < to_count; ++i) nk_u64_to_u16_serial_(&from_buffers[i].u64, &p[i]);
     } break;
     case nk_u8_k: {
         nk_u8_t *p = (nk_u8_t *)to_ptr;
-        for (i = 0; i < to_count; ++i) nk_u64_to_u8_serial(&from_buffers[i].u64, &p[i]);
+        for (i = 0; i < to_count; ++i) nk_u64_to_u8_serial_(&from_buffers[i].u64, &p[i]);
     } break;
     // Signed targets: clamp to i64_max
     case nk_i64_k: {
         nk_i64_t *p = (nk_i64_t *)to_ptr;
-        for (i = 0; i < to_count; ++i) nk_u64_to_i64_serial(&from_buffers[i].u64, &p[i]);
+        for (i = 0; i < to_count; ++i) nk_u64_to_i64_serial_(&from_buffers[i].u64, &p[i]);
     } break;
     case nk_i32_k: {
         nk_i32_t *p = (nk_i32_t *)to_ptr;
-        for (i = 0; i < to_count; ++i) nk_u64_to_i32_serial(&from_buffers[i].u64, &p[i]);
+        for (i = 0; i < to_count; ++i) nk_u64_to_i32_serial_(&from_buffers[i].u64, &p[i]);
     } break;
     case nk_i16_k: {
         nk_i16_t *p = (nk_i16_t *)to_ptr;
-        for (i = 0; i < to_count; ++i) nk_u64_to_i16_serial(&from_buffers[i].u64, &p[i]);
+        for (i = 0; i < to_count; ++i) nk_u64_to_i16_serial_(&from_buffers[i].u64, &p[i]);
     } break;
     case nk_i8_k: {
         nk_i8_t *p = (nk_i8_t *)to_ptr;
-        for (i = 0; i < to_count; ++i) nk_u64_to_i8_serial(&from_buffers[i].u64, &p[i]);
+        for (i = 0; i < to_count; ++i) nk_u64_to_i8_serial_(&from_buffers[i].u64, &p[i]);
     } break;
     // Sub-byte: u4 - 8 nibbles to 4 bytes, clamp [0,15]
     case nk_u4_k: {
@@ -2156,9 +2168,9 @@ NUMKONG_HELPER_INLINE void nk_scalar_buffers_from_u64_(      //
 
 /** Widens a typed scalar from @p buf into @p result as f64, discarding the imaginary part. Safe
  *  when @p result aliases @p buf, for in-place conversion. */
-NUMKONG_HELPER_INLINE int nk_scalar_buffer_to_f64(nk_scalar_buffer_t const *buf, nk_dtype_t dtype, nk_f64_t *result) {
+NUMKONG_INLINE int nk_scalar_buffer_to_f64_(nk_scalar_buffer_t const *buf, nk_dtype_t dtype, nk_f64_t *result) {
     nk_f64c_t temporary_f64c;
-    int ok = nk_scalar_buffer_to_f64c(buf, dtype, &temporary_f64c);
+    int ok = nk_scalar_buffer_to_f64c_(buf, dtype, &temporary_f64c);
     *result = temporary_f64c.real;
     return ok;
 }
@@ -2171,43 +2183,36 @@ NUMKONG_HELPER_INLINE int nk_scalar_buffer_to_f64(nk_scalar_buffer_t const *buf,
  *
  *  @note Integer targets go through f64 rounding, so values beyond 2^53 may lose precision.
  */
-NUMKONG_HELPER_INLINE int nk_scalar_buffer_from_f64(nk_f64_t const *value, nk_scalar_buffer_t *buf, nk_dtype_t dtype) {
+NUMKONG_INLINE int nk_scalar_buffer_from_f64_(nk_f64_t const *value, nk_scalar_buffer_t *buf, nk_dtype_t dtype) {
     nk_f64c_t temporary_f64c = {*value, 0};
-    return nk_scalar_buffer_from_f64c(&temporary_f64c, buf, dtype);
+    return nk_scalar_buffer_from_f64c_(&temporary_f64c, buf, dtype);
 }
 
 #pragma region Public API
 
-#if defined(__clang__)
-#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
-#elif defined(__GNUC__)
-#pragma GCC push_options
-#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
-#endif
-
-NUMKONG_API_COMPTIME nk_status_t nk_cast_serial(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                                nk_dtype_t to_type, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
+/** Converts @p n values of @p from_type into @p to_type, one at a time through the U64, I64 or
+ *  F64C hub. */
+NUMKONG_INLINE void nk_cast_elementwise_(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
+                                         nk_dtype_t to_type) {
     nk_assert_dims_(n, from_type);
     nk_assert_dims_(n, to_type);
     if (from_type == to_type) {
         nk_size_t size_bits = nk_dtype_bits(from_type);
         nk_size_t size_bytes = n * size_bits / NUMKONG_BITS_PER_BYTE;
         if (size_bytes > 0) nk_copy_bytes_(to, from, size_bytes);
-        return nk_success_k;
+        return;
     }
 
     // F32 → BF16 skips the F64 hub, whose round trip may drop a NaN's sign and payload
     if ((from_type == nk_f32_k && to_type == nk_bf16_k) || (from_type == nk_f32c_k && to_type == nk_bf16c_k)) {
         nk_size_t const components = from_type == nk_f32c_k ? n * 2 : n;
-        for (nk_size_t i = 0; i != components; ++i)
-            nk_f32_to_bf16_serial((nk_f32_t const *)from + i, (nk_bf16_t *)to + i);
-        return nk_success_k;
+        for (nk_size_t i = 0; i != components; ++i) nk_f32_to_bf16_((nk_f32_t const *)from + i, (nk_bf16_t *)to + i);
+        return;
     }
 
     nk_size_t from_bits = nk_dtype_bits(from_type);
     nk_size_t to_bits = nk_dtype_bits(to_type);
-    if (from_bits == 0 || to_bits == 0) return nk_success_k;
+    if (from_bits == 0 || to_bits == 0) return;
 
     // Byte steps per batch of NUMKONG_BITS_PER_BYTE elements
     nk_size_t from_step = from_bits;
@@ -2232,7 +2237,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_cast_serial(void const *from, nk_dtype_t fro
             nk_scalar_buffers_to_u64_(src, from_type, tail, bufs);
             nk_scalar_buffers_from_u64_(bufs, dst, to_type, tail);
         }
-        return nk_success_k;
+        return;
     }
 
     // Both integers, at least one signed: i64 hub
@@ -2246,7 +2251,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_cast_serial(void const *from, nk_dtype_t fro
             nk_scalar_buffers_to_i64_(src, from_type, tail, bufs);
             nk_scalar_buffers_from_i64_(bufs, dst, to_type, tail);
         }
-        return nk_success_k;
+        return;
     }
 
     // Everything else: f64c hub (floats, complex, cross-category)
@@ -2258,6 +2263,20 @@ NUMKONG_API_COMPTIME nk_status_t nk_cast_serial(void const *from, nk_dtype_t fro
         nk_scalar_buffers_to_f64c_(src, from_type, tail, bufs);
         nk_scalar_buffers_from_f64c_(bufs, dst, to_type, tail);
     }
+}
+
+#if NUMKONG_TARGET_SERIAL
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#endif
+
+NUMKONG_API nk_status_t nk_cast_serial(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
+                                       nk_dtype_t to_type, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_cast_elementwise_(from, from_type, n, to, to_type);
     return nk_success_k;
 }
 
@@ -2266,9 +2285,10 @@ NUMKONG_API_COMPTIME nk_status_t nk_cast_serial(void const *from, nk_dtype_t fro
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_SERIAL
 
 /** Maximum representable magnitude for each block-scaled element dtype (OCP MX / NVFP4 spec). */
-NUMKONG_HELPER_INLINE nk_f32_t nk_element_max_representable_(nk_dtype_t element_dtype) {
+NUMKONG_INLINE nk_f32_t nk_element_max_representable_(nk_dtype_t element_dtype) {
     switch (element_dtype) {
     case nk_e5m2_k: return 57344.0f;
     case nk_e4m3_k: return 448.0f;
@@ -2282,7 +2302,7 @@ NUMKONG_HELPER_INLINE nk_f32_t nk_element_max_representable_(nk_dtype_t element_
 
 /** Block abs-max over n f32 values; propagates NaN so a NaN-containing block yields the scale
  *  dtype's NaN sentinel (0xFF for UE8M0) instead of silently dropping the NaN. */
-NUMKONG_HELPER_INLINE nk_f32_t nk_block_amax_f32_serial_(nk_f32_t const *src, nk_size_t n) {
+NUMKONG_INLINE nk_f32_t nk_block_amax_f32_serial_(nk_f32_t const *src, nk_size_t n) {
     nk_f32_t amax = 0.0f;
     for (nk_size_t i = 0; i < n; ++i) {
         nk_f32_t a = src[i] < 0 ? -src[i] : src[i];
@@ -2293,10 +2313,10 @@ NUMKONG_HELPER_INLINE nk_f32_t nk_block_amax_f32_serial_(nk_f32_t const *src, nk
 }
 
 /** Decode a block's scale byte into f32 (UE8M0 or UE4M3). */
-NUMKONG_HELPER_INLINE nk_f32_t nk_block_scaled_decode_scale_serial_(nk_u8_t raw_scale, nk_dtype_t scale_dtype) {
+NUMKONG_INLINE nk_f32_t nk_block_scaled_decode_scale_serial_(nk_u8_t raw_scale, nk_dtype_t scale_dtype) {
     nk_f32_t result = 0.0f;
-    if (scale_dtype == nk_ue8m0_k) nk_ue8m0_to_f32_serial(&raw_scale, &result);
-    else if (scale_dtype == nk_ue4m3_k) nk_ue4m3_to_f32_serial(&raw_scale, &result);
+    if (scale_dtype == nk_ue8m0_k) nk_ue8m0_to_f32_(&raw_scale, &result);
+    else if (scale_dtype == nk_ue4m3_k) nk_ue4m3_to_f32_(&raw_scale, &result);
     return result;
 }
 
@@ -2309,17 +2329,18 @@ NUMKONG_HELPER_INLINE nk_f32_t nk_block_scaled_decode_scale_serial_(nk_u8_t raw_
  *  - UE4M3 (NVFP4): per-block scale relative to the per-tensor f32 scale, round-to-nearest-even
  *    (UE4M3's 3 mantissa bits make scale clipping negligible).
  */
-NUMKONG_HELPER_INLINE nk_u8_t nk_block_scaled_encode_scale_serial_(nk_f32_t block_amax, nk_f32_t element_max,
-                                                                   nk_f32_t tensor_scale, nk_dtype_t scale_dtype) {
+NUMKONG_INLINE nk_u8_t nk_block_scaled_encode_scale_serial_(nk_f32_t block_amax, nk_f32_t element_max,
+                                                            nk_f32_t tensor_scale, nk_dtype_t scale_dtype) {
     nk_u8_t raw = 0;
     if (scale_dtype == nk_ue8m0_k) { raw = nk_f32_block_amax_to_ue8m0_serial_(block_amax, element_max); }
     else if (scale_dtype == nk_ue4m3_k) {
         nk_f32_t scale_target = block_amax / element_max / tensor_scale;
-        nk_f32_to_ue4m3_serial(&scale_target, &raw);
+        nk_f32_to_ue4m3_(&scale_target, &raw);
     }
     return raw;
 }
 
+#if NUMKONG_TARGET_SERIAL
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((noinline)), apply_to = function)
 #elif defined(__GNUC__)
@@ -2327,182 +2348,191 @@ NUMKONG_HELPER_INLINE nk_u8_t nk_block_scaled_encode_scale_serial_(nk_f32_t bloc
 #pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
 #endif
 
-NUMKONG_API_COMPTIME void nk_nvfp4_to_f32x16_serial(nk_nvfp4_t const *src, nk_f32_t tensor_scale, nk_f32_t *dest) {
+NUMKONG_API void nk_nvfp4_to_f32x16_serial(nk_nvfp4_t const *src, nk_f32_t tensor_scale, nk_f32_t *dest) {
     nk_f32_t scale_f32;
-    nk_ue4m3_to_f32_serial(&src->scale_, &scale_f32);
+    nk_ue4m3_to_f32_(&src->scale_, &scale_f32);
     nk_f32_t effective_scale = scale_f32 * tensor_scale;
     for (nk_size_t i = 0; i < 16; i += 2) {
-        nk_e2m1x2_to_f32x2_serial(&src->elements_[i / 2], dest + i);
+        nk_e2m1x2_to_f32x2_(&src->elements_[i / 2], dest + i);
         dest[i] *= effective_scale;
         dest[i + 1] *= effective_scale;
     }
 }
 
-NUMKONG_API_COMPTIME void nk_f32x16_to_nvfp4_serial(nk_f32_t const *src, nk_f32_t tensor_scale, nk_nvfp4_t *dest) {
+NUMKONG_API void nk_f32x16_to_nvfp4_serial(nk_f32_t const *src, nk_f32_t tensor_scale, nk_nvfp4_t *dest) {
     nk_f32_t block_amax = nk_block_amax_f32_serial_(src, 16);
     nk_f32_t scale_target = block_amax / 6.0f / (tensor_scale != 0.0f ? tensor_scale : 1.0f);
-    nk_f32_to_ue4m3_serial(&scale_target, &dest->scale_);
+    nk_f32_to_ue4m3_(&scale_target, &dest->scale_);
     nk_f32_t scale_f32;
-    nk_ue4m3_to_f32_serial(&dest->scale_, &scale_f32);
+    nk_ue4m3_to_f32_(&dest->scale_, &scale_f32);
     nk_f32_t effective_scale = scale_f32 * tensor_scale;
     nk_f32_t reciprocal = effective_scale > 0.0f ? 1.0f / effective_scale : 0.0f;
     nk_f32_t scaled[2];
     for (nk_size_t i = 0; i < 16; i += 2) {
         scaled[0] = src[i] * reciprocal;
         scaled[1] = src[i + 1] * reciprocal;
-        nk_f32x2_to_e2m1x2_serial(scaled, &dest->elements_[i / 2]);
+        nk_f32x2_to_e2m1x2_(scaled, &dest->elements_[i / 2]);
     }
 }
 
-NUMKONG_API_COMPTIME void nk_mxfp4_to_f32x32_serial(nk_mxfp4_t const *src, nk_f32_t *dest) {
+NUMKONG_API void nk_mxfp4_to_f32x32_serial(nk_mxfp4_t const *src, nk_f32_t *dest) {
     nk_f32_t scale_f32;
-    nk_ue8m0_to_f32_serial(&src->scale_, &scale_f32);
+    nk_ue8m0_to_f32_(&src->scale_, &scale_f32);
     for (nk_size_t i = 0; i < 32; i += 2) {
-        nk_e2m1x2_to_f32x2_serial(&src->elements_[i / 2], dest + i);
+        nk_e2m1x2_to_f32x2_(&src->elements_[i / 2], dest + i);
         dest[i] *= scale_f32;
         dest[i + 1] *= scale_f32;
     }
 }
 
-NUMKONG_API_COMPTIME void nk_f32x32_to_mxfp4_serial(nk_f32_t const *src, nk_mxfp4_t *dest) {
+NUMKONG_API void nk_f32x32_to_mxfp4_serial(nk_f32_t const *src, nk_mxfp4_t *dest) {
     nk_f32_t block_amax = nk_block_amax_f32_serial_(src, 32);
     dest->scale_ = nk_f32_block_amax_to_ue8m0_serial_(block_amax, 6.0f);
     nk_f32_t scale_f32;
-    nk_ue8m0_to_f32_serial(&dest->scale_, &scale_f32);
+    nk_ue8m0_to_f32_(&dest->scale_, &scale_f32);
     nk_f32_t reciprocal = scale_f32 > 0.0f ? 1.0f / scale_f32 : 0.0f;
     nk_f32_t scaled[2];
     for (nk_size_t i = 0; i < 32; i += 2) {
         scaled[0] = src[i] * reciprocal;
         scaled[1] = src[i + 1] * reciprocal;
-        nk_f32x2_to_e2m1x2_serial(scaled, &dest->elements_[i / 2]);
+        nk_f32x2_to_e2m1x2_(scaled, &dest->elements_[i / 2]);
     }
 }
 
-NUMKONG_API_COMPTIME void nk_mxfp6_e2m3_to_f32x32_serial(nk_mxfp6_e2m3_t const *src, nk_f32_t *dest) {
+NUMKONG_API void nk_mxfp6_e2m3_to_f32x32_serial(nk_mxfp6_e2m3_t const *src, nk_f32_t *dest) {
     nk_f32_t scale_f32;
-    nk_ue8m0_to_f32_serial(&src->scale_, &scale_f32);
+    nk_ue8m0_to_f32_(&src->scale_, &scale_f32);
     for (nk_size_t i = 0; i < 32; ++i) {
-        nk_e2m3_to_f32_serial(&src->elements_[i], &dest[i]);
+        nk_e2m3_to_f32_(&src->elements_[i], &dest[i]);
         dest[i] *= scale_f32;
     }
 }
 
-NUMKONG_API_COMPTIME void nk_f32x32_to_mxfp6_e2m3_serial(nk_f32_t const *src, nk_mxfp6_e2m3_t *dest) {
+NUMKONG_API void nk_f32x32_to_mxfp6_e2m3_serial(nk_f32_t const *src, nk_mxfp6_e2m3_t *dest) {
     nk_f32_t block_amax = nk_block_amax_f32_serial_(src, 32);
     dest->scale_ = nk_f32_block_amax_to_ue8m0_serial_(block_amax, 7.5f);
     nk_f32_t scale_f32;
-    nk_ue8m0_to_f32_serial(&dest->scale_, &scale_f32);
+    nk_ue8m0_to_f32_(&dest->scale_, &scale_f32);
     nk_f32_t reciprocal = scale_f32 > 0.0f ? 1.0f / scale_f32 : 0.0f;
     for (nk_size_t i = 0; i < 32; ++i) {
         nk_f32_t scaled = src[i] * reciprocal;
-        nk_f32_to_e2m3_serial(&scaled, &dest->elements_[i]);
+        nk_f32_to_e2m3_(&scaled, &dest->elements_[i]);
     }
 }
 
-NUMKONG_API_COMPTIME void nk_mxfp6_e3m2_to_f32x32_serial(nk_mxfp6_e3m2_t const *src, nk_f32_t *dest) {
+NUMKONG_API void nk_mxfp6_e3m2_to_f32x32_serial(nk_mxfp6_e3m2_t const *src, nk_f32_t *dest) {
     nk_f32_t scale_f32;
-    nk_ue8m0_to_f32_serial(&src->scale_, &scale_f32);
+    nk_ue8m0_to_f32_(&src->scale_, &scale_f32);
     for (nk_size_t i = 0; i < 32; ++i) {
-        nk_e3m2_to_f32_serial(&src->elements_[i], &dest[i]);
+        nk_e3m2_to_f32_(&src->elements_[i], &dest[i]);
         dest[i] *= scale_f32;
     }
 }
 
-NUMKONG_API_COMPTIME void nk_f32x32_to_mxfp6_e3m2_serial(nk_f32_t const *src, nk_mxfp6_e3m2_t *dest) {
+NUMKONG_API void nk_f32x32_to_mxfp6_e3m2_serial(nk_f32_t const *src, nk_mxfp6_e3m2_t *dest) {
     nk_f32_t block_amax = nk_block_amax_f32_serial_(src, 32);
     dest->scale_ = nk_f32_block_amax_to_ue8m0_serial_(block_amax, 28.0f);
     nk_f32_t scale_f32;
-    nk_ue8m0_to_f32_serial(&dest->scale_, &scale_f32);
+    nk_ue8m0_to_f32_(&dest->scale_, &scale_f32);
     nk_f32_t reciprocal = scale_f32 > 0.0f ? 1.0f / scale_f32 : 0.0f;
     for (nk_size_t i = 0; i < 32; ++i) {
         nk_f32_t scaled = src[i] * reciprocal;
-        nk_f32_to_e3m2_serial(&scaled, &dest->elements_[i]);
+        nk_f32_to_e3m2_(&scaled, &dest->elements_[i]);
     }
 }
 
-NUMKONG_API_COMPTIME void nk_mxfp8_e4m3_to_f32x32_serial(nk_mxfp8_e4m3_t const *src, nk_f32_t *dest) {
+NUMKONG_API void nk_mxfp8_e4m3_to_f32x32_serial(nk_mxfp8_e4m3_t const *src, nk_f32_t *dest) {
     nk_f32_t scale_f32;
-    nk_ue8m0_to_f32_serial(&src->scale_, &scale_f32);
+    nk_ue8m0_to_f32_(&src->scale_, &scale_f32);
     for (nk_size_t i = 0; i < 32; ++i) {
-        nk_e4m3_to_f32_serial(&src->elements_[i], &dest[i]);
+        nk_e4m3_to_f32_(&src->elements_[i], &dest[i]);
         dest[i] *= scale_f32;
     }
 }
 
-NUMKONG_API_COMPTIME void nk_f32x32_to_mxfp8_e4m3_serial(nk_f32_t const *src, nk_mxfp8_e4m3_t *dest) {
+NUMKONG_API void nk_f32x32_to_mxfp8_e4m3_serial(nk_f32_t const *src, nk_mxfp8_e4m3_t *dest) {
     nk_f32_t block_amax = nk_block_amax_f32_serial_(src, 32);
     dest->scale_ = nk_f32_block_amax_to_ue8m0_serial_(block_amax, 448.0f);
     nk_f32_t scale_f32;
-    nk_ue8m0_to_f32_serial(&dest->scale_, &scale_f32);
+    nk_ue8m0_to_f32_(&dest->scale_, &scale_f32);
     nk_f32_t reciprocal = scale_f32 > 0.0f ? 1.0f / scale_f32 : 0.0f;
     for (nk_size_t i = 0; i < 32; ++i) {
         nk_f32_t scaled = src[i] * reciprocal;
-        nk_f32_to_e4m3_serial(&scaled, &dest->elements_[i]);
+        nk_f32_to_e4m3_(&scaled, &dest->elements_[i]);
     }
 }
 
-NUMKONG_API_COMPTIME void nk_mxfp8_e5m2_to_f32x32_serial(nk_mxfp8_e5m2_t const *src, nk_f32_t *dest) {
+NUMKONG_API void nk_mxfp8_e5m2_to_f32x32_serial(nk_mxfp8_e5m2_t const *src, nk_f32_t *dest) {
     nk_f32_t scale_f32;
-    nk_ue8m0_to_f32_serial(&src->scale_, &scale_f32);
+    nk_ue8m0_to_f32_(&src->scale_, &scale_f32);
     for (nk_size_t i = 0; i < 32; ++i) {
-        nk_e5m2_to_f32_serial(&src->elements_[i], &dest[i]);
+        nk_e5m2_to_f32_(&src->elements_[i], &dest[i]);
         dest[i] *= scale_f32;
     }
 }
 
-NUMKONG_API_COMPTIME void nk_f32x32_to_mxfp8_e5m2_serial(nk_f32_t const *src, nk_mxfp8_e5m2_t *dest) {
+NUMKONG_API void nk_f32x32_to_mxfp8_e5m2_serial(nk_f32_t const *src, nk_mxfp8_e5m2_t *dest) {
     nk_f32_t block_amax = nk_block_amax_f32_serial_(src, 32);
     dest->scale_ = nk_f32_block_amax_to_ue8m0_serial_(block_amax, 57344.0f);
     nk_f32_t scale_f32;
-    nk_ue8m0_to_f32_serial(&dest->scale_, &scale_f32);
+    nk_ue8m0_to_f32_(&dest->scale_, &scale_f32);
     nk_f32_t reciprocal = scale_f32 > 0.0f ? 1.0f / scale_f32 : 0.0f;
     for (nk_size_t i = 0; i < 32; ++i) {
         nk_f32_t scaled = src[i] * reciprocal;
-        nk_f32_to_e5m2_serial(&scaled, &dest->elements_[i]);
+        nk_f32_to_e5m2_(&scaled, &dest->elements_[i]);
     }
 }
 
-NUMKONG_API_COMPTIME void nk_mxint8_to_f32x32_serial(nk_mxint8_t const *src, nk_f32_t *dest) {
+NUMKONG_API void nk_mxint8_to_f32x32_serial(nk_mxint8_t const *src, nk_f32_t *dest) {
     nk_f32_t scale_f32;
-    nk_ue8m0_to_f32_serial(&src->scale_, &scale_f32);
+    nk_ue8m0_to_f32_(&src->scale_, &scale_f32);
     for (nk_size_t i = 0; i < 32; ++i) dest[i] = (nk_f32_t)src->elements_[i] * scale_f32;
 }
 
-NUMKONG_API_COMPTIME void nk_f32x32_to_mxint8_serial(nk_f32_t const *src, nk_mxint8_t *dest) {
+NUMKONG_API void nk_f32x32_to_mxint8_serial(nk_f32_t const *src, nk_mxint8_t *dest) {
     nk_f32_t block_amax = nk_block_amax_f32_serial_(src, 32);
     dest->scale_ = nk_f32_block_amax_to_ue8m0_serial_(block_amax, 127.0f);
     nk_f32_t scale_f32;
-    nk_ue8m0_to_f32_serial(&dest->scale_, &scale_f32);
+    nk_ue8m0_to_f32_(&dest->scale_, &scale_f32);
     nk_f32_t reciprocal = scale_f32 > 0.0f ? 1.0f / scale_f32 : 0.0f;
     for (nk_size_t i = 0; i < 32; ++i) {
         nk_f32_t scaled = src[i] * reciprocal;
-        nk_f32_to_i8_serial(&scaled, &dest->elements_[i]);
+        nk_f32_to_i8_serial_(&scaled, &dest->elements_[i]);
     }
 }
 
-NUMKONG_API_COMPTIME nk_size_t nk_block_scaled_elements_size(nk_size_t count, nk_block_scaled_format_t format) {
+NUMKONG_API nk_size_t nk_block_scaled_elements_size(nk_size_t count, nk_block_scaled_format_t format) {
     nk_size_t bits_per_element = nk_dtype_bits(format.element_dtype);
     return count * bits_per_element / NUMKONG_BITS_PER_BYTE;
 }
 
-NUMKONG_API_COMPTIME nk_size_t nk_block_scaled_scales_size(nk_size_t count, nk_block_scaled_format_t format) {
+NUMKONG_API nk_size_t nk_block_scaled_scales_size(nk_size_t count, nk_block_scaled_format_t format) {
     if (format.scale_dtype == nk_dtype_unknown_k || format.block_size == 0) return 0;
     return nk_size_divide_round_up_(count, format.block_size);
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_cast_block_scaled_serial(                                                  //
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
+#endif // NUMKONG_TARGET_SERIAL
+
+/** Converts @p count values between plain and block-scaled formats, a chunk of blocks at a time
+ *  through an F32 scratch, deriving a zero destination tensor scale from the source amax. */
+NUMKONG_INLINE void nk_cast_block_scaled_through_f32_(                                                         //
     void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
     nk_block_scaled_format_t const *from_format,                                                               //
     void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
-    nk_size_t count, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
+    nk_size_t count) {
 
     int from_plain = (from_format->scale_dtype == nk_dtype_unknown_k || from_format->block_size == 0);
     int to_plain = (to_format->scale_dtype == nk_dtype_unknown_k || to_format->block_size == 0);
 
     // Plain → plain: delegate to elementwise cast hub.
     if (from_plain && to_plain) {
-        return nk_cast_serial(from, from_format->element_dtype, count, to, to_format->element_dtype, stream);
+        nk_cast_elementwise_(from, from_format->element_dtype, count, to, to_format->element_dtype);
+        return;
     }
 
     nk_size_t from_block = from_plain ? 1u : from_format->block_size;
@@ -2529,7 +2559,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_cast_block_scaled_serial(                   
                 nk_size_t block_count = (i + from_block <= count) ? from_block : (count - i);
                 nk_size_t from_offset_bits = i * nk_dtype_bits(from_format->element_dtype);
                 void const *src = (nk_u8_t const *)from + (from_offset_bits / NUMKONG_BITS_PER_BYTE);
-                nk_cast_serial(src, from_format->element_dtype, block_count, block_f32, nk_f32_k, stream);
+                nk_cast_elementwise_(src, from_format->element_dtype, block_count, block_f32, nk_f32_k);
                 nk_f32_t src_scale = 1.0f;
                 if (!from_plain) {
                     nk_u8_t raw = ((nk_u8_t const *)from_scales)[i / from_block];
@@ -2562,7 +2592,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_cast_block_scaled_serial(                   
         // Decode the source chunk into scratch[0..chunk_count) as f32.
         if (from_plain) {
             void const *src = (nk_u8_t const *)from + (chunk_start * from_bits_per_element / NUMKONG_BITS_PER_BYTE);
-            nk_cast_serial(src, from_format->element_dtype, chunk_count, scratch, nk_f32_k, stream);
+            nk_cast_elementwise_(src, from_format->element_dtype, chunk_count, scratch, nk_f32_k);
         }
         else {
             for (nk_size_t b = 0; b < chunk_count; b += from_block) {
@@ -2573,7 +2603,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_cast_block_scaled_serial(                   
                                      from_tensor_scale_f32;
                 void const *src = (nk_u8_t const *)from +
                                   ((chunk_start + b) * from_bits_per_element / NUMKONG_BITS_PER_BYTE);
-                nk_cast_serial(src, from_format->element_dtype, valid, scratch + b, nk_f32_k, stream);
+                nk_cast_elementwise_(src, from_format->element_dtype, valid, scratch + b, nk_f32_k);
                 for (nk_size_t k = 0; k < valid; ++k) scratch[b + k] *= scale_f32;
             }
         }
@@ -2581,7 +2611,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_cast_block_scaled_serial(                   
         // Encode scratch[0..chunk_count) as f32 into the destination chunk.
         if (to_plain) {
             void *dst = (nk_u8_t *)to + (chunk_start * to_bits_per_element / NUMKONG_BITS_PER_BYTE);
-            nk_cast_serial(scratch, nk_f32_k, chunk_count, dst, to_format->element_dtype, stream);
+            nk_cast_elementwise_(scratch, nk_f32_k, chunk_count, dst, to_format->element_dtype);
         }
         else {
             nk_f32_t element_max = nk_element_max_representable_(to_format->element_dtype);
@@ -2608,20 +2638,39 @@ NUMKONG_API_COMPTIME nk_status_t nk_cast_block_scaled_serial(                   
                     else if (encoded_scratch[saturate_index] < -element_max)
                         encoded_scratch[saturate_index] = -element_max;
                 }
-                nk_cast_serial(encoded_scratch, nk_f32_k, valid, dst, to_format->element_dtype, stream);
+                nk_cast_elementwise_(encoded_scratch, nk_f32_k, valid, dst, to_format->element_dtype);
             }
         }
     }
-    return nk_success_k;
 }
 
-#pragma endregion Public API
+#if NUMKONG_TARGET_SERIAL
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
+#endif
+
+NUMKONG_API nk_status_t nk_cast_block_scaled_serial(                                                           //
+    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
+    nk_block_scaled_format_t const *from_format,                                                               //
+    void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
+    nk_size_t count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_cast_block_scaled_through_f32_(from, from_scales, from_tensor_scale, from_format, to, to_scales, to_tensor_scale,
+                                      to_format, count);
+    return nk_success_k;
+}
 
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_SERIAL
+
+#pragma endregion Public API
 
 #if defined(__GNUC__) && !defined(__clang__) && NUMKONG_ARCH_ARM64_
 #pragma GCC pop_options

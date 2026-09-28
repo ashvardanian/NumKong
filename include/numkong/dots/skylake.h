@@ -23,15 +23,18 @@
 #ifndef NUMKONG_DOTS_SKYLAKE_H
 #define NUMKONG_DOTS_SKYLAKE_H
 
-#if NUMKONG_ARCH_X86_64_
-#if NUMKONG_TARGET_SKYLAKE
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_SKYLAKE_
 
 #include "numkong/dot/skylake.h"
+#include "numkong/cast/serial.h" // `nk_partial_store_b16x16_serial_`
+#include "numkong/dots/serial.h" // `nk_define_cross_pack_size_`
 
 #if defined(__cplusplus)
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_SKYLAKE
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("avx2,avx512f,avx512vl,avx512bw,avx512dq,f16c,fma,bmi,bmi2"))), \
                              apply_to = function)
@@ -235,11 +238,12 @@ nk_define_cross_packed_(dots, e3m2, skylake, e3m2, e3m2, f32, nk_b512_vec_t, nk_
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_SKYLAKE
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_SKYLAKE
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_SKYLAKE_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_DOTS_SKYLAKE_H

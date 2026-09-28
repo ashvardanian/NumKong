@@ -25,15 +25,18 @@
 #ifndef NUMKONG_DOTS_HASWELL_H
 #define NUMKONG_DOTS_HASWELL_H
 
-#if NUMKONG_ARCH_X86_64_
-#if NUMKONG_TARGET_HASWELL
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_HASWELL_
 
 #include "numkong/dot/haswell.h"
+#include "numkong/cast/serial.h" // `nk_partial_load_b32x8_serial_`
+#include "numkong/dots/serial.h" // `nk_define_cross_pack_size_`
 
 #if defined(__cplusplus)
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_HASWELL
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("avx2,f16c,fma,bmi,bmi2"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -344,11 +347,12 @@ nk_define_cross_packed_(dots, u1, haswell, u1x8, u1x8, u32, nk_b128_vec_t, nk_do
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_HASWELL
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_HASWELL
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_HASWELL_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_DOTS_HASWELL_H

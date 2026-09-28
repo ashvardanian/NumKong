@@ -22,35 +22,46 @@
 //! File: rust/sparse.rs
 //! Author: Ash Vardanian
 
+use core::ffi::c_void;
+use core::ptr::null_mut;
+
+use crate::capabilities::{cpu_capabilities, Status};
+use crate::tensor::TensorError;
 use crate::types::bf16;
 
 #[link(name = "numkong")]
 extern "C" {
-    fn nk_sparse_intersect_u16(
+    fn nk_sparse_intersect_u16_best(
         a: *const u16,
         b: *const u16,
         a_length: usize,
         b_length: usize,
         result: *mut u16,
         count: *mut usize,
-    );
-    fn nk_sparse_intersect_u32(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_sparse_intersect_u32_best(
         a: *const u32,
         b: *const u32,
         a_length: usize,
         b_length: usize,
         result: *mut u32,
         count: *mut usize,
-    );
-    fn nk_sparse_intersect_u64(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_sparse_intersect_u64_best(
         a: *const u64,
         b: *const u64,
         a_length: usize,
         b_length: usize,
         result: *mut u64,
         count: *mut usize,
-    );
-    fn nk_sparse_dot_u16bf16(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_sparse_dot_u16bf16_best(
         a: *const u16,
         b: *const u16,
         a_weights: *const u16,
@@ -58,8 +69,10 @@ extern "C" {
         a_length: usize,
         b_length: usize,
         product: *mut f32,
-    );
-    fn nk_sparse_dot_u32f32(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_sparse_dot_u32f32_best(
         a: *const u32,
         b: *const u32,
         a_weights: *const f32,
@@ -67,15 +80,22 @@ extern "C" {
         a_length: usize,
         b_length: usize,
         product: *mut f64,
-    );
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
 }
 
 // region: SparseIntersect
 
 /// Computes set operations on sorted sparse vectors.
+///
+/// # Errors
+///
+/// [`TensorError::KernelFailed`] when no capability of the current [`Capabilities`](crate::Capabilities)
+/// has the kernel.
 pub trait SparseIntersect: Sized {
     /// Returns the intersection size between two sorted sparse vectors.
-    fn sparse_intersection_size(a: &[Self], b: &[Self]) -> usize;
+    fn sparse_intersection_size(a: &[Self], b: &[Self]) -> Result<usize, TensorError>;
 
     /// Computes intersection and writes matching elements to output buffer.
     /// Buffer must be at least `min(a.len(), b.len())` in size.
@@ -84,19 +104,22 @@ pub trait SparseIntersect: Sized {
 }
 
 impl SparseIntersect for u16 {
-    fn sparse_intersection_size(a: &[Self], b: &[Self]) -> usize {
+    fn sparse_intersection_size(a: &[Self], b: &[Self]) -> Result<usize, TensorError> {
         let mut count: usize = 0;
         unsafe {
-            nk_sparse_intersect_u16(
+            nk_sparse_intersect_u16_best(
                 a.as_ptr(),
                 b.as_ptr(),
                 a.len(),
                 b.len(),
                 core::ptr::null_mut(),
                 &mut count,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
-        count
+        }
+        .check()?;
+        Ok(count)
     }
 
     fn sparse_intersect_into(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<usize> {
@@ -106,33 +129,39 @@ impl SparseIntersect for u16 {
         }
         let mut count: usize = 0;
         unsafe {
-            nk_sparse_intersect_u16(
+            nk_sparse_intersect_u16_best(
                 a.as_ptr(),
                 b.as_ptr(),
                 a.len(),
                 b.len(),
                 result.as_mut_ptr(),
                 &mut count,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(count)
     }
 }
 
 impl SparseIntersect for u32 {
-    fn sparse_intersection_size(a: &[Self], b: &[Self]) -> usize {
+    fn sparse_intersection_size(a: &[Self], b: &[Self]) -> Result<usize, TensorError> {
         let mut count: usize = 0;
         unsafe {
-            nk_sparse_intersect_u32(
+            nk_sparse_intersect_u32_best(
                 a.as_ptr(),
                 b.as_ptr(),
                 a.len(),
                 b.len(),
                 core::ptr::null_mut(),
                 &mut count,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
-        count
+        }
+        .check()?;
+        Ok(count)
     }
 
     fn sparse_intersect_into(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<usize> {
@@ -142,33 +171,39 @@ impl SparseIntersect for u32 {
         }
         let mut count: usize = 0;
         unsafe {
-            nk_sparse_intersect_u32(
+            nk_sparse_intersect_u32_best(
                 a.as_ptr(),
                 b.as_ptr(),
                 a.len(),
                 b.len(),
                 result.as_mut_ptr(),
                 &mut count,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(count)
     }
 }
 
 impl SparseIntersect for u64 {
-    fn sparse_intersection_size(a: &[Self], b: &[Self]) -> usize {
+    fn sparse_intersection_size(a: &[Self], b: &[Self]) -> Result<usize, TensorError> {
         let mut count: usize = 0;
         unsafe {
-            nk_sparse_intersect_u64(
+            nk_sparse_intersect_u64_best(
                 a.as_ptr(),
                 b.as_ptr(),
                 a.len(),
                 b.len(),
                 core::ptr::null_mut(),
                 &mut count,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
-        count
+        }
+        .check()?;
+        Ok(count)
     }
 
     fn sparse_intersect_into(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<usize> {
@@ -178,15 +213,18 @@ impl SparseIntersect for u64 {
         }
         let mut count: usize = 0;
         unsafe {
-            nk_sparse_intersect_u64(
+            nk_sparse_intersect_u64_best(
                 a.as_ptr(),
                 b.as_ptr(),
                 a.len(),
                 b.len(),
                 result.as_mut_ptr(),
                 &mut count,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(count)
     }
 }
@@ -199,6 +237,11 @@ impl SparseIntersect for u64 {
 ///
 /// Each vector consists of sorted indices and corresponding weights. The dot product is computed
 /// over the intersection of indices, summing the products of weights.
+///
+/// # Errors
+///
+/// [`TensorError::KernelFailed`] when no capability of the current [`Capabilities`](crate::Capabilities)
+/// has the kernel.
 pub trait SparseDot: Sized {
     /// Weight type for this sparse dot product.
     type Weight;
@@ -216,21 +259,26 @@ pub trait SparseDot: Sized {
         b_indices: &[Self],
         a_weights: &[Self::Weight],
         b_weights: &[Self::Weight],
-    ) -> Self::Output;
+    ) -> Result<Self::Output, TensorError>;
 }
 
 impl SparseDot for u16 {
     type Weight = bf16;
     type Output = f32;
 
-    fn sparse_dot(a_indices: &[Self], b_indices: &[Self], a_weights: &[bf16], b_weights: &[bf16]) -> Self::Output {
+    fn sparse_dot(
+        a_indices: &[Self],
+        b_indices: &[Self],
+        a_weights: &[bf16],
+        b_weights: &[bf16],
+    ) -> Result<Self::Output, TensorError> {
         // The index lengths below bound the kernel's reads of both arrays of each vector.
         if a_weights.len() < a_indices.len() || b_weights.len() < b_indices.len() {
-            return Self::Output::default();
+            return Ok(Self::Output::default());
         }
         let mut product: f32 = 0.0;
         unsafe {
-            nk_sparse_dot_u16bf16(
+            nk_sparse_dot_u16bf16_best(
                 a_indices.as_ptr(),
                 b_indices.as_ptr(),
                 a_weights.as_ptr() as *const u16,
@@ -238,9 +286,12 @@ impl SparseDot for u16 {
                 a_indices.len(),
                 b_indices.len(),
                 &mut product,
-            );
+                cpu_capabilities(),
+                null_mut(),
+            )
+            .check()?;
         }
-        product
+        Ok(product)
     }
 }
 
@@ -248,14 +299,19 @@ impl SparseDot for u32 {
     type Weight = f32;
     type Output = f64;
 
-    fn sparse_dot(a_indices: &[Self], b_indices: &[Self], a_weights: &[f32], b_weights: &[f32]) -> Self::Output {
+    fn sparse_dot(
+        a_indices: &[Self],
+        b_indices: &[Self],
+        a_weights: &[f32],
+        b_weights: &[f32],
+    ) -> Result<Self::Output, TensorError> {
         // The index lengths below bound the kernel's reads of both arrays of each vector.
         if a_weights.len() < a_indices.len() || b_weights.len() < b_indices.len() {
-            return Self::Output::default();
+            return Ok(Self::Output::default());
         }
         let mut product: f64 = 0.0;
         unsafe {
-            nk_sparse_dot_u32f32(
+            nk_sparse_dot_u32f32_best(
                 a_indices.as_ptr(),
                 b_indices.as_ptr(),
                 a_weights.as_ptr(),
@@ -263,9 +319,12 @@ impl SparseDot for u32 {
                 a_indices.len(),
                 b_indices.len(),
                 &mut product,
-            );
+                cpu_capabilities(),
+                null_mut(),
+            )
+            .check()?;
         }
-        product
+        Ok(product)
     }
 }
 
@@ -283,7 +342,7 @@ mod tests {
         // u16 — intersection size
         let left: Vec<u16> = vec![1, 3, 5, 7, 9];
         let right: Vec<u16> = vec![2, 3, 5, 8, 9];
-        assert_eq!(u16::sparse_intersection_size(&left, &right), 3);
+        assert_eq!(u16::sparse_intersection_size(&left, &right).unwrap(), 3);
 
         // u16 — intersect into buffer
         let mut result: Vec<u16> = vec![0; 5];
@@ -302,7 +361,7 @@ mod tests {
         // u64 — intersection size
         let left: Vec<u64> = vec![100, 200, 300];
         let right: Vec<u64> = vec![200, 300, 400];
-        assert_eq!(u64::sparse_intersection_size(&left, &right), 2);
+        assert_eq!(u64::sparse_intersection_size(&left, &right).unwrap(), 2);
     }
 
     #[test]
@@ -388,7 +447,7 @@ mod tests {
         for (i, array_a) in test_arrays.iter().enumerate() {
             for (j, array_b) in test_arrays.iter().enumerate() {
                 let expected = reference_intersect(array_a, array_b);
-                let result = u32::sparse_intersection_size(array_a.as_slice(), array_b.as_slice());
+                let result = u32::sparse_intersection_size(array_a.as_slice(), array_b.as_slice()).unwrap();
                 assert_eq!(
                     expected,
                     result,
@@ -408,7 +467,7 @@ mod tests {
         for (i, array_a) in test_arrays.iter().enumerate() {
             for (j, array_b) in test_arrays.iter().enumerate() {
                 let expected = reference_intersect(array_a, array_b);
-                let result = u16::sparse_intersection_size(array_a.as_slice(), array_b.as_slice());
+                let result = u16::sparse_intersection_size(array_a.as_slice(), array_b.as_slice()).unwrap();
                 assert_eq!(
                     expected,
                     result,
@@ -426,30 +485,30 @@ mod tests {
     fn intersect_edge_cases() {
         let empty: &[u32] = &[];
         let non_empty: &[u32] = &[1, 2, 3];
-        assert_eq!(u32::sparse_intersection_size(empty, empty), 0);
-        assert_eq!(u32::sparse_intersection_size(empty, non_empty), 0);
-        assert_eq!(u32::sparse_intersection_size(non_empty, empty), 0);
+        assert_eq!(u32::sparse_intersection_size(empty, empty).unwrap(), 0);
+        assert_eq!(u32::sparse_intersection_size(empty, non_empty).unwrap(), 0);
+        assert_eq!(u32::sparse_intersection_size(non_empty, empty).unwrap(), 0);
 
-        assert_eq!(u32::sparse_intersection_size(&[42u32], &[42u32]), 1);
-        assert_eq!(u32::sparse_intersection_size(&[42u32], &[43u32]), 0);
+        assert_eq!(u32::sparse_intersection_size(&[42u32], &[42u32]).unwrap(), 1);
+        assert_eq!(u32::sparse_intersection_size(&[42u32], &[43u32]).unwrap(), 0);
 
         let a: &[u32] = &[1, 2, 3, 4, 5];
         let b: &[u32] = &[10, 20, 30, 40, 50];
-        assert_eq!(u32::sparse_intersection_size(a, b), 0);
+        assert_eq!(u32::sparse_intersection_size(a, b).unwrap(), 0);
 
         let c: &[u32] = &[10, 20, 30, 40, 50];
-        assert_eq!(u32::sparse_intersection_size(c, c), 5);
+        assert_eq!(u32::sparse_intersection_size(c, c).unwrap(), 5);
 
         let boundary_16: Vec<u32> = (0..16).collect();
         let boundary_32: Vec<u32> = (0..32).collect();
         let boundary_64: Vec<u32> = (0..64).collect();
-        assert_eq!(u32::sparse_intersection_size(&boundary_16, &boundary_16), 16);
-        assert_eq!(u32::sparse_intersection_size(&boundary_32, &boundary_32), 32);
-        assert_eq!(u32::sparse_intersection_size(&boundary_64, &boundary_64), 64);
+        assert_eq!(u32::sparse_intersection_size(&boundary_16, &boundary_16).unwrap(), 16);
+        assert_eq!(u32::sparse_intersection_size(&boundary_32, &boundary_32).unwrap(), 32);
+        assert_eq!(u32::sparse_intersection_size(&boundary_64, &boundary_64).unwrap(), 64);
 
         let first_half: Vec<u32> = (0..32).collect();
         let second_half: Vec<u32> = (16..48).collect();
-        assert_eq!(u32::sparse_intersection_size(&first_half, &second_half), 16);
+        assert_eq!(u32::sparse_intersection_size(&first_half, &second_half).unwrap(), 16);
     }
 
     // endregion
@@ -464,7 +523,7 @@ mod tests {
         let first_weights: Vec<f32> = vec![1.0, 2.0, 3.0];
         let second_weights: Vec<f32> = vec![4.0, 5.0, 6.0, 7.0];
         // Overlap at indices 3 and 5: 2.0*5.0 + 3.0*6.0 = 28.0
-        let result = u32::sparse_dot(&first_indices, &second_indices, &first_weights, &second_weights);
+        let result = u32::sparse_dot(&first_indices, &second_indices, &first_weights, &second_weights).unwrap();
         assert!((result - 28.0).abs() < 0.01, "sparse_dot u32f32: {result}");
 
         // u16 indices with bf16 weights
@@ -480,11 +539,12 @@ mod tests {
             &second_indices_u16,
             &first_weights_bf16,
             &second_weights_bf16,
-        );
+        )
+        .unwrap();
         assert!((result - 28.0).abs() < 1.0, "sparse_dot u16bf16: {result}");
 
         // Disjoint sets → 0
-        let result = u32::sparse_dot(&[1, 2], &[3, 4], &[1.0, 1.0], &[1.0, 1.0]);
+        let result = u32::sparse_dot(&[1, 2], &[3, 4], &[1.0, 1.0], &[1.0, 1.0]).unwrap();
         assert!(result.abs() < 0.01, "sparse_dot disjoint: {result}");
     }
 
@@ -493,19 +553,20 @@ mod tests {
         // The index lengths bound the kernel's reads of both arrays, so a weights slice shorter
         // than its index slice used to be read past its end.
         let indices: [u32; 8] = [1, 2, 3, 4, 5, 6, 7, 8];
-        assert_eq!(u32::sparse_dot(&indices, &indices, &[1.0], &[1.0]), 0.0);
+        assert_eq!(u32::sparse_dot(&indices, &indices, &[1.0], &[1.0]).unwrap(), 0.0);
         assert_eq!(
             u16::sparse_dot(
                 &[1_u16, 2, 3],
                 &[1_u16, 2, 3],
                 &[bf16::from_f32(1.0)],
                 &[bf16::from_f32(1.0)]
-            ),
+            )
+            .unwrap(),
             0.0
         );
         // Matching lengths still compute: three shared indices, unit weights.
         let ones = [1.0_f32; 8];
-        assert_eq!(u32::sparse_dot(&indices, &indices, &ones, &ones), 8.0);
+        assert_eq!(u32::sparse_dot(&indices, &indices, &ones, &ones).unwrap(), 8.0);
     }
 
     // endregion

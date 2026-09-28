@@ -54,6 +54,7 @@ const PROBES = [
     ["NUMKONG_TARGET_SAPPHIREAMX", "probes/x86_sapphireamx.c", ["-mamx-tile", "-mamx-int8"], ["/arch:AVX512"]],
     ["NUMKONG_TARGET_GRANITEAMX", "probes/x86_graniteamx.c", ["-mamx-tile", "-mamx-fp16"], ["/arch:AVX512"]],
     ["NUMKONG_TARGET_DIAMOND", "probes/x86_diamond.c", ["-mavx10.2-512"], ["/arch:AVX10.2"]],
+    ["NUMKONG_TARGET_DIAMONDAMX", "probes/x86_diamondamx.c", ["-mamx-tile", "-mamx-fp8", "-mamx-avx512", "-mavx10.2"], ["/arch:AVX10.2"]],
     ["NUMKONG_TARGET_TURIN", "probes/x86_turin.c", ["-mavx512vp2intersect"], ["/arch:AVX512"]],
     ["NUMKONG_TARGET_ALDER", "probes/x86_alder.c", ["-mavxvnni"], ["/arch:AVX2"]],
     ["NUMKONG_TARGET_SIERRA", "probes/x86_sierra.c", ["-mavxvnniint8"], ["/arch:AVX2"]],

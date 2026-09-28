@@ -30,15 +30,16 @@ typedef struct attention_pack_task_t {
     nk_size_t key_stride_bytes;
     nk_size_t value_stride_bytes;
     void *key_value_packed;
+    void *stream;
 } attention_pack_task_t;
 
-static void attention_pack_tile_(nk_size_t tile_index, void *context) {
+static nk_status_t attention_pack_tile_(nk_size_t tile_index, void *context) {
     attention_pack_task_t const *task = (attention_pack_task_t const *)context;
     // Window 0 initializes the blob's header and directory before the pool starts, so tile 0 is window 1.
     nk_size_t const window = tile_index + 1;
-    task->kernel(task->keys, task->values, task->key_value_head_count, task->depth, task->segment_offsets,
-                 task->segment_lengths, task->segment_count, task->key_stride_bytes, task->value_stride_bytes,
-                 task->key_value_packed, window, window + 1);
+    return task->kernel(task->keys, task->values, task->key_value_head_count, task->depth, task->segment_offsets,
+                        task->segment_lengths, task->segment_count, task->key_stride_bytes, task->value_stride_bytes,
+                        task->key_value_packed, window, window + 1, task->stream);
 }
 
 /** Arguments both attention kernels take, named as in `nk_attention_*_packed_*`. */
@@ -53,6 +54,7 @@ typedef struct attention_arguments_t {
     nk_size_t query_stride_bytes;
     nk_size_t output_stride_bytes;
     nk_f32_t scale;
+    void *stream;
 } attention_arguments_t;
 
 /** One segment-head task of bidirectional attention. */
@@ -69,21 +71,22 @@ typedef struct attention_causal_task_t {
     nk_size_t window;
 } attention_causal_task_t;
 
-static void attention_bidirectional_tile_(nk_size_t tile_index, void *context) {
+static nk_status_t attention_bidirectional_tile_(nk_size_t tile_index, void *context) {
     attention_bidirectional_task_t const *task = (attention_bidirectional_task_t const *)context;
     attention_arguments_t const *arguments = &task->arguments;
-    task->kernel(arguments->queries, arguments->key_value_packed, arguments->output, arguments->head_count,
-                 arguments->key_value_head_count, arguments->depth, arguments->query_offsets,
-                 arguments->query_stride_bytes, arguments->output_stride_bytes, arguments->scale, tile_index, 1);
+    return task->kernel(arguments->queries, arguments->key_value_packed, arguments->output, arguments->head_count,
+                        arguments->key_value_head_count, arguments->depth, arguments->query_offsets,
+                        arguments->query_stride_bytes, arguments->output_stride_bytes, arguments->scale, tile_index, 1,
+                        arguments->stream);
 }
 
-static void attention_causal_tile_(nk_size_t tile_index, void *context) {
+static nk_status_t attention_causal_tile_(nk_size_t tile_index, void *context) {
     attention_causal_task_t const *task = (attention_causal_task_t const *)context;
     attention_arguments_t const *arguments = &task->arguments;
-    task->kernel(arguments->queries, arguments->key_value_packed, arguments->output, arguments->head_count,
-                 arguments->key_value_head_count, arguments->depth, arguments->query_offsets,
-                 arguments->query_stride_bytes, arguments->output_stride_bytes, arguments->scale, task->diagonal_offset,
-                 task->window, tile_index, 1);
+    return task->kernel(arguments->queries, arguments->key_value_packed, arguments->output, arguments->head_count,
+                        arguments->key_value_head_count, arguments->depth, arguments->query_offsets,
+                        arguments->query_stride_bytes, arguments->output_stride_bytes, arguments->scale,
+                        task->diagonal_offset, task->window, tile_index, 1, arguments->stream);
 }
 
 static void AttentionPackedMatrix_dealloc(PyObject *self) { Py_TYPE(self)->tp_free(self); }
@@ -131,14 +134,15 @@ static PyObject *AttentionPackedMatrix_get_shape(PyObject *self, void *closure) 
     AttentionPackedMatrix *mm = (AttentionPackedMatrix *)self;
     nk_attention_packed_shape_punned_t shape_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_attention_packed_shape_k, mm->dtype, (nk_kernel_punned_t *)&shape_fn, &cap);
+    nk_find_kernel_punned(nk_kernel_attention_packed_shape_k, mm->dtype, mm->capabilities,
+                          (nk_kernel_punned_t *)&shape_fn, &cap);
     if (!shape_fn || !cap) {
         PyErr_Format(PyExc_LookupError, "No packed_shape kernel for dtype '%s'",
                      nk_dtype_to_pybuffer_typestr(mm->dtype));
         return NULL;
     }
     nk_size_t heads = 0, depth = 0, segments = 0;
-    shape_fn(mm->start, &heads, &depth, &segments);
+    if (!check_status(shape_fn(mm->start, &heads, &depth, &segments, NULL))) return NULL;
     return Py_BuildValue("(nnn)", (Py_ssize_t)heads, (Py_ssize_t)depth, (Py_ssize_t)segments);
 }
 
@@ -248,9 +252,11 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
 
     PyObject *k_obj = NULL, *v_obj = NULL, *offsets_obj = NULL, *lengths_obj = NULL;
     nk_size_t depth = 0, threads = 1;
+    nk_capability_t capabilities = default_capabilities;
+    void *stream = NULL;
 
     Py_ssize_t nkw = kwnames ? PyTuple_Size(kwnames) : 0;
-    if (nargs < 2 || nargs > 3 || nargs + nkw > 6) {
+    if (nargs < 2 || nargs > 3 || nargs + nkw > 8) {
         PyErr_SetString(PyExc_TypeError, doc_attention_pack);
         return NULL;
     }
@@ -269,10 +275,7 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
             threads = (nk_size_t)PyLong_AsSize_t(value);
             if (threads == (nk_size_t)-1 && PyErr_Occurred()) return NULL;
         }
-        else {
-            PyErr_Format(PyExc_TypeError, "attention_pack() got unexpected keyword argument '%S'", name);
-            return NULL;
-        }
+        else if (!parse_dispatch_keyword(name, value, &capabilities, &stream)) return NULL;
     }
     if (!offsets_obj) {
         PyErr_SetString(PyExc_TypeError, "attention_pack() requires 'segment_offsets'");
@@ -353,15 +356,16 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
     nk_attention_pack_size_punned_t size_fn = NULL;
     nk_attention_pack_punned_t pack_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_attention_pack_size_k, dtype, (nk_kernel_punned_t *)&size_fn, &cap);
+    nk_find_kernel_punned(nk_kernel_attention_pack_size_k, dtype, capabilities, (nk_kernel_punned_t *)&size_fn, &cap);
     if (size_fn && cap)
-        nk_cpu_find_kernel_punned(nk_kernel_attention_pack_k, dtype, (nk_kernel_punned_t *)&pack_fn, &cap);
+        nk_find_kernel_punned(nk_kernel_attention_pack_k, dtype, capabilities, (nk_kernel_punned_t *)&pack_fn, &cap);
     if (!size_fn || !pack_fn || !cap) {
         PyErr_Format(PyExc_LookupError, "No attention pack kernels for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
     }
 
-    nk_size_t const packed_bytes = size_fn(heads, depth, segment_lengths, segment_count);
+    nk_size_t packed_bytes = 0;
+    if (!check_status(size_fn(heads, depth, segment_lengths, segment_count, &packed_bytes))) goto cleanup;
     packed = PyObject_NewVar(AttentionPackedMatrix, &AttentionPackedMatrixType, (Py_ssize_t)packed_bytes);
     if (!packed) {
         PyErr_NoMemory();
@@ -373,6 +377,7 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
     packed->segment_count = segment_count;
     packed->total_tokens = segment_offsets[segment_count];
     packed->nbytes = packed_bytes;
+    packed->capabilities = capabilities;
 
     {
         attention_pack_task_t task;
@@ -387,14 +392,17 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
         task.key_stride_bytes = k_stride;
         task.value_stride_bytes = v_stride;
         task.key_value_packed = packed->start;
+        task.stream = stream;
         nk_size_t const task_count = segment_count * heads;
         PyThreadState *save = PyEval_SaveThread();
         // The window covering task 0 initializes the blob's header and directory;
         // running it first keeps the parallel remainder read-only on that region.
-        pack_fn(k_buffer.buf, v_buffer.buf, heads, depth, segment_offsets, segment_lengths, segment_count, k_stride,
-                v_stride, packed->start, 0, 1);
-        if (task_count > 1) nk_parallel_for_tiles(task_count - 1, threads, attention_pack_tile_, &task);
+        nk_status_t status = pack_fn(k_buffer.buf, v_buffer.buf, heads, depth, segment_offsets, segment_lengths,
+                                     segment_count, k_stride, v_stride, packed->start, 0, 1, stream);
+        if (status == nk_success_k && task_count > 1)
+            status = nk_parallel_for_tiles(task_count - 1, threads, attention_pack_tile_, &task);
         PyEval_RestoreThread(save);
+        check_status(status);
     }
 
 cleanup:
@@ -574,10 +582,15 @@ PyObject *api_attention_bidirectional_packed(PyObject *self, PyObject *const *ar
     nk_size_t threads = 1;
 
     Py_ssize_t const keyword_count = kwnames ? PyTuple_Size(kwnames) : 0;
-    if (nargs < 2 || nargs > 3 || nargs + keyword_count > 6) {
+    if (nargs < 2 || nargs > 3 || nargs + keyword_count > 8) {
         PyErr_SetString(PyExc_TypeError, doc_attention_bidirectional_packed);
         return NULL;
     }
+    // A KV-cache is read with the mask that packed it, unless `capabilities=` says otherwise.
+    nk_capability_t capabilities = PyObject_TypeCheck(args[1], &AttentionPackedMatrixType)
+                                       ? ((AttentionPackedMatrix *)args[1])->capabilities
+                                       : default_capabilities;
+    void *stream = NULL;
     if (nargs >= 3) query_offsets_object = args[2];
     for (Py_ssize_t keyword_index = 0; keyword_index < keyword_count; keyword_index++) {
         PyObject *keyword = PyTuple_GET_ITEM(kwnames, keyword_index);
@@ -589,11 +602,7 @@ PyObject *api_attention_bidirectional_packed(PyObject *self, PyObject *const *ar
             threads = (nk_size_t)PyLong_AsSize_t(value);
             if (threads == (nk_size_t)-1 && PyErr_Occurred()) return NULL;
         }
-        else {
-            PyErr_Format(PyExc_TypeError, "attention_bidirectional_packed() got unexpected keyword argument '%S'",
-                         keyword);
-            return NULL;
-        }
+        else if (!parse_dispatch_keyword(keyword, value, &capabilities, &stream)) return NULL;
     }
 
     attention_bidirectional_task_t task;
@@ -602,20 +611,22 @@ PyObject *api_attention_bidirectional_packed(PyObject *self, PyObject *const *ar
     if (!attention_arguments_parse_("attention_bidirectional_packed", args[0], args[1], query_offsets_object,
                                     output_object, scale_object, &task.arguments, &buffers, &packed))
         return NULL;
+    task.arguments.stream = stream;
 
     task.kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_attention_bidirectional_packed_k, packed->dtype,
-                              (nk_kernel_punned_t *)&task.kernel, &capability);
+    nk_find_kernel_punned(nk_kernel_attention_bidirectional_packed_k, packed->dtype, capabilities,
+                          (nk_kernel_punned_t *)&task.kernel, &capability);
     if (!task.kernel || !capability) {
         PyErr_Format(PyExc_LookupError, "No attention_bidirectional_packed kernel for dtype '%s'",
                      nk_dtype_python_name(packed->dtype));
         return attention_buffers_release_(&buffers);
     }
     PyThreadState *save = PyEval_SaveThread();
-    nk_parallel_for_tiles(packed->segment_count * task.arguments.head_count, threads, attention_bidirectional_tile_,
-                          &task);
+    nk_status_t const status = nk_parallel_for_tiles(packed->segment_count * task.arguments.head_count, threads,
+                                                     attention_bidirectional_tile_, &task);
     PyEval_RestoreThread(save);
+    check_status(status);
     return attention_buffers_release_(&buffers);
 }
 
@@ -628,10 +639,15 @@ PyObject *api_attention_causal_packed(PyObject *self, PyObject *const *args, Py_
     task.window = NUMKONG_SIZE_MAX;
 
     Py_ssize_t const keyword_count = kwnames ? PyTuple_Size(kwnames) : 0;
-    if (nargs < 2 || nargs > 3 || nargs + keyword_count > 8) {
+    if (nargs < 2 || nargs > 3 || nargs + keyword_count > 10) {
         PyErr_SetString(PyExc_TypeError, doc_attention_causal_packed);
         return NULL;
     }
+    // A KV-cache is read with the mask that packed it, unless `capabilities=` says otherwise.
+    nk_capability_t capabilities = PyObject_TypeCheck(args[1], &AttentionPackedMatrixType)
+                                       ? ((AttentionPackedMatrix *)args[1])->capabilities
+                                       : default_capabilities;
+    void *stream = NULL;
     if (nargs >= 3) query_offsets_object = args[2];
     for (Py_ssize_t keyword_index = 0; keyword_index < keyword_count; keyword_index++) {
         PyObject *keyword = PyTuple_GET_ITEM(kwnames, keyword_index);
@@ -653,10 +669,7 @@ PyObject *api_attention_causal_packed(PyObject *self, PyObject *const *args, Py_
                 if (task.window == (nk_size_t)-1 && PyErr_Occurred()) return NULL;
             }
         }
-        else {
-            PyErr_Format(PyExc_TypeError, "attention_causal_packed() got unexpected keyword argument '%S'", keyword);
-            return NULL;
-        }
+        else if (!parse_dispatch_keyword(keyword, value, &capabilities, &stream)) return NULL;
     }
 
     attention_buffers_t buffers;
@@ -664,18 +677,21 @@ PyObject *api_attention_causal_packed(PyObject *self, PyObject *const *args, Py_
     if (!attention_arguments_parse_("attention_causal_packed", args[0], args[1], query_offsets_object, output_object,
                                     scale_object, &task.arguments, &buffers, &packed))
         return NULL;
+    task.arguments.stream = stream;
 
     task.kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_attention_causal_packed_k, packed->dtype, (nk_kernel_punned_t *)&task.kernel,
-                              &capability);
+    nk_find_kernel_punned(nk_kernel_attention_causal_packed_k, packed->dtype, capabilities,
+                          (nk_kernel_punned_t *)&task.kernel, &capability);
     if (!task.kernel || !capability) {
         PyErr_Format(PyExc_LookupError, "No attention_causal_packed kernel for dtype '%s'",
                      nk_dtype_python_name(packed->dtype));
         return attention_buffers_release_(&buffers);
     }
     PyThreadState *save = PyEval_SaveThread();
-    nk_parallel_for_tiles(packed->segment_count * task.arguments.head_count, threads, attention_causal_tile_, &task);
+    nk_status_t const status = nk_parallel_for_tiles(packed->segment_count * task.arguments.head_count, threads,
+                                                     attention_causal_tile_, &task);
     PyEval_RestoreThread(save);
+    check_status(status);
     return attention_buffers_release_(&buffers);
 }

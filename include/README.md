@@ -16,12 +16,16 @@ int main(void) {
     nk_f32_t a[] = {1, 2, 3};
     nk_f32_t b[] = {4, 5, 6};
     nk_f64_t dot = 0;
-    nk_cpu_configure_thread(nk_cpu_capabilities_enabled());
-    nk_dot_f32(a, b, 3, &dot); // widened f32 → f64 output
-    printf("dot=%f\n", dot);
-    return 0;
+    nk_capability_t capabilities = nk_cap_serial_k;
+    nk_cpu_capabilities_enabled(&capabilities); // the capabilities this CPU runs and this build holds
+    nk_cpu_configure_thread(capabilities);
+    nk_status_t status = nk_dot_f32_best(a, b, 3, &dot, capabilities, NULL); // widened f32 → f64 output
+    printf("dot=%f, %s\n", dot, nk_status_to_string(status));
+    return status != nk_success_k;
 }
 ```
+
+Every operation has one such dispatch point, named with `_best`, which runs the best capability in the mask it gets; the root README describes [the dispatch model](../README.md#dispatch-points--capability-masks) once.
 
 ## Highlights
 
@@ -47,7 +51,7 @@ Packing handles internal layout itself and does not require caller-side alignmen
 | :--------------------------- | :---------------------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------- | :-------------------------------------------------------------------------------------- |
 | Operation families           | dots, distances, binary, probability, geospatial, curved, mesh, sparse, MaxSim, elementwise, reductions, cast, trig                 | dense linear algebra only                                         | dense LA, some reductions and elementwise                                               |
 | Precision                    | Sub-byte to Float64 dtypes; automatic widening per scalar type; Kahan-compensated summation; 0 ULP Float32/Float64 where applicable | Float32, Float64 only; same-type in/out; no compensated summation | Float16/BFloat16 partial; no Float8 or sub-byte; manual casts; no compensated summation |
-| Runtime SIMD dispatch        | per-thread at runtime across x86, ARM, RISC-V                                                                                       | load-time CPU detection; one kernel set per process               | compile-time ISA flags only                                                             |
+| Runtime SIMD dispatch        | per call, by capability mask, across x86, Arm, RISC-V, and GPUs                                                                     | load-time CPU detection; one kernel set per process               | compile-time ISA flags only                                                             |
 | Packed matrix, GEMM-like     | `packed_matrix` — pack once, reuse across query batches                                                                             | internal opaque packing per GEMM call; no persistent packed form  | no equivalent packed reuse abstraction                                                  |
 | Symmetric kernels, SYRK-like | skips duplicate pairs, up to 2x speedup for self-distance                                                                           | `SSYRK`/`DSYRK` for rank-k updates                                | `.selfadjointView` for rank-k updates                                                   |
 | Memory model                 | Caller-owned buffers; C++ adds `tensor<T,A>` with per-container allocators                                                          | Caller-managed buffers; no container abstraction                  | Lazy expression templates avoid most temporaries; `aligned_allocator` provided          |
@@ -70,18 +74,21 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(numkong)
 
-target_link_libraries(my_target PRIVATE numkong)
+target_link_libraries(my_target PRIVATE numkong::header) # or numkong::static, numkong::shared
 ```
 
 Vendored:
 
 ```cmake
 add_subdirectory(external/NumKong)
-target_link_libraries(my_target PRIVATE numkong)
+target_link_libraries(my_target PRIVATE numkong::header) # or numkong::static, numkong::shared
 ```
 
-Header-only C++ usage also works for direct template wrappers.
-Most applications should still build the library once and keep `NUMKONG_RUNTIME_DISPATCH=1`.
+`numkong::static` and `numkong::shared` exist when `NUMKONG_BUILD_SHARED` is on, the default only for a top-level build.
+An installed NumKong provides the same targets through `find_package(numkong CONFIG REQUIRED)`.
+
+By default the headers declare every public function and the library defines it, each kernel once, in the unit of its capability.
+`numkong::header` sets `NUMKONG_HEADER_ONLY=1` instead: every kernel compiles into your translation unit, and every dispatch point and finder returns `nk_missing_library_k`, so a header-only build calls a capability's kernel, like `nk_dot_f32_haswell`, directly.
 
 ## The C ABI
 
@@ -96,19 +103,22 @@ nk_i8_t b[1536];
 nk_i32_t dot = 0;     // widened from int8 storage
 nk_f32_t l2 = 0;      // widened from int8 storage
 
-nk_dot_i8(a, b, 1536, &dot);
-nk_euclidean_i8(a, b, 1536, &l2);
+nk_dot_i8_best(a, b, 1536, &dot, capabilities, NULL);
+nk_euclidean_i8_best(a, b, 1536, &l2, capabilities, NULL);
 ```
 
-If you want runtime-selected kernels without naming a specific ISA, use the punned dispatch layer:
+The examples below pass the `capabilities` of the Quickstart and a null stream, as every CPU call does.
+Each capability kernel, like `nk_dot_i8_haswell`, is also callable directly with the same arguments short of the mask.
+To resolve a kernel once and call it many times without naming a capability, library builds provide the punned finder:
 
 ```c
 nk_metric_dense_punned_t angular = 0;
-nk_capability_t used = nk_cap_serial_k;
-nk_cpu_find_kernel_punned(nk_kernel_angular_k, nk_f32_k, (nk_kernel_punned_t *)&angular, &used);
+nk_capability_t capability = 0;
+nk_find_kernel_punned(nk_kernel_angular_k, nk_f32_k, capabilities, (nk_kernel_punned_t *)&angular, &capability);
 
-nk_f32_t a[768], b[768], result = 0;
-angular(a, b, 768, &result);
+nk_f32_t a[768], b[768];
+nk_f64_t result = 0; // widened f32 → f64 output
+angular(a, b, 768, &result, NULL);
 ```
 
 That is the lowest-level dynamic path.
@@ -130,8 +140,13 @@ int main() {
     nk::f32_t a[3] = {1, 2, 3}, b[3] = {4, 5, 6};
     nk::f64_t dot {};
     nk::dot(a, b, 3, &dot); // default result type is nk::f32_t::dot_result_t == nk::f64_t
+    nk::dot(a, b, 3, &dot, nk_cap_serial_k); // pin the serial kernel
 }
 ```
+
+Every wrapper ends in the two arguments of its dispatch point, defaulted to `nk::cpu_capabilities()` and a null stream, and returns the `nk_status_t`.
+`nk::cpu_capabilities()` is the `nk_cpu_capabilities_enabled` mask, and a zero mask runs the C++ reference template instead of any capability's kernel.
+In header-only builds the dispatch points report `nk_missing_library_k`, so wrappers there take a zero mask or call a capability's kernel.
 
 The API is intentionally not STL-shaped.
 `vector_view`, `tensor_view`, and `matrix_view` prioritize signed strides, sub-byte storage, and kernel compatibility over resizable-container ergonomics.
@@ -141,24 +156,25 @@ The API is intentionally not STL-shaped.
 The scalar wrappers in `include/numkong/types.hpp` are storage-first types.
 They encode raw layout, default output types, and the kernel function pointer signatures for each family.
 
-| Type        | Layout           | Bytes |           Range | Inf | NaN |
-| :---------- | :--------------- | ----: | --------------: | :-: | :-: |
-| `nk_f16_t`  | 1+5+10           |     2 |          ±65504 | yes | yes |
-| `nk_bf16_t` | 1+8+7            |     2 |       ±3.4×10³⁸ | yes | yes |
-| `nk_e4m3_t` | 1+4+3            |     1 |            ±448 | no  | yes |
-| `nk_e5m2_t` | 1+5+2            |     1 |          ±57344 | yes | yes |
-| `nk_e2m3_t` | 1+2+3            |     1 |            ±7.5 | no  | no  |
-| `nk_e3m2_t` | 1+3+2            |     1 |             ±28 | no  | no  |
-| `nk_u1x8_t` | 8 packed bits    |     1 |  0 or 1 per bit |  …  |  …  |
-| `nk_u4x2_t` | 2x4-bit unsigned |     1 | 0-15 per nibble |  …  |  …  |
-| `nk_i4x2_t` | 2x4-bit signed   |     1 | -8-7 per nibble |  …  |  …  |
+| Type          | Layout           | Bytes |            Range |  Inf  |  NaN  |
+| :------------ | :--------------- | ----: | ---------------: | :---: | :---: |
+| `nk_f16_t`    | 1+5+10           |     2 |           ±65504 |  yes  |  yes  |
+| `nk_bf16_t`   | 1+8+7            |     2 |        ±3.4×10³⁸ |  yes  |  yes  |
+| `nk_e4m3_t`   | 1+4+3            |     1 |             ±448 |  no   |  yes  |
+| `nk_e5m2_t`   | 1+5+2            |     1 |           ±57344 |  yes  |  yes  |
+| `nk_e2m3_t`   | 1+2+3            |     1 |             ±7.5 |  no   |  no   |
+| `nk_e3m2_t`   | 1+3+2            |     1 |              ±28 |  no   |  no   |
+| `nk_e2m1x2_t` | 2 × (1+2+1)      |     1 |    ±6 per nibble |  no   |  no   |
+| `nk_u1x8_t`   | 8 packed bits    |     1 |   0 or 1 per bit |  n/a  |  n/a  |
+| `nk_u4x2_t`   | 2 × 4-bit        |     1 |  0…15 per nibble |  n/a  |  n/a  |
+| `nk_i4x2_t`   | 2 × 4-bit signed |     1 |  −8…7 per nibble |  n/a  |  n/a  |
 
 The layout column shows sign, exponent, and mantissa bit counts for floating-point types.
 For `nk_f16_t`, 1+5+10 means one sign bit, five exponent bits, and ten mantissa bits, totaling 16 bits stored in 2 bytes.
 For `nk_bf16_t`, the wider exponent field (8 bits) gives the same dynamic range as IEEE 754 single precision but with reduced mantissa precision.
 The Float8 types `nk_e4m3_t` and `nk_e5m2_t` follow the OFP8 specification.
-The narrower `nk_e2m3_t` and `nk_e3m2_t` types are MX-compatible micro-floats.
-Sub-byte types `nk_u1x8_t`, `nk_u4x2_t`, and `nk_i4x2_t` pack multiple logical values into a single byte.
+The narrower `nk_e2m3_t` and `nk_e3m2_t` types are MX-compatible micro-floats, and `nk_e2m1x2_t` packs two FP4 values of the MXFP4 and NVFP4 formats.
+Sub-byte types `nk_e2m1x2_t`, `nk_u1x8_t`, `nk_u4x2_t`, and `nk_i4x2_t` pack multiple logical values into a single byte.
 Element 0 sits in the high nibble or the least significant bit, and every dimension count must be a multiple of the values per byte.
 
 Default promotions are encoded on the type.
@@ -193,8 +209,8 @@ nk_f32c_t a[384];
 nk_f32c_t b[384];
 nk_f64c_t out = {0, 0};         // widened f32c → f64c output
 
-nk_dot_f32c(a, b, 384, &out);   // complex inner product
-nk_vdot_f32c(a, b, 384, &out);  // conjugated variant, like numpy.vdot
+nk_dot_f32c_best(a, b, 384, &out, capabilities, NULL);   // complex inner product
+nk_vdot_f32c_best(a, b, 384, &out, capabilities, NULL);  // conjugated variant, like numpy.vdot
 ```
 
 For quantized retrieval pipelines, the storage format often matters more than the nominal math family.
@@ -212,9 +228,9 @@ nk_f32_t sqeuclidean = 0, euclidean = 0, angular = 0;
 
 // `_Float16` support varies across compilers, and
 // auto-vectorization targets `f32` — not `f16`.
-nk_sqeuclidean_f16(a, b, 768, &sqeuclidean);
-nk_euclidean_f16(a, b, 768, &euclidean);
-nk_angular_f16(a, b, 768, &angular);
+nk_sqeuclidean_f16_best(a, b, 768, &sqeuclidean, capabilities, NULL);
+nk_euclidean_f16_best(a, b, 768, &euclidean, capabilities, NULL);
+nk_angular_f16_best(a, b, 768, &angular, capabilities, NULL);
 ```
 
 For `i8`, `u8`, `i4`, `u4`, and `u1`, the widening is even more important.
@@ -229,17 +245,17 @@ That is why `u1x8_t` exists as a storage type instead of pretending that `bool[8
 nk_u1x8_t a[128], b[128];
 nk_u32_t hamming = 0;
 nk_f32_t jaccard = 0;
-nk_hamming_u1(a, b, 128 * 8, &hamming);
-nk_jaccard_u1(a, b, 128 * 8, &jaccard);
+nk_hamming_u1_best(a, b, 128 * 8, &hamming, capabilities, NULL);
+nk_jaccard_u1_best(a, b, 128 * 8, &jaccard, capabilities, NULL);
 ```
 
-`nk_jaccard_u32` is a dense word-wise kernel rather than a sorted-set operation.
+`nk_jaccard_u32_best` is a dense word-wise kernel rather than a sorted-set operation.
 It walks two arrays of `n` 32-bit words position by position and returns `1 - matches / n`.
 
 ```c
 nk_u32_t a[] = {1, 3, 5, 7, 9}, b[] = {1, 3, 5, 8, 10};
 nk_f32_t jaccard_words = 0;
-nk_jaccard_u32(a, b, 5, &jaccard_words); // 1 - matches / n
+nk_jaccard_u32_best(a, b, 5, &jaccard_words, capabilities, NULL); // 1 - matches / n
 assert(jaccard_words > 0.0f && jaccard_words < 1.0f && "3 of 5 words match");
 ```
 
@@ -253,12 +269,12 @@ Probability kernels target divergences directly instead of making you rebuild th
 nk_f32_t p[] = {0.2f, 0.3f, 0.5f}, q[] = {0.1f, 0.3f, 0.6f};
 nk_f64_t kl_forward = 0, kl_reverse = 0, js_forward = 0, js_reverse = 0;
 
-nk_kld_f32(p, q, 3, &kl_forward);
-nk_kld_f32(q, p, 3, &kl_reverse);
+nk_kld_f32_best(p, q, 3, &kl_forward, capabilities, NULL);
+nk_kld_f32_best(q, p, 3, &kl_reverse, capabilities, NULL);
 assert(kl_forward != kl_reverse && "KLD is asymmetric");
 
-nk_jsd_f32(p, q, 3, &js_forward);
-nk_jsd_f32(q, p, 3, &js_reverse);
+nk_jsd_f32_best(p, q, 3, &js_forward, capabilities, NULL);
+nk_jsd_f32_best(q, p, 3, &js_reverse, capabilities, NULL);
 assert(js_forward == js_reverse && "JSD is symmetric");
 ```
 
@@ -277,14 +293,14 @@ nk_f64_t liberty_lat[] = {0.7101605100}, liberty_lon[] = {-1.2923203180};
 nk_f64_t big_ben_lat[] = {0.8988567821}, big_ben_lon[] = {-0.0021746802};
 
 nk_f64_t distance[1];
-nk_vincenty_f64(liberty_lat, liberty_lon, big_ben_lat, big_ben_lon, 1, distance);  // ≈ 5,589,857 m (ellipsoidal, baseline)
-nk_haversine_f64(liberty_lat, liberty_lon, big_ben_lat, big_ben_lon, 1, distance); // ≈ 5,543,723 m (spherical, ~46 km less)
+nk_vincenty_f64_best(liberty_lat, liberty_lon, big_ben_lat, big_ben_lon, 1, distance, capabilities, NULL);  // ≈ 5,589,857 m (ellipsoidal, baseline)
+nk_haversine_f64_best(liberty_lat, liberty_lon, big_ben_lat, big_ben_lon, 1, distance, capabilities, NULL); // ≈ 5,543,723 m (spherical, ~46 km less)
 
 // Vincenty in f32 — drifts ~2 m from f64
 nk_f32_t liberty_lat32[] = {0.7101605100f}, liberty_lon32[] = {-1.2923203180f};
 nk_f32_t big_ben_lat32[] = {0.8988567821f}, big_ben_lon32[] = {-0.0021746802f};
 nk_f32_t distance_f32[1];
-nk_vincenty_f32(liberty_lat32, liberty_lon32, big_ben_lat32, big_ben_lon32, 1, distance_f32); // ≈ 5,589,859 m (+2 m drift)
+nk_vincenty_f32_best(liberty_lat32, liberty_lon32, big_ben_lat32, big_ben_lon32, 1, distance_f32, capabilities, NULL); // ≈ 5,589,859 m (+2 m drift)
 ```
 
 ## Curved Metrics
@@ -296,12 +312,12 @@ They combine vectors with an extra metric tensor or covariance inverse.
 // Complex bilinear form: aᴴ M b
 nk_f32c_t a[32], b[32], metric[32 * 32];
 nk_f64c_t result = {0, 0};
-nk_bilinear_f32c(a, b, metric, 32, &result);
+nk_bilinear_f32c_best(a, b, metric, 32, &result, capabilities, NULL);
 
 // Real Mahalanobis distance: √((a−b)ᵀ M⁻¹ (a−b))
 nk_f32_t x[64], y[64], inv_cov[64 * 64];
 nk_f64_t distance = 0;
-nk_mahalanobis_f32(x, y, inv_cov, 64, &distance);
+nk_mahalanobis_f32_best(x, y, inv_cov, 64, &distance, capabilities, NULL);
 ```
 
 ## Tensors, Views, and Memory Layout
@@ -450,7 +466,8 @@ The useful economics are:
 
 Caller-side alignment is not required.
 Owned `packed_matrix` storage uses its allocator.
-The C ABI also exposes `nk_dots_pack_size_*` so you can `malloc` the exact external buffer yourself.
+The C ABI also exposes `nk_dots_pack_size_*_best`, which writes the byte count of the capability the mask picks, so you can `malloc` the exact external buffer yourself.
+A packed buffer records the capability that packed it, and a packed kernel of another capability refuses it with `nk_pack_mismatch_k`, so pack and multiply under the same mask.
 
 ## Symmetric Kernels for SYRK-Like Workloads
 
@@ -480,13 +497,13 @@ Sparse helpers cover sorted-index intersection and weighted sparse dot products.
 nk_u32_t a_idx[] = {1, 3, 5, 7}, b_idx[] = {3, 4, 5, 8};
 nk_u32_t intersection[4];
 nk_size_t count = 0;
-nk_sparse_intersect_u32(a_idx, b_idx, 4, 4, intersection, &count);
+nk_sparse_intersect_u32_best(a_idx, b_idx, 4, 4, intersection, &count, capabilities, NULL);
 assert(count == 2 && "indices 3 and 5");
 
 nk_f32_t a_weights[] = {1.0f, 2.0f, 3.0f, 4.0f};
 nk_f32_t b_weights[] = {5.0f, 6.0f, 7.0f, 8.0f};
 nk_f64_t result = 0;
-nk_sparse_dot_u32f32(a_idx, b_idx, a_weights, b_weights, 4, 4, &result);
+nk_sparse_dot_u32f32_best(a_idx, b_idx, a_weights, b_weights, 4, 4, &result, capabilities, NULL);
 assert(result > 0 && "weighted dot over shared indices");
 ```
 
@@ -506,7 +523,7 @@ nk_f32_t a_centroid[3], b_centroid[3], rotation[9];
 nk_f32_t scale = 0;
 nk_f64_t rmsd = 0; // widened f32 → f64 output
 
-nk_umeyama_f32(source, target, 3, a_centroid, b_centroid, rotation, &scale, &rmsd);
+nk_umeyama_f32_best(source, target, 3, a_centroid, b_centroid, rotation, &scale, &rmsd, capabilities, NULL);
 assert(rmsd < 1e-6 && "umeyama should recover exact alignment");
 assert(scale > 1.99f && scale < 2.01f && "umeyama should recover 2x scale");
 ```
@@ -531,35 +548,48 @@ auto score = nk::maxsim(q, d);
 `packed_maxsim` is allocator-aware in the same way as `packed_matrix`.
 Its footprint is exposed through `size_bytes()`.
 
-## Runtime Dispatch and Capabilities
+## Capabilities and Devices
 
-Runtime dispatch is the default recommendation for shipping one binary across many CPU generations.
-Capabilities are reported along two independent axes, plus the set dispatch uses:
+Linking the library is the default, and the way to ship one binary across many CPU generations.
+Every query writes its answer through a pointer and returns an `nk_status_t`.
+CPU capabilities are reported along two independent axes, plus the mask to dispatch with:
 
-- `nk_cpu_capabilities_detected()` is what this CPU can execute, from CPUID or HWCAP.
-- `nk_cpu_capabilities_compiled()` is what this binary contains, from the ISA probes at build time.
-- `nk_cpu_capabilities_enabled()` is what dispatch uses: both axes at once, unless narrowed.
+- `nk_cpu_capabilities_detected` is what this CPU can execute, from CPUID or HWCAP.
+- `nk_cpu_capabilities_compiled` is what this binary contains, from the ISA probes at build time.
+- `nk_cpu_capabilities_enabled` is both axes at once, the mask to pass every CPU call, and always holds `nk_cap_serial_k`.
 
 Ask for `enabled` unless you specifically mean one of the raw axes.
 The two axes are independent, and conflating them fails quietly rather than loudly: a binary whose ISA probes failed still reports this machine's full `detected` mask while containing no SIMD kernels at all.
+To dispatch over fewer capabilities, pass a narrower mask to the call itself; there is no process-wide setting to change.
 
-`nk_cpu_capabilities_enable` makes a mask the enabled set and returns what it kept.
-It clamps to both axes and always retains `nk_cap_serial_k`, so dispatch can never be pointed at a kernel that is absent or unsupported.
-
-`nk_cpu_configure_thread` prepares the calling thread for the tiers it is given, and only those, returning 1 on success.
-Most tiers need nothing: AMX on Linux costs one `arch_prctl` syscall, which grants tile state to the whole process, and fused BF16 dot products on Arm cost one `FPCR` write per thread.
+`nk_cpu_configure_thread` prepares the calling thread for the capabilities it is given, and only those.
+Most capabilities need nothing: AMX on Linux costs one `arch_prctl` syscall, which grants tile state to the whole process, and fused BF16 dot products on Arm cost one `FPCR` write per thread.
 
 ```c
-nk_capability_t enabled = nk_cpu_capabilities_enabled();
+nk_capability_t enabled = nk_cap_serial_k;
+nk_cpu_capabilities_enabled(&enabled);
 nk_cpu_configure_thread(enabled);
 if (enabled & nk_cap_sapphireamx_k) { /* AMX both detected and compiled in */ }
-nk_cpu_capabilities_enable(enabled & ~nk_cap_sapphireamx_k); // dispatch without AMX
+nk_dot_bf16_best(a, b, n, &dot, enabled & ~nk_cap_sapphireamx_k, NULL); // dispatch without AMX
+```
+
+GPUs are more ISAs with a mask of their own, one device at a time.
+Each vendor has its own queries, and a device index is that runtime's own ordinal: the one `cudaSetDevice` or `hipSetDevice` takes, or the position in Metal's device list.
+`nk_cuda_count_devices` counts the devices, and `nk_cuda_capabilities_detected`, `nk_cuda_capabilities_compiled`, and `nk_cuda_capabilities_enabled` report one device's capabilities the way their CPU twins do; `nk_rocm_*` and `nk_metal_*` are the same for the other vendors.
+Each vendor's baseline, `nk_cap_cuda_k`, `nk_cap_rocm_k`, or `nk_cap_metal_k`, plays the role of `nk_cap_serial_k`.
+A GPU capability, like `nk_dots_packed_bf16_ampere`, takes its CPU twin's arguments, queues on the trailing stream — a `cudaStream_t`, a `hipStream_t`, or an `nk_metal_queue_t *` from `nk_metal_queue_init` — and returns without waiting.
+
+```c
+nk_size_t devices = 0;
+nk_capability_t gpu = 0;
+if (nk_cuda_count_devices(&devices) == nk_success_k && nk_cuda_capabilities_enabled(0, &gpu) == nk_success_k)
+    nk_dots_packed_bf16_best(a, b_packed, c, height, width, depth, a_stride, c_stride, gpu, cuda_stream);
 ```
 
 `nk_name_capabilities` spells any such mask as the names bindings accept, like "serial,neon,neonhalf", into a buffer of `NUMKONG_CAPABILITIES_NAME_CAPACITY` bytes.
 
 For exact register-level details, see `capabilities.h`.
-The C++ wrappers can also call directly into named backends if you want to pin a path for testing or benchmarking.
+Capability kernels, like `nk_dot_f32_haswell`, stay callable directly if you want to pin a path for testing or benchmarking.
 
 ## Parallelism and ForkUnion
 
@@ -606,41 +636,18 @@ When executors ship in your toolchain, replacing the `parallel_for` lambda above
 - `aligned_allocator` defaults to 64-byte alignment for owned containers, but unaligned caller inputs are still valid for the kernels that accept raw pointers or views.
 - If you override result types away from the scalar defaults, document that choice carefully because it can change both performance and numerical policy.
 
-## CMake Configuration
-
-The main user-facing CMake options are:
-
-- `NUMKONG_BUILD_SHARED` builds a shared library, ON by default for standalone builds and OFF when included as a subdirectory.
-- `NUMKONG_BUILD_TEST` and `NUMKONG_BUILD_BENCH` enable precision tests and benchmarks respectively, both OFF by default.
-- `NUMKONG_RUNTIME_DISPATCH=1` compiles all backends into one binary and selects at runtime via `nk_cpu_capabilities_enabled()`, recommended for shipping one binary across CPU generations.
-  It is a preprocessor definition rather than a CMake option, so pass it through the compiler flags.
-- `NUMKONG_COMPARE_TO_BLAS` and `NUMKONG_COMPARE_TO_MKL` link benchmarks against a system BLAS or Intel MKL, each accepting `AUTO`, `ON`, or `OFF` with `AUTO` as the default.
+## Building and Cross-Compiling
 
 The build enforces C99 for the C layer and C++20 for the C++ layer.
-
-```sh
-cmake -B build -D CMAKE_BUILD_TYPE=Release -D NUMKONG_BUILD_TEST=ON
-cmake -B build -D CMAKE_C_FLAGS="-DNUMKONG_RUNTIME_DISPATCH=1" -D NUMKONG_BUILD_BENCH=ON -D NUMKONG_COMPARE_TO_MKL=ON
-```
-
-## Cross-Compilation
-
-Toolchain files for cross-compilation live in `cmake/`:
-
-- `cmake/toolchain-aarch64-gnu.cmake`, `toolchain-ppc64le-gnu.cmake`, `toolchain-loongarch64-gnu.cmake`, and `toolchain-riscv64-gnu.cmake` for Linux with the GNU cross toolchains.
-- `cmake/toolchain-android-arm64.cmake` and `toolchain-android-armv7.cmake` for Android via the NDK.
-- `cmake/toolchain-x86_64-llvm.cmake` and `cmake/toolchain-riscv64-llvm.cmake` for Clang/LLD builds.
-- `cmake/toolchain-wasm32-emscripten.cmake`, `toolchain-wasm64-emscripten.cmake`, `toolchain-wasm32-wasi.cmake`, and `toolchain-wasm32-wasi-threads.cmake` for WebAssembly targets.
-
-```sh
-cmake -B build -D CMAKE_TOOLCHAIN_FILE=cmake/toolchain-aarch64-gnu.cmake
-```
+[CONTRIBUTING.md](../CONTRIBUTING.md#building) lists the CMake presets and options, and [its cross-compilation section](../CONTRIBUTING.md#cross-compilation) the toolchain files in `cmake/` with a recipe for each target.
+A translation unit linking `numkong::static` or `numkong::shared` sees declarations only, while `numkong::header` defines `NUMKONG_HEADER_ONLY=1` and compiles the kernels inline.
 
 ## Threading Model
 
-NumKong does not use OpenMP and does not create a hidden thread pool.
-Standard pthreads are linked via CMake's `Threads` package.
+The C library creates no threads, uses no OpenMP, and keeps no hidden thread pool.
+Its shared and static builds link pthreads only for `pthread_once`, which runs capability detection once per process.
 Parallelism is host-controlled: partition work across row ranges and dispatch through ForkUnion, `std::thread`, or any external scheduler.
+The Python and Node bindings parallelize their batched calls through `c/parallel.c`, which the C library never links: OpenMP on Linux and FreeBSD, Grand Central Dispatch on macOS, and the system thread pool on Windows.
 
 ## Addressing External Memory
 
@@ -658,7 +665,7 @@ struct cuda_allocator {
     void deallocate(T *p, std::size_t) noexcept { cudaFree(p); }
 };
 
-nk_dot_f32(cuda_managed_ptr, cuda_managed_ptr, 1024, &dot);         // C ABI, any pointer
-auto view = nk::tensor_view<nk::f32_t>(mmap_ptr, rows, cols);       // non-owning view
-auto v = nk::vector<float, cuda_allocator<float>>::try_zeros(1024); // allocator-aware owning
+nk_dot_f32_best(cuda_managed_ptr, cuda_managed_ptr, 1024, &dot, capabilities, NULL); // C ABI, any pointer
+auto view = nk::tensor_view<nk::f32_t>(mmap_ptr, rows, cols);                         // non-owning view
+auto v = nk::vector<float, cuda_allocator<float>>::try_zeros(1024);                   // allocator-aware owning
 ```

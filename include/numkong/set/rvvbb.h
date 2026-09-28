@@ -38,14 +38,14 @@ extern "C" {
  *
  *  Replaces the 11-instruction SWAR approach in nk_popcount_u8m4_rvv_.
  */
-NUMKONG_HELPER_INLINE vuint8m4_t nk_popcount_u8m4_rvvbb_(vuint8m4_t v_u8m4) {
+NUMKONG_INLINE vuint8m4_t nk_popcount_u8m4_rvvbb_(vuint8m4_t v_u8m4) {
     vuint8m4_t result_u8m4;
     __asm__ volatile("vcpop.v %0, %1" : "=vr"(result_u8m4) : "vr"(v_u8m4));
     return result_u8m4;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                     nk_u32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_hamming_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
+                                            void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t count_bytes = n / NUMKONG_BITS_PER_BYTE;
 
@@ -71,8 +71,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                     nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_jaccard_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result,
+                                            void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t count_bytes = n / NUMKONG_BITS_PER_BYTE;
 

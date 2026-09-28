@@ -429,7 +429,7 @@ test("dotsPackedSize", () => {
 });
 
 test("WASM SIMD probes validate", () => {
-  // The loader and the in-module `nk_has_*` probes carry these bytes; Node 22 has both tiers.
+  // The loader and the in-module `nk_has_*` probes carry these bytes; Node 22 has both capabilities.
   assert(WebAssembly.validate(simd128Probe), "The SIMD128 probe should validate");
   assert(WebAssembly.validate(relaxedProbe), "The Relaxed SIMD probe should validate");
 });

@@ -5,9 +5,10 @@ To keep the quality of the code high, we follow the [coding style and convention
 ## Directory Tree
 
 ```
-include/numkong/          C and C++ headers — one .h per kernel family, one .hpp per C++ API
-include/numkong/*/        Per-ISA kernel implementations — serial, haswell, neon, rvv, sme, etc.
-c/                        Runtime dispatch layer — one dispatch_*.c per dtype
+include/numkong/          C and C++ headers — one .h per kernel family with its dispatch points, one .hpp per C++ API
+include/numkong/*/        Kernels, one file per CPU or GPU capability — serial, haswell, neon, sme, rvv, ampere, etc.
+c/                        Library units — per-capability kernels, per-family dispatch points, binding thread pools
+probes/                   ISA probe sources, shared by CMake, setup.py, build.rs, and the Node build
 test/                     C++ precision tests — see test/README.md
 bench/                    C++ Google Benchmark suite and JS bench runner — see bench/README.md
 python/                   CPython extension, no SWIG or PyBind11
@@ -15,7 +16,7 @@ javascript/               Node.js native addon + Emscripten WASM + TypeScript AP
 rust/                     Rust FFI bindings
 swift/                    Swift Package Manager bindings
 golang/                   Go cgo bindings
-cmake/                    Toolchain files for cross-compilation — WASM, WASI, RISC-V, AArch64
+cmake/                    ISA probe modules, the package config, and cross-compilation toolchain files
 ```
 
 ## C and C++
@@ -31,18 +32,28 @@ ctest --preset release                  # the static and shared-library suites
 build_release/numkong_bench
 ```
 
-`debug`, `cuda`, the `linux_<arch>` cross builds under QEMU, Android and WASM follow the same three commands.
+`debug`, `cuda`, `rocm`, `metal`, the `linux_<arch>` cross builds under QEMU, Android and WASM follow the same three commands.
 Machine-specific settings, like a compiler path, belong in an untracked `CMakeUserPresets.json`.
 
-| CMake Flag                | Default            | Description                                                                   |
-| :------------------------ | :----------------- | :---------------------------------------------------------------------------- |
-| `NUMKONG_BUILD_TEST`      | `OFF`              | Compile precision tests, and with the shared library also tests against it    |
-| `NUMKONG_BUILD_BENCH`     | `OFF`              | Compile micro-benchmarks                                                      |
-| `NUMKONG_BUILD_SHARED`    | `ON`, if top-level | Compile dynamic library                                                       |
-| `NUMKONG_BUILD_CUDA`      | `OFF`              | Add CUDA to whichever of the test and bench builds is on                      |
-| `NUMKONG_COMPARE_TO_BLAS` | `AUTO`             | Include OpenBLAS, or Apple's Accelerate on macOS, into test/bench comparisons |
-| `NUMKONG_COMPARE_TO_MKL`  | `AUTO`             | Include Intel' MKL into test/bench comparisons                                |
-| `NUMKONG_TARGET_ARCH`     | empty              | Tune for a CPU, like the host with `native`                                   |
+| CMake Flag                    | Default                         | Description                                                                   |
+| :---------------------------- | :------------------------------ | :---------------------------------------------------------------------------- |
+| `NUMKONG_BUILD_TEST`          | `OFF`                           | Compile precision tests, and with the shared library also tests against it    |
+| `NUMKONG_BUILD_BENCH`         | `OFF`                           | Compile micro-benchmarks                                                      |
+| `NUMKONG_BUILD_SHARED`        | `ON`, if top-level              | Compile dynamic library                                                       |
+| `NUMKONG_INSTALL`             | `ON`, if top-level              | Install headers, libraries, and the CMake package files                       |
+| `NUMKONG_ENABLE_ASAN`         | `ON`, if top-level              | Enable AddressSanitizer in Debug builds                                       |
+| `NUMKONG_BUILD_CUDA`          | `OFF`                           | Add CUDA to the libraries and to whichever of the test and bench builds is on |
+| `NUMKONG_BUILD_ROCM`          | `OFF`                           | Add ROCm, compiled through HIP, to the libraries and to the test build        |
+| `NUMKONG_BUILD_METAL`         | `OFF`                           | Add Metal to the libraries and to the test and bench builds that are on       |
+| `NUMKONG_CUDA_ARCHITECTURES`  | Turing to Blackwell             | CUDA codes to compile, like `100f-real` for one family                        |
+| `NUMKONG_ROCM_ARCHITECTURES`  | `gfx942;gfx950;gfx1250;gfx1251` | AMD codes to compile, like `gfx942` for one                                   |
+| `NUMKONG_METAL_ARCHITECTURES` | `apple7;apple9;apple10`         | Apple GPU families whose capabilities to embed, like `apple7` without Apple10 |
+| `NUMKONG_COMPARE_TO_BLAS`     | `AUTO`                          | Include OpenBLAS, or Apple's Accelerate on macOS, into test/bench comparisons |
+| `NUMKONG_COMPARE_TO_MKL`      | `AUTO`                          | Include Intel MKL into test/bench comparisons                                 |
+| `NUMKONG_COMPARE_TO_CUBLAS`   | `ON`                            | Include cuBLASLt and cuBLAS into CUDA benchmarks                              |
+| `NUMKONG_COMPARE_TO_CUDNN`    | `OFF`                           | Include cuDNN attention into CUDA benchmarks, from `NUMKONG_CUDNN_ROOT`       |
+| `NUMKONG_COMPARE_TO_CUVS`     | `OFF`                           | Include cuVS distances into CUDA benchmarks, from `NUMKONG_CUVS_ROOTS`        |
+| `NUMKONG_TARGET_ARCH`         | empty                           | Tune for a CPU, like the host with `native`                                   |
 
 The test suites seed from 42, or from a fresh draw under `NUMKONG_SEED=random`, and print the seed they use.
 `NUMKONG_FILTER` is a regex over kernel names, and each failing kernel prints a `rerun:` line with its seed and a filter selecting it alone.
@@ -52,7 +63,7 @@ The [test README](test/README.md#environment-variables) lists every variable.
 ### Target Baseline Policy
 
 `CMakeLists.txt`, `build.rs`, `setup.py`, and `binding.gyp` pin the TU-level baseline to each architecture's ABI floor so distributable artifacts run on any CPU matching the ABI, not just the build host.
-SIMD kernels live inside `#pragma GCC target(...)` regions and are only called after runtime probing — see the README's [Compile-Time and Run-Time Dispatch](README.md#compile-time-and-run-time-dispatch) section.
+SIMD kernels live inside `#pragma GCC target(...)` regions and run only when the capability mask holds their capability — see the README's [Dispatch Points & Capability Masks](README.md#dispatch-points--capability-masks) section.
 
 | Target arch   | GCC/Clang baseline          | MSVC baseline   | Notes                                                       |
 | :------------ | :-------------------------- | :-------------- | :---------------------------------------------------------- |
@@ -63,7 +74,7 @@ SIMD kernels live inside `#pragma GCC target(...)` regions and are only called a
 | `loongarch64` | `-march=loongarch64 -mlasx` | …               | LASX baked into the baseline — see LoongArch note below     |
 
 GCC/Clang builds also pass `-fno-tree-vectorize -fno-tree-slp-vectorize` so the auto-vectorizer cannot promote serial fallbacks to baseline SIMD (NEON, SSE2, VSX, …).
-That keeps the tiered dispatch design intact: "serial" kernels stay actually serial, and the per-pragma SIMD kernels — which use explicit intrinsics, not vectorized scalar code — are the sole source of SIMD emission.
+That keeps the capability dispatch design intact: "serial" kernels stay actually serial, and the per-pragma SIMD kernels — which use explicit intrinsics, not vectorized scalar code — are the sole source of SIMD emission.
 MSVC has no per-function target pragma and no command-line vectorizer toggle, so the explicit `/arch:` flags above match defaults and document intent only; NumKong's MSVC strategy is compile-time gating via `_MSC_VER` version checks (see `include/numkong/types.h`).
 LoongArch is the one arch that can't honor the per-function-pragma model: `__attribute__((target("lasx")))` and `#pragma GCC target("lasx")` only landed in GCC 15.1 (Feb 2025) and Clang 22.1 (May 2025), and the bundled `lasxintrin.h` gates every wrapper on the `__loongarch_asx` macro that those older toolchains only set via TU-level `-mlasx`.
 Until NumKong's minimum supported toolchain catches up, LoongArch artifacts require LASX-capable hardware (LA464+, c. 2021).
@@ -81,9 +92,9 @@ The resulting artifact bakes host-specific instructions into scaffolding code an
 | AVX-512 — Skylake, Ice Lake             |   9+ |   10+ | …              |       2019+ |
 | AVX-512BF16 — Genoa                     |  12+ |   16+ | …              | 2022 17.14+ |
 | Intel AMX — Sapphire, Granite           |  14+ |   18+ | …              | 2022 17.14+ |
-| Arm SME/SME2                            |  14+ |   18+ | 16+ / Xcode 16 |           … |
-| RISC-V Vector — RVV 1.0                 |  13+ |   17+ | …              |           … |
-| RVV + Zvfh/Zvfbfwma/Zvbb                |  14+ |   18+ | …              |           … |
+| Arm SME                                 |  14+ |   18+ | 16+ / Xcode 16 |           … |
+| RISC-V Vector — RVV 1.0                 |  16+ |   17+ | …              |           … |
+| RVV + Zvfh/Zvfbfwma/Zvbb                |  16+ |   18+ | …              |           … |
 
 To install on Ubuntu 22.04:
 
@@ -109,35 +120,34 @@ Targets with a `qemu-*` emulator additionally require `qemu-user`.
 | Android ARM64           | `android-arm64`       | …                           | `ANDROID_NDK_ROOT`                                |
 | Android ARMv7           | `android-armv7`       | …                           | `ANDROID_NDK_ROOT`                                |
 | x86_64 on Apple Silicon | `x86_64-llvm`         | `arch -x86_64`              | Homebrew LLVM                                     |
-| WASM32 Emscripten       | `wasm32-emscripten`   | Node.js                     | Emscripten 3.1.27+, tier `v128` by default        |
-| WASM64 Emscripten       | `wasm64-emscripten`   | Node.js 24+                 | Emscripten 3.1.35+, tier `v128relaxed` by default |
-| WASI                    | `wasm32-wasi`         | Wasmtime / Wasmer           | WASI SDK 24+, tier `v128` by default              |
-| WASI threads            | `wasm32-wasi-threads` | Wasmtime with threads       | WASI SDK 24+, tier `v128relaxed` by default       |
+| WASM32 Emscripten       | `wasm32-emscripten`   | Node.js                     | Emscripten 3.1.27+, `v128` by default             |
+| WASM64 Emscripten       | `wasm64-emscripten`   | Node.js 24+                 | Emscripten 3.1.35+, `v128relaxed` by default      |
+| WASI                    | `wasm32-wasi`         | Wasmtime / Wasmer           | WASI SDK 24+, `v128` by default                   |
+| WASI threads            | `wasm32-wasi-threads` | Wasmtime with threads       | WASI SDK 24+, `v128relaxed` by default            |
 
-A WebAssembly module carries one SIMD tier, so each wasm toolchain fixes it through `NUMKONG_WASM_SIMD` — `v128` or `v128relaxed` — and one build directory holds one tier.
+A WebAssembly module carries one SIMD capability, so each wasm toolchain fixes it through `NUMKONG_TARGET_ARCH` — `v128` or `v128relaxed` — and one build directory holds one capability.
 
+The Linux and Android recipes below build the tests too, and `ctest --test-dir <build>` runs them under the emulator the table names; [test/README.md](test/README.md#wasm) covers the WASM runtimes.
 Set `NUMKONG_IN_QEMU=1` to shrink test shapes under emulation, and repetitions too in Python.
 
 __ARM64 Linux__
 
 ```sh
-cmake -B build_arm64 -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-aarch64-gnu.cmake
+cmake -B build_arm64 -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-aarch64-gnu.cmake -DNUMKONG_BUILD_TEST=1
 cmake --build build_arm64 --parallel
+NUMKONG_IN_QEMU=1 ctest --test-dir build_arm64 # runs under qemu-aarch64 -cpu max
 ```
 
-To build and run tests under emulation, see [test/README.md](test/README.md#cross-compilation).
-
 The ISA floor is `armv8-a`; individual kernels are gated by the compile probes in `cmake/`.
-Use Clang: GCC 14 compiles the SME kernels but its `libgcc` has no `__arm_tpidr2_save`, so the link fails.
+GCC 14 builds and links the SME kernels, since `dots/sme.h` carries weak `__arm_tpidr2_save` and `__arm_tpidr2_restore` stubs.
 
 __RISC-V 64 with GCC__
 
 ```sh
-cmake -B build_riscv -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscv64-gnu.cmake
+cmake -B build_riscv -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscv64-gnu.cmake -DNUMKONG_BUILD_TEST=1
 cmake --build build_riscv --parallel
+NUMKONG_IN_QEMU=1 ctest --test-dir build_riscv # runs under qemu-riscv64 -cpu max
 ```
-
-To build and run tests under emulation, see [test/README.md](test/README.md#cross-compilation).
 
 Default arch: `rv64gcv_zvfh_zvfbfwma_zvbb`.
 Needs GCC 16 or newer: the RVV kernels gate on `#pragma GCC target("arch=+v")`, which GCC implements for RISC-V only from 16, and 14 and 15 ignore it and then fail on the intrinsics.
@@ -146,22 +156,24 @@ GCC 16 is not in Debian stable yet, so this currently needs it from `sid`.
 __RISC-V 64 with LLVM__
 
 ```sh
-cmake -B build_riscv_llvm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscv64-llvm.cmake
+export LLVM_ROOT=/path/to/llvm # optional
+cmake -B build_riscv_llvm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscv64-llvm.cmake -DNUMKONG_BUILD_TEST=1
 cmake --build build_riscv_llvm --parallel
+NUMKONG_IN_QEMU=1 ctest --test-dir build_riscv_llvm
 ```
-
-To build and run tests under emulation, see [test/README.md](test/README.md#cross-compilation).
 
 Set `RISCV_SYSROOT` only for a self-contained toolchain; distribution cross packages need none.
 
 __Android ARM64__
 
-```sh
-cmake -B build_android -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-android-arm64.cmake
-cmake --build build_android --parallel
-```
+Android has no emulator in the table, so the tests run on a device:
 
-To build and run tests under emulation, see [test/README.md](test/README.md#cross-compilation).
+```sh
+cmake -B build_android -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-android-arm64.cmake -DNUMKONG_BUILD_TEST=1
+cmake --build build_android --parallel
+adb push build_android/numkong_cpu_test /data/local/tmp/
+adb shell /data/local/tmp/numkong_cpu_test
+```
 
 __WASM via Emscripten__
 
@@ -171,10 +183,10 @@ cmake -B build-wasm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cma
 cmake --build build-wasm --parallel
 ```
 
-For the relaxed tier of the same 32-bit module, and for wasm64 — Memory64:
+For the `v128relaxed` capability of the same 32-bit module, and for wasm64 — Memory64:
 
 ```sh
-cmake -B build-wasm-relaxed -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake -DNUMKONG_WASM_SIMD=v128relaxed
+cmake -B build-wasm-relaxed -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake -DNUMKONG_TARGET_ARCH=v128relaxed
 cmake --build build-wasm-relaxed --parallel
 cmake -B build-wasm64 -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm64-emscripten.cmake
 cmake --build build-wasm64 --parallel
@@ -257,7 +269,7 @@ Useful breakpoints for debugging:
 
 See [test/README.md](test/README.md) for test framework details and [bench/README.md](bench/README.md) for benchmark configuration.
 
-### Static Analysis & Formatting
+### C and C++ Formatting
 
 Once done editing the code, please run analyzers and formatters:
 
@@ -300,7 +312,7 @@ The `-Wd` will silence overflows and runtime warnings.
 When building on macOS, same as with C/C++, use non-Apple Clang version:
 
 ```sh
-brew install llvm libomp
+brew install llvm
 CC=$(brew --prefix llvm)/bin/clang CXX=$(brew --prefix llvm)/bin/clang++ pip install -e .
 ```
 
@@ -334,7 +346,7 @@ On Windows and macOS, to avoid frequent path resolution issues, you may want to 
 python -m cibuildwheel --platform windows
 ```
 
-### Static Analysis & Formatting
+### Python Linting & Formatting
 
 Once done editing the code, please run analyzers and formatters:
 
@@ -382,14 +394,15 @@ npm run bench           # Run benchmarks
 swift build && swift test -v
 ```
 
+`Package.swift` declares `swift-tools-version:6.4`, so the package needs Swift 6.4 or newer.
 Running Swift on Linux requires a couple of extra steps, as the Swift compiler is not available in the default repositories.
 Please get the most recent Swift tarball from the [official website](https://www.swift.org/install/).
-At the time of writing, for 64-bit Arm CPU running Ubuntu 22.04, the following commands would work:
+At the time of writing, for 64-bit Arm CPU running Ubuntu 24.04, the following commands would work:
 
 ```bash
-wget https://download.swift.org/swift-5.9.2-release/ubuntu2204-aarch64/swift-5.9.2-RELEASE/swift-5.9.2-RELEASE-ubuntu22.04-aarch64.tar.gz
-tar xzf swift-5.9.2-RELEASE-ubuntu22.04-aarch64.tar.gz
-sudo mv swift-5.9.2-RELEASE-ubuntu22.04-aarch64 /usr/share/swift
+wget https://download.swift.org/swift-6.4.0-release/ubuntu2404-aarch64/swift-6.4.0-RELEASE/swift-6.4.0-RELEASE-ubuntu24.04-aarch64.tar.gz
+tar xzf swift-6.4.0-RELEASE-ubuntu24.04-aarch64.tar.gz
+sudo mv swift-6.4.0-RELEASE-ubuntu24.04-aarch64 /usr/share/swift
 echo "export PATH=/usr/share/swift/usr/bin:$PATH" >> ~/.bashrc
 source ~/.bashrc
 ```
@@ -398,9 +411,9 @@ You can check the available images on [`swift.org/download` page](https://www.sw
 For x86 CPUs, the following commands would work:
 
 ```bash
-wget https://download.swift.org/swift-5.9.2-release/ubuntu2204/swift-5.9.2-RELEASE/swift-5.9.2-RELEASE-ubuntu22.04.tar.gz
-tar xzf swift-5.9.2-RELEASE-ubuntu22.04.tar.gz
-sudo mv swift-5.9.2-RELEASE-ubuntu22.04 /usr/share/swift
+wget https://download.swift.org/swift-6.4.0-release/ubuntu2404/swift-6.4.0-RELEASE/swift-6.4.0-RELEASE-ubuntu24.04.tar.gz
+tar xzf swift-6.4.0-RELEASE-ubuntu24.04.tar.gz
+sudo mv swift-6.4.0-RELEASE-ubuntu24.04 /usr/share/swift
 echo "export PATH=/usr/share/swift/usr/bin:$PATH" >> ~/.bashrc
 source ~/.bashrc
 ```
@@ -408,7 +421,7 @@ source ~/.bashrc
 Alternatively, on Linux, the official Swift Docker image can be used for builds and tests:
 
 ```bash
-sudo docker run --rm -v "$PWD:/workspace" -w /workspace swift:5.9 /bin/bash -cl "swift build -c release --static-swift-stdlib && swift test -c release --enable-test-discovery"
+sudo docker run --rm -v "$PWD:/workspace" -w /workspace swift:6.4 /bin/bash -cl "swift build -c release --static-swift-stdlib && swift test -c release"
 ```
 
 ## GoLang
@@ -422,33 +435,39 @@ go test -run=^$ -bench=. -benchmem ./bench/golang/ # To benchmark
 
 To add a new operation family, for example `foo`:
 
-1. __C header__: create `include/numkong/foo.h` with serial implementation and dispatch function signatures.
-2. __ISA implementations__: add `include/numkong/foo/serial.h`, `foo/neon.h`, `foo/haswell.h`, etc.
-3. __Dispatch layer__: add entries to the appropriate `c/dispatch_*.c` files for each dtype the kernel supports.
-4. __C++ wrapper__: create `include/numkong/foo.hpp` with the typed C++ API.
+1. __C header__: create `include/numkong/foo.h`.
+   It declares, with `NUMKONG_API`, the dispatch points like `nk_foo_f32_best`, every capability's kernel under its `NUMKONG_TARGET_*` guard, and the finder `nk_foo_find_kernel`.
+   It ends with the header-only tail: the capability headers, then a stub per dispatch point and for the finder, each returning `nk_missing_library_k`.
+2. __Kernels per capability__: add `include/numkong/foo/serial.h`, `foo/neon.h`, `foo/haswell.h`, etc.
+   Helpers compile wherever `NUMKONG_ARCH_<ARCH>_<CAPABILITY>_` holds, and kernels only under their own `NUMKONG_TARGET_<CAPABILITY>`.
+   A kernel never calls another public kernel: logic two kernels share lives in a helper named for what it computes.
+3. __Library__: create `c/dispatch/foo.c` with a `static` capability list per dispatch point, like `nk_foo_f32_capabilities`, the `_best` body that picks from it, and `nk_foo_find_kernel`.
+   Include each capability header from its unit, like `c/cpu/haswell.c`, and route the family's kernel kinds to `nk_foo_find_kernel` in `c/numkong.c`.
+4. __C++ wrapper__: create `include/numkong/foo.hpp` with the typed C++ API, ending in the dispatch point's mask and stream.
 5. __Test__: create `test/foo.cpp` with precision validation against `f118_t` references.
 6. __Benchmark__: create `bench/foo.cpp` with Google Benchmark harness.
-7. __Cross-platform tests__: add a scenario to `test/cross.hpp`, then register it in the relevant `test/cross_*.cpp` files and, for CUDA kernels, in `test/main.cu`.
-8. __CMakeLists.txt__: wire the new source files into the `numkong_test` and `numkong_bench` targets.
+7. __Cross-platform tests__: add a scenario to `test/cross.hpp`, then register it in the relevant `test/cross_*` files, `test/cross_cuda.cu` and `test/cross_rocm.hip` included.
+8. __CMakeLists.txt__: wire the new source files into the `numkong_cpu_test` and `numkong_bench` targets.
 9. __Language bindings__: update `python/numkong.c`, `javascript/numkong.c`, `rust/numkong.rs`, etc. as needed.
 
-## Adding a Backend Kernel to an Existing Family
+## Adding a Capability to an Existing Family
 
-For primary kernels, every backend implementation should be wired in five places beyond the backend header itself:
+A capability's kernel shares its dispatch point's signature short of the mask: it returns an `nk_status_t` and takes a trailing `void *stream`, which a CPU kernel asserts is null.
+Every such kernel is wired in four places beyond its capability's header:
 
-1. __Forward declaration__: add the `NUMKONG_API_COMPTIME` declaration with the matching `@copydoc` in the first half of `include/numkong/<family>.h`.
-2. __Compile-time dispatch__: add the `#if !NUMKONG_RUNTIME_DISPATCH` branch in the second half of `include/numkong/<family>.h`.
-3. __Run-time dispatch__: add the dtype-specific entry to the relevant `c/dispatch_*.c` table.
-4. __Precision tests__: register the kernel in `numkong_test`, usually in the existing `test/<family>.cpp` suite.
-5. __Benchmarks__: register the kernel in `numkong_bench`, usually in the existing `bench/<family>.cpp` suite.
+1. __Declaration__: add the `NUMKONG_API` declaration with the matching `@copydoc` under its `NUMKONG_TARGET_*` guard in the first half of `include/numkong/<family>.h`.
+2. __Capability kernels__: add the kernel under its `NUMKONG_TARGET_*` guard to its capability group's array in `nk_<operation>_<dtype>_capabilities` in `c/dispatch/<family>.c`, in the order of the capability bits, and its bit to that group's mask.
+   Its unit, like `c/cpu/haswell.c` or `c/nvidia/hopper.cu`, defines it; a new capability gets a new unit.
+3. __Precision tests__: register the kernel in `numkong_cpu_test`, usually in the existing `test/<family>.cpp` suite.
+4. __Benchmarks__: register the kernel in `numkong_bench`, usually in the existing `bench/<family>.cpp` suite.
 
 Use the existing family suite unless the kernel introduces a genuinely new test shape.
 The rule is about coverage and reachability, not about creating a brand new source file for every symbol.
 
 There are two intentional exceptions:
 
-- `cast`: the family-level `nk_cast_*` kernels follow the same header/dispatch/test/bench rule, but scalar conversion helpers are wired through `c/dispatch_other.c` and are covered through `test/cast.cpp` and `bench/cast.cpp`.
-- `scalar`: scalar helpers are centrally declared in `include/numkong/scalar.h`, wired through `c/dispatch_other.c`, and currently do not follow the per-helper `numkong_test` and `numkong_bench` registration pattern.
+- `cast`: the family-level `nk_cast_*` kernels follow the same header, list, test, and bench rule, and the scalar conversions are dispatched in `c/dispatch/cast.c` and covered through `test/cast.cpp` and `bench/cast.cpp`.
+- `scalar`: scalar helpers are centrally declared in `include/numkong/scalar.h`, dispatched in `c/dispatch/scalar.c`, and currently do not follow the per-helper `numkong_cpu_test` and `numkong_bench` registration pattern.
 
 ## Wording & Styling
 
@@ -512,17 +531,18 @@ For scalar variables, similar preferences for cleaner and longer variable names 
 Prefer explicit named intrinsics over implicit syntax or manual bit manipulation.
 Power VSX uses `vec_xl()`, `vec_xst()` — never implicit Altivec vector operators.
 x86 AVX-512 uses `_mm512_mask_*` K-mask intrinsics — never manual bitwise ops on `__mmask16`.
-When hardware has no intrinsic, wrap raw assembly in a `NUMKONG_HELPER_INLINE` helper and document the instruction mnemonic:
+When hardware has no intrinsic, wrap raw assembly in a `NUMKONG_INLINE` helper and document the instruction mnemonic:
 
 ```c
-NUMKONG_HELPER_INLINE void nk_sme_start_streaming_(void) {
+NUMKONG_INLINE void nk_sme_start_streaming_(void) {
     __asm__ __volatile__("smstart sm" ::: "memory");
 }
 ```
 
 ### Function Naming
 
-Public API: `nk_<operation>_<dtype>_<isa>` — e.g. `nk_dot_f32_sve`, `nk_angular_f16_sme`.
+Kernels: `nk_<operation>_<dtype>_<capability>` — e.g. `nk_dot_f32_sve`, `nk_dots_packed_bf16_ampere`.
+Dispatch points replace the capability with `best` — e.g. `nk_dot_f32_best` — and the static lists of their kernels in every capability group add `capabilities` — e.g. `nk_dot_f32_capabilities`.
 Internal helpers use a trailing underscore: `nk_reduce_add_f32x16_skylake_`.
 Conversions: `nk_<src>x<count>_to_<dst>x<count>_<isa>_` — e.g. `nk_e4m3x8_to_f32x8_haswell_`.
 
@@ -532,14 +552,23 @@ Every all-caps name starts with the full project name, `NUMKONG_`.
 A trailing `_` marks a name as internal: it may change in any release, and nothing outside this repository may define or test it.
 A name without it is a public contract, either a switch you may set or a value you may read.
 
-| Family                       | Form                       | Example                                   |
-| :--------------------------- | :------------------------- | :---------------------------------------- |
-| ISA tier, backend, GPU layer | `NUMKONG_TARGET_<TIER>`    | `NUMKONG_TARGET_HASWELL`                  |
-| Dispatch mode                | `NUMKONG_RUNTIME_DISPATCH` |                                           |
-| Permission for a liberty     | `NUMKONG_ALLOW_<LIBERTY>`  | `NUMKONG_ALLOW_ISA_REDIRECT`              |
-| Architecture fact            | `NUMKONG_ARCH_<ARCH>_`     | `NUMKONG_ARCH_X86_64_`                    |
-| Operating-system fact        | `NUMKONG_OS_<OS>_`         | `NUMKONG_OS_LINUX_`                       |
-| Toolchain fact               | `NUMKONG_HAS_<FEATURE>_`   | `NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_` |
+| Family                           | Form                          | Example                                   |
+| :------------------------------- | :---------------------------- | :---------------------------------------- |
+| Capability whose kernels compile | `NUMKONG_TARGET_<NAME>`       | `NUMKONG_TARGET_HASWELL`                  |
+| Capability whose helpers compile | `NUMKONG_ARCH_<ARCH>_<NAME>_` | `NUMKONG_ARCH_X8664_HASWELL_`             |
+| Header-only build                | `NUMKONG_HEADER_ONLY`         |                                           |
+| GPU runtime the build links      | `NUMKONG_WITH_<RUNTIME>`      | `NUMKONG_WITH_METAL`                      |
+| Permission for a liberty         | `NUMKONG_ALLOW_<LIBERTY>`     | `NUMKONG_ALLOW_ISA_REDIRECT`              |
+| Architecture fact                | `NUMKONG_ARCH_<ARCH>_`        | `NUMKONG_ARCH_X8664_`                     |
+| Operating-system fact            | `NUMKONG_OS_<OS>_`            | `NUMKONG_OS_LINUX_`                       |
+| Toolchain fact                   | `NUMKONG_HAS_<FEATURE>_`      | `NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_` |
 
-Architectures are spelled `X86_64`, `X86_32`, `ARM64`, `RISCV64`, `PPC64`, `LOONGARCH64`, `S390X` and `WASM`.
+Architectures are spelled as one token each, `X8664`, `X8632`, `ARM64`, `RISCV64`, `PPC64`, `LOONGARCH64`, `S390X` and `WASM`, and GPU architectures `CUDA` and `ROCM`.
+A GPU architecture holds beside the host's architecture in both compiler passes, so it never follows a CPU architecture in an `#elif` chain.
+Metal has no compiler macro on the host side, so its host API is a switch the build sets where it links Metal and Foundation.
+The library also sets `NUMKONG_ARCH_CUDA_` or `NUMKONG_ARCH_ROCM_` for its host-only units, so `c/dispatch/*.c` list the kernels that the `c/nvidia/*.cu` and `c/amd/*.hip` units compile.
+The build passes every unit the same `NUMKONG_TARGET_*` verdicts, so a unit turns off each capability its headers include besides its own, like `c/cpu/genoa.c` turning off Haswell, Skylake and Icelake, and each kernel is defined in exactly one unit.
+A new cross-capability include needs the same line in the unit, or the link reports the kernels defined twice.
+A capability's helpers follow `NUMKONG_ARCH_<ARCH>_<NAME>_`: its own target, or any capability whose headers include its headers.
+Each GPU unit compiles only the codes its generation runs.
 Every name in these families is always defined, as 0 or 1, and tested with `#if`, never with `defined(...)`.

@@ -9,16 +9,19 @@
 #ifndef NUMKONG_SETS_HASWELL_H
 #define NUMKONG_SETS_HASWELL_H
 
-#if NUMKONG_ARCH_X86_64_
-#if NUMKONG_TARGET_HASWELL
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_HASWELL_
 
 #include "numkong/set/haswell.h"
+#include "numkong/dots/serial.h" // `nk_define_cross_normalized_packed_`, `nk_dots_reduce_sum_u1_`
 #include "numkong/dots/haswell.h"
+#include "numkong/cast/haswell.h" // `nk_load_b128_haswell_`
 
 #if defined(__cplusplus)
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_HASWELL
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("avx2,f16c,fma,bmi,bmi2,popcnt"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -53,11 +56,12 @@ nk_define_cross_normalized_symmetric_(jaccard, u1, haswell, u1x8, u32, /*norm_va
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_HASWELL
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_HASWELL
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_HASWELL_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_SETS_HASWELL_H

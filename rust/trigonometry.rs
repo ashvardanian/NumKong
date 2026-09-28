@@ -8,6 +8,10 @@
 //! File: rust/trigonometry.rs
 //! Author: Ash Vardanian
 
+use core::ffi::c_void;
+use core::ptr::null_mut;
+
+use crate::capabilities::{cpu_capabilities, Status};
 use crate::tensor::{Global, Tensor, TensorError, TensorMut, TensorRef};
 use crate::types::{bf16, e4m3, f16, StorageElement};
 
@@ -19,7 +23,7 @@ pub type RopeAngle = f32;
 
 #[link(name = "numkong")]
 extern "C" {
-    fn nk_trig_rope_f32(
+    fn nk_trig_rope_f32_best(
         x: *const f32,
         y: *mut f32,
         cos: *const RopeAngle,
@@ -30,8 +34,10 @@ extern "C" {
         x_row_stride: usize,
         y_row_stride: usize,
         input_scale: f32,
-    );
-    fn nk_trig_rope_bf16(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_trig_rope_bf16_best(
         x: *const u16,
         y: *mut u16,
         cos: *const RopeAngle,
@@ -42,8 +48,10 @@ extern "C" {
         x_row_stride: usize,
         y_row_stride: usize,
         input_scale: f32,
-    );
-    fn nk_trig_rope_e4m3(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_trig_rope_e4m3_best(
         x: *const u8,
         y: *mut u8,
         cos: *const RopeAngle,
@@ -54,16 +62,72 @@ extern "C" {
         x_row_stride: usize,
         y_row_stride: usize,
         input_scale: f32,
-    );
-    fn nk_trig_sin_f32(inputs: *const f32, n: usize, outputs: *mut f32);
-    fn nk_trig_sin_f64(inputs: *const f64, n: usize, outputs: *mut f64);
-    fn nk_trig_sin_f16(inputs: *const u16, n: usize, outputs: *mut u16);
-    fn nk_trig_cos_f32(inputs: *const f32, n: usize, outputs: *mut f32);
-    fn nk_trig_cos_f64(inputs: *const f64, n: usize, outputs: *mut f64);
-    fn nk_trig_cos_f16(inputs: *const u16, n: usize, outputs: *mut u16);
-    fn nk_trig_atan_f32(inputs: *const f32, n: usize, outputs: *mut f32);
-    fn nk_trig_atan_f64(inputs: *const f64, n: usize, outputs: *mut f64);
-    fn nk_trig_atan_f16(inputs: *const u16, n: usize, outputs: *mut u16);
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_trig_sin_f32_best(
+        inputs: *const f32,
+        n: usize,
+        outputs: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_trig_sin_f64_best(
+        inputs: *const f64,
+        n: usize,
+        outputs: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_trig_sin_f16_best(
+        inputs: *const u16,
+        n: usize,
+        outputs: *mut u16,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_trig_cos_f32_best(
+        inputs: *const f32,
+        n: usize,
+        outputs: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_trig_cos_f64_best(
+        inputs: *const f64,
+        n: usize,
+        outputs: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_trig_cos_f16_best(
+        inputs: *const u16,
+        n: usize,
+        outputs: *mut u16,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_trig_atan_f32_best(
+        inputs: *const f32,
+        n: usize,
+        outputs: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_trig_atan_f64_best(
+        inputs: *const f64,
+        n: usize,
+        outputs: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_trig_atan_f16_best(
+        inputs: *const u16,
+        n: usize,
+        outputs: *mut u16,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
 }
 
 /// In-place NeoX split-half RoPE over a row-major __[rows,heads * 2 * half_dim]__ tensor.
@@ -124,7 +188,7 @@ impl TrigRope for f32 {
         let stride = x.stride_bytes(0) as usize;
         let yp = x.as_mut_ptr();
         unsafe {
-            nk_trig_rope_f32(
+            nk_trig_rope_f32_best(
                 yp,
                 yp,
                 cos.as_ptr(),
@@ -135,7 +199,10 @@ impl TrigRope for f32 {
                 stride,
                 stride,
                 input_scale,
-            );
+                cpu_capabilities(),
+                null_mut(),
+            )
+            .check()?;
         }
         Ok(())
     }
@@ -180,7 +247,7 @@ impl TrigRope for bf16 {
         let stride = x.stride_bytes(0) as usize;
         let yp = x.as_mut_ptr() as *mut u16;
         unsafe {
-            nk_trig_rope_bf16(
+            nk_trig_rope_bf16_best(
                 yp,
                 yp,
                 cos.as_ptr(),
@@ -191,7 +258,10 @@ impl TrigRope for bf16 {
                 stride,
                 stride,
                 input_scale,
-            );
+                cpu_capabilities(),
+                null_mut(),
+            )
+            .check()?;
         }
         Ok(())
     }
@@ -236,7 +306,7 @@ impl TrigRope for e4m3 {
         let stride = x.stride_bytes(0) as usize;
         let yp = x.as_mut_ptr() as *mut u8;
         unsafe {
-            nk_trig_rope_e4m3(
+            nk_trig_rope_e4m3_best(
                 yp,
                 yp,
                 cos.as_ptr(),
@@ -247,7 +317,10 @@ impl TrigRope for e4m3 {
                 stride,
                 stride,
                 input_scale,
-            );
+                cpu_capabilities(),
+                null_mut(),
+            )
+            .check()?;
         }
         Ok(())
     }
@@ -271,14 +344,23 @@ impl TrigSin for f64 {
         if inputs.len() != outputs.len() {
             return None;
         }
-        unsafe { nk_trig_sin_f64(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
+        unsafe {
+            nk_trig_sin_f64_best(
+                inputs.as_ptr(),
+                inputs.len(),
+                outputs.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
     fn sin_inplace(data: &mut [Self]) -> Option<()> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_trig_sin_f64(p as *const f64, len, p) };
+        unsafe { nk_trig_sin_f64_best(p as *const f64, len, p, cpu_capabilities(), null_mut()) }.ok()?;
         Some(())
     }
 }
@@ -288,14 +370,23 @@ impl TrigSin for f32 {
         if inputs.len() != outputs.len() {
             return None;
         }
-        unsafe { nk_trig_sin_f32(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
+        unsafe {
+            nk_trig_sin_f32_best(
+                inputs.as_ptr(),
+                inputs.len(),
+                outputs.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
     fn sin_inplace(data: &mut [Self]) -> Option<()> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_trig_sin_f32(p as *const f32, len, p) };
+        unsafe { nk_trig_sin_f32_best(p as *const f32, len, p, cpu_capabilities(), null_mut()) }.ok()?;
         Some(())
     }
 }
@@ -306,19 +397,22 @@ impl TrigSin for f16 {
             return None;
         }
         unsafe {
-            nk_trig_sin_f16(
+            nk_trig_sin_f16_best(
                 inputs.as_ptr() as *const u16,
                 inputs.len(),
                 outputs.as_mut_ptr() as *mut u16,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
     fn sin_inplace(data: &mut [Self]) -> Option<()> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_trig_sin_f16(p as *const u16, len, p as *mut u16) };
+        unsafe { nk_trig_sin_f16_best(p as *const u16, len, p as *mut u16, cpu_capabilities(), null_mut()) }.ok()?;
         Some(())
     }
 }
@@ -343,14 +437,23 @@ impl TrigCos for f64 {
         if inputs.len() != outputs.len() {
             return None;
         }
-        unsafe { nk_trig_cos_f64(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
+        unsafe {
+            nk_trig_cos_f64_best(
+                inputs.as_ptr(),
+                inputs.len(),
+                outputs.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
     fn cos_inplace(data: &mut [Self]) -> Option<()> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_trig_cos_f64(p as *const f64, len, p) };
+        unsafe { nk_trig_cos_f64_best(p as *const f64, len, p, cpu_capabilities(), null_mut()) }.ok()?;
         Some(())
     }
 }
@@ -360,14 +463,23 @@ impl TrigCos for f32 {
         if inputs.len() != outputs.len() {
             return None;
         }
-        unsafe { nk_trig_cos_f32(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
+        unsafe {
+            nk_trig_cos_f32_best(
+                inputs.as_ptr(),
+                inputs.len(),
+                outputs.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
     fn cos_inplace(data: &mut [Self]) -> Option<()> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_trig_cos_f32(p as *const f32, len, p) };
+        unsafe { nk_trig_cos_f32_best(p as *const f32, len, p, cpu_capabilities(), null_mut()) }.ok()?;
         Some(())
     }
 }
@@ -378,19 +490,22 @@ impl TrigCos for f16 {
             return None;
         }
         unsafe {
-            nk_trig_cos_f16(
+            nk_trig_cos_f16_best(
                 inputs.as_ptr() as *const u16,
                 inputs.len(),
                 outputs.as_mut_ptr() as *mut u16,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
     fn cos_inplace(data: &mut [Self]) -> Option<()> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_trig_cos_f16(p as *const u16, len, p as *mut u16) };
+        unsafe { nk_trig_cos_f16_best(p as *const u16, len, p as *mut u16, cpu_capabilities(), null_mut()) }.ok()?;
         Some(())
     }
 }
@@ -415,14 +530,23 @@ impl TrigAtan for f64 {
         if inputs.len() != outputs.len() {
             return None;
         }
-        unsafe { nk_trig_atan_f64(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
+        unsafe {
+            nk_trig_atan_f64_best(
+                inputs.as_ptr(),
+                inputs.len(),
+                outputs.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
     fn atan_inplace(data: &mut [Self]) -> Option<()> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_trig_atan_f64(p as *const f64, len, p) };
+        unsafe { nk_trig_atan_f64_best(p as *const f64, len, p, cpu_capabilities(), null_mut()) }.ok()?;
         Some(())
     }
 }
@@ -432,14 +556,23 @@ impl TrigAtan for f32 {
         if inputs.len() != outputs.len() {
             return None;
         }
-        unsafe { nk_trig_atan_f32(inputs.as_ptr(), inputs.len(), outputs.as_mut_ptr()) };
+        unsafe {
+            nk_trig_atan_f32_best(
+                inputs.as_ptr(),
+                inputs.len(),
+                outputs.as_mut_ptr(),
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(())
     }
 
     fn atan_inplace(data: &mut [Self]) -> Option<()> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_trig_atan_f32(p as *const f32, len, p) };
+        unsafe { nk_trig_atan_f32_best(p as *const f32, len, p, cpu_capabilities(), null_mut()) }.ok()?;
         Some(())
     }
 }
@@ -450,19 +583,22 @@ impl TrigAtan for f16 {
             return None;
         }
         unsafe {
-            nk_trig_atan_f16(
+            nk_trig_atan_f16_best(
                 inputs.as_ptr() as *const u16,
                 inputs.len(),
                 outputs.as_mut_ptr() as *mut u16,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(())
     }
 
     fn atan_inplace(data: &mut [Self]) -> Option<()> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_trig_atan_f16(p as *const u16, len, p as *mut u16) };
+        unsafe { nk_trig_atan_f16_best(p as *const u16, len, p as *mut u16, cpu_capabilities(), null_mut()) }.ok()?;
         Some(())
     }
 }

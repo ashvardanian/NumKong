@@ -12,11 +12,12 @@
 #ifndef NUMKONG_DOTS_ALDER_H
 #define NUMKONG_DOTS_ALDER_H
 
-#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_ARCH_X8664_
 #if NUMKONG_TARGET_ALDER
 
 #include "numkong/dot/alder.h"   // Alder-specific dot product helpers
 #include "numkong/dot/haswell.h" // Haswell partial load functions
+#include "numkong/cast/serial.h" // `nk_partial_load_b8x32_serial_`
 #include "numkong/dots/serial.h" // GEMM macro definitions
 
 #if defined(__cplusplus)
@@ -136,5 +137,5 @@ nk_define_cross_packed_(dots, e2m1, alder, e2m1x2, e2m1x2, f32, nk_b256_vec_t, n
 #endif
 
 #endif // NUMKONG_TARGET_ALDER
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_DOTS_ALDER_H

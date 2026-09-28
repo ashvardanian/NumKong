@@ -20,7 +20,7 @@ func AngularF64(a, b []float64) float64 {
 		return 0
 	}
 	var result C.nk_f64_t
-	C.nk_angular_f64((*C.nk_f64_t)(&a[0]), (*C.nk_f64_t)(&b[0]), C.nk_size_t(len(a)), &result)
+	check(C.nk_angular_f64_best((*C.nk_f64_t)(&a[0]), (*C.nk_f64_t)(&b[0]), C.nk_size_t(len(a)), &result, capabilities(), nil))
 	return float64(result)
 }
 
@@ -34,7 +34,7 @@ func AngularF32(a, b []float32) float64 {
 		return 0
 	}
 	var result C.nk_f64_t
-	C.nk_angular_f32((*C.nk_f32_t)(&a[0]), (*C.nk_f32_t)(&b[0]), C.nk_size_t(len(a)), &result)
+	check(C.nk_angular_f32_best((*C.nk_f32_t)(&a[0]), (*C.nk_f32_t)(&b[0]), C.nk_size_t(len(a)), &result, capabilities(), nil))
 	return float64(result)
 }
 
@@ -48,7 +48,7 @@ func AngularI8(a, b []int8) float32 {
 		return 0
 	}
 	var result C.nk_f32_t
-	C.nk_angular_i8((*C.nk_i8_t)(&a[0]), (*C.nk_i8_t)(&b[0]), C.nk_size_t(len(a)), &result)
+	check(C.nk_angular_i8_best((*C.nk_i8_t)(&a[0]), (*C.nk_i8_t)(&b[0]), C.nk_size_t(len(a)), &result, capabilities(), nil))
 	return float32(result)
 }
 
@@ -62,7 +62,7 @@ func AngularU8(a, b []uint8) float32 {
 		return 0
 	}
 	var result C.nk_f32_t
-	C.nk_angular_u8((*C.nk_u8_t)(&a[0]), (*C.nk_u8_t)(&b[0]), C.nk_size_t(len(a)), &result)
+	check(C.nk_angular_u8_best((*C.nk_u8_t)(&a[0]), (*C.nk_u8_t)(&b[0]), C.nk_size_t(len(a)), &result, capabilities(), nil))
 	return float32(result)
 }
 
@@ -80,7 +80,7 @@ func EuclideanF64(a, b []float64) float64 {
 		return 0
 	}
 	var result C.nk_f64_t
-	C.nk_euclidean_f64((*C.nk_f64_t)(&a[0]), (*C.nk_f64_t)(&b[0]), C.nk_size_t(len(a)), &result)
+	check(C.nk_euclidean_f64_best((*C.nk_f64_t)(&a[0]), (*C.nk_f64_t)(&b[0]), C.nk_size_t(len(a)), &result, capabilities(), nil))
 	return float64(result)
 }
 
@@ -94,7 +94,7 @@ func EuclideanF32(a, b []float32) float64 {
 		return 0
 	}
 	var result C.nk_f64_t
-	C.nk_euclidean_f32((*C.nk_f32_t)(&a[0]), (*C.nk_f32_t)(&b[0]), C.nk_size_t(len(a)), &result)
+	check(C.nk_euclidean_f32_best((*C.nk_f32_t)(&a[0]), (*C.nk_f32_t)(&b[0]), C.nk_size_t(len(a)), &result, capabilities(), nil))
 	return float64(result)
 }
 
@@ -108,7 +108,7 @@ func EuclideanI8(a, b []int8) float32 {
 		return 0
 	}
 	var result C.nk_f32_t
-	C.nk_euclidean_i8((*C.nk_i8_t)(&a[0]), (*C.nk_i8_t)(&b[0]), C.nk_size_t(len(a)), &result)
+	check(C.nk_euclidean_i8_best((*C.nk_i8_t)(&a[0]), (*C.nk_i8_t)(&b[0]), C.nk_size_t(len(a)), &result, capabilities(), nil))
 	return float32(result)
 }
 
@@ -122,7 +122,7 @@ func EuclideanU8(a, b []uint8) float32 {
 		return 0
 	}
 	var result C.nk_f32_t
-	C.nk_euclidean_u8((*C.nk_u8_t)(&a[0]), (*C.nk_u8_t)(&b[0]), C.nk_size_t(len(a)), &result)
+	check(C.nk_euclidean_u8_best((*C.nk_u8_t)(&a[0]), (*C.nk_u8_t)(&b[0]), C.nk_size_t(len(a)), &result, capabilities(), nil))
 	return float32(result)
 }
 
@@ -140,7 +140,7 @@ func SqEuclideanF64(a, b []float64) float64 {
 		return 0
 	}
 	var result C.nk_f64_t
-	C.nk_sqeuclidean_f64((*C.nk_f64_t)(&a[0]), (*C.nk_f64_t)(&b[0]), C.nk_size_t(len(a)), &result)
+	check(C.nk_sqeuclidean_f64_best((*C.nk_f64_t)(&a[0]), (*C.nk_f64_t)(&b[0]), C.nk_size_t(len(a)), &result, capabilities(), nil))
 	return float64(result)
 }
 
@@ -154,7 +154,7 @@ func SqEuclideanF32(a, b []float32) float64 {
 		return 0
 	}
 	var result C.nk_f64_t
-	C.nk_sqeuclidean_f32((*C.nk_f32_t)(&a[0]), (*C.nk_f32_t)(&b[0]), C.nk_size_t(len(a)), &result)
+	check(C.nk_sqeuclidean_f32_best((*C.nk_f32_t)(&a[0]), (*C.nk_f32_t)(&b[0]), C.nk_size_t(len(a)), &result, capabilities(), nil))
 	return float64(result)
 }
 
@@ -168,7 +168,7 @@ func SqEuclideanI8(a, b []int8) uint32 {
 		return 0
 	}
 	var result C.nk_u32_t
-	C.nk_sqeuclidean_i8((*C.nk_i8_t)(&a[0]), (*C.nk_i8_t)(&b[0]), C.nk_size_t(len(a)), &result)
+	check(C.nk_sqeuclidean_i8_best((*C.nk_i8_t)(&a[0]), (*C.nk_i8_t)(&b[0]), C.nk_size_t(len(a)), &result, capabilities(), nil))
 	return uint32(result)
 }
 
@@ -182,7 +182,7 @@ func SqEuclideanU8(a, b []uint8) uint32 {
 		return 0
 	}
 	var result C.nk_u32_t
-	C.nk_sqeuclidean_u8((*C.nk_u8_t)(&a[0]), (*C.nk_u8_t)(&b[0]), C.nk_size_t(len(a)), &result)
+	check(C.nk_sqeuclidean_u8_best((*C.nk_u8_t)(&a[0]), (*C.nk_u8_t)(&b[0]), C.nk_size_t(len(a)), &result, capabilities(), nil))
 	return uint32(result)
 }
 

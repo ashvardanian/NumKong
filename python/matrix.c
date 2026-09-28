@@ -25,6 +25,7 @@
 /** One tile of rows of C = A × Bᵀ with B pre-packed. */
 typedef struct matrix_packed_task_t {
     nk_dots_packed_punned_t kernel;
+    void *stream;
     char const *a;
     void const *b_packed;
     char *c;
@@ -35,18 +36,19 @@ typedef struct matrix_packed_task_t {
     nk_size_t c_stride_bytes;
 } matrix_packed_task_t;
 
-static void matrix_packed_tile_(nk_size_t tile_index, void *context) {
+static nk_status_t matrix_packed_tile_(nk_size_t tile_index, void *context) {
     matrix_packed_task_t const *task = (matrix_packed_task_t const *)context;
     nk_size_t const row = tile_index * NUMKONG_PARALLEL_PACKED_TILE;
     nk_size_t const chunk = (row + NUMKONG_PARALLEL_PACKED_TILE <= task->rows) ? NUMKONG_PARALLEL_PACKED_TILE
                                                                                : (task->rows - row);
-    task->kernel(task->a + row * task->a_stride_bytes, task->b_packed, task->c + row * task->c_stride_bytes, chunk,
-                 task->columns, task->depth, task->a_stride_bytes, task->c_stride_bytes);
+    return task->kernel(task->a + row * task->a_stride_bytes, task->b_packed, task->c + row * task->c_stride_bytes,
+                        chunk, task->columns, task->depth, task->a_stride_bytes, task->c_stride_bytes, task->stream);
 }
 
 /** One tile of rows of C = A × Aᵀ. */
 typedef struct matrix_symmetric_task_t {
     nk_dots_symmetric_punned_t kernel;
+    void *stream;
     void const *vectors;
     void *result;
     nk_size_t vectors_count;
@@ -57,25 +59,27 @@ typedef struct matrix_symmetric_task_t {
     nk_size_t row_end;
 } matrix_symmetric_task_t;
 
-static void matrix_symmetric_tile_(nk_size_t tile_index, void *context) {
+static nk_status_t matrix_symmetric_tile_(nk_size_t tile_index, void *context) {
     matrix_symmetric_task_t const *task = (matrix_symmetric_task_t const *)context;
     nk_size_t const tile_start = task->row_start + tile_index * NUMKONG_PARALLEL_SYMMETRIC_TILE;
     nk_size_t const tile_rows = (tile_start + NUMKONG_PARALLEL_SYMMETRIC_TILE <= task->row_end)
                                     ? NUMKONG_PARALLEL_SYMMETRIC_TILE
                                     : (task->row_end - tile_start);
-    task->kernel(task->vectors, task->vectors_count, task->depth, task->stride_bytes, task->result,
-                 task->result_stride_bytes, tile_start, tile_rows);
+    return task->kernel(task->vectors, task->vectors_count, task->depth, task->stride_bytes, task->result,
+                        task->result_stride_bytes, tile_start, tile_rows, task->stream);
 }
 
 static void PackedMatrix_dealloc(PyObject *self) { Py_TYPE(self)->tp_free(self); }
 
-/** Compute packed buffer size for a PackedMatrix. */
+/** Compute packed buffer size for a PackedMatrix, or 0 if no kernel sizes it. */
 static size_t packed_matrix_nbytes(PackedMatrix *mm) {
     nk_dots_pack_size_punned_t size_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_dots_pack_size_k, mm->dtype, (nk_kernel_punned_t *)&size_fn, &cap);
-    if (!size_fn || !cap) return 0;
-    return size_fn(mm->width, mm->depth);
+    nk_find_kernel_punned(nk_kernel_dots_pack_size_k, mm->dtype, mm->capabilities, (nk_kernel_punned_t *)&size_fn,
+                          &cap);
+    nk_size_t bytes = 0;
+    if (size_fn) size_fn(mm->width, mm->depth, &bytes);
+    return bytes;
 }
 
 static PyObject *PackedMatrix_repr(PyObject *self) {
@@ -110,14 +114,15 @@ static PyObject *PackedMatrix_get_shape(PyObject *self, void *closure) {
     PackedMatrix *mm = (PackedMatrix *)self;
     nk_dots_packed_shape_punned_t shape_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_dots_packed_shape_k, mm->dtype, (nk_kernel_punned_t *)&shape_fn, &cap);
+    nk_find_kernel_punned(nk_kernel_dots_packed_shape_k, mm->dtype, mm->capabilities, (nk_kernel_punned_t *)&shape_fn,
+                          &cap);
     if (!shape_fn || !cap) {
         PyErr_Format(PyExc_LookupError, "No packed_shape kernel for dtype '%s'",
                      nk_dtype_to_pybuffer_typestr(mm->dtype));
         return NULL;
     }
     nk_size_t width = 0, depth = 0;
-    shape_fn(mm->start, &width, &depth);
+    if (!check_status(shape_fn(mm->start, &width, &depth, NULL))) return NULL;
     return Py_BuildValue("(nn)", (Py_ssize_t)width, (Py_ssize_t)depth);
 }
 
@@ -179,13 +184,16 @@ static PyObject *PackedMatrix_pack_size(PyObject *cls, PyObject *const *args, Py
 
     nk_dots_pack_size_punned_t size_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_dots_pack_size_k, dtype, (nk_kernel_punned_t *)&size_fn, &cap);
+    nk_find_kernel_punned(nk_kernel_dots_pack_size_k, dtype, default_capabilities, (nk_kernel_punned_t *)&size_fn,
+                          &cap);
     if (!size_fn || !cap) {
         PyErr_Format(PyExc_LookupError, "No pack_size kernel for dtype '%s'", nk_dtype_to_pybuffer_typestr(dtype));
         return NULL;
     }
 
-    return PyLong_FromSize_t(size_fn(width, depth));
+    nk_size_t bytes = 0;
+    if (!check_status(size_fn(width, depth, &bytes))) return NULL;
+    return PyLong_FromSize_t(bytes);
 }
 
 static PyMethodDef PackedMatrix_methods[] = {
@@ -265,7 +273,8 @@ PyObject *Tensor_matmul(PyObject *self, PyObject *other) {
     // Find matmul kernel via punned dispatch
     nk_dots_packed_punned_t matmul_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_dots_packed_k, packed->dtype, (nk_kernel_punned_t *)&matmul_fn, &cap);
+    nk_find_kernel_punned(nk_kernel_dots_packed_k, packed->dtype, packed->capabilities,
+                          (nk_kernel_punned_t *)&matmul_fn, &cap);
     if (!matmul_fn || !cap) {
         PyErr_SetString(PyExc_LookupError, "No matmul kernel for this dtype");
         return NULL;
@@ -283,6 +292,7 @@ PyObject *Tensor_matmul(PyObject *self, PyObject *other) {
     nk_size_t const threads = nk_parallel_worthwhile(height * n * k, available_threads) ? available_threads : 1;
     matrix_packed_task_t task;
     task.kernel = matmul_fn;
+    task.stream = NULL;
     task.a = a->data;
     task.b_packed = packed->start;
     task.c = result->data;
@@ -292,10 +302,13 @@ PyObject *Tensor_matmul(PyObject *self, PyObject *other) {
     task.a_stride_bytes = row_stride;
     task.c_stride_bytes = c_stride;
     PyThreadState *save = PyEval_SaveThread();
-    nk_parallel_for_tiles(nk_size_divide_round_up_(height, NUMKONG_PARALLEL_PACKED_TILE), threads, matrix_packed_tile_,
-                          &task);
+    nk_status_t const status = nk_parallel_for_tiles(nk_size_divide_round_up_(height, NUMKONG_PARALLEL_PACKED_TILE),
+                                                     threads, matrix_packed_tile_, &task);
     PyEval_RestoreThread(save);
-
+    if (!check_status(status)) {
+        Py_DECREF(result);
+        return NULL;
+    }
     return (PyObject *)result;
 }
 
@@ -411,6 +424,13 @@ static PyObject *api_packed_common( //
 
     a_obj = args[0];
     b_obj = args[1];
+    if (!PyObject_TypeCheck(b_obj, &PackedMatrixType)) {
+        PyErr_Format(PyExc_TypeError, "b must be a PackedMatrix (use %s() first)", spec->pack_name);
+        return NULL;
+    }
+    PackedMatrix *packed = (PackedMatrix *)b_obj;
+    nk_capability_t capabilities = packed->capabilities;
+    void *stream = NULL;
 
     for (Py_ssize_t i = 0; i < nkw; i++) {
         PyObject *name = PyTuple_GET_ITEM(kwnames, i);
@@ -428,18 +448,8 @@ static PyObject *api_packed_common( //
             if (t == -1 && PyErr_Occurred()) return NULL;
             threads = (nk_size_t)(t >= 0 ? t : 0);
         }
-        else {
-            char const *name_str = PyUnicode_AsUTF8(name);
-            PyErr_Format(PyExc_TypeError, "%s_packed() got unexpected keyword argument '%s'", spec->name, name_str);
-            return NULL;
-        }
+        else if (!parse_dispatch_keyword(name, args[nargs + i], &capabilities, &stream)) return NULL;
     }
-
-    if (!PyObject_TypeCheck(b_obj, &PackedMatrixType)) {
-        PyErr_Format(PyExc_TypeError, "b must be a PackedMatrix (use %s() first)", spec->pack_name);
-        return NULL;
-    }
-    PackedMatrix *packed = (PackedMatrix *)b_obj;
 
     Py_buffer a_buffer;
     nk_buffer_backing_t a_backing;
@@ -502,7 +512,7 @@ static PyObject *api_packed_common( //
 
     nk_dots_packed_punned_t kernel = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(spec->packed_kind, packed->dtype, (nk_kernel_punned_t *)&kernel, &cap);
+    nk_find_kernel_punned(spec->packed_kind, packed->dtype, capabilities, (nk_kernel_punned_t *)&kernel, &cap);
     if (!kernel || !cap) {
         PyBuffer_Release(&a_buffer);
         PyErr_Format(PyExc_LookupError, "No %s_packed kernel for this dtype", spec->name);
@@ -539,6 +549,7 @@ static PyObject *api_packed_common( //
         PyThreadState *save = PyEval_SaveThread();
         matrix_packed_task_t task;
         task.kernel = kernel;
+        task.stream = stream;
         task.a = a_ptr;
         task.b_packed = packed->start;
         task.c = out_ptr;
@@ -547,9 +558,14 @@ static PyObject *api_packed_common( //
         task.depth = depth_packed;
         task.a_stride_bytes = input_row_stride;
         task.c_stride_bytes = output_row_stride;
-        nk_parallel_for_tiles(nk_size_divide_round_up_(slice_height, NUMKONG_PARALLEL_PACKED_TILE), threads,
-                              matrix_packed_tile_, &task);
+        nk_status_t const status = nk_parallel_for_tiles(
+            nk_size_divide_round_up_(slice_height, NUMKONG_PARALLEL_PACKED_TILE), threads, matrix_packed_tile_, &task);
         PyEval_RestoreThread(save);
+        if (!check_status(status)) {
+            PyBuffer_Release(&a_buffer);
+            if (owns_result) Py_DECREF(result);
+            return NULL;
+        }
     }
     PyBuffer_Release(&a_buffer);
 
@@ -567,12 +583,15 @@ static PyObject *api_symmetric_common( //
     PyObject *out_obj = NULL;
     Py_ssize_t start_row = -1, end_row = -1;
     nk_size_t threads = 1;
+    nk_capability_t capabilities = default_capabilities;
+    void *stream = NULL;
 
     Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
     Py_ssize_t const args_count = positional_args_count + args_names_count;
-    if (args_count < 1 || args_count > 6 || positional_args_count > 1) {
+    if (args_count < 1 || args_count > 8 || positional_args_count > 1) {
         PyErr_Format(PyExc_TypeError,
-                     "%s_symmetric(vectors, *, dtype=None, out=None, start_row=None, end_row=None, threads=1)",
+                     "%s_symmetric(vectors, *, dtype=None, out=None, start_row=None, end_row=None, threads=1, " //
+                     "capabilities=None, stream=None)",
                      spec->name);
         return NULL;
     }
@@ -596,10 +615,7 @@ static PyObject *api_symmetric_common( //
             if (t == -1 && PyErr_Occurred()) return NULL;
             threads = (nk_size_t)(t >= 0 ? t : 0);
         }
-        else {
-            PyErr_Format(PyExc_TypeError, "%s_symmetric() unexpected keyword: %S", spec->name, key);
-            return NULL;
-        }
+        else if (!parse_dispatch_keyword(key, value, &capabilities, &stream)) return NULL;
     }
 
     Py_buffer vec_buf;
@@ -633,7 +649,7 @@ static PyObject *api_symmetric_common( //
 
     nk_dots_symmetric_punned_t kernel = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(spec->symmetric_kind, dtype, (nk_kernel_punned_t *)&kernel, &cap);
+    nk_find_kernel_punned(spec->symmetric_kind, dtype, capabilities, (nk_kernel_punned_t *)&kernel, &cap);
     if (!kernel || !cap) {
         PyErr_Format(PyExc_LookupError, "No %s_symmetric kernel for dtype '%s'", spec->name,
                      nk_dtype_to_pybuffer_typestr(dtype));
@@ -673,6 +689,7 @@ static PyObject *api_symmetric_common( //
         PyThreadState *save = PyEval_SaveThread();
         matrix_symmetric_task_t task;
         task.kernel = kernel;
+        task.stream = stream;
         task.vectors = vec_buf.buf;
         task.result = out_data;
         task.vectors_count = n_vectors;
@@ -681,9 +698,14 @@ static PyObject *api_symmetric_common( //
         task.result_stride_bytes = result_stride;
         task.row_start = row_start;
         task.row_end = row_end;
-        nk_parallel_for_tiles(nk_size_divide_round_up_(row_count_val, NUMKONG_PARALLEL_SYMMETRIC_TILE), threads,
-                              matrix_symmetric_tile_, &task);
+        nk_status_t const status = nk_parallel_for_tiles(
+            nk_size_divide_round_up_(row_count_val, NUMKONG_PARALLEL_SYMMETRIC_TILE), threads, matrix_symmetric_tile_,
+            &task);
         PyEval_RestoreThread(save);
+        if (!check_status(status)) {
+            if (owns_result) Py_DECREF(result);
+            goto cleanup;
+        }
     }
 
     if (owns_result) return_obj = (PyObject *)result;
@@ -718,11 +740,13 @@ static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObje
 
     PyObject *b_obj = NULL;
     PyObject *dtype_obj = NULL;
+    nk_capability_t capabilities = default_capabilities;
+    void *stream = NULL;
 
     Py_ssize_t nkw = kwnames ? PyTuple_Size(kwnames) : 0;
     Py_ssize_t total = nargs + nkw;
 
-    if (nargs < 1 || total > 2) {
+    if (nargs < 1 || nargs > 2 || total > 4) {
         PyErr_SetString(PyExc_TypeError, "pack requires 1-2 arguments: b, dtype");
         return NULL;
     }
@@ -738,10 +762,7 @@ static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObje
             }
             dtype_obj = args[nargs + i];
         }
-        else {
-            PyErr_Format(PyExc_TypeError, "unexpected keyword argument '%s'", PyUnicode_AsUTF8(name));
-            return NULL;
-        }
+        else if (!parse_dispatch_keyword(name, args[nargs + i], &capabilities, &stream)) return NULL;
     }
     if (nargs >= 2) dtype_obj = args[1];
 
@@ -799,13 +820,17 @@ static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObje
     // Get packed size via punned dispatch
     nk_dots_pack_size_punned_t size_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_dots_pack_size_k, target_dtype, (nk_kernel_punned_t *)&size_fn, &cap);
+    nk_find_kernel_punned(nk_kernel_dots_pack_size_k, target_dtype, capabilities, (nk_kernel_punned_t *)&size_fn, &cap);
     if (!size_fn || !cap) {
         PyBuffer_Release(&b_buffer);
         PyErr_Format(PyExc_LookupError, "No packing kernel for dtype '%s'", nk_dtype_to_pybuffer_typestr(target_dtype));
         return NULL;
     }
-    nk_size_t packed_size = size_fn(width, depth);
+    nk_size_t packed_size = 0;
+    if (!check_status(size_fn(width, depth, &packed_size))) {
+        PyBuffer_Release(&b_buffer);
+        return NULL;
+    }
 
     PackedMatrix *packed = PyObject_NewVar(PackedMatrix, &PackedMatrixType, packed_size);
     if (!packed) {
@@ -817,10 +842,11 @@ static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObje
     packed->dtype = target_dtype;
     packed->width = width;
     packed->depth = depth;
+    packed->capabilities = capabilities;
 
     nk_dots_pack_punned_t pack_fn = NULL;
     cap = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_dots_pack_k, target_dtype, (nk_kernel_punned_t *)&pack_fn, &cap);
+    nk_find_kernel_punned(nk_kernel_dots_pack_k, target_dtype, capabilities, (nk_kernel_punned_t *)&pack_fn, &cap);
     if (!pack_fn || !cap) {
         Py_DECREF(packed);
         PyBuffer_Release(&b_buffer);
@@ -828,13 +854,15 @@ static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObje
         return NULL;
     }
 
-    {
-        PyThreadState *save = PyEval_SaveThread();
-        pack_fn(b_buffer.buf, width, depth, row_stride, packed->start, 0, width);
-        PyEval_RestoreThread(save);
-    }
+    PyThreadState *save = PyEval_SaveThread();
+    nk_status_t const status = pack_fn(b_buffer.buf, width, depth, row_stride, packed->start, 0, width, stream);
+    PyEval_RestoreThread(save);
 
     PyBuffer_Release(&b_buffer);
+    if (!check_status(status)) {
+        Py_DECREF(packed);
+        return NULL;
+    }
     return (PyObject *)packed;
 }
 

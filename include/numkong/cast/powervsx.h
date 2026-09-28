@@ -84,7 +84,7 @@
 #if NUMKONG_TARGET_POWERVSX
 
 #include "numkong/types.h"
-#include "numkong/cast/serial.h" // `nk_cast_serial`, `nk_dtype_bits`
+#include "numkong/cast/serial.h" // `nk_cast_elementwise_`, `nk_dtype_bits`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -97,48 +97,47 @@ extern "C" {
 #pragma GCC target("power9-vector")
 #endif
 
-NUMKONG_API_COMPTIME void nk_f16_to_f32_powervsx(nk_f16_t const *source, nk_f32_t *destination) {
+NUMKONG_API void nk_f16_to_f32_powervsx(nk_f16_t const *source, nk_f32_t *destination) {
     nk_vu16x8_t values_u16x8 = (nk_vu16x8_t)vec_xl_len((nk_u8_t *)source, 2);
     *destination = vec_extract(vec_extract_fp32_from_shorth(values_u16x8), 0);
 }
 
-NUMKONG_API_COMPTIME void nk_f32_to_f16_powervsx(nk_f32_t const *source, nk_f16_t *destination) {
+NUMKONG_API void nk_f32_to_f16_powervsx(nk_f32_t const *source, nk_f16_t *destination) {
     nk_vu16x8_t packed_u16x8 = vec_pack_to_short_fp32(vec_splats(*source), vec_splats(*source));
     *destination = vec_extract(packed_u16x8, 0);
 }
 
 /** Type-agnostic 128-bit full load (Power VSX). */
-NUMKONG_HELPER_INLINE void nk_load_b128_powervsx_(void const *source, nk_b128_vec_t *destination) {
+NUMKONG_INLINE void nk_load_b128_powervsx_(void const *source, nk_b128_vec_t *destination) {
     destination->vu8x16 = vec_xl(0, (nk_u8_t const *)source);
 }
 
 /** Type-agnostic 256-bit full load (Power VSX). */
-NUMKONG_HELPER_INLINE void nk_load_b256_powervsx_(void const *source, nk_b256_vec_t *destination) {
+NUMKONG_INLINE void nk_load_b256_powervsx_(void const *source, nk_b256_vec_t *destination) {
     destination->vu8x16s[0] = vec_xl(0, (nk_u8_t const *)source);
     destination->vu8x16s[1] = vec_xl(16, (nk_u8_t const *)source);
 }
 
 /** Type-agnostic 128-bit full store (Power VSX). */
-NUMKONG_HELPER_INLINE void nk_store_b128_powervsx_(nk_b128_vec_t const *source, void *destination) {
+NUMKONG_INLINE void nk_store_b128_powervsx_(nk_b128_vec_t const *source, void *destination) {
     vec_xst(source->vu8x16, 0, (nk_u8_t *)destination);
 }
 
 /** Type-agnostic 256-bit full store (Power VSX). */
-NUMKONG_HELPER_INLINE void nk_store_b256_powervsx_(nk_b256_vec_t const *source, void *destination) {
+NUMKONG_INLINE void nk_store_b256_powervsx_(nk_b256_vec_t const *source, void *destination) {
     vec_xst(source->vu8x16s[0], 0, (nk_u8_t *)destination);
     vec_xst(source->vu8x16s[1], 16, (nk_u8_t *)destination);
 }
 
 /** Type-agnostic 64-bit load (Power VSX). */
-NUMKONG_HELPER_INLINE void nk_load_b64_powervsx_(void const *source, nk_b64_vec_t *destination) {
+NUMKONG_INLINE void nk_load_b64_powervsx_(void const *source, nk_b64_vec_t *destination) {
     destination->u64 = *(nk_u64_t const *)source;
 }
 
 /** Partial load for 64-bit elements (n elements, max 4) into 256-bit vector. Uses vec_xl_len to
  *  load exactly n × 8 bytes, zero-filling the remainder. vec_xl_len with length=0 produces a zero
  *  vector (no branch needed). */
-NUMKONG_HELPER_INLINE void nk_partial_load_b64x4_powervsx_(void const *source, nk_b256_vec_t *destination,
-                                                           nk_size_t n) {
+NUMKONG_INLINE void nk_partial_load_b64x4_powervsx_(void const *source, nk_b256_vec_t *destination, nk_size_t n) {
     nk_size_t bytes = n * 8;
     nk_size_t first_half = bytes < 16 ? bytes : 16;
     nk_size_t second_half = bytes > 16 ? bytes - 16 : 0;
@@ -147,44 +146,38 @@ NUMKONG_HELPER_INLINE void nk_partial_load_b64x4_powervsx_(void const *source, n
 }
 
 /** Partial load for 64-bit elements (n elements, max 2) into 128-bit vector. */
-NUMKONG_HELPER_INLINE void nk_partial_load_b64x2_powervsx_(void const *source, nk_b128_vec_t *destination,
-                                                           nk_size_t n) {
+NUMKONG_INLINE void nk_partial_load_b64x2_powervsx_(void const *source, nk_b128_vec_t *destination, nk_size_t n) {
     destination->vu8x16 = vec_xl_len((nk_u8_t *)source, n * 8);
 }
 
 /** Partial load for 32-bit elements (n elements, max 4) into 128-bit vector. */
-NUMKONG_HELPER_INLINE void nk_partial_load_b32x4_powervsx_(void const *source, nk_b128_vec_t *destination,
-                                                           nk_size_t n) {
+NUMKONG_INLINE void nk_partial_load_b32x4_powervsx_(void const *source, nk_b128_vec_t *destination, nk_size_t n) {
     destination->vu8x16 = vec_xl_len((nk_u8_t *)source, n * 4);
 }
 
 /** Partial load for 32-bit elements (n elements, max 2) into 64-bit vector. */
-NUMKONG_HELPER_INLINE void nk_partial_load_b32x2_powervsx_(void const *source, nk_b64_vec_t *destination, nk_size_t n) {
+NUMKONG_INLINE void nk_partial_load_b32x2_powervsx_(void const *source, nk_b64_vec_t *destination, nk_size_t n) {
     nk_copy_bytes_(destination, source, n * 4);
 }
 
 /** Partial load for 16-bit elements (n elements, max 8) into 128-bit vector. */
-NUMKONG_HELPER_INLINE void nk_partial_load_b16x8_powervsx_(void const *source, nk_b128_vec_t *destination,
-                                                           nk_size_t n) {
+NUMKONG_INLINE void nk_partial_load_b16x8_powervsx_(void const *source, nk_b128_vec_t *destination, nk_size_t n) {
     destination->vu8x16 = vec_xl_len((nk_u8_t *)source, n * 2);
 }
 
 /** Partial load for 8-bit elements (n elements, max 16) into 128-bit vector. */
-NUMKONG_HELPER_INLINE void nk_partial_load_b8x16_powervsx_(void const *source, nk_b128_vec_t *destination,
-                                                           nk_size_t n) {
+NUMKONG_INLINE void nk_partial_load_b8x16_powervsx_(void const *source, nk_b128_vec_t *destination, nk_size_t n) {
     destination->vu8x16 = vec_xl_len((nk_u8_t *)source, n);
 }
 
 /** Partial load for 1-bit elements (n bits, max 128) into 128-bit vector. */
-NUMKONG_HELPER_INLINE void nk_partial_load_b1x128_powervsx_(void const *source, nk_b128_vec_t *destination,
-                                                            nk_size_t n_bits) {
+NUMKONG_INLINE void nk_partial_load_b1x128_powervsx_(void const *source, nk_b128_vec_t *destination, nk_size_t n_bits) {
     destination->vu8x16 = vec_xl_len((nk_u8_t *)source, n_bits / NUMKONG_BITS_PER_BYTE);
 }
 
 /** Partial store for 64-bit elements (n elements, max 4) from 256-bit vector. vec_xst_len with
  *  length=0 stores nothing (no branch needed). */
-NUMKONG_HELPER_INLINE void nk_partial_store_b64x4_powervsx_(nk_b256_vec_t const *source, void *destination,
-                                                            nk_size_t n) {
+NUMKONG_INLINE void nk_partial_store_b64x4_powervsx_(nk_b256_vec_t const *source, void *destination, nk_size_t n) {
     nk_size_t bytes = n * 8;
     nk_size_t first_half = bytes < 16 ? bytes : 16;
     nk_size_t second_half = bytes > 16 ? bytes - 16 : 0;
@@ -193,15 +186,14 @@ NUMKONG_HELPER_INLINE void nk_partial_store_b64x4_powervsx_(nk_b256_vec_t const 
 }
 
 /** Partial store for 32-bit elements (n elements, max 4) from 128-bit vector. */
-NUMKONG_HELPER_INLINE void nk_partial_store_b32x4_powervsx_(nk_b128_vec_t const *source, void *destination,
-                                                            nk_size_t n) {
+NUMKONG_INLINE void nk_partial_store_b32x4_powervsx_(nk_b128_vec_t const *source, void *destination, nk_size_t n) {
     vec_xst_len(source->vu8x16, (nk_u8_t *)destination, n * 4);
 }
 
 /** Convert f32x4 → bf16 packed in u16x8 with RNE rounding (Power VSX). Round-to-nearest-even: add
  *  (0x7FFF + lsb) before truncation. Uses vec_sr by 16, then vec_pack to narrow u32x4 → u16x8.
  *  Result is in low 4 lanes of the returned u16x8. */
-NUMKONG_HELPER_INLINE nk_vu16x8_t nk_f32x4_to_bf16_pack_powervsx_(nk_vf32x4_t values_f32x4) {
+NUMKONG_INLINE nk_vu16x8_t nk_f32x4_to_bf16_pack_powervsx_(nk_vf32x4_t values_f32x4) {
     nk_vu32x4_t shift_u32x4 = vec_splats((nk_u32_t)16);
     nk_vu32x4_t one_u32x4 = vec_splats((nk_u32_t)1);
     nk_vu32x4_t rounding_base_u32x4 = vec_splats((nk_u32_t)0x7FFF);
@@ -219,8 +211,8 @@ NUMKONG_HELPER_INLINE nk_vu16x8_t nk_f32x4_to_bf16_pack_powervsx_(nk_vf32x4_t va
     return vec_pack(rounded_u32x4, rounded_u32x4);
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_cast_powervsx(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                                  nk_dtype_t to_type, void *stream) {
+NUMKONG_API nk_status_t nk_cast_powervsx(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
+                                         nk_dtype_t to_type, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Same-type fast path
     if (from_type == to_type) {
@@ -240,7 +232,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_cast_powervsx(void const *from, nk_dtype_t f
     // Fall back to serial for unsupported types or i32 ↔ u32 (loses precision through f32)
     if (!from_ok || !to_ok || (from_type == nk_i32_k && to_type == nk_u32_k) ||
         (from_type == nk_u32_k && to_type == nk_i32_k)) {
-        return nk_cast_serial(from, from_type, n, to, to_type, stream);
+        nk_cast_elementwise_(from, from_type, n, to, to_type);
+        return nk_success_k;
     }
 
     // F32 hub with predicated loads/stores — no serial fallback needed

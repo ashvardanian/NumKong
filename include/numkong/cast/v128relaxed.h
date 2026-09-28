@@ -32,7 +32,7 @@ extern "C" {
  *  integer-to-float conversion needed. Inf/NaN (exp=31) would scale to 65536 instead,
  *  so a comparison + blend rebiases it directly.
  */
-NUMKONG_HELPER_INLINE nk_b128_vec_t nk_f16x4_to_f32x4_v128relaxed_(nk_b64_vec_t f16_vec) {
+NUMKONG_INLINE nk_b128_vec_t nk_f16x4_to_f32x4_v128relaxed_(nk_b64_vec_t f16_vec) {
     v128_t raw_i64x2 = wasm_i64x2_splat(f16_vec.u64);
     v128_t raw_u32x4 = wasm_u32x4_extend_low_u16x8(raw_i64x2);
 
@@ -63,7 +63,7 @@ NUMKONG_HELPER_INLINE nk_b128_vec_t nk_f16x4_to_f32x4_v128relaxed_(nk_b64_vec_t 
 /** E4M3 → F32 via Giesen's magic multiply (× 2^120). Shift 7-bit magnitude left by 20 into f32
  *  position, multiply by 2^120 to rebias exponent. The multiply also normalizes subnormals. NaN
  *  fixup for magnitude 0x7F only. */
-NUMKONG_HELPER_INLINE nk_b128_vec_t nk_e4m3x4_to_f32x4_v128relaxed_(nk_b32_vec_t e4m3_vec) {
+NUMKONG_INLINE nk_b128_vec_t nk_e4m3x4_to_f32x4_v128relaxed_(nk_b32_vec_t e4m3_vec) {
     v128_t raw_u32x4 = wasm_u32x4_extend_low_u16x8(wasm_u16x8_extend_low_u8x16(wasm_i32x4_splat(e4m3_vec.u32)));
     v128_t sign_u32x4 = wasm_i32x4_shl(wasm_v128_and(raw_u32x4, wasm_i32x4_splat(0x80)), 24);
     v128_t nonsign_u32x4 = wasm_v128_and(raw_u32x4, wasm_i32x4_splat(0x7F));
@@ -79,7 +79,7 @@ NUMKONG_HELPER_INLINE nk_b128_vec_t nk_e4m3x4_to_f32x4_v128relaxed_(nk_b32_vec_t
 
 /** F32 → F16 via bit manipulation with RNE (WASM). Handles normal, subnormal, and inf/NaN cases,
  *  with overflow going to inf. */
-NUMKONG_HELPER_INLINE nk_b64_vec_t nk_f32x4_to_f16x4_v128relaxed_(nk_b128_vec_t hub_vec) {
+NUMKONG_INLINE nk_b64_vec_t nk_f32x4_to_f16x4_v128relaxed_(nk_b128_vec_t hub_vec) {
     v128_t bits_u32x4 = hub_vec.v128;
     v128_t sign_u32x4 = wasm_i32x4_shl(wasm_u32x4_shr(bits_u32x4, 31), 15);
     v128_t f32_exp_u32x4 = wasm_v128_and(wasm_u32x4_shr(bits_u32x4, 23), wasm_i32x4_splat(0xFF));
@@ -131,7 +131,7 @@ NUMKONG_HELPER_INLINE nk_b64_vec_t nk_f32x4_to_f16x4_v128relaxed_(nk_b128_vec_t 
 }
 
 /** Convert f32x4 → 4x e4m3 via bit manipulation with RNE (WASM). */
-NUMKONG_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e4m3x4_v128relaxed_(nk_b128_vec_t hub_vec) {
+NUMKONG_INLINE nk_b32_vec_t nk_f32x4_to_e4m3x4_v128relaxed_(nk_b128_vec_t hub_vec) {
     v128_t bits_u32x4 = hub_vec.v128;
     v128_t sign_u32x4 = wasm_u32x4_shr(bits_u32x4, 31);
     v128_t f32_exp_u32x4 = wasm_v128_and(wasm_u32x4_shr(bits_u32x4, 23), wasm_i32x4_splat(0xFF));
@@ -184,7 +184,7 @@ NUMKONG_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e4m3x4_v128relaxed_(nk_b128_vec_t
 }
 
 /** Convert f32x4 → 4x e5m2 via bit manipulation with RNE (WASM). */
-NUMKONG_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e5m2x4_v128relaxed_(nk_b128_vec_t hub_vec) {
+NUMKONG_INLINE nk_b32_vec_t nk_f32x4_to_e5m2x4_v128relaxed_(nk_b128_vec_t hub_vec) {
     v128_t bits_u32x4 = hub_vec.v128;
     v128_t sign_u32x4 = wasm_u32x4_shr(bits_u32x4, 31);
     v128_t f32_exp_u32x4 = wasm_v128_and(wasm_u32x4_shr(bits_u32x4, 23), wasm_i32x4_splat(0xFF));
@@ -233,7 +233,7 @@ NUMKONG_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e5m2x4_v128relaxed_(nk_b128_vec_t
 }
 
 /** Convert f32x4 → 4x e2m3 via bit manipulation with RNE (WASM). */
-NUMKONG_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e2m3x4_v128relaxed_(nk_b128_vec_t hub_vec) {
+NUMKONG_INLINE nk_b32_vec_t nk_f32x4_to_e2m3x4_v128relaxed_(nk_b128_vec_t hub_vec) {
     v128_t bits_u32x4 = hub_vec.v128;
     v128_t sign_u32x4 = wasm_u32x4_shr(bits_u32x4, 31);
     v128_t f32_exp_u32x4 = wasm_v128_and(wasm_u32x4_shr(bits_u32x4, 23), wasm_i32x4_splat(0xFF));
@@ -277,7 +277,7 @@ NUMKONG_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e2m3x4_v128relaxed_(nk_b128_vec_t
 }
 
 /** Convert f32x4 → 4x e3m2 via bit manipulation with RNE (WASM). */
-NUMKONG_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e3m2x4_v128relaxed_(nk_b128_vec_t hub_vec) {
+NUMKONG_INLINE nk_b32_vec_t nk_f32x4_to_e3m2x4_v128relaxed_(nk_b128_vec_t hub_vec) {
     v128_t bits_u32x4 = hub_vec.v128;
     v128_t sign_u32x4 = wasm_u32x4_shr(bits_u32x4, 31);
     v128_t f32_exp_u32x4 = wasm_v128_and(wasm_u32x4_shr(bits_u32x4, 23), wasm_i32x4_splat(0xFF));
@@ -320,8 +320,8 @@ NUMKONG_HELPER_INLINE nk_b32_vec_t nk_f32x4_to_e3m2x4_v128relaxed_(nk_b128_vec_t
     return result_vec;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_cast_v128relaxed(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                                     nk_dtype_t to_type, void *stream) {
+NUMKONG_API nk_status_t nk_cast_v128relaxed(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
+                                            nk_dtype_t to_type, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Same-type fast path
     if (from_type == to_type) {
@@ -338,7 +338,10 @@ NUMKONG_API_COMPTIME nk_status_t nk_cast_v128relaxed(void const *from, nk_dtype_
                  to_type == nk_e5m2_k || to_type == nk_e2m3_k || to_type == nk_e3m2_k || to_type == nk_i8_k ||
                  to_type == nk_u8_k);
 
-    if (!from_ok || !to_ok) { return nk_cast_serial(from, from_type, n, to, to_type, stream); }
+    if (!from_ok || !to_ok) {
+        nk_cast_elementwise_(from, from_type, n, to, to_type);
+        return nk_success_k;
+    }
 
     // F32 hub: 4 elements per iteration
     nk_size_t batches = n / 4;
@@ -393,7 +396,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_cast_v128relaxed(void const *from, nk_dtype_
     }
 
     // Handle tail elements with serial fallback
-    if (tail) nk_cast_serial(from_ptr, from_type, tail, to_ptr, to_type, stream);
+    if (tail) nk_cast_elementwise_(from_ptr, from_type, tail, to_ptr, to_type);
     return nk_success_k;
 }
 

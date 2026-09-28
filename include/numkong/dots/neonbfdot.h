@@ -12,6 +12,7 @@
 #if NUMKONG_ARCH_ARM64_
 #if NUMKONG_TARGET_NEONBFDOT
 
+#include "numkong/dots/serial.h"
 #include "numkong/dot/neonbfdot.h"
 
 #if defined(__cplusplus)

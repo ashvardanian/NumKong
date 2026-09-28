@@ -21,7 +21,7 @@
  *  @section dot_sierra_stateful Stateful Streaming Logic
  *
  *  To build memory-optimal tiled algorithms, this file defines following structures and
- *  force-inlined @c NUMKONG_HELPER_INLINE functions:
+ *  force-inlined @c NUMKONG_INLINE functions:
  *
  *  - nk_dot_i8x32 for 8-bit signed integer inputs using native DPBSSD (no algebraic transform),
  *  - nk_dot_u8x32 for 8-bit unsigned integer inputs using native DPBUUD (no algebraic transform).
@@ -77,7 +77,7 @@
 #ifndef NUMKONG_DOT_SIERRA_H
 #define NUMKONG_DOT_SIERRA_H
 
-#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_ARCH_X8664_
 #if NUMKONG_TARGET_SIERRA
 
 #include "numkong/types.h"
@@ -95,8 +95,8 @@ extern "C" {
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2", "avxvnni", "avxvnniint8")
 #endif
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_i8_sierra(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars,
-                                                  nk_size_t count_scalars, nk_i32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_i8_sierra(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
+                                         nk_i32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Native i8 × i8 dot product using DPBSSD (signed × signed → i32).
     // No algebraic transformation needed - dpbssd handles signed*signed directly.
@@ -131,19 +131,18 @@ typedef struct nk_dot_i8x32_state_sierra_t {
     __m256i sum_i32x8; // DPBSSD accumulator: i8 × i8 → i32
 } nk_dot_i8x32_state_sierra_t;
 
-NUMKONG_HELPER_INLINE void nk_dot_i8x32_init_sierra(nk_dot_i8x32_state_sierra_t *state) {
+NUMKONG_INLINE void nk_dot_i8x32_init_sierra(nk_dot_i8x32_state_sierra_t *state) {
     state->sum_i32x8 = _mm256_setzero_si256();
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_i8x32_update_sierra(nk_dot_i8x32_state_sierra_t *state, nk_b256_vec_t a,
-                                                      nk_b256_vec_t b, nk_size_t depth_offset,
-                                                      nk_size_t active_dimensions) {
+NUMKONG_INLINE void nk_dot_i8x32_update_sierra(nk_dot_i8x32_state_sierra_t *state, nk_b256_vec_t a, nk_b256_vec_t b,
+                                               nk_size_t depth_offset, nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     state->sum_i32x8 = _mm256_dpbssd_epi32(state->sum_i32x8, a.ymm, b.ymm);
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_i8x32_finalize_sierra(                                    //
+NUMKONG_INLINE void nk_dot_i8x32_finalize_sierra(                                           //
     nk_dot_i8x32_state_sierra_t const *state_a, nk_dot_i8x32_state_sierra_t const *state_b, //
     nk_dot_i8x32_state_sierra_t const *state_c, nk_dot_i8x32_state_sierra_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *results) {
@@ -171,8 +170,8 @@ NUMKONG_HELPER_INLINE void nk_dot_i8x32_finalize_sierra(                        
     results->xmm = _mm_add_epi32(_mm_add_epi32(lane0_i32x4, lane1_i32x4), _mm_add_epi32(lane2_i32x4, lane3_i32x4));
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_u8_sierra(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars,
-                                                  nk_size_t count_scalars, nk_u32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_u8_sierra(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
+                                         nk_u32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Native u8 × u8 dot product using DPBUUD (unsigned × unsigned → u32).
     // No algebraic transformation needed - dpbuud handles unsigned*unsigned directly.
@@ -208,19 +207,18 @@ typedef struct nk_dot_u8x32_state_sierra_t {
     __m256i sum_u32x8; // DPBUUD accumulator: u8 × u8 → u32
 } nk_dot_u8x32_state_sierra_t;
 
-NUMKONG_HELPER_INLINE void nk_dot_u8x32_init_sierra(nk_dot_u8x32_state_sierra_t *state) {
+NUMKONG_INLINE void nk_dot_u8x32_init_sierra(nk_dot_u8x32_state_sierra_t *state) {
     state->sum_u32x8 = _mm256_setzero_si256();
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_u8x32_update_sierra(nk_dot_u8x32_state_sierra_t *state, nk_b256_vec_t a,
-                                                      nk_b256_vec_t b, nk_size_t depth_offset,
-                                                      nk_size_t active_dimensions) {
+NUMKONG_INLINE void nk_dot_u8x32_update_sierra(nk_dot_u8x32_state_sierra_t *state, nk_b256_vec_t a, nk_b256_vec_t b,
+                                               nk_size_t depth_offset, nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     state->sum_u32x8 = _mm256_dpbuud_epi32(state->sum_u32x8, a.ymm, b.ymm);
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_u8x32_finalize_sierra(                                    //
+NUMKONG_INLINE void nk_dot_u8x32_finalize_sierra(                                           //
     nk_dot_u8x32_state_sierra_t const *state_a, nk_dot_u8x32_state_sierra_t const *state_b, //
     nk_dot_u8x32_state_sierra_t const *state_c, nk_dot_u8x32_state_sierra_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -247,8 +245,8 @@ NUMKONG_HELPER_INLINE void nk_dot_u8x32_finalize_sierra(                        
     result->xmm = _mm_add_epi32(_mm_add_epi32(lane0_i32x4, lane1_i32x4), _mm_add_epi32(lane2_i32x4, lane3_i32x4));
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_e2m3_sierra(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
-                                                    nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_e2m3_sierra(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
+                                           nk_size_t count_scalars, nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Integer dot product for e2m3 using dual-VPSHUFB (LUT) + VPDPBSSD (signed*signed).
     // Every e2m3 value * 16 is an exact integer in [-120, +120].
@@ -319,13 +317,12 @@ typedef struct nk_dot_e2m3x32_state_sierra_t {
     __m256i sum_i32x8; // DPBSSD accumulator: i8_signed × i8_signed → i32
 } nk_dot_e2m3x32_state_sierra_t;
 
-NUMKONG_HELPER_INLINE void nk_dot_e2m3x32_init_sierra(nk_dot_e2m3x32_state_sierra_t *state) {
+NUMKONG_INLINE void nk_dot_e2m3x32_init_sierra(nk_dot_e2m3x32_state_sierra_t *state) {
     state->sum_i32x8 = _mm256_setzero_si256();
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_e2m3x32_update_sierra(nk_dot_e2m3x32_state_sierra_t *state, nk_b256_vec_t a,
-                                                        nk_b256_vec_t b, nk_size_t depth_offset,
-                                                        nk_size_t active_dimensions) {
+NUMKONG_INLINE void nk_dot_e2m3x32_update_sierra(nk_dot_e2m3x32_state_sierra_t *state, nk_b256_vec_t a, nk_b256_vec_t b,
+                                                 nk_size_t depth_offset, nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     // Same LUT constants...
@@ -369,7 +366,7 @@ NUMKONG_HELPER_INLINE void nk_dot_e2m3x32_update_sierra(nk_dot_e2m3x32_state_sie
     state->sum_i32x8 = _mm256_dpbssd_epi32(state->sum_i32x8, a_signed_i8x32, b_signed_i8x32);
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_e2m3x32_finalize_sierra(                                      //
+NUMKONG_INLINE void nk_dot_e2m3x32_finalize_sierra(                                             //
     nk_dot_e2m3x32_state_sierra_t const *state_a, nk_dot_e2m3x32_state_sierra_t const *state_b, //
     nk_dot_e2m3x32_state_sierra_t const *state_c, nk_dot_e2m3x32_state_sierra_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *results) {
@@ -407,14 +404,13 @@ typedef struct nk_dot_e2m1x64_state_sierra_t {
     __m256i sum_i32x8;
 } nk_dot_e2m1x64_state_sierra_t;
 
-NUMKONG_HELPER_INLINE void nk_dot_e2m1x64_init_sierra(nk_dot_e2m1x64_state_sierra_t *state) {
+NUMKONG_INLINE void nk_dot_e2m1x64_init_sierra(nk_dot_e2m1x64_state_sierra_t *state) {
     state->sum_i32x8 = _mm256_setzero_si256();
 }
 
 /** Looks up twice every E2M1 value by its full nibble, sign bit included. */
-NUMKONG_HELPER_INLINE void nk_dot_e2m1x64_update_sierra(nk_dot_e2m1x64_state_sierra_t *state, nk_b256_vec_t a,
-                                                        nk_b256_vec_t b, nk_size_t depth_offset,
-                                                        nk_size_t active_dimensions) {
+NUMKONG_INLINE void nk_dot_e2m1x64_update_sierra(nk_dot_e2m1x64_state_sierra_t *state, nk_b256_vec_t a, nk_b256_vec_t b,
+                                                 nk_size_t depth_offset, nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     __m256i const lut_i8x32 = _mm256_setr_epi8(0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12, //
@@ -431,7 +427,7 @@ NUMKONG_HELPER_INLINE void nk_dot_e2m1x64_update_sierra(nk_dot_e2m1x64_state_sie
     state->sum_i32x8 = _mm256_dpbssd_epi32(state->sum_i32x8, a_high_i8x32, b_high_i8x32);
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_e2m1x64_finalize_sierra(                                      //
+NUMKONG_INLINE void nk_dot_e2m1x64_finalize_sierra(                                             //
     nk_dot_e2m1x64_state_sierra_t const *state_a, nk_dot_e2m1x64_state_sierra_t const *state_b, //
     nk_dot_e2m1x64_state_sierra_t const *state_c, nk_dot_e2m1x64_state_sierra_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *results) {
@@ -457,8 +453,8 @@ NUMKONG_HELPER_INLINE void nk_dot_e2m1x64_finalize_sierra(                      
     results->xmm = _mm_castps_si128(_mm_mul_ps(_mm_cvtepi32_ps(sum_i32x4), _mm_set1_ps(0.25f)));
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_e2m1_sierra(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n,
-                                                    nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_e2m1_sierra(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n, nk_f32_t *result,
+                                           void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dot_e2m1x64_state_sierra_t state;
     nk_dot_e2m1x64_init_sierra(&state);
@@ -488,5 +484,5 @@ NUMKONG_API_COMPTIME nk_status_t nk_dot_e2m1_sierra(nk_e2m1x2_t const *a, nk_e2m
 #endif
 
 #endif // NUMKONG_TARGET_SIERRA
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_DOT_SIERRA_H

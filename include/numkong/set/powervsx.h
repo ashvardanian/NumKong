@@ -44,8 +44,8 @@ extern "C" {
 #pragma GCC target("power9-vector")
 #endif
 
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_powervsx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                        nk_u32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_hamming_u1_powervsx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
+                                               void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
     nk_vu64x2_t differences_u64x2 = vec_splats((nk_u64_t)0);
@@ -69,8 +69,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_powervsx(nk_u1x8_t const *a, nk_u
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_powervsx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                        nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_jaccard_u1_powervsx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result,
+                                               void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
     nk_vu64x2_t intersection_u64x2 = vec_splats((nk_u64_t)0);
@@ -98,8 +98,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_powervsx(nk_u1x8_t const *a, nk_u
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u8_powervsx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
-                                                        nk_u32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_hamming_u8_powervsx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
+                                               void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_vu32x4_t differences_u32x4 = vec_splats((nk_u32_t)0);
     nk_vu8x16_t ones_u8x16 = vec_splats((nk_u8_t)1);
@@ -124,9 +124,9 @@ NUMKONG_API_COMPTIME nk_status_t nk_hamming_u8_powervsx(nk_u8_t const *a, nk_u8_
 }
 
 /** Hamming from_dot: computes pop_a + pop_b - 2 × dot for 4 pairs (Power VSX). */
-NUMKONG_HELPER_INLINE void nk_hamming_u32x4_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
-                                                               nk_b128_vec_t const *target_pops_vec,
-                                                               nk_b128_vec_t *result_vec) {
+NUMKONG_INLINE void nk_hamming_u32x4_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                        nk_b128_vec_t const *target_pops_vec,
+                                                        nk_b128_vec_t *result_vec) {
     nk_vu32x4_t dots_u32x4 = dots_vec->vu32x4;
     nk_vu32x4_t query_u32x4 = vec_splats(query_pop);
     nk_vu32x4_t target_u32x4 = target_pops_vec->vu32x4;
@@ -135,9 +135,9 @@ NUMKONG_HELPER_INLINE void nk_hamming_u32x4_from_dot_powervsx_(nk_b128_vec_t con
 }
 
 /** Jaccard from_dot: computes 1 - dot / (pop_a + pop_b - dot) for 4 pairs (Power VSX). */
-NUMKONG_HELPER_INLINE void nk_jaccard_f32x4_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
-                                                               nk_b128_vec_t const *target_pops_vec,
-                                                               nk_b128_vec_t *result_vec) {
+NUMKONG_INLINE void nk_jaccard_f32x4_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                        nk_b128_vec_t const *target_pops_vec,
+                                                        nk_b128_vec_t *result_vec) {
     nk_vf32x4_t dot_f32x4 = vec_ctf(dots_vec->vu32x4, 0);
     nk_vf32x4_t query_f32x4 = vec_splats((nk_f32_t)query_pop);
     nk_vf32x4_t target_f32x4 = vec_ctf(target_pops_vec->vu32x4, 0);

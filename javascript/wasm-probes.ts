@@ -2,11 +2,11 @@
  *  @file javascript/wasm-probes.ts
  *  @author Ash Vardanian
  *  @date September 12, 2026
- *  @brief Probe modules for the WebAssembly SIMD tiers, validated before a module is chosen.
+ *  @brief Probe modules for the WebAssembly SIMD capabilities, validated before a module is chosen.
  *
  *  Each array is one function of type `() → v128`, which `WebAssembly.validate` accepts exactly
- *  where the engine implements that tier. The `nk_has_v128` and `nk_has_relaxed` probes in
- *  `c/numkong.c` use the same bytes, so the loader and the module agree on what the host can run.
+ *  where the engine implements that capability. A WASI-hosted module imports its `nk_has_v128` and
+ *  `nk_has_relaxed` probes from a host that validates these bytes, so both agree on what it can run.
  */
 
 /** The one `WebAssembly` member this module calls; the package compiles without the DOM typings. */
@@ -37,10 +37,10 @@ export const relaxedProbe = new Uint8Array([
     0x0b,
 ]);
 
-/** The SIMD tiers a WebAssembly module is built for, from the fastest down. */
+/** The SIMD capabilities a WebAssembly module is built for, from the fastest down. */
 export type WasmSimdTier = 'v128relaxed' | 'v128' | 'serial';
 
-/** The best tier this engine validates; `serial` where it validates neither probe. */
+/** The best capability this engine validates; `serial` where it validates neither probe. */
 export function detectWasmSimdTier(): WasmSimdTier {
     if (WebAssembly.validate(relaxedProbe)) return 'v128relaxed';
     if (WebAssembly.validate(simd128Probe)) return 'v128';

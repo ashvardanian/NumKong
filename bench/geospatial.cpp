@@ -48,9 +48,11 @@ void measure_geospatial(bm::State &state, kernel_type_ kernel, std::size_t coord
     std::size_t iterations = 0;
     for (auto _ : state) {
         std::size_t const index = iterations & (batches_count - 1);
-        kernel(latitudes_first[index].raw_values_data(), longitudes_first[index].raw_values_data(),
-               latitudes_second[index].raw_values_data(), longitudes_second[index].raw_values_data(), coordinates_count,
-               distances.raw_values_data());
+        if (!succeeded(state,
+                       kernel(latitudes_first[index].raw_values_data(), longitudes_first[index].raw_values_data(),
+                              latitudes_second[index].raw_values_data(), longitudes_second[index].raw_values_data(),
+                              coordinates_count, distances.raw_values_data(), nullptr)))
+            break;
         bm::ClobberMemory();
         iterations++;
     }

@@ -111,7 +111,7 @@
 #ifndef NUMKONG_SET_H
 #define NUMKONG_SET_H
 
-#include "numkong/capabilities.h" // `nk_capability_kernels_t`, `nk_kernel_pick_`
+#include "numkong/capabilities.h"
 
 #if defined(__cplusplus)
 extern "C" {
@@ -132,8 +132,8 @@ extern "C" {
  *  @note The output distance value is non-negative.
  *  @note The output distance value is zero if and only if the two vectors are identical.
  */
-NUMKONG_API_RUNTIME nk_status_t nk_hamming_u1_best(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                   nk_u32_t *result, nk_capability_t capabilities, void *stream);
+NUMKONG_API nk_status_t nk_hamming_u1_best(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
+                                           nk_capability_t capabilities, void *stream);
 
 /**
  *  @brief Binary Jaccard distance computing the ratio of differing bits to the union of bits.
@@ -149,8 +149,8 @@ NUMKONG_API_RUNTIME nk_status_t nk_hamming_u1_best(nk_u1x8_t const *a, nk_u1x8_t
  *  @note The output distance value is non-negative.
  *  @note The output distance value is zero if and only if the two vectors are identical.
  */
-NUMKONG_API_RUNTIME nk_status_t nk_jaccard_u1_best(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                   nk_f32_t *result, nk_capability_t capabilities, void *stream);
+NUMKONG_API nk_status_t nk_jaccard_u1_best(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result,
+                                           nk_capability_t capabilities, void *stream);
 
 /**
  *  @brief Integral Jaccard distance computing the ratio of differing bits to the union of bits.
@@ -166,8 +166,8 @@ NUMKONG_API_RUNTIME nk_status_t nk_jaccard_u1_best(nk_u1x8_t const *a, nk_u1x8_t
  *  @note The output distance value is non-negative.
  *  @note The output distance value is zero if and only if the two vectors are identical.
  */
-NUMKONG_API_RUNTIME nk_status_t nk_jaccard_u32_best(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result,
-                                                    nk_capability_t capabilities, void *stream);
+NUMKONG_API nk_status_t nk_jaccard_u32_best(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result,
+                                            nk_capability_t capabilities, void *stream);
 
 /**
  *  @brief Byte-level Hamming distance computing the number of differing bytes between two vectors.
@@ -183,8 +183,8 @@ NUMKONG_API_RUNTIME nk_status_t nk_jaccard_u32_best(nk_u32_t const *a, nk_u32_t 
  *  @note The output distance value is non-negative.
  *  @note The output distance value is zero if and only if the two vectors are identical.
  */
-NUMKONG_API_RUNTIME nk_status_t nk_hamming_u8_best(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                                   nk_capability_t capabilities, void *stream);
+NUMKONG_API nk_status_t nk_hamming_u8_best(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
+                                           nk_capability_t capabilities, void *stream);
 
 /**
  *  @brief Integral Jaccard distance for 16-bit unsigned integer vectors.
@@ -200,169 +200,168 @@ NUMKONG_API_RUNTIME nk_status_t nk_hamming_u8_best(nk_u8_t const *a, nk_u8_t con
  *  @note The output distance value is non-negative.
  *  @note The output distance value is zero if and only if the two vectors are identical.
  */
-NUMKONG_API_RUNTIME nk_status_t nk_jaccard_u16_best(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result,
-                                                    nk_capability_t capabilities, void *stream);
+NUMKONG_API nk_status_t nk_jaccard_u16_best(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result,
+                                            nk_capability_t capabilities, void *stream);
 
 /** @copydoc nk_hamming_u1_best */
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                      nk_u32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_hamming_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
+                                             void *stream);
 /** @copydoc nk_hamming_u8_best */
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u8_serial(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                                      void *stream);
+NUMKONG_API nk_status_t nk_hamming_u8_serial(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
+                                             void *stream);
 /** @copydoc nk_jaccard_u1_best */
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                      nk_f32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_jaccard_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result,
+                                             void *stream);
 /** @copydoc nk_jaccard_u32_best */
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u32_serial(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n,
-                                                       nk_f32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_jaccard_u32_serial(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result,
+                                              void *stream);
 /** @copydoc nk_jaccard_u16_best */
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u16_serial(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n,
-                                                       nk_f32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_jaccard_u16_serial(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result,
+                                              void *stream);
 
 #if NUMKONG_TARGET_NEON
 /** @copydoc nk_hamming_u1_best */
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                    nk_u32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_hamming_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
+                                           void *stream);
 /** @copydoc nk_hamming_u8_best */
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u8_neon(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                                    void *stream);
+NUMKONG_API nk_status_t nk_hamming_u8_neon(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
+                                           void *stream);
 /** @copydoc nk_jaccard_u1_best */
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                    nk_f32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_jaccard_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result,
+                                           void *stream);
 /** @copydoc nk_jaccard_u32_best */
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u32_neon(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n,
-                                                     nk_f32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_jaccard_u32_neon(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result,
+                                            void *stream);
 /** @copydoc nk_jaccard_u16_best */
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u16_neon(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n,
-                                                     nk_f32_t *result, void *stream);
-
+NUMKONG_API nk_status_t nk_jaccard_u16_neon(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result,
+                                            void *stream);
 #endif // NUMKONG_TARGET_NEON
 
 #if NUMKONG_TARGET_SVE
 /** @copydoc nk_hamming_u1_best */
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_sve(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                   nk_u32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_hamming_u1_sve(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
+                                          void *stream);
 /** @copydoc nk_hamming_u8_best */
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u8_sve(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                                   void *stream);
+NUMKONG_API nk_status_t nk_hamming_u8_sve(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
+                                          void *stream);
 /** @copydoc nk_jaccard_u1_best */
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_sve(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                   nk_f32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_jaccard_u1_sve(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result,
+                                          void *stream);
 /** @copydoc nk_jaccard_u32_best */
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u32_sve(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result,
-                                                    void *stream);
+NUMKONG_API nk_status_t nk_jaccard_u32_sve(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result,
+                                           void *stream);
 /** @copydoc nk_jaccard_u16_best */
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u16_sve(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result,
-                                                    void *stream);
+NUMKONG_API nk_status_t nk_jaccard_u16_sve(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result,
+                                           void *stream);
 #endif // NUMKONG_TARGET_SVE
 
 #if NUMKONG_TARGET_HASWELL
 /** @copydoc nk_hamming_u1_best */
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_haswell(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                       nk_u32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_hamming_u1_haswell(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
+                                              void *stream);
 /** @copydoc nk_hamming_u8_best */
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
-                                                       nk_u32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_hamming_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
+                                              void *stream);
 /** @copydoc nk_jaccard_u1_best */
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_haswell(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                       nk_f32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_jaccard_u1_haswell(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result,
+                                              void *stream);
 /** @copydoc nk_jaccard_u16_best */
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u16_haswell(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n,
-                                                        nk_f32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_jaccard_u16_haswell(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result,
+                                               void *stream);
 /** @copydoc nk_jaccard_u32_best */
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u32_haswell(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n,
-                                                        nk_f32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_jaccard_u32_haswell(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result,
+                                               void *stream);
 #endif // NUMKONG_TARGET_HASWELL
 
 #if NUMKONG_TARGET_ICELAKE
 /** @copydoc nk_hamming_u1_best */
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                       nk_u32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_hamming_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
+                                              void *stream);
 /** @copydoc nk_hamming_u8_best */
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
-                                                       nk_u32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_hamming_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
+                                              void *stream);
 /** @copydoc nk_jaccard_u1_best */
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                       nk_f32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_jaccard_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result,
+                                              void *stream);
 /** @copydoc nk_jaccard_u32_best */
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u32_icelake(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n,
-                                                        nk_f32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_jaccard_u32_icelake(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result,
+                                               void *stream);
 /** @copydoc nk_jaccard_u16_best */
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u16_icelake(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n,
-                                                        nk_f32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_jaccard_u16_icelake(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result,
+                                               void *stream);
 #endif // NUMKONG_TARGET_ICELAKE
 
 #if NUMKONG_TARGET_RVVBB
 /** @copydoc nk_hamming_u1_best */
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                     nk_u32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_hamming_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
+                                            void *stream);
 /** @copydoc nk_jaccard_u1_best */
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                     nk_f32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_jaccard_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result,
+                                            void *stream);
 #endif // NUMKONG_TARGET_RVVBB
 
 #if NUMKONG_TARGET_RVV
 /** @copydoc nk_hamming_u1_best */
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                   nk_u32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_hamming_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
+                                          void *stream);
 /** @copydoc nk_hamming_u8_best */
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                                   void *stream);
+NUMKONG_API nk_status_t nk_hamming_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
+                                          void *stream);
 /** @copydoc nk_jaccard_u1_best */
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                   nk_f32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_jaccard_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result,
+                                          void *stream);
 /** @copydoc nk_jaccard_u16_best */
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u16_rvv(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result,
-                                                    void *stream);
+NUMKONG_API nk_status_t nk_jaccard_u16_rvv(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result,
+                                           void *stream);
 /** @copydoc nk_jaccard_u32_best */
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u32_rvv(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result,
-                                                    void *stream);
+NUMKONG_API nk_status_t nk_jaccard_u32_rvv(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result,
+                                           void *stream);
 #endif // NUMKONG_TARGET_RVV
 
 #if NUMKONG_TARGET_V128
 /** @copydoc nk_hamming_u1_best */
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                    nk_u32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_hamming_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
+                                           void *stream);
 /** @copydoc nk_hamming_u8_best */
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                                    void *stream);
+NUMKONG_API nk_status_t nk_hamming_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
+                                           void *stream);
 /** @copydoc nk_jaccard_u1_best */
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                    nk_f32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_jaccard_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result,
+                                           void *stream);
 /** @copydoc nk_jaccard_u16_best */
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u16_v128(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n,
-                                                     nk_f32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_jaccard_u16_v128(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result,
+                                            void *stream);
 /** @copydoc nk_jaccard_u32_best */
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u32_v128(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n,
-                                                     nk_f32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_jaccard_u32_v128(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result,
+                                            void *stream);
 #endif // NUMKONG_TARGET_V128
 
 #if NUMKONG_TARGET_POWERVSX
 /** @copydoc nk_hamming_u1_best */
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_powervsx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                        nk_u32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_hamming_u1_powervsx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
+                                               void *stream);
 /** @copydoc nk_hamming_u8_best */
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u8_powervsx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
-                                                        nk_u32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_hamming_u8_powervsx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
+                                               void *stream);
 /** @copydoc nk_jaccard_u1_best */
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_powervsx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                        nk_f32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_jaccard_u1_powervsx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result,
+                                               void *stream);
 #endif // NUMKONG_TARGET_POWERVSX
 
 #if NUMKONG_TARGET_LOONGSONASX
 /** @copydoc nk_hamming_u1_best */
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_loongsonasx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                           nk_u32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_hamming_u1_loongsonasx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
+                                                  void *stream);
 /** @copydoc nk_hamming_u8_best */
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u8_loongsonasx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n,
-                                                           nk_u32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_hamming_u8_loongsonasx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
+                                                  void *stream);
 /** @copydoc nk_jaccard_u1_best */
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_loongsonasx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                           nk_f32_t *result, void *stream);
+NUMKONG_API nk_status_t nk_jaccard_u1_loongsonasx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result,
+                                                  void *stream);
 #endif // NUMKONG_TARGET_LOONGSONASX
 
 /** Returns the output dtype for Hamming distance. */
-NUMKONG_HELPER_INLINE nk_dtype_t nk_hamming_output_dtype(nk_dtype_t dtype) {
+NUMKONG_INLINE nk_dtype_t nk_hamming_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_u1_k: return nk_u32_k;
     case nk_u8_k: return nk_u32_k;
@@ -371,7 +370,7 @@ NUMKONG_HELPER_INLINE nk_dtype_t nk_hamming_output_dtype(nk_dtype_t dtype) {
 }
 
 /** Returns the output dtype for Jaccard distance. */
-NUMKONG_HELPER_INLINE nk_dtype_t nk_jaccard_output_dtype(nk_dtype_t dtype) {
+NUMKONG_INLINE nk_dtype_t nk_jaccard_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_u1_k: return nk_f32_k;
     case nk_u16_k: return nk_f32_k;
@@ -380,10 +379,20 @@ NUMKONG_HELPER_INLINE nk_dtype_t nk_jaccard_output_dtype(nk_dtype_t dtype) {
     }
 }
 
+/**
+ *  @brief Finds the set distance kernel of @p kind for @p dtype, from the best of @p capabilities.
+ *  @param[out] kernel The kernel, or null when none of @p capabilities has it.
+ *  @param[out] capability The capability the kernel belongs to, or zero.
+ *  @return @c nk_success_k, @c nk_missing_kernel_k, or @c nk_missing_library_k in header-only builds.
+ */
+NUMKONG_API nk_status_t nk_set_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
+                                           nk_kernel_punned_t *kernel, nk_capability_t *capability);
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
+#if NUMKONG_HEADER_ONLY
 #include "numkong/set/serial.h"
 #include "numkong/set/neon.h"
 #include "numkong/set/sve.h"
@@ -399,246 +408,46 @@ NUMKONG_HELPER_INLINE nk_dtype_t nk_jaccard_output_dtype(nk_dtype_t dtype) {
 extern "C" {
 #endif
 
-NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_hamming_u1_capabilities_(void) {
-    static nk_kernel_punned_t const cpu[] = {
-        (nk_kernel_punned_t)&nk_hamming_u1_serial,
-#if NUMKONG_TARGET_NEON
-        (nk_kernel_punned_t)&nk_hamming_u1_neon,
-#endif
-#if NUMKONG_TARGET_SVE
-        (nk_kernel_punned_t)&nk_hamming_u1_sve,
-#endif
-#if NUMKONG_TARGET_HASWELL
-        (nk_kernel_punned_t)&nk_hamming_u1_haswell,
-#endif
-#if NUMKONG_TARGET_ICELAKE
-        (nk_kernel_punned_t)&nk_hamming_u1_icelake,
-#endif
-#if NUMKONG_TARGET_RVV
-        (nk_kernel_punned_t)&nk_hamming_u1_rvv,
-#endif
-#if NUMKONG_TARGET_RVVBB
-        (nk_kernel_punned_t)&nk_hamming_u1_rvvbb,
-#endif
-#if NUMKONG_TARGET_V128
-        (nk_kernel_punned_t)&nk_hamming_u1_v128,
-#endif
-#if NUMKONG_TARGET_POWERVSX
-        (nk_kernel_punned_t)&nk_hamming_u1_powervsx,
-#endif
-#if NUMKONG_TARGET_LOONGSONASX
-        (nk_kernel_punned_t)&nk_hamming_u1_loongsonasx,
-#endif
-    };
-    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_sve_k * NUMKONG_TARGET_SVE |
-             nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE |
-             nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_rvvbb_k * NUMKONG_TARGET_RVVBB |
-             nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX |
-             nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
-         cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-    };
-    return lists;
+NUMKONG_API nk_status_t nk_jaccard_u32_best(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result,
+                                            nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b), nk_unused_(n), nk_unused_(result), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_jaccard_u1_capabilities_(void) {
-    static nk_kernel_punned_t const cpu[] = {
-        (nk_kernel_punned_t)&nk_jaccard_u1_serial,
-#if NUMKONG_TARGET_NEON
-        (nk_kernel_punned_t)&nk_jaccard_u1_neon,
-#endif
-#if NUMKONG_TARGET_SVE
-        (nk_kernel_punned_t)&nk_jaccard_u1_sve,
-#endif
-#if NUMKONG_TARGET_HASWELL
-        (nk_kernel_punned_t)&nk_jaccard_u1_haswell,
-#endif
-#if NUMKONG_TARGET_ICELAKE
-        (nk_kernel_punned_t)&nk_jaccard_u1_icelake,
-#endif
-#if NUMKONG_TARGET_RVV
-        (nk_kernel_punned_t)&nk_jaccard_u1_rvv,
-#endif
-#if NUMKONG_TARGET_RVVBB
-        (nk_kernel_punned_t)&nk_jaccard_u1_rvvbb,
-#endif
-#if NUMKONG_TARGET_V128
-        (nk_kernel_punned_t)&nk_jaccard_u1_v128,
-#endif
-#if NUMKONG_TARGET_POWERVSX
-        (nk_kernel_punned_t)&nk_jaccard_u1_powervsx,
-#endif
-#if NUMKONG_TARGET_LOONGSONASX
-        (nk_kernel_punned_t)&nk_jaccard_u1_loongsonasx,
-#endif
-    };
-    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_sve_k * NUMKONG_TARGET_SVE |
-             nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE |
-             nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_rvvbb_k * NUMKONG_TARGET_RVVBB |
-             nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX |
-             nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
-         cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-    };
-    return lists;
+NUMKONG_API nk_status_t nk_jaccard_u16_best(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result,
+                                            nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b), nk_unused_(n), nk_unused_(result), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_jaccard_u32_capabilities_(void) {
-    static nk_kernel_punned_t const cpu[] = {
-        (nk_kernel_punned_t)&nk_jaccard_u32_serial,
-#if NUMKONG_TARGET_NEON
-        (nk_kernel_punned_t)&nk_jaccard_u32_neon,
-#endif
-#if NUMKONG_TARGET_SVE
-        (nk_kernel_punned_t)&nk_jaccard_u32_sve,
-#endif
-#if NUMKONG_TARGET_HASWELL
-        (nk_kernel_punned_t)&nk_jaccard_u32_haswell,
-#endif
-#if NUMKONG_TARGET_ICELAKE
-        (nk_kernel_punned_t)&nk_jaccard_u32_icelake,
-#endif
-#if NUMKONG_TARGET_RVV
-        (nk_kernel_punned_t)&nk_jaccard_u32_rvv,
-#endif
-#if NUMKONG_TARGET_V128
-        (nk_kernel_punned_t)&nk_jaccard_u32_v128,
-#endif
-    };
-    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_sve_k * NUMKONG_TARGET_SVE |
-             nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE |
-             nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128_k * NUMKONG_TARGET_V128,
-         cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-    };
-    return lists;
+NUMKONG_API nk_status_t nk_hamming_u8_best(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
+                                           nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b), nk_unused_(n), nk_unused_(result), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_hamming_u8_capabilities_(void) {
-    static nk_kernel_punned_t const cpu[] = {
-        (nk_kernel_punned_t)&nk_hamming_u8_serial,
-#if NUMKONG_TARGET_NEON
-        (nk_kernel_punned_t)&nk_hamming_u8_neon,
-#endif
-#if NUMKONG_TARGET_SVE
-        (nk_kernel_punned_t)&nk_hamming_u8_sve,
-#endif
-#if NUMKONG_TARGET_HASWELL
-        (nk_kernel_punned_t)&nk_hamming_u8_haswell,
-#endif
-#if NUMKONG_TARGET_ICELAKE
-        (nk_kernel_punned_t)&nk_hamming_u8_icelake,
-#endif
-#if NUMKONG_TARGET_RVV
-        (nk_kernel_punned_t)&nk_hamming_u8_rvv,
-#endif
-#if NUMKONG_TARGET_V128
-        (nk_kernel_punned_t)&nk_hamming_u8_v128,
-#endif
-#if NUMKONG_TARGET_POWERVSX
-        (nk_kernel_punned_t)&nk_hamming_u8_powervsx,
-#endif
-#if NUMKONG_TARGET_LOONGSONASX
-        (nk_kernel_punned_t)&nk_hamming_u8_loongsonasx,
-#endif
-    };
-    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_sve_k * NUMKONG_TARGET_SVE |
-             nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE |
-             nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128_k * NUMKONG_TARGET_V128 |
-             nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
-         cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-    };
-    return lists;
+NUMKONG_API nk_status_t nk_hamming_u1_best(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
+                                           nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b), nk_unused_(n), nk_unused_(result), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_jaccard_u16_capabilities_(void) {
-    static nk_kernel_punned_t const cpu[] = {
-        (nk_kernel_punned_t)&nk_jaccard_u16_serial,
-#if NUMKONG_TARGET_NEON
-        (nk_kernel_punned_t)&nk_jaccard_u16_neon,
-#endif
-#if NUMKONG_TARGET_SVE
-        (nk_kernel_punned_t)&nk_jaccard_u16_sve,
-#endif
-#if NUMKONG_TARGET_HASWELL
-        (nk_kernel_punned_t)&nk_jaccard_u16_haswell,
-#endif
-#if NUMKONG_TARGET_ICELAKE
-        (nk_kernel_punned_t)&nk_jaccard_u16_icelake,
-#endif
-#if NUMKONG_TARGET_RVV
-        (nk_kernel_punned_t)&nk_jaccard_u16_rvv,
-#endif
-#if NUMKONG_TARGET_V128
-        (nk_kernel_punned_t)&nk_jaccard_u16_v128,
-#endif
-    };
-    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_sve_k * NUMKONG_TARGET_SVE |
-             nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE |
-             nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128_k * NUMKONG_TARGET_V128,
-         cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-    };
-    return lists;
+NUMKONG_API nk_status_t nk_jaccard_u1_best(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result,
+                                           nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b), nk_unused_(n), nk_unused_(result), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-#if !NUMKONG_RUNTIME_DISPATCH
-
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_best(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                    nk_u32_t *result, nk_capability_t capabilities, void *stream) {
-    nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
-                                                                                      nk_hamming_u1_capabilities_());
-    return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
+NUMKONG_API nk_status_t nk_set_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
+                                           nk_kernel_punned_t *kernel, nk_capability_t *capability) {
+    nk_unused_(kind), nk_unused_(dtype), nk_unused_(capabilities);
+    *kernel = NUMKONG_NULL, *capability = 0;
+    return nk_missing_library_k;
 }
-
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_best(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                    nk_f32_t *result, nk_capability_t capabilities, void *stream) {
-    nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
-                                                                                      nk_jaccard_u1_capabilities_());
-    return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
-}
-
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u32_best(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n,
-                                                     nk_f32_t *result, nk_capability_t capabilities, void *stream) {
-    nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
-                                                                                      nk_jaccard_u32_capabilities_());
-    return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
-}
-
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u8_best(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                                    nk_capability_t capabilities, void *stream) {
-    nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
-                                                                                      nk_hamming_u8_capabilities_());
-    return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
-}
-
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u16_best(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n,
-                                                     nk_f32_t *result, nk_capability_t capabilities, void *stream) {
-    nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
-                                                                                      nk_jaccard_u16_capabilities_());
-    return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
-}
-
-#endif // !NUMKONG_RUNTIME_DISPATCH
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
+#endif // NUMKONG_HEADER_ONLY
 
 #endif

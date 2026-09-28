@@ -13,11 +13,12 @@
 #ifndef NUMKONG_DOTS_V128_H
 #define NUMKONG_DOTS_V128_H
 
-#if NUMKONG_TARGET_V128
+#if NUMKONG_ARCH_WASM_V128_
 
 #include "numkong/dot/v128.h"
 #include "numkong/dots/serial.h"
 
+#if NUMKONG_TARGET_V128
 #if defined(__cplusplus)
 extern "C" {
 #endif
@@ -109,6 +110,7 @@ nk_define_cross_packed_(dots, u1, v128, u1x8, u1x8, u32, nk_b128_vec_t, nk_dot_u
 #if defined(__cplusplus)
 } // extern "C"
 #endif
-
 #endif // NUMKONG_TARGET_V128
+
+#endif // NUMKONG_ARCH_WASM_V128_
 #endif // NUMKONG_DOTS_V128_H

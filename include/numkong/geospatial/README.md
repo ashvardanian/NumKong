@@ -69,7 +69,7 @@ The tables below follow the [benchmark methodology](../../../bench/README.md#met
 The input size is controlled by the `NUMKONG_MAX_COORD_ANGLE` environment variable and set to ≤1°, ≤30°, and ≤180° maximum angular separation between pairs of coordinates.
 The larger the angular separation between pairs, the longer the algorithm may take to converge and the higher the error.
 The throughput is measured in MP/s as the number of Millions of pairwise point distances computed per second - amortized for a large batch size, with `NUMWARS_DIMS=1536` by default.
-Current `numkong_test` output reports geospatial accuracy in two forms: mean/max absolute error in meters against Vincenty's formula computed at double-double (f118) precision, and mean/max ULP against the matching high-precision implementation of the same formula.
+Current `numkong_cpu_test` output reports geospatial accuracy in two forms: mean/max absolute error in meters against Vincenty's formula computed at double-double (f118) precision, and mean/max ULP against the matching high-precision implementation of the same formula.
 The historical tables below use the meter-based summary where it has been remeasured; older x86 rows still retain their original ULP figures until rerun.
 
 ### Intel Sapphire Rapids

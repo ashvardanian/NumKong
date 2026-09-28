@@ -24,7 +24,7 @@
  *  @section dot_skylake_stateful Stateful Streaming Logic
  *
  *  To build memory-optimal tiled algorithms, this file defines following structures and
- *  force-inlined @c NUMKONG_HELPER_INLINE functions:
+ *  force-inlined @c NUMKONG_INLINE functions:
  *
  *  - nk_dot_f64x8 state with Dot2 stable dot-products,
  *  - nk_dot_f32x8 state with double-precision numerics,
@@ -81,8 +81,8 @@
 #ifndef NUMKONG_DOT_SKYLAKE_H
 #define NUMKONG_DOT_SKYLAKE_H
 
-#if NUMKONG_ARCH_X86_64_
-#if NUMKONG_TARGET_SKYLAKE
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_SKYLAKE_
 
 #include "numkong/cast/skylake.h"   // `nk_bf16x16_to_f32x16_skylake_`
 #include "numkong/reduce/skylake.h" // `nk_reduce_add_f32x16_skylake_`
@@ -101,7 +101,7 @@ extern "C" {
 #endif
 
 /** Compensated horizontal sum of 8 f64 lanes via TwoSum tree reduction. */
-NUMKONG_HELPER_INLINE nk_f64_t nk_dot_stable_sum_f64x8_skylake_(__m512d sum_f64x8, __m512d compensation_f64x8) {
+NUMKONG_INLINE nk_f64_t nk_dot_stable_sum_f64x8_skylake_(__m512d sum_f64x8, __m512d compensation_f64x8) {
     // Stage 0: TwoSum merge of sum + compensation (8-wide)
     __m512d tentative_sum_f64x8 = _mm512_add_pd(sum_f64x8, compensation_f64x8);
     __m512d virtual_addend_f64x8 = _mm512_sub_pd(tentative_sum_f64x8, sum_f64x8);
@@ -141,7 +141,7 @@ typedef struct nk_dot_through_f32_state_skylake_t_ {
  *  @brief Initializes 32-bit accumulators for low-precision dot-products.
  *  @sa nk_dot_bf16x32_init_skylake
  */
-NUMKONG_HELPER_INLINE void nk_dot_through_f32_init_skylake_(nk_dot_through_f32_state_skylake_t_ *state) {
+NUMKONG_INLINE void nk_dot_through_f32_init_skylake_(nk_dot_through_f32_state_skylake_t_ *state) {
     state->sum_f32x16 = _mm512_setzero_ps();
 }
 
@@ -149,9 +149,9 @@ NUMKONG_HELPER_INLINE void nk_dot_through_f32_init_skylake_(nk_dot_through_f32_s
  *  @brief Fuses 32-bit multiplication and accumulation for low-precision dot-products.
  *  @sa nk_dot_bf16x32_update_skylake, nk_dot_e5m2x64_update_skylake_
  */
-NUMKONG_HELPER_INLINE void nk_dot_through_f32_update_skylake_(nk_dot_through_f32_state_skylake_t_ *state,
-                                                              nk_b512_vec_t a, nk_b512_vec_t b, nk_size_t depth_offset,
-                                                              nk_size_t active_dimensions) {
+NUMKONG_INLINE void nk_dot_through_f32_update_skylake_(nk_dot_through_f32_state_skylake_t_ *state, nk_b512_vec_t a,
+                                                       nk_b512_vec_t b, nk_size_t depth_offset,
+                                                       nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     state->sum_f32x16 = _mm512_fmadd_ps(a.zmm_ps, b.zmm_ps, state->sum_f32x16);
@@ -160,9 +160,9 @@ NUMKONG_HELPER_INLINE void nk_dot_through_f32_update_skylake_(nk_dot_through_f32
 /** E5M2 byte-batched update: consumes 64 raw E5M2 bytes per call and widens inline. Two independent
  *  FMA chains (each 2-deep) merge into the single state accumulator at exit. Keeps register
  *  pressure at one __m512 across calls while breaking the FMA dep chain. */
-NUMKONG_HELPER_INLINE void nk_dot_e5m2x64_update_skylake_(nk_dot_through_f32_state_skylake_t_ *state,
-                                                          nk_b512_vec_t a_bytes, nk_b512_vec_t b_bytes,
-                                                          nk_size_t depth_offset, nk_size_t active_dimensions) {
+NUMKONG_INLINE void nk_dot_e5m2x64_update_skylake_(nk_dot_through_f32_state_skylake_t_ *state, nk_b512_vec_t a_bytes,
+                                                   nk_b512_vec_t b_bytes, nk_size_t depth_offset,
+                                                   nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     __m512i const zero_u8x64 = _mm512_setzero_si512();
@@ -194,7 +194,7 @@ NUMKONG_HELPER_INLINE void nk_dot_e5m2x64_update_skylake_(nk_dot_through_f32_sta
  *  producing a tree-like reduction. This kernel allow combinding some of those operations between
  *  different dot products.
  */
-NUMKONG_HELPER_INLINE void nk_dot_through_f32_finalize_skylake_(                                            //
+NUMKONG_INLINE void nk_dot_through_f32_finalize_skylake_(                                                   //
     nk_dot_through_f32_state_skylake_t_ const *state_a, nk_dot_through_f32_state_skylake_t_ const *state_b, //
     nk_dot_through_f32_state_skylake_t_ const *state_c, nk_dot_through_f32_state_skylake_t_ const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -228,9 +228,9 @@ NUMKONG_HELPER_INLINE void nk_dot_through_f32_finalize_skylake_(                
     result->xmm = _mm_castps_si128(final_sum_f32x4);
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_f32_skylake(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,
-                                                    nk_size_t count_scalars, nk_f64_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
+/** Dot product of F32 vectors, widened to and accumulated in F64. */
+NUMKONG_INLINE void nk_dot_f32_through_f64_skylake_(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,
+                                                    nk_size_t count_scalars, nk_f64_t *result) {
     __m256 a_f32x8, b_f32x8;
     __m512d sum_f64x8 = _mm512_setzero_pd();
 
@@ -250,11 +250,18 @@ nk_dot_f32_skylake_cycle:
     if (count_scalars) goto nk_dot_f32_skylake_cycle;
 
     *result = _mm512_reduce_add_pd(sum_f64x8);
+}
+
+#if NUMKONG_TARGET_SKYLAKE
+NUMKONG_API nk_status_t nk_dot_f32_skylake(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,
+                                           nk_size_t count_scalars, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_dot_f32_through_f64_skylake_(a_scalars, b_scalars, count_scalars, result);
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_f64_skylake(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars,
-                                                    nk_size_t count_scalars, nk_f64_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_f64_skylake(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars,
+                                           nk_size_t count_scalars, nk_f64_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Dot2 algorithm (Ogita-Rump-Oishi 2005) for compensated dot product
     __m512d a_f64x8, b_f64x8;
@@ -292,8 +299,8 @@ nk_dot_f64_skylake_cycle:
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_f32c_skylake(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs,
-                                                     nk_size_t count_pairs, nk_f64c_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_f32c_skylake(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_size_t count_pairs,
+                                            nk_f64c_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 a_f32x8, b_f32x8;
     __m512d sum_real_f64x8 = _mm512_setzero_pd();
@@ -334,8 +341,8 @@ nk_dot_f32c_skylake_cycle:
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_vdot_f32c_skylake(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs,
-                                                      nk_size_t count_pairs, nk_f64c_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_vdot_f32c_skylake(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_size_t count_pairs,
+                                             nk_f64c_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 a_f32x8, b_f32x8;
     __m512d sum_real_f64x8 = _mm512_setzero_pd();
@@ -376,8 +383,8 @@ nk_vdot_f32c_skylake_cycle:
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_f64c_skylake(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs,
-                                                     nk_size_t count_pairs, nk_f64c_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_f64c_skylake(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
+                                            nk_f64c_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Dot2 algorithm (Ogita-Rump-Oishi 2005) for compensated complex dot product
     __m512d a_f64x8, b_f64x8;
@@ -448,8 +455,8 @@ nk_dot_f64c_skylake_cycle:
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_vdot_f64c_skylake(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs,
-                                                      nk_size_t count_pairs, nk_f64c_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_vdot_f64c_skylake(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
+                                             nk_f64c_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Dot2 algorithm (Ogita-Rump-Oishi 2005) for compensated conjugate dot product
     __m512d a_f64x8, b_f64x8;
@@ -519,13 +526,14 @@ nk_vdot_f64c_skylake_cycle:
     result->imag = nk_dot_stable_sum_f64x8_skylake_(sum_imag_f64x8, compensation_imag_f64x8);
     return nk_success_k;
 }
+#endif // NUMKONG_TARGET_SKYLAKE
 
 #pragma endregion F32 and F64 Floats
 #pragma region F16 and BF16 Floats
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_f16_skylake(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
-                                                    nk_size_t count_scalars, nk_f32_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
+/** Dot product of F16 vectors, widened to and accumulated in F32. */
+NUMKONG_INLINE void nk_dot_f16_through_f32_skylake_(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
+                                                    nk_size_t count_scalars, nk_f32_t *result) {
     __m256i a_f16x16, b_f16x16;
     __m512 sum_f32x16 = _mm512_setzero_ps();
 
@@ -547,11 +555,18 @@ nk_dot_f16_skylake_cycle:
     if (count_scalars) goto nk_dot_f16_skylake_cycle;
 
     *result = nk_reduce_add_f32x16_skylake_(sum_f32x16);
+}
+
+#if NUMKONG_TARGET_SKYLAKE
+NUMKONG_API nk_status_t nk_dot_f16_skylake(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
+                                           nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_dot_f16_through_f32_skylake_(a_scalars, b_scalars, count_scalars, result);
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_bf16_skylake(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                                     nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_bf16_skylake(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
+                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m512i a_bf16_i16x32, b_bf16_i16x32;
     __m512 sum_f32x16 = _mm512_setzero_ps();
@@ -581,8 +596,8 @@ nk_dot_bf16_skylake_cycle:
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_e4m3_skylake(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
-                                                     nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_e4m3_skylake(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
+                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m128i a_e4m3_u8x16, b_e4m3_u8x16;
     __m512 sum_f32x16 = _mm512_setzero_ps();
@@ -608,8 +623,8 @@ nk_dot_e4m3_skylake_cycle:
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_e5m2_skylake(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
-                                                     nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_e5m2_skylake(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
+                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // E5M2 shares F16 bias (15): vpunpck*bw against zero places the byte as F16 encoding,
     // so we inline the widen rather than calling the helper 4× — same ops, cleaner code.
@@ -652,8 +667,8 @@ nk_dot_e5m2_skylake_cycle:
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_e2m3_skylake(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
-                                                     nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_e2m3_skylake(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
+                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Integer dot product for e2m3 using dual-VPSHUFB (LUT) + VPMADDUBSW (unsigned × signed).
     // 64 elements per iteration using AVX-512BW. Result = i32_dot / 256.0f (exact).
@@ -724,8 +739,8 @@ nk_dot_e2m3_skylake_cycle:
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_e3m2_skylake(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
-                                                     nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_e3m2_skylake(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
+                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Integer dot product for e3m2 using dual-VPSHUFB (low-byte LUT) + VPMADDWD (i16 × i16 → i32).
     // 64 elements per iteration using AVX-512BW. Magnitudes reach 448, requiring i16.
@@ -818,8 +833,8 @@ nk_dot_e3m2_skylake_cycle:
 
 #pragma region I8 and U8 Integers
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_i8_skylake(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars,
-                                                   nk_size_t count_scalars, nk_i32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_i8_skylake(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
+                                          nk_i32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m512i sum_i32x16 = _mm512_setzero_si512();
     nk_size_t idx_scalars = 0;
@@ -838,8 +853,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_dot_i8_skylake(nk_i8_t const *a_scalars, nk_
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_u8_skylake(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars,
-                                                   nk_size_t count_scalars, nk_u32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_u8_skylake(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
+                                          nk_u32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m512i sum_i32x16 = _mm512_setzero_si512();
     nk_size_t idx_scalars = 0;
@@ -857,20 +872,20 @@ NUMKONG_API_COMPTIME nk_status_t nk_dot_u8_skylake(nk_u8_t const *a_scalars, nk_
     *result = sum;
     return nk_success_k;
 }
+#endif // NUMKONG_TARGET_SKYLAKE
 
 typedef struct nk_dot_f64x8_state_skylake_t {
     __m512d sum_f64x8;
     __m512d compensation_f64x8;
 } nk_dot_f64x8_state_skylake_t;
 
-NUMKONG_HELPER_INLINE void nk_dot_f64x8_init_skylake(nk_dot_f64x8_state_skylake_t *state) {
+NUMKONG_INLINE void nk_dot_f64x8_init_skylake(nk_dot_f64x8_state_skylake_t *state) {
     state->sum_f64x8 = _mm512_setzero_pd();
     state->compensation_f64x8 = _mm512_setzero_pd();
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_f64x8_update_skylake(nk_dot_f64x8_state_skylake_t *state, nk_b512_vec_t a,
-                                                       nk_b512_vec_t b, nk_size_t depth_offset,
-                                                       nk_size_t active_dimensions) {
+NUMKONG_INLINE void nk_dot_f64x8_update_skylake(nk_dot_f64x8_state_skylake_t *state, nk_b512_vec_t a, nk_b512_vec_t b,
+                                                nk_size_t depth_offset, nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     __m512d sum_f64x8 = state->sum_f64x8;
@@ -894,7 +909,7 @@ NUMKONG_HELPER_INLINE void nk_dot_f64x8_update_skylake(nk_dot_f64x8_state_skylak
     state->compensation_f64x8 = _mm512_add_pd(compensation_f64x8, _mm512_add_pd(sum_error_f64x8, product_error_f64x8));
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_f64x8_finalize_skylake(                                     //
+NUMKONG_INLINE void nk_dot_f64x8_finalize_skylake(                                            //
     nk_dot_f64x8_state_skylake_t const *state_a, nk_dot_f64x8_state_skylake_t const *state_b, //
     nk_dot_f64x8_state_skylake_t const *state_c, nk_dot_f64x8_state_skylake_t const *state_d, //
     nk_size_t total_dimensions, nk_b256_vec_t *result) {
@@ -910,13 +925,12 @@ typedef struct nk_dot_f32x8_state_skylake_t {
     __m512d sum_f64x8;
 } nk_dot_f32x8_state_skylake_t;
 
-NUMKONG_HELPER_INLINE void nk_dot_f32x8_init_skylake(nk_dot_f32x8_state_skylake_t *state) {
+NUMKONG_INLINE void nk_dot_f32x8_init_skylake(nk_dot_f32x8_state_skylake_t *state) {
     state->sum_f64x8 = _mm512_setzero_pd();
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_f32x8_update_skylake(nk_dot_f32x8_state_skylake_t *state, nk_b256_vec_t a,
-                                                       nk_b256_vec_t b, nk_size_t depth_offset,
-                                                       nk_size_t active_dimensions) {
+NUMKONG_INLINE void nk_dot_f32x8_update_skylake(nk_dot_f32x8_state_skylake_t *state, nk_b256_vec_t a, nk_b256_vec_t b,
+                                                nk_size_t depth_offset, nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     // Upcast 8 f32s to f64 for high-precision accumulation
@@ -926,7 +940,7 @@ NUMKONG_HELPER_INLINE void nk_dot_f32x8_update_skylake(nk_dot_f32x8_state_skylak
     state->sum_f64x8 = _mm512_fmadd_pd(a_f64x8, b_f64x8, state->sum_f64x8);
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_f32x8_finalize_skylake(                                     //
+NUMKONG_INLINE void nk_dot_f32x8_finalize_skylake(                                            //
     nk_dot_f32x8_state_skylake_t const *state_a, nk_dot_f32x8_state_skylake_t const *state_b, //
     nk_dot_f32x8_state_skylake_t const *state_c, nk_dot_f32x8_state_skylake_t const *state_d, //
     nk_size_t total_dimensions, nk_b256_vec_t *result) {
@@ -954,13 +968,13 @@ NUMKONG_HELPER_INLINE void nk_dot_f32x8_finalize_skylake(                       
 
 typedef nk_dot_through_f32_state_skylake_t_ nk_dot_bf16x32_state_skylake_t;
 
-NUMKONG_HELPER_INLINE void nk_dot_bf16x32_init_skylake(nk_dot_bf16x32_state_skylake_t *state) {
+NUMKONG_INLINE void nk_dot_bf16x32_init_skylake(nk_dot_bf16x32_state_skylake_t *state) {
     nk_dot_through_f32_init_skylake_(state);
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_bf16x32_update_skylake(nk_dot_bf16x32_state_skylake_t *state, nk_b512_vec_t a,
-                                                         nk_b512_vec_t b, nk_size_t depth_offset,
-                                                         nk_size_t active_dimensions) {
+NUMKONG_INLINE void nk_dot_bf16x32_update_skylake(nk_dot_bf16x32_state_skylake_t *state, nk_b512_vec_t a,
+                                                  nk_b512_vec_t b, nk_size_t depth_offset,
+                                                  nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     __m512i mask_high_u32x16 = _mm512_set1_epi32((int)0xFFFF0000);
@@ -972,7 +986,7 @@ NUMKONG_HELPER_INLINE void nk_dot_bf16x32_update_skylake(nk_dot_bf16x32_state_sk
     state->sum_f32x16 = _mm512_fmadd_ps(a_odd_f32x16, b_odd_f32x16, state->sum_f32x16);
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_bf16x32_finalize_skylake(                                       //
+NUMKONG_INLINE void nk_dot_bf16x32_finalize_skylake(                                              //
     nk_dot_bf16x32_state_skylake_t const *state_a, nk_dot_bf16x32_state_skylake_t const *state_b, //
     nk_dot_bf16x32_state_skylake_t const *state_c, nk_dot_bf16x32_state_skylake_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -983,13 +997,13 @@ typedef struct nk_dot_e2m3x64_state_skylake_t {
     __m512i sum_i32x16;
 } nk_dot_e2m3x64_state_skylake_t;
 
-NUMKONG_HELPER_INLINE void nk_dot_e2m3x64_init_skylake(nk_dot_e2m3x64_state_skylake_t *state) {
+NUMKONG_INLINE void nk_dot_e2m3x64_init_skylake(nk_dot_e2m3x64_state_skylake_t *state) {
     state->sum_i32x16 = _mm512_setzero_si512();
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_e2m3x64_update_skylake(nk_dot_e2m3x64_state_skylake_t *state, nk_b512_vec_t a,
-                                                         nk_b512_vec_t b, nk_size_t depth_offset,
-                                                         nk_size_t active_dimensions) {
+NUMKONG_INLINE void nk_dot_e2m3x64_update_skylake(nk_dot_e2m3x64_state_skylake_t *state, nk_b512_vec_t a,
+                                                  nk_b512_vec_t b, nk_size_t depth_offset,
+                                                  nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     __m512i const lut_low_u8x64 = _mm512_set_epi8(30, 28, 26, 24, 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2, 0, 30, 28, 26,
@@ -1033,7 +1047,7 @@ NUMKONG_HELPER_INLINE void nk_dot_e2m3x64_update_skylake(nk_dot_e2m3x64_state_sk
     state->sum_i32x16 = _mm512_add_epi32(state->sum_i32x16, _mm512_madd_epi16(products_i16x32, ones_i16x32));
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_e2m3x64_finalize_skylake(                                       //
+NUMKONG_INLINE void nk_dot_e2m3x64_finalize_skylake(                                              //
     nk_dot_e2m3x64_state_skylake_t const *state_a, nk_dot_e2m3x64_state_skylake_t const *state_b, //
     nk_dot_e2m3x64_state_skylake_t const *state_c, nk_dot_e2m3x64_state_skylake_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *results) {
@@ -1075,15 +1089,15 @@ typedef struct nk_dot_e2m1x128_state_skylake_t {
     __m512i sum_i32x16;
 } nk_dot_e2m1x128_state_skylake_t;
 
-NUMKONG_HELPER_INLINE void nk_dot_e2m1x128_init_skylake(nk_dot_e2m1x128_state_skylake_t *state) {
+NUMKONG_INLINE void nk_dot_e2m1x128_init_skylake(nk_dot_e2m1x128_state_skylake_t *state) {
     state->sum_i32x16 = _mm512_setzero_si512();
 }
 
 /** Looks up twice every E2M1 value by its full nibble, sign bit included. VPMADDUBSW wants u8 × i8,
  *  so @p b is negated where @p a is negative; products ≤ 144 keep pairs in i16. */
-NUMKONG_HELPER_INLINE void nk_dot_e2m1x128_update_skylake(nk_dot_e2m1x128_state_skylake_t *state, nk_b512_vec_t a,
-                                                          nk_b512_vec_t b, nk_size_t depth_offset,
-                                                          nk_size_t active_dimensions) {
+NUMKONG_INLINE void nk_dot_e2m1x128_update_skylake(nk_dot_e2m1x128_state_skylake_t *state, nk_b512_vec_t a,
+                                                   nk_b512_vec_t b, nk_size_t depth_offset,
+                                                   nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     __m512i const lut_i8x64 = _mm512_broadcast_i32x4(
@@ -1107,7 +1121,7 @@ NUMKONG_HELPER_INLINE void nk_dot_e2m1x128_update_skylake(nk_dot_e2m1x128_state_
     state->sum_i32x16 = _mm512_add_epi32(state->sum_i32x16, products_i32x16);
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_e2m1x128_finalize_skylake(                                        //
+NUMKONG_INLINE void nk_dot_e2m1x128_finalize_skylake(                                               //
     nk_dot_e2m1x128_state_skylake_t const *state_a, nk_dot_e2m1x128_state_skylake_t const *state_b, //
     nk_dot_e2m1x128_state_skylake_t const *state_c, nk_dot_e2m1x128_state_skylake_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *results) {
@@ -1137,8 +1151,9 @@ NUMKONG_HELPER_INLINE void nk_dot_e2m1x128_finalize_skylake(                    
     results->xmm = _mm_castps_si128(_mm_mul_ps(_mm_cvtepi32_ps(sum_i32x4), _mm_set1_ps(0.25f)));
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_e2m1_skylake(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n,
-                                                     nk_f32_t *result, void *stream) {
+#if NUMKONG_TARGET_SKYLAKE
+NUMKONG_API nk_status_t nk_dot_e2m1_skylake(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n, nk_f32_t *result,
+                                            void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dot_e2m1x128_state_skylake_t state;
     nk_dot_e2m1x128_init_skylake(&state);
@@ -1156,20 +1171,21 @@ NUMKONG_API_COMPTIME nk_status_t nk_dot_e2m1_skylake(nk_e2m1x2_t const *a, nk_e2
     *result = (nk_f32_t)_mm512_reduce_add_epi32(state.sum_i32x16) * 0.25f;
     return nk_success_k;
 }
+#endif // NUMKONG_TARGET_SKYLAKE
 
 typedef struct nk_dot_e3m2x64_state_skylake_t {
     __m512i sum_a_i32x16;
     __m512i sum_b_i32x16;
 } nk_dot_e3m2x64_state_skylake_t;
 
-NUMKONG_HELPER_INLINE void nk_dot_e3m2x64_init_skylake(nk_dot_e3m2x64_state_skylake_t *state) {
+NUMKONG_INLINE void nk_dot_e3m2x64_init_skylake(nk_dot_e3m2x64_state_skylake_t *state) {
     state->sum_a_i32x16 = _mm512_setzero_si512();
     state->sum_b_i32x16 = _mm512_setzero_si512();
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_e3m2x64_update_skylake(nk_dot_e3m2x64_state_skylake_t *state, nk_b512_vec_t a,
-                                                         nk_b512_vec_t b, nk_size_t depth_offset,
-                                                         nk_size_t active_dimensions) {
+NUMKONG_INLINE void nk_dot_e3m2x64_update_skylake(nk_dot_e3m2x64_state_skylake_t *state, nk_b512_vec_t a,
+                                                  nk_b512_vec_t b, nk_size_t depth_offset,
+                                                  nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     __m512i const lut_low_byte_first_u8x64 = _mm512_set_epi8(                                                         //
@@ -1228,7 +1244,7 @@ NUMKONG_HELPER_INLINE void nk_dot_e3m2x64_update_skylake(nk_dot_e3m2x64_state_sk
     state->sum_b_i32x16 = _mm512_add_epi32(state->sum_b_i32x16, _mm512_madd_epi16(a_high_i16x32, b_signed_high_i16x32));
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_e3m2x64_finalize_skylake(                                       //
+NUMKONG_INLINE void nk_dot_e3m2x64_finalize_skylake(                                              //
     nk_dot_e3m2x64_state_skylake_t const *state_a, nk_dot_e3m2x64_state_skylake_t const *state_b, //
     nk_dot_e3m2x64_state_skylake_t const *state_c, nk_dot_e3m2x64_state_skylake_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *results) {
@@ -1283,6 +1299,6 @@ NUMKONG_HELPER_INLINE void nk_dot_e3m2x64_finalize_skylake(                     
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_SKYLAKE
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_SKYLAKE_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_DOT_SKYLAKE_H

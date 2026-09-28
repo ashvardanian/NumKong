@@ -44,6 +44,7 @@ def euclideans_packed(a: np.ndarray, b: np.ndarray) -> np.ndarray:
 | `e5m2`     | `f32`       | 8-bit Float8: 5 exponent, 2 mantissa bits        |
 | `e2m3`     | `f32`       | 8-bit MX format: 2 exponent, 3 mantissa bits     |
 | `e3m2`     | `f32`       | 8-bit MX format: 3 exponent, 2 mantissa bits     |
+| `e2m1`     | `f32`       | 4-bit MX format: 2 exponent, 1 mantissa bit      |
 | `i8`       | `f32`       | 8-bit signed integers, float output              |
 | `u8`       | `f32`       | 8-bit unsigned integers, float output            |
 | `i4`       | `f32`       | 4-bit signed integers, float output              |
@@ -76,14 +77,10 @@ Angular and Euclidean finalizers read norms from packed buffer metadata, elimina
 
 ## Performance
 
-The following performance tables are produced by manually re-running `numkong_test` and `numkong_bench` included internal tools to measure both accuracy and throughput at different input shapes.
+The tables below follow the [benchmark methodology](../../../bench/README.md#methodology).
 The input size is controlled by `NUMWARS_DIMS_HEIGHT`, `NUMWARS_DIMS_WIDTH`, and `NUMWARS_DIMS_DEPTH` environment variables, all set to the same value for batched distance computations over square matrices.
 Columns show throughput for 256³, 1024³, and 4096³ configurations.
 The throughput is measured in GSO/s as Giga Scalar Operations per Second, with $\text{ops} = 2 \cdot M \cdot N \cdot K$ complexity for computing $M \times N$ pairwise distances over $K$-dimensional vectors.
-Accuracy is reported as mean ULP (units in last place) unless noted otherwise — the average number of representable floating-point values between the result and the exact answer.
-Each kernel runs for at least 20 seconds per configuration.
-Benchmark threads are pinned to specific cores; on machines with heterogeneous core types (e.g., Apple P/E cores), only the fastest cores are used.
-Workloads that significantly degrade CPU frequencies (Intel AMX, Apple SME) run in separate passes to avoid affecting throughput measurements of other kernels.
 
 ### Intel Sapphire Rapids
 
@@ -206,10 +203,6 @@ Workloads that significantly degrade CPU frequencies (Intel AMX, Apple SME) run 
 | `nk_angulars_symmetric_e3m2_skylake`       |          39 gso/s, 0 ulp |        41.9 gso/s, 0 ulp |        87.3 gso/s, 0 ulp |
 | `nk_euclideans_packed_e3m2_skylake`        |        35.7 gso/s, 0 ulp |        41.3 gso/s, 0 ulp |          43 gso/s, 0 ulp |
 | `nk_euclideans_symmetric_e3m2_skylake`     |        36.2 gso/s, 0 ulp |        36.4 gso/s, 0 ulp |        87.8 gso/s, 0 ulp |
-| `nk_angulars_packed_e3m2_genoa`            |          48 gso/s, 0 ulp |          56 gso/s, 0 ulp |        59.3 gso/s, 0 ulp |
-| `nk_angulars_symmetric_e3m2_genoa`         |          40 gso/s, 0 ulp |        40.8 gso/s, 0 ulp |        87.4 gso/s, 0 ulp |
-| `nk_euclideans_packed_e3m2_genoa`          |        49.8 gso/s, 0 ulp |        58.4 gso/s, 0 ulp |          61 gso/s, 0 ulp |
-| `nk_euclideans_symmetric_e3m2_genoa`       |        38.4 gso/s, 0 ulp |        41.6 gso/s, 0 ulp |        87.7 gso/s, 0 ulp |
 | `nk_angulars_packed_e3m2_sapphireamx`      |         238 gso/s, 0 ulp |         420 gso/s, 0 ulp |         431 gso/s, 0 ulp |
 | `nk_angulars_symmetric_e3m2_sapphireamx`   |        60.7 gso/s, 0 ulp |        96.5 gso/s, 0 ulp |        90.9 gso/s, 0 ulp |
 | `nk_euclideans_packed_e3m2_sapphireamx`    |         224 gso/s, 0 ulp |         426 gso/s, 0 ulp |         443 gso/s, 0 ulp |
@@ -227,10 +220,6 @@ Workloads that significantly degrade CPU frequencies (Intel AMX, Apple SME) run 
 | `nk_angulars_symmetric_e2m3_skylake`       |        61.7 gso/s, 0 ulp |        81.1 gso/s, 0 ulp |         163 gso/s, 0 ulp |
 | `nk_euclideans_packed_e2m3_skylake`        |        65.1 gso/s, 0 ulp |        80.4 gso/s, 0 ulp |        80.8 gso/s, 0 ulp |
 | `nk_euclideans_symmetric_e2m3_skylake`     |        60.8 gso/s, 0 ulp |        62.3 gso/s, 0 ulp |         167 gso/s, 0 ulp |
-| `nk_angulars_packed_e2m3_genoa`            |        47.7 gso/s, 0 ulp |        55.4 gso/s, 0 ulp |          60 gso/s, 0 ulp |
-| `nk_angulars_symmetric_e2m3_genoa`         |        36.4 gso/s, 0 ulp |        41.5 gso/s, 0 ulp |        86.7 gso/s, 0 ulp |
-| `nk_euclideans_packed_e2m3_genoa`          |          50 gso/s, 0 ulp |        59.1 gso/s, 0 ulp |        58.3 gso/s, 0 ulp |
-| `nk_euclideans_symmetric_e2m3_genoa`       |          38 gso/s, 0 ulp |        42.3 gso/s, 0 ulp |        85.1 gso/s, 0 ulp |
 | `nk_angulars_packed_e2m3_sapphireamx`      |         350 gso/s, 0 ulp |         956 gso/s, 0 ulp |       1,020 gso/s, 0 ulp |
 | `nk_angulars_symmetric_e2m3_sapphireamx`   |        88.4 gso/s, 0 ulp |         203 gso/s, 0 ulp |         188 gso/s, 0 ulp |
 | `nk_euclideans_packed_e2m3_sapphireamx`    |         337 gso/s, 0 ulp |         990 gso/s, 0 ulp |         992 gso/s, 0 ulp |
@@ -390,10 +379,10 @@ Measured with Wasmtime v42 (Cranelift backend).
 | `nk_angulars_symmetric_f64_skylake`         |             8.15 gso/s |             9.63 gso/s |             9.49 gso/s |
 | `nk_euclideans_packed_f64_skylake`          |             8.97 gso/s |             10.3 gso/s |             11.0 gso/s |
 | `nk_euclideans_symmetric_f64_skylake`       |             8.36 gso/s |             9.64 gso/s |             9.50 gso/s |
-| `nk_angulars_packed_f64_ampere`             |      12.5 gso/s, 0 ulp |       101 gso/s, 0 ulp |       147 gso/s, 0 ulp |
-| `nk_angulars_symmetric_f64_ampere`          |      6.12 gso/s, 0 ulp |      51.4 gso/s, 0 ulp |       127 gso/s, 0 ulp |
-| `nk_euclideans_packed_f64_ampere`           |    12.5 gso/s, 0.1 ulp |     101 gso/s, 0.1 ulp |     147 gso/s, 0.1 ulp |
-| `nk_euclideans_symmetric_f64_ampere`        |      6.13 gso/s, 0 ulp |      49.7 gso/s, 0 ulp |       126 gso/s, 0 ulp |
+| `nk_angulars_packed_f64_cuda`               |      12.5 gso/s, 0 ulp |       101 gso/s, 0 ulp |       147 gso/s, 0 ulp |
+| `nk_angulars_symmetric_f64_cuda`            |      6.12 gso/s, 0 ulp |      51.4 gso/s, 0 ulp |       127 gso/s, 0 ulp |
+| `nk_euclideans_packed_f64_cuda`             |    12.5 gso/s, 0.1 ulp |     101 gso/s, 0.1 ulp |     147 gso/s, 0.1 ulp |
+| `nk_euclideans_symmetric_f64_cuda`          |      6.13 gso/s, 0 ulp |      49.7 gso/s, 0 ulp |       126 gso/s, 0 ulp |
 | __f32__                                     | ░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_angulars_packed_f32_serial`             |             3.44 gso/s |             3.53 gso/s |             3.55 gso/s |
 | `nk_angulars_symmetric_f32_serial`          |             4.50 gso/s |             4.78 gso/s |             4.79 gso/s |
@@ -407,10 +396,10 @@ Measured with Wasmtime v42 (Cranelift backend).
 | `nk_angulars_symmetric_f32_skylake`         |             21.2 gso/s |             27.2 gso/s |             29.3 gso/s |
 | `nk_euclideans_packed_f32_skylake`          |             35.6 gso/s |             46.6 gso/s |             50.1 gso/s |
 | `nk_euclideans_symmetric_f32_skylake`       |             23.1 gso/s |             28.7 gso/s |             28.9 gso/s |
-| `nk_angulars_packed_f32_ampere`             |       121 gso/s, 0 ulp |     1,091 gso/s, 0 ulp |   1,620 gso/s, 0.1 ulp |
-| `nk_angulars_symmetric_f32_ampere`          |      59.5 gso/s, 0 ulp |       541 gso/s, 0 ulp |   1,361 gso/s, 0.1 ulp |
-| `nk_euclideans_packed_f32_ampere`           |     123 gso/s, 0.1 ulp |   1,095 gso/s, 0.1 ulp |   1,621 gso/s, 1.3 ulp |
-| `nk_euclideans_symmetric_f32_ampere`        |    60.0 gso/s, 0.1 ulp |     543 gso/s, 0.1 ulp |   1,359 gso/s, 1.9 ulp |
+| `nk_angulars_packed_f32_cuda`               |       121 gso/s, 0 ulp |     1,091 gso/s, 0 ulp |   1,620 gso/s, 0.1 ulp |
+| `nk_angulars_symmetric_f32_cuda`            |      59.5 gso/s, 0 ulp |       541 gso/s, 0 ulp |   1,361 gso/s, 0.1 ulp |
+| `nk_euclideans_packed_f32_cuda`             |     123 gso/s, 0.1 ulp |   1,095 gso/s, 0.1 ulp |   1,621 gso/s, 1.3 ulp |
+| `nk_euclideans_symmetric_f32_cuda`          |    60.0 gso/s, 0.1 ulp |     543 gso/s, 0.1 ulp |   1,359 gso/s, 1.9 ulp |
 | __bf16__                                    | ░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_angulars_packed_bf16_serial`            |            0.946 gso/s |            0.956 gso/s |            0.925 gso/s |
 | `nk_angulars_symmetric_bf16_serial`         |            0.875 gso/s |            0.878 gso/s |            0.850 gso/s |
@@ -709,10 +698,10 @@ Measured with Wasmtime v42 (Cranelift backend).
 | `nk_angulars_symmetric_f16_serial`       |      21.7 gso/s, 0.1 ulp |     25.2 gso/s, 0.09 ulp |      28.2 gso/s, 0.1 ulp |
 | `nk_euclideans_packed_f16_serial`        |      13.1 gso/s, 1.1 ulp |      13.9 gso/s, 0.7 ulp |      15.7 gso/s, 5.6 ulp |
 | `nk_euclideans_symmetric_f16_serial`     |      23.6 gso/s, 1.1 ulp |      25.2 gso/s, 0.7 ulp |      28.4 gso/s, 5.6 ulp |
-| `nk_angulars_packed_f16_neonhalf`        |      72.2 gso/s, 0.1 ulp |      78.6 gso/s, 0.1 ulp |      83.8 gso/s, 0.1 ulp |
-| `nk_angulars_symmetric_f16_neonhalf`     |      19.3 gso/s, 0.1 ulp |      20.9 gso/s, 0.1 ulp |      21.8 gso/s, 0.1 ulp |
-| `nk_euclideans_packed_f16_neonhalf`      |      73.0 gso/s, 0.9 ulp |      76.2 gso/s, 0.7 ulp |      83.7 gso/s, 5.9 ulp |
-| `nk_euclideans_symmetric_f16_neonhalf`   |      19.2 gso/s, 0.9 ulp |      20.2 gso/s, 0.6 ulp |      21.9 gso/s, 5.8 ulp |
+| `nk_angulars_packed_f16_neon`            |      72.2 gso/s, 0.1 ulp |      78.6 gso/s, 0.1 ulp |      83.8 gso/s, 0.1 ulp |
+| `nk_angulars_symmetric_f16_neon`         |      19.3 gso/s, 0.1 ulp |      20.9 gso/s, 0.1 ulp |      21.8 gso/s, 0.1 ulp |
+| `nk_euclideans_packed_f16_neon`          |      73.0 gso/s, 0.9 ulp |      76.2 gso/s, 0.7 ulp |      83.7 gso/s, 5.9 ulp |
+| `nk_euclideans_symmetric_f16_neon`       |      19.2 gso/s, 0.9 ulp |      20.2 gso/s, 0.6 ulp |      21.9 gso/s, 5.8 ulp |
 | `nk_angulars_packed_f16_neonfhm`         |      96.2 gso/s, 0.1 ulp |       107 gso/s, 0.1 ulp |       118 gso/s, 0.1 ulp |
 | `nk_angulars_symmetric_f16_neonfhm`      |      35.4 gso/s, 0.1 ulp |      39.1 gso/s, 0.1 ulp |      42.5 gso/s, 0.1 ulp |
 | `nk_euclideans_packed_f16_neonfhm`       |       100 gso/s, 0.9 ulp |       110 gso/s, 0.7 ulp |       119 gso/s, 5.9 ulp |

@@ -15,6 +15,7 @@
 #if NUMKONG_ARCH_ARM64_
 #if NUMKONG_TARGET_NEONFHM
 
+#include "numkong/dots/serial.h"
 #include "numkong/dot/neonfhm.h"
 
 #if defined(__cplusplus)

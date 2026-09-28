@@ -16,32 +16,36 @@ using namespace ashvardanian::numkong::bench;
 
 #if NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
 
-void sum_f32_with_blas(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result) {
+nk_status_t sum_f32_with_blas(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result, void *) {
     int const ni = static_cast<int>(n);
     cblas_scopy(ni, a, 1, result, 1);
     cblas_saxpy(ni, 1.0f, b, 1, result, 1);
+    return nk_success_k;
 }
 
-void sum_f64_with_blas(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+nk_status_t sum_f64_with_blas(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result, void *) {
     int const ni = static_cast<int>(n);
     cblas_dcopy(ni, a, 1, result, 1);
     cblas_daxpy(ni, 1.0, b, 1, result, 1);
+    return nk_success_k;
 }
 
-void blend_f32_with_blas(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
-                         nk_f32_t *result) {
+nk_status_t blend_f32_with_blas(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t const *alpha,
+                                nk_f32_t const *beta, nk_f32_t *result, void *) {
     int const ni = static_cast<int>(n);
     std::memset(result, 0, n * sizeof(nk_f32_t));
     if (*alpha != 0) cblas_saxpy(ni, *alpha, a, 1, result, 1);
     if (*beta != 0) cblas_saxpy(ni, *beta, b, 1, result, 1);
+    return nk_success_k;
 }
 
-void blend_f64_with_blas(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t const *alpha, nk_f64_t const *beta,
-                         nk_f64_t *result) {
+nk_status_t blend_f64_with_blas(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t const *alpha,
+                                nk_f64_t const *beta, nk_f64_t *result, void *) {
     int const ni = static_cast<int>(n);
     std::memset(result, 0, n * sizeof(nk_f64_t));
     if (*alpha != 0) cblas_daxpy(ni, *alpha, a, 1, result, 1);
     if (*beta != 0) cblas_daxpy(ni, *beta, b, 1, result, 1);
+    return nk_success_k;
 }
 
 #endif // NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
@@ -89,20 +93,25 @@ void measure_each(bm::State &state, kernel_type_ kernel, std::size_t dimensions)
     for (auto _ : state) {
         std::size_t const index = iterations & (vectors_count - 1);
         if constexpr (kernel_kind_ == nk_kernel_each_blend_k) {
-            kernel(input_a[index].raw_values_data(), input_c[index].raw_values_data(), dimensions, &alpha.raw_,
-                   &beta.raw_, output[index].raw_values_data());
+            if (!succeeded(state, kernel(input_a[index].raw_values_data(), input_c[index].raw_values_data(), dimensions,
+                                         &alpha.raw_, &beta.raw_, output[index].raw_values_data(), nullptr)))
+                break;
         }
         else if constexpr (kernel_kind_ == nk_kernel_each_fma_k) {
-            kernel(input_a[index].raw_values_data(), input_b[index].raw_values_data(), input_c[index].raw_values_data(),
-                   dimensions, &alpha.raw_, &beta.raw_, output[index].raw_values_data());
+            if (!succeeded(state, kernel(input_a[index].raw_values_data(), input_b[index].raw_values_data(),
+                                         input_c[index].raw_values_data(), dimensions, &alpha.raw_, &beta.raw_,
+                                         output[index].raw_values_data(), nullptr)))
+                break;
         }
         else if constexpr (kernel_kind_ == nk_kernel_each_sum_k) {
-            kernel(input_a[index].raw_values_data(), input_c[index].raw_values_data(), dimensions,
-                   output[index].raw_values_data());
+            if (!succeeded(state, kernel(input_a[index].raw_values_data(), input_c[index].raw_values_data(), dimensions,
+                                         output[index].raw_values_data(), nullptr)))
+                break;
         }
         else if constexpr (kernel_kind_ == nk_kernel_each_scale_k) {
-            kernel(input_a[index].raw_values_data(), dimensions, &alpha.raw_, &beta.raw_,
-                   output[index].raw_values_data());
+            if (!succeeded(state, kernel(input_a[index].raw_values_data(), dimensions, &alpha.raw_, &beta.raw_,
+                                         output[index].raw_values_data(), nullptr)))
+                break;
         }
         bm::ClobberMemory();
         iterations++;
@@ -145,8 +154,10 @@ void measure_swiglu(bm::State &state, kernel_type_ kernel, std::size_t dimension
     std::size_t iterations = 0;
     for (auto _ : state) {
         std::size_t const index = iterations & (vectors_count - 1);
-        kernel(gate[index].raw_values_data(), up[index].raw_values_data(), output[index].raw_values_data(), 1,
-               dimensions, stride, stride, stride, 1.0f);
+        if (!succeeded(state,
+                       kernel(gate[index].raw_values_data(), up[index].raw_values_data(),
+                              output[index].raw_values_data(), 1, dimensions, stride, stride, stride, 1.0f, nullptr)))
+            break;
         bm::ClobberMemory();
         ++iterations;
     }

@@ -37,6 +37,7 @@
 #define NUMKONG_TEST_HARNESS_HPP
 
 #include <cmath>   // `std::fabs`, `std::isnan`, `std::ldexp`, `std::ilogb`
+#include <cstddef> // `std::ptrdiff_t`
 #include <cstdint> // `std::uint64_t`, `std::int32_t`, `std::int64_t`
 #include <cstdio>  // `std::fflush`, `stdout`, `stderr`
 #include <cstdlib> // `std::abort`, `std::getenv`, `std::strtod`
@@ -53,7 +54,9 @@
 #include <optional>     // `std::optional`
 #include <random>       // `std::random_device`
 #include <system_error> // `std::errc`
+#include <tuple>        // `std::tuple`, `std::get`
 #include <type_traits>  // `std::is_same_v`
+#include <utility>      // `std::index_sequence`
 
 #include <fmt/base.h> // `fmt::print`, `fmt::println`
 
@@ -96,7 +99,7 @@
 #undef NUMKONG_NATIVE_BF16
 #define NUMKONG_NATIVE_BF16 0
 
-#include "numkong/capabilities.h" // `nk_cpu_capabilities_detected`, `nk_capability_t`
+#include "numkong/capabilities.h" // `nk_cpu_capabilities_detected`
 #include "numkong/types.hpp"
 #include "numkong/tensor.hpp"
 #include "numkong/dots.hpp"
@@ -433,6 +436,40 @@ void print_stats_row(char const *kernel_name, error_stats_t const &stats) noexce
  *  read by the signal handler that main() installs to log the culprit before the process exits. */
 extern char const *volatile nk_test_current_kernel_;
 
+/** The capabilities this CPU runs, whether or not this binary holds them. */
+inline nk_capability_t cpu_capabilities_detected() noexcept {
+    nk_capability_t capabilities = nk_cap_serial_k;
+    nk_cpu_capabilities_detected(&capabilities);
+    return capabilities;
+}
+
+/** The CPU capabilities this binary holds, whether or not this CPU runs them. */
+inline nk_capability_t cpu_capabilities_compiled() noexcept {
+    nk_capability_t capabilities = nk_cap_serial_k;
+    nk_cpu_capabilities_compiled(&capabilities);
+    return capabilities;
+}
+
+/** A mask of no capability, so the C++ wrappers run their templates: the references every capability is
+ *  checked against. */
+inline constexpr nk_capability_t no_tiers_k = 0;
+
+/** Calls the dispatch point @p best_ over @p capabilities with the arguments of its capability kernels,
+ *  whose last one, the stream or a pack size's output, follows the mask. */
+template <auto best_, typename... arguments_types_>
+nk_status_t call_best(nk_capability_t capabilities, arguments_types_... arguments) noexcept {
+    std::tuple<arguments_types_...> const tuple {arguments...};
+    return [&]<std::size_t... indices_>(std::index_sequence<indices_...>) {
+        return best_(std::get<indices_>(tuple)..., capabilities, std::get<sizeof...(indices_)>(tuple));
+    }(std::make_index_sequence<sizeof...(arguments_types_) - 1> {});
+}
+
+/** The dispatch point @p best_ in the shape of its capability kernels, over the CPU capabilities this process
+ *  enables: callable like them, and convertible to their function pointers. */
+template <auto best_>
+inline constexpr auto cpu_best =
+    [](auto... arguments) noexcept { return call_best<best_>(nk::cpu_capabilities(), arguments...); };
+
 struct error_stats_section_t {
     char const *title = nullptr;
     nk_capability_t required = nk_cap_serial_k;
@@ -442,7 +479,7 @@ struct error_stats_section_t {
 
     /** Runs only kernels whose family is in @p available: `#if NUMKONG_TARGET_X` says built, this says
      *  runnable. */
-    explicit error_stats_section_t(nk_capability_t available = nk_cpu_capabilities_detected()) noexcept
+    explicit error_stats_section_t(nk_capability_t available = cpu_capabilities_detected()) noexcept
         : available(available) {}
 
     /** Restart under a new heading, for kernels needing @p cap. */
@@ -675,6 +712,11 @@ struct error_stats_t {
         accumulate(static_cast<int>(held), 1);
     }
 
+    /** Record a kernel's @p status, failing it by the status's name when it wrote no result. */
+    void expect(nk_status_t status) noexcept {
+        if (status != nk_success_k) expect(false, nk_status_to_string(status));
+    }
+
     /** Records one result against its reference, failing on NaN or when the error exceeds @p bound
      *  plus the rounding into @p actual_type_. Past that type's finite range, a saturated or
      *  overflowed result of the reference's sign is exact, and non-finite references are only
@@ -794,6 +836,18 @@ struct error_stats_t {
     }
 };
 
+#if NUMKONG_HEADER_ONLY
+/** The header-only stub of @p best_, called with the arguments of its capability kernels, which it never
+ *  reads, reports the missing library over every mask. */
+template <auto best_, typename... arguments_types_>
+error_stats_t test_missing_library(arguments_types_... arguments) {
+    error_stats_t stats(comparison_family_t::exact_k);
+    stats.expect(call_best<best_>(nk_cap_any_k, arguments...) == nk_missing_library_k,
+                 "a header-only dispatch point ran a kernel");
+    return stats;
+}
+#endif
+
 inline bool should_fail(char const *kernel_name, error_stats_t const &stats) noexcept {
     if (stats.failed_expectations) return true;
     comparison_family_spec_t const spec = comparison_family_spec(stats.family);
@@ -885,12 +939,16 @@ void fill_random_bits(generator_type_ &generator, nk::vector<scalar_type_, alloc
 
 #pragma region Host Backend
 
-/** Runs CPU kernels in place: operands in host memory, direct calls, results readable at once. */
+/** Runs CPU kernels in place: operands in host memory, direct calls, results readable at once,
+ *  keeping the first failed status. */
 struct host_backend_t {
 
     /** The allocator every kernel operand comes from. */
     template <typename value_type_>
     using allocator = aligned_allocator<value_type_>;
+
+    /** The first failure since the last synchronization. */
+    nk_status_t status = nk_success_k;
 
     /** Row stride for @p row_bytes: exactly one row, keeping the tightest stride covered. */
     static constexpr std::size_t row_stride(std::size_t row_bytes) noexcept { return row_bytes; }
@@ -903,15 +961,31 @@ struct host_backend_t {
     /** Zeroes @p bytes of a host buffer. */
     void zero(void *destination, std::size_t bytes) noexcept { std::memset(destination, 0, bytes); }
 
-    /** Calls @p kernel with @p arguments. */
+    /** Calls @p kernel with @p arguments and the null stream of the CPU. */
     template <typename kernel_type_, typename... arguments_types_>
     void call(kernel_type_ kernel, arguments_types_... arguments) noexcept {
-        kernel(arguments...);
+        keep(kernel(arguments..., nullptr));
     }
 
-    /** Nothing runs asynchronously on the host, so nothing fails later. */
-    char const *synchronize() noexcept { return nullptr; }
+    /** Returns the name of the first failure since the last call, or @c nullptr. */
+    char const *synchronize() noexcept {
+        nk_status_t const failure = status;
+        status = nk_success_k;
+        return failure == nk_success_k ? nullptr : nk_status_to_string(failure);
+    }
+
+    /** Remembers @p result unless an earlier failure is pending. */
+    void keep(nk_status_t result) noexcept {
+        if (status == nk_success_k) status = result;
+    }
 };
+
+/** The allocator @p backend hands out @p value_type_ from: stateless, unless the backend's memory
+ *  belongs to a context it holds and it overloads this. */
+template <typename value_type_, typename backend_type_>
+typename backend_type_::template allocator<value_type_> allocator_of(backend_type_ const &) noexcept {
+    return {};
+}
 
 #pragma endregion Host Backend
 
@@ -921,8 +995,8 @@ struct host_backend_t {
  *  binary. */
 inline void log_environment() {
     char compiled[NUMKONG_CAPABILITIES_NAME_CAPACITY], detected[NUMKONG_CAPABILITIES_NAME_CAPACITY];
-    nk_name_capabilities(nk_cpu_capabilities_compiled(), compiled, sizeof(compiled));
-    nk_name_capabilities(nk_cpu_capabilities_detected(), detected, sizeof(detected));
+    nk_name_capabilities(cpu_capabilities_compiled(), compiled, sizeof(compiled));
+    nk_name_capabilities(cpu_capabilities_detected(), detected, sizeof(detected));
     fmt::println("NumKong {}.{}.{}", NUMKONG_VERSION_MAJOR, NUMKONG_VERSION_MINOR, NUMKONG_VERSION_PATCH);
     fmt::println("- Compiled for: {}", compiled);
     fmt::println("- This machine: {}", detected);
@@ -951,14 +1025,12 @@ void test_maxsim();
 
 /** Forward declarations for cross/batch tests, ISA-family files. */
 void test_cross_serial();
-void test_cross_x86();
-void test_cross_amx();
-void test_cross_arm();
-void test_cross_sme();
+void test_cross_x8664();
+void test_cross_arm64();
 void test_cross_blas();
-void test_cross_rvv();
-void test_cross_power();
-void test_cross_loongarch();
+void test_cross_riscv64();
+void test_cross_ppc64();
+void test_cross_loongarch64();
 void test_cross_wasm();
 
 #endif // NUMKONG_TEST_HARNESS_HPP

@@ -32,8 +32,8 @@
 extern "C" {
 #endif
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits,
-                                                 nk_u32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result,
+                                        void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t count_bytes = n_bits / NUMKONG_BITS_PER_BYTE;
 

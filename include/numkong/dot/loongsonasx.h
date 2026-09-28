@@ -39,7 +39,7 @@ extern "C" {
 #pragma region Horizontal Reduction Helpers
 
 /** Horizontal sum of 4 f64 lanes in a 256-bit LASX register. */
-NUMKONG_HELPER_INLINE nk_f64_t nk_reduce_add_f64x4_loongsonasx_(__m256d sum_f64x4) {
+NUMKONG_INLINE nk_f64_t nk_reduce_add_f64x4_loongsonasx_(__m256d sum_f64x4) {
     // Add high 128-bit lane to low 128-bit lane
     __m256d high_f64x4 = (__m256d)__lasx_xvpermi_q((__m256i)sum_f64x4, (__m256i)sum_f64x4, 0x11);
     __m256d sum_f64x2 = __lasx_xvfadd_d(sum_f64x4, high_f64x4);
@@ -52,7 +52,7 @@ NUMKONG_HELPER_INLINE nk_f64_t nk_reduce_add_f64x4_loongsonasx_(__m256d sum_f64x
 }
 
 /** Horizontal sum of 8 i32 lanes in a 256-bit LASX register. */
-NUMKONG_HELPER_INLINE nk_i32_t nk_reduce_add_i32x8_loongsonasx_(__m256i sum_i32x8) {
+NUMKONG_INLINE nk_i32_t nk_reduce_add_i32x8_loongsonasx_(__m256i sum_i32x8) {
     __m256i high_i32x8 = __lasx_xvpermi_q(sum_i32x8, sum_i32x8, 0x11);
     __m256i sum_i32x4 = __lasx_xvadd_w(sum_i32x8, high_i32x8);
     // Pairwise widen i32 → i64, then extract and add
@@ -64,7 +64,7 @@ NUMKONG_HELPER_INLINE nk_i32_t nk_reduce_add_i32x8_loongsonasx_(__m256i sum_i32x
  *  @brief Compensated horizontal sum of 4 f64 lanes via TwoSum tree reduction.
  *  @sa nk_reduce_sum_f64_serial_ for the serial equivalent
  */
-NUMKONG_HELPER_INLINE nk_f64_t nk_dot_stable_sum_f64x4_loongsonasx_(__m256d sum_f64x4, __m256d compensation_f64x4) {
+NUMKONG_INLINE nk_f64_t nk_dot_stable_sum_f64x4_loongsonasx_(__m256d sum_f64x4, __m256d compensation_f64x4) {
     // Stage 0: TwoSum merge of sum + compensation (4-wide, parallel)
     __m256d tentative_sum_f64x4 = __lasx_xvfadd_d(sum_f64x4, compensation_f64x4);
     __m256d virtual_addend_f64x4 = __lasx_xvfsub_d(tentative_sum_f64x4, sum_f64x4);
@@ -108,8 +108,8 @@ NUMKONG_HELPER_INLINE nk_f64_t nk_dot_stable_sum_f64x4_loongsonasx_(__m256d sum_
 
 #pragma region F32 and F64 Floats
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_f32_loongsonasx(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,
-                                                        nk_size_t count_scalars, nk_f64_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_f32_loongsonasx(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,
+                                               nk_size_t count_scalars, nk_f64_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // LASX is 256-bit = 8 × f32. Load 8 f32, split into low/high 4, widen each to f64, FMA in f64.
     __m256d sum_low_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);  // 4 f64 accumulators (from low 4 f32)
@@ -136,8 +136,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_dot_f32_loongsonasx(nk_f32_t const *a_scalar
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_f64_loongsonasx(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars,
-                                                        nk_size_t count_scalars, nk_f64_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_f64_loongsonasx(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars,
+                                               nk_size_t count_scalars, nk_f64_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Dot2 algorithm (Ogita-Rump-Oishi 2005) for compensated dot product
     __m256d sum_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
@@ -170,8 +170,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_dot_f64_loongsonasx(nk_f64_t const *a_scalar
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_i8_loongsonasx(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars,
-                                                       nk_size_t count_scalars, nk_i32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_i8_loongsonasx(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars,
+                                              nk_size_t count_scalars, nk_i32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256i sum_i32x8 = __lasx_xvreplgr2vr_w(0);
     nk_size_t index_scalars = 0;
@@ -193,8 +193,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_dot_i8_loongsonasx(nk_i8_t const *a_scalars,
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_u8_loongsonasx(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars,
-                                                       nk_size_t count_scalars, nk_u32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_u8_loongsonasx(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars,
+                                              nk_size_t count_scalars, nk_u32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256i sum_i32x8 = __lasx_xvreplgr2vr_w(0);
     nk_size_t index_scalars = 0;
@@ -216,8 +216,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_dot_u8_loongsonasx(nk_u8_t const *a_scalars,
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_bf16_loongsonasx(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                                         nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_bf16_loongsonasx(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
+                                                nk_size_t count_scalars, nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 sum_f32x8 = (__m256)__lasx_xvreplgr2vr_w(0);
     __m256i mask_high_u32x8 = __lasx_xvreplgr2vr_w((int)0xFFFF0000);
@@ -244,8 +244,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_dot_bf16_loongsonasx(nk_bf16_t const *a_scal
     nk_f32_t sum = c.f;
     for (; index_scalars < count_scalars; ++index_scalars) {
         nk_f32_t a_value, b_value;
-        nk_bf16_to_f32_serial(&a_scalars[index_scalars], &a_value);
-        nk_bf16_to_f32_serial(&b_scalars[index_scalars], &b_value);
+        nk_bf16_to_f32_(&a_scalars[index_scalars], &a_value);
+        nk_bf16_to_f32_(&b_scalars[index_scalars], &b_value);
         sum += a_value * b_value;
     }
     *result = sum;
@@ -257,14 +257,14 @@ typedef struct nk_dot_f64x4_state_loongsonasx_t {
     __m256i compensation_f64x4; // Error accumulator for Dot2
 } nk_dot_f64x4_state_loongsonasx_t;
 
-NUMKONG_HELPER_INLINE void nk_dot_f64x4_init_loongsonasx(nk_dot_f64x4_state_loongsonasx_t *state) {
+NUMKONG_INLINE void nk_dot_f64x4_init_loongsonasx(nk_dot_f64x4_state_loongsonasx_t *state) {
     state->sum_f64x4 = __lasx_xvreplgr2vr_d(0);
     state->compensation_f64x4 = __lasx_xvreplgr2vr_d(0);
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_f64x4_update_loongsonasx(nk_dot_f64x4_state_loongsonasx_t *state, nk_b256_vec_t a,
-                                                           nk_b256_vec_t b, nk_size_t depth_offset,
-                                                           nk_size_t active_dimensions) {
+NUMKONG_INLINE void nk_dot_f64x4_update_loongsonasx(nk_dot_f64x4_state_loongsonasx_t *state, nk_b256_vec_t a,
+                                                    nk_b256_vec_t b, nk_size_t depth_offset,
+                                                    nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     __m256d sum_f64x4 = (__m256d)state->sum_f64x4;
@@ -289,7 +289,7 @@ NUMKONG_HELPER_INLINE void nk_dot_f64x4_update_loongsonasx(nk_dot_f64x4_state_lo
                                                          __lasx_xvfadd_d(sum_error_f64x4, product_error_f64x4));
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_f64x4_finalize_loongsonasx(                                         //
+NUMKONG_INLINE void nk_dot_f64x4_finalize_loongsonasx(                                                //
     nk_dot_f64x4_state_loongsonasx_t const *state_a, nk_dot_f64x4_state_loongsonasx_t const *state_b, //
     nk_dot_f64x4_state_loongsonasx_t const *state_c, nk_dot_f64x4_state_loongsonasx_t const *state_d, //
     nk_size_t total_dimensions, nk_b256_vec_t *result) {
@@ -309,13 +309,13 @@ typedef struct nk_dot_f32x8_state_loongsonasx_t {
     __m256i sum_f64x4;
 } nk_dot_f32x8_state_loongsonasx_t;
 
-NUMKONG_HELPER_INLINE void nk_dot_f32x8_init_loongsonasx(nk_dot_f32x8_state_loongsonasx_t *state) {
+NUMKONG_INLINE void nk_dot_f32x8_init_loongsonasx(nk_dot_f32x8_state_loongsonasx_t *state) {
     state->sum_f64x4 = __lasx_xvreplgr2vr_d(0);
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_f32x8_update_loongsonasx(nk_dot_f32x8_state_loongsonasx_t *state, nk_b256_vec_t a,
-                                                           nk_b256_vec_t b, nk_size_t depth_offset,
-                                                           nk_size_t active_dimensions) {
+NUMKONG_INLINE void nk_dot_f32x8_update_loongsonasx(nk_dot_f32x8_state_loongsonasx_t *state, nk_b256_vec_t a,
+                                                    nk_b256_vec_t b, nk_size_t depth_offset,
+                                                    nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     __m256d a_low_f64x4 = __lasx_xvfcvtl_d_s(a.ymm_ps);
@@ -326,7 +326,7 @@ NUMKONG_HELPER_INLINE void nk_dot_f32x8_update_loongsonasx(nk_dot_f32x8_state_lo
     state->sum_f64x4 = (__m256i)__lasx_xvfmadd_d(a_high_f64x4, b_high_f64x4, (__m256d)state->sum_f64x4);
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_f32x8_finalize_loongsonasx(                                         //
+NUMKONG_INLINE void nk_dot_f32x8_finalize_loongsonasx(                                                //
     nk_dot_f32x8_state_loongsonasx_t const *state_a, nk_dot_f32x8_state_loongsonasx_t const *state_b, //
     nk_dot_f32x8_state_loongsonasx_t const *state_c, nk_dot_f32x8_state_loongsonasx_t const *state_d, //
     nk_size_t total_dimensions, nk_b256_vec_t *result) {
@@ -376,7 +376,7 @@ typedef struct nk_dot_through_i32_state_loongsonasx_t_ {
  *  @brief Initializes 32-bit accumulators for integer dot-products.
  *  @sa nk_dot_i8x32_update_loongsonasx, nk_dot_u8x32_update_loongsonasx
  */
-NUMKONG_HELPER_INLINE void nk_dot_through_i32_init_loongsonasx_(nk_dot_through_i32_state_loongsonasx_t_ *state) {
+NUMKONG_INLINE void nk_dot_through_i32_init_loongsonasx_(nk_dot_through_i32_state_loongsonasx_t_ *state) {
     state->sum_i32x8 = __lasx_xvreplgr2vr_w(0);
 }
 
@@ -384,7 +384,7 @@ NUMKONG_HELPER_INLINE void nk_dot_through_i32_init_loongsonasx_(nk_dot_through_i
  *  @brief Finalizes 4x integer dot-products placing them into 4x consecutive 32-bit slots.
  *  @sa nk_dot_i8x32_update_loongsonasx, nk_dot_u8x32_update_loongsonasx
  */
-NUMKONG_HELPER_INLINE void nk_dot_through_i32_finalize_loongsonasx_(                                                //
+NUMKONG_INLINE void nk_dot_through_i32_finalize_loongsonasx_(                                                       //
     nk_dot_through_i32_state_loongsonasx_t_ const *state_a, nk_dot_through_i32_state_loongsonasx_t_ const *state_b, //
     nk_dot_through_i32_state_loongsonasx_t_ const *state_c, nk_dot_through_i32_state_loongsonasx_t_ const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -420,13 +420,13 @@ NUMKONG_HELPER_INLINE void nk_dot_through_i32_finalize_loongsonasx_(            
  */
 typedef struct nk_dot_through_i32_state_loongsonasx_t_ nk_dot_i8x32_state_loongsonasx_t;
 
-NUMKONG_HELPER_INLINE void nk_dot_i8x32_init_loongsonasx(nk_dot_i8x32_state_loongsonasx_t *state) {
+NUMKONG_INLINE void nk_dot_i8x32_init_loongsonasx(nk_dot_i8x32_state_loongsonasx_t *state) {
     nk_dot_through_i32_init_loongsonasx_(state);
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_i8x32_update_loongsonasx(nk_dot_i8x32_state_loongsonasx_t *state, nk_b256_vec_t a,
-                                                           nk_b256_vec_t b, nk_size_t depth_offset,
-                                                           nk_size_t active_dimensions) {
+NUMKONG_INLINE void nk_dot_i8x32_update_loongsonasx(nk_dot_i8x32_state_loongsonasx_t *state, nk_b256_vec_t a,
+                                                    nk_b256_vec_t b, nk_size_t depth_offset,
+                                                    nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     __m256i accumulator_i16x16 = __lasx_xvreplgr2vr_h(0);
@@ -436,7 +436,7 @@ NUMKONG_HELPER_INLINE void nk_dot_i8x32_update_loongsonasx(nk_dot_i8x32_state_lo
     state->sum_i32x8 = __lasx_xvadd_w(state->sum_i32x8, widened_i32x8);
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_i8x32_finalize_loongsonasx(                                         //
+NUMKONG_INLINE void nk_dot_i8x32_finalize_loongsonasx(                                                //
     nk_dot_i8x32_state_loongsonasx_t const *state_a, nk_dot_i8x32_state_loongsonasx_t const *state_b, //
     nk_dot_i8x32_state_loongsonasx_t const *state_c, nk_dot_i8x32_state_loongsonasx_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -449,13 +449,13 @@ NUMKONG_HELPER_INLINE void nk_dot_i8x32_finalize_loongsonasx(                   
  */
 typedef struct nk_dot_through_i32_state_loongsonasx_t_ nk_dot_u8x32_state_loongsonasx_t;
 
-NUMKONG_HELPER_INLINE void nk_dot_u8x32_init_loongsonasx(nk_dot_u8x32_state_loongsonasx_t *state) {
+NUMKONG_INLINE void nk_dot_u8x32_init_loongsonasx(nk_dot_u8x32_state_loongsonasx_t *state) {
     nk_dot_through_i32_init_loongsonasx_(state);
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_u8x32_update_loongsonasx(nk_dot_u8x32_state_loongsonasx_t *state, nk_b256_vec_t a,
-                                                           nk_b256_vec_t b, nk_size_t depth_offset,
-                                                           nk_size_t active_dimensions) {
+NUMKONG_INLINE void nk_dot_u8x32_update_loongsonasx(nk_dot_u8x32_state_loongsonasx_t *state, nk_b256_vec_t a,
+                                                    nk_b256_vec_t b, nk_size_t depth_offset,
+                                                    nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     __m256i accumulator_u16x16 = __lasx_xvreplgr2vr_h(0);
@@ -465,7 +465,7 @@ NUMKONG_HELPER_INLINE void nk_dot_u8x32_update_loongsonasx(nk_dot_u8x32_state_lo
     state->sum_i32x8 = __lasx_xvadd_w(state->sum_i32x8, widened_u32x8);
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_u8x32_finalize_loongsonasx(                                         //
+NUMKONG_INLINE void nk_dot_u8x32_finalize_loongsonasx(                                                //
     nk_dot_u8x32_state_loongsonasx_t const *state_a, nk_dot_u8x32_state_loongsonasx_t const *state_b, //
     nk_dot_u8x32_state_loongsonasx_t const *state_c, nk_dot_u8x32_state_loongsonasx_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -489,7 +489,7 @@ typedef struct nk_dot_through_f32_state_loongsonasx_t_ {
  *  @brief Initializes 32-bit accumulators for low-precision dot-products.
  *  @sa nk_dot_bf16x16_init_loongsonasx
  */
-NUMKONG_HELPER_INLINE void nk_dot_through_f32_init_loongsonasx_(nk_dot_through_f32_state_loongsonasx_t_ *state) {
+NUMKONG_INLINE void nk_dot_through_f32_init_loongsonasx_(nk_dot_through_f32_state_loongsonasx_t_ *state) {
     state->sum_f32x8 = __lasx_xvreplgr2vr_w(0);
 }
 
@@ -497,9 +497,9 @@ NUMKONG_HELPER_INLINE void nk_dot_through_f32_init_loongsonasx_(nk_dot_through_f
  *  @brief Fuses 32-bit multiplication and accumulation for pre-converted f32 vectors.
  *  @sa nk_dot_bf16x16_update_loongsonasx
  */
-NUMKONG_HELPER_INLINE void nk_dot_through_f32_update_loongsonasx_(nk_dot_through_f32_state_loongsonasx_t_ *state,
-                                                                  nk_b256_vec_t a, nk_b256_vec_t b,
-                                                                  nk_size_t depth_offset, nk_size_t active_dimensions) {
+NUMKONG_INLINE void nk_dot_through_f32_update_loongsonasx_(nk_dot_through_f32_state_loongsonasx_t_ *state,
+                                                           nk_b256_vec_t a, nk_b256_vec_t b, nk_size_t depth_offset,
+                                                           nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     state->sum_f32x8 = (__m256i)__lasx_xvfmadd_s(a.ymm_ps, b.ymm_ps, (__m256)state->sum_f32x8);
@@ -511,7 +511,7 @@ NUMKONG_HELPER_INLINE void nk_dot_through_f32_update_loongsonasx_(nk_dot_through
  *
  *  Computes 4x horizontal reductions, each involving 8x floats, using LASX interleave instructions.
  */
-NUMKONG_HELPER_INLINE void nk_dot_through_f32_finalize_loongsonasx_(                                                //
+NUMKONG_INLINE void nk_dot_through_f32_finalize_loongsonasx_(                                                       //
     nk_dot_through_f32_state_loongsonasx_t_ const *state_a, nk_dot_through_f32_state_loongsonasx_t_ const *state_b, //
     nk_dot_through_f32_state_loongsonasx_t_ const *state_c, nk_dot_through_f32_state_loongsonasx_t_ const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -546,13 +546,13 @@ NUMKONG_HELPER_INLINE void nk_dot_through_f32_finalize_loongsonasx_(            
  */
 typedef struct nk_dot_through_f32_state_loongsonasx_t_ nk_dot_bf16x16_state_loongsonasx_t;
 
-NUMKONG_HELPER_INLINE void nk_dot_bf16x16_init_loongsonasx(nk_dot_bf16x16_state_loongsonasx_t *state) {
+NUMKONG_INLINE void nk_dot_bf16x16_init_loongsonasx(nk_dot_bf16x16_state_loongsonasx_t *state) {
     nk_dot_through_f32_init_loongsonasx_(state);
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_bf16x16_update_loongsonasx(nk_dot_bf16x16_state_loongsonasx_t *state, nk_b256_vec_t a,
-                                                             nk_b256_vec_t b, nk_size_t depth_offset,
-                                                             nk_size_t active_dimensions) {
+NUMKONG_INLINE void nk_dot_bf16x16_update_loongsonasx(nk_dot_bf16x16_state_loongsonasx_t *state, nk_b256_vec_t a,
+                                                      nk_b256_vec_t b, nk_size_t depth_offset,
+                                                      nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     // Even bf16 elements → slli_epi32 by 16 places them in f32 upper bits.
@@ -566,15 +566,15 @@ NUMKONG_HELPER_INLINE void nk_dot_bf16x16_update_loongsonasx(nk_dot_bf16x16_stat
     state->sum_f32x8 = (__m256i)__lasx_xvfmadd_s(a_odd_f32x8, b_odd_f32x8, (__m256)state->sum_f32x8);
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_bf16x16_finalize_loongsonasx(                                           //
+NUMKONG_INLINE void nk_dot_bf16x16_finalize_loongsonasx(                                                  //
     nk_dot_bf16x16_state_loongsonasx_t const *state_a, nk_dot_bf16x16_state_loongsonasx_t const *state_b, //
     nk_dot_bf16x16_state_loongsonasx_t const *state_c, nk_dot_bf16x16_state_loongsonasx_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
     nk_dot_through_f32_finalize_loongsonasx_(state_a, state_b, state_c, state_d, total_dimensions, result);
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_f16_loongsonasx(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
-                                                        nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_f16_loongsonasx(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
+                                               nk_size_t count_scalars, nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 sum_f32x8 = (__m256)__lasx_xvreplgr2vr_w(0);
     nk_size_t index_scalars = 0;
@@ -596,8 +596,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_dot_f16_loongsonasx(nk_f16_t const *a_scalar
     nk_f32_t sum = c.f;
     for (; index_scalars < count_scalars; ++index_scalars) {
         nk_f32_t a_value, b_value;
-        nk_f16_to_f32_serial(&a_scalars[index_scalars], &a_value);
-        nk_f16_to_f32_serial(&b_scalars[index_scalars], &b_value);
+        nk_f16_to_f32_(&a_scalars[index_scalars], &a_value);
+        nk_f16_to_f32_(&b_scalars[index_scalars], &b_value);
         sum += a_value * b_value;
     }
     *result = sum;
@@ -610,13 +610,13 @@ NUMKONG_API_COMPTIME nk_status_t nk_dot_f16_loongsonasx(nk_f16_t const *a_scalar
  */
 typedef struct nk_dot_through_f32_state_loongsonasx_t_ nk_dot_f16x16_state_loongsonasx_t;
 
-NUMKONG_HELPER_INLINE void nk_dot_f16x16_init_loongsonasx(nk_dot_f16x16_state_loongsonasx_t *state) {
+NUMKONG_INLINE void nk_dot_f16x16_init_loongsonasx(nk_dot_f16x16_state_loongsonasx_t *state) {
     nk_dot_through_f32_init_loongsonasx_(state);
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_f16x16_update_loongsonasx(nk_dot_f16x16_state_loongsonasx_t *state, nk_b256_vec_t a,
-                                                            nk_b256_vec_t b, nk_size_t depth_offset,
-                                                            nk_size_t active_dimensions) {
+NUMKONG_INLINE void nk_dot_f16x16_update_loongsonasx(nk_dot_f16x16_state_loongsonasx_t *state, nk_b256_vec_t a,
+                                                     nk_b256_vec_t b, nk_size_t depth_offset,
+                                                     nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     __m256 a_low_f32x8 = __lasx_xvfcvtl_s_h(a.ymm);
@@ -627,7 +627,7 @@ NUMKONG_HELPER_INLINE void nk_dot_f16x16_update_loongsonasx(nk_dot_f16x16_state_
     state->sum_f32x8 = (__m256i)__lasx_xvfmadd_s(a_high_f32x8, b_high_f32x8, (__m256)state->sum_f32x8);
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_f16x16_finalize_loongsonasx(                                          //
+NUMKONG_INLINE void nk_dot_f16x16_finalize_loongsonasx(                                                 //
     nk_dot_f16x16_state_loongsonasx_t const *state_a, nk_dot_f16x16_state_loongsonasx_t const *state_b, //
     nk_dot_f16x16_state_loongsonasx_t const *state_c, nk_dot_f16x16_state_loongsonasx_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -642,20 +642,20 @@ typedef struct nk_dot_u1x256_state_loongsonasx_t {
     __m256i dot_count_u32x8;
 } nk_dot_u1x256_state_loongsonasx_t;
 
-NUMKONG_HELPER_INLINE void nk_dot_u1x256_init_loongsonasx(nk_dot_u1x256_state_loongsonasx_t *state) {
+NUMKONG_INLINE void nk_dot_u1x256_init_loongsonasx(nk_dot_u1x256_state_loongsonasx_t *state) {
     state->dot_count_u32x8 = __lasx_xvreplgr2vr_w(0);
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_u1x256_update_loongsonasx(nk_dot_u1x256_state_loongsonasx_t *state, nk_b256_vec_t a,
-                                                            nk_b256_vec_t b, nk_size_t depth_offset,
-                                                            nk_size_t active_dimensions) {
+NUMKONG_INLINE void nk_dot_u1x256_update_loongsonasx(nk_dot_u1x256_state_loongsonasx_t *state, nk_b256_vec_t a,
+                                                     nk_b256_vec_t b, nk_size_t depth_offset,
+                                                     nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     __m256i and_u8x32 = __lasx_xvand_v(a.ymm, b.ymm);
     state->dot_count_u32x8 = __lasx_xvadd_w(state->dot_count_u32x8, __lasx_xvpcnt_w(and_u8x32));
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_u1x256_finalize_loongsonasx(                                          //
+NUMKONG_INLINE void nk_dot_u1x256_finalize_loongsonasx(                                                 //
     nk_dot_u1x256_state_loongsonasx_t const *state_a, nk_dot_u1x256_state_loongsonasx_t const *state_b, //
     nk_dot_u1x256_state_loongsonasx_t const *state_c, nk_dot_u1x256_state_loongsonasx_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {

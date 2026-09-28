@@ -43,7 +43,7 @@ stage_fixture_with_header() { # stage_fixture_with_header <relative-path> <<< co
     local fixture_path="$fixture_directory/$1"
     mkdir -p "$(dirname "$fixture_path")"
     case "$1" in
-    *.h | *.hpp | *.c | *.cpp | *.cu | *.cuh)
+    *.h | *.hpp | *.c | *.cpp | *.cu | *.cuh | *.metal)
         {
             printf '/**\n *  @file %s\n *  @author Selftest\n *  @date January 1, 2026\n' "$1"
             printf ' *  @brief One staged fixture for one rule.\n *\n *  The case under test follows.\n */\n'
@@ -379,6 +379,44 @@ struct probe_t {
 };
 FIXTURE
 
+assert_rejects "trailing field comment" "on its own line's tail" include/numkong/probe.h <<'FIXTURE'
+typedef struct {
+    int value; // The value.
+} probe_t;
+FIXTURE
+
+assert_rejects "trailing enumerator comment" "on its own line's tail" include/numkong/probe.h <<'FIXTURE'
+enum {
+    probe_one_k = 1, /* One. */
+};
+FIXTURE
+
+assert_accepts "why comment trailing a statement" include/numkong/probe.h <<'FIXTURE'
+static int probe(int value) {
+    return value + 1; // Rounds up.
+}
+FIXTURE
+
+assert_rejects "removed linkage macro" "uses a removed linkage macro" include/numkong/probe.h <<'FIXTURE'
+NUMKONG_API_COMPTIME int nk_probe_serial(int value);
+FIXTURE
+
+assert_rejects "kernel calling a kernel" "calls a public kernel" include/numkong/probe/haswell.h <<'FIXTURE'
+NUMKONG_API int nk_probe_haswell(int value) { return nk_probe_serial(value); }
+FIXTURE
+
+assert_accepts "kernel calling a helper" include/numkong/probe/haswell.h <<'FIXTURE'
+NUMKONG_API int nk_probe_haswell(int value) {
+    return nk_probe_serial_(value);
+}
+FIXTURE
+
+assert_accepts "kernel calling a state helper" include/numkong/probe/haswell.h <<'FIXTURE'
+NUMKONG_API int nk_probe_haswell(int value) {
+    return nk_dot_f32x4_update_serial(value);
+}
+FIXTURE
+
 assert_rejects "shape with x" "spells a shape" include/numkong/probe.h <<'FIXTURE'
 /** Returns a matrix of shape [rows x columns]. */
 int probe(void);
@@ -583,6 +621,21 @@ struct probe_t {
 /** Types whose alignment fits @c max_align_t. */
 template <typename type_>
 concept aligned_type = requires(type_ value) { alignof(type_) <= alignof(max_align_t); };
+FIXTURE
+
+assert_rejects "suffixed variable template" "suffixes a variable template" test/probe.cpp <<'FIXTURE'
+/** Half-precision types, judged against an error bound. */
+template <typename scalar_type_>
+constexpr bool bounded_k = sizeof(scalar_type_) == 2;
+FIXTURE
+
+assert_accepts "bare variable template and a suffixed constant" test/probe.cpp <<'FIXTURE'
+/** Half-precision types, judged against an error bound. */
+template <typename scalar_type_>
+constexpr bool bounded = sizeof(scalar_type_) == 2;
+
+/** The tolerance every bounded type shares. */
+constexpr double tolerance_k = 1e-3;
 FIXTURE
 
 assert_rejects "tag right below a body paragraph" "starts a tag section right below a body paragraph" include/numkong/probe.h <<'FIXTURE'
@@ -1334,6 +1387,7 @@ FIXTURE
 assert_accepts "CMake variable written once" CMakeLists.txt <<'FIXTURE'
 # A variable is written once; never list(APPEND ...) it.
 set(PROBE_SOURCES_ probe.c)
+list(TRANSFORM PROBE_SOURCES_ PREPEND "src/" OUTPUT_VARIABLE PROBE_PATHS_)
 FIXTURE
 
 assert_accepts "CMake foreach builds its list" CMakeLists.txt <<'FIXTURE'
@@ -1646,6 +1700,7 @@ assert_accepts "arrows inside HTML code spans holding a less-than" README.md <<'
 FIXTURE
 
 assert_accepts "hash inside a Python string before a return annotation" python/probe.py <<'FIXTURE'
+
 def probe(marker: str = "#") -> int:
     return len(marker)
 FIXTURE
@@ -2173,17 +2228,17 @@ FIXTURE
 
 assert_rejects "docblock on a kernel definition" "documents a public kernel definition" include/numkong/probe/haswell.h <<'FIXTURE'
 /** Documented here. */
-NUMKONG_API_COMPTIME void nk_probe_haswell(void) {}
+NUMKONG_API void nk_probe_haswell(void) {}
 FIXTURE
 
 assert_rejects "register without dtype" "names a SIMD register" include/numkong/probe/haswell.h <<'FIXTURE'
-NUMKONG_API_COMPTIME void nk_probe_haswell(void) {
+NUMKONG_API void nk_probe_haswell(void) {
     __m256 sum = _mm256_setzero_ps();
 }
 FIXTURE
 
 assert_accepts "register with dtype, and a grandfathered line" include/numkong/probe/haswell.h <<'FIXTURE'
-NUMKONG_API_COMPTIME void nk_probe_haswell(void) {
+NUMKONG_API void nk_probe_haswell(void) {
     __m256 sum_f32x8 = _mm256_setzero_ps();
     __m256 legacy = _mm256_setzero_ps(); // nk-nolint: naming
     /* __m256 commented_out = 0; */
@@ -2225,16 +2280,16 @@ assert_accepts "test body failing on stderr, and prose naming printf" test/probe
 void test_probe() { fmt::println(stderr, "probe failed"); }
 FIXTURE
 
-assert_accepts "entry point printing the summary" test/main.cpp <<'FIXTURE'
+assert_accepts "entry point printing the summary" test/main_cpu.cpp <<'FIXTURE'
 void print_summary() { fmt::println("All tests passed."); }
 FIXTURE
 
 assert_rejects "retired prefix" "spells the retired NK_ prefix" include/numkong/probe.h <<'FIXTURE'
-static int probe(void) { return NK_DEBUG + NUMKONG_RUNTIME_DISPATCH; }
+static int probe(void) { return NK_DEBUG + NUMKONG_HEADER_ONLY; }
 FIXTURE
 
 assert_accepts "full prefix, and a lowercase nk_ helper" include/numkong/probe.h <<'FIXTURE'
-static int probe(void) { return NUMKONG_RUNTIME_DISPATCH + nk_probe_(); }
+static int probe(void) { return NUMKONG_HEADER_ONLY + nk_probe_(); }
 FIXTURE
 
 assert_rejects "fact tested with defined" "fact with defined; use #if" include/numkong/probe.h <<'FIXTURE'

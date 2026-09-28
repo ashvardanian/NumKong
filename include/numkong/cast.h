@@ -38,7 +38,7 @@
 #ifndef NUMKONG_CAST_H
 #define NUMKONG_CAST_H
 
-#include "numkong/capabilities.h" // `nk_capability_kernels_t`, `nk_kernel_pick_`
+#include "numkong/capabilities.h"
 
 #if defined(__cplusplus)
 extern "C" {
@@ -65,12 +65,12 @@ typedef void (*nk_f32_to_u8_punned_t)(nk_f32_t const *, nk_u8_t *);
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  */
-NUMKONG_API_RUNTIME nk_status_t nk_cast_best(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                             nk_dtype_t to_type, nk_capability_t capabilities, void *stream);
+NUMKONG_API nk_status_t nk_cast_best(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type,
+                                     nk_capability_t capabilities, void *stream);
 
 /** @copydoc nk_cast_best */
-NUMKONG_API_COMPTIME nk_status_t nk_cast_serial(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                                nk_dtype_t to_type, void *stream);
+NUMKONG_API nk_status_t nk_cast_serial(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
+                                       nk_dtype_t to_type, void *stream);
 
 /**
  *  @brief Scalar conversion from @c f16 to @c f32, covering every IEEE 754 edge case.
@@ -94,7 +94,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_cast_serial(void const *from, nk_dtype_t fro
  *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
  *      serial always stays.
  */
-NUMKONG_API_RUNTIME void nk_f16_to_f32_best(nk_f16_t const *src, nk_f32_t *dest, nk_capability_t capabilities);
+NUMKONG_API void nk_f16_to_f32_best(nk_f16_t const *src, nk_f32_t *dest, nk_capability_t capabilities);
 
 /**
  *  @brief Scalar conversion from @c bf16 to @c f32.
@@ -104,7 +104,7 @@ NUMKONG_API_RUNTIME void nk_f16_to_f32_best(nk_f16_t const *src, nk_f32_t *dest,
  *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
  *      serial always stays.
  */
-NUMKONG_API_RUNTIME void nk_bf16_to_f32_best(nk_bf16_t const *src, nk_f32_t *dest, nk_capability_t capabilities);
+NUMKONG_API void nk_bf16_to_f32_best(nk_bf16_t const *src, nk_f32_t *dest, nk_capability_t capabilities);
 
 /**
  *  @brief Scalar conversion from FP8 @c e4m3 to @c f32.
@@ -132,28 +132,28 @@ NUMKONG_API_RUNTIME void nk_bf16_to_f32_best(nk_bf16_t const *src, nk_f32_t *des
  *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
  *      serial always stays.
  */
-NUMKONG_API_RUNTIME void nk_e4m3_to_f32_best(nk_e4m3_t const *src, nk_f32_t *dest, nk_capability_t capabilities);
+NUMKONG_API void nk_e4m3_to_f32_best(nk_e4m3_t const *src, nk_f32_t *dest, nk_capability_t capabilities);
 
 /**
  *  @brief Scalar conversion from FP8 @c e5m2 to @c f32.
  *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
  *      serial always stays.
  */
-NUMKONG_API_RUNTIME void nk_e5m2_to_f32_best(nk_e5m2_t const *src, nk_f32_t *dest, nk_capability_t capabilities);
+NUMKONG_API void nk_e5m2_to_f32_best(nk_e5m2_t const *src, nk_f32_t *dest, nk_capability_t capabilities);
 
 /**
  *  @brief Scalar conversion from FP6 @c e2m3 to @c f32.
  *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
  *      serial always stays.
  */
-NUMKONG_API_RUNTIME void nk_e2m3_to_f32_best(nk_e2m3_t const *src, nk_f32_t *dest, nk_capability_t capabilities);
+NUMKONG_API void nk_e2m3_to_f32_best(nk_e2m3_t const *src, nk_f32_t *dest, nk_capability_t capabilities);
 
 /**
  *  @brief Scalar conversion from FP6 @c e3m2 to @c f32.
  *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
  *      serial always stays.
  */
-NUMKONG_API_RUNTIME void nk_e3m2_to_f32_best(nk_e3m2_t const *src, nk_f32_t *dest, nk_capability_t capabilities);
+NUMKONG_API void nk_e3m2_to_f32_best(nk_e3m2_t const *src, nk_f32_t *dest, nk_capability_t capabilities);
 
 /**
  *  @brief Scalar conversion from @c f32 to @c f16, rounding to nearest, for all IEEE 754 inputs.
@@ -179,7 +179,7 @@ NUMKONG_API_RUNTIME void nk_e3m2_to_f32_best(nk_e3m2_t const *src, nk_f32_t *des
  *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
  *      serial always stays.
  */
-NUMKONG_API_RUNTIME void nk_f32_to_f16_best(nk_f32_t const *src, nk_f16_t *dest, nk_capability_t capabilities);
+NUMKONG_API void nk_f32_to_f16_best(nk_f32_t const *src, nk_f16_t *dest, nk_capability_t capabilities);
 
 /**
  *  @brief Scalar conversion from @c f32 to @c bf16.
@@ -189,7 +189,7 @@ NUMKONG_API_RUNTIME void nk_f32_to_f16_best(nk_f32_t const *src, nk_f16_t *dest,
  *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
  *      serial always stays.
  */
-NUMKONG_API_RUNTIME void nk_f32_to_bf16_best(nk_f32_t const *src, nk_bf16_t *dest, nk_capability_t capabilities);
+NUMKONG_API void nk_f32_to_bf16_best(nk_f32_t const *src, nk_bf16_t *dest, nk_capability_t capabilities);
 
 /**
  *  @brief Scalar conversion from @c f32 to FP8 @c e4m3, rounding to nearest even per IEEE 754 and
@@ -217,7 +217,7 @@ NUMKONG_API_RUNTIME void nk_f32_to_bf16_best(nk_f32_t const *src, nk_bf16_t *des
  *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
  *      serial always stays.
  */
-NUMKONG_API_RUNTIME void nk_f32_to_e4m3_best(nk_f32_t const *src, nk_e4m3_t *dest, nk_capability_t capabilities);
+NUMKONG_API void nk_f32_to_e4m3_best(nk_f32_t const *src, nk_e4m3_t *dest, nk_capability_t capabilities);
 
 /**
  *  @brief Scalar conversion from @c f32 to FP8 @c e5m2, rounding to nearest even per IEEE 754 and
@@ -245,7 +245,7 @@ NUMKONG_API_RUNTIME void nk_f32_to_e4m3_best(nk_f32_t const *src, nk_e4m3_t *des
  *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
  *      serial always stays.
  */
-NUMKONG_API_RUNTIME void nk_f32_to_e5m2_best(nk_f32_t const *src, nk_e5m2_t *dest, nk_capability_t capabilities);
+NUMKONG_API void nk_f32_to_e5m2_best(nk_f32_t const *src, nk_e5m2_t *dest, nk_capability_t capabilities);
 
 /**
  *  @brief Scalar conversion from @c f32 to FP6 @c e2m3, rounding to nearest even per IEEE 754.
@@ -257,7 +257,7 @@ NUMKONG_API_RUNTIME void nk_f32_to_e5m2_best(nk_f32_t const *src, nk_e5m2_t *des
  *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
  *      serial always stays.
  */
-NUMKONG_API_RUNTIME void nk_f32_to_e2m3_best(nk_f32_t const *src, nk_e2m3_t *dest, nk_capability_t capabilities);
+NUMKONG_API void nk_f32_to_e2m3_best(nk_f32_t const *src, nk_e2m3_t *dest, nk_capability_t capabilities);
 
 /**
  *  @brief Scalar conversion from @c f32 to FP6 @c e3m2, rounding to nearest even per IEEE 754.
@@ -269,50 +269,50 @@ NUMKONG_API_RUNTIME void nk_f32_to_e2m3_best(nk_f32_t const *src, nk_e2m3_t *des
  *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
  *      serial always stays.
  */
-NUMKONG_API_RUNTIME void nk_f32_to_e3m2_best(nk_f32_t const *src, nk_e3m2_t *dest, nk_capability_t capabilities);
+NUMKONG_API void nk_f32_to_e3m2_best(nk_f32_t const *src, nk_e3m2_t *dest, nk_capability_t capabilities);
 
 /** @copydoc nk_f16_to_f32_best */
-NUMKONG_API_COMPTIME void nk_f16_to_f32_serial(nk_f16_t const *src, nk_f32_t *dest);
+NUMKONG_API void nk_f16_to_f32_serial(nk_f16_t const *src, nk_f32_t *dest);
 /** @copydoc nk_f32_to_f16_best */
-NUMKONG_API_COMPTIME void nk_f32_to_f16_serial(nk_f32_t const *src, nk_f16_t *dest);
+NUMKONG_API void nk_f32_to_f16_serial(nk_f32_t const *src, nk_f16_t *dest);
 
 /** @copydoc nk_bf16_to_f32_best
  *
  *  Uses the compiler's native @c __bf16 type when present, or widens the bits by hand otherwise. */
-NUMKONG_API_COMPTIME void nk_bf16_to_f32_serial(nk_bf16_t const *src, nk_f32_t *dest);
+NUMKONG_API void nk_bf16_to_f32_serial(nk_bf16_t const *src, nk_f32_t *dest);
 /** @copydoc nk_f32_to_bf16_best */
-NUMKONG_API_COMPTIME void nk_f32_to_bf16_serial(nk_f32_t const *src, nk_bf16_t *dest);
+NUMKONG_API void nk_f32_to_bf16_serial(nk_f32_t const *src, nk_bf16_t *dest);
 /** @copydoc nk_e4m3_to_f32_best */
-NUMKONG_API_COMPTIME void nk_e4m3_to_f32_serial(nk_e4m3_t const *src, nk_f32_t *dest);
+NUMKONG_API void nk_e4m3_to_f32_serial(nk_e4m3_t const *src, nk_f32_t *dest);
 /** @copydoc nk_f32_to_e4m3_best */
-NUMKONG_API_COMPTIME void nk_f32_to_e4m3_serial(nk_f32_t const *src, nk_e4m3_t *dest);
+NUMKONG_API void nk_f32_to_e4m3_serial(nk_f32_t const *src, nk_e4m3_t *dest);
 /** @copydoc nk_e5m2_to_f32_best */
-NUMKONG_API_COMPTIME void nk_e5m2_to_f32_serial(nk_e5m2_t const *src, nk_f32_t *dest);
+NUMKONG_API void nk_e5m2_to_f32_serial(nk_e5m2_t const *src, nk_f32_t *dest);
 /** @copydoc nk_f32_to_e5m2_best */
-NUMKONG_API_COMPTIME void nk_f32_to_e5m2_serial(nk_f32_t const *src, nk_e5m2_t *dest);
+NUMKONG_API void nk_f32_to_e5m2_serial(nk_f32_t const *src, nk_e5m2_t *dest);
 /** @copydoc nk_e2m3_to_f32_best */
-NUMKONG_API_COMPTIME void nk_e2m3_to_f32_serial(nk_e2m3_t const *src, nk_f32_t *dest);
+NUMKONG_API void nk_e2m3_to_f32_serial(nk_e2m3_t const *src, nk_f32_t *dest);
 /** @copydoc nk_f32_to_e2m3_best */
-NUMKONG_API_COMPTIME void nk_f32_to_e2m3_serial(nk_f32_t const *src, nk_e2m3_t *dest);
+NUMKONG_API void nk_f32_to_e2m3_serial(nk_f32_t const *src, nk_e2m3_t *dest);
 /** @copydoc nk_e3m2_to_f32_best */
-NUMKONG_API_COMPTIME void nk_e3m2_to_f32_serial(nk_e3m2_t const *src, nk_f32_t *dest);
+NUMKONG_API void nk_e3m2_to_f32_serial(nk_e3m2_t const *src, nk_f32_t *dest);
 /** @copydoc nk_f32_to_e3m2_best */
-NUMKONG_API_COMPTIME void nk_f32_to_e3m2_serial(nk_f32_t const *src, nk_e3m2_t *dest);
+NUMKONG_API void nk_f32_to_e3m2_serial(nk_f32_t const *src, nk_e3m2_t *dest);
 
 /** Unpacks a byte of two E2M1 nibbles into two f32 values: the high nibble lands in `dest[0]` and
  *  the low nibble in `dest[1]`, as in @c nk_i4x2_t and @c nk_u4x2_t. */
-NUMKONG_API_COMPTIME void nk_e2m1x2_to_f32x2_serial(nk_e2m1x2_t const *src, nk_f32_t *dest);
+NUMKONG_API void nk_e2m1x2_to_f32x2_serial(nk_e2m1x2_t const *src, nk_f32_t *dest);
 
 /** Packs two f32 values into one byte of two E2M1 nibbles: `src[0]` becomes the high nibble and
  *  `src[1]` the low one, as in @c nk_i4x2_t and @c nk_u4x2_t. */
-NUMKONG_API_COMPTIME void nk_f32x2_to_e2m1x2_serial(nk_f32_t const *src, nk_e2m1x2_t *dest);
+NUMKONG_API void nk_f32x2_to_e2m1x2_serial(nk_f32_t const *src, nk_e2m1x2_t *dest);
 
 /**
  *  @brief Converts a UE8M0 power-of-two scale byte, as used by OCP MX, to f32.
  *
  *  A zero byte decodes to 0, 0xFF to NaN as the block-NaN sentinel, and any other v to 2^(v - 127).
  */
-NUMKONG_API_COMPTIME void nk_ue8m0_to_f32_serial(nk_ue8m0_t const *src, nk_f32_t *dest);
+NUMKONG_API void nk_ue8m0_to_f32_serial(nk_ue8m0_t const *src, nk_f32_t *dest);
 
 /**
  *  @brief Converts an f32 magnitude to a UE8M0 power-of-two scale byte.
@@ -322,10 +322,10 @@ NUMKONG_API_COMPTIME void nk_ue8m0_to_f32_serial(nk_ue8m0_t const *src, nk_f32_t
  *  the split sits at the geometric midpoint √2 × 2^e. NaN maps to 0xFF as the block-NaN sentinel,
  *  zero and subnormals map to 0x00, and overflow saturates to 0xFE.
  */
-NUMKONG_API_COMPTIME void nk_f32_to_ue8m0_serial(nk_f32_t const *src, nk_ue8m0_t *dest);
+NUMKONG_API void nk_f32_to_ue8m0_serial(nk_f32_t const *src, nk_ue8m0_t *dest);
 
 /** Converts a UE4M3 byte, the NVFP4 scale that is an E4M3 with its sign bit forced to 0, to f32. */
-NUMKONG_API_COMPTIME void nk_ue4m3_to_f32_serial(nk_ue4m3_t const *src, nk_f32_t *dest);
+NUMKONG_API void nk_ue4m3_to_f32_serial(nk_ue4m3_t const *src, nk_f32_t *dest);
 
 /**
  *  @brief Converts an f32 magnitude to a UE4M3 NVFP4 scale byte.
@@ -334,49 +334,49 @@ NUMKONG_API_COMPTIME void nk_ue4m3_to_f32_serial(nk_ue4m3_t const *src, nk_f32_t
  *  even like the underlying E4M3 encoder, matching the NVFP4 and OCP scale convention. NaN maps to
  *  the E4M3 NaN code 0x7F.
  */
-NUMKONG_API_COMPTIME void nk_f32_to_ue4m3_serial(nk_f32_t const *src, nk_ue4m3_t *dest);
+NUMKONG_API void nk_f32_to_ue4m3_serial(nk_f32_t const *src, nk_ue4m3_t *dest);
 
 /** Decode one NVFP4 block (16 elements) to f32. @p tensor_scale is the per-tensor multiplier. */
-NUMKONG_API_COMPTIME void nk_nvfp4_to_f32x16_serial(nk_nvfp4_t const *src, nk_f32_t tensor_scale, nk_f32_t *dest);
+NUMKONG_API void nk_nvfp4_to_f32x16_serial(nk_nvfp4_t const *src, nk_f32_t tensor_scale, nk_f32_t *dest);
 
 /** Encode 16 f32 values into one NVFP4 block, deriving a UE4M3 scale via per-block amax. */
-NUMKONG_API_COMPTIME void nk_f32x16_to_nvfp4_serial(nk_f32_t const *src, nk_f32_t tensor_scale, nk_nvfp4_t *dest);
+NUMKONG_API void nk_f32x16_to_nvfp4_serial(nk_f32_t const *src, nk_f32_t tensor_scale, nk_nvfp4_t *dest);
 
 /** Decode one MXFP4 block (32 elements) to f32. */
-NUMKONG_API_COMPTIME void nk_mxfp4_to_f32x32_serial(nk_mxfp4_t const *src, nk_f32_t *dest);
+NUMKONG_API void nk_mxfp4_to_f32x32_serial(nk_mxfp4_t const *src, nk_f32_t *dest);
 
 /** Encode 32 f32 values into one MXFP4 block, deriving a UE8M0 scale. */
-NUMKONG_API_COMPTIME void nk_f32x32_to_mxfp4_serial(nk_f32_t const *src, nk_mxfp4_t *dest);
+NUMKONG_API void nk_f32x32_to_mxfp4_serial(nk_f32_t const *src, nk_mxfp4_t *dest);
 
 /** Decode one MXFP6 E2M3 block (32 elements) to f32. */
-NUMKONG_API_COMPTIME void nk_mxfp6_e2m3_to_f32x32_serial(nk_mxfp6_e2m3_t const *src, nk_f32_t *dest);
+NUMKONG_API void nk_mxfp6_e2m3_to_f32x32_serial(nk_mxfp6_e2m3_t const *src, nk_f32_t *dest);
 
 /** Encode 32 f32 values into one MXFP6 E2M3 block. */
-NUMKONG_API_COMPTIME void nk_f32x32_to_mxfp6_e2m3_serial(nk_f32_t const *src, nk_mxfp6_e2m3_t *dest);
+NUMKONG_API void nk_f32x32_to_mxfp6_e2m3_serial(nk_f32_t const *src, nk_mxfp6_e2m3_t *dest);
 
 /** Decode one MXFP6 E3M2 block (32 elements) to f32. */
-NUMKONG_API_COMPTIME void nk_mxfp6_e3m2_to_f32x32_serial(nk_mxfp6_e3m2_t const *src, nk_f32_t *dest);
+NUMKONG_API void nk_mxfp6_e3m2_to_f32x32_serial(nk_mxfp6_e3m2_t const *src, nk_f32_t *dest);
 
 /** Encode 32 f32 values into one MXFP6 E3M2 block. */
-NUMKONG_API_COMPTIME void nk_f32x32_to_mxfp6_e3m2_serial(nk_f32_t const *src, nk_mxfp6_e3m2_t *dest);
+NUMKONG_API void nk_f32x32_to_mxfp6_e3m2_serial(nk_f32_t const *src, nk_mxfp6_e3m2_t *dest);
 
 /** Decode one MXFP8 E4M3 block (32 elements) to f32. */
-NUMKONG_API_COMPTIME void nk_mxfp8_e4m3_to_f32x32_serial(nk_mxfp8_e4m3_t const *src, nk_f32_t *dest);
+NUMKONG_API void nk_mxfp8_e4m3_to_f32x32_serial(nk_mxfp8_e4m3_t const *src, nk_f32_t *dest);
 
 /** Encode 32 f32 values into one MXFP8 E4M3 block. */
-NUMKONG_API_COMPTIME void nk_f32x32_to_mxfp8_e4m3_serial(nk_f32_t const *src, nk_mxfp8_e4m3_t *dest);
+NUMKONG_API void nk_f32x32_to_mxfp8_e4m3_serial(nk_f32_t const *src, nk_mxfp8_e4m3_t *dest);
 
 /** Decode one MXFP8 E5M2 block (32 elements) to f32. */
-NUMKONG_API_COMPTIME void nk_mxfp8_e5m2_to_f32x32_serial(nk_mxfp8_e5m2_t const *src, nk_f32_t *dest);
+NUMKONG_API void nk_mxfp8_e5m2_to_f32x32_serial(nk_mxfp8_e5m2_t const *src, nk_f32_t *dest);
 
 /** Encode 32 f32 values into one MXFP8 E5M2 block. */
-NUMKONG_API_COMPTIME void nk_f32x32_to_mxfp8_e5m2_serial(nk_f32_t const *src, nk_mxfp8_e5m2_t *dest);
+NUMKONG_API void nk_f32x32_to_mxfp8_e5m2_serial(nk_f32_t const *src, nk_mxfp8_e5m2_t *dest);
 
 /** Decode one MXINT8 block (32 elements) to f32. */
-NUMKONG_API_COMPTIME void nk_mxint8_to_f32x32_serial(nk_mxint8_t const *src, nk_f32_t *dest);
+NUMKONG_API void nk_mxint8_to_f32x32_serial(nk_mxint8_t const *src, nk_f32_t *dest);
 
 /** Encode 32 f32 values into one MXINT8 block. */
-NUMKONG_API_COMPTIME void nk_f32x32_to_mxint8_serial(nk_f32_t const *src, nk_mxint8_t *dest);
+NUMKONG_API void nk_f32x32_to_mxint8_serial(nk_f32_t const *src, nk_mxint8_t *dest);
 
 /**
  *  @brief Unified cast between plain and block-scaled layouts, or between two block-scaled ones.
@@ -407,12 +407,12 @@ NUMKONG_API_COMPTIME void nk_f32x32_to_mxint8_serial(nk_f32_t const *src, nk_mxi
  *  A non-NULL @p to_tensor_scale holding a non-zero value is applied as is; holding zero on encode,
  *  it receives the tensor scale the kernel derives from the data.
  */
-NUMKONG_API_RUNTIME nk_status_t nk_cast_block_scaled_best(void const *from, void const *from_scales,
-                                                          nk_scalar_buffer_t const *from_tensor_scale,
-                                                          nk_block_scaled_format_t const *from_format, void *to,
-                                                          void *to_scales, nk_scalar_buffer_t *to_tensor_scale,
-                                                          nk_block_scaled_format_t const *to_format, nk_size_t count,
-                                                          nk_capability_t capabilities, void *stream);
+NUMKONG_API nk_status_t nk_cast_block_scaled_best(void const *from, void const *from_scales,
+                                                  nk_scalar_buffer_t const *from_tensor_scale,
+                                                  nk_block_scaled_format_t const *from_format, void *to,
+                                                  void *to_scales, nk_scalar_buffer_t *to_tensor_scale,
+                                                  nk_block_scaled_format_t const *to_format, nk_size_t count,
+                                                  nk_capability_t capabilities, void *stream);
 
 /**
  *  @copydoc nk_cast_block_scaled_best
@@ -426,32 +426,32 @@ NUMKONG_API_RUNTIME nk_status_t nk_cast_block_scaled_best(void const *from, void
  *          encode the scratch buffer into the destination, deriving amax and scales if block-scaled
  *  @endverbatim
  */
-NUMKONG_API_COMPTIME nk_status_t nk_cast_block_scaled_serial(                                                  //
+NUMKONG_API nk_status_t nk_cast_block_scaled_serial(                                                           //
     void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
     nk_block_scaled_format_t const *from_format,                                                               //
     void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
     nk_size_t count, void *stream);
 
 /** Number of element storage bytes needed for @p count logical elements of @p format. */
-NUMKONG_API_COMPTIME nk_size_t nk_block_scaled_elements_size(nk_size_t count, nk_block_scaled_format_t format);
+NUMKONG_API nk_size_t nk_block_scaled_elements_size(nk_size_t count, nk_block_scaled_format_t format);
 
 /** Number of scale storage bytes needed for @p count logical elements of @p format. */
-NUMKONG_API_COMPTIME nk_size_t nk_block_scaled_scales_size(nk_size_t count, nk_block_scaled_format_t format);
+NUMKONG_API nk_size_t nk_block_scaled_scales_size(nk_size_t count, nk_block_scaled_format_t format);
 
 #if NUMKONG_TARGET_NEON
 /** @copydoc nk_f16_to_f32_best */
-NUMKONG_API_COMPTIME void nk_f16_to_f32_neon(nk_f16_t const *src, nk_f32_t *dest);
+NUMKONG_API void nk_f16_to_f32_neon(nk_f16_t const *src, nk_f32_t *dest);
 /** @copydoc nk_f32_to_f16_best */
-NUMKONG_API_COMPTIME void nk_f32_to_f16_neon(nk_f32_t const *src, nk_f16_t *dest);
+NUMKONG_API void nk_f32_to_f16_neon(nk_f32_t const *src, nk_f16_t *dest);
 /** @copydoc nk_cast_best */
-NUMKONG_API_COMPTIME nk_status_t nk_cast_neon(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                              nk_dtype_t to_type, void *stream);
+NUMKONG_API nk_status_t nk_cast_neon(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type,
+                                     void *stream);
 
 /** @copydoc nk_cast_block_scaled_best
  *
  *  Reduces amax over f32x4 and multiplies by a broadcast reciprocal around the NEON element
  *  codec hub, as @c nk_cast_neon already packs E2M1, E4M3 and the other element formats. */
-NUMKONG_API_COMPTIME nk_status_t nk_cast_block_scaled_neon(                                                    //
+NUMKONG_API nk_status_t nk_cast_block_scaled_neon(                                                             //
     void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
     nk_block_scaled_format_t const *from_format,                                                               //
     void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
@@ -460,18 +460,18 @@ NUMKONG_API_COMPTIME nk_status_t nk_cast_block_scaled_neon(                     
 
 #if NUMKONG_TARGET_HASWELL
 /** @copydoc nk_f16_to_f32_best */
-NUMKONG_API_COMPTIME void nk_f16_to_f32_haswell(nk_f16_t const *src, nk_f32_t *dest);
+NUMKONG_API void nk_f16_to_f32_haswell(nk_f16_t const *src, nk_f32_t *dest);
 /** @copydoc nk_f32_to_f16_best */
-NUMKONG_API_COMPTIME void nk_f32_to_f16_haswell(nk_f32_t const *src, nk_f16_t *dest);
+NUMKONG_API void nk_f32_to_f16_haswell(nk_f32_t const *src, nk_f16_t *dest);
 /** @copydoc nk_cast_best */
-NUMKONG_API_COMPTIME nk_status_t nk_cast_haswell(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                                 nk_dtype_t to_type, void *stream);
+NUMKONG_API nk_status_t nk_cast_haswell(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
+                                        nk_dtype_t to_type, void *stream);
 
 /** @copydoc nk_cast_block_scaled_best
  *
  *  Uses an AVX2 amax and a broadcast reciprocal multiply around the serial element codec hub,
  *  mirroring @c nk_cast_block_scaled_skylake at 8 lanes. */
-NUMKONG_API_COMPTIME nk_status_t nk_cast_block_scaled_haswell(                                                 //
+NUMKONG_API nk_status_t nk_cast_block_scaled_haswell(                                                          //
     void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
     nk_block_scaled_format_t const *from_format,                                                               //
     void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
@@ -480,15 +480,15 @@ NUMKONG_API_COMPTIME nk_status_t nk_cast_block_scaled_haswell(                  
 
 #if NUMKONG_TARGET_SKYLAKE
 /** @copydoc nk_cast_best */
-NUMKONG_API_COMPTIME nk_status_t nk_cast_skylake(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                                 nk_dtype_t to_type, void *stream);
+NUMKONG_API nk_status_t nk_cast_skylake(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
+                                        nk_dtype_t to_type, void *stream);
 
 /** @copydoc nk_cast_block_scaled_best
  *
  *  Uses an AVX-512 amax and a broadcast reciprocal multiply around the serial element codec hub,
  *  which vectorizes the dominant scale-derivation cost for MXFP8, MXFP6, MXFP4, MXINT8 and NVFP4
  *  without duplicating per-format packing logic. */
-NUMKONG_API_COMPTIME nk_status_t nk_cast_block_scaled_skylake(                                                 //
+NUMKONG_API nk_status_t nk_cast_block_scaled_skylake(                                                          //
     void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
     nk_block_scaled_format_t const *from_format,                                                               //
     void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
@@ -497,15 +497,15 @@ NUMKONG_API_COMPTIME nk_status_t nk_cast_block_scaled_skylake(                  
 
 #if NUMKONG_TARGET_ICELAKE
 /** @copydoc nk_cast_best */
-NUMKONG_API_COMPTIME nk_status_t nk_cast_icelake(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                                 nk_dtype_t to_type, void *stream);
+NUMKONG_API nk_status_t nk_cast_icelake(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
+                                        nk_dtype_t to_type, void *stream);
 
 /** @copydoc nk_cast_block_scaled_best
  *
  *  Mirrors @c nk_cast_block_scaled_skylake but routes the element codec through
  *  @c nk_cast_icelake, whose 32-wide BF16-LUT decodes of FP4 and FP6 replace Skylake's per-32-bit
  *  permutes, while the f32 scale derivation reuses the Skylake amax and reciprocal multiply. */
-NUMKONG_API_COMPTIME nk_status_t nk_cast_block_scaled_icelake(                                                 //
+NUMKONG_API nk_status_t nk_cast_block_scaled_icelake(                                                          //
     void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
     nk_block_scaled_format_t const *from_format,                                                               //
     void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
@@ -514,46 +514,56 @@ NUMKONG_API_COMPTIME nk_status_t nk_cast_block_scaled_icelake(                  
 
 #if NUMKONG_TARGET_SAPPHIRE
 /** @copydoc nk_cast_best */
-NUMKONG_API_COMPTIME nk_status_t nk_cast_sapphire(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                                  nk_dtype_t to_type, void *stream);
+NUMKONG_API nk_status_t nk_cast_sapphire(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
+                                         nk_dtype_t to_type, void *stream);
 /** @copydoc nk_f16_to_f32_best */
-NUMKONG_API_COMPTIME void nk_f16_to_f32_sapphire(nk_f16_t const *src, nk_f32_t *dest);
+NUMKONG_API void nk_f16_to_f32_sapphire(nk_f16_t const *src, nk_f32_t *dest);
 /** @copydoc nk_f32_to_f16_best */
-NUMKONG_API_COMPTIME void nk_f32_to_f16_sapphire(nk_f32_t const *src, nk_f16_t *dest);
+NUMKONG_API void nk_f32_to_f16_sapphire(nk_f32_t const *src, nk_f16_t *dest);
 #endif // NUMKONG_TARGET_SAPPHIRE
 
 #if NUMKONG_TARGET_RVV
 /** @copydoc nk_cast_best */
-NUMKONG_API_COMPTIME nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                             nk_dtype_t to_type, void *stream);
+NUMKONG_API nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type,
+                                    void *stream);
 #endif // NUMKONG_TARGET_RVV
 
 #if NUMKONG_TARGET_POWERVSX
 /** @copydoc nk_cast_best */
-NUMKONG_API_COMPTIME nk_status_t nk_cast_powervsx(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                                  nk_dtype_t to_type, void *stream);
+NUMKONG_API nk_status_t nk_cast_powervsx(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
+                                         nk_dtype_t to_type, void *stream);
 
 /** @copydoc nk_f16_to_f32_best
  *
  *  Converts through the POWER9 vector unit with @c xvcvhpsp. */
-NUMKONG_API_COMPTIME void nk_f16_to_f32_powervsx(nk_f16_t const *src, nk_f32_t *dest);
+NUMKONG_API void nk_f16_to_f32_powervsx(nk_f16_t const *src, nk_f32_t *dest);
 
 /** @copydoc nk_f32_to_f16_best
  *
  *  Converts through the POWER9 vector unit with @c xvcvsphp. */
-NUMKONG_API_COMPTIME void nk_f32_to_f16_powervsx(nk_f32_t const *src, nk_f16_t *dest);
+NUMKONG_API void nk_f32_to_f16_powervsx(nk_f32_t const *src, nk_f16_t *dest);
 #endif // NUMKONG_TARGET_POWERVSX
 
 #if NUMKONG_TARGET_V128RELAXED
 /** @copydoc nk_cast_best */
-NUMKONG_API_COMPTIME nk_status_t nk_cast_v128relaxed(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                                     nk_dtype_t to_type, void *stream);
+NUMKONG_API nk_status_t nk_cast_v128relaxed(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
+                                            nk_dtype_t to_type, void *stream);
 #endif // NUMKONG_TARGET_V128RELAXED
+
+/**
+ *  @brief Finds the cast kernel of @p kind for @p dtype from the best capability in @p capabilities.
+ *  @param[out] kernel The kernel, or null when no capability in @p capabilities has it.
+ *  @param[out] capability The capability the kernel belongs to, or zero.
+ *  @return @c nk_success_k, @c nk_missing_kernel_k, or @c nk_missing_library_k in header-only builds.
+ */
+NUMKONG_API nk_status_t nk_cast_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
+                                            nk_kernel_punned_t *kernel, nk_capability_t *capability);
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
+#if NUMKONG_HEADER_ONLY
 #include "numkong/cast/serial.h"
 #include "numkong/cast/neon.h"
 #include "numkong/cast/haswell.h"
@@ -570,344 +580,95 @@ NUMKONG_API_COMPTIME nk_status_t nk_cast_v128relaxed(void const *from, nk_dtype_
 extern "C" {
 #endif
 
-NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_cast_capabilities_(void) {
-    static nk_kernel_punned_t const cpu[] = {
-        (nk_kernel_punned_t)&nk_cast_serial,
-#if NUMKONG_TARGET_NEON
-        (nk_kernel_punned_t)&nk_cast_neon,
-#endif
-#if NUMKONG_TARGET_HASWELL
-        (nk_kernel_punned_t)&nk_cast_haswell,
-#endif
-#if NUMKONG_TARGET_SKYLAKE
-        (nk_kernel_punned_t)&nk_cast_skylake,
-#endif
-#if NUMKONG_TARGET_ICELAKE
-        (nk_kernel_punned_t)&nk_cast_icelake,
-#endif
-#if NUMKONG_TARGET_SAPPHIRE
-        (nk_kernel_punned_t)&nk_cast_sapphire,
-#endif
-#if NUMKONG_TARGET_RVV
-        (nk_kernel_punned_t)&nk_cast_rvv,
-#endif
-#if NUMKONG_TARGET_V128RELAXED
-        (nk_kernel_punned_t)&nk_cast_v128relaxed,
-#endif
-#if NUMKONG_TARGET_POWERVSX
-        (nk_kernel_punned_t)&nk_cast_powervsx,
-#endif
-    };
-    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
-             nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE |
-             nk_cap_sapphire_k * NUMKONG_TARGET_SAPPHIRE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
-             nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED | nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX,
-         cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-    };
-    return lists;
+NUMKONG_API void nk_bf16_to_f32_best(nk_bf16_t const *source, nk_f32_t *destination, nk_capability_t capabilities) {
+    nk_unused_(capabilities);
+    nk_bf16_to_f32_serial(source, destination);
 }
 
-NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_f16_to_f32_capabilities_(void) {
-    static nk_kernel_punned_t const cpu[] = {
-        (nk_kernel_punned_t)&nk_f16_to_f32_serial,
-#if NUMKONG_TARGET_NEON
-        (nk_kernel_punned_t)&nk_f16_to_f32_neon,
-#endif
-#if NUMKONG_TARGET_HASWELL
-        (nk_kernel_punned_t)&nk_f16_to_f32_haswell,
-#endif
-#if NUMKONG_TARGET_SAPPHIRE
-        (nk_kernel_punned_t)&nk_f16_to_f32_sapphire,
-#endif
-#if NUMKONG_TARGET_POWERVSX
-        (nk_kernel_punned_t)&nk_f16_to_f32_powervsx,
-#endif
-    };
-    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
-             nk_cap_sapphire_k * NUMKONG_TARGET_SAPPHIRE | nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX,
-         cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-    };
-    return lists;
+NUMKONG_API void nk_f32_to_bf16_best(nk_f32_t const *source, nk_bf16_t *destination, nk_capability_t capabilities) {
+    nk_unused_(capabilities);
+    nk_f32_to_bf16_serial(source, destination);
 }
 
-NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_bf16_to_f32_capabilities_(void) {
-    static nk_kernel_punned_t const cpu[] = {
-        (nk_kernel_punned_t)&nk_bf16_to_f32_serial,
-    };
-    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k, cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-    };
-    return lists;
+NUMKONG_API void nk_f16_to_f32_best(nk_f16_t const *source, nk_f32_t *destination, nk_capability_t capabilities) {
+    nk_unused_(capabilities);
+    nk_f16_to_f32_serial(source, destination);
 }
 
-NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_e4m3_to_f32_capabilities_(void) {
-    static nk_kernel_punned_t const cpu[] = {
-        (nk_kernel_punned_t)&nk_e4m3_to_f32_serial,
-    };
-    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k, cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-    };
-    return lists;
+NUMKONG_API void nk_f32_to_f16_best(nk_f32_t const *source, nk_f16_t *destination, nk_capability_t capabilities) {
+    nk_unused_(capabilities);
+    nk_f32_to_f16_serial(source, destination);
 }
 
-NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_e5m2_to_f32_capabilities_(void) {
-    static nk_kernel_punned_t const cpu[] = {
-        (nk_kernel_punned_t)&nk_e5m2_to_f32_serial,
-    };
-    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k, cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-    };
-    return lists;
+NUMKONG_API void nk_e5m2_to_f32_best(nk_e5m2_t const *source, nk_f32_t *destination, nk_capability_t capabilities) {
+    nk_unused_(capabilities);
+    nk_e5m2_to_f32_serial(source, destination);
 }
 
-NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_e2m3_to_f32_capabilities_(void) {
-    static nk_kernel_punned_t const cpu[] = {
-        (nk_kernel_punned_t)&nk_e2m3_to_f32_serial,
-    };
-    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k, cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-    };
-    return lists;
+NUMKONG_API void nk_f32_to_e5m2_best(nk_f32_t const *source, nk_e5m2_t *destination, nk_capability_t capabilities) {
+    nk_unused_(capabilities);
+    nk_f32_to_e5m2_serial(source, destination);
 }
 
-NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_e3m2_to_f32_capabilities_(void) {
-    static nk_kernel_punned_t const cpu[] = {
-        (nk_kernel_punned_t)&nk_e3m2_to_f32_serial,
-    };
-    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k, cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-    };
-    return lists;
+NUMKONG_API void nk_e4m3_to_f32_best(nk_e4m3_t const *source, nk_f32_t *destination, nk_capability_t capabilities) {
+    nk_unused_(capabilities);
+    nk_e4m3_to_f32_serial(source, destination);
 }
 
-NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_f32_to_f16_capabilities_(void) {
-    static nk_kernel_punned_t const cpu[] = {
-        (nk_kernel_punned_t)&nk_f32_to_f16_serial,
-#if NUMKONG_TARGET_NEON
-        (nk_kernel_punned_t)&nk_f32_to_f16_neon,
-#endif
-#if NUMKONG_TARGET_HASWELL
-        (nk_kernel_punned_t)&nk_f32_to_f16_haswell,
-#endif
-#if NUMKONG_TARGET_SAPPHIRE
-        (nk_kernel_punned_t)&nk_f32_to_f16_sapphire,
-#endif
-#if NUMKONG_TARGET_POWERVSX
-        (nk_kernel_punned_t)&nk_f32_to_f16_powervsx,
-#endif
-    };
-    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
-             nk_cap_sapphire_k * NUMKONG_TARGET_SAPPHIRE | nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX,
-         cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-    };
-    return lists;
+NUMKONG_API void nk_f32_to_e4m3_best(nk_f32_t const *source, nk_e4m3_t *destination, nk_capability_t capabilities) {
+    nk_unused_(capabilities);
+    nk_f32_to_e4m3_serial(source, destination);
 }
 
-NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_f32_to_bf16_capabilities_(void) {
-    static nk_kernel_punned_t const cpu[] = {
-        (nk_kernel_punned_t)&nk_f32_to_bf16_serial,
-    };
-    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k, cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-    };
-    return lists;
+NUMKONG_API void nk_e3m2_to_f32_best(nk_e3m2_t const *source, nk_f32_t *destination, nk_capability_t capabilities) {
+    nk_unused_(capabilities);
+    nk_e3m2_to_f32_serial(source, destination);
 }
 
-NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_f32_to_e4m3_capabilities_(void) {
-    static nk_kernel_punned_t const cpu[] = {
-        (nk_kernel_punned_t)&nk_f32_to_e4m3_serial,
-    };
-    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k, cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-    };
-    return lists;
+NUMKONG_API void nk_f32_to_e3m2_best(nk_f32_t const *source, nk_e3m2_t *destination, nk_capability_t capabilities) {
+    nk_unused_(capabilities);
+    nk_f32_to_e3m2_serial(source, destination);
 }
 
-NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_f32_to_e5m2_capabilities_(void) {
-    static nk_kernel_punned_t const cpu[] = {
-        (nk_kernel_punned_t)&nk_f32_to_e5m2_serial,
-    };
-    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k, cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-    };
-    return lists;
+NUMKONG_API void nk_e2m3_to_f32_best(nk_e2m3_t const *source, nk_f32_t *destination, nk_capability_t capabilities) {
+    nk_unused_(capabilities);
+    nk_e2m3_to_f32_serial(source, destination);
 }
 
-NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_f32_to_e2m3_capabilities_(void) {
-    static nk_kernel_punned_t const cpu[] = {
-        (nk_kernel_punned_t)&nk_f32_to_e2m3_serial,
-    };
-    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k, cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-    };
-    return lists;
+NUMKONG_API void nk_f32_to_e2m3_best(nk_f32_t const *source, nk_e2m3_t *destination, nk_capability_t capabilities) {
+    nk_unused_(capabilities);
+    nk_f32_to_e2m3_serial(source, destination);
 }
 
-NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_f32_to_e3m2_capabilities_(void) {
-    static nk_kernel_punned_t const cpu[] = {
-        (nk_kernel_punned_t)&nk_f32_to_e3m2_serial,
-    };
-    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k, cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-    };
-    return lists;
+NUMKONG_API nk_status_t nk_cast_best(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type,
+                                     nk_capability_t capabilities, void *stream) {
+    nk_unused_(from), nk_unused_(from_type), nk_unused_(n), nk_unused_(to), nk_unused_(to_type),
+        nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-NUMKONG_HELPER_INLINE nk_capability_kernels_t const *nk_cast_block_scaled_capabilities_(void) {
-    static nk_kernel_punned_t const cpu[] = {
-        (nk_kernel_punned_t)&nk_cast_block_scaled_serial,
-#if NUMKONG_TARGET_NEON
-        (nk_kernel_punned_t)&nk_cast_block_scaled_neon,
-#endif
-#if NUMKONG_TARGET_HASWELL
-        (nk_kernel_punned_t)&nk_cast_block_scaled_haswell,
-#endif
-#if NUMKONG_TARGET_SKYLAKE
-        (nk_kernel_punned_t)&nk_cast_block_scaled_skylake,
-#endif
-#if NUMKONG_TARGET_ICELAKE
-        (nk_kernel_punned_t)&nk_cast_block_scaled_icelake,
-#endif
-    };
-    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
-             nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE,
-         cpu},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-        {0, NUMKONG_NULL},
-    };
-    return lists;
+NUMKONG_API nk_status_t nk_cast_block_scaled_best(void const *from, void const *from_scales,
+                                                  nk_scalar_buffer_t const *from_tensor_scale,
+                                                  nk_block_scaled_format_t const *from_format, void *to,
+                                                  void *to_scales, nk_scalar_buffer_t *to_tensor_scale,
+                                                  nk_block_scaled_format_t const *to_format, nk_size_t count,
+                                                  nk_capability_t capabilities, void *stream) {
+    nk_unused_(from), nk_unused_(from_scales), nk_unused_(from_tensor_scale), nk_unused_(from_format), nk_unused_(to),
+        nk_unused_(to_scales), nk_unused_(to_tensor_scale), nk_unused_(to_format), nk_unused_(count),
+        nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-#if !NUMKONG_RUNTIME_DISPATCH
-
-NUMKONG_API_COMPTIME nk_status_t nk_cast_best(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                              nk_dtype_t to_type, nk_capability_t capabilities, void *stream) {
-    nk_kernel_cast_punned_t const kernel = (nk_kernel_cast_punned_t)nk_kernel_pick_(capabilities,
-                                                                                    nk_cast_capabilities_());
-    return kernel ? kernel(from, from_type, n, to, to_type, stream) : nk_missing_kernel_k;
+NUMKONG_API nk_status_t nk_cast_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
+                                            nk_kernel_punned_t *kernel, nk_capability_t *capability) {
+    nk_unused_(kind), nk_unused_(dtype), nk_unused_(capabilities);
+    *kernel = (nk_kernel_punned_t)NUMKONG_NULL, *capability = 0;
+    return nk_missing_library_k;
 }
-
-NUMKONG_API_COMPTIME void nk_f16_to_f32_best(nk_f16_t const *src, nk_f32_t *dest, nk_capability_t capabilities) {
-    ((nk_f16_to_f32_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
-                                             nk_f16_to_f32_capabilities_()))(src, dest);
-}
-
-NUMKONG_API_COMPTIME void nk_bf16_to_f32_best(nk_bf16_t const *src, nk_f32_t *dest, nk_capability_t capabilities) {
-    ((nk_bf16_to_f32_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
-                                              nk_bf16_to_f32_capabilities_()))(src, dest);
-}
-
-NUMKONG_API_COMPTIME void nk_e4m3_to_f32_best(nk_e4m3_t const *src, nk_f32_t *dest, nk_capability_t capabilities) {
-    ((nk_u8_to_f32_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
-                                            nk_e4m3_to_f32_capabilities_()))(src, dest);
-}
-
-NUMKONG_API_COMPTIME void nk_e5m2_to_f32_best(nk_e5m2_t const *src, nk_f32_t *dest, nk_capability_t capabilities) {
-    ((nk_u8_to_f32_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
-                                            nk_e5m2_to_f32_capabilities_()))(src, dest);
-}
-
-NUMKONG_API_COMPTIME void nk_e2m3_to_f32_best(nk_e2m3_t const *src, nk_f32_t *dest, nk_capability_t capabilities) {
-    ((nk_u8_to_f32_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
-                                            nk_e2m3_to_f32_capabilities_()))(src, dest);
-}
-
-NUMKONG_API_COMPTIME void nk_e3m2_to_f32_best(nk_e3m2_t const *src, nk_f32_t *dest, nk_capability_t capabilities) {
-    ((nk_u8_to_f32_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
-                                            nk_e3m2_to_f32_capabilities_()))(src, dest);
-}
-
-NUMKONG_API_COMPTIME void nk_f32_to_f16_best(nk_f32_t const *src, nk_f16_t *dest, nk_capability_t capabilities) {
-    ((nk_f32_to_f16_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
-                                             nk_f32_to_f16_capabilities_()))(src, dest);
-}
-
-NUMKONG_API_COMPTIME void nk_f32_to_bf16_best(nk_f32_t const *src, nk_bf16_t *dest, nk_capability_t capabilities) {
-    ((nk_f32_to_bf16_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
-                                              nk_f32_to_bf16_capabilities_()))(src, dest);
-}
-
-NUMKONG_API_COMPTIME void nk_f32_to_e4m3_best(nk_f32_t const *src, nk_e4m3_t *dest, nk_capability_t capabilities) {
-    ((nk_f32_to_u8_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
-                                            nk_f32_to_e4m3_capabilities_()))(src, dest);
-}
-
-NUMKONG_API_COMPTIME void nk_f32_to_e5m2_best(nk_f32_t const *src, nk_e5m2_t *dest, nk_capability_t capabilities) {
-    ((nk_f32_to_u8_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
-                                            nk_f32_to_e5m2_capabilities_()))(src, dest);
-}
-
-NUMKONG_API_COMPTIME void nk_f32_to_e2m3_best(nk_f32_t const *src, nk_e2m3_t *dest, nk_capability_t capabilities) {
-    ((nk_f32_to_u8_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
-                                            nk_f32_to_e2m3_capabilities_()))(src, dest);
-}
-
-NUMKONG_API_COMPTIME void nk_f32_to_e3m2_best(nk_f32_t const *src, nk_e3m2_t *dest, nk_capability_t capabilities) {
-    ((nk_f32_to_u8_punned_t)nk_kernel_pick_((capabilities & nk_cap_cpus_k) | nk_cap_serial_k,
-                                            nk_f32_to_e3m2_capabilities_()))(src, dest);
-}
-
-NUMKONG_API_COMPTIME nk_status_t nk_cast_block_scaled_best(void const *from, void const *from_scales,
-                                                           nk_scalar_buffer_t const *from_tensor_scale,
-                                                           nk_block_scaled_format_t const *from_format, void *to,
-                                                           void *to_scales, nk_scalar_buffer_t *to_tensor_scale,
-                                                           nk_block_scaled_format_t const *to_format, nk_size_t count,
-                                                           nk_capability_t capabilities, void *stream) {
-    nk_kernel_cast_block_scaled_punned_t const kernel = (nk_kernel_cast_block_scaled_punned_t)nk_kernel_pick_(
-        capabilities, nk_cast_block_scaled_capabilities_());
-    return kernel ? kernel(from, from_scales, from_tensor_scale, from_format, to, to_scales, to_tensor_scale, to_format,
-                           count, stream)
-                  : nk_missing_kernel_k;
-}
-
-#endif // !NUMKONG_RUNTIME_DISPATCH
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
+#endif // NUMKONG_HEADER_ONLY
 
 #endif // NUMKONG_CAST_H

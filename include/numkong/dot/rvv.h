@@ -23,7 +23,7 @@
 #define NUMKONG_DOT_RVV_H
 
 #if NUMKONG_ARCH_RISCV64_
-#if NUMKONG_TARGET_RVV
+#if NUMKONG_ARCH_RISCV64_RVV_
 
 #include "numkong/types.h"
 #include "numkong/cast/rvv.h" // `nk_e4m3m1_to_f32m4_rvv_`
@@ -47,7 +47,7 @@ extern "C" {
  *  nk_reduce_vsaddu_u64m1_rvv_ in reduce/rvv.h). Tail lanes beyond vector_length are zero
  *  from the initial vfmv_v_f, so they are harmless in the reduction.
  */
-NUMKONG_HELPER_INLINE nk_f64_t nk_dot_stable_sum_f64m1_rvv_(vfloat64m1_t sum_f64m1, vfloat64m1_t compensation_f64m1) {
+NUMKONG_INLINE nk_f64_t nk_dot_stable_sum_f64m1_rvv_(vfloat64m1_t sum_f64m1, vfloat64m1_t compensation_f64m1) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m1();
     // Stage 0: TwoSum merge of sum + compensation
     vfloat64m1_t tentative_sum_f64m1 = __riscv_vfadd_vv_f64m1(sum_f64m1, compensation_f64m1, max_vector_length);
@@ -79,71 +79,9 @@ NUMKONG_HELPER_INLINE nk_f64_t nk_dot_stable_sum_f64m1_rvv_(vfloat64m1_t sum_f64
     return __riscv_vfmv_f_s_f64m1_f64(tentative_sum_f64m1) + __riscv_vfmv_f_s_f64m1_f64(accumulated_error_f64m1);
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_i8_rvv(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars,
-                                               nk_size_t count_scalars, nk_i32_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
-    vint32m4_t sum_i32m4 = __riscv_vmv_v_x_i32m4(0, max_vector_length);
-    for (nk_size_t vector_length; count_scalars > 0;
-         count_scalars -= vector_length, a_scalars += vector_length, b_scalars += vector_length) {
-        vector_length = __riscv_vsetvl_e8m1(count_scalars);
-        vint8m1_t a_i8m1 = __riscv_vle8_v_i8m1(a_scalars, vector_length);
-        vint8m1_t b_i8m1 = __riscv_vle8_v_i8m1(b_scalars, vector_length);
-        // Widening multiply: i8 ⨯ i8 → i16
-        vint16m2_t ab_i16m2 = __riscv_vwmul_vv_i16m2(a_i8m1, b_i8m1, vector_length);
-        // Per-lane widening accumulate: i32 += i16
-        sum_i32m4 = __riscv_vwadd_wv_i32m4_tu(sum_i32m4, sum_i32m4, ab_i16m2, vector_length);
-    }
-    // Single horizontal reduction at the end
-    vint32m1_t zero_i32m1 = __riscv_vmv_v_x_i32m1(0, max_vector_length);
-    *result = __riscv_vmv_x_s_i32m1_i32(__riscv_vredsum_vs_i32m4_i32m1(sum_i32m4, zero_i32m1, max_vector_length));
-    return nk_success_k;
-}
-
-NUMKONG_API_COMPTIME nk_status_t nk_dot_u8_rvv(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars,
-                                               nk_size_t count_scalars, nk_u32_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
-    vuint32m4_t sum_u32m4 = __riscv_vmv_v_x_u32m4(0, max_vector_length);
-    for (nk_size_t vector_length; count_scalars > 0;
-         count_scalars -= vector_length, a_scalars += vector_length, b_scalars += vector_length) {
-        vector_length = __riscv_vsetvl_e8m1(count_scalars);
-        vuint8m1_t a_u8m1 = __riscv_vle8_v_u8m1(a_scalars, vector_length);
-        vuint8m1_t b_u8m1 = __riscv_vle8_v_u8m1(b_scalars, vector_length);
-        // Widening multiply: u8 ⨯ u8 → u16
-        vuint16m2_t ab_u16m2 = __riscv_vwmulu_vv_u16m2(a_u8m1, b_u8m1, vector_length);
-        // Per-lane widening accumulate: u32 += u16
-        sum_u32m4 = __riscv_vwaddu_wv_u32m4_tu(sum_u32m4, sum_u32m4, ab_u16m2, vector_length);
-    }
-    // Single horizontal reduction at the end
-    vuint32m1_t zero_u32m1 = __riscv_vmv_v_x_u32m1(0, max_vector_length);
-    *result = __riscv_vmv_x_s_u32m1_u32(__riscv_vredsum_vs_u32m4_u32m1(sum_u32m4, zero_u32m1, max_vector_length));
-    return nk_success_k;
-}
-
-NUMKONG_API_COMPTIME nk_status_t nk_dot_f32_rvv(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,
-                                                nk_size_t count_scalars, nk_f64_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t max_vector_length = __riscv_vsetvlmax_e64m2();
-    vfloat64m2_t sum_f64m2 = __riscv_vfmv_v_f_f64m2(0.0, max_vector_length);
-    for (nk_size_t vector_length; count_scalars > 0;
-         count_scalars -= vector_length, a_scalars += vector_length, b_scalars += vector_length) {
-        vector_length = __riscv_vsetvl_e32m1(count_scalars);
-        vfloat32m1_t a_f32m1 = __riscv_vle32_v_f32m1(a_scalars, vector_length);
-        vfloat32m1_t b_f32m1 = __riscv_vle32_v_f32m1(b_scalars, vector_length);
-        // Widening FMA: f64 += f32 ⨯ f32, per-lane accumulation
-        sum_f64m2 = __riscv_vfwmacc_vv_f64m2_tu(sum_f64m2, a_f32m1, b_f32m1, vector_length);
-    }
-    // Single horizontal reduction at the end
-    vfloat64m1_t zero_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
-    *result = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m2_f64m1(sum_f64m2, zero_f64m1, max_vector_length));
-    return nk_success_k;
-}
-
-NUMKONG_API_COMPTIME nk_status_t nk_dot_f64_rvv(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars,
-                                                nk_size_t count_scalars, nk_f64_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    // Dot2 (Ogita-Rump-Oishi) compensated accumulation via TwoProd + TwoSum
+/** Dot product of @p count_scalars F64 pairs with Dot2 (Ogita-Rump-Oishi) compensation. */
+NUMKONG_INLINE nk_f64_t nk_dot2_f64_rvv_(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars,
+                                         nk_size_t count_scalars) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m1();
     vfloat64m1_t sum_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
     vfloat64m1_t compensation_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
@@ -169,13 +107,80 @@ NUMKONG_API_COMPTIME nk_status_t nk_dot_f64_rvv(nk_f64_t const *a_scalars, nk_f6
         compensation_f64m1 = __riscv_vfadd_vv_f64m1_tu(compensation_f64m1, compensation_f64m1, total_error_f64m1,
                                                        vector_length);
     }
-    // Compensated horizontal reduction
-    *result = nk_dot_stable_sum_f64m1_rvv_(sum_f64m1, compensation_f64m1);
+    return nk_dot_stable_sum_f64m1_rvv_(sum_f64m1, compensation_f64m1);
+}
+
+#if NUMKONG_TARGET_RVV
+NUMKONG_API nk_status_t nk_dot_i8_rvv(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
+                                      nk_i32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
+    vint32m4_t sum_i32m4 = __riscv_vmv_v_x_i32m4(0, max_vector_length);
+    for (nk_size_t vector_length; count_scalars > 0;
+         count_scalars -= vector_length, a_scalars += vector_length, b_scalars += vector_length) {
+        vector_length = __riscv_vsetvl_e8m1(count_scalars);
+        vint8m1_t a_i8m1 = __riscv_vle8_v_i8m1(a_scalars, vector_length);
+        vint8m1_t b_i8m1 = __riscv_vle8_v_i8m1(b_scalars, vector_length);
+        // Widening multiply: i8 ⨯ i8 → i16
+        vint16m2_t ab_i16m2 = __riscv_vwmul_vv_i16m2(a_i8m1, b_i8m1, vector_length);
+        // Per-lane widening accumulate: i32 += i16
+        sum_i32m4 = __riscv_vwadd_wv_i32m4_tu(sum_i32m4, sum_i32m4, ab_i16m2, vector_length);
+    }
+    // Single horizontal reduction at the end
+    vint32m1_t zero_i32m1 = __riscv_vmv_v_x_i32m1(0, max_vector_length);
+    *result = __riscv_vmv_x_s_i32m1_i32(__riscv_vredsum_vs_i32m4_i32m1(sum_i32m4, zero_i32m1, max_vector_length));
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_f16_rvv(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
-                                                nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_u8_rvv(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
+                                      nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
+    vuint32m4_t sum_u32m4 = __riscv_vmv_v_x_u32m4(0, max_vector_length);
+    for (nk_size_t vector_length; count_scalars > 0;
+         count_scalars -= vector_length, a_scalars += vector_length, b_scalars += vector_length) {
+        vector_length = __riscv_vsetvl_e8m1(count_scalars);
+        vuint8m1_t a_u8m1 = __riscv_vle8_v_u8m1(a_scalars, vector_length);
+        vuint8m1_t b_u8m1 = __riscv_vle8_v_u8m1(b_scalars, vector_length);
+        // Widening multiply: u8 ⨯ u8 → u16
+        vuint16m2_t ab_u16m2 = __riscv_vwmulu_vv_u16m2(a_u8m1, b_u8m1, vector_length);
+        // Per-lane widening accumulate: u32 += u16
+        sum_u32m4 = __riscv_vwaddu_wv_u32m4_tu(sum_u32m4, sum_u32m4, ab_u16m2, vector_length);
+    }
+    // Single horizontal reduction at the end
+    vuint32m1_t zero_u32m1 = __riscv_vmv_v_x_u32m1(0, max_vector_length);
+    *result = __riscv_vmv_x_s_u32m1_u32(__riscv_vredsum_vs_u32m4_u32m1(sum_u32m4, zero_u32m1, max_vector_length));
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_dot_f32_rvv(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars, nk_size_t count_scalars,
+                                       nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_size_t max_vector_length = __riscv_vsetvlmax_e64m2();
+    vfloat64m2_t sum_f64m2 = __riscv_vfmv_v_f_f64m2(0.0, max_vector_length);
+    for (nk_size_t vector_length; count_scalars > 0;
+         count_scalars -= vector_length, a_scalars += vector_length, b_scalars += vector_length) {
+        vector_length = __riscv_vsetvl_e32m1(count_scalars);
+        vfloat32m1_t a_f32m1 = __riscv_vle32_v_f32m1(a_scalars, vector_length);
+        vfloat32m1_t b_f32m1 = __riscv_vle32_v_f32m1(b_scalars, vector_length);
+        // Widening FMA: f64 += f32 ⨯ f32, per-lane accumulation
+        sum_f64m2 = __riscv_vfwmacc_vv_f64m2_tu(sum_f64m2, a_f32m1, b_f32m1, vector_length);
+    }
+    // Single horizontal reduction at the end
+    vfloat64m1_t zero_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, max_vector_length);
+    *result = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m2_f64m1(sum_f64m2, zero_f64m1, max_vector_length));
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_dot_f64_rvv(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars, nk_size_t count_scalars,
+                                       nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    *result = nk_dot2_f64_rvv_(a_scalars, b_scalars, count_scalars);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_dot_f16_rvv(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars, nk_size_t count_scalars,
+                                       nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m2_t sum_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
@@ -198,8 +203,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_dot_f16_rvv(nk_f16_t const *a_scalars, nk_f1
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_bf16_rvv(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                                 nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_bf16_rvv(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars, nk_size_t count_scalars,
+                                        nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m2_t sum_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
@@ -222,8 +227,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_dot_bf16_rvv(nk_bf16_t const *a_scalars, nk_
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_e4m3_rvv(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
-                                                 nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_e4m3_rvv(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars, nk_size_t count_scalars,
+                                        nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
     vfloat32m4_t sum_f32m4 = __riscv_vfmv_v_f_f32m4(0.0f, max_vector_length);
@@ -246,8 +251,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_dot_e4m3_rvv(nk_e4m3_t const *a_scalars, nk_
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_e5m2_rvv(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
-                                                 nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_e5m2_rvv(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars, nk_size_t count_scalars,
+                                        nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
     vfloat32m4_t sum_f32m4 = __riscv_vfmv_v_f_f32m4(0.0f, max_vector_length);
@@ -270,8 +275,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_dot_e5m2_rvv(nk_e5m2_t const *a_scalars, nk_
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_e2m3_rvv(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
-                                                 nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_e2m3_rvv(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars, nk_size_t count_scalars,
+                                        nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Integer dot product for e2m3 using byte gather LUT + widening multiply.
     // Every e2m3 value × 16 is an exact integer in [-120, +120].
@@ -313,8 +318,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_dot_e2m3_rvv(nk_e2m3_t const *a_scalars, nk_
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_e2m1_rvv(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n,
-                                                 nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_e2m1_rvv(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n, nk_f32_t *result,
+                                        void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Every e2m1 value × 2 is an exact integer in [-12, +12]; `n` counts nibbles.
     static nk_i8_t const lut_doubled[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12};
@@ -348,8 +353,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_dot_e2m1_rvv(nk_e2m1x2_t const *a, nk_e2m1x2
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_e3m2_rvv(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
-                                                 nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_e3m2_rvv(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars, nk_size_t count_scalars,
+                                        nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Integer dot product for e3m2 using i16 gather LUT + widening multiply.
     // Every e3m2 value × 16 is an exact integer, but magnitudes reach 448, requiring i16.
@@ -398,8 +403,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_dot_e3m2_rvv(nk_e3m2_t const *a_scalars, nk_
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_i4_rvv(nk_i4x2_t const *a_scalars, nk_i4x2_t const *b_scalars,
-                                               nk_size_t count_dimensions, nk_i32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_i4_rvv(nk_i4x2_t const *a_scalars, nk_i4x2_t const *b_scalars,
+                                      nk_size_t count_dimensions, nk_i32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_full_bytes = count_dimensions / NUMKONG_NIBBLES_PER_BYTE;
 
@@ -441,8 +446,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_dot_i4_rvv(nk_i4x2_t const *a_scalars, nk_i4
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_u4_rvv(nk_u4x2_t const *a_scalars, nk_u4x2_t const *b_scalars,
-                                               nk_size_t count_dimensions, nk_u32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_u4_rvv(nk_u4x2_t const *a_scalars, nk_u4x2_t const *b_scalars,
+                                      nk_size_t count_dimensions, nk_u32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_full_bytes = count_dimensions / NUMKONG_NIBBLES_PER_BYTE;
 
@@ -474,8 +479,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_dot_u4_rvv(nk_u4x2_t const *a_scalars, nk_u4
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits,
-                                               nk_u32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result,
+                                      void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t count_bytes = n_bits / NUMKONG_BITS_PER_BYTE;
 
@@ -502,8 +507,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_dot_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t con
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_f32c_rvv(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs,
-                                                 nk_size_t count_pairs, nk_f64c_t *results, void *stream) {
+NUMKONG_API nk_status_t nk_dot_f32c_rvv(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_size_t count_pairs,
+                                        nk_f64c_t *results, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t const *a_f32 = (nk_f32_t const *)a_pairs;
     nk_f32_t const *b_f32 = (nk_f32_t const *)b_pairs;
@@ -534,8 +539,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_dot_f32c_rvv(nk_f32c_t const *a_pairs, nk_f3
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_vdot_f32c_rvv(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs,
-                                                  nk_size_t count_pairs, nk_f64c_t *results, void *stream) {
+NUMKONG_API nk_status_t nk_vdot_f32c_rvv(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_size_t count_pairs,
+                                         nk_f64c_t *results, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t const *a_f32 = (nk_f32_t const *)a_pairs;
     nk_f32_t const *b_f32 = (nk_f32_t const *)b_pairs;
@@ -566,8 +571,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_vdot_f32c_rvv(nk_f32c_t const *a_pairs, nk_f
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_f64c_rvv(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs,
-                                                 nk_size_t count_pairs, nk_f64c_t *results, void *stream) {
+NUMKONG_API nk_status_t nk_dot_f64c_rvv(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
+                                        nk_f64c_t *results, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Dot2 (Ogita-Rump-Oishi) compensated complex dot product
     nk_f64_t const *a_f64 = (nk_f64_t const *)a_pairs;
@@ -670,8 +675,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_dot_f64c_rvv(nk_f64c_t const *a_pairs, nk_f6
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_vdot_f64c_rvv(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs,
-                                                  nk_size_t count_pairs, nk_f64c_t *results, void *stream) {
+NUMKONG_API nk_status_t nk_vdot_f64c_rvv(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
+                                         nk_f64c_t *results, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Dot2 (Ogita-Rump-Oishi) compensated conjugate complex dot product
     nk_f64_t const *a_f64 = (nk_f64_t const *)a_pairs;
@@ -773,6 +778,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_vdot_f64c_rvv(nk_f64c_t const *a_pairs, nk_f
     results->imag = nk_dot_stable_sum_f64m1_rvv_(sum_imag_f64m1, comp_imag_f64m1);
     return nk_success_k;
 }
+#endif // NUMKONG_TARGET_RVV
 
 #if defined(__cplusplus)
 } // extern "C"
@@ -784,6 +790,6 @@ NUMKONG_API_COMPTIME nk_status_t nk_vdot_f64c_rvv(nk_f64c_t const *a_pairs, nk_f
 #pragma GCC pop_options
 #endif
 
-#endif // NUMKONG_TARGET_RVV
+#endif // NUMKONG_ARCH_RISCV64_RVV_
 #endif // NUMKONG_ARCH_RISCV64_
 #endif // NUMKONG_DOT_RVV_H

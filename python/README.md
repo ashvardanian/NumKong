@@ -12,7 +12,7 @@ Low-precision dtypes (BFloat16, Float8, Float6, packed bits) flow through the sa
 | :------------------------------ | :--------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------- | :-------------------------------------------------------------------------- |
 | Operation families              | dots, distances, binary, probability, geospatial, curved, mesh, sparse, MaxSim, elementwise, reductions, cast, trig          | dots, distances, elementwise, reductions, some probability via `cdist` | dots, distances, elementwise, reductions                                    |
 | Precision                       | BFloat16 through sub-byte — Float8, Float6, Int4, packed bits; automatic widening; Kahan summation; 0 ULP in Float32/Float64 | Float16, partial BFloat16; no auto-widening; standard accuracy         | Float16, BFloat16, partial Float8; explicit AMP required; standard accuracy |
-| Runtime SIMD dispatch           | auto-selects best ISA per-thread at runtime on x86, ARM, RISC-V                                                              | compile-time only                                                      | CPU: compile-time; CUDA: runtime                                            |
+| Runtime SIMD dispatch           | picks the best ISA per call, from a capability mask, at runtime on x86, ARM, RISC-V                                          | compile-time only                                                      | CPU: compile-time; CUDA: runtime                                            |
 | Packed matrix, GEMM-like        | pack once, reuse across query batches                                                                                        | `np.dot`/`@` — no persistent packing                                   | `torch.mm` — no persistent distance-oriented packing                        |
 | Symmetric kernels, SYRK-like    | skip duplicate pairs, up to 2x speedup for self-distance                                                                     | `pdist` computes one triangle; `cdist` recomputes both                 | `X @ X.T` recomputes both triangles                                         |
 | Output parameter `out=`         | Yes — all major entrypoints                                                                                                  | Yes — most `ufunc`s and functions; SciPy: some functions only          | Yes for `torch.mm`, `torch.matmul`; No for `torch.cdist`                    |
@@ -59,7 +59,7 @@ python -c "import numkong as nk; print(repr(nk.capabilities_enabled()))"
 
 Pre-built wheels are available on PyPI for Linux (x86_64, aarch64, riscv64, plus i686, ppc64le, s390x), macOS (x86_64, arm64), and Windows (AMD64, ARM64).
 Python 3.10 through 3.14 is supported, including free-threading variants (3.13t, 3.14t).
-Every wheel is built with `NUMKONG_RUNTIME_DISPATCH=1`, so a single wheel covers all CPU generations on a given architecture.
+Every wheel compiles each capability the toolchain supports and picks among them at runtime, so a single wheel covers all CPU generations on a given architecture.
 
 When building from source, the compiler requirements depend on the platform.
 On macOS x86 only AVX2 is available; on macOS ARM NEON is always present, but SME requires Apple M4+ with Xcode 16+ (AppleClang 16+).
@@ -713,6 +713,7 @@ Rows that see no key come back as zeros.
 Capability detection is explicit:
 
 ```python
+import numpy as np
 import numkong as nk
 
 # `enabled` is what dispatch uses: detected on this CPU AND compiled into the wheel.
@@ -723,10 +724,18 @@ print(nk.Capability.SKYLAKE in nk.capabilities_enabled()) # will AVX-512 kernels
 print(repr(nk.capabilities_detected())) # this CPU
 print(repr(nk.capabilities_compiled())) # this build
 
-# Narrow dispatch to one tier, e.g. to test it: what cannot run here is dropped, and serial always stays.
+# Narrow dispatch to one capability, e.g. to test it: what cannot run here is dropped, and serial always stays.
 nk.capabilities_enable(nk.Capability.HASWELL)
 nk.capabilities_enable(nk.capabilities_detected() & nk.capabilities_compiled()) # and back to everything
+
+# Or narrow a single call, leaving the default of every other call alone.
+a = np.random.randn(1536).astype(np.float32)
+print(nk.dot(a, a, capabilities=nk.Capability.SERIAL)) # the reference kernel
 ```
+
+Every function that runs kernels takes the mask as `capabilities=` and a GPU stream as `stream=`, an integer pointer left `None` on the CPU.
+Packed operands, like `PackedMatrix`, remember the mask that packed them and are read with it, since each capability lays its packs out differently.
+The mask model is the one in [Dispatch Points & Capability Masks](../README.md#dispatch-points--capability-masks).
 
 The current implementation releases the GIL around the native dense metric calls and around the packed and symmetric matrix kernels.
 The repository also has threading tests for packed and symmetric row-range partitioning.

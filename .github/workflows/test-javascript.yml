@@ -170,7 +170,7 @@ jobs:
         run: |
           source ~/emsdk/emsdk_env.sh
           # `test/wasm.mjs` and the browser pages load the modules from these directories by name
-          cmake --preset ${{ matrix.preset }} -B ${{ matrix.build }} -D NUMKONG_WASM_SIMD=${{ matrix.simd }}
+          cmake --preset ${{ matrix.preset }} -B ${{ matrix.build }} -D NUMKONG_TARGET_ARCH=${{ matrix.simd }}
           cmake --build ${{ matrix.build }}
 
       - name: Upload Emscripten Module
@@ -188,8 +188,8 @@ jobs:
         if: matrix.sdk == 'wasi'
         run: |
           export WASI_SDK_PATH=~/wasi-sdk
-          cmake --preset ${{ matrix.preset }} -B build-wasi -D NUMKONG_WASM_SIMD=${{ matrix.simd }} \
-            -D NUMKONG_WASI_HOSTED=${{ matrix.runtime == 'wasi-node' && 'ON' || 'OFF' }}
+          cmake --preset ${{ matrix.preset }} -B build-wasi -D NUMKONG_TARGET_ARCH=${{ matrix.simd }} \
+            -D NUMKONG_WITH_HOST_PROBES=${{ matrix.runtime == 'wasi-node' && 'ON' || 'OFF' }}
           cmake --build build-wasi
 
       - name: Build JavaScript Bindings
@@ -211,7 +211,7 @@ jobs:
         if: matrix.runtime == 'standalone'
         run: cargo test --features wasm-runtime -- wasm_runtime
         env:
-          NUMKONG_WASI_MODULE: build-wasi/numkong_test.wasm
+          NUMKONG_WASI_MODULE: build-wasi/numkong_cpu_test.wasm
           NUMKONG_BUDGET_SECS: 0.1
 
       # Install the latest released Wasmer (which now ships relaxed-SIMD). Building
@@ -232,7 +232,7 @@ jobs:
         run: |
           export PATH="$HOME/.wasmer/bin:$PATH"
           wasmer run --enable-simd ${{ matrix.simd == 'v128relaxed' && '--enable-relaxed-simd' || '' }} \
-            --forward-host-env ./build-wasi/numkong_test.wasm
+            --forward-host-env ./build-wasi/numkong_cpu_test.wasm
         env:
           NUMKONG_BUDGET_SECS: 0.1
 
@@ -249,7 +249,7 @@ jobs:
         if: matrix.runtime == 'wasmtime-threads'
         run: |
           export PATH="$HOME/.wasmtime/bin:$PATH"
-          wasmtime run -W relaxed-simd=y,threads=y -S threads=y,inherit-env=y ./build-wasi/numkong_test.wasm
+          wasmtime run -W relaxed-simd=y,threads=y -S threads=y,inherit-env=y ./build-wasi/numkong_cpu_test.wasm
         env:
           NUMKONG_BUDGET_SECS: 0.1
 

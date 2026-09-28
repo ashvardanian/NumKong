@@ -36,8 +36,8 @@
 extern "C" {
 #endif
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_f16_rvvhalf(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
-                                                    nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_f16_rvvhalf(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
+                                           nk_size_t count_scalars, nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m2_t sum_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
@@ -58,20 +58,20 @@ NUMKONG_API_COMPTIME nk_status_t nk_dot_f16_rvvhalf(nk_f16_t const *a_scalars, n
 }
 
 /** Convert e4m3 to f16 via 256-entry LUT in cast/rvv.h + reinterpret. */
-NUMKONG_HELPER_INLINE vfloat16m2_t nk_e4m3m1_to_f16m2_rvvhalf_(vuint8m1_t raw_u8m1, nk_size_t vector_length) {
+NUMKONG_INLINE vfloat16m2_t nk_e4m3m1_to_f16m2_rvvhalf_(vuint8m1_t raw_u8m1, nk_size_t vector_length) {
     return __riscv_vreinterpret_v_u16m2_f16m2(nk_e4m3m1_to_f16m2_rvv_(raw_u8m1, vector_length));
 }
 
 /** Convert e5m2 (1-5-2 sign-exp-mantissa, 8-bit) to f16 via pure shift (no LUT). Same exponent bias
  *  (15) means f16 = (lower7 << 8) | (sign << 15). Handles all cases. */
-NUMKONG_HELPER_INLINE vfloat16m2_t nk_e5m2m1_to_f16m2_rvvhalf_(vuint8m1_t raw_u8m1, nk_size_t vector_length) {
+NUMKONG_INLINE vfloat16m2_t nk_e5m2m1_to_f16m2_rvvhalf_(vuint8m1_t raw_u8m1, nk_size_t vector_length) {
     vuint16m2_t wide_u16m2 = __riscv_vzext_vf2_u16m2(raw_u8m1, vector_length);
     vuint16m2_t result_u16m2 = __riscv_vsll_vx_u16m2(wide_u16m2, 8, vector_length);
     return __riscv_vreinterpret_v_u16m2_f16m2(result_u16m2);
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_e4m3_rvvhalf(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
-                                                     nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_e4m3_rvvhalf(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
+                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
     vfloat32m4_t sum_f32m4 = __riscv_vfmv_v_f_f32m4(0.0f, max_vector_length);
@@ -89,8 +89,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_dot_e4m3_rvvhalf(nk_e4m3_t const *a_scalars,
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_e5m2_rvvhalf(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
-                                                     nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_e5m2_rvvhalf(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
+                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
     vfloat32m4_t sum_f32m4 = __riscv_vfmv_v_f_f32m4(0.0f, max_vector_length);

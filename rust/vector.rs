@@ -1246,7 +1246,8 @@ fn popcount_u1x8_storage(storage: &[u1x8]) -> u64 {
     if storage.is_empty() {
         return 0;
     }
-    let (sum, _sum_of_squares) = u1x8::reduce_moments(storage, core::mem::size_of::<u1x8>());
+    let (sum, _sum_of_squares) = u1x8::reduce_moments(storage, core::mem::size_of::<u1x8>())
+        .expect("u1 moments have a serial capability under every mask");
     sum
 }
 

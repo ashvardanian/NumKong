@@ -10,11 +10,12 @@
 #define NUMKONG_SPATIALS_NEON_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_NEON
+#if NUMKONG_ARCH_ARM64_NEON_
 
 #include "numkong/spatial/neon.h"
 #include "numkong/dots/neon.h"
 
+#if NUMKONG_TARGET_NEON
 #if defined(__cplusplus)
 extern "C" {
 #endif
@@ -103,7 +104,8 @@ nk_define_cross_normalized_symmetric_(euclidean, f64, neon, f64, f64, /*norm_val
 #if defined(__cplusplus)
 } // extern "C"
 #endif
-
 #endif // NUMKONG_TARGET_NEON
+
+#endif // NUMKONG_ARCH_ARM64_NEON_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_SPATIALS_NEON_H

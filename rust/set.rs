@@ -9,15 +9,54 @@
 //! File: rust/set.rs
 //! Author: Ash Vardanian
 
+use core::ffi::c_void;
+use core::ptr::null_mut;
+
+use crate::capabilities::{cpu_capabilities, Status};
 use crate::types::{u1x8, StorageElement};
 
 #[link(name = "numkong")]
 extern "C" {
-    fn nk_hamming_u1(a: *const u8, b: *const u8, c: usize, d: *mut u32);
-    fn nk_jaccard_u1(a: *const u8, b: *const u8, c: usize, d: *mut f32);
-    fn nk_hamming_u8(a: *const u8, b: *const u8, n: usize, result: *mut u32);
-    fn nk_jaccard_u16(a: *const u16, b: *const u16, n: usize, result: *mut f32);
-    fn nk_jaccard_u32(a: *const u32, b: *const u32, n: usize, result: *mut f32);
+    fn nk_hamming_u1_best(
+        a: *const u8,
+        b: *const u8,
+        c: usize,
+        d: *mut u32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_jaccard_u1_best(
+        a: *const u8,
+        b: *const u8,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_hamming_u8_best(
+        a: *const u8,
+        b: *const u8,
+        n: usize,
+        result: *mut u32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_jaccard_u16_best(
+        a: *const u16,
+        b: *const u16,
+        n: usize,
+        result: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_jaccard_u32_best(
+        a: *const u32,
+        b: *const u32,
+        n: usize,
+        result: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
 }
 
 // region: Hamming
@@ -42,7 +81,17 @@ impl Hamming for u1x8 {
         }
         let mut result: Self::Output = 0;
         let n_bits = a.len() * Self::dimensions_per_value();
-        unsafe { nk_hamming_u1(a.as_ptr() as *const u8, b.as_ptr() as *const u8, n_bits, &mut result) };
+        unsafe {
+            nk_hamming_u1_best(
+                a.as_ptr() as *const u8,
+                b.as_ptr() as *const u8,
+                n_bits,
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -54,7 +103,17 @@ impl Hamming for u8 {
             return None;
         }
         let mut result: Self::Output = 0;
-        unsafe { nk_hamming_u8(a.as_ptr(), b.as_ptr(), a.len(), &mut result) };
+        unsafe {
+            nk_hamming_u8_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -83,7 +142,17 @@ impl Jaccard for u1x8 {
         }
         let mut result: Self::Output = 0.0;
         let n_bits = a.len() * Self::dimensions_per_value();
-        unsafe { nk_jaccard_u1(a.as_ptr() as *const u8, b.as_ptr() as *const u8, n_bits, &mut result) };
+        unsafe {
+            nk_jaccard_u1_best(
+                a.as_ptr() as *const u8,
+                b.as_ptr() as *const u8,
+                n_bits,
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -95,7 +164,17 @@ impl Jaccard for u16 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_jaccard_u16(a.as_ptr(), b.as_ptr(), a.len(), &mut result) };
+        unsafe {
+            nk_jaccard_u16_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -107,7 +186,17 @@ impl Jaccard for u32 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_jaccard_u32(a.as_ptr(), b.as_ptr(), a.len(), &mut result) };
+        unsafe {
+            nk_jaccard_u32_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }

@@ -9,11 +9,11 @@
 #ifndef NUMKONG_SPARSE_TURIN_H
 #define NUMKONG_SPARSE_TURIN_H
 
-#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_ARCH_X8664_
 #if NUMKONG_TARGET_TURIN
 
 #include "numkong/types.h"
-#include "numkong/sparse/serial.h" // `nk_sparse_intersect_u16_serial`, `nk_sparse_intersect_u32_serial`
+#include "numkong/sparse/serial.h" // `nk_sparse_intersect_u16_`, `nk_sparse_dot_u16bf16_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -30,9 +30,9 @@ extern "C" {
                    "avx512bf16", "avx512vnni", "avx512vp2intersect", "avx512dq")
 #endif
 
-NUMKONG_API_COMPTIME nk_status_t nk_sparse_intersect_u16_turin( //
-    nk_u16_t const *a, nk_u16_t const *b,                       //
-    nk_size_t a_length, nk_size_t b_length,                     //
+NUMKONG_API nk_status_t nk_sparse_intersect_u16_turin( //
+    nk_u16_t const *a, nk_u16_t const *b,              //
+    nk_size_t a_length, nk_size_t b_length,            //
     nk_u16_t *result, nk_size_t *count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
@@ -69,14 +69,14 @@ NUMKONG_API_COMPTIME nk_status_t nk_sparse_intersect_u16_turin( //
     }
 
     nk_size_t tail_count = 0;
-    nk_sparse_intersect_u16_serial(a, b, a_end - a, b_end - b, result ? result + c : 0, &tail_count, stream);
+    nk_sparse_intersect_u16_(a, b, a_end - a, b_end - b, result ? result + c : 0, &tail_count);
     *count = c + tail_count;
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_sparse_intersect_u32_turin( //
-    nk_u32_t const *a, nk_u32_t const *b,                       //
-    nk_size_t a_length, nk_size_t b_length,                     //
+NUMKONG_API nk_status_t nk_sparse_intersect_u32_turin( //
+    nk_u32_t const *a, nk_u32_t const *b,              //
+    nk_size_t a_length, nk_size_t b_length,            //
     nk_u32_t *result, nk_size_t *count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
@@ -109,14 +109,14 @@ NUMKONG_API_COMPTIME nk_status_t nk_sparse_intersect_u32_turin( //
     }
 
     nk_size_t tail_count = 0;
-    nk_sparse_intersect_u32_serial(a, b, a_end - a, b_end - b, result ? result + c : 0, &tail_count, stream);
+    nk_sparse_intersect_u32_(a, b, a_end - a, b_end - b, result ? result + c : 0, &tail_count);
     *count = c + tail_count;
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_sparse_intersect_u64_turin( //
-    nk_u64_t const *a, nk_u64_t const *b,                       //
-    nk_size_t a_length, nk_size_t b_length,                     //
+NUMKONG_API nk_status_t nk_sparse_intersect_u64_turin( //
+    nk_u64_t const *a, nk_u64_t const *b,              //
+    nk_size_t a_length, nk_size_t b_length,            //
     nk_u64_t *result, nk_size_t *count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
@@ -149,22 +149,23 @@ NUMKONG_API_COMPTIME nk_status_t nk_sparse_intersect_u64_turin( //
     }
 
     nk_size_t tail_count = 0;
-    nk_sparse_intersect_u64_serial(a, b, a_end - a, b_end - b, result ? result + c : 0, &tail_count, stream);
+    nk_sparse_intersect_u64_(a, b, a_end - a, b_end - b, result ? result + c : 0, &tail_count);
     *count = c + tail_count;
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_sparse_dot_u16bf16_turin( //
-    nk_u16_t const *a, nk_u16_t const *b,                     //
-    nk_bf16_t const *a_weights, nk_bf16_t const *b_weights,   //
-    nk_size_t a_length, nk_size_t b_length,                   //
+NUMKONG_API nk_status_t nk_sparse_dot_u16bf16_turin(        //
+    nk_u16_t const *a, nk_u16_t const *b,                   //
+    nk_bf16_t const *a_weights, nk_bf16_t const *b_weights, //
+    nk_size_t a_length, nk_size_t b_length,                 //
     nk_f32_t *product, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
 #if NUMKONG_ALLOW_ISA_REDIRECT
     // The baseline implementation for very small arrays (2 registers or less) can be quite simple:
     if (a_length < 64 && b_length < 64) {
-        return nk_sparse_dot_u16bf16_serial(a, b, a_weights, b_weights, a_length, b_length, product, stream);
+        nk_sparse_dot_u16bf16_(a, b, a_weights, b_weights, a_length, b_length, product);
+        return nk_success_k;
     }
 #endif
 
@@ -229,22 +230,23 @@ NUMKONG_API_COMPTIME nk_status_t nk_sparse_dot_u16bf16_turin( //
         b += b_step, b_weights += b_step;
     }
     nk_f32_t tail_product = 0;
-    nk_sparse_dot_u16bf16_serial(a, b, a_weights, b_weights, a_end - a, b_end - b, &tail_product, stream);
+    nk_sparse_dot_u16bf16_(a, b, a_weights, b_weights, a_end - a, b_end - b, &tail_product);
     *product = tail_product + _mm512_reduce_add_ps(_mm512_insertf32x8(_mm512_setzero_ps(), product_f32x8, 0));
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_sparse_dot_u32f32_turin( //
-    nk_u32_t const *a, nk_u32_t const *b,                    //
-    nk_f32_t const *a_weights, nk_f32_t const *b_weights,    //
-    nk_size_t a_length, nk_size_t b_length,                  //
+NUMKONG_API nk_status_t nk_sparse_dot_u32f32_turin(       //
+    nk_u32_t const *a, nk_u32_t const *b,                 //
+    nk_f32_t const *a_weights, nk_f32_t const *b_weights, //
+    nk_size_t a_length, nk_size_t b_length,               //
     nk_f64_t *product, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
 #if NUMKONG_ALLOW_ISA_REDIRECT
     // The baseline implementation for very small arrays (2 registers or less) can be quite simple:
     if (a_length < 32 && b_length < 32) {
-        return nk_sparse_dot_u32f32_serial(a, b, a_weights, b_weights, a_length, b_length, product, stream);
+        nk_sparse_dot_u32f32_(a, b, a_weights, b_weights, a_length, b_length, product);
+        return nk_success_k;
     }
 #endif
 
@@ -311,7 +313,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_sparse_dot_u32f32_turin( //
     }
 
     nk_f64_t tail_product = 0;
-    nk_sparse_dot_u32f32_serial(a, b, a_weights, b_weights, a_end - a, b_end - b, &tail_product, stream);
+    nk_sparse_dot_u32f32_(a, b, a_weights, b_weights, a_end - a, b_end - b, &tail_product);
     *product = _mm512_reduce_add_pd(product_low_f64x8) + _mm512_reduce_add_pd(product_high_f64x8) + tail_product;
     return nk_success_k;
 }
@@ -327,5 +329,5 @@ NUMKONG_API_COMPTIME nk_status_t nk_sparse_dot_u32f32_turin( //
 #endif
 
 #endif // NUMKONG_TARGET_TURIN
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_SPARSE_TURIN_H

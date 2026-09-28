@@ -63,7 +63,7 @@ extern "C" {
  *  Subnormal values (exp=0, mag<8): 8-entry TBL lookup for normalization.
  *  Zero (mag=0): maps to E4M3 zero. Sign moved from bit 5 to bit 7.
  */
-NUMKONG_HELPER_INLINE uint8x16_t nk_e2m3x16_to_e4m3x16_neonfp8_(uint8x16_t raw_u8x16) {
+NUMKONG_INLINE uint8x16_t nk_e2m3x16_to_e4m3x16_neonfp8_(uint8x16_t raw_u8x16) {
     uint8x16_t sign_u8x16 = vandq_u8(raw_u8x16, vdupq_n_u8(0x20));
     uint8x16_t mag_u8x16 = vandq_u8(raw_u8x16, vdupq_n_u8(0x1F));
 
@@ -91,7 +91,7 @@ NUMKONG_HELPER_INLINE uint8x16_t nk_e2m3x16_to_e4m3x16_neonfp8_(uint8x16_t raw_u
  *  Subnormal values (exp=0, mag<4): 4-entry TBL lookup for normalization.
  *  Zero (mag=0): maps to E5M2 zero. Sign moved from bit 5 to bit 7.
  */
-NUMKONG_HELPER_INLINE uint8x16_t nk_e3m2x16_to_e5m2x16_neonfp8_(uint8x16_t raw_u8x16) {
+NUMKONG_INLINE uint8x16_t nk_e3m2x16_to_e5m2x16_neonfp8_(uint8x16_t raw_u8x16) {
     uint8x16_t sign_u8x16 = vandq_u8(raw_u8x16, vdupq_n_u8(0x20));
     uint8x16_t mag_u8x16 = vandq_u8(raw_u8x16, vdupq_n_u8(0x1F));
 
@@ -112,8 +112,8 @@ NUMKONG_HELPER_INLINE uint8x16_t nk_e3m2x16_to_e5m2x16_neonfp8_(uint8x16_t raw_u
     return vorrq_u8(sign_shifted_u8x16, result_mag_u8x16);
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_e4m3_neonfp8(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
-                                                     nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_e4m3_neonfp8(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
+                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     mfloat8x16_t a_mf8x16, b_mf8x16;
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
@@ -137,8 +137,8 @@ nk_dot_e4m3_neonfp8_cycle:
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_e5m2_neonfp8(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
-                                                     nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_e5m2_neonfp8(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
+                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     mfloat8x16_t a_mf8x16, b_mf8x16;
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
@@ -162,8 +162,8 @@ nk_dot_e5m2_neonfp8_cycle:
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_e2m3_neonfp8(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
-                                                     nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_e2m3_neonfp8(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
+                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     mfloat8x16_t a_mf8x16, b_mf8x16;
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
@@ -187,8 +187,8 @@ nk_dot_e2m3_neonfp8_cycle:
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_dot_e3m2_neonfp8(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
-                                                     nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_dot_e3m2_neonfp8(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
+                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     mfloat8x16_t a_mf8x16, b_mf8x16;
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
@@ -216,13 +216,13 @@ typedef struct nk_dot_e4m3x16_state_neonfp8_t {
     float32x4_t sum_f32x4;
 } nk_dot_e4m3x16_state_neonfp8_t;
 
-NUMKONG_HELPER_INLINE void nk_dot_e4m3x16_init_neonfp8(nk_dot_e4m3x16_state_neonfp8_t *state) {
+NUMKONG_INLINE void nk_dot_e4m3x16_init_neonfp8(nk_dot_e4m3x16_state_neonfp8_t *state) {
     state->sum_f32x4 = vdupq_n_f32(0);
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_e4m3x16_update_neonfp8(nk_dot_e4m3x16_state_neonfp8_t *state, nk_b128_vec_t a,
-                                                         nk_b128_vec_t b, nk_size_t depth_offset,
-                                                         nk_size_t active_dimensions) {
+NUMKONG_INLINE void nk_dot_e4m3x16_update_neonfp8(nk_dot_e4m3x16_state_neonfp8_t *state, nk_b128_vec_t a,
+                                                  nk_b128_vec_t b, nk_size_t depth_offset,
+                                                  nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     mfloat8x16_t a_mf8x16 = vreinterpretq_mf8_u8(a.u8x16);
@@ -230,7 +230,7 @@ NUMKONG_HELPER_INLINE void nk_dot_e4m3x16_update_neonfp8(nk_dot_e4m3x16_state_ne
     state->sum_f32x4 = vdotq_f32_mf8_fpm(state->sum_f32x4, a_mf8x16, b_mf8x16, NUMKONG_FPM_E4M3_);
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_e4m3x16_finalize_neonfp8(                                       //
+NUMKONG_INLINE void nk_dot_e4m3x16_finalize_neonfp8(                                              //
     nk_dot_e4m3x16_state_neonfp8_t const *state_a, nk_dot_e4m3x16_state_neonfp8_t const *state_b, //
     nk_dot_e4m3x16_state_neonfp8_t const *state_c, nk_dot_e4m3x16_state_neonfp8_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -244,13 +244,13 @@ typedef struct nk_dot_e5m2x16_state_neonfp8_t {
     float32x4_t sum_f32x4;
 } nk_dot_e5m2x16_state_neonfp8_t;
 
-NUMKONG_HELPER_INLINE void nk_dot_e5m2x16_init_neonfp8(nk_dot_e5m2x16_state_neonfp8_t *state) {
+NUMKONG_INLINE void nk_dot_e5m2x16_init_neonfp8(nk_dot_e5m2x16_state_neonfp8_t *state) {
     state->sum_f32x4 = vdupq_n_f32(0);
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_e5m2x16_update_neonfp8(nk_dot_e5m2x16_state_neonfp8_t *state, nk_b128_vec_t a,
-                                                         nk_b128_vec_t b, nk_size_t depth_offset,
-                                                         nk_size_t active_dimensions) {
+NUMKONG_INLINE void nk_dot_e5m2x16_update_neonfp8(nk_dot_e5m2x16_state_neonfp8_t *state, nk_b128_vec_t a,
+                                                  nk_b128_vec_t b, nk_size_t depth_offset,
+                                                  nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     mfloat8x16_t a_mf8x16 = vreinterpretq_mf8_u8(a.u8x16);
@@ -258,7 +258,7 @@ NUMKONG_HELPER_INLINE void nk_dot_e5m2x16_update_neonfp8(nk_dot_e5m2x16_state_ne
     state->sum_f32x4 = vdotq_f32_mf8_fpm(state->sum_f32x4, a_mf8x16, b_mf8x16, NUMKONG_FPM_E5M2_);
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_e5m2x16_finalize_neonfp8(                                       //
+NUMKONG_INLINE void nk_dot_e5m2x16_finalize_neonfp8(                                              //
     nk_dot_e5m2x16_state_neonfp8_t const *state_a, nk_dot_e5m2x16_state_neonfp8_t const *state_b, //
     nk_dot_e5m2x16_state_neonfp8_t const *state_c, nk_dot_e5m2x16_state_neonfp8_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -272,13 +272,13 @@ typedef struct nk_dot_e2m3x16_state_neonfp8_t {
     float32x4_t sum_f32x4;
 } nk_dot_e2m3x16_state_neonfp8_t;
 
-NUMKONG_HELPER_INLINE void nk_dot_e2m3x16_init_neonfp8(nk_dot_e2m3x16_state_neonfp8_t *state) {
+NUMKONG_INLINE void nk_dot_e2m3x16_init_neonfp8(nk_dot_e2m3x16_state_neonfp8_t *state) {
     state->sum_f32x4 = vdupq_n_f32(0);
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_e2m3x16_update_neonfp8(nk_dot_e2m3x16_state_neonfp8_t *state, nk_b128_vec_t a,
-                                                         nk_b128_vec_t b, nk_size_t depth_offset,
-                                                         nk_size_t active_dimensions) {
+NUMKONG_INLINE void nk_dot_e2m3x16_update_neonfp8(nk_dot_e2m3x16_state_neonfp8_t *state, nk_b128_vec_t a,
+                                                  nk_b128_vec_t b, nk_size_t depth_offset,
+                                                  nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     mfloat8x16_t a_mf8x16 = vreinterpretq_mf8_u8(nk_e2m3x16_to_e4m3x16_neonfp8_(a.u8x16));
@@ -286,7 +286,7 @@ NUMKONG_HELPER_INLINE void nk_dot_e2m3x16_update_neonfp8(nk_dot_e2m3x16_state_ne
     state->sum_f32x4 = vdotq_f32_mf8_fpm(state->sum_f32x4, a_mf8x16, b_mf8x16, NUMKONG_FPM_E4M3_);
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_e2m3x16_finalize_neonfp8(                                       //
+NUMKONG_INLINE void nk_dot_e2m3x16_finalize_neonfp8(                                              //
     nk_dot_e2m3x16_state_neonfp8_t const *state_a, nk_dot_e2m3x16_state_neonfp8_t const *state_b, //
     nk_dot_e2m3x16_state_neonfp8_t const *state_c, nk_dot_e2m3x16_state_neonfp8_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -301,15 +301,15 @@ typedef struct nk_dot_e2m1x32_state_neonfp8_t {
     int32x4_t sum_i32x4;
 } nk_dot_e2m1x32_state_neonfp8_t;
 
-NUMKONG_HELPER_INLINE void nk_dot_e2m1x32_init_neonfp8(nk_dot_e2m1x32_state_neonfp8_t *state) {
+NUMKONG_INLINE void nk_dot_e2m1x32_init_neonfp8(nk_dot_e2m1x32_state_neonfp8_t *state) {
     state->sum_i32x4 = vdupq_n_s32(0);
 }
 
 /** Products of doubled E2M1 values reach 144, so a pair of them still fits i16 before
  *  widening into i32. */
-NUMKONG_HELPER_INLINE void nk_dot_e2m1x32_update_neonfp8(nk_dot_e2m1x32_state_neonfp8_t *state, nk_b128_vec_t a,
-                                                         nk_b128_vec_t b, nk_size_t depth_offset,
-                                                         nk_size_t active_dimensions) {
+NUMKONG_INLINE void nk_dot_e2m1x32_update_neonfp8(nk_dot_e2m1x32_state_neonfp8_t *state, nk_b128_vec_t a,
+                                                  nk_b128_vec_t b, nk_size_t depth_offset,
+                                                  nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     static nk_i8_t const lut_data[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12};
@@ -326,7 +326,7 @@ NUMKONG_HELPER_INLINE void nk_dot_e2m1x32_update_neonfp8(nk_dot_e2m1x32_state_ne
     state->sum_i32x4 = vpadalq_s16(vpadalq_s16(state->sum_i32x4, products_i16x8), products_high_i16x8);
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_e2m1x32_finalize_neonfp8(                                       //
+NUMKONG_INLINE void nk_dot_e2m1x32_finalize_neonfp8(                                              //
     nk_dot_e2m1x32_state_neonfp8_t const *state_a, nk_dot_e2m1x32_state_neonfp8_t const *state_b, //
     nk_dot_e2m1x32_state_neonfp8_t const *state_c, nk_dot_e2m1x32_state_neonfp8_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
@@ -340,13 +340,13 @@ typedef struct nk_dot_e3m2x16_state_neonfp8_t {
     float32x4_t sum_f32x4;
 } nk_dot_e3m2x16_state_neonfp8_t;
 
-NUMKONG_HELPER_INLINE void nk_dot_e3m2x16_init_neonfp8(nk_dot_e3m2x16_state_neonfp8_t *state) {
+NUMKONG_INLINE void nk_dot_e3m2x16_init_neonfp8(nk_dot_e3m2x16_state_neonfp8_t *state) {
     state->sum_f32x4 = vdupq_n_f32(0);
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_e3m2x16_update_neonfp8(nk_dot_e3m2x16_state_neonfp8_t *state, nk_b128_vec_t a,
-                                                         nk_b128_vec_t b, nk_size_t depth_offset,
-                                                         nk_size_t active_dimensions) {
+NUMKONG_INLINE void nk_dot_e3m2x16_update_neonfp8(nk_dot_e3m2x16_state_neonfp8_t *state, nk_b128_vec_t a,
+                                                  nk_b128_vec_t b, nk_size_t depth_offset,
+                                                  nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     mfloat8x16_t a_mf8x16 = vreinterpretq_mf8_u8(nk_e3m2x16_to_e5m2x16_neonfp8_(a.u8x16));
@@ -354,7 +354,7 @@ NUMKONG_HELPER_INLINE void nk_dot_e3m2x16_update_neonfp8(nk_dot_e3m2x16_state_ne
     state->sum_f32x4 = vdotq_f32_mf8_fpm(state->sum_f32x4, a_mf8x16, b_mf8x16, NUMKONG_FPM_E5M2_);
 }
 
-NUMKONG_HELPER_INLINE void nk_dot_e3m2x16_finalize_neonfp8(                                       //
+NUMKONG_INLINE void nk_dot_e3m2x16_finalize_neonfp8(                                              //
     nk_dot_e3m2x16_state_neonfp8_t const *state_a, nk_dot_e3m2x16_state_neonfp8_t const *state_b, //
     nk_dot_e3m2x16_state_neonfp8_t const *state_c, nk_dot_e3m2x16_state_neonfp8_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {

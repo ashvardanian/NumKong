@@ -30,6 +30,7 @@
 
 #include "numkong/cast/powervsx.h" // `nk_load_b128_powervsx_`, `nk_partial_load_b32x4_powervsx_`
 #include "numkong/dot/powervsx.h"
+#include "numkong/dots/serial.h"
 
 #if defined(__cplusplus)
 extern "C" {

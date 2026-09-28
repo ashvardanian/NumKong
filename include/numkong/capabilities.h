@@ -128,7 +128,7 @@
 #define NUMKONG_CAPABILITIES_H
 
 #include "numkong/types.h" // `nk_u64_t`, `NUMKONG_OS_LINUX_`
-#include "numkong/metal.h" // `nk_metal_devices_`, empty unless `NUMKONG_WITH_METAL`
+#include "numkong/metal.h" // `nk_metal_list_devices_`, empty unless `NUMKONG_WITH_METAL`
 
 /* AMD GPUs name their architecture only as a string, like "gfx950:sramecc+:xnack-" */
 #if NUMKONG_ARCH_ROCM_
@@ -148,9 +148,9 @@
 #endif
 
 /*  On Linux x86 and RISC-V, AMX permission and hwprobe need `syscall()`. With `-std=c11` glibc
- *  hides it behind @c _GNU_SOURCE, but a system header included before us already locks
- *  `<features.h>`, so we forward-declare @c syscall, which glibc always has. */
-#if NUMKONG_OS_LINUX_ && (NUMKONG_ARCH_X86_64_ || NUMKONG_ARCH_RISCV64_)
+ *  hides it behind @c _GNU_SOURCE, which would change the includer's glibc structs, so we
+ *  forward-declare @c syscall, which glibc always has. */
+#if NUMKONG_OS_LINUX_ && (NUMKONG_ARCH_X8664_ || NUMKONG_ARCH_RISCV64_)
 #include <sys/syscall.h> // `SYS_arch_prctl`, `SYS_riscv_hwprobe`
 #ifdef __cplusplus
 extern "C" long syscall(long, ...) noexcept;
@@ -178,11 +178,6 @@ extern long syscall(long, ...);
 /* On Windows ARM, we use IsProcessorFeaturePresent API for capability detection */
 #if NUMKONG_OS_WINDOWS_ && NUMKONG_ARCH_ARM64_
 #include <processthreadsapi.h> // `IsProcessorFeaturePresent`
-#endif
-
-/* On WASM with Emscripten, we use EM_JS for runtime capability detection */
-#if NUMKONG_ARCH_WASM_ && defined(__EMSCRIPTEN__)
-#include <emscripten.h> // `EM_JS`
 #endif
 
 #ifdef __cplusplus
@@ -235,7 +230,7 @@ typedef nk_u64_t nk_capability_t;
 #define nk_cap_powervsx_k    ((nk_capability_t)1 << 33)
 #define nk_cap_loongsonasx_k ((nk_capability_t)1 << 34)
 
-/** GPU capabilities, reported for one device by the `nk_gpu_capabilities_*` functions only, and
+/** GPU capabilities, reported for one device by each vendor's `nk_<vendor>_capabilities_*` functions, and
  *  grouped by vendor above bit 47, leaving room for more CPU capabilities and more per vendor.
  *  Each vendor's baseline runs on every device of that vendor, as @c serial runs on every CPU. */
 #define nk_cap_cuda_k         ((nk_capability_t)1 << 48)
@@ -319,7 +314,7 @@ static struct {
 };
 
 /** Writes the names of @p capabilities into @p buffer, behind @c nk_name_capabilities. */
-NUMKONG_HELPER_AUTO nk_size_t nk_name_capabilities_(nk_capability_t capabilities, char *buffer, nk_size_t capacity) {
+NUMKONG_CONSTEXPR nk_size_t nk_name_capabilities_(nk_capability_t capabilities, char *buffer, nk_size_t capacity) {
     if (!capacity) return 0;
     nk_size_t length = 0;
     for (nk_size_t entry = 0; nk_capability_names_[entry].name; ++entry) {
@@ -339,8 +334,6 @@ typedef enum {
     /** Unknown kernel kind. */
     nk_kernel_unknown_k = 0,
 
-    // Classics:
-
     /** Inner product. */
     nk_kernel_dot_k = 'i',
 
@@ -356,15 +349,11 @@ typedef enum {
     /** Squared Euclidean distance. */
     nk_kernel_sqeuclidean_k = '2',
 
-    // Binary:
-
     /** Hamming (or Manhattan) distance. */
     nk_kernel_hamming_k = 'h',
 
     /** Jaccard (or Tanimoto) coefficient. */
     nk_kernel_jaccard_k = 'j',
-
-    // Curved Spaces:
 
     /** Bilinear form. */
     nk_kernel_bilinear_k = 'b',
@@ -372,23 +361,17 @@ typedef enum {
     /** Mahalanobis distance. */
     nk_kernel_mahalanobis_k = 'm',
 
-    // Geospatial:
-
     /** Haversine distance. */
     nk_kernel_haversine_k = 'o',
 
     /** Vincenty distance (ellipsoidal geodesic). */
     nk_kernel_vincenty_k = 'O',
 
-    // Probability:
-
     /** Kullback-Leibler divergence. */
     nk_kernel_kld_k = 'k',
 
     /** Jensen-Shannon divergence. */
     nk_kernel_jsd_k = 's',
-
-    // Mesh superposition:
 
     /** RMSD without optimal superposition. */
     nk_kernel_rmsd_k = 'r',
@@ -399,15 +382,11 @@ typedef enum {
     /** Umeyama RMSD with optimal rotation and scale. */
     nk_kernel_umeyama_k = 'U',
 
-    // Sparse Sets:
-
     /** Sparse dot product with weighted indices. */
     nk_kernel_sparse_dot_k = 'd',
 
     /** Equivalent to unnormalized Jaccard. */
     nk_kernel_sparse_intersect_k = 'x',
-
-    // BLAS-like operations:
 
     /** Element-wise Scale. */
     nk_kernel_each_scale_k = '*',
@@ -424,8 +403,6 @@ typedef enum {
     /** Fused SwiGLU: y = silu(gate) ⊙ up (up = NULL → SiLU). */
     nk_kernel_each_swiglu_k = 'W',
 
-    // Trigonometric functions:
-
     /** Element-wise sine. */
     nk_kernel_trig_sin_k = 'S',
 
@@ -438,8 +415,6 @@ typedef enum {
     /** NeoX split-half rotary position embedding (in place). */
     nk_kernel_trig_rope_k = 'I',
 
-    // Horizontal reductions:
-
     /** Horizontal moments reduction (sum + sum-of-squares). */
     nk_kernel_reduce_moments_k = 'R',
 
@@ -448,8 +423,6 @@ typedef enum {
 
     /** Grouped RMSNorm: y = x · rsqrt(mean(x²) + eps) · γ. */
     nk_kernel_reduce_rmsnorm_k = 'H',
-
-    // GEMM-like batched dot products:
 
     /** GEMM packed buffer size. */
     nk_kernel_dots_pack_size_k = 'P',
@@ -466,8 +439,6 @@ typedef enum {
     /** Symmetric Gram matrix A × Aᵀ. */
     nk_kernel_dots_symmetric_k = 'y',
 
-    // GEMM-like batched set similarity functions:
-
     /** Hamming distance computation. */
     nk_kernel_hammings_packed_k = 'M',
 
@@ -479,8 +450,6 @@ typedef enum {
 
     /** Symmetric Jaccard distance matrix. */
     nk_kernel_jaccards_symmetric_k = 'Z',
-
-    // GEMM-like batched spatial distances functions:
 
     /** Batched angular distances (packed B). */
     nk_kernel_angulars_packed_k = 'N',
@@ -494,8 +463,6 @@ typedef enum {
     /** Symmetric euclidean distance matrix. */
     nk_kernel_euclideans_symmetric_k = 'D',
 
-    // MaxSim late-interaction functions:
-
     /** MaxSim packed buffer size. */
     nk_kernel_maxsim_pack_size_k = 'L',
 
@@ -507,8 +474,6 @@ typedef enum {
 
     /** MaxSim packed shape read (vectors, depth). */
     nk_kernel_maxsim_packed_shape_k = 'q',
-
-    // Ragged scaled-dot-product attention functions:
 
     /** Attention packed KV-cache Buffer size in Bytes. */
     nk_kernel_attention_pack_size_k = 'B',
@@ -534,7 +499,7 @@ typedef enum {
 
 /** Canonical name of a kernel kind - the spelling bindings parse and interchange formats carry;
  *  "unknown" for unrecognized values. */
-NUMKONG_API_COMPTIME char const *nk_kernel_name(nk_kernel_kind_t kind) {
+NUMKONG_CONSTEXPR char const *nk_kernel_name(nk_kernel_kind_t kind) {
     switch (kind) {
     case nk_kernel_unknown_k: return "unknown";
     case nk_kernel_dot_k: return "dot";
@@ -597,7 +562,7 @@ NUMKONG_API_COMPTIME char const *nk_kernel_name(nk_kernel_kind_t kind) {
 
 /** Inverse of @c nk_kernel_name over an explicit-length string; @c nk_kernel_unknown_k for
  *  unrecognized names. */
-NUMKONG_API_COMPTIME nk_kernel_kind_t nk_kernel_named(char const *name, nk_size_t length) {
+NUMKONG_CONSTEXPR nk_kernel_kind_t nk_kernel_named(char const *name, nk_size_t length) {
     if (nk_same_literal_(name, length, "dot")) return nk_kernel_dot_k;
     if (nk_same_literal_(name, length, "vdot")) return nk_kernel_vdot_k;
     if (nk_same_literal_(name, length, "angular")) return nk_kernel_angular_k;
@@ -783,57 +748,9 @@ typedef nk_status_t (*nk_kernel_cast_block_scaled_punned_t)(                    
 /** Any kernel, cast back to its kind's signature before the call. */
 typedef void (*nk_kernel_punned_t)(void);
 
-/** One capability group's kernels of one dispatch point: a kernel per bit of @c capabilities,
- *  ascending by bit. */
-typedef struct {
-    nk_capability_t capabilities;
-    nk_kernel_punned_t const *kernels;
-} nk_capability_kernels_t;
+#if NUMKONG_ARCH_X8664_
 
-/** The capability groups a binary may hold: its CPU's, and one per GPU vendor it was built for. */
-typedef enum {
-    nk_capability_group_cpu_k,
-    nk_capability_group_nvidia_k,
-    nk_capability_group_amd_k,
-    nk_capability_group_apple_k,
-    nk_capability_groups_k,
-} nk_capability_group_t;
-
-/** The highest set bit of @p x as a mask, or zero; compilers lower it to one @c clz. */
-NUMKONG_HELPER_AUTO nk_u64_t nk_u64_highest_bit_(nk_u64_t x) {
-    x |= x >> 1, x |= x >> 2, x |= x >> 4, x |= x >> 8, x |= x >> 16, x |= x >> 32;
-    return x ^ (x >> 1);
-}
-
-/** The capability group @p capabilities describes, by its highest bit; zero is the CPU's. */
-NUMKONG_HELPER_AUTO nk_capability_group_t nk_capability_group_of_(nk_capability_t capabilities) {
-    nk_u64_t const top = nk_u64_highest_bit_(capabilities);
-    return (nk_capability_group_t)((top >= nk_cap_cuda_k) + (top >= nk_cap_rocm_k) + (top >= nk_cap_metal_k));
-}
-
-/** The best capability @p capabilities shares with its group's kernels, or zero if none. */
-NUMKONG_HELPER_AUTO nk_capability_t nk_capability_pick_(nk_capability_t capabilities,
-                                                        nk_capability_kernels_t const groups[nk_capability_groups_k]) {
-    return nk_u64_highest_bit_(capabilities & groups[nk_capability_group_of_(capabilities)].capabilities);
-}
-
-/** The kernel of the best capability @p capabilities shares with its group's kernels, or null. */
-NUMKONG_HELPER_AUTO nk_kernel_punned_t nk_kernel_pick_(nk_capability_t capabilities,
-                                                       nk_capability_kernels_t const groups[nk_capability_groups_k]) {
-    nk_capability_kernels_t const *group = &groups[nk_capability_group_of_(capabilities)];
-    nk_capability_t const capability = nk_u64_highest_bit_(capabilities & group->capabilities);
-    return capability ? group->kernels[nk_u64_popcount_(group->capabilities & (capability - 1))]
-                      : (nk_kernel_punned_t)NUMKONG_NULL;
-}
-
-/** Bit position of the single capability @p capability, as pack headers record it. */
-NUMKONG_HELPER_AUTO nk_u32_t nk_capability_index_(nk_capability_t capability) {
-    return (nk_u32_t)nk_u64_popcount_(capability - 1);
-}
-
-#if NUMKONG_ARCH_X86_64_
-
-NUMKONG_HELPER_INLINE nk_status_t nk_cpu_configure_thread_x86_(nk_capability_t capabilities) {
+NUMKONG_INLINE nk_status_t nk_cpu_configure_thread_x86_(nk_capability_t capabilities) {
 #if NUMKONG_TARGET_SAPPHIREAMX
     if (capabilities & nk_cap_sapphireamx_k) {
 #if NUMKONG_OS_LINUX_
@@ -852,7 +769,7 @@ NUMKONG_HELPER_INLINE nk_status_t nk_cpu_configure_thread_x86_(nk_capability_t c
     return nk_success_k;
 }
 
-NUMKONG_HELPER_INLINE nk_capability_t nk_cpu_capabilities_detected_x8664_(void) {
+NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_x8664_(void) {
     union four_registers_t {
         int array[4];
         struct separate_t {
@@ -957,11 +874,11 @@ NUMKONG_HELPER_INLINE nk_capability_t nk_cpu_capabilities_detected_x8664_(void) 
                              (nk_cap_serial_k));
 }
 
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_
 
 #if NUMKONG_ARCH_ARM64_
 
-NUMKONG_HELPER_INLINE nk_status_t nk_cpu_configure_thread_arm64_(nk_capability_t capabilities) {
+NUMKONG_INLINE nk_status_t nk_cpu_configure_thread_arm64_(nk_capability_t capabilities) {
 #if defined(_MSC_VER)
     nk_unused_(capabilities);
     return nk_success_k;
@@ -1016,7 +933,7 @@ NUMKONG_HELPER_INLINE nk_status_t nk_cpu_configure_thread_arm64_(nk_capability_t
 #endif // _MSC_VER
 }
 
-NUMKONG_HELPER_INLINE nk_capability_t nk_cpu_capabilities_detected_arm64_(void) {
+NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_arm64_(void) {
 #if NUMKONG_OS_APPLE_
     size_t size = sizeof(unsigned);
     unsigned supports_neon = 0, supports_fp16 = 0, supports_fhm = 0, supports_bf16 = 0, supports_dotprod = 0;
@@ -1125,7 +1042,7 @@ NUMKONG_HELPER_INLINE nk_capability_t nk_cpu_capabilities_detected_arm64_(void) 
 
 #if NUMKONG_ARCH_RISCV64_
 
-NUMKONG_HELPER_INLINE nk_capability_t nk_cpu_capabilities_detected_riscv64_(void) {
+NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_riscv64_(void) {
 #if NUMKONG_OS_LINUX_
     unsigned long hwcap = getauxval(AT_HWCAP);
     nk_capability_t caps = nk_cap_serial_k;
@@ -1161,7 +1078,7 @@ NUMKONG_HELPER_INLINE nk_capability_t nk_cpu_capabilities_detected_riscv64_(void
 
 #if NUMKONG_ARCH_LOONGARCH64_
 
-NUMKONG_HELPER_INLINE nk_capability_t nk_cpu_capabilities_detected_loongarch64_(void) {
+NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_loongarch64_(void) {
 #if NUMKONG_OS_LINUX_
     unsigned long hwcap = getauxval(AT_HWCAP);
     nk_capability_t caps = nk_cap_serial_k;
@@ -1177,7 +1094,7 @@ NUMKONG_HELPER_INLINE nk_capability_t nk_cpu_capabilities_detected_loongarch64_(
 
 #if NUMKONG_ARCH_PPC64_
 
-NUMKONG_HELPER_INLINE nk_capability_t nk_cpu_capabilities_detected_power64_(void) {
+NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_power64_(void) {
 #if NUMKONG_OS_LINUX_
     unsigned long hwcap = getauxval(AT_HWCAP);
     unsigned long hwcap2 = getauxval(AT_HWCAP2);
@@ -1195,30 +1112,24 @@ NUMKONG_HELPER_INLINE nk_capability_t nk_cpu_capabilities_detected_power64_(void
 
 #if NUMKONG_ARCH_WASM_
 
-#if defined(__EMSCRIPTEN__) && NUMKONG_RUNTIME_DISPATCH && !NUMKONG_PYODIDE_SIDE_MODULE_
+#if defined(__wasi__) && NUMKONG_WITH_HOST_PROBES
 
-/** Standalone Emscripten runtime dispatch: EM_JS probes defined in c/numkong.c. */
-extern int nk_has_v128(void);
-extern int nk_has_relaxed(void);
-#elif defined(__wasi__) && NUMKONG_WASI_HOSTED
-
-/** WASI hosted, with @c NUMKONG_WASI_HOSTED on: the host provides capability probes via imports. */
+/** With @c NUMKONG_WITH_HOST_PROBES, the WASI host supplies the capability probes as imports. */
 __attribute__((__import_module__("env"), __import_name__("nk_has_v128"))) extern int nk_has_v128(void);
 __attribute__((__import_module__("env"), __import_name__("nk_has_relaxed"))) extern int nk_has_relaxed(void);
 #endif
 
-NUMKONG_HELPER_INLINE nk_capability_t nk_cpu_capabilities_detected_wasm_(void) {
+NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_wasm_(void) {
     /*  A hosted module asks its engine to validate one probe module per capability, so
-     *  @c detected describes the engine; a standalone module was validated whole, so it reports
+     *  @c detected describes the engine; any other module was validated whole, so it reports
      *  its own flags. */
-#if ((defined(__EMSCRIPTEN__) && NUMKONG_RUNTIME_DISPATCH) || (defined(__wasi__) && NUMKONG_WASI_HOSTED)) && \
-    !NUMKONG_PYODIDE_SIDE_MODULE_
+#if defined(__wasi__) && NUMKONG_WITH_HOST_PROBES
     nk_capability_t caps = nk_cap_serial_k;
     if (nk_has_v128()) caps |= nk_cap_v128_k;
     if (nk_has_relaxed()) caps |= nk_cap_v128_k | nk_cap_v128relaxed_k;
     return caps;
 #else
-    // Static WASM or Pyodide side module: the engine validated every opcode this module carries
+    // The engine validated every opcode this module carries
     // before running it, so the compiled capabilities are the detected ones.
     return nk_cap_serial_k | (nk_cap_v128_k * NUMKONG_TARGET_V128) |
            (nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED);
@@ -1227,8 +1138,8 @@ NUMKONG_HELPER_INLINE nk_capability_t nk_cpu_capabilities_detected_wasm_(void) {
 
 #endif // NUMKONG_ARCH_WASM_
 
-NUMKONG_HELPER_INLINE nk_status_t nk_cpu_configure_thread_(nk_capability_t capabilities) {
-#if NUMKONG_ARCH_X86_64_
+NUMKONG_INLINE nk_status_t nk_cpu_configure_thread_(nk_capability_t capabilities) {
+#if NUMKONG_ARCH_X8664_
     return nk_cpu_configure_thread_x86_(capabilities);
 #endif
 #if NUMKONG_ARCH_ARM64_
@@ -1238,8 +1149,8 @@ NUMKONG_HELPER_INLINE nk_status_t nk_cpu_configure_thread_(nk_capability_t capab
     return nk_success_k; // no other architecture needs thread configuration
 }
 
-NUMKONG_HELPER_INLINE nk_capability_t nk_cpu_capabilities_detected_(void) {
-#if NUMKONG_ARCH_X86_64_
+NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_(void) {
+#if NUMKONG_ARCH_X8664_
     return nk_cpu_capabilities_detected_x8664_();
 #elif NUMKONG_ARCH_ARM64_
     return nk_cpu_capabilities_detected_arm64_();
@@ -1259,9 +1170,9 @@ NUMKONG_HELPER_INLINE nk_capability_t nk_cpu_capabilities_detected_(void) {
 /** Returns the capabilities whose kernels were compiled into this binary, as decided by the
  *  `NUMKONG_TARGET_*` macros the ISA probes set at build time. Says nothing about the current CPU —
  *  see @b nk_cpu_capabilities_detected_(). */
-NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_compiled_(void) {
+NUMKONG_CONSTEXPR nk_capability_t nk_cpu_capabilities_compiled_(void) {
     nk_capability_t caps = nk_cap_serial_k;
-#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_ARCH_X8664_
     caps |= nk_cap_haswell_k * NUMKONG_TARGET_HASWELL;
     caps |= nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE;
     caps |= nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE;
@@ -1323,11 +1234,9 @@ NUMKONG_HELPER_AUTO nk_capability_t nk_cpu_capabilities_compiled_(void) {
  *  mask while containing no SIMD kernels at all. Ask for @b enabled() unless you specifically mean
  *  one of the raw axes. To narrow dispatch, pass a narrower mask to the dispatch point itself. */
 
-#if NUMKONG_RUNTIME_DISPATCH
-
-NUMKONG_API_RUNTIME nk_status_t nk_cpu_capabilities_detected(nk_capability_t *capabilities);
-NUMKONG_API_RUNTIME nk_status_t nk_cpu_capabilities_compiled(nk_capability_t *capabilities);
-NUMKONG_API_RUNTIME nk_status_t nk_cpu_capabilities_enabled(nk_capability_t *capabilities);
+NUMKONG_API nk_status_t nk_cpu_capabilities_detected(nk_capability_t *capabilities);
+NUMKONG_API nk_status_t nk_cpu_capabilities_compiled(nk_capability_t *capabilities);
+NUMKONG_API nk_status_t nk_cpu_capabilities_enabled(nk_capability_t *capabilities);
 
 /**
  *  @brief Prepares the calling thread for the kernels of @p capabilities, and only those.
@@ -1341,8 +1250,7 @@ NUMKONG_API_RUNTIME nk_status_t nk_cpu_capabilities_enabled(nk_capability_t *cap
  *    Finding FEAT_EBF16 costs a @c sysctl on Apple systems, and one ID-register read on Linux and
  *    FreeBSD when @p capabilities holds more than NEON.
  */
-NUMKONG_API_RUNTIME nk_status_t nk_cpu_configure_thread(nk_capability_t capabilities);
-NUMKONG_API_RUNTIME int nk_uses_runtime_dispatch(void);
+NUMKONG_API nk_status_t nk_cpu_configure_thread(nk_capability_t capabilities);
 
 /**
  *  @brief Writes @p capabilities as a comma-separated name list such as "serial,haswell,skylake".
@@ -1352,50 +1260,57 @@ NUMKONG_API_RUNTIME int nk_uses_runtime_dispatch(void);
  *      capacity writes nothing.
  *  @return Bytes written, excluding the null terminator.
  */
-NUMKONG_API_RUNTIME nk_size_t nk_name_capabilities(nk_capability_t capabilities, char *buffer, nk_size_t capacity);
+NUMKONG_API nk_size_t nk_name_capabilities(nk_capability_t capabilities, char *buffer, nk_size_t capacity);
 
-#else
+/*  The library detects once per process; header-only builds ask on every call. */
+#if NUMKONG_HEADER_ONLY
 
-NUMKONG_API_COMPTIME nk_status_t nk_cpu_capabilities_detected(nk_capability_t *capabilities) {
+NUMKONG_API nk_status_t nk_cpu_capabilities_detected(nk_capability_t *capabilities) {
     *capabilities = nk_cpu_capabilities_detected_();
     return nk_success_k;
 }
-NUMKONG_API_COMPTIME nk_status_t nk_cpu_capabilities_compiled(nk_capability_t *capabilities) {
+NUMKONG_API nk_status_t nk_cpu_capabilities_compiled(nk_capability_t *capabilities) {
     *capabilities = nk_cpu_capabilities_compiled_();
     return nk_success_k;
 }
-NUMKONG_API_COMPTIME nk_status_t nk_cpu_capabilities_enabled(nk_capability_t *capabilities) {
+NUMKONG_API nk_status_t nk_cpu_capabilities_enabled(nk_capability_t *capabilities) {
     *capabilities = nk_cpu_capabilities_detected_() & nk_cpu_capabilities_compiled_();
     return nk_success_k;
 }
 
 /** @copydoc nk_cpu_configure_thread */
-NUMKONG_API_COMPTIME nk_status_t nk_cpu_configure_thread(nk_capability_t capabilities) {
+NUMKONG_API nk_status_t nk_cpu_configure_thread(nk_capability_t capabilities) {
     return nk_cpu_configure_thread_(capabilities);
 }
 
-NUMKONG_API_COMPTIME int nk_uses_runtime_dispatch(void) { return 0; }
-
 /** @copydoc nk_name_capabilities */
-NUMKONG_API_COMPTIME nk_size_t nk_name_capabilities(nk_capability_t capabilities, char *buffer, nk_size_t capacity) {
+NUMKONG_API nk_size_t nk_name_capabilities(nk_capability_t capabilities, char *buffer, nk_size_t capacity) {
     return nk_name_capabilities_(capabilities, buffer, capacity);
 }
 
 #endif
 
-#if NUMKONG_ARCH_CUDA_
+/*  Each vendor's helpers answer from its runtime where the translation unit is compiled for that vendor, and
+ *  report no devices elsewhere: the library's host-only units include neither runtime, as the two clash. */
 
-/** How many CUDA devices the process sees, or zero where the runtime does not answer. */
-NUMKONG_HELPER_INLINE nk_size_t nk_cuda_devices_(void) {
+/** How many CUDA devices the runtime sees, or zero. */
+NUMKONG_INLINE nk_size_t nk_cuda_count_devices_(void) {
+#if NUMKONG_ARCH_CUDA_ && defined(__CUDACC__)
     int count = 0;
     return cudaGetDeviceCount(&count) == cudaSuccess ? (nk_size_t)count : 0;
+#else
+    return 0;
+#endif
 }
 
-/** The capabilities CUDA device @p device runs. */
-NUMKONG_HELPER_INLINE nk_status_t nk_cuda_capabilities_detected_(int device, nk_capability_t *capabilities) {
+/** The capabilities CUDA device @p device runs, by the runtime's own ordinal. */
+NUMKONG_INLINE nk_status_t nk_cuda_capabilities_detected_(nk_size_t device, nk_capability_t *capabilities) {
+    *capabilities = 0;
+    if (device >= nk_cuda_count_devices_()) return nk_missing_gpu_k;
+#if NUMKONG_ARCH_CUDA_ && defined(__CUDACC__)
     int major = 0, minor = 0;
-    if (cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, device) != cudaSuccess ||
-        cudaDeviceGetAttribute(&minor, cudaDevAttrComputeCapabilityMinor, device) != cudaSuccess)
+    if (cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, (int)device) != cudaSuccess ||
+        cudaDeviceGetAttribute(&minor, cudaDevAttrComputeCapabilityMinor, (int)device) != cudaSuccess)
         return nk_device_code_mismatch_k;
     nk_capability_t detected = nk_cap_cuda_k;
     if (major * 10 + minor >= 80) detected |= nk_cap_ampere_k;
@@ -1404,37 +1319,50 @@ NUMKONG_HELPER_INLINE nk_status_t nk_cuda_capabilities_detected_(int device, nk_
     if (major == 10) detected |= nk_cap_blackwell_k;
     if (major == 12) detected |= nk_cap_blackwellrtx_k;
     *capabilities = detected;
+#endif
     return nk_success_k;
 }
 
-#endif // NUMKONG_ARCH_CUDA_
-
-#if NUMKONG_ARCH_ROCM_
-
-/** How many ROCm devices the process sees, or zero where the runtime does not answer. */
-NUMKONG_HELPER_INLINE nk_size_t nk_rocm_devices_(void) {
+/** How many ROCm devices the runtime sees, or zero. */
+NUMKONG_INLINE nk_size_t nk_rocm_count_devices_(void) {
+#if NUMKONG_ARCH_ROCM_ && defined(__HIP__)
     int count = 0;
     return hipGetDeviceCount(&count) == hipSuccess ? (nk_size_t)count : 0;
+#else
+    return 0;
+#endif
 }
 
-/** The capabilities ROCm device @p device runs. */
-NUMKONG_HELPER_INLINE nk_status_t nk_rocm_capabilities_detected_(int device, nk_capability_t *capabilities) {
+/** The capabilities ROCm device @p device runs, by the runtime's own ordinal. */
+NUMKONG_INLINE nk_status_t nk_rocm_capabilities_detected_(nk_size_t device, nk_capability_t *capabilities) {
+    *capabilities = 0;
+    if (device >= nk_rocm_count_devices_()) return nk_missing_gpu_k;
+#if NUMKONG_ARCH_ROCM_ && defined(__HIP__)
     hipDeviceProp_t properties;
-    if (hipGetDeviceProperties(&properties, device) != hipSuccess) return nk_device_code_mismatch_k;
+    if (hipGetDeviceProperties(&properties, (int)device) != hipSuccess) return nk_device_code_mismatch_k;
     char const *const name = properties.gcnArchName;
     nk_capability_t detected = nk_cap_rocm_k;
     if (strncmp(name, "gfx950", 6) == 0) detected |= nk_cap_cdna4_k;
     if (strncmp(name, "gfx1250", 7) == 0 || strncmp(name, "gfx1251", 7) == 0) detected |= nk_cap_cdna5_k;
     *capabilities = detected;
+#endif
     return nk_success_k;
 }
 
-#endif // NUMKONG_ARCH_ROCM_
-
+/** How many Metal devices the system lists, or zero. */
+NUMKONG_INLINE nk_size_t nk_metal_count_devices_(void) {
 #if NUMKONG_WITH_METAL
+    return nk_metal_list_devices_();
+#else
+    return 0;
+#endif
+}
 
-/** The capabilities Metal device @p device runs. */
-NUMKONG_HELPER_INLINE nk_status_t nk_metal_capabilities_detected_(nk_size_t device, nk_capability_t *capabilities) {
+/** The capabilities Metal device @p device runs, in the order the system lists them. */
+NUMKONG_INLINE nk_status_t nk_metal_capabilities_detected_(nk_size_t device, nk_capability_t *capabilities) {
+    *capabilities = 0;
+    if (device >= nk_metal_count_devices_()) return nk_missing_gpu_k;
+#if NUMKONG_WITH_METAL
     void *const metal_device = nk_metal_device_(device);
     if (!metal_device) return nk_device_code_mismatch_k;
     SEL const supports = sel_registerName("supportsFamily:");
@@ -1446,97 +1374,84 @@ NUMKONG_HELPER_INLINE nk_status_t nk_metal_capabilities_detected_(nk_size_t devi
         detected |= nk_cap_apple10_k;
     nk_metal_do_(metal_device, "release");
     *capabilities = detected;
+#endif
     return nk_success_k;
 }
 
-#endif // NUMKONG_WITH_METAL
-
-/** How many GPUs of every vendor this build targets the process sees. */
-NUMKONG_HELPER_INLINE nk_size_t nk_gpu_devices_(void) {
-    nk_size_t count = 0;
-#if NUMKONG_ARCH_CUDA_
-    count += nk_cuda_devices_();
-#endif
-#if NUMKONG_ARCH_ROCM_
-    count += nk_rocm_devices_();
-#endif
-#if NUMKONG_WITH_METAL
-    count += nk_metal_devices_();
-#endif
-    return count;
+/** The CUDA capabilities this binary holds kernels for: the baseline and what `NUMKONG_TARGET_*` enables. */
+NUMKONG_CONSTEXPR nk_capability_t nk_cuda_capabilities_compiled_(void) {
+    return (nk_cap_cuda_k * NUMKONG_ARCH_CUDA_) | (nk_cap_ampere_k * NUMKONG_TARGET_AMPERE) |
+           (nk_cap_ada_k * NUMKONG_TARGET_ADA) | (nk_cap_hopper_k * NUMKONG_TARGET_HOPPER) |
+           (nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL) | (nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX);
 }
 
-/** The capabilities the GPU at NumKong's index @p device runs, walking vendors in listing order. */
-NUMKONG_HELPER_INLINE nk_status_t nk_gpu_capabilities_detected_(nk_size_t device, nk_capability_t *capabilities) {
-    *capabilities = 0;
-#if NUMKONG_ARCH_CUDA_
-    nk_size_t const cuda_devices = nk_cuda_devices_();
-    if (device < cuda_devices) return nk_cuda_capabilities_detected_((int)device, capabilities);
-    device -= cuda_devices;
-#endif
-#if NUMKONG_ARCH_ROCM_
-    nk_size_t const rocm_devices = nk_rocm_devices_();
-    if (device < rocm_devices) return nk_rocm_capabilities_detected_((int)device, capabilities);
-    device -= rocm_devices;
-#endif
-#if NUMKONG_WITH_METAL
-    if (device < nk_metal_devices_()) return nk_metal_capabilities_detected_(device, capabilities);
-#endif
-    nk_unused_(device);
-    return nk_missing_gpu_k;
+/** The ROCm capabilities this binary holds kernels for. */
+NUMKONG_CONSTEXPR nk_capability_t nk_rocm_capabilities_compiled_(void) {
+    return (nk_cap_rocm_k * NUMKONG_ARCH_ROCM_) | (nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4) |
+           (nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5);
 }
 
-/** Returns the GPU capabilities whose kernels were compiled into this binary: the baseline of each
- *  vendor it targets, and the capabilities its `NUMKONG_TARGET_*` macros enable. */
-NUMKONG_HELPER_AUTO nk_capability_t nk_gpu_capabilities_compiled_(void) {
-    nk_capability_t caps = 0;
-    caps |= nk_cap_cuda_k * NUMKONG_ARCH_CUDA_;
-    caps |= nk_cap_ampere_k * NUMKONG_TARGET_AMPERE;
-    caps |= nk_cap_ada_k * NUMKONG_TARGET_ADA;
-    caps |= nk_cap_hopper_k * NUMKONG_TARGET_HOPPER;
-    caps |= nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL;
-    caps |= nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX;
-    caps |= nk_cap_rocm_k * NUMKONG_ARCH_ROCM_;
-    caps |= nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4;
-    caps |= nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5;
-    caps |= nk_cap_metal_k * NUMKONG_WITH_METAL;
-    caps |= nk_cap_apple9_k * NUMKONG_TARGET_APPLE9;
-    caps |= nk_cap_apple10_k * NUMKONG_TARGET_APPLE10;
-    return caps;
+/** The Metal capabilities this binary holds kernels for. */
+NUMKONG_CONSTEXPR nk_capability_t nk_metal_capabilities_compiled_(void) {
+    return (nk_cap_metal_k * NUMKONG_WITH_METAL) | (nk_cap_apple9_k * NUMKONG_TARGET_APPLE9) |
+           (nk_cap_apple10_k * NUMKONG_TARGET_APPLE10);
 }
 
-/*  GPU capabilities, the twins of the CPU's for one device:
+/*  GPU capabilities, per vendor, of one device named by that runtime's own ordinal: the index `cudaSetDevice` or
+ *  `hipSetDevice` takes, or the position in Metal's device list. Each vendor has four queries:
  *
- *  - @b nk_gpu_devices() — how many GPUs the process sees across the vendors this build targets.
- *  - @b nk_gpu_capabilities_detected() — what one device runs.
- *  - @b nk_gpu_capabilities_compiled() — what this binary contains.
- *  - @b nk_gpu_capabilities_enabled() — both axes at once: the mask to pass every dispatch point
- *    for that device.
+ *  - @b nk_cuda_count_devices() — how many devices the runtime sees, zero without its kernels in this binary.
+ *  - @b nk_cuda_capabilities_detected() — what one device runs.
+ *  - @b nk_cuda_capabilities_compiled() — what this binary holds kernels for.
+ *  - @b nk_cuda_capabilities_enabled() — both at once: the mask to pass every dispatch point for that device.
  *
- *  The library probes every device once per process and keeps a mask per index, so a process
- *  driving an H100 and an L4 dispatches to each one's capabilities by the mask it passes. */
-
-#if NUMKONG_RUNTIME_DISPATCH
+ *  ROCm and Metal have the same four. Nothing is cached, as the runtimes answer from their own state: ask once
+ *  per device and keep the mask. */
 
 /**
- *  @brief Counts the GPUs the process sees: CUDA devices, then ROCm, then Metal.
- *  @param[out] count The count, zero when none answers.
- *  @return @c nk_success_k, or @c nk_missing_gpu_k when no targeted vendor has a device.
+ *  @brief Counts the CUDA devices the process sees.
+ *  @return @c nk_success_k, or @c nk_missing_gpu_k without one.
  */
-NUMKONG_API_RUNTIME nk_status_t nk_gpu_devices(nk_size_t *count);
+NUMKONG_API nk_status_t nk_cuda_count_devices(nk_size_t *count);
 
 /**
- *  @brief Reports the capabilities the GPU at @p device runs.
- *  @param[in] device NumKong's device index, below what @c nk_gpu_devices counts.
- *  @param[out] capabilities The vendor baseline and what the device runs, zero on failure.
- *  @return @c nk_success_k, @c nk_missing_gpu_k past the last device, or
- *      @c nk_device_code_mismatch_k when the vendor runtime fails to answer.
+ *  @brief Reports the capabilities CUDA device @p device runs.
+ *  @param[in] device The CUDA runtime's ordinal, like @c cudaSetDevice takes.
+ *  @param[out] capabilities The CUDA baseline and what the device runs, zero on failure.
+ *  @return @c nk_success_k, @c nk_missing_gpu_k past the last device, or @c nk_device_code_mismatch_k when the
+ *      runtime fails to answer.
  */
-NUMKONG_API_RUNTIME nk_status_t nk_gpu_capabilities_detected(nk_size_t device, nk_capability_t *capabilities);
-NUMKONG_API_RUNTIME nk_status_t nk_gpu_capabilities_compiled(nk_capability_t *capabilities);
+NUMKONG_API nk_status_t nk_cuda_capabilities_detected(nk_size_t device, nk_capability_t *capabilities);
 
-/** @copydoc nk_gpu_capabilities_detected, narrowed to the capabilities this binary contains. */
-NUMKONG_API_RUNTIME nk_status_t nk_gpu_capabilities_enabled(nk_size_t device, nk_capability_t *capabilities);
+/** Reports the CUDA capabilities this binary holds kernels for. */
+NUMKONG_API nk_status_t nk_cuda_capabilities_compiled(nk_capability_t *capabilities);
+
+/** @copydoc nk_cuda_capabilities_detected, narrowed to the capabilities this binary holds kernels for. */
+NUMKONG_API nk_status_t nk_cuda_capabilities_enabled(nk_size_t device, nk_capability_t *capabilities);
+
+/** @copydoc nk_cuda_count_devices, for ROCm. */
+NUMKONG_API nk_status_t nk_rocm_count_devices(nk_size_t *count);
+
+/** @copydoc nk_cuda_capabilities_detected, for ROCm, whose ordinal @c hipSetDevice takes. */
+NUMKONG_API nk_status_t nk_rocm_capabilities_detected(nk_size_t device, nk_capability_t *capabilities);
+
+/** @copydoc nk_cuda_capabilities_compiled, for ROCm. */
+NUMKONG_API nk_status_t nk_rocm_capabilities_compiled(nk_capability_t *capabilities);
+
+/** @copydoc nk_cuda_capabilities_enabled, for ROCm. */
+NUMKONG_API nk_status_t nk_rocm_capabilities_enabled(nk_size_t device, nk_capability_t *capabilities);
+
+/** @copydoc nk_cuda_count_devices, for Metal. */
+NUMKONG_API nk_status_t nk_metal_count_devices(nk_size_t *count);
+
+/** @copydoc nk_cuda_capabilities_detected, for Metal, whose devices count in the order the system lists them. */
+NUMKONG_API nk_status_t nk_metal_capabilities_detected(nk_size_t device, nk_capability_t *capabilities);
+
+/** @copydoc nk_cuda_capabilities_compiled, for Metal. */
+NUMKONG_API nk_status_t nk_metal_capabilities_compiled(nk_capability_t *capabilities);
+
+/** @copydoc nk_cuda_capabilities_enabled, for Metal. */
+NUMKONG_API nk_status_t nk_metal_capabilities_enabled(nk_size_t device, nk_capability_t *capabilities);
 
 /**
  *  @brief Finds the kernel of @p kind for @p dtype that the best of @p capabilities runs.
@@ -1547,30 +1462,67 @@ NUMKONG_API_RUNTIME nk_status_t nk_gpu_capabilities_enabled(nk_size_t device, nk
  *  @param[out] capability The single capability the kernel belongs to, or zero.
  *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in the mask has it.
  */
-NUMKONG_API_RUNTIME nk_status_t nk_find_kernel_punned(nk_kernel_kind_t kind, nk_dtype_t dtype,
-                                                      nk_capability_t capabilities, nk_kernel_punned_t *kernel,
-                                                      nk_capability_t *capability);
+NUMKONG_API nk_status_t nk_find_kernel_punned(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
+                                              nk_kernel_punned_t *kernel, nk_capability_t *capability);
 
-#else
+#if NUMKONG_HEADER_ONLY
 
-NUMKONG_API_COMPTIME nk_status_t nk_gpu_devices(nk_size_t *count) {
-    *count = nk_gpu_devices_();
+NUMKONG_API nk_status_t nk_cuda_count_devices(nk_size_t *count) {
+    *count = nk_cuda_count_devices_();
     return *count ? nk_success_k : nk_missing_gpu_k;
 }
-NUMKONG_API_COMPTIME nk_status_t nk_gpu_capabilities_detected(nk_size_t device, nk_capability_t *capabilities) {
-    return nk_gpu_capabilities_detected_(device, capabilities);
+NUMKONG_API nk_status_t nk_cuda_capabilities_detected(nk_size_t device, nk_capability_t *capabilities) {
+    return nk_cuda_capabilities_detected_(device, capabilities);
 }
-NUMKONG_API_COMPTIME nk_status_t nk_gpu_capabilities_compiled(nk_capability_t *capabilities) {
-    *capabilities = nk_gpu_capabilities_compiled_();
+NUMKONG_API nk_status_t nk_cuda_capabilities_compiled(nk_capability_t *capabilities) {
+    *capabilities = nk_cuda_capabilities_compiled_();
     return nk_success_k;
 }
-NUMKONG_API_COMPTIME nk_status_t nk_gpu_capabilities_enabled(nk_size_t device, nk_capability_t *capabilities) {
-    nk_status_t const status = nk_gpu_capabilities_detected_(device, capabilities);
-    *capabilities &= nk_gpu_capabilities_compiled_();
+NUMKONG_API nk_status_t nk_cuda_capabilities_enabled(nk_size_t device, nk_capability_t *capabilities) {
+    nk_status_t const status = nk_cuda_capabilities_detected_(device, capabilities);
+    *capabilities &= nk_cuda_capabilities_compiled_();
     return status;
 }
+NUMKONG_API nk_status_t nk_rocm_count_devices(nk_size_t *count) {
+    *count = nk_rocm_count_devices_();
+    return *count ? nk_success_k : nk_missing_gpu_k;
+}
+NUMKONG_API nk_status_t nk_rocm_capabilities_detected(nk_size_t device, nk_capability_t *capabilities) {
+    return nk_rocm_capabilities_detected_(device, capabilities);
+}
+NUMKONG_API nk_status_t nk_rocm_capabilities_compiled(nk_capability_t *capabilities) {
+    *capabilities = nk_rocm_capabilities_compiled_();
+    return nk_success_k;
+}
+NUMKONG_API nk_status_t nk_rocm_capabilities_enabled(nk_size_t device, nk_capability_t *capabilities) {
+    nk_status_t const status = nk_rocm_capabilities_detected_(device, capabilities);
+    *capabilities &= nk_rocm_capabilities_compiled_();
+    return status;
+}
+NUMKONG_API nk_status_t nk_metal_count_devices(nk_size_t *count) {
+    *count = nk_metal_count_devices_();
+    return *count ? nk_success_k : nk_missing_gpu_k;
+}
+NUMKONG_API nk_status_t nk_metal_capabilities_detected(nk_size_t device, nk_capability_t *capabilities) {
+    return nk_metal_capabilities_detected_(device, capabilities);
+}
+NUMKONG_API nk_status_t nk_metal_capabilities_compiled(nk_capability_t *capabilities) {
+    *capabilities = nk_metal_capabilities_compiled_();
+    return nk_success_k;
+}
+NUMKONG_API nk_status_t nk_metal_capabilities_enabled(nk_size_t device, nk_capability_t *capabilities) {
+    nk_status_t const status = nk_metal_capabilities_detected_(device, capabilities);
+    *capabilities &= nk_metal_capabilities_compiled_();
+    return status;
+}
+NUMKONG_API nk_status_t nk_find_kernel_punned(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
+                                              nk_kernel_punned_t *kernel, nk_capability_t *capability) {
+    nk_unused_(kind), nk_unused_(dtype), nk_unused_(capabilities);
+    *kernel = NUMKONG_NULL, *capability = 0;
+    return nk_missing_library_k;
+}
 
-#endif
+#endif // NUMKONG_HEADER_ONLY
 
 #ifdef __cplusplus
 } // extern "C"

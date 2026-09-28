@@ -19,7 +19,7 @@
 #ifndef NUMKONG_EACH_SAPPHIRE_H
 #define NUMKONG_EACH_SAPPHIRE_H
 
-#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_ARCH_X8664_
 #if NUMKONG_TARGET_SAPPHIRE
 
 #include "numkong/types.h"
@@ -31,15 +31,16 @@ extern "C" {
 #endif
 
 #if defined(__clang__)
-#pragma clang attribute push(__attribute__((target("avx2,avx512f,avx512vl,avx512bw,avx512fp16,f16c,fma,bmi,bmi2"))), \
-                             apply_to = function)
+#pragma clang attribute push(                                                                        \
+    __attribute__((target("avx2,avx512f,avx512vl,avx512bw,avx512dq,avx512fp16,f16c,fma,bmi,bmi2"))), \
+    apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
-#pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512fp16", "f16c", "fma", "bmi", "bmi2")
+#pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "avx512fp16", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NUMKONG_API_COMPTIME nk_status_t nk_each_sum_f16_sapphire(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
-                                                          nk_f16_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_each_sum_f16_sapphire(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f16_t *result,
+                                                 void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __mmask32 mask_m32 = 0xFFFFFFFF;
     __m512h a_f16_vec, b_f16_vec;
@@ -63,8 +64,8 @@ nk_each_sum_f16_sapphire_cycle:
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_each_sum_e4m3_sapphire(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
-                                                           nk_e4m3_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_each_sum_e4m3_sapphire(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                  nk_e4m3_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256i a_e4m3x32, b_e4m3x32;
     __m256h a_low_f16x16, a_high_f16x16, b_low_f16x16, b_high_f16x16;
@@ -118,5 +119,5 @@ nk_each_sum_e4m3_sapphire_cycle:
 #endif
 
 #endif // NUMKONG_TARGET_SAPPHIRE
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_EACH_SAPPHIRE_H

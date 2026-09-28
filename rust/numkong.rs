@@ -406,9 +406,9 @@ mod tests {
         let keys = Tensor::<bf16>::try_full(&[tokens, heads * head_dim], bf16::from_f32(0.125)).unwrap();
         let values = Tensor::<bf16>::try_full(&[tokens, heads * head_dim], bf16::from_f32(0.75)).unwrap();
 
-        // The infallible `pack_size` query must predict the produced blob size exactly.
+        // The `pack_size` query must predict the produced blob size exactly.
         let seg_lengths: Vec<u32> = offsets.windows(2).map(|p| p[1] - p[0]).collect();
-        let predicted = AttentionPackedMatrix::<bf16>::pack_size(heads, head_dim, &seg_lengths);
+        let predicted = AttentionPackedMatrix::<bf16>::pack_size(heads, head_dim, &seg_lengths).unwrap();
 
         // Serial pack via the typed constructor.
         let kv_serial = AttentionPackedMatrix::try_pack(&keys.view(), &values.view(), head_dim, &offsets).unwrap();
@@ -474,8 +474,8 @@ mod wasm_runtime_tests {
                 return Some(path);
             }
         }
-        if Path::new("build-wasi/numkong_test.wasm").exists() {
-            Some("build-wasi/numkong_test.wasm".to_string())
+        if Path::new("build-wasi/numkong_cpu_test.wasm").exists() {
+            Some("build-wasi/numkong_cpu_test.wasm".to_string())
         } else {
             None
         }
@@ -490,7 +490,7 @@ mod wasm_runtime_tests {
             panic!(
                 "WASI build not found. Run:\n  export WASI_SDK_PATH=~/wasi-sdk\n  cmake -B build-wasi \
                  -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-wasi.cmake -DNUMKONG_BUILD_TEST=ON\n  cmake --build \
-                 build-wasi --target numkong_test"
+                 build-wasi --target numkong_cpu_test"
             );
         };
 

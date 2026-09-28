@@ -54,13 +54,13 @@ static PyObject *NkBFloat16Scalar_new(PyTypeObject *type, PyObject *args, PyObje
     }
 
     nk_f32_t f32_val = (nk_f32_t)value;
-    nk_f32_to_bf16(&f32_val, &self->value);
+    nk_f32_to_bf16_serial(&f32_val, &self->value);
     return (PyObject *)self;
 }
 
 static PyObject *NkBFloat16Scalar_repr(NkBFloat16ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_bf16_to_f32(&self->value, &f32_val);
+    nk_bf16_to_f32_serial(&self->value, &f32_val);
     char buf[64];
     snprintf(buf, sizeof(buf), "bfloat16(%.6g)", (double)f32_val);
     return PyUnicode_FromString(buf);
@@ -68,7 +68,7 @@ static PyObject *NkBFloat16Scalar_repr(NkBFloat16ScalarObject *self) {
 
 static PyObject *NkBFloat16Scalar_str(NkBFloat16ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_bf16_to_f32(&self->value, &f32_val);
+    nk_bf16_to_f32_serial(&self->value, &f32_val);
     char buf[32];
     snprintf(buf, sizeof(buf), "%.6g", (double)f32_val);
     return PyUnicode_FromString(buf);
@@ -76,19 +76,19 @@ static PyObject *NkBFloat16Scalar_str(NkBFloat16ScalarObject *self) {
 
 static PyObject *NkBFloat16Scalar_float(NkBFloat16ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_bf16_to_f32(&self->value, &f32_val);
+    nk_bf16_to_f32_serial(&self->value, &f32_val);
     return PyFloat_FromDouble((double)f32_val);
 }
 
 static PyObject *NkBFloat16Scalar_int(NkBFloat16ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_bf16_to_f32(&self->value, &f32_val);
+    nk_bf16_to_f32_serial(&self->value, &f32_val);
     return PyLong_FromDouble((double)f32_val);
 }
 
 static Py_hash_t NkBFloat16Scalar_hash(NkBFloat16ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_bf16_to_f32(&self->value, &f32_val);
+    nk_bf16_to_f32_serial(&self->value, &f32_val);
 #if PY_VERSION_HEX >= 0x030A00F0
     return _Py_HashDouble(NULL, (double)f32_val);
 #else
@@ -99,19 +99,20 @@ static Py_hash_t NkBFloat16Scalar_hash(NkBFloat16ScalarObject *self) {
 static PyObject *NkBFloat16Scalar_richcompare(PyObject *self, PyObject *other, int op) {
     if (Py_TYPE(self) == &NkBFloat16Scalar_Type && Py_TYPE(other) == &NkBFloat16Scalar_Type)
         return richcompare_from_int(
-            nk_bf16_order(((NkBFloat16ScalarObject *)self)->value, ((NkBFloat16ScalarObject *)other)->value), op);
+            nk_bf16_order_serial(((NkBFloat16ScalarObject *)self)->value, ((NkBFloat16ScalarObject *)other)->value),
+            op);
 
     nk_fui64_t a_fui64, b_fui64;
     nk_f32_t temporary_f32;
 
     if (Py_TYPE(self) == &NkBFloat16Scalar_Type)
-        nk_bf16_to_f32(&((NkBFloat16ScalarObject *)self)->value, &temporary_f32), a_fui64.f = temporary_f32;
+        nk_bf16_to_f32_serial(&((NkBFloat16ScalarObject *)self)->value, &temporary_f32), a_fui64.f = temporary_f32;
     else if (PyFloat_Check(self)) a_fui64.f = PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a_fui64.f = PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
     if (Py_TYPE(other) == &NkBFloat16Scalar_Type)
-        nk_bf16_to_f32(&((NkBFloat16ScalarObject *)other)->value, &temporary_f32), b_fui64.f = temporary_f32;
+        nk_bf16_to_f32_serial(&((NkBFloat16ScalarObject *)other)->value, &temporary_f32), b_fui64.f = temporary_f32;
     else if (PyFloat_Check(other)) b_fui64.f = PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b_fui64.f = PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -122,12 +123,12 @@ static PyObject *NkBFloat16Scalar_richcompare(PyObject *self, PyObject *other, i
 static PyObject *NkBFloat16Scalar_add(PyObject *self, PyObject *other) {
     nk_f32_t a, b, result;
 
-    if (Py_TYPE(self) == &NkBFloat16Scalar_Type) nk_bf16_to_f32(&((NkBFloat16ScalarObject *)self)->value, &a);
+    if (Py_TYPE(self) == &NkBFloat16Scalar_Type) nk_bf16_to_f32_serial(&((NkBFloat16ScalarObject *)self)->value, &a);
     else if (PyFloat_Check(self)) a = (nk_f32_t)PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a = (nk_f32_t)PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
-    if (Py_TYPE(other) == &NkBFloat16Scalar_Type) nk_bf16_to_f32(&((NkBFloat16ScalarObject *)other)->value, &b);
+    if (Py_TYPE(other) == &NkBFloat16Scalar_Type) nk_bf16_to_f32_serial(&((NkBFloat16ScalarObject *)other)->value, &b);
     else if (PyFloat_Check(other)) b = (nk_f32_t)PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b = (nk_f32_t)PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -135,19 +136,19 @@ static PyObject *NkBFloat16Scalar_add(PyObject *self, PyObject *other) {
     result = a + b;
     NkBFloat16ScalarObject *res = PyObject_New(NkBFloat16ScalarObject, &NkBFloat16Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_bf16(&result, &res->value);
+    nk_f32_to_bf16_serial(&result, &res->value);
     return (PyObject *)res;
 }
 
 static PyObject *NkBFloat16Scalar_sub(PyObject *self, PyObject *other) {
     nk_f32_t a, b, result;
 
-    if (Py_TYPE(self) == &NkBFloat16Scalar_Type) nk_bf16_to_f32(&((NkBFloat16ScalarObject *)self)->value, &a);
+    if (Py_TYPE(self) == &NkBFloat16Scalar_Type) nk_bf16_to_f32_serial(&((NkBFloat16ScalarObject *)self)->value, &a);
     else if (PyFloat_Check(self)) a = (nk_f32_t)PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a = (nk_f32_t)PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
-    if (Py_TYPE(other) == &NkBFloat16Scalar_Type) nk_bf16_to_f32(&((NkBFloat16ScalarObject *)other)->value, &b);
+    if (Py_TYPE(other) == &NkBFloat16Scalar_Type) nk_bf16_to_f32_serial(&((NkBFloat16ScalarObject *)other)->value, &b);
     else if (PyFloat_Check(other)) b = (nk_f32_t)PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b = (nk_f32_t)PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -155,19 +156,19 @@ static PyObject *NkBFloat16Scalar_sub(PyObject *self, PyObject *other) {
     result = a - b;
     NkBFloat16ScalarObject *res = PyObject_New(NkBFloat16ScalarObject, &NkBFloat16Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_bf16(&result, &res->value);
+    nk_f32_to_bf16_serial(&result, &res->value);
     return (PyObject *)res;
 }
 
 static PyObject *NkBFloat16Scalar_mul(PyObject *self, PyObject *other) {
     nk_f32_t a, b, result;
 
-    if (Py_TYPE(self) == &NkBFloat16Scalar_Type) nk_bf16_to_f32(&((NkBFloat16ScalarObject *)self)->value, &a);
+    if (Py_TYPE(self) == &NkBFloat16Scalar_Type) nk_bf16_to_f32_serial(&((NkBFloat16ScalarObject *)self)->value, &a);
     else if (PyFloat_Check(self)) a = (nk_f32_t)PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a = (nk_f32_t)PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
-    if (Py_TYPE(other) == &NkBFloat16Scalar_Type) nk_bf16_to_f32(&((NkBFloat16ScalarObject *)other)->value, &b);
+    if (Py_TYPE(other) == &NkBFloat16Scalar_Type) nk_bf16_to_f32_serial(&((NkBFloat16ScalarObject *)other)->value, &b);
     else if (PyFloat_Check(other)) b = (nk_f32_t)PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b = (nk_f32_t)PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -175,19 +176,19 @@ static PyObject *NkBFloat16Scalar_mul(PyObject *self, PyObject *other) {
     result = a * b;
     NkBFloat16ScalarObject *res = PyObject_New(NkBFloat16ScalarObject, &NkBFloat16Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_bf16(&result, &res->value);
+    nk_f32_to_bf16_serial(&result, &res->value);
     return (PyObject *)res;
 }
 
 static PyObject *NkBFloat16Scalar_div(PyObject *self, PyObject *other) {
     nk_f32_t a, b, result;
 
-    if (Py_TYPE(self) == &NkBFloat16Scalar_Type) nk_bf16_to_f32(&((NkBFloat16ScalarObject *)self)->value, &a);
+    if (Py_TYPE(self) == &NkBFloat16Scalar_Type) nk_bf16_to_f32_serial(&((NkBFloat16ScalarObject *)self)->value, &a);
     else if (PyFloat_Check(self)) a = (nk_f32_t)PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a = (nk_f32_t)PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
-    if (Py_TYPE(other) == &NkBFloat16Scalar_Type) nk_bf16_to_f32(&((NkBFloat16ScalarObject *)other)->value, &b);
+    if (Py_TYPE(other) == &NkBFloat16Scalar_Type) nk_bf16_to_f32_serial(&((NkBFloat16ScalarObject *)other)->value, &b);
     else if (PyFloat_Check(other)) b = (nk_f32_t)PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b = (nk_f32_t)PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -200,18 +201,18 @@ static PyObject *NkBFloat16Scalar_div(PyObject *self, PyObject *other) {
     result = a / b;
     NkBFloat16ScalarObject *res = PyObject_New(NkBFloat16ScalarObject, &NkBFloat16Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_bf16(&result, &res->value);
+    nk_f32_to_bf16_serial(&result, &res->value);
     return (PyObject *)res;
 }
 
 static PyObject *NkBFloat16Scalar_neg(NkBFloat16ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_bf16_to_f32(&self->value, &f32_val);
+    nk_bf16_to_f32_serial(&self->value, &f32_val);
     f32_val = -f32_val;
 
     NkBFloat16ScalarObject *res = PyObject_New(NkBFloat16ScalarObject, &NkBFloat16Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_bf16(&f32_val, &res->value);
+    nk_f32_to_bf16_serial(&f32_val, &res->value);
     return (PyObject *)res;
 }
 
@@ -222,18 +223,18 @@ static PyObject *NkBFloat16Scalar_pos(NkBFloat16ScalarObject *self) {
 
 static PyObject *NkBFloat16Scalar_abs(NkBFloat16ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_bf16_to_f32(&self->value, &f32_val);
+    nk_bf16_to_f32_serial(&self->value, &f32_val);
     if (f32_val < 0) f32_val = -f32_val;
 
     NkBFloat16ScalarObject *res = PyObject_New(NkBFloat16ScalarObject, &NkBFloat16Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_bf16(&f32_val, &res->value);
+    nk_f32_to_bf16_serial(&f32_val, &res->value);
     return (PyObject *)res;
 }
 
 static int NkBFloat16Scalar_bool(NkBFloat16ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_bf16_to_f32(&self->value, &f32_val);
+    nk_bf16_to_f32_serial(&self->value, &f32_val);
     return f32_val != 0.0f;
 }
 
@@ -291,13 +292,13 @@ static PyObject *NkFloat8E4M3Scalar_new(PyTypeObject *type, PyObject *args, PyOb
     }
 
     nk_f32_t f32_val = (nk_f32_t)value;
-    nk_f32_to_e4m3(&f32_val, &self->value);
+    nk_f32_to_e4m3_serial(&f32_val, &self->value);
     return (PyObject *)self;
 }
 
 static PyObject *NkFloat8E4M3Scalar_repr(NkFloat8E4M3ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e4m3_to_f32(&self->value, &f32_val);
+    nk_e4m3_to_f32_serial(&self->value, &f32_val);
     char buf[64];
     snprintf(buf, sizeof(buf), "float8_e4m3(%.6g)", (double)f32_val);
     return PyUnicode_FromString(buf);
@@ -305,7 +306,7 @@ static PyObject *NkFloat8E4M3Scalar_repr(NkFloat8E4M3ScalarObject *self) {
 
 static PyObject *NkFloat8E4M3Scalar_str(NkFloat8E4M3ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e4m3_to_f32(&self->value, &f32_val);
+    nk_e4m3_to_f32_serial(&self->value, &f32_val);
     char buf[32];
     snprintf(buf, sizeof(buf), "%.6g", (double)f32_val);
     return PyUnicode_FromString(buf);
@@ -313,19 +314,19 @@ static PyObject *NkFloat8E4M3Scalar_str(NkFloat8E4M3ScalarObject *self) {
 
 static PyObject *NkFloat8E4M3Scalar_float(NkFloat8E4M3ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e4m3_to_f32(&self->value, &f32_val);
+    nk_e4m3_to_f32_serial(&self->value, &f32_val);
     return PyFloat_FromDouble((double)f32_val);
 }
 
 static PyObject *NkFloat8E4M3Scalar_int(NkFloat8E4M3ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e4m3_to_f32(&self->value, &f32_val);
+    nk_e4m3_to_f32_serial(&self->value, &f32_val);
     return PyLong_FromDouble((double)f32_val);
 }
 
 static Py_hash_t NkFloat8E4M3Scalar_hash(NkFloat8E4M3ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e4m3_to_f32(&self->value, &f32_val);
+    nk_e4m3_to_f32_serial(&self->value, &f32_val);
 #if PY_VERSION_HEX >= 0x030A00F0
     return _Py_HashDouble(NULL, (double)f32_val);
 #else
@@ -336,19 +337,20 @@ static Py_hash_t NkFloat8E4M3Scalar_hash(NkFloat8E4M3ScalarObject *self) {
 static PyObject *NkFloat8E4M3Scalar_richcompare(PyObject *self, PyObject *other, int op) {
     if (Py_TYPE(self) == &NkFloat8E4M3Scalar_Type && Py_TYPE(other) == &NkFloat8E4M3Scalar_Type)
         return richcompare_from_int(
-            nk_e4m3_order(((NkFloat8E4M3ScalarObject *)self)->value, ((NkFloat8E4M3ScalarObject *)other)->value), op);
+            nk_e4m3_order_serial(((NkFloat8E4M3ScalarObject *)self)->value, ((NkFloat8E4M3ScalarObject *)other)->value),
+            op);
 
     nk_fui64_t a_fui64, b_fui64;
     nk_f32_t temporary_f32;
 
     if (Py_TYPE(self) == &NkFloat8E4M3Scalar_Type)
-        nk_e4m3_to_f32(&((NkFloat8E4M3ScalarObject *)self)->value, &temporary_f32), a_fui64.f = temporary_f32;
+        nk_e4m3_to_f32_serial(&((NkFloat8E4M3ScalarObject *)self)->value, &temporary_f32), a_fui64.f = temporary_f32;
     else if (PyFloat_Check(self)) a_fui64.f = PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a_fui64.f = PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
     if (Py_TYPE(other) == &NkFloat8E4M3Scalar_Type)
-        nk_e4m3_to_f32(&((NkFloat8E4M3ScalarObject *)other)->value, &temporary_f32), b_fui64.f = temporary_f32;
+        nk_e4m3_to_f32_serial(&((NkFloat8E4M3ScalarObject *)other)->value, &temporary_f32), b_fui64.f = temporary_f32;
     else if (PyFloat_Check(other)) b_fui64.f = PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b_fui64.f = PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -359,12 +361,14 @@ static PyObject *NkFloat8E4M3Scalar_richcompare(PyObject *self, PyObject *other,
 static PyObject *NkFloat8E4M3Scalar_add(PyObject *self, PyObject *other) {
     nk_f32_t a, b, result;
 
-    if (Py_TYPE(self) == &NkFloat8E4M3Scalar_Type) nk_e4m3_to_f32(&((NkFloat8E4M3ScalarObject *)self)->value, &a);
+    if (Py_TYPE(self) == &NkFloat8E4M3Scalar_Type)
+        nk_e4m3_to_f32_serial(&((NkFloat8E4M3ScalarObject *)self)->value, &a);
     else if (PyFloat_Check(self)) a = (nk_f32_t)PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a = (nk_f32_t)PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
-    if (Py_TYPE(other) == &NkFloat8E4M3Scalar_Type) nk_e4m3_to_f32(&((NkFloat8E4M3ScalarObject *)other)->value, &b);
+    if (Py_TYPE(other) == &NkFloat8E4M3Scalar_Type)
+        nk_e4m3_to_f32_serial(&((NkFloat8E4M3ScalarObject *)other)->value, &b);
     else if (PyFloat_Check(other)) b = (nk_f32_t)PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b = (nk_f32_t)PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -372,19 +376,21 @@ static PyObject *NkFloat8E4M3Scalar_add(PyObject *self, PyObject *other) {
     result = a + b;
     NkFloat8E4M3ScalarObject *res = PyObject_New(NkFloat8E4M3ScalarObject, &NkFloat8E4M3Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_e4m3(&result, &res->value);
+    nk_f32_to_e4m3_serial(&result, &res->value);
     return (PyObject *)res;
 }
 
 static PyObject *NkFloat8E4M3Scalar_sub(PyObject *self, PyObject *other) {
     nk_f32_t a, b, result;
 
-    if (Py_TYPE(self) == &NkFloat8E4M3Scalar_Type) nk_e4m3_to_f32(&((NkFloat8E4M3ScalarObject *)self)->value, &a);
+    if (Py_TYPE(self) == &NkFloat8E4M3Scalar_Type)
+        nk_e4m3_to_f32_serial(&((NkFloat8E4M3ScalarObject *)self)->value, &a);
     else if (PyFloat_Check(self)) a = (nk_f32_t)PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a = (nk_f32_t)PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
-    if (Py_TYPE(other) == &NkFloat8E4M3Scalar_Type) nk_e4m3_to_f32(&((NkFloat8E4M3ScalarObject *)other)->value, &b);
+    if (Py_TYPE(other) == &NkFloat8E4M3Scalar_Type)
+        nk_e4m3_to_f32_serial(&((NkFloat8E4M3ScalarObject *)other)->value, &b);
     else if (PyFloat_Check(other)) b = (nk_f32_t)PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b = (nk_f32_t)PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -392,19 +398,21 @@ static PyObject *NkFloat8E4M3Scalar_sub(PyObject *self, PyObject *other) {
     result = a - b;
     NkFloat8E4M3ScalarObject *res = PyObject_New(NkFloat8E4M3ScalarObject, &NkFloat8E4M3Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_e4m3(&result, &res->value);
+    nk_f32_to_e4m3_serial(&result, &res->value);
     return (PyObject *)res;
 }
 
 static PyObject *NkFloat8E4M3Scalar_mul(PyObject *self, PyObject *other) {
     nk_f32_t a, b, result;
 
-    if (Py_TYPE(self) == &NkFloat8E4M3Scalar_Type) nk_e4m3_to_f32(&((NkFloat8E4M3ScalarObject *)self)->value, &a);
+    if (Py_TYPE(self) == &NkFloat8E4M3Scalar_Type)
+        nk_e4m3_to_f32_serial(&((NkFloat8E4M3ScalarObject *)self)->value, &a);
     else if (PyFloat_Check(self)) a = (nk_f32_t)PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a = (nk_f32_t)PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
-    if (Py_TYPE(other) == &NkFloat8E4M3Scalar_Type) nk_e4m3_to_f32(&((NkFloat8E4M3ScalarObject *)other)->value, &b);
+    if (Py_TYPE(other) == &NkFloat8E4M3Scalar_Type)
+        nk_e4m3_to_f32_serial(&((NkFloat8E4M3ScalarObject *)other)->value, &b);
     else if (PyFloat_Check(other)) b = (nk_f32_t)PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b = (nk_f32_t)PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -412,19 +420,21 @@ static PyObject *NkFloat8E4M3Scalar_mul(PyObject *self, PyObject *other) {
     result = a * b;
     NkFloat8E4M3ScalarObject *res = PyObject_New(NkFloat8E4M3ScalarObject, &NkFloat8E4M3Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_e4m3(&result, &res->value);
+    nk_f32_to_e4m3_serial(&result, &res->value);
     return (PyObject *)res;
 }
 
 static PyObject *NkFloat8E4M3Scalar_div(PyObject *self, PyObject *other) {
     nk_f32_t a, b, result;
 
-    if (Py_TYPE(self) == &NkFloat8E4M3Scalar_Type) nk_e4m3_to_f32(&((NkFloat8E4M3ScalarObject *)self)->value, &a);
+    if (Py_TYPE(self) == &NkFloat8E4M3Scalar_Type)
+        nk_e4m3_to_f32_serial(&((NkFloat8E4M3ScalarObject *)self)->value, &a);
     else if (PyFloat_Check(self)) a = (nk_f32_t)PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a = (nk_f32_t)PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
-    if (Py_TYPE(other) == &NkFloat8E4M3Scalar_Type) nk_e4m3_to_f32(&((NkFloat8E4M3ScalarObject *)other)->value, &b);
+    if (Py_TYPE(other) == &NkFloat8E4M3Scalar_Type)
+        nk_e4m3_to_f32_serial(&((NkFloat8E4M3ScalarObject *)other)->value, &b);
     else if (PyFloat_Check(other)) b = (nk_f32_t)PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b = (nk_f32_t)PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -437,18 +447,18 @@ static PyObject *NkFloat8E4M3Scalar_div(PyObject *self, PyObject *other) {
     result = a / b;
     NkFloat8E4M3ScalarObject *res = PyObject_New(NkFloat8E4M3ScalarObject, &NkFloat8E4M3Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_e4m3(&result, &res->value);
+    nk_f32_to_e4m3_serial(&result, &res->value);
     return (PyObject *)res;
 }
 
 static PyObject *NkFloat8E4M3Scalar_neg(NkFloat8E4M3ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e4m3_to_f32(&self->value, &f32_val);
+    nk_e4m3_to_f32_serial(&self->value, &f32_val);
     f32_val = -f32_val;
 
     NkFloat8E4M3ScalarObject *res = PyObject_New(NkFloat8E4M3ScalarObject, &NkFloat8E4M3Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_e4m3(&f32_val, &res->value);
+    nk_f32_to_e4m3_serial(&f32_val, &res->value);
     return (PyObject *)res;
 }
 
@@ -459,18 +469,18 @@ static PyObject *NkFloat8E4M3Scalar_pos(NkFloat8E4M3ScalarObject *self) {
 
 static PyObject *NkFloat8E4M3Scalar_abs(NkFloat8E4M3ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e4m3_to_f32(&self->value, &f32_val);
+    nk_e4m3_to_f32_serial(&self->value, &f32_val);
     if (f32_val < 0) f32_val = -f32_val;
 
     NkFloat8E4M3ScalarObject *res = PyObject_New(NkFloat8E4M3ScalarObject, &NkFloat8E4M3Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_e4m3(&f32_val, &res->value);
+    nk_f32_to_e4m3_serial(&f32_val, &res->value);
     return (PyObject *)res;
 }
 
 static int NkFloat8E4M3Scalar_bool(NkFloat8E4M3ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e4m3_to_f32(&self->value, &f32_val);
+    nk_e4m3_to_f32_serial(&self->value, &f32_val);
     return f32_val != 0.0f;
 }
 
@@ -528,13 +538,13 @@ static PyObject *NkFloat8E5M2Scalar_new(PyTypeObject *type, PyObject *args, PyOb
     }
 
     nk_f32_t f32_val = (nk_f32_t)value;
-    nk_f32_to_e5m2(&f32_val, &self->value);
+    nk_f32_to_e5m2_serial(&f32_val, &self->value);
     return (PyObject *)self;
 }
 
 static PyObject *NkFloat8E5M2Scalar_repr(NkFloat8E5M2ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e5m2_to_f32(&self->value, &f32_val);
+    nk_e5m2_to_f32_serial(&self->value, &f32_val);
     char buf[64];
     snprintf(buf, sizeof(buf), "float8_e5m2(%.6g)", (double)f32_val);
     return PyUnicode_FromString(buf);
@@ -542,7 +552,7 @@ static PyObject *NkFloat8E5M2Scalar_repr(NkFloat8E5M2ScalarObject *self) {
 
 static PyObject *NkFloat8E5M2Scalar_str(NkFloat8E5M2ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e5m2_to_f32(&self->value, &f32_val);
+    nk_e5m2_to_f32_serial(&self->value, &f32_val);
     char buf[32];
     snprintf(buf, sizeof(buf), "%.6g", (double)f32_val);
     return PyUnicode_FromString(buf);
@@ -550,19 +560,19 @@ static PyObject *NkFloat8E5M2Scalar_str(NkFloat8E5M2ScalarObject *self) {
 
 static PyObject *NkFloat8E5M2Scalar_float(NkFloat8E5M2ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e5m2_to_f32(&self->value, &f32_val);
+    nk_e5m2_to_f32_serial(&self->value, &f32_val);
     return PyFloat_FromDouble((double)f32_val);
 }
 
 static PyObject *NkFloat8E5M2Scalar_int(NkFloat8E5M2ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e5m2_to_f32(&self->value, &f32_val);
+    nk_e5m2_to_f32_serial(&self->value, &f32_val);
     return PyLong_FromDouble((double)f32_val);
 }
 
 static Py_hash_t NkFloat8E5M2Scalar_hash(NkFloat8E5M2ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e5m2_to_f32(&self->value, &f32_val);
+    nk_e5m2_to_f32_serial(&self->value, &f32_val);
 #if PY_VERSION_HEX >= 0x030A00F0
     return _Py_HashDouble(NULL, (double)f32_val);
 #else
@@ -573,19 +583,20 @@ static Py_hash_t NkFloat8E5M2Scalar_hash(NkFloat8E5M2ScalarObject *self) {
 static PyObject *NkFloat8E5M2Scalar_richcompare(PyObject *self, PyObject *other, int op) {
     if (Py_TYPE(self) == &NkFloat8E5M2Scalar_Type && Py_TYPE(other) == &NkFloat8E5M2Scalar_Type)
         return richcompare_from_int(
-            nk_e5m2_order(((NkFloat8E5M2ScalarObject *)self)->value, ((NkFloat8E5M2ScalarObject *)other)->value), op);
+            nk_e5m2_order_serial(((NkFloat8E5M2ScalarObject *)self)->value, ((NkFloat8E5M2ScalarObject *)other)->value),
+            op);
 
     nk_fui64_t a_fui64, b_fui64;
     nk_f32_t temporary_f32;
 
     if (Py_TYPE(self) == &NkFloat8E5M2Scalar_Type)
-        nk_e5m2_to_f32(&((NkFloat8E5M2ScalarObject *)self)->value, &temporary_f32), a_fui64.f = temporary_f32;
+        nk_e5m2_to_f32_serial(&((NkFloat8E5M2ScalarObject *)self)->value, &temporary_f32), a_fui64.f = temporary_f32;
     else if (PyFloat_Check(self)) a_fui64.f = PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a_fui64.f = PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
     if (Py_TYPE(other) == &NkFloat8E5M2Scalar_Type)
-        nk_e5m2_to_f32(&((NkFloat8E5M2ScalarObject *)other)->value, &temporary_f32), b_fui64.f = temporary_f32;
+        nk_e5m2_to_f32_serial(&((NkFloat8E5M2ScalarObject *)other)->value, &temporary_f32), b_fui64.f = temporary_f32;
     else if (PyFloat_Check(other)) b_fui64.f = PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b_fui64.f = PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -596,12 +607,14 @@ static PyObject *NkFloat8E5M2Scalar_richcompare(PyObject *self, PyObject *other,
 static PyObject *NkFloat8E5M2Scalar_add(PyObject *self, PyObject *other) {
     nk_f32_t a, b, result;
 
-    if (Py_TYPE(self) == &NkFloat8E5M2Scalar_Type) nk_e5m2_to_f32(&((NkFloat8E5M2ScalarObject *)self)->value, &a);
+    if (Py_TYPE(self) == &NkFloat8E5M2Scalar_Type)
+        nk_e5m2_to_f32_serial(&((NkFloat8E5M2ScalarObject *)self)->value, &a);
     else if (PyFloat_Check(self)) a = (nk_f32_t)PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a = (nk_f32_t)PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
-    if (Py_TYPE(other) == &NkFloat8E5M2Scalar_Type) nk_e5m2_to_f32(&((NkFloat8E5M2ScalarObject *)other)->value, &b);
+    if (Py_TYPE(other) == &NkFloat8E5M2Scalar_Type)
+        nk_e5m2_to_f32_serial(&((NkFloat8E5M2ScalarObject *)other)->value, &b);
     else if (PyFloat_Check(other)) b = (nk_f32_t)PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b = (nk_f32_t)PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -609,19 +622,21 @@ static PyObject *NkFloat8E5M2Scalar_add(PyObject *self, PyObject *other) {
     result = a + b;
     NkFloat8E5M2ScalarObject *res = PyObject_New(NkFloat8E5M2ScalarObject, &NkFloat8E5M2Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_e5m2(&result, &res->value);
+    nk_f32_to_e5m2_serial(&result, &res->value);
     return (PyObject *)res;
 }
 
 static PyObject *NkFloat8E5M2Scalar_sub(PyObject *self, PyObject *other) {
     nk_f32_t a, b, result;
 
-    if (Py_TYPE(self) == &NkFloat8E5M2Scalar_Type) nk_e5m2_to_f32(&((NkFloat8E5M2ScalarObject *)self)->value, &a);
+    if (Py_TYPE(self) == &NkFloat8E5M2Scalar_Type)
+        nk_e5m2_to_f32_serial(&((NkFloat8E5M2ScalarObject *)self)->value, &a);
     else if (PyFloat_Check(self)) a = (nk_f32_t)PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a = (nk_f32_t)PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
-    if (Py_TYPE(other) == &NkFloat8E5M2Scalar_Type) nk_e5m2_to_f32(&((NkFloat8E5M2ScalarObject *)other)->value, &b);
+    if (Py_TYPE(other) == &NkFloat8E5M2Scalar_Type)
+        nk_e5m2_to_f32_serial(&((NkFloat8E5M2ScalarObject *)other)->value, &b);
     else if (PyFloat_Check(other)) b = (nk_f32_t)PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b = (nk_f32_t)PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -629,19 +644,21 @@ static PyObject *NkFloat8E5M2Scalar_sub(PyObject *self, PyObject *other) {
     result = a - b;
     NkFloat8E5M2ScalarObject *res = PyObject_New(NkFloat8E5M2ScalarObject, &NkFloat8E5M2Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_e5m2(&result, &res->value);
+    nk_f32_to_e5m2_serial(&result, &res->value);
     return (PyObject *)res;
 }
 
 static PyObject *NkFloat8E5M2Scalar_mul(PyObject *self, PyObject *other) {
     nk_f32_t a, b, result;
 
-    if (Py_TYPE(self) == &NkFloat8E5M2Scalar_Type) nk_e5m2_to_f32(&((NkFloat8E5M2ScalarObject *)self)->value, &a);
+    if (Py_TYPE(self) == &NkFloat8E5M2Scalar_Type)
+        nk_e5m2_to_f32_serial(&((NkFloat8E5M2ScalarObject *)self)->value, &a);
     else if (PyFloat_Check(self)) a = (nk_f32_t)PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a = (nk_f32_t)PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
-    if (Py_TYPE(other) == &NkFloat8E5M2Scalar_Type) nk_e5m2_to_f32(&((NkFloat8E5M2ScalarObject *)other)->value, &b);
+    if (Py_TYPE(other) == &NkFloat8E5M2Scalar_Type)
+        nk_e5m2_to_f32_serial(&((NkFloat8E5M2ScalarObject *)other)->value, &b);
     else if (PyFloat_Check(other)) b = (nk_f32_t)PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b = (nk_f32_t)PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -649,19 +666,21 @@ static PyObject *NkFloat8E5M2Scalar_mul(PyObject *self, PyObject *other) {
     result = a * b;
     NkFloat8E5M2ScalarObject *res = PyObject_New(NkFloat8E5M2ScalarObject, &NkFloat8E5M2Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_e5m2(&result, &res->value);
+    nk_f32_to_e5m2_serial(&result, &res->value);
     return (PyObject *)res;
 }
 
 static PyObject *NkFloat8E5M2Scalar_div(PyObject *self, PyObject *other) {
     nk_f32_t a, b, result;
 
-    if (Py_TYPE(self) == &NkFloat8E5M2Scalar_Type) nk_e5m2_to_f32(&((NkFloat8E5M2ScalarObject *)self)->value, &a);
+    if (Py_TYPE(self) == &NkFloat8E5M2Scalar_Type)
+        nk_e5m2_to_f32_serial(&((NkFloat8E5M2ScalarObject *)self)->value, &a);
     else if (PyFloat_Check(self)) a = (nk_f32_t)PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a = (nk_f32_t)PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
-    if (Py_TYPE(other) == &NkFloat8E5M2Scalar_Type) nk_e5m2_to_f32(&((NkFloat8E5M2ScalarObject *)other)->value, &b);
+    if (Py_TYPE(other) == &NkFloat8E5M2Scalar_Type)
+        nk_e5m2_to_f32_serial(&((NkFloat8E5M2ScalarObject *)other)->value, &b);
     else if (PyFloat_Check(other)) b = (nk_f32_t)PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b = (nk_f32_t)PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -674,18 +693,18 @@ static PyObject *NkFloat8E5M2Scalar_div(PyObject *self, PyObject *other) {
     result = a / b;
     NkFloat8E5M2ScalarObject *res = PyObject_New(NkFloat8E5M2ScalarObject, &NkFloat8E5M2Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_e5m2(&result, &res->value);
+    nk_f32_to_e5m2_serial(&result, &res->value);
     return (PyObject *)res;
 }
 
 static PyObject *NkFloat8E5M2Scalar_neg(NkFloat8E5M2ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e5m2_to_f32(&self->value, &f32_val);
+    nk_e5m2_to_f32_serial(&self->value, &f32_val);
     f32_val = -f32_val;
 
     NkFloat8E5M2ScalarObject *res = PyObject_New(NkFloat8E5M2ScalarObject, &NkFloat8E5M2Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_e5m2(&f32_val, &res->value);
+    nk_f32_to_e5m2_serial(&f32_val, &res->value);
     return (PyObject *)res;
 }
 
@@ -696,18 +715,18 @@ static PyObject *NkFloat8E5M2Scalar_pos(NkFloat8E5M2ScalarObject *self) {
 
 static PyObject *NkFloat8E5M2Scalar_abs(NkFloat8E5M2ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e5m2_to_f32(&self->value, &f32_val);
+    nk_e5m2_to_f32_serial(&self->value, &f32_val);
     if (f32_val < 0) f32_val = -f32_val;
 
     NkFloat8E5M2ScalarObject *res = PyObject_New(NkFloat8E5M2ScalarObject, &NkFloat8E5M2Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_e5m2(&f32_val, &res->value);
+    nk_f32_to_e5m2_serial(&f32_val, &res->value);
     return (PyObject *)res;
 }
 
 static int NkFloat8E5M2Scalar_bool(NkFloat8E5M2ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e5m2_to_f32(&self->value, &f32_val);
+    nk_e5m2_to_f32_serial(&self->value, &f32_val);
     return f32_val != 0.0f;
 }
 
@@ -765,13 +784,13 @@ static PyObject *NkFloat16Scalar_new(PyTypeObject *type, PyObject *args, PyObjec
     }
 
     nk_f32_t f32_val = (nk_f32_t)value;
-    nk_f32_to_f16(&f32_val, &self->value);
+    nk_f32_to_f16_serial(&f32_val, &self->value);
     return (PyObject *)self;
 }
 
 static PyObject *NkFloat16Scalar_repr(NkFloat16ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_f16_to_f32(&self->value, &f32_val);
+    nk_f16_to_f32_serial(&self->value, &f32_val);
     char buf[64];
     snprintf(buf, sizeof(buf), "float16(%.6g)", (double)f32_val);
     return PyUnicode_FromString(buf);
@@ -779,7 +798,7 @@ static PyObject *NkFloat16Scalar_repr(NkFloat16ScalarObject *self) {
 
 static PyObject *NkFloat16Scalar_str(NkFloat16ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_f16_to_f32(&self->value, &f32_val);
+    nk_f16_to_f32_serial(&self->value, &f32_val);
     char buf[32];
     snprintf(buf, sizeof(buf), "%.6g", (double)f32_val);
     return PyUnicode_FromString(buf);
@@ -787,19 +806,19 @@ static PyObject *NkFloat16Scalar_str(NkFloat16ScalarObject *self) {
 
 static PyObject *NkFloat16Scalar_float(NkFloat16ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_f16_to_f32(&self->value, &f32_val);
+    nk_f16_to_f32_serial(&self->value, &f32_val);
     return PyFloat_FromDouble((double)f32_val);
 }
 
 static PyObject *NkFloat16Scalar_int(NkFloat16ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_f16_to_f32(&self->value, &f32_val);
+    nk_f16_to_f32_serial(&self->value, &f32_val);
     return PyLong_FromDouble((double)f32_val);
 }
 
 static Py_hash_t NkFloat16Scalar_hash(NkFloat16ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_f16_to_f32(&self->value, &f32_val);
+    nk_f16_to_f32_serial(&self->value, &f32_val);
 #if PY_VERSION_HEX >= 0x030A00F0
     return _Py_HashDouble(NULL, (double)f32_val);
 #else
@@ -810,19 +829,19 @@ static Py_hash_t NkFloat16Scalar_hash(NkFloat16ScalarObject *self) {
 static PyObject *NkFloat16Scalar_richcompare(PyObject *self, PyObject *other, int op) {
     if (Py_TYPE(self) == &NkFloat16Scalar_Type && Py_TYPE(other) == &NkFloat16Scalar_Type)
         return richcompare_from_int(
-            nk_f16_order(((NkFloat16ScalarObject *)self)->value, ((NkFloat16ScalarObject *)other)->value), op);
+            nk_f16_order_serial(((NkFloat16ScalarObject *)self)->value, ((NkFloat16ScalarObject *)other)->value), op);
 
     nk_fui64_t a_fui64, b_fui64;
     nk_f32_t temporary_f32;
 
     if (Py_TYPE(self) == &NkFloat16Scalar_Type)
-        nk_f16_to_f32(&((NkFloat16ScalarObject *)self)->value, &temporary_f32), a_fui64.f = temporary_f32;
+        nk_f16_to_f32_serial(&((NkFloat16ScalarObject *)self)->value, &temporary_f32), a_fui64.f = temporary_f32;
     else if (PyFloat_Check(self)) a_fui64.f = PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a_fui64.f = PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
     if (Py_TYPE(other) == &NkFloat16Scalar_Type)
-        nk_f16_to_f32(&((NkFloat16ScalarObject *)other)->value, &temporary_f32), b_fui64.f = temporary_f32;
+        nk_f16_to_f32_serial(&((NkFloat16ScalarObject *)other)->value, &temporary_f32), b_fui64.f = temporary_f32;
     else if (PyFloat_Check(other)) b_fui64.f = PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b_fui64.f = PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -833,12 +852,12 @@ static PyObject *NkFloat16Scalar_richcompare(PyObject *self, PyObject *other, in
 static PyObject *NkFloat16Scalar_add(PyObject *self, PyObject *other) {
     nk_f32_t a, b, result;
 
-    if (Py_TYPE(self) == &NkFloat16Scalar_Type) nk_f16_to_f32(&((NkFloat16ScalarObject *)self)->value, &a);
+    if (Py_TYPE(self) == &NkFloat16Scalar_Type) nk_f16_to_f32_serial(&((NkFloat16ScalarObject *)self)->value, &a);
     else if (PyFloat_Check(self)) a = (nk_f32_t)PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a = (nk_f32_t)PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
-    if (Py_TYPE(other) == &NkFloat16Scalar_Type) nk_f16_to_f32(&((NkFloat16ScalarObject *)other)->value, &b);
+    if (Py_TYPE(other) == &NkFloat16Scalar_Type) nk_f16_to_f32_serial(&((NkFloat16ScalarObject *)other)->value, &b);
     else if (PyFloat_Check(other)) b = (nk_f32_t)PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b = (nk_f32_t)PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -846,19 +865,19 @@ static PyObject *NkFloat16Scalar_add(PyObject *self, PyObject *other) {
     result = a + b;
     NkFloat16ScalarObject *res = PyObject_New(NkFloat16ScalarObject, &NkFloat16Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_f16(&result, &res->value);
+    nk_f32_to_f16_serial(&result, &res->value);
     return (PyObject *)res;
 }
 
 static PyObject *NkFloat16Scalar_sub(PyObject *self, PyObject *other) {
     nk_f32_t a, b, result;
 
-    if (Py_TYPE(self) == &NkFloat16Scalar_Type) nk_f16_to_f32(&((NkFloat16ScalarObject *)self)->value, &a);
+    if (Py_TYPE(self) == &NkFloat16Scalar_Type) nk_f16_to_f32_serial(&((NkFloat16ScalarObject *)self)->value, &a);
     else if (PyFloat_Check(self)) a = (nk_f32_t)PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a = (nk_f32_t)PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
-    if (Py_TYPE(other) == &NkFloat16Scalar_Type) nk_f16_to_f32(&((NkFloat16ScalarObject *)other)->value, &b);
+    if (Py_TYPE(other) == &NkFloat16Scalar_Type) nk_f16_to_f32_serial(&((NkFloat16ScalarObject *)other)->value, &b);
     else if (PyFloat_Check(other)) b = (nk_f32_t)PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b = (nk_f32_t)PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -866,19 +885,19 @@ static PyObject *NkFloat16Scalar_sub(PyObject *self, PyObject *other) {
     result = a - b;
     NkFloat16ScalarObject *res = PyObject_New(NkFloat16ScalarObject, &NkFloat16Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_f16(&result, &res->value);
+    nk_f32_to_f16_serial(&result, &res->value);
     return (PyObject *)res;
 }
 
 static PyObject *NkFloat16Scalar_mul(PyObject *self, PyObject *other) {
     nk_f32_t a, b, result;
 
-    if (Py_TYPE(self) == &NkFloat16Scalar_Type) nk_f16_to_f32(&((NkFloat16ScalarObject *)self)->value, &a);
+    if (Py_TYPE(self) == &NkFloat16Scalar_Type) nk_f16_to_f32_serial(&((NkFloat16ScalarObject *)self)->value, &a);
     else if (PyFloat_Check(self)) a = (nk_f32_t)PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a = (nk_f32_t)PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
-    if (Py_TYPE(other) == &NkFloat16Scalar_Type) nk_f16_to_f32(&((NkFloat16ScalarObject *)other)->value, &b);
+    if (Py_TYPE(other) == &NkFloat16Scalar_Type) nk_f16_to_f32_serial(&((NkFloat16ScalarObject *)other)->value, &b);
     else if (PyFloat_Check(other)) b = (nk_f32_t)PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b = (nk_f32_t)PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -886,19 +905,19 @@ static PyObject *NkFloat16Scalar_mul(PyObject *self, PyObject *other) {
     result = a * b;
     NkFloat16ScalarObject *res = PyObject_New(NkFloat16ScalarObject, &NkFloat16Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_f16(&result, &res->value);
+    nk_f32_to_f16_serial(&result, &res->value);
     return (PyObject *)res;
 }
 
 static PyObject *NkFloat16Scalar_div(PyObject *self, PyObject *other) {
     nk_f32_t a, b, result;
 
-    if (Py_TYPE(self) == &NkFloat16Scalar_Type) nk_f16_to_f32(&((NkFloat16ScalarObject *)self)->value, &a);
+    if (Py_TYPE(self) == &NkFloat16Scalar_Type) nk_f16_to_f32_serial(&((NkFloat16ScalarObject *)self)->value, &a);
     else if (PyFloat_Check(self)) a = (nk_f32_t)PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a = (nk_f32_t)PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
-    if (Py_TYPE(other) == &NkFloat16Scalar_Type) nk_f16_to_f32(&((NkFloat16ScalarObject *)other)->value, &b);
+    if (Py_TYPE(other) == &NkFloat16Scalar_Type) nk_f16_to_f32_serial(&((NkFloat16ScalarObject *)other)->value, &b);
     else if (PyFloat_Check(other)) b = (nk_f32_t)PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b = (nk_f32_t)PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -911,18 +930,18 @@ static PyObject *NkFloat16Scalar_div(PyObject *self, PyObject *other) {
     result = a / b;
     NkFloat16ScalarObject *res = PyObject_New(NkFloat16ScalarObject, &NkFloat16Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_f16(&result, &res->value);
+    nk_f32_to_f16_serial(&result, &res->value);
     return (PyObject *)res;
 }
 
 static PyObject *NkFloat16Scalar_neg(NkFloat16ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_f16_to_f32(&self->value, &f32_val);
+    nk_f16_to_f32_serial(&self->value, &f32_val);
     f32_val = -f32_val;
 
     NkFloat16ScalarObject *res = PyObject_New(NkFloat16ScalarObject, &NkFloat16Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_f16(&f32_val, &res->value);
+    nk_f32_to_f16_serial(&f32_val, &res->value);
     return (PyObject *)res;
 }
 
@@ -933,18 +952,18 @@ static PyObject *NkFloat16Scalar_pos(NkFloat16ScalarObject *self) {
 
 static PyObject *NkFloat16Scalar_abs(NkFloat16ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_f16_to_f32(&self->value, &f32_val);
+    nk_f16_to_f32_serial(&self->value, &f32_val);
     if (f32_val < 0) f32_val = -f32_val;
 
     NkFloat16ScalarObject *res = PyObject_New(NkFloat16ScalarObject, &NkFloat16Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_f16(&f32_val, &res->value);
+    nk_f32_to_f16_serial(&f32_val, &res->value);
     return (PyObject *)res;
 }
 
 static int NkFloat16Scalar_bool(NkFloat16ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_f16_to_f32(&self->value, &f32_val);
+    nk_f16_to_f32_serial(&self->value, &f32_val);
     return f32_val != 0.0f;
 }
 
@@ -1002,13 +1021,13 @@ static PyObject *NkFloat6E2M3Scalar_new(PyTypeObject *type, PyObject *args, PyOb
     }
 
     nk_f32_t f32_val = (nk_f32_t)value;
-    nk_f32_to_e2m3(&f32_val, &self->value);
+    nk_f32_to_e2m3_serial(&f32_val, &self->value);
     return (PyObject *)self;
 }
 
 static PyObject *NkFloat6E2M3Scalar_repr(NkFloat6E2M3ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e2m3_to_f32(&self->value, &f32_val);
+    nk_e2m3_to_f32_serial(&self->value, &f32_val);
     char buf[64];
     snprintf(buf, sizeof(buf), "float6_e2m3(%.6g)", (double)f32_val);
     return PyUnicode_FromString(buf);
@@ -1016,7 +1035,7 @@ static PyObject *NkFloat6E2M3Scalar_repr(NkFloat6E2M3ScalarObject *self) {
 
 static PyObject *NkFloat6E2M3Scalar_str(NkFloat6E2M3ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e2m3_to_f32(&self->value, &f32_val);
+    nk_e2m3_to_f32_serial(&self->value, &f32_val);
     char buf[32];
     snprintf(buf, sizeof(buf), "%.6g", (double)f32_val);
     return PyUnicode_FromString(buf);
@@ -1024,19 +1043,19 @@ static PyObject *NkFloat6E2M3Scalar_str(NkFloat6E2M3ScalarObject *self) {
 
 static PyObject *NkFloat6E2M3Scalar_float(NkFloat6E2M3ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e2m3_to_f32(&self->value, &f32_val);
+    nk_e2m3_to_f32_serial(&self->value, &f32_val);
     return PyFloat_FromDouble((double)f32_val);
 }
 
 static PyObject *NkFloat6E2M3Scalar_int(NkFloat6E2M3ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e2m3_to_f32(&self->value, &f32_val);
+    nk_e2m3_to_f32_serial(&self->value, &f32_val);
     return PyLong_FromDouble((double)f32_val);
 }
 
 static Py_hash_t NkFloat6E2M3Scalar_hash(NkFloat6E2M3ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e2m3_to_f32(&self->value, &f32_val);
+    nk_e2m3_to_f32_serial(&self->value, &f32_val);
 #if PY_VERSION_HEX >= 0x030A00F0
     return _Py_HashDouble(NULL, (double)f32_val);
 #else
@@ -1047,19 +1066,20 @@ static Py_hash_t NkFloat6E2M3Scalar_hash(NkFloat6E2M3ScalarObject *self) {
 static PyObject *NkFloat6E2M3Scalar_richcompare(PyObject *self, PyObject *other, int op) {
     if (Py_TYPE(self) == &NkFloat6E2M3Scalar_Type && Py_TYPE(other) == &NkFloat6E2M3Scalar_Type)
         return richcompare_from_int(
-            nk_e2m3_order(((NkFloat6E2M3ScalarObject *)self)->value, ((NkFloat6E2M3ScalarObject *)other)->value), op);
+            nk_e2m3_order_serial(((NkFloat6E2M3ScalarObject *)self)->value, ((NkFloat6E2M3ScalarObject *)other)->value),
+            op);
 
     nk_fui64_t a_fui64, b_fui64;
     nk_f32_t temporary_f32;
 
     if (Py_TYPE(self) == &NkFloat6E2M3Scalar_Type)
-        nk_e2m3_to_f32(&((NkFloat6E2M3ScalarObject *)self)->value, &temporary_f32), a_fui64.f = temporary_f32;
+        nk_e2m3_to_f32_serial(&((NkFloat6E2M3ScalarObject *)self)->value, &temporary_f32), a_fui64.f = temporary_f32;
     else if (PyFloat_Check(self)) a_fui64.f = PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a_fui64.f = PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
     if (Py_TYPE(other) == &NkFloat6E2M3Scalar_Type)
-        nk_e2m3_to_f32(&((NkFloat6E2M3ScalarObject *)other)->value, &temporary_f32), b_fui64.f = temporary_f32;
+        nk_e2m3_to_f32_serial(&((NkFloat6E2M3ScalarObject *)other)->value, &temporary_f32), b_fui64.f = temporary_f32;
     else if (PyFloat_Check(other)) b_fui64.f = PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b_fui64.f = PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -1070,12 +1090,14 @@ static PyObject *NkFloat6E2M3Scalar_richcompare(PyObject *self, PyObject *other,
 static PyObject *NkFloat6E2M3Scalar_add(PyObject *self, PyObject *other) {
     nk_f32_t a, b, result;
 
-    if (Py_TYPE(self) == &NkFloat6E2M3Scalar_Type) nk_e2m3_to_f32(&((NkFloat6E2M3ScalarObject *)self)->value, &a);
+    if (Py_TYPE(self) == &NkFloat6E2M3Scalar_Type)
+        nk_e2m3_to_f32_serial(&((NkFloat6E2M3ScalarObject *)self)->value, &a);
     else if (PyFloat_Check(self)) a = (nk_f32_t)PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a = (nk_f32_t)PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
-    if (Py_TYPE(other) == &NkFloat6E2M3Scalar_Type) nk_e2m3_to_f32(&((NkFloat6E2M3ScalarObject *)other)->value, &b);
+    if (Py_TYPE(other) == &NkFloat6E2M3Scalar_Type)
+        nk_e2m3_to_f32_serial(&((NkFloat6E2M3ScalarObject *)other)->value, &b);
     else if (PyFloat_Check(other)) b = (nk_f32_t)PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b = (nk_f32_t)PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -1083,19 +1105,21 @@ static PyObject *NkFloat6E2M3Scalar_add(PyObject *self, PyObject *other) {
     result = a + b;
     NkFloat6E2M3ScalarObject *res = PyObject_New(NkFloat6E2M3ScalarObject, &NkFloat6E2M3Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_e2m3(&result, &res->value);
+    nk_f32_to_e2m3_serial(&result, &res->value);
     return (PyObject *)res;
 }
 
 static PyObject *NkFloat6E2M3Scalar_sub(PyObject *self, PyObject *other) {
     nk_f32_t a, b, result;
 
-    if (Py_TYPE(self) == &NkFloat6E2M3Scalar_Type) nk_e2m3_to_f32(&((NkFloat6E2M3ScalarObject *)self)->value, &a);
+    if (Py_TYPE(self) == &NkFloat6E2M3Scalar_Type)
+        nk_e2m3_to_f32_serial(&((NkFloat6E2M3ScalarObject *)self)->value, &a);
     else if (PyFloat_Check(self)) a = (nk_f32_t)PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a = (nk_f32_t)PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
-    if (Py_TYPE(other) == &NkFloat6E2M3Scalar_Type) nk_e2m3_to_f32(&((NkFloat6E2M3ScalarObject *)other)->value, &b);
+    if (Py_TYPE(other) == &NkFloat6E2M3Scalar_Type)
+        nk_e2m3_to_f32_serial(&((NkFloat6E2M3ScalarObject *)other)->value, &b);
     else if (PyFloat_Check(other)) b = (nk_f32_t)PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b = (nk_f32_t)PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -1103,19 +1127,21 @@ static PyObject *NkFloat6E2M3Scalar_sub(PyObject *self, PyObject *other) {
     result = a - b;
     NkFloat6E2M3ScalarObject *res = PyObject_New(NkFloat6E2M3ScalarObject, &NkFloat6E2M3Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_e2m3(&result, &res->value);
+    nk_f32_to_e2m3_serial(&result, &res->value);
     return (PyObject *)res;
 }
 
 static PyObject *NkFloat6E2M3Scalar_mul(PyObject *self, PyObject *other) {
     nk_f32_t a, b, result;
 
-    if (Py_TYPE(self) == &NkFloat6E2M3Scalar_Type) nk_e2m3_to_f32(&((NkFloat6E2M3ScalarObject *)self)->value, &a);
+    if (Py_TYPE(self) == &NkFloat6E2M3Scalar_Type)
+        nk_e2m3_to_f32_serial(&((NkFloat6E2M3ScalarObject *)self)->value, &a);
     else if (PyFloat_Check(self)) a = (nk_f32_t)PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a = (nk_f32_t)PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
-    if (Py_TYPE(other) == &NkFloat6E2M3Scalar_Type) nk_e2m3_to_f32(&((NkFloat6E2M3ScalarObject *)other)->value, &b);
+    if (Py_TYPE(other) == &NkFloat6E2M3Scalar_Type)
+        nk_e2m3_to_f32_serial(&((NkFloat6E2M3ScalarObject *)other)->value, &b);
     else if (PyFloat_Check(other)) b = (nk_f32_t)PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b = (nk_f32_t)PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -1123,19 +1149,21 @@ static PyObject *NkFloat6E2M3Scalar_mul(PyObject *self, PyObject *other) {
     result = a * b;
     NkFloat6E2M3ScalarObject *res = PyObject_New(NkFloat6E2M3ScalarObject, &NkFloat6E2M3Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_e2m3(&result, &res->value);
+    nk_f32_to_e2m3_serial(&result, &res->value);
     return (PyObject *)res;
 }
 
 static PyObject *NkFloat6E2M3Scalar_div(PyObject *self, PyObject *other) {
     nk_f32_t a, b, result;
 
-    if (Py_TYPE(self) == &NkFloat6E2M3Scalar_Type) nk_e2m3_to_f32(&((NkFloat6E2M3ScalarObject *)self)->value, &a);
+    if (Py_TYPE(self) == &NkFloat6E2M3Scalar_Type)
+        nk_e2m3_to_f32_serial(&((NkFloat6E2M3ScalarObject *)self)->value, &a);
     else if (PyFloat_Check(self)) a = (nk_f32_t)PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a = (nk_f32_t)PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
-    if (Py_TYPE(other) == &NkFloat6E2M3Scalar_Type) nk_e2m3_to_f32(&((NkFloat6E2M3ScalarObject *)other)->value, &b);
+    if (Py_TYPE(other) == &NkFloat6E2M3Scalar_Type)
+        nk_e2m3_to_f32_serial(&((NkFloat6E2M3ScalarObject *)other)->value, &b);
     else if (PyFloat_Check(other)) b = (nk_f32_t)PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b = (nk_f32_t)PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -1148,18 +1176,18 @@ static PyObject *NkFloat6E2M3Scalar_div(PyObject *self, PyObject *other) {
     result = a / b;
     NkFloat6E2M3ScalarObject *res = PyObject_New(NkFloat6E2M3ScalarObject, &NkFloat6E2M3Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_e2m3(&result, &res->value);
+    nk_f32_to_e2m3_serial(&result, &res->value);
     return (PyObject *)res;
 }
 
 static PyObject *NkFloat6E2M3Scalar_neg(NkFloat6E2M3ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e2m3_to_f32(&self->value, &f32_val);
+    nk_e2m3_to_f32_serial(&self->value, &f32_val);
     f32_val = -f32_val;
 
     NkFloat6E2M3ScalarObject *res = PyObject_New(NkFloat6E2M3ScalarObject, &NkFloat6E2M3Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_e2m3(&f32_val, &res->value);
+    nk_f32_to_e2m3_serial(&f32_val, &res->value);
     return (PyObject *)res;
 }
 
@@ -1170,18 +1198,18 @@ static PyObject *NkFloat6E2M3Scalar_pos(NkFloat6E2M3ScalarObject *self) {
 
 static PyObject *NkFloat6E2M3Scalar_abs(NkFloat6E2M3ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e2m3_to_f32(&self->value, &f32_val);
+    nk_e2m3_to_f32_serial(&self->value, &f32_val);
     if (f32_val < 0) f32_val = -f32_val;
 
     NkFloat6E2M3ScalarObject *res = PyObject_New(NkFloat6E2M3ScalarObject, &NkFloat6E2M3Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_e2m3(&f32_val, &res->value);
+    nk_f32_to_e2m3_serial(&f32_val, &res->value);
     return (PyObject *)res;
 }
 
 static int NkFloat6E2M3Scalar_bool(NkFloat6E2M3ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e2m3_to_f32(&self->value, &f32_val);
+    nk_e2m3_to_f32_serial(&self->value, &f32_val);
     return f32_val != 0.0f;
 }
 
@@ -1239,13 +1267,13 @@ static PyObject *NkFloat6E3M2Scalar_new(PyTypeObject *type, PyObject *args, PyOb
     }
 
     nk_f32_t f32_val = (nk_f32_t)value;
-    nk_f32_to_e3m2(&f32_val, &self->value);
+    nk_f32_to_e3m2_serial(&f32_val, &self->value);
     return (PyObject *)self;
 }
 
 static PyObject *NkFloat6E3M2Scalar_repr(NkFloat6E3M2ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e3m2_to_f32(&self->value, &f32_val);
+    nk_e3m2_to_f32_serial(&self->value, &f32_val);
     char buf[64];
     snprintf(buf, sizeof(buf), "float6_e3m2(%.6g)", (double)f32_val);
     return PyUnicode_FromString(buf);
@@ -1253,7 +1281,7 @@ static PyObject *NkFloat6E3M2Scalar_repr(NkFloat6E3M2ScalarObject *self) {
 
 static PyObject *NkFloat6E3M2Scalar_str(NkFloat6E3M2ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e3m2_to_f32(&self->value, &f32_val);
+    nk_e3m2_to_f32_serial(&self->value, &f32_val);
     char buf[32];
     snprintf(buf, sizeof(buf), "%.6g", (double)f32_val);
     return PyUnicode_FromString(buf);
@@ -1261,19 +1289,19 @@ static PyObject *NkFloat6E3M2Scalar_str(NkFloat6E3M2ScalarObject *self) {
 
 static PyObject *NkFloat6E3M2Scalar_float(NkFloat6E3M2ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e3m2_to_f32(&self->value, &f32_val);
+    nk_e3m2_to_f32_serial(&self->value, &f32_val);
     return PyFloat_FromDouble((double)f32_val);
 }
 
 static PyObject *NkFloat6E3M2Scalar_int(NkFloat6E3M2ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e3m2_to_f32(&self->value, &f32_val);
+    nk_e3m2_to_f32_serial(&self->value, &f32_val);
     return PyLong_FromDouble((double)f32_val);
 }
 
 static Py_hash_t NkFloat6E3M2Scalar_hash(NkFloat6E3M2ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e3m2_to_f32(&self->value, &f32_val);
+    nk_e3m2_to_f32_serial(&self->value, &f32_val);
 #if PY_VERSION_HEX >= 0x030A00F0
     return _Py_HashDouble(NULL, (double)f32_val);
 #else
@@ -1284,19 +1312,20 @@ static Py_hash_t NkFloat6E3M2Scalar_hash(NkFloat6E3M2ScalarObject *self) {
 static PyObject *NkFloat6E3M2Scalar_richcompare(PyObject *self, PyObject *other, int op) {
     if (Py_TYPE(self) == &NkFloat6E3M2Scalar_Type && Py_TYPE(other) == &NkFloat6E3M2Scalar_Type)
         return richcompare_from_int(
-            nk_e3m2_order(((NkFloat6E3M2ScalarObject *)self)->value, ((NkFloat6E3M2ScalarObject *)other)->value), op);
+            nk_e3m2_order_serial(((NkFloat6E3M2ScalarObject *)self)->value, ((NkFloat6E3M2ScalarObject *)other)->value),
+            op);
 
     nk_fui64_t a_fui64, b_fui64;
     nk_f32_t temporary_f32;
 
     if (Py_TYPE(self) == &NkFloat6E3M2Scalar_Type)
-        nk_e3m2_to_f32(&((NkFloat6E3M2ScalarObject *)self)->value, &temporary_f32), a_fui64.f = temporary_f32;
+        nk_e3m2_to_f32_serial(&((NkFloat6E3M2ScalarObject *)self)->value, &temporary_f32), a_fui64.f = temporary_f32;
     else if (PyFloat_Check(self)) a_fui64.f = PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a_fui64.f = PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
     if (Py_TYPE(other) == &NkFloat6E3M2Scalar_Type)
-        nk_e3m2_to_f32(&((NkFloat6E3M2ScalarObject *)other)->value, &temporary_f32), b_fui64.f = temporary_f32;
+        nk_e3m2_to_f32_serial(&((NkFloat6E3M2ScalarObject *)other)->value, &temporary_f32), b_fui64.f = temporary_f32;
     else if (PyFloat_Check(other)) b_fui64.f = PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b_fui64.f = PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -1307,12 +1336,14 @@ static PyObject *NkFloat6E3M2Scalar_richcompare(PyObject *self, PyObject *other,
 static PyObject *NkFloat6E3M2Scalar_add(PyObject *self, PyObject *other) {
     nk_f32_t a, b, result;
 
-    if (Py_TYPE(self) == &NkFloat6E3M2Scalar_Type) nk_e3m2_to_f32(&((NkFloat6E3M2ScalarObject *)self)->value, &a);
+    if (Py_TYPE(self) == &NkFloat6E3M2Scalar_Type)
+        nk_e3m2_to_f32_serial(&((NkFloat6E3M2ScalarObject *)self)->value, &a);
     else if (PyFloat_Check(self)) a = (nk_f32_t)PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a = (nk_f32_t)PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
-    if (Py_TYPE(other) == &NkFloat6E3M2Scalar_Type) nk_e3m2_to_f32(&((NkFloat6E3M2ScalarObject *)other)->value, &b);
+    if (Py_TYPE(other) == &NkFloat6E3M2Scalar_Type)
+        nk_e3m2_to_f32_serial(&((NkFloat6E3M2ScalarObject *)other)->value, &b);
     else if (PyFloat_Check(other)) b = (nk_f32_t)PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b = (nk_f32_t)PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -1320,19 +1351,21 @@ static PyObject *NkFloat6E3M2Scalar_add(PyObject *self, PyObject *other) {
     result = a + b;
     NkFloat6E3M2ScalarObject *res = PyObject_New(NkFloat6E3M2ScalarObject, &NkFloat6E3M2Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_e3m2(&result, &res->value);
+    nk_f32_to_e3m2_serial(&result, &res->value);
     return (PyObject *)res;
 }
 
 static PyObject *NkFloat6E3M2Scalar_sub(PyObject *self, PyObject *other) {
     nk_f32_t a, b, result;
 
-    if (Py_TYPE(self) == &NkFloat6E3M2Scalar_Type) nk_e3m2_to_f32(&((NkFloat6E3M2ScalarObject *)self)->value, &a);
+    if (Py_TYPE(self) == &NkFloat6E3M2Scalar_Type)
+        nk_e3m2_to_f32_serial(&((NkFloat6E3M2ScalarObject *)self)->value, &a);
     else if (PyFloat_Check(self)) a = (nk_f32_t)PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a = (nk_f32_t)PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
-    if (Py_TYPE(other) == &NkFloat6E3M2Scalar_Type) nk_e3m2_to_f32(&((NkFloat6E3M2ScalarObject *)other)->value, &b);
+    if (Py_TYPE(other) == &NkFloat6E3M2Scalar_Type)
+        nk_e3m2_to_f32_serial(&((NkFloat6E3M2ScalarObject *)other)->value, &b);
     else if (PyFloat_Check(other)) b = (nk_f32_t)PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b = (nk_f32_t)PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -1340,19 +1373,21 @@ static PyObject *NkFloat6E3M2Scalar_sub(PyObject *self, PyObject *other) {
     result = a - b;
     NkFloat6E3M2ScalarObject *res = PyObject_New(NkFloat6E3M2ScalarObject, &NkFloat6E3M2Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_e3m2(&result, &res->value);
+    nk_f32_to_e3m2_serial(&result, &res->value);
     return (PyObject *)res;
 }
 
 static PyObject *NkFloat6E3M2Scalar_mul(PyObject *self, PyObject *other) {
     nk_f32_t a, b, result;
 
-    if (Py_TYPE(self) == &NkFloat6E3M2Scalar_Type) nk_e3m2_to_f32(&((NkFloat6E3M2ScalarObject *)self)->value, &a);
+    if (Py_TYPE(self) == &NkFloat6E3M2Scalar_Type)
+        nk_e3m2_to_f32_serial(&((NkFloat6E3M2ScalarObject *)self)->value, &a);
     else if (PyFloat_Check(self)) a = (nk_f32_t)PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a = (nk_f32_t)PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
-    if (Py_TYPE(other) == &NkFloat6E3M2Scalar_Type) nk_e3m2_to_f32(&((NkFloat6E3M2ScalarObject *)other)->value, &b);
+    if (Py_TYPE(other) == &NkFloat6E3M2Scalar_Type)
+        nk_e3m2_to_f32_serial(&((NkFloat6E3M2ScalarObject *)other)->value, &b);
     else if (PyFloat_Check(other)) b = (nk_f32_t)PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b = (nk_f32_t)PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -1360,19 +1395,21 @@ static PyObject *NkFloat6E3M2Scalar_mul(PyObject *self, PyObject *other) {
     result = a * b;
     NkFloat6E3M2ScalarObject *res = PyObject_New(NkFloat6E3M2ScalarObject, &NkFloat6E3M2Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_e3m2(&result, &res->value);
+    nk_f32_to_e3m2_serial(&result, &res->value);
     return (PyObject *)res;
 }
 
 static PyObject *NkFloat6E3M2Scalar_div(PyObject *self, PyObject *other) {
     nk_f32_t a, b, result;
 
-    if (Py_TYPE(self) == &NkFloat6E3M2Scalar_Type) nk_e3m2_to_f32(&((NkFloat6E3M2ScalarObject *)self)->value, &a);
+    if (Py_TYPE(self) == &NkFloat6E3M2Scalar_Type)
+        nk_e3m2_to_f32_serial(&((NkFloat6E3M2ScalarObject *)self)->value, &a);
     else if (PyFloat_Check(self)) a = (nk_f32_t)PyFloat_AS_DOUBLE(self);
     else if (PyLong_Check(self)) a = (nk_f32_t)PyLong_AsDouble(self);
     else Py_RETURN_NOTIMPLEMENTED;
 
-    if (Py_TYPE(other) == &NkFloat6E3M2Scalar_Type) nk_e3m2_to_f32(&((NkFloat6E3M2ScalarObject *)other)->value, &b);
+    if (Py_TYPE(other) == &NkFloat6E3M2Scalar_Type)
+        nk_e3m2_to_f32_serial(&((NkFloat6E3M2ScalarObject *)other)->value, &b);
     else if (PyFloat_Check(other)) b = (nk_f32_t)PyFloat_AS_DOUBLE(other);
     else if (PyLong_Check(other)) b = (nk_f32_t)PyLong_AsDouble(other);
     else Py_RETURN_NOTIMPLEMENTED;
@@ -1385,18 +1422,18 @@ static PyObject *NkFloat6E3M2Scalar_div(PyObject *self, PyObject *other) {
     result = a / b;
     NkFloat6E3M2ScalarObject *res = PyObject_New(NkFloat6E3M2ScalarObject, &NkFloat6E3M2Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_e3m2(&result, &res->value);
+    nk_f32_to_e3m2_serial(&result, &res->value);
     return (PyObject *)res;
 }
 
 static PyObject *NkFloat6E3M2Scalar_neg(NkFloat6E3M2ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e3m2_to_f32(&self->value, &f32_val);
+    nk_e3m2_to_f32_serial(&self->value, &f32_val);
     f32_val = -f32_val;
 
     NkFloat6E3M2ScalarObject *res = PyObject_New(NkFloat6E3M2ScalarObject, &NkFloat6E3M2Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_e3m2(&f32_val, &res->value);
+    nk_f32_to_e3m2_serial(&f32_val, &res->value);
     return (PyObject *)res;
 }
 
@@ -1407,18 +1444,18 @@ static PyObject *NkFloat6E3M2Scalar_pos(NkFloat6E3M2ScalarObject *self) {
 
 static PyObject *NkFloat6E3M2Scalar_abs(NkFloat6E3M2ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e3m2_to_f32(&self->value, &f32_val);
+    nk_e3m2_to_f32_serial(&self->value, &f32_val);
     if (f32_val < 0) f32_val = -f32_val;
 
     NkFloat6E3M2ScalarObject *res = PyObject_New(NkFloat6E3M2ScalarObject, &NkFloat6E3M2Scalar_Type);
     if (res == NULL) return NULL;
-    nk_f32_to_e3m2(&f32_val, &res->value);
+    nk_f32_to_e3m2_serial(&f32_val, &res->value);
     return (PyObject *)res;
 }
 
 static int NkFloat6E3M2Scalar_bool(NkFloat6E3M2ScalarObject *self) {
     nk_f32_t f32_val;
-    nk_e3m2_to_f32(&self->value, &f32_val);
+    nk_e3m2_to_f32_serial(&self->value, &f32_val);
     return f32_val != 0.0f;
 }
 

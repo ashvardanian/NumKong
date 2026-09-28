@@ -21,8 +21,8 @@
 #ifndef NUMKONG_SCALAR_HASWELL_H
 #define NUMKONG_SCALAR_HASWELL_H
 
-#if NUMKONG_ARCH_X86_64_
-#if NUMKONG_TARGET_HASWELL
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_HASWELL_
 
 #include "numkong/types.h"
 
@@ -30,6 +30,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_HASWELL
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("avx2,f16c,fma,bmi,bmi2"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -37,30 +38,30 @@ extern "C" {
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NUMKONG_API_COMPTIME nk_f32_t nk_f32_sqrt_haswell(nk_f32_t x) { return _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(x))); }
-NUMKONG_API_COMPTIME nk_f64_t nk_f64_sqrt_haswell(nk_f64_t x) { return _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(x))); }
-NUMKONG_API_COMPTIME nk_f32_t nk_f32_rsqrt_haswell(nk_f32_t x) {
+NUMKONG_API nk_f32_t nk_f32_sqrt_haswell(nk_f32_t x) { return _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(x))); }
+NUMKONG_API nk_f64_t nk_f64_sqrt_haswell(nk_f64_t x) { return _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(x))); }
+NUMKONG_API nk_f32_t nk_f32_rsqrt_haswell(nk_f32_t x) {
     __m128 x_f32x4 = _mm_set_ss(x);
     __m128 estimate_f32x4 = _mm_rsqrt_ss(x_f32x4);
     __m128 refinement_f32x4 = _mm_mul_ss(_mm_mul_ss(x_f32x4, estimate_f32x4), estimate_f32x4);
     refinement_f32x4 = _mm_sub_ss(_mm_set_ss(3.0f), refinement_f32x4);
     return _mm_cvtss_f32(_mm_mul_ss(_mm_mul_ss(_mm_set_ss(0.5f), estimate_f32x4), refinement_f32x4));
 }
-NUMKONG_API_COMPTIME nk_f64_t nk_f64_rsqrt_haswell(nk_f64_t x) { return 1.0 / nk_f64_sqrt_haswell(x); }
-NUMKONG_API_COMPTIME nk_f32_t nk_f32_fma_haswell(nk_f32_t a, nk_f32_t b, nk_f32_t c) {
+NUMKONG_API nk_f64_t nk_f64_rsqrt_haswell(nk_f64_t x) { return 1.0 / _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(x))); }
+NUMKONG_API nk_f32_t nk_f32_fma_haswell(nk_f32_t a, nk_f32_t b, nk_f32_t c) {
     return _mm_cvtss_f32(_mm_fmadd_ss(_mm_set_ss(a), _mm_set_ss(b), _mm_set_ss(c)));
 }
-NUMKONG_API_COMPTIME nk_f64_t nk_f64_fma_haswell(nk_f64_t a, nk_f64_t b, nk_f64_t c) {
+NUMKONG_API nk_f64_t nk_f64_fma_haswell(nk_f64_t a, nk_f64_t b, nk_f64_t c) {
     return _mm_cvtsd_f64(_mm_fmadd_sd(_mm_set_sd(a), _mm_set_sd(b), _mm_set_sd(c)));
 }
-NUMKONG_API_COMPTIME nk_f16_t nk_f16_sqrt_haswell(nk_f16_t x) {
+NUMKONG_API nk_f16_t nk_f16_sqrt_haswell(nk_f16_t x) {
     nk_fui16_t x_fui, out_fui;
     x_fui.f = x;
     __m128 x_f32x4 = _mm_cvtph_ps(_mm_cvtsi32_si128(x_fui.u));
     out_fui.u = (nk_u16_t)_mm_cvtsi128_si32(_mm_cvtps_ph(_mm_sqrt_ps(x_f32x4), _MM_FROUND_TO_NEAREST_INT));
     return out_fui.f;
 }
-NUMKONG_API_COMPTIME nk_f16_t nk_f16_rsqrt_haswell(nk_f16_t x) {
+NUMKONG_API nk_f16_t nk_f16_rsqrt_haswell(nk_f16_t x) {
     nk_fui16_t x_fui, out_fui;
     x_fui.f = x;
     __m128 x_f32x4 = _mm_cvtph_ps(_mm_cvtsi32_si128(x_fui.u));
@@ -71,7 +72,7 @@ NUMKONG_API_COMPTIME nk_f16_t nk_f16_rsqrt_haswell(nk_f16_t x) {
     out_fui.u = (nk_u16_t)_mm_cvtsi128_si32(_mm_cvtps_ph(estimate_f32x4, _MM_FROUND_TO_NEAREST_INT));
     return out_fui.f;
 }
-NUMKONG_API_COMPTIME nk_f16_t nk_f16_fma_haswell(nk_f16_t a, nk_f16_t b, nk_f16_t c) {
+NUMKONG_API nk_f16_t nk_f16_fma_haswell(nk_f16_t a, nk_f16_t b, nk_f16_t c) {
     nk_fui16_t a_fui, b_fui, c_fui, out_fui;
     a_fui.f = a, b_fui.f = b, c_fui.f = c;
     __m128 a_f32x4 = _mm_cvtph_ps(_mm_cvtsi32_si128(a_fui.u));
@@ -81,24 +82,24 @@ NUMKONG_API_COMPTIME nk_f16_t nk_f16_fma_haswell(nk_f16_t a, nk_f16_t b, nk_f16_
         _mm_cvtps_ph(_mm_fmadd_ss(a_f32x4, b_f32x4, c_f32x4), _MM_FROUND_TO_NEAREST_INT));
     return out_fui.f;
 }
-NUMKONG_API_COMPTIME nk_u8_t nk_u8_saturating_add_haswell(nk_u8_t a, nk_u8_t b) {
+NUMKONG_API nk_u8_t nk_u8_saturating_add_haswell(nk_u8_t a, nk_u8_t b) {
     return (nk_u8_t)_mm_cvtsi128_si32(_mm_adds_epu8(_mm_cvtsi32_si128(a), _mm_cvtsi32_si128(b)));
 }
-NUMKONG_API_COMPTIME nk_i8_t nk_i8_saturating_add_haswell(nk_i8_t a, nk_i8_t b) {
+NUMKONG_API nk_i8_t nk_i8_saturating_add_haswell(nk_i8_t a, nk_i8_t b) {
     return (nk_i8_t)_mm_cvtsi128_si32(_mm_adds_epi8(_mm_cvtsi32_si128(a), _mm_cvtsi32_si128(b)));
 }
-NUMKONG_API_COMPTIME nk_u16_t nk_u16_saturating_add_haswell(nk_u16_t a, nk_u16_t b) {
+NUMKONG_API nk_u16_t nk_u16_saturating_add_haswell(nk_u16_t a, nk_u16_t b) {
     return (nk_u16_t)_mm_cvtsi128_si32(_mm_adds_epu16(_mm_cvtsi32_si128(a), _mm_cvtsi32_si128(b)));
 }
-NUMKONG_API_COMPTIME nk_i16_t nk_i16_saturating_add_haswell(nk_i16_t a, nk_i16_t b) {
+NUMKONG_API nk_i16_t nk_i16_saturating_add_haswell(nk_i16_t a, nk_i16_t b) {
     return (nk_i16_t)_mm_cvtsi128_si32(_mm_adds_epi16(_mm_cvtsi32_si128(a), _mm_cvtsi32_si128(b)));
 }
-NUMKONG_API_COMPTIME nk_u64_t nk_u64_saturating_mul_haswell(nk_u64_t a, nk_u64_t b) {
+NUMKONG_API nk_u64_t nk_u64_saturating_mul_haswell(nk_u64_t a, nk_u64_t b) {
     unsigned long long high;
     unsigned long long low = _mulx_u64(a, b, &high);
     return high ? 18446744073709551615ull : low;
 }
-NUMKONG_API_COMPTIME nk_i64_t nk_i64_saturating_mul_haswell(nk_i64_t a, nk_i64_t b) {
+NUMKONG_API nk_i64_t nk_i64_saturating_mul_haswell(nk_i64_t a, nk_i64_t b) {
     int sign = (a < 0) ^ (b < 0);
     nk_u64_t abs_a = a < 0 ? (0u - (nk_u64_t)a) : (nk_u64_t)a;
     nk_u64_t abs_b = b < 0 ? (0u - (nk_u64_t)b) : (nk_u64_t)b;
@@ -114,11 +115,12 @@ NUMKONG_API_COMPTIME nk_i64_t nk_i64_saturating_mul_haswell(nk_i64_t a, nk_i64_t
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_HASWELL
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_HASWELL
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_HASWELL_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_SCALAR_HASWELL_H

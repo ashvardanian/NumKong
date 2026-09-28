@@ -12,13 +12,20 @@
 #ifndef NUMKONG_BENCH_HARNESS_HPP
 #define NUMKONG_BENCH_HARNESS_HPP
 
-#include <algorithm> // `std::min`, `std::max`
-#include <bit>       // `std::bit_floor`
-#include <random>    // `std::mt19937`
-#include <string>    // `std::string`, `std::to_string`
-#include <vector>    // `std::vector`
+#include <cstdlib> // `std::abort`, `std::getenv`, `std::strtod`
+#include <cstring> // `std::strcmp`, `std::strlen`
+
+#include <algorithm>    // `std::min`, `std::max`
+#include <bit>          // `std::bit_floor`
+#include <charconv>     // `std::from_chars`
+#include <random>       // `std::mt19937`
+#include <string>       // `std::string`, `std::to_string`
+#include <system_error> // `std::errc`
+#include <type_traits>  // `std::is_same_v`, `std::is_floating_point_v`
+#include <vector>       // `std::vector`
 
 #include <benchmark/benchmark.h>
+#include <fmt/base.h> // `fmt::println`
 
 #if !defined(NUMKONG_ALLOW_ISA_REDIRECT)
 #define NUMKONG_ALLOW_ISA_REDIRECT 0
@@ -48,6 +55,7 @@
 extern "C" void openblas_set_num_threads(int) __attribute__((weak));
 #endif
 
+#include "numkong/capabilities.h" // `nk_name_capabilities`, `NUMKONG_VERSION_MAJOR`
 #include "numkong/types.hpp"
 #include "numkong/tensor.hpp"
 #include "numkong/random.hpp"
@@ -56,6 +64,59 @@ namespace bm = benchmark;
 namespace nk = ashvardanian::numkong;
 
 namespace ashvardanian::numkong::bench {
+
+/** Reads @p name from the environment as @p value_type_, or @p fallback when it is unset or empty.
+ *  Aborts, naming the variable, when its text does not parse: a typo never passes as a default. */
+template <typename value_type_>
+[[nodiscard]] value_type_ env_variable(char const *name, value_type_ fallback) noexcept {
+    char const *const text = std::getenv(name);
+    if (!text || !*text) return fallback;
+    if constexpr (std::is_same_v<value_type_, char const *>) return text;
+    else if constexpr (std::is_same_v<value_type_, bool>) return std::strcmp(text, "0") && std::strcmp(text, "false");
+    else {
+        value_type_ value {};
+        char *stop = nullptr;
+        if constexpr (std::is_floating_point_v<value_type_>) value = static_cast<value_type_>(std::strtod(text, &stop));
+        else {
+            auto const [end, error] = std::from_chars(text, text + std::strlen(text), value);
+            stop = error == std::errc {} ? const_cast<char *>(end) : const_cast<char *>(text);
+        }
+        if (stop != text && *stop == '\0') return value;
+        fmt::println(stderr, "{}=\"{}\" does not parse", name, text);
+        std::abort();
+    }
+}
+
+/** The capabilities this CPU runs, whether or not this binary holds them. */
+inline nk_capability_t cpu_capabilities_detected() noexcept {
+    nk_capability_t capabilities = nk_cap_serial_k;
+    nk_cpu_capabilities_detected(&capabilities);
+    return capabilities;
+}
+
+/** The CPU capabilities this binary holds, whether or not this CPU runs them. */
+inline nk_capability_t cpu_capabilities_compiled() noexcept {
+    nk_capability_t capabilities = nk_cap_serial_k;
+    nk_cpu_capabilities_compiled(&capabilities);
+    return capabilities;
+}
+
+/** Whether a kernel's @p status is a success; otherwise skips @p state, naming the status. */
+inline bool succeeded(bm::State &state, nk_status_t status) noexcept {
+    if (status == nk_success_k) return true;
+    state.SkipWithError(nk_status_to_string(status));
+    return false;
+}
+
+/** Prints the library version, the kits compiled in, and the kits this machine offers. */
+inline void log_environment() {
+    char compiled[NUMKONG_CAPABILITIES_NAME_CAPACITY], detected[NUMKONG_CAPABILITIES_NAME_CAPACITY];
+    nk_name_capabilities(cpu_capabilities_compiled(), compiled, sizeof(compiled));
+    nk_name_capabilities(cpu_capabilities_detected(), detected, sizeof(detected));
+    fmt::println("NumKong {}.{}.{}", NUMKONG_VERSION_MAJOR, NUMKONG_VERSION_MINOR, NUMKONG_VERSION_PATCH);
+    fmt::println("- Compiled for: {}", compiled);
+    fmt::println("- This machine: {}", detected);
+}
 
 struct bench_config_t {
 
@@ -174,8 +235,9 @@ void measure_dense(bm::State &state, kernel_type_ kernel, std::size_t dimensions
     for (auto _ : state) {
         output_t output;
         std::size_t const index = iterations & (vectors_count - 1);
-        kernel(first_vectors[index].raw_values_data(), second_vectors[index].raw_values_data(), dimensions,
-               &output.raw_);
+        if (!succeeded(state, kernel(first_vectors[index].raw_values_data(), second_vectors[index].raw_values_data(),
+                                     dimensions, &output.raw_, nullptr)))
+            break;
         bm::DoNotOptimize(output);
         iterations++;
     }
@@ -209,7 +271,8 @@ void measure_hammings_packed(                                                   
     nk_size_t values_per_row = nk::divide_round_up(k, 8);
     nk_size_t a_stride_bytes = values_per_row * sizeof(typename input_t::raw_t);
     nk_size_t b_stride_bytes = values_per_row * sizeof(typename input_t::raw_t);
-    nk_size_t packed_bytes = packed_size_fn(n, k);
+    nk_size_t packed_bytes = 0;
+    if (!succeeded(state, packed_size_fn(n, k, &packed_bytes))) return;
 
     // Preallocate multiple input sets within bench_budget
     std::size_t bytes_per_set = m * a_stride_bytes + n * b_stride_bytes + packed_bytes + m * n * sizeof(raw_output_t);
@@ -229,15 +292,17 @@ void measure_hammings_packed(                                                   
         s.c = make_vector<output_t>(m * n);
         nk::fill_uniform(generator, s.a.values_data(), s.a.size_values());
         nk::fill_uniform(generator, s.b.values_data(), s.b.size_values());
-        pack_fn(s.b.raw_values_data(), n, k, b_stride_bytes, s.b_packed.data(), 0, n);
+        if (!succeeded(state, pack_fn(s.b.raw_values_data(), n, k, b_stride_bytes, s.b_packed.data(), 0, n, nullptr)))
+            return;
     }
 
     std::size_t iterations = 0;
     for (auto _ : state) {
         auto &s = sets[iterations & (sets_count - 1)];
         bm::DoNotOptimize(s.c.raw_values_data());
-        kernel(s.a.raw_values_data(), s.b_packed.data(), s.c.raw_values_data(), //
-               m, n, k, a_stride_bytes, n * sizeof(raw_output_t));
+        if (!succeeded(state, kernel(s.a.raw_values_data(), s.b_packed.data(), s.c.raw_values_data(), //
+                                     m, n, k, a_stride_bytes, n * sizeof(raw_output_t), nullptr)))
+            break;
         ++iterations;
     }
 
@@ -281,8 +346,9 @@ void measure_hammings_symmetric(                                                
     for (auto _ : state) {
         auto &s = sets[iterations & (sets_count - 1)];
         bm::DoNotOptimize(s.c.raw_values_data());
-        kernel(s.a.raw_values_data(), n, k, input_stride_bytes, //
-               s.c.raw_values_data(), output_stride_bytes, 0, n);
+        if (!succeeded(state, kernel(s.a.raw_values_data(), n, k, input_stride_bytes, //
+                                     s.c.raw_values_data(), output_stride_bytes, 0, n, nullptr)))
+            break;
         ++iterations;
     }
 
@@ -325,7 +391,8 @@ void measure_jaccards_packed(                                                   
     nk_size_t values_per_row = nk::divide_round_up(k, 8);
     nk_size_t a_stride_bytes = values_per_row * sizeof(typename input_t::raw_t);
     nk_size_t b_stride_bytes = values_per_row * sizeof(typename input_t::raw_t);
-    nk_size_t packed_bytes = packed_size_fn(n, k);
+    nk_size_t packed_bytes = 0;
+    if (!succeeded(state, packed_size_fn(n, k, &packed_bytes))) return;
 
     std::size_t bytes_per_set = m * a_stride_bytes + n * b_stride_bytes + packed_bytes + m * n * sizeof(nk_f32_t);
     std::size_t const sets_count = bench_input_count(bytes_per_set);
@@ -344,15 +411,17 @@ void measure_jaccards_packed(                                                   
         s.c.resize(m * n, 0);
         nk::fill_uniform(generator, s.a.values_data(), s.a.size_values());
         nk::fill_uniform(generator, s.b.values_data(), s.b.size_values());
-        pack_fn(s.b.raw_values_data(), n, k, b_stride_bytes, s.b_packed.data(), 0, n);
+        if (!succeeded(state, pack_fn(s.b.raw_values_data(), n, k, b_stride_bytes, s.b_packed.data(), 0, n, nullptr)))
+            return;
     }
 
     std::size_t iterations = 0;
     for (auto _ : state) {
         auto &s = sets[iterations & (sets_count - 1)];
         bm::DoNotOptimize(s.c.data());
-        kernel(s.a.raw_values_data(), s.b_packed.data(), s.c.data(), //
-               m, n, k, a_stride_bytes, n * sizeof(nk_f32_t));
+        if (!succeeded(state, kernel(s.a.raw_values_data(), s.b_packed.data(), s.c.data(), //
+                                     m, n, k, a_stride_bytes, n * sizeof(nk_f32_t), nullptr)))
+            break;
         ++iterations;
     }
 
@@ -392,8 +461,9 @@ void measure_jaccards_symmetric(                                                
     for (auto _ : state) {
         auto &s = sets[iterations & (sets_count - 1)];
         bm::DoNotOptimize(s.c.data());
-        kernel(s.a.raw_values_data(), n, k, input_stride_bytes, //
-               s.c.data(), output_stride_bytes, 0, n);
+        if (!succeeded(state, kernel(s.a.raw_values_data(), n, k, input_stride_bytes, //
+                                     s.c.data(), output_stride_bytes, 0, n, nullptr)))
+            break;
         ++iterations;
     }
 
@@ -441,16 +511,14 @@ void bench_maxsim();
 
 /** Forward declarations for cross/batch operations, ISA-family files. */
 void bench_cross_serial();
-void bench_cross_x86();
-void bench_cross_amx();
-void bench_cross_arm();
-void bench_cross_sme();
+void bench_cross_x8664();
+void bench_cross_arm64();
 void bench_cross_blas();
-void bench_cross_rvv();
-void bench_cross_power();
+void bench_cross_riscv64();
+void bench_cross_ppc64();
 void bench_cross_wasm();
-void bench_cross_loongarch();
+void bench_cross_loongarch64();
 void bench_cross_cuda();
-void print_cuda_header();
+void bench_cross_metal();
 
 #endif // NUMKONG_BENCH_HARNESS_HPP

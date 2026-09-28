@@ -26,6 +26,8 @@ extern "C" {
 #pragma GCC target("arch=armv8-a")
 #endif
 
+#if NUMKONG_TARGET_SERIAL
+
 /*  Keep the serial instantiations below actually scalar, regardless of build type.
  *  See dots/serial.h for rationale. */
 #if defined(__clang__)
@@ -37,8 +39,8 @@ extern "C" {
 
 #pragma region Binary Sets
 
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                      nk_u32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_hamming_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
+                                             void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_dims_(n, nk_u1_k);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
@@ -48,8 +50,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_serial(nk_u1x8_t const *a, nk_u1x
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                      nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_jaccard_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result,
+                                             void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_dims_(n, nk_u1_k);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
@@ -64,8 +66,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_serial(nk_u1x8_t const *a, nk_u1x
 
 #pragma region Integer Sets
 
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u32_serial(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n,
-                                                       nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_jaccard_u32_serial(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result,
+                                              void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t intersection_count = 0;
     for (nk_size_t i = 0; i != n; ++i) intersection_count += (a[i] == b[i]);
@@ -73,8 +75,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u32_serial(nk_u32_t const *a, nk_u32
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u8_serial(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                                      void *stream) {
+NUMKONG_API nk_status_t nk_hamming_u8_serial(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
+                                             void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t differences = 0;
     for (nk_size_t i = 0; i != n; ++i) differences += (a[i] != b[i]);
@@ -82,8 +84,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_hamming_u8_serial(nk_u8_t const *a, nk_u8_t 
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u16_serial(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n,
-                                                       nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_jaccard_u16_serial(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result,
+                                              void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t matches = 0;
     for (nk_size_t i = 0; i != n; ++i) matches += (a[i] == b[i]);
@@ -99,19 +101,19 @@ NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u16_serial(nk_u16_t const *a, nk_u16
 #pragma GCC pop_options
 #endif
 
+#endif // NUMKONG_TARGET_SERIAL
+
 #pragma region Distances from Dot Products
 
 /** Hamming from_dot: computes pop_a + pop_b - 2*dot for 4 pairs (serial). */
-NUMKONG_HELPER_INLINE void nk_hamming_u32x4_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
-                                                             nk_b128_vec_t const *target_pops_vec,
-                                                             nk_b128_vec_t *result_vec) {
+NUMKONG_INLINE void nk_hamming_u32x4_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                      nk_b128_vec_t const *target_pops_vec, nk_b128_vec_t *result_vec) {
     for (int i = 0; i < 4; ++i) result_vec->u32s[i] = query_pop + target_pops_vec->u32s[i] - 2 * dots_vec->u32s[i];
 }
 
 /** Jaccard from_dot: computes 1 - dot / (pop_a + pop_b - dot) for 4 pairs (serial). */
-NUMKONG_HELPER_INLINE void nk_jaccard_f32x4_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
-                                                             nk_b128_vec_t const *target_pops_vec,
-                                                             nk_b128_vec_t *result_vec) {
+NUMKONG_INLINE void nk_jaccard_f32x4_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                      nk_b128_vec_t const *target_pops_vec, nk_b128_vec_t *result_vec) {
     for (int i = 0; i < 4; ++i) {
         nk_f32_t dot = (nk_f32_t)dots_vec->u32s[i];
         nk_f32_t union_val = (nk_f32_t)query_pop + (nk_f32_t)target_pops_vec->u32s[i] - dot;

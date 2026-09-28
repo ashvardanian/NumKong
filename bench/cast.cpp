@@ -11,7 +11,7 @@
 
 using namespace ashvardanian::numkong::bench;
 
-using cast_kernel_t = void (*)(void const *, nk_dtype_t, nk_size_t, void *, nk_dtype_t);
+using cast_kernel_t = nk_status_t (*)(void const *, nk_dtype_t, nk_size_t, void *, nk_dtype_t, void *);
 
 /**
  *  @brief Measures the performance of type casting operations using Google Benchmark.
@@ -35,7 +35,9 @@ void measure_cast(bm::State &state, cast_kernel_t kernel, std::size_t count) {
     // Benchmark loop
     std::size_t iterations = 0;
     for (auto _ : state) {
-        kernel(input.values_data(), input_dtype_, count, output.values_data(), output_dtype_);
+        if (!succeeded(state,
+                       kernel(input.values_data(), input_dtype_, count, output.values_data(), output_dtype_, nullptr)))
+            break;
         bm::ClobberMemory();
         iterations++;
     }

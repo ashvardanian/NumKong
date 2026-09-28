@@ -26,12 +26,11 @@
 #ifndef NUMKONG_TRIGONOMETRY_SKYLAKE_H
 #define NUMKONG_TRIGONOMETRY_SKYLAKE_H
 
-#if NUMKONG_ARCH_X86_64_
-#if NUMKONG_TARGET_SKYLAKE
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_SKYLAKE_
 
 #include "numkong/types.h"
-#include "numkong/cast/skylake.h"        // `nk_load_bf16x16_to_f32x16_skylake_`
-#include "numkong/trigonometry/serial.h" // `nk_rope_angle_t`
+#include "numkong/cast/skylake.h" // `nk_load_bf16x16_to_f32x16_skylake_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -45,7 +44,7 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NUMKONG_HELPER_INLINE __m512 nk_sin_f32x16_skylake_(__m512 const angles_radians) {
+NUMKONG_INLINE __m512 nk_sin_f32x16_skylake_(__m512 const angles_radians) {
     // Cody-Waite constants for argument reduction
     __m512 const pi_high_f32x16 = _mm512_set1_ps(3.1415927f);
     __m512 const pi_low_f32x16 = _mm512_set1_ps(-8.742278e-8f);
@@ -83,7 +82,7 @@ NUMKONG_HELPER_INLINE __m512 nk_sin_f32x16_skylake_(__m512 const angles_radians)
     return results_f32x16;
 }
 
-NUMKONG_HELPER_INLINE __m512 nk_cos_f32x16_skylake_(__m512 const angles_radians) {
+NUMKONG_INLINE __m512 nk_cos_f32x16_skylake_(__m512 const angles_radians) {
     // Cody-Waite constants for argument reduction
     __m512 const pi_high_f32x16 = _mm512_set1_ps(3.1415927f);
     __m512 const pi_low_f32x16 = _mm512_set1_ps(-8.742278e-8f);
@@ -123,7 +122,7 @@ NUMKONG_HELPER_INLINE __m512 nk_cos_f32x16_skylake_(__m512 const angles_radians)
     return results_f32x16;
 }
 
-NUMKONG_HELPER_INLINE __m512 nk_atan_f32x16_skylake_(__m512 const inputs) {
+NUMKONG_INLINE __m512 nk_atan_f32x16_skylake_(__m512 const inputs) {
     // Polynomial coefficients
     __m512 const coeff_8_f32x16 = _mm512_set1_ps(-0.333331018686294555664062f);
     __m512 const coeff_7_f32x16 = _mm512_set1_ps(+0.199926957488059997558594f);
@@ -163,7 +162,7 @@ NUMKONG_HELPER_INLINE __m512 nk_atan_f32x16_skylake_(__m512 const inputs) {
     return result_f32x16;
 }
 
-NUMKONG_HELPER_INLINE __m512 nk_atan2_f32x16_skylake_(__m512 const ys_inputs, __m512 const xs_inputs) {
+NUMKONG_INLINE __m512 nk_atan2_f32x16_skylake_(__m512 const ys_inputs, __m512 const xs_inputs) {
     // Polynomial coefficients
     __m512 const coeff_8_f32x16 = _mm512_set1_ps(-0.333331018686294555664062f);
     __m512 const coeff_7_f32x16 = _mm512_set1_ps(+0.199926957488059997558594f);
@@ -224,8 +223,8 @@ NUMKONG_HELPER_INLINE __m512 nk_atan2_f32x16_skylake_(__m512 const ys_inputs, __
     return results_f32x16;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
-                                                         void *stream) {
+#if NUMKONG_TARGET_SKYLAKE
+NUMKONG_API nk_status_t nk_trig_sin_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
@@ -241,8 +240,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f32_skylake(nk_f32_t const *ins, nk
     }
     return nk_success_k;
 }
-NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
-                                                         void *stream) {
+NUMKONG_API nk_status_t nk_trig_cos_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
@@ -258,8 +256,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f32_skylake(nk_f32_t const *ins, nk
     }
     return nk_success_k;
 }
-NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
-                                                          void *stream) {
+NUMKONG_API nk_status_t nk_trig_atan_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
@@ -275,8 +272,9 @@ NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f32_skylake(nk_f32_t const *ins, n
     }
     return nk_success_k;
 }
+#endif // NUMKONG_TARGET_SKYLAKE
 
-NUMKONG_HELPER_INLINE __m512d nk_sin_f64x8_skylake_(__m512d const angles_radians) {
+NUMKONG_INLINE __m512d nk_sin_f64x8_skylake_(__m512d const angles_radians) {
     // Constants for argument reduction
     __m512d const pi_high_f64x8 = _mm512_set1_pd(3.141592653589793116);         // High-digits part of π
     __m512d const pi_low_f64x8 = _mm512_set1_pd(1.2246467991473532072e-16);     // Low-digits part of π
@@ -336,7 +334,7 @@ NUMKONG_HELPER_INLINE __m512d nk_sin_f64x8_skylake_(__m512d const angles_radians
     return results_f64x8;
 }
 
-NUMKONG_HELPER_INLINE __m512d nk_cos_f64x8_skylake_(__m512d const angles_radians) {
+NUMKONG_INLINE __m512d nk_cos_f64x8_skylake_(__m512d const angles_radians) {
     // Constants for argument reduction
     __m512d const pi_high_half_f64x8 = _mm512_set1_pd(3.141592653589793116 * 0.5);     // High-digits part of π
     __m512d const pi_low_half_f64x8 = _mm512_set1_pd(1.2246467991473532072e-16 * 0.5); // Low-digits part of π
@@ -392,7 +390,7 @@ NUMKONG_HELPER_INLINE __m512d nk_cos_f64x8_skylake_(__m512d const angles_radians
     return results_f64x8;
 }
 
-NUMKONG_HELPER_INLINE __m512d nk_atan_f64x8_skylake_(__m512d const inputs) {
+NUMKONG_INLINE __m512d nk_atan_f64x8_skylake_(__m512d const inputs) {
     // Polynomial coefficients for atan approximation
     __m512d const coeff_19_f64x8 = _mm512_set1_pd(-1.88796008463073496563746e-05);
     __m512d const coeff_18_f64x8 = _mm512_set1_pd(+0.000209850076645816976906797);
@@ -452,7 +450,7 @@ NUMKONG_HELPER_INLINE __m512d nk_atan_f64x8_skylake_(__m512d const inputs) {
 
 /** AVX-512 implementation of atan2(y, x) for 8 double-precision values, based on the f32x16 version
  *  with appropriate precision constants. */
-NUMKONG_HELPER_INLINE __m512d nk_atan2_f64x8_skylake_(__m512d const ys_inputs, __m512d const xs_inputs) {
+NUMKONG_INLINE __m512d nk_atan2_f64x8_skylake_(__m512d const ys_inputs, __m512d const xs_inputs) {
     // Polynomial coefficients for atan approximation (higher precision than f32)
     __m512d const coeff_19_f64x8 = _mm512_set1_pd(-1.88796008463073496563746e-05);
     __m512d const coeff_18_f64x8 = _mm512_set1_pd(+0.000209850076645816976906797);
@@ -534,8 +532,8 @@ NUMKONG_HELPER_INLINE __m512d nk_atan2_f64x8_skylake_(__m512d const ys_inputs, _
     return results_f64x8;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
-                                                         void *stream) {
+#if NUMKONG_TARGET_SKYLAKE
+NUMKONG_API nk_status_t nk_trig_sin_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
@@ -551,8 +549,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f64_skylake(nk_f64_t const *ins, nk
     }
     return nk_success_k;
 }
-NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
-                                                         void *stream) {
+NUMKONG_API nk_status_t nk_trig_cos_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
@@ -568,8 +565,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f64_skylake(nk_f64_t const *ins, nk
     }
     return nk_success_k;
 }
-NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
-                                                          void *stream) {
+NUMKONG_API nk_status_t nk_trig_atan_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
@@ -585,6 +581,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f64_skylake(nk_f64_t const *ins, n
     }
     return nk_success_k;
 }
+#endif // NUMKONG_TARGET_SKYLAKE
 
 /**
  *  @brief Sine approximation for 16 f16 values via f32 upcasting.
@@ -592,7 +589,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f64_skylake(nk_f64_t const *ins, n
  *  Degree-5 polynomial with Cody-Waite range reduction in f32.
  *  Takes __m256i (f16 data), returns __m256i (f16 result).
  */
-NUMKONG_HELPER_INLINE __m256i nk_sin_f16x16_skylake_(__m256i angles_f16x16) {
+NUMKONG_INLINE __m256i nk_sin_f16x16_skylake_(__m256i angles_f16x16) {
     __m512 angles_f32x16 = _mm512_cvtph_ps(angles_f16x16);
     // Cody-Waite range reduction constants
     __m512 pi_high_f32x16 = _mm512_set1_ps(3.1415927f);
@@ -624,7 +621,7 @@ NUMKONG_HELPER_INLINE __m256i nk_sin_f16x16_skylake_(__m256i angles_f16x16) {
  *
  *  Uses cos(x) = sin(x + pi/2) with Cody-Waite range reduction in f32.
  */
-NUMKONG_HELPER_INLINE __m256i nk_cos_f16x16_skylake_(__m256i angles_f16x16) {
+NUMKONG_INLINE __m256i nk_cos_f16x16_skylake_(__m256i angles_f16x16) {
     __m512 angles_f32x16 = _mm512_cvtph_ps(angles_f16x16);
     __m512 pi_high_f32x16 = _mm512_set1_ps(3.1415927f);
     __m512 pi_low_f32x16 = _mm512_set1_ps(-8.742278e-8f);
@@ -658,7 +655,7 @@ NUMKONG_HELPER_INLINE __m256i nk_cos_f16x16_skylake_(__m256i angles_f16x16) {
  *
  *  Degree-9 polynomial in f32 with quadrant adjustments.
  */
-NUMKONG_HELPER_INLINE __m256i nk_atan_f16x16_skylake_(__m256i values_f16x16) {
+NUMKONG_INLINE __m256i nk_atan_f16x16_skylake_(__m256i values_f16x16) {
     __m512 values_f32x16 = _mm512_cvtph_ps(values_f16x16);
     __m512 c3_f32x16 = _mm512_set1_ps(-0.3333333333f);
     __m512 c5_f32x16 = _mm512_set1_ps(0.2f);
@@ -686,8 +683,8 @@ NUMKONG_HELPER_INLINE __m256i nk_atan_f16x16_skylake_(__m256i values_f16x16) {
     return _mm512_cvtps_ph(result_f32x16, _MM_FROUND_TO_NEAREST_INT);
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs,
-                                                         void *stream) {
+#if NUMKONG_TARGET_SKYLAKE
+NUMKONG_API nk_status_t nk_trig_sin_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
@@ -704,8 +701,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_trig_sin_f16_skylake(nk_f16_t const *ins, nk
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs,
-                                                         void *stream) {
+NUMKONG_API nk_status_t nk_trig_cos_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
@@ -722,8 +718,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_trig_cos_f16_skylake(nk_f16_t const *ins, nk
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs,
-                                                          void *stream) {
+NUMKONG_API nk_status_t nk_trig_atan_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
@@ -740,10 +735,10 @@ NUMKONG_API_COMPTIME nk_status_t nk_trig_atan_f16_skylake(nk_f16_t const *ins, n
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_f32_skylake(nk_f32_t const *x, nk_f32_t *y, nk_rope_angle_t const *cos,
-                                                          nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
-                                                          nk_size_t half_dim, nk_size_t x_row_stride,
-                                                          nk_size_t y_row_stride, nk_f32_t input_scale, void *stream) {
+NUMKONG_API nk_status_t nk_trig_rope_f32_skylake(nk_f32_t const *x, nk_f32_t *y, nk_rope_angle_t const *cos,
+                                                 nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
+                                                 nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,
+                                                 nk_f32_t input_scale, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m512 scale_f32x16 = _mm512_set1_ps(input_scale);
     for (nk_size_t r = 0; r != rows; ++r) {
@@ -781,10 +776,10 @@ NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_f32_skylake(nk_f32_t const *x, nk_
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_bf16_skylake(nk_bf16_t const *x, nk_bf16_t *y, nk_rope_angle_t const *cos,
-                                                           nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
-                                                           nk_size_t half_dim, nk_size_t x_row_stride,
-                                                           nk_size_t y_row_stride, nk_f32_t input_scale, void *stream) {
+NUMKONG_API nk_status_t nk_trig_rope_bf16_skylake(nk_bf16_t const *x, nk_bf16_t *y, nk_rope_angle_t const *cos,
+                                                  nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
+                                                  nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,
+                                                  nk_f32_t input_scale, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m512 scale_f32x16 = _mm512_set1_ps(input_scale);
     for (nk_size_t r = 0; r != rows; ++r) {
@@ -832,10 +827,10 @@ NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_bf16_skylake(nk_bf16_t const *x, n
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_e4m3_skylake(nk_e4m3_t const *x, nk_e4m3_t *y, nk_rope_angle_t const *cos,
-                                                           nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
-                                                           nk_size_t half_dim, nk_size_t x_row_stride,
-                                                           nk_size_t y_row_stride, nk_f32_t input_scale, void *stream) {
+NUMKONG_API nk_status_t nk_trig_rope_e4m3_skylake(nk_e4m3_t const *x, nk_e4m3_t *y, nk_rope_angle_t const *cos,
+                                                  nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
+                                                  nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,
+                                                  nk_f32_t input_scale, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m512 scale_f32x16 = _mm512_set1_ps(input_scale);
     for (nk_size_t r = 0; r != rows; ++r) {
@@ -882,6 +877,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_e4m3_skylake(nk_e4m3_t const *x, n
     }
     return nk_success_k;
 }
+#endif // NUMKONG_TARGET_SKYLAKE
 
 #if defined(__clang__)
 #pragma clang attribute pop
@@ -893,6 +889,6 @@ NUMKONG_API_COMPTIME nk_status_t nk_trig_rope_e4m3_skylake(nk_e4m3_t const *x, n
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_SKYLAKE
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_SKYLAKE_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_TRIGONOMETRY_SKYLAKE_H

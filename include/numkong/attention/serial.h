@@ -32,7 +32,7 @@
  *  `[key_value_head][position][channel]` per segment, so both input dtypes — BF16, E4M3 — share one
  *  compute path after per-element conversion at pack.
  *
- *  Like the rest of the serial tier, no libm: the base-2 exponent uses the same degree-4 polynomial
+ *  Like all serial kernels, it avoids libm: the base-2 exponent uses the same degree-4 polynomial
  *  and the same denormal-avoiding clamp as the AVX-512 helper, so serial and vector paths agree to
  *  polynomial precision.
  *
@@ -48,8 +48,9 @@
 #define NUMKONG_ATTENTION_SERIAL_H
 
 #include "numkong/types.h"
+#include "numkong/capabilities.h"  // `nk_capability_t`
 #include "numkong/scalar/serial.h" // `nk_f32_exp2_serial_`, `NUMKONG_F32_LOG2E_`
-#include "numkong/cast/serial.h"   // `nk_bf16_to_f32_serial`, `nk_e4m3_to_f32_serial`
+#include "numkong/cast/serial.h"   // `nk_bf16_to_f32_`, `nk_e4m3_to_f32_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -76,17 +77,21 @@ typedef struct {
     nk_u32_t segments;
 
     /** Zeroed; pads the header to 64 bytes. */
-    nk_u32_t reserved[13];
+    nk_u32_t reserved[11];
+
+    /** The capability that packed the buffer, which every consumer checks. */
+    nk_capability_t capability;
 } nk_attention_packed_header_t;
 
 /** Offsets table size in bytes, 64-byte padded: @p segment_count + 1 u64 payload offsets, then
  *  @p segment_count u32 lengths. */
-NUMKONG_HELPER_INLINE nk_size_t nk_attention_pack_directory_size_(nk_size_t segment_count) {
+NUMKONG_INLINE nk_size_t nk_attention_pack_directory_size_(nk_size_t segment_count) NUMKONG_STREAMABLE_ {
     return nk_size_round_up_to_multiple_((segment_count + 1) * sizeof(nk_u64_t) + segment_count * sizeof(nk_u32_t), 64);
 }
 
 /**
- *  @brief Writes the family-shared packed-KV header and segment offsets table.
+ *  @brief Writes the family-shared packed-KV header, recording the packing @p capability, and the
+ *      segment offsets table.
  *
  *  Only the window covering task 0 writes — later windows require the offsets table present
  *  (the race-free parallel-pack contract). Per-segment payload bytes follow a formula that
@@ -96,10 +101,11 @@ NUMKONG_HELPER_INLINE nk_size_t nk_attention_pack_directory_size_(nk_size_t segm
  *  2 · key_value_head_count · round_up(length, position_multiple) · unit_bytes
  *  @endverbatim
  */
-NUMKONG_HELPER_INLINE void nk_attention_pack_directory_(void *key_value_packed, nk_size_t key_value_head_count,
-                                                        nk_size_t depth, nk_u32_t const *segment_lengths,
-                                                        nk_size_t segment_count, nk_size_t task_begin,
-                                                        nk_size_t position_multiple, nk_size_t unit_bytes) {
+NUMKONG_INLINE void nk_attention_pack_directory_(void *key_value_packed, nk_size_t key_value_head_count,
+                                                 nk_size_t depth, nk_u32_t const *segment_lengths,
+                                                 nk_size_t segment_count, nk_size_t task_begin,
+                                                 nk_size_t position_multiple, nk_size_t unit_bytes,
+                                                 nk_capability_t capability) {
     if (task_begin != 0) return;
     // Zero the whole directory — header plus the offsets table including its 64-byte-aligned tail —
     // so the packed blob is a pure function of its inputs, with no allocator garbage in the unwritten
@@ -114,6 +120,7 @@ NUMKONG_HELPER_INLINE void nk_attention_pack_directory_(void *key_value_packed, 
     header->heads = (nk_u32_t)key_value_head_count;
     header->depth = (nk_u32_t)depth;
     header->segments = (nk_u32_t)segment_count;
+    header->capability = capability;
     nk_u64_t *payload_offsets = (nk_u64_t *)((char *)key_value_packed + sizeof(*header));
     nk_u32_t *lengths_copy = (nk_u32_t *)(payload_offsets + segment_count + 1);
     nk_u64_t running = 0;
@@ -132,19 +139,24 @@ NUMKONG_HELPER_INLINE void nk_attention_pack_directory_(void *key_value_packed, 
  *
  *  Shared by every per-(dtype, ISA) nk_attention_packed_shape_* accessor.
  */
-NUMKONG_HELPER_INLINE void nk_attention_packed_shape_(void const *key_value_packed, nk_size_t *heads, nk_size_t *depth,
-                                                      nk_size_t *segments) {
+NUMKONG_INLINE void nk_attention_packed_shape_(void const *key_value_packed, nk_size_t *heads, nk_size_t *depth,
+                                               nk_size_t *segments) {
     nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
     *heads = header->heads;
     *depth = header->depth;
     *segments = header->segments;
 }
 
+/** Whether @p key_value_packed was packed by @p capability, the layout its consumer reads. */
+NUMKONG_INLINE int nk_attention_packed_by_(void const *key_value_packed, nk_capability_t capability) {
+    return ((nk_attention_packed_header_t const *)key_value_packed)->capability == capability;
+}
+
 /** Writes the half-open range of keys visible to the query at @p position, in a segment of
  *  @p length keys, into @p key_begin and @p key_end. @p window counts the visible keys including
  *  the query itself; a negative @p position or a zero @p window is empty. */
-NUMKONG_HELPER_INLINE void nk_attention_row_range_(nk_i64_t position, nk_size_t window, nk_size_t length,
-                                                   nk_size_t *key_begin, nk_size_t *key_end) {
+NUMKONG_INLINE void nk_attention_row_range_(nk_i64_t position, nk_size_t window, nk_size_t length, nk_size_t *key_begin,
+                                            nk_size_t *key_end) NUMKONG_STREAMABLE_ {
     if (position < 0 || window == 0) {
         *key_begin = *key_end = 0;
         return;
@@ -157,8 +169,8 @@ NUMKONG_HELPER_INLINE void nk_attention_row_range_(nk_i64_t position, nk_size_t 
 
 /** Exclusive end of the window of @p task_count tasks from @p task_start, clipped to
  *  @p total_tasks. */
-NUMKONG_HELPER_INLINE nk_size_t nk_attention_task_end_(nk_size_t task_start, nk_size_t task_count,
-                                                       nk_size_t total_tasks) {
+NUMKONG_INLINE nk_size_t nk_attention_task_end_(nk_size_t task_start, nk_size_t task_count,
+                                                nk_size_t total_tasks) NUMKONG_STREAMABLE_ {
     if (task_start >= total_tasks) return task_start;
     return task_count < total_tasks - task_start ? task_start + task_count : total_tasks;
 }
@@ -166,21 +178,20 @@ NUMKONG_HELPER_INLINE nk_size_t nk_attention_task_end_(nk_size_t task_start, nk_
 /** Per-element widening converter, `maxsim/serial.h`-style dtype abstraction. */
 typedef nk_f32_t (*nk_attention_load_f32_serial_t_)(void const *element);
 
-NUMKONG_HELPER_INLINE nk_f32_t nk_attention_load_bf16_serial_(void const *element) {
+NUMKONG_INLINE nk_f32_t nk_attention_load_bf16_serial_(void const *element) {
     nk_f32_t result;
-    nk_bf16_to_f32_serial((nk_bf16_t const *)element, &result);
+    nk_bf16_to_f32_((nk_bf16_t const *)element, &result);
     return result;
 }
 
-NUMKONG_HELPER_INLINE nk_f32_t nk_attention_load_e4m3_serial_(void const *element) {
+NUMKONG_INLINE nk_f32_t nk_attention_load_e4m3_serial_(void const *element) {
     nk_f32_t result;
-    nk_e4m3_to_f32_serial((nk_e4m3_t const *)element, &result);
+    nk_e4m3_to_f32_((nk_e4m3_t const *)element, &result);
     return result;
 }
 
-NUMKONG_HELPER_INLINE nk_size_t nk_attention_pack_size_serial_(nk_size_t key_value_head_count, nk_size_t depth,
-                                                               nk_u32_t const *segment_lengths,
-                                                               nk_size_t segment_count) {
+NUMKONG_INLINE nk_size_t nk_attention_pack_size_serial_(nk_size_t key_value_head_count, nk_size_t depth,
+                                                        nk_u32_t const *segment_lengths, nk_size_t segment_count) {
     nk_size_t payload_bytes = 0;
     for (nk_size_t segment_idx = 0; segment_idx < segment_count; segment_idx++)
         payload_bytes += 2 * key_value_head_count * (nk_size_t)segment_lengths[segment_idx] * depth *
@@ -188,6 +199,16 @@ NUMKONG_HELPER_INLINE nk_size_t nk_attention_pack_size_serial_(nk_size_t key_val
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
 }
 
+/** Bytes of a packed I8 buffer: header, directory and raw I8 K and V planes. */
+NUMKONG_INLINE nk_size_t nk_attention_pack_size_i8_(nk_size_t key_value_head_count, nk_size_t depth,
+                                                    nk_u32_t const *segment_lengths, nk_size_t segment_count) {
+    nk_size_t payload_bytes = 0; // raw I8 planes: scores stay exact in I32 integer arithmetic
+    for (nk_size_t segment_idx = 0; segment_idx < segment_count; segment_idx++)
+        payload_bytes += 2 * key_value_head_count * (nk_size_t)segment_lengths[segment_idx] * depth;
+    return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
+}
+
+#if NUMKONG_TARGET_SERIAL
 /*  Keep the serial instantiations below actually scalar, regardless of build type.
  *  See dots/serial.h for rationale. */
 #if defined(__clang__)
@@ -197,26 +218,34 @@ NUMKONG_HELPER_INLINE nk_size_t nk_attention_pack_size_serial_(nk_size_t key_val
 #pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
 #endif
 
-NUMKONG_API_COMPTIME nk_size_t nk_attention_pack_size_bf16_serial(nk_size_t key_value_head_count, nk_size_t depth,
-                                                                  nk_u32_t const *segment_lengths,
-                                                                  nk_size_t segment_count) {
-    return nk_attention_pack_size_serial_(key_value_head_count, depth, segment_lengths, segment_count);
+NUMKONG_API nk_status_t nk_attention_pack_size_bf16_serial(nk_size_t key_value_head_count, nk_size_t depth,
+                                                           nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                           nk_size_t *bytes) {
+    *bytes = nk_attention_pack_size_serial_(key_value_head_count, depth, segment_lengths, segment_count);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_attention_packed_shape_bf16_serial(void const *key_value_packed, nk_size_t *heads,
-                                                                nk_size_t *depth, nk_size_t *segments) {
+NUMKONG_API nk_status_t nk_attention_packed_shape_bf16_serial(void const *key_value_packed, nk_size_t *heads,
+                                                              nk_size_t *depth, nk_size_t *segments, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!nk_attention_packed_by_(key_value_packed, nk_cap_serial_k)) return nk_pack_mismatch_k;
     nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_size_t nk_attention_pack_size_e4m3_serial(nk_size_t key_value_head_count, nk_size_t depth,
-                                                                  nk_u32_t const *segment_lengths,
-                                                                  nk_size_t segment_count) {
-    return nk_attention_pack_size_serial_(key_value_head_count, depth, segment_lengths, segment_count);
+NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_serial(nk_size_t key_value_head_count, nk_size_t depth,
+                                                           nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                           nk_size_t *bytes) {
+    *bytes = nk_attention_pack_size_serial_(key_value_head_count, depth, segment_lengths, segment_count);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_attention_packed_shape_e4m3_serial(void const *key_value_packed, nk_size_t *heads,
-                                                                nk_size_t *depth, nk_size_t *segments) {
+NUMKONG_API nk_status_t nk_attention_packed_shape_e4m3_serial(void const *key_value_packed, nk_size_t *heads,
+                                                              nk_size_t *depth, nk_size_t *segments, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!nk_attention_packed_by_(key_value_packed, nk_cap_serial_k)) return nk_pack_mismatch_k;
     nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
+    return nk_success_k;
 }
 
 #if defined(__clang__)
@@ -224,20 +253,21 @@ NUMKONG_API_COMPTIME void nk_attention_packed_shape_e4m3_serial(void const *key_
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_SERIAL
 
-/** Shared packing core: widen K and V rows to F32 planes `[key_value_head][position][channel]`. The
- *  header and offsets table are deterministic functions of the arguments, so concurrent packing
- *  tasks may rewrite them with identical bytes. */
-NUMKONG_HELPER_INLINE void nk_attention_pack_serial_(                                                          //
+/** Shared packing core: widen K and V rows to F32 planes `[key_value_head][position][channel]`, and
+ *  record the packing @p capability. The header and offsets table are deterministic functions of
+ *  the arguments, so concurrent packing tasks may rewrite them with identical bytes. */
+NUMKONG_INLINE void nk_attention_pack_serial_(                                                                 //
     void const *keys, void const *values, nk_size_t element_bytes,                                             //
     nk_attention_load_f32_serial_t_ load_f32,                                                                  //
     nk_size_t key_value_head_count, nk_size_t depth,                                                           //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                                          //
     nk_size_t segment_count, nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, //
-    nk_size_t task_begin, nk_size_t task_end) {
+    nk_size_t task_begin, nk_size_t task_end, nk_capability_t capability) {
 
     nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count,
-                                 task_begin, 1, depth * sizeof(nk_f32_t));
+                                 task_begin, 1, depth * sizeof(nk_f32_t), capability);
     nk_attention_packed_header_t *header = (nk_attention_packed_header_t *)key_value_packed;
     nk_u64_t const *payload_offsets_ro = (nk_u64_t const *)((char *)key_value_packed + sizeof(*header));
     char *payload_base = (char *)key_value_packed + sizeof(*header) + nk_attention_pack_directory_size_(segment_count);
@@ -269,6 +299,48 @@ NUMKONG_HELPER_INLINE void nk_attention_pack_serial_(                           
     }
 }
 
+/** I8 packing core: copy K and V rows into raw I8 planes `[key_value_head][position][channel]`, and
+ *  record @p capability as the packing capability. */
+NUMKONG_INLINE void nk_attention_pack_i8_serial_(                                                              //
+    nk_i8_t const *keys, nk_i8_t const *values, nk_size_t key_value_head_count, nk_size_t depth,               //
+    nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                                          //
+    nk_size_t segment_count, nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, //
+    nk_size_t task_begin, nk_size_t task_end, nk_capability_t capability) {
+
+    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count,
+                                 task_begin, 1, depth, capability);
+    nk_attention_packed_header_t *header = (nk_attention_packed_header_t *)key_value_packed;
+    nk_u64_t const *payload_offsets_ro = (nk_u64_t const *)((char *)key_value_packed + sizeof(*header));
+    char *payload_base = (char *)key_value_packed + sizeof(*header) + nk_attention_pack_directory_size_(segment_count);
+
+    nk_size_t const total_tasks = segment_count * key_value_head_count;
+    if (task_begin >= total_tasks) return;
+    if (task_end > total_tasks) task_end = total_tasks;
+
+    for (nk_size_t task_idx = task_begin; task_idx < task_end; task_idx++) {
+        nk_size_t const segment_idx = task_idx / key_value_head_count,
+                        key_value_head_idx = task_idx % key_value_head_count;
+        nk_size_t const position_count = segment_lengths[segment_idx];
+        if (position_count == 0) continue;
+        nk_size_t const position_first = segment_offsets[segment_idx];
+        nk_size_t const plane_bytes = position_count * depth;
+        nk_i8_t *keys_plane = (nk_i8_t *)(payload_base + payload_offsets_ro[segment_idx]) +
+                              key_value_head_idx * plane_bytes;
+        nk_i8_t *values_plane = keys_plane + key_value_head_count * plane_bytes;
+        for (nk_size_t position_idx = 0; position_idx < position_count; position_idx++) {
+            char const *keys_row = (char const *)keys + (position_first + position_idx) * key_stride_bytes +
+                                   key_value_head_idx * depth;
+            char const *values_row = (char const *)values + (position_first + position_idx) * value_stride_bytes +
+                                     key_value_head_idx * depth;
+            for (nk_size_t channel_idx = 0; channel_idx < depth; channel_idx++) {
+                keys_plane[position_idx * depth + channel_idx] = (nk_i8_t)keys_row[channel_idx];
+                values_plane[position_idx * depth + channel_idx] = (nk_i8_t)values_row[channel_idx];
+            }
+        }
+    }
+}
+
+#if NUMKONG_TARGET_SERIAL
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((noinline)), apply_to = function)
 #elif defined(__GNUC__)
@@ -276,24 +348,28 @@ NUMKONG_HELPER_INLINE void nk_attention_pack_serial_(                           
 #pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
 #endif
 
-NUMKONG_API_COMPTIME void nk_attention_pack_bf16_serial(                                             //
+NUMKONG_API nk_status_t nk_attention_pack_bf16_serial(                                               //
     nk_bf16_t const *keys, nk_bf16_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
     nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t task_begin,
-    nk_size_t task_end) {
+    nk_size_t task_end, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_attention_pack_serial_(keys, values, sizeof(nk_bf16_t), &nk_attention_load_bf16_serial_, key_value_head_count,
                               depth, segment_offsets, segment_lengths, segment_count, key_stride_bytes,
-                              value_stride_bytes, key_value_packed, task_begin, task_end);
+                              value_stride_bytes, key_value_packed, task_begin, task_end, nk_cap_serial_k);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_attention_pack_e4m3_serial(                                             //
+NUMKONG_API nk_status_t nk_attention_pack_e4m3_serial(                                               //
     nk_e4m3_t const *keys, nk_e4m3_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
     nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, nk_size_t task_begin,
-    nk_size_t task_end) {
+    nk_size_t task_end, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_attention_pack_serial_(keys, values, sizeof(nk_e4m3_t), &nk_attention_load_e4m3_serial_, key_value_head_count,
                               depth, segment_offsets, segment_lengths, segment_count, key_stride_bytes,
-                              value_stride_bytes, key_value_packed, task_begin, task_end);
+                              value_stride_bytes, key_value_packed, task_begin, task_end, nk_cap_serial_k);
+    return nk_success_k;
 }
 
 #if defined(__clang__)
@@ -301,6 +377,7 @@ NUMKONG_API_COMPTIME void nk_attention_pack_e4m3_serial(                        
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_SERIAL
 
 /**
  *  @brief Shared attention core: exact two-sweep softmax attention per (segment, head) task.
@@ -312,7 +389,7 @@ NUMKONG_API_COMPTIME void nk_attention_pack_e4m3_serial(                        
  *  implementation and buys exact width-agnosticism with zero allocations. Row @c r reads only the
  *  keys that @c nk_attention_row_range_ admits for position r + @p diagonal_offset and @p window.
  */
-NUMKONG_HELPER_INLINE void nk_attention_serial_(                                                                //
+NUMKONG_INLINE void nk_attention_serial_(                                                                       //
     void const *queries, nk_size_t element_bytes, nk_attention_load_f32_serial_t_ load_f32,                     //
     void const *key_value_packed, nk_f32_t *output,                                                             //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
@@ -380,7 +457,7 @@ NUMKONG_HELPER_INLINE void nk_attention_serial_(                                
 
 /** I8 attention core: exact I32 scores, U8-quantized weights, same row ranges as
  *  @c nk_attention_serial_. */
-NUMKONG_HELPER_INLINE void nk_attention_packed_i8_serial_(                                                      //
+NUMKONG_INLINE void nk_attention_packed_i8_serial_(                                                             //
     nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,                                     //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
@@ -448,6 +525,7 @@ NUMKONG_HELPER_INLINE void nk_attention_packed_i8_serial_(                      
     }
 }
 
+#if NUMKONG_TARGET_SERIAL
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((noinline)), apply_to = function)
 #elif defined(__GNUC__)
@@ -455,116 +533,108 @@ NUMKONG_HELPER_INLINE void nk_attention_packed_i8_serial_(                      
 #pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
 #endif
 
-NUMKONG_API_COMPTIME void nk_attention_bidirectional_packed_bf16_serial(                                        //
+NUMKONG_API nk_status_t nk_attention_bidirectional_packed_bf16_serial(                                          //
     nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output,                                   //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_size_t task_start, nk_size_t task_count) {
+    nk_size_t task_start, nk_size_t task_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!nk_attention_packed_by_(key_value_packed, nk_cap_serial_k)) return nk_pack_mismatch_k;
     nk_attention_serial_(queries, sizeof(nk_bf16_t), &nk_attention_load_bf16_serial_, key_value_packed, output,
                          head_count, key_value_head_count, depth, query_offsets, query_stride_bytes,
                          output_stride_bytes, scale, NUMKONG_I64_MAX / 2, NUMKONG_SIZE_MAX, task_start, task_count);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_attention_causal_packed_bf16_serial(                                               //
+NUMKONG_API nk_status_t nk_attention_causal_packed_bf16_serial(                                                 //
     nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output,                                   //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count) {
+    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!nk_attention_packed_by_(key_value_packed, nk_cap_serial_k)) return nk_pack_mismatch_k;
     nk_attention_serial_(queries, sizeof(nk_bf16_t), &nk_attention_load_bf16_serial_, key_value_packed, output,
                          head_count, key_value_head_count, depth, query_offsets, query_stride_bytes,
                          output_stride_bytes, scale, diagonal_offset, window, task_start, task_count);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_attention_bidirectional_packed_e4m3_serial(                                        //
+NUMKONG_API nk_status_t nk_attention_bidirectional_packed_e4m3_serial(                                          //
     nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,                                   //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_size_t task_start, nk_size_t task_count) {
+    nk_size_t task_start, nk_size_t task_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!nk_attention_packed_by_(key_value_packed, nk_cap_serial_k)) return nk_pack_mismatch_k;
     nk_attention_serial_(queries, sizeof(nk_e4m3_t), &nk_attention_load_e4m3_serial_, key_value_packed, output,
                          head_count, key_value_head_count, depth, query_offsets, query_stride_bytes,
                          output_stride_bytes, scale, NUMKONG_I64_MAX / 2, NUMKONG_SIZE_MAX, task_start, task_count);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_attention_causal_packed_e4m3_serial(                                               //
+NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_serial(                                                 //
     nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,                                   //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count) {
+    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!nk_attention_packed_by_(key_value_packed, nk_cap_serial_k)) return nk_pack_mismatch_k;
     nk_attention_serial_(queries, sizeof(nk_e4m3_t), &nk_attention_load_e4m3_serial_, key_value_packed, output,
                          head_count, key_value_head_count, depth, query_offsets, query_stride_bytes,
                          output_stride_bytes, scale, diagonal_offset, window, task_start, task_count);
+    return nk_success_k;
 }
-NUMKONG_API_COMPTIME nk_size_t nk_attention_pack_size_i8_serial(nk_size_t key_value_head_count, nk_size_t depth,
-                                                                nk_u32_t const *segment_lengths,
-                                                                nk_size_t segment_count) {
-    nk_size_t payload_bytes = 0; // raw I8 planes: scores stay exact in I32 integer arithmetic
-    for (nk_size_t segment_idx = 0; segment_idx < segment_count; segment_idx++)
-        payload_bytes += 2 * key_value_head_count * (nk_size_t)segment_lengths[segment_idx] * depth;
-    return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
+NUMKONG_API nk_status_t nk_attention_pack_size_i8_serial(nk_size_t key_value_head_count, nk_size_t depth,
+                                                         nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                         nk_size_t *bytes) {
+    *bytes = nk_attention_pack_size_i8_(key_value_head_count, depth, segment_lengths, segment_count);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_attention_packed_shape_i8_serial(void const *key_value_packed, nk_size_t *heads,
-                                                              nk_size_t *depth, nk_size_t *segments) {
+NUMKONG_API nk_status_t nk_attention_packed_shape_i8_serial(void const *key_value_packed, nk_size_t *heads,
+                                                            nk_size_t *depth, nk_size_t *segments, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!nk_attention_packed_by_(key_value_packed, nk_cap_serial_k)) return nk_pack_mismatch_k;
     nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_attention_pack_i8_serial(                                                         //
+NUMKONG_API nk_status_t nk_attention_pack_i8_serial(                                                           //
     nk_i8_t const *keys, nk_i8_t const *values, nk_size_t key_value_head_count, nk_size_t depth,               //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                                          //
     nk_size_t segment_count, nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, //
-    nk_size_t task_begin, nk_size_t task_end) {
-
-    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count,
-                                 task_begin, 1, depth);
-    nk_attention_packed_header_t *header = (nk_attention_packed_header_t *)key_value_packed;
-    nk_u64_t const *payload_offsets_ro = (nk_u64_t const *)((char *)key_value_packed + sizeof(*header));
-    char *payload_base = (char *)key_value_packed + sizeof(*header) + nk_attention_pack_directory_size_(segment_count);
-
-    nk_size_t const total_tasks = segment_count * key_value_head_count;
-    if (task_begin >= total_tasks) return;
-    if (task_end > total_tasks) task_end = total_tasks;
-
-    for (nk_size_t task_idx = task_begin; task_idx < task_end; task_idx++) {
-        nk_size_t const segment_idx = task_idx / key_value_head_count,
-                        key_value_head_idx = task_idx % key_value_head_count;
-        nk_size_t const position_count = segment_lengths[segment_idx];
-        if (position_count == 0) continue;
-        nk_size_t const position_first = segment_offsets[segment_idx];
-        nk_size_t const plane_bytes = position_count * depth;
-        nk_i8_t *keys_plane = (nk_i8_t *)(payload_base + payload_offsets_ro[segment_idx]) +
-                              key_value_head_idx * plane_bytes;
-        nk_i8_t *values_plane = keys_plane + key_value_head_count * plane_bytes;
-        for (nk_size_t position_idx = 0; position_idx < position_count; position_idx++) {
-            char const *keys_row = (char const *)keys + (position_first + position_idx) * key_stride_bytes +
-                                   key_value_head_idx * depth;
-            char const *values_row = (char const *)values + (position_first + position_idx) * value_stride_bytes +
-                                     key_value_head_idx * depth;
-            for (nk_size_t channel_idx = 0; channel_idx < depth; channel_idx++) {
-                keys_plane[position_idx * depth + channel_idx] = (nk_i8_t)keys_row[channel_idx];
-                values_plane[position_idx * depth + channel_idx] = (nk_i8_t)values_row[channel_idx];
-            }
-        }
-    }
+    nk_size_t task_begin, nk_size_t task_end, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_attention_pack_i8_serial_(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
+                                 segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, task_begin,
+                                 task_end, nk_cap_serial_k);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_attention_bidirectional_packed_i8_serial(                                          //
+NUMKONG_API nk_status_t nk_attention_bidirectional_packed_i8_serial(                                            //
     nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,                                     //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_size_t task_start, nk_size_t task_count) {
+    nk_size_t task_start, nk_size_t task_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!nk_attention_packed_by_(key_value_packed, nk_cap_serial_k)) return nk_pack_mismatch_k;
     nk_attention_packed_i8_serial_(queries, key_value_packed, output, head_count, key_value_head_count, depth,
                                    query_offsets, query_stride_bytes, output_stride_bytes, scale, NUMKONG_I64_MAX / 2,
                                    NUMKONG_SIZE_MAX, task_start, task_count);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_attention_causal_packed_i8_serial(                                                 //
+NUMKONG_API nk_status_t nk_attention_causal_packed_i8_serial(                                                   //
     nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,                                     //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count) {
+    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!nk_attention_packed_by_(key_value_packed, nk_cap_serial_k)) return nk_pack_mismatch_k;
     nk_attention_packed_i8_serial_(queries, key_value_packed, output, head_count, key_value_head_count, depth,
                                    query_offsets, query_stride_bytes, output_stride_bytes, scale, diagonal_offset,
                                    window, task_start, task_count);
+    return nk_success_k;
 }
 
 #if defined(__clang__)
@@ -572,6 +642,7 @@ NUMKONG_API_COMPTIME void nk_attention_causal_packed_i8_serial(                 
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_SERIAL
 
 #if defined(__GNUC__) && !defined(__clang__) && NUMKONG_ARCH_ARM64_
 #pragma GCC pop_options

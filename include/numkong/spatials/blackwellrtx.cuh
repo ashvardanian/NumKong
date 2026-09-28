@@ -24,104 +24,62 @@ extern "C" {
 
 #pragma region E5M2
 
-nk_define_cross_cuda_normalized_packed_(angular, e5m2, blackwellrtx, e5m2, e5m2, nk_dots_e5m2_multiply_blackwellrtx_,
-                                        nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
-                                        nk_e5m2_norm_update_ampere_, /*norm_scale=*/1.0f, /*depth_simd_dimensions=*/64,
-                                        /*dimensions_per_value=*/1)
-nk_define_cross_cuda_normalized_packed_(euclidean, e5m2, blackwellrtx, e5m2, e5m2, nk_dots_e5m2_multiply_blackwellrtx_,
-                                        nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
-                                        nk_e5m2_norm_update_ampere_, /*norm_scale=*/1.0f, /*depth_simd_dimensions=*/64,
-                                        /*dimensions_per_value=*/1)
-nk_define_cross_cuda_normalized_symmetric_(angular, e5m2, blackwellrtx, e5m2, nk_dots_e5m2_multiply_blackwellrtx_,
-                                           nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
-                                           nk_e5m2_norm_update_ampere_, /*norm_scale=*/1.0f, /*dimensions_per_value=*/1)
-nk_define_cross_cuda_normalized_symmetric_(euclidean, e5m2, blackwellrtx, e5m2, nk_dots_e5m2_multiply_blackwellrtx_,
-                                           nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
-                                           nk_e5m2_norm_update_ampere_, /*norm_scale=*/1.0f, /*dimensions_per_value=*/1)
+nk_define_device_cross_(angular, e5m2, blackwellrtx, ampere, e5m2, e5m2, f32, /*depth_simd_dimensions=*/16,
+                        /*dimensions_per_value=*/1, nk_dots_e5m2_multiply_blackwellrtx_, nk_cross_epilogue_f32_k,
+                        /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_e5m2_norm_update_ampere_, /*norm_scale=*/1.0f)
+nk_define_device_cross_(euclidean, e5m2, blackwellrtx, ampere, e5m2, e5m2, f32, /*depth_simd_dimensions=*/16,
+                        /*dimensions_per_value=*/1, nk_dots_e5m2_multiply_blackwellrtx_, nk_cross_epilogue_f32_k,
+                        /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_e5m2_norm_update_ampere_, /*norm_scale=*/1.0f)
 
 #pragma endregion E5M2
 
 #pragma region E4M3
 
-nk_define_cross_cuda_normalized_packed_(angular, e4m3, blackwellrtx, e4m3, e4m3, nk_dots_e4m3_multiply_blackwellrtx_,
-                                        nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
-                                        nk_e4m3_norm_update_ampere_, /*norm_scale=*/65536.0f,
-                                        /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1)
-nk_define_cross_cuda_normalized_packed_(euclidean, e4m3, blackwellrtx, e4m3, e4m3, nk_dots_e4m3_multiply_blackwellrtx_,
-                                        nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
-                                        nk_e4m3_norm_update_ampere_, /*norm_scale=*/65536.0f,
-                                        /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1)
-nk_define_cross_cuda_normalized_symmetric_(angular, e4m3, blackwellrtx, e4m3, nk_dots_e4m3_multiply_blackwellrtx_,
-                                           nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
-                                           nk_e4m3_norm_update_ampere_, /*norm_scale=*/65536.0f,
-                                           /*dimensions_per_value=*/1)
-nk_define_cross_cuda_normalized_symmetric_(euclidean, e4m3, blackwellrtx, e4m3, nk_dots_e4m3_multiply_blackwellrtx_,
-                                           nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
-                                           nk_e4m3_norm_update_ampere_, /*norm_scale=*/65536.0f,
-                                           /*dimensions_per_value=*/1)
+nk_define_device_cross_(angular, e4m3, blackwellrtx, ampere, e4m3, e4m3, f32, /*depth_simd_dimensions=*/16,
+                        /*dimensions_per_value=*/1, nk_dots_e4m3_multiply_blackwellrtx_, nk_cross_epilogue_f32_k,
+                        /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_e4m3_norm_update_ampere_,
+                        /*norm_scale=*/65536.0f)
+nk_define_device_cross_(euclidean, e4m3, blackwellrtx, ampere, e4m3, e4m3, f32, /*depth_simd_dimensions=*/16,
+                        /*dimensions_per_value=*/1, nk_dots_e4m3_multiply_blackwellrtx_, nk_cross_epilogue_f32_k,
+                        /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_e4m3_norm_update_ampere_,
+                        /*norm_scale=*/65536.0f)
 
 #pragma endregion E4M3
 
 #pragma region E3M2
 
-nk_define_cross_cuda_normalized_packed_(angular, e3m2, blackwellrtx, e3m2, e3m2, nk_dots_e3m2_multiply_blackwellrtx_,
-                                        nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
-                                        nk_e3m2_norm_update_ampere_, /*norm_scale=*/16777216.0f,
-                                        /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1)
-nk_define_cross_cuda_normalized_packed_(euclidean, e3m2, blackwellrtx, e3m2, e3m2, nk_dots_e3m2_multiply_blackwellrtx_,
-                                        nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
-                                        nk_e3m2_norm_update_ampere_, /*norm_scale=*/16777216.0f,
-                                        /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1)
-nk_define_cross_cuda_normalized_symmetric_(angular, e3m2, blackwellrtx, e3m2, nk_dots_e3m2_multiply_blackwellrtx_,
-                                           nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
-                                           nk_e3m2_norm_update_ampere_, /*norm_scale=*/16777216.0f,
-                                           /*dimensions_per_value=*/1)
-nk_define_cross_cuda_normalized_symmetric_(euclidean, e3m2, blackwellrtx, e3m2, nk_dots_e3m2_multiply_blackwellrtx_,
-                                           nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
-                                           nk_e3m2_norm_update_ampere_, /*norm_scale=*/16777216.0f,
-                                           /*dimensions_per_value=*/1)
+nk_define_device_cross_(angular, e3m2, blackwellrtx, ampere, e3m2, e3m2, f32, /*depth_simd_dimensions=*/16,
+                        /*dimensions_per_value=*/1, nk_dots_e3m2_multiply_blackwellrtx_, nk_cross_epilogue_f32_k,
+                        /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_e3m2_norm_update_ampere_,
+                        /*norm_scale=*/16777216.0f)
+nk_define_device_cross_(euclidean, e3m2, blackwellrtx, ampere, e3m2, e3m2, f32, /*depth_simd_dimensions=*/16,
+                        /*dimensions_per_value=*/1, nk_dots_e3m2_multiply_blackwellrtx_, nk_cross_epilogue_f32_k,
+                        /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_e3m2_norm_update_ampere_,
+                        /*norm_scale=*/16777216.0f)
 
 #pragma endregion E3M2
 
 #pragma region E2M3
 
-nk_define_cross_cuda_normalized_packed_(angular, e2m3, blackwellrtx, e2m3, e2m3, nk_dots_e2m3_multiply_blackwellrtx_,
-                                        nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
-                                        nk_e2m3_norm_update_ampere_, /*norm_scale=*/0.015625f,
-                                        /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1)
-nk_define_cross_cuda_normalized_packed_(euclidean, e2m3, blackwellrtx, e2m3, e2m3, nk_dots_e2m3_multiply_blackwellrtx_,
-                                        nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
-                                        nk_e2m3_norm_update_ampere_, /*norm_scale=*/0.015625f,
-                                        /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1)
-nk_define_cross_cuda_normalized_symmetric_(angular, e2m3, blackwellrtx, e2m3, nk_dots_e2m3_multiply_blackwellrtx_,
-                                           nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
-                                           nk_e2m3_norm_update_ampere_, /*norm_scale=*/0.015625f,
-                                           /*dimensions_per_value=*/1)
-nk_define_cross_cuda_normalized_symmetric_(euclidean, e2m3, blackwellrtx, e2m3, nk_dots_e2m3_multiply_blackwellrtx_,
-                                           nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
-                                           nk_e2m3_norm_update_ampere_, /*norm_scale=*/0.015625f,
-                                           /*dimensions_per_value=*/1)
+nk_define_device_cross_(angular, e2m3, blackwellrtx, ampere, e2m3, e2m3, f32, /*depth_simd_dimensions=*/16,
+                        /*dimensions_per_value=*/1, nk_dots_e2m3_multiply_blackwellrtx_, nk_cross_epilogue_f32_k,
+                        /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_e2m3_norm_update_ampere_,
+                        /*norm_scale=*/0.015625f)
+nk_define_device_cross_(euclidean, e2m3, blackwellrtx, ampere, e2m3, e2m3, f32, /*depth_simd_dimensions=*/16,
+                        /*dimensions_per_value=*/1, nk_dots_e2m3_multiply_blackwellrtx_, nk_cross_epilogue_f32_k,
+                        /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_e2m3_norm_update_ampere_,
+                        /*norm_scale=*/0.015625f)
 
 #pragma endregion E2M3
 
 #pragma region E2M1
 
-nk_define_cross_cuda_normalized_packed_(angular, e2m1, blackwellrtx, e2m1x2, e2m1x2,
-                                        nk_dots_e2m1_multiply_blackwellrtx_, nk_cross_epilogue_f32_k,
-                                        /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_e2m1_norm_update_ampere_,
-                                        /*norm_scale=*/0.25f, /*depth_simd_dimensions=*/128, /*dimensions_per_value=*/2)
-nk_define_cross_cuda_normalized_packed_(euclidean, e2m1, blackwellrtx, e2m1x2, e2m1x2,
-                                        nk_dots_e2m1_multiply_blackwellrtx_, nk_cross_epilogue_f32_k,
-                                        /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_e2m1_norm_update_ampere_,
-                                        /*norm_scale=*/0.25f, /*depth_simd_dimensions=*/128, /*dimensions_per_value=*/2)
-nk_define_cross_cuda_normalized_symmetric_(angular, e2m1, blackwellrtx, e2m1x2, nk_dots_e2m1_multiply_blackwellrtx_,
-                                           nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
-                                           nk_e2m1_norm_update_ampere_, /*norm_scale=*/0.25f,
-                                           /*dimensions_per_value=*/2)
-nk_define_cross_cuda_normalized_symmetric_(euclidean, e2m1, blackwellrtx, e2m1x2, nk_dots_e2m1_multiply_blackwellrtx_,
-                                           nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
-                                           nk_e2m1_norm_update_ampere_, /*norm_scale=*/0.25f,
-                                           /*dimensions_per_value=*/2)
+nk_define_device_cross_(angular, e2m1, blackwellrtx, ampere, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
+                        /*dimensions_per_value=*/2, nk_dots_e2m1_multiply_blackwellrtx_, nk_cross_epilogue_f32_k,
+                        /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_e2m1_norm_update_ampere_, /*norm_scale=*/0.25f)
+nk_define_device_cross_(euclidean, e2m1, blackwellrtx, ampere, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
+                        /*dimensions_per_value=*/2, nk_dots_e2m1_multiply_blackwellrtx_, nk_cross_epilogue_f32_k,
+                        /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_e2m1_norm_update_ampere_, /*norm_scale=*/0.25f)
 
 #pragma endregion E2M1
 

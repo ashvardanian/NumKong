@@ -196,8 +196,8 @@ int strides_are_c_contiguous(nk_dtype_t dtype, size_t rank, Py_ssize_t const *sh
 /**
  *  @brief Linearize strided source data into a contiguous destination, with optional dtype cast.
  *
- *  Walks the source tensor's strides recursively. For each contiguous inner slice, calls nk_cast
- *  (or memcpy if same dtype) directly into @p dest_data. Zero allocations.
+ *  Walks the source tensor's strides recursively. For each contiguous inner slice, calls
+ *  nk_cast_best, or memcpy if same dtype, directly into @p dest_data. Zero allocations.
  */
 void linearize_cast_into(char const *src_data, nk_dtype_t src_dtype, char *dest_data, nk_dtype_t dest_dtype,
                          size_t rank, Py_ssize_t const *shape, Py_ssize_t const *strides, size_t total_elements);
@@ -206,7 +206,7 @@ void linearize_cast_into(char const *src_data, nk_dtype_t src_dtype, char *dest_
  *  @brief Convert a dense source into an arbitrarily-strided destination — the mirror of
  *      linearize_cast_into, for writing results back into a caller's non-contiguous buffer.
  *
- *  Collapses to a single nk_cast when the destination is fully packed. Zero allocations.
+ *  Collapses to a single nk_cast_best when the destination is fully packed. Zero allocations.
  */
 void cast_into_strided(char const *src_data, nk_dtype_t src_dtype, char *dest_data, nk_dtype_t dest_dtype, size_t rank,
                        Py_ssize_t const *shape, Py_ssize_t const *dest_strides);
@@ -240,25 +240,26 @@ char *validate_out_py_buffer(Py_buffer const *out_buffer, Py_buffer const *input
 /** Compute the number of trailing contiguous dimensions shared across multiple buffers. */
 size_t shared_contiguous_tail_dimensions(Py_buffer const *buffers[], size_t num_buffers, size_t num_dims);
 
-void each_sum_recursive(                                           //
-    nk_each_sum_punned_t kernel,                                   //
+/** Recursively apply a binary sum kernel to N-D tensors, stopping at the first failure. */
+nk_status_t each_sum_recursive(                                    //
+    nk_each_sum_punned_t kernel, void *stream,                     //
     char const *a_data, char const *b_data, char *result_data,     //
     Py_ssize_t const *shape, Py_ssize_t const *a_strides,          //
     Py_ssize_t const *b_strides, Py_ssize_t const *result_strides, //
     size_t remaining_dims, size_t contiguous_tail_dims);
 
-/** Recursively apply a unary elementwise scale kernel to an N-D tensor. */
-void each_scale_recursive(                                           //
-    nk_each_scale_punned_t kernel,                                   //
+/** Recursively apply a unary scale kernel to an N-D tensor, stopping at the first failure. */
+nk_status_t each_scale_recursive(                                    //
+    nk_each_scale_punned_t kernel, void *stream,                     //
     char const *a_data, char *result_data,                           //
     nk_scalar_buffer_t const *alpha, nk_scalar_buffer_t const *beta, //
     Py_ssize_t const *shape, Py_ssize_t const *a_strides,            //
     Py_ssize_t const *result_strides,                                //
     size_t remaining_dims, size_t contiguous_tail_dims);
 
-/** Recursively apply a ternary fused-multiply-add kernel to N-D tensors. */
-void each_fma_recursive(                                                           //
-    nk_each_fma_punned_t kernel,                                                   //
+/** Recursively apply a ternary FMA kernel to N-D tensors, stopping at the first failure. */
+nk_status_t each_fma_recursive(                                                    //
+    nk_each_fma_punned_t kernel, void *stream,                                     //
     char const *a_data, char const *b_data, char const *c_data, char *result_data, //
     nk_scalar_buffer_t const *alpha, nk_scalar_buffer_t const *beta,               //
     Py_ssize_t const *shape, Py_ssize_t const *a_strides,                          //
@@ -266,18 +267,18 @@ void each_fma_recursive(                                                        
     Py_ssize_t const *result_strides,                                              //
     size_t remaining_dims, size_t contiguous_tail_dims);
 
-/** Recursively apply a binary elementwise blend kernel to N-D tensors. */
-void each_blend_recursive(                                           //
-    nk_each_blend_punned_t kernel,                                   //
+/** Recursively apply a binary blend kernel to N-D tensors, stopping at the first failure. */
+nk_status_t each_blend_recursive(                                    //
+    nk_each_blend_punned_t kernel, void *stream,                     //
     char const *a_data, char const *b_data, char *result_data,       //
     nk_scalar_buffer_t const *alpha, nk_scalar_buffer_t const *beta, //
     Py_ssize_t const *shape, Py_ssize_t const *a_strides,            //
     Py_ssize_t const *b_strides, Py_ssize_t const *result_strides,   //
     size_t remaining_dims, size_t contiguous_tail_dims);
 
-/** Recursively apply a unary elementwise kernel (sin/cos/atan) to an N-D tensor. */
-void each_unary_recursive(                                //
-    nk_kernel_trig_punned_t kernel,                       //
+/** Recursively apply a trigonometric kernel to an N-D tensor, stopping at the first failure. */
+nk_status_t each_unary_recursive(                         //
+    nk_kernel_trig_punned_t kernel, void *stream,         //
     char const *a_data, char *result_data,                //
     Py_ssize_t const *shape, Py_ssize_t const *a_strides, //
     Py_ssize_t const *result_strides,                     //

@@ -29,8 +29,8 @@ PyObject *api_bilinear(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
 PyObject *api_mahalanobis(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 PyObject *api_haversine(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 PyObject *api_vincenty(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
-PyObject *api_intersect(PyObject *self, PyObject *const *args, Py_ssize_t nargs);
-PyObject *api_sparse_dot(PyObject *self, PyObject *const *args, Py_ssize_t nargs);
+PyObject *api_intersect(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
+PyObject *api_sparse_dot(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
 PyObject *api_euclidean_pointer(PyObject *self, PyObject *dtype_obj);
 PyObject *api_sqeuclidean_pointer(PyObject *self, PyObject *dtype_obj);

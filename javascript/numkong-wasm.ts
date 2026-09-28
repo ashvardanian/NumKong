@@ -27,43 +27,43 @@ interface EmscriptenModule {
   wasmMemory: { buffer: ArrayBuffer };
 
   // Distance functions - all use `any` for pointer/size args, wasm32 as number, wasm64 as bigint.
-  _nk_dot_f32(a: any, b: any, n: any, result: any): void;
-  _nk_angular_f32(a: any, b: any, n: any, result: any): void;
-  _nk_sqeuclidean_f32(a: any, b: any, n: any, result: any): void;
-  _nk_euclidean_f32(a: any, b: any, n: any, result: any): void;
-  _nk_dot_f64(a: any, b: any, n: any, result: any): void;
-  _nk_angular_f64(a: any, b: any, n: any, result: any): void;
-  _nk_sqeuclidean_f64(a: any, b: any, n: any, result: any): void;
-  _nk_euclidean_f64(a: any, b: any, n: any, result: any): void;
-  _nk_dot_f16(a: any, b: any, n: any, result: any): void;
-  _nk_angular_f16(a: any, b: any, n: any, result: any): void;
-  _nk_sqeuclidean_f16(a: any, b: any, n: any, result: any): void;
-  _nk_euclidean_f16(a: any, b: any, n: any, result: any): void;
-  _nk_dot_bf16(a: any, b: any, n: any, result: any): void;
-  _nk_angular_bf16(a: any, b: any, n: any, result: any): void;
-  _nk_sqeuclidean_bf16(a: any, b: any, n: any, result: any): void;
-  _nk_euclidean_bf16(a: any, b: any, n: any, result: any): void;
-  _nk_dot_i8(a: any, b: any, n: any, result: any): void;
-  _nk_angular_i8(a: any, b: any, n: any, result: any): void;
-  _nk_sqeuclidean_i8(a: any, b: any, n: any, result: any): void;
-  _nk_euclidean_i8(a: any, b: any, n: any, result: any): void;
-  _nk_dot_u8(a: any, b: any, n: any, result: any): void;
-  _nk_angular_u8(a: any, b: any, n: any, result: any): void;
-  _nk_sqeuclidean_u8(a: any, b: any, n: any, result: any): void;
-  _nk_euclidean_u8(a: any, b: any, n: any, result: any): void;
-  _nk_hamming_u1(a: any, b: any, n: any, result: any): void;
-  _nk_hamming_u8(a: any, b: any, n: any, result: any): void;
-  _nk_jaccard_u1(a: any, b: any, n: any, result: any): void;
-  _nk_jaccard_u16(a: any, b: any, n: any, result: any): void;
-  _nk_kld_f32(a: any, b: any, n: any, result: any): void;
-  _nk_kld_f64(a: any, b: any, n: any, result: any): void;
-  _nk_jsd_f32(a: any, b: any, n: any, result: any): void;
-  _nk_jsd_f64(a: any, b: any, n: any, result: any): void;
-  _nk_cpu_capabilities_detected(): any;
-  _nk_cpu_capabilities_compiled(): any;
-  _nk_cpu_capabilities_enabled(): any;
-  _nk_cpu_capabilities_enable(wanted: any): any;
+  _nk_dot_f32_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_angular_f32_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_sqeuclidean_f32_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_euclidean_f32_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_dot_f64_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_angular_f64_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_sqeuclidean_f64_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_euclidean_f64_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_dot_f16_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_angular_f16_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_sqeuclidean_f16_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_euclidean_f16_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_dot_bf16_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_angular_bf16_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_sqeuclidean_bf16_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_euclidean_bf16_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_dot_i8_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_angular_i8_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_sqeuclidean_i8_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_euclidean_i8_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_dot_u8_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_angular_u8_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_sqeuclidean_u8_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_euclidean_u8_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_hamming_u1_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_hamming_u8_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_jaccard_u1_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_jaccard_u16_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_kld_f32_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_kld_f64_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_jsd_f32_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_jsd_f64_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
+  _nk_cpu_capabilities_detected(capabilities: any): number;
+  _nk_cpu_capabilities_compiled(capabilities: any): number;
+  _nk_cpu_capabilities_enabled(capabilities: any): number;
   _nk_name_capabilities(capabilities: any, buffer: any, capacity: any): any;
+  _nk_status_to_string(status: number): any;
 
   [key: string]: any;
 }
@@ -92,10 +92,29 @@ let HEAPU32: Uint32Array;
 let HEAPF32: Float32Array;
 let HEAPF64: Float64Array;
 
+/** The mask kernels run with, which {@link capabilitiesEnable} narrows from the enabled capabilities. */
+let defaultCapabilities: bigint = 1n;
+
 /** Convert a number, e.g. from `_malloc` or `byteOffset`, to the pointer type expected by raw C
  *  function exports. In wasm64, pointers are BigInt, an i64. */
 function toWasmPtr(n: number): WasmPtr {
   return isMemory64 ? BigInt(n) : n;
+}
+
+/** Throws the `nk_status_to_string` text of `status`, an `nk_status_t`, unless it is a success. */
+function checkStatus(status: number): void {
+  if (status === 0) return;
+  // The C string is decoded by hand, as the module exports `wasmMemory` but not `UTF8ToString`.
+  const module = requireModule();
+  const text = new Uint8Array(module.wasmMemory.buffer, Number(module._nk_status_to_string(status)));
+  throw new Error(new TextDecoder().decode(text.subarray(0, text.indexOf(0))));
+}
+
+/** Runs a C query writing one `nk_capability_t` through its pointer argument, and returns it. */
+function queryCapabilities(fnName: string): bigint {
+  const module = requireModule();
+  checkStatus(module[fnName](toWasmPtr(resultPtr)));
+  return new BigUint64Array(module.wasmMemory.buffer, resultPtr, 1)[0];
 }
 
 /**
@@ -119,7 +138,7 @@ export function initWasm(wasmModule: EmscriptenModule): void {
   // with BigInt(0) args — if it doesn't throw, we're in memory64 mode.
   try {
     const probe = wasmModule._malloc(8);
-    wasmModule._nk_dot_f32(BigInt(probe), BigInt(probe), 0, BigInt(probe));
+    wasmModule._nk_dot_f32_best(BigInt(probe), BigInt(probe), 0, BigInt(probe), 1n, 0n);
     isMemory64 = true;
     wasmModule._free(probe);
   } catch {
@@ -129,13 +148,14 @@ export function initWasm(wasmModule: EmscriptenModule): void {
   // Pre-allocate an 8-byte result buffer (never freed during module lifetime)
   // _malloc always returns number (Emscripten-wrapped in both modes)
   resultPtr = wasmModule._malloc(8);
+  defaultCapabilities = queryCapabilities('_nk_cpu_capabilities_enabled');
 
-  // 1024 is `NUMKONG_CAPABILITIES_NAME_CAPACITY`; bits from 42 up are GPU tiers, left out.
+  // 1024 is `NUMKONG_CAPABILITIES_NAME_CAPACITY`; bits from 48 up, past `nk_cap_cpus_k`, are GPUs.
   const names: Record<string, bigint> = {};
   const namePtr = wasmModule._malloc(1024);
-  for (let bit = 1n; bit < 1n << 42n; bit <<= 1n) {
+  for (let bit = 1n; bit < 1n << 48n; bit <<= 1n) {
     const length = wasmModule._nk_name_capabilities(bit, toWasmPtr(namePtr), 1024);
-    names[String.fromCharCode(...HEAPU8.subarray(namePtr, namePtr + length))] = bit;
+    if (length) names[String.fromCharCode(...HEAPU8.subarray(namePtr, namePtr + length))] = bit;
   }
   wasmModule._free(namePtr);
   Capability = Object.freeze(names);
@@ -271,7 +291,7 @@ function distance(metric: string, a: TensorBase | any, b: TensorBase | any): num
 
   try {
     // Call C function
-    const fnName = `_nk_${metric}_${dtypeToString(resolvedA.typeInfo.dtype)}` as keyof EmscriptenModule;
+    const fnName = `_nk_${metric}_${dtypeToString(resolvedA.typeInfo.dtype)}_best` as keyof EmscriptenModule;
     const fn = Module[fnName] as any;
 
     if (!fn || typeof fn !== 'function') {
@@ -279,7 +299,7 @@ function distance(metric: string, a: TensorBase | any, b: TensorBase | any): num
     }
 
     // In wasm64, raw C exports expect BigInt for pointer args; nk_size_t is always i32 (number)
-    fn(toWasmPtr(aOff), toWasmPtr(bOff), n, toWasmPtr(resultPtr));
+    checkStatus(fn(toWasmPtr(aOff), toWasmPtr(bOff), n, toWasmPtr(resultPtr), defaultCapabilities, toWasmPtr(0)));
 
     // Read result
     return readResult(resultPtr, resolvedA.typeInfo.resultType);
@@ -363,13 +383,14 @@ export function hamming(a: TensorBase | Uint8Array | any, b: TensorBase | Uint8A
   const bOff = isOnHeapB ? offsetB : allocAndCopyResolved(bufferB, offsetB, byteLengthB);
 
   try {
-    const fn = Module._nk_hamming_u1 as any;
+    const fn = Module._nk_hamming_u1_best as any;
 
     if (!fn || typeof fn !== 'function') {
-      throw new Error('Function _nk_hamming_u1 not available in WASM module');
+      throw new Error('Function _nk_hamming_u1_best not available in WASM module');
     }
 
-    fn(toWasmPtr(aOff), toWasmPtr(bOff), lengthA * dimensionsPerValue(DType.U1), toWasmPtr(resultPtr));
+    checkStatus(fn(toWasmPtr(aOff), toWasmPtr(bOff), lengthA * dimensionsPerValue(DType.U1), toWasmPtr(resultPtr),
+                   defaultCapabilities, toWasmPtr(0)));
 
     return readResult(resultPtr, 'u32');
   } finally {
@@ -408,13 +429,14 @@ export function jaccard(a: TensorBase | Uint8Array | any, b: TensorBase | Uint8A
   const bOff = isOnHeapB ? offsetB : allocAndCopyResolved(bufferB, offsetB, byteLengthB);
 
   try {
-    const fn = Module._nk_jaccard_u1 as any;
+    const fn = Module._nk_jaccard_u1_best as any;
 
     if (!fn || typeof fn !== 'function') {
-      throw new Error('Function _nk_jaccard_u1 not available in WASM module');
+      throw new Error('Function _nk_jaccard_u1_best not available in WASM module');
     }
 
-    fn(toWasmPtr(aOff), toWasmPtr(bOff), lengthA * dimensionsPerValue(DType.U1), toWasmPtr(resultPtr));
+    checkStatus(fn(toWasmPtr(aOff), toWasmPtr(bOff), lengthA * dimensionsPerValue(DType.U1), toWasmPtr(resultPtr),
+                   defaultCapabilities, toWasmPtr(0)));
 
     return readResult(resultPtr, 'f32');
   } finally {
@@ -451,14 +473,14 @@ export function kullbackleibler(a: TensorBase | Float64Array | Float32Array, b: 
   const bOff = isOnHeapB ? resolvedB.byteOffset : allocAndCopyResolved(resolvedB.buffer, resolvedB.byteOffset, resolvedB.byteLength);
 
   try {
-    const fnName = `_nk_kld_${dtypeToString(resolvedA.typeInfo.dtype)}` as keyof EmscriptenModule;
+    const fnName = `_nk_kld_${dtypeToString(resolvedA.typeInfo.dtype)}_best` as keyof EmscriptenModule;
     const fn = Module[fnName] as any;
 
     if (!fn || typeof fn !== 'function') {
       throw new Error(`Function ${fnName} not available in WASM module`);
     }
 
-    fn(toWasmPtr(aOff), toWasmPtr(bOff), n, toWasmPtr(resultPtr));
+    checkStatus(fn(toWasmPtr(aOff), toWasmPtr(bOff), n, toWasmPtr(resultPtr), defaultCapabilities, toWasmPtr(0)));
 
     return readResult(resultPtr, resolvedA.typeInfo.resultType);
   } finally {
@@ -497,25 +519,20 @@ export function jensenshannon(a: TensorBase | Float64Array | Float32Array, b: Te
   const bOff = isOnHeapB ? resolvedB.byteOffset : allocAndCopyResolved(resolvedB.buffer, resolvedB.byteOffset, resolvedB.byteLength);
 
   try {
-    const fnName = `_nk_jsd_${dtypeToString(resolvedA.typeInfo.dtype)}` as keyof EmscriptenModule;
+    const fnName = `_nk_jsd_${dtypeToString(resolvedA.typeInfo.dtype)}_best` as keyof EmscriptenModule;
     const fn = Module[fnName] as any;
 
     if (!fn || typeof fn !== 'function') {
       throw new Error(`Function ${fnName} not available in WASM module`);
     }
 
-    fn(toWasmPtr(aOff), toWasmPtr(bOff), n, toWasmPtr(resultPtr));
+    checkStatus(fn(toWasmPtr(aOff), toWasmPtr(bOff), n, toWasmPtr(resultPtr), defaultCapabilities, toWasmPtr(0)));
 
     return readResult(resultPtr, resolvedA.typeInfo.resultType);
   } finally {
     if (!isOnHeapA) Module._free(aOff);
     if (!isOnHeapB) Module._free(bOff);
   }
-}
-
-/** In wasm64 the capability mask arrives as a bigint; in wasm32 as a number. */
-function capabilitiesToBigInt(caps: any): bigint {
-  return typeof caps === 'bigint' ? caps : BigInt(caps);
 }
 
 function requireModule(): any {
@@ -533,7 +550,7 @@ function requireModule(): any {
  *  @returns Bitmask of {@link Capability} bits.
  */
 export function capabilitiesDetected(): bigint {
-  return capabilitiesToBigInt(requireModule()._nk_cpu_capabilities_detected());
+  return queryCapabilities('_nk_cpu_capabilities_detected');
 }
 
 /**
@@ -541,7 +558,7 @@ export function capabilitiesDetected(): bigint {
  *  @returns Bitmask of {@link Capability} bits.
  */
 export function capabilitiesCompiled(): bigint {
-  return capabilitiesToBigInt(requireModule()._nk_cpu_capabilities_compiled());
+  return queryCapabilities('_nk_cpu_capabilities_compiled');
 }
 
 /**
@@ -553,7 +570,8 @@ export function capabilitiesCompiled(): bigint {
  *  @returns Bitmask of {@link Capability} bits.
  */
 export function capabilitiesEnabled(): bigint {
-  return capabilitiesToBigInt(requireModule()._nk_cpu_capabilities_enabled());
+  requireModule();
+  return defaultCapabilities;
 }
 
 /**
@@ -564,10 +582,11 @@ export function capabilitiesEnabled(): bigint {
  *  @returns The enabled set that took effect.
  */
 export function capabilitiesEnable(wanted: bigint): bigint {
-  return capabilitiesToBigInt(requireModule()._nk_cpu_capabilities_enable(wanted));
+  defaultCapabilities = (wanted & queryCapabilities('_nk_cpu_capabilities_enabled')) | 1n;
+  return defaultCapabilities;
 }
 
-/** Lowercase CPU tier names, like `v128`, mapped to their capability bits by {@link initWasm}. */
+/** Lowercase CPU capability names, like `v128`, mapped to their capability bits by {@link initWasm}. */
 export let Capability: Readonly<Record<string, bigint>>;
 
 /** `FinalizationRegistry` for WASM `PackedMatrix` cleanup, an ES2021 feature from Node 14. */
@@ -626,12 +645,13 @@ function allocAndCopyMatrix(matrix: Matrix): number {
 export function dotsPackedSize(width: number, depth: number, dtype: DType): number {
   if (!Module) throw new Error('WASM module not initialized');
 
-  const fnName = `_nk_dots_pack_size_${dtypeToString(dtype)}`;
+  const fnName = `_nk_dots_pack_size_${dtypeToString(dtype)}_best`;
   const fn = Module[fnName] as any;
   if (!fn || typeof fn !== 'function') {
     throw new Error(`Function ${fnName} not available in WASM module`);
   }
-  return fn(width, depth);
+  checkStatus(fn(width, depth, defaultCapabilities, toWasmPtr(resultPtr)));
+  return new Uint32Array(Module.wasmMemory.buffer, resultPtr, 1)[0];
 }
 
 /**
@@ -642,7 +662,7 @@ export function dotsPackedSize(width: number, depth: number, dtype: DType): numb
 export function dotsPackedShape(packed: PackedMatrix): { width: number; depth: number } {
   if (!Module) throw new Error('WASM module not initialized');
 
-  const fnName = `_nk_dots_packed_shape_${dtypeToString(packed.dtype)}`;
+  const fnName = `_nk_dots_packed_shape_${dtypeToString(packed.dtype)}_best`;
   const fn = Module[fnName] as any;
   if (!fn || typeof fn !== 'function') {
     throw new Error(`Function ${fnName} not available in WASM module`);
@@ -651,7 +671,7 @@ export function dotsPackedShape(packed: PackedMatrix): { width: number; depth: n
   const blobPtr = allocAndCopyResolved(packed.buffer, 0, packed.byteLength);
   const outPtr = Module._malloc(8); // two nk_size_t out-params (i32 each in WASM)
   try {
-    fn(toWasmPtr(blobPtr), toWasmPtr(outPtr), toWasmPtr(outPtr + 4));
+    checkStatus(fn(toWasmPtr(blobPtr), toWasmPtr(outPtr), toWasmPtr(outPtr + 4), defaultCapabilities, toWasmPtr(0)));
     const width = HEAPU32[outPtr / 4];
     const depth = HEAPU32[(outPtr + 4) / 4];
     return { width, depth };
@@ -670,26 +690,28 @@ export function dotsPack(matrix: Matrix): PackedMatrix {
   if (!Module) throw new Error('WASM module not initialized');
 
   const dtypeStr = dtypeToString(matrix.dtype);
-  const sizeFnName = `_nk_dots_pack_size_${dtypeStr}`;
-  const packFnName = `_nk_dots_pack_${dtypeStr}`;
-
-  const sizeFn = Module[sizeFnName] as any;
+  const packFnName = `_nk_dots_pack_${dtypeStr}_best`;
   const packFn = Module[packFnName] as any;
-  if (!sizeFn || !packFn) {
+  if (!packFn) {
     throw new Error(`Pack functions not available for dtype ${dtypeStr}`);
   }
 
-  const packedByteCount = sizeFn(matrix.rows, matrix.cols) as number;
+  const packedByteCount = dotsPackedSize(matrix.rows, matrix.cols, matrix.dtype);
   const packedPtr = Module._malloc(packedByteCount);
   const matrixPtr = allocAndCopyMatrix(matrix);
 
   try {
-    packFn(
+    checkStatus(packFn(
       toWasmPtr(matrixPtr),
       matrix.rows, matrix.cols,
       matrix.rowStride,
       toWasmPtr(packedPtr),
-    );
+      0, matrix.rows,
+      defaultCapabilities, toWasmPtr(0),
+    ));
+  } catch (error) {
+    Module._free(packedPtr);
+    throw error;
   } finally {
     Module._free(matrixPtr);
   }
@@ -709,7 +731,7 @@ function wasmPackedOperation(metricPrefix: string, family: KernelFamily, a: Matr
   }
 
   const dtypeStr = dtypeToString(a.dtype);
-  const fnName = `_nk_${metricPrefix}_${dtypeStr}`;
+  const fnName = `_nk_${metricPrefix}_${dtypeStr}_best`;
   const fn = Module[fnName] as any;
   if (!fn || typeof fn !== 'function') {
     throw new Error(`Function ${fnName} not available in WASM module`);
@@ -733,11 +755,12 @@ function wasmPackedOperation(metricPrefix: string, family: KernelFamily, a: Matr
   }
 
   try {
-    fn(
+    checkStatus(fn(
       toWasmPtr(aPtr), toWasmPtr(packedPtr), toWasmPtr(resultPtr),
       a.rows, packed.width, a.cols,
       a.rowStride, out.rowStride,
-    );
+      defaultCapabilities, toWasmPtr(0),
+    ));
 
     // Copy result back
     const outArray = new Uint8Array(out.buffer, out.byteOffset, resultByteLength);
@@ -761,7 +784,7 @@ function wasmSymmetricOperation(metricPrefix: string, family: KernelFamily, vect
   }
 
   const dtypeStr = dtypeToString(vectors.dtype);
-  const fnName = `_nk_${metricPrefix}_${dtypeStr}`;
+  const fnName = `_nk_${metricPrefix}_${dtypeStr}_best`;
   const fn = Module[fnName] as any;
   if (!fn || typeof fn !== 'function') {
     throw new Error(`Function ${fnName} not available in WASM module`);
@@ -772,13 +795,14 @@ function wasmSymmetricOperation(metricPrefix: string, family: KernelFamily, vect
   const resultPtr = Module._malloc(resultByteLength);
 
   try {
-    fn(
+    checkStatus(fn(
       toWasmPtr(vectorsPtr),
       vectors.rows, vectors.cols,
       vectors.rowStride,
       toWasmPtr(resultPtr), out.rowStride,
       rowStart, count,
-    );
+      defaultCapabilities, toWasmPtr(0),
+    ));
 
     // Copy result back
     const outArray = new Uint8Array(out.buffer, out.byteOffset, resultByteLength);

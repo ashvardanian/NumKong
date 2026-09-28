@@ -46,7 +46,7 @@ The `parallel` feature is the intended native orchestration layer.
 | :--------------------------- | :------------------------------------------------------------------------------------------------------------------ | :--------------------------------------------------- | :--------------------------------------------------- |
 | Operation families           | dots, distances, binary, probability, geospatial, curved, mesh, sparse, MaxSim, elementwise, reductions, cast, trig | linear algebra, decompositions                       | general n-dimensional arithmetic                     |
 | Precision                    | BFloat16 through sub-byte; automatic widening; Kahan summation; 0 ULP in Float32/Float64                            | Float32/Float64 only; no widening; standard accuracy | Float32/Float64 only; no widening; standard accuracy |
-| Runtime SIMD dispatch        | auto-selects best ISA per-thread at runtime across x86, ARM, RISC-V                                                 | none                                                 | none                                                 |
+| Runtime SIMD dispatch        | per call, the highest capability the CPU runs and the build holds, across x86, Arm, RISC-V                                | none                                                 | none                                                 |
 | Packed matrix, GEMM-like     | pack once, reuse across query batches                                                                               | standard matmul; no persistent packing               | `dot` for matmul; no persistent packing              |
 | Symmetric kernels, SYRK-like | skip duplicate pairs, up to 2x speedup for self-distance                                                            | no duplicate-pair skipping                           | no duplicate-pair skipping                           |
 | Memory model                 | Caller-owned; `Tensor`/`PackedMatrix` support custom allocators                                                     | Heap-allocated matrices; custom storage trait        | Heap-allocated; no custom allocator support          |
@@ -76,7 +76,7 @@ numkong = { version = "7", features = ["parallel", "std"] }
 
 ## Compilation and Backend Selection
 
-The crate uses the `cc` build system to compile the C backend with `NUMKONG_RUNTIME_DISPATCH=1` automatically.
+The crate uses the `cc` build system to compile the C library automatically.
 All supported backends for the target architecture are compiled into a single binary and selected at runtime.
 
 The two Cargo features are `std`, which enables standard library support, and `parallel`, which adds host-side orchestration via ForkUnion and implies `std`.
@@ -116,7 +116,7 @@ if enabled.contains(Capability::SapphireAmx) {
 }
 ```
 
-A `Capabilities` set of `Capability` tiers is reported along two independent axes, plus the set dispatch uses:
+A `Capabilities` set of `Capability` capabilities is reported along two independent axes, plus the set dispatch uses:
 
 - `Capabilities::detected()`: what this CPU can execute, from CPUID or HWCAP
 - `Capabilities::compiled()`: what this binary contains, from the ISA probes at build time
@@ -125,6 +125,7 @@ A `Capabilities` set of `Capability` tiers is reported along two independent axe
 Reach for `enabled()` unless you specifically mean one of the raw axes.
 `detected()` describes the machine and says nothing about whether a kernel was compiled in, so a build whose ISA probes failed still reports your CPU's full feature set while containing no SIMD kernels at all.
 Narrow dispatch with `Capabilities::enabled().without(Capability::Skylake).enable()`, which clamps to both axes, always keeps `Capability::Serial`, and returns the set that stuck.
+Every kernel call passes `enabled()` as its capability mask, and packed kernels refuse another capability's layout, so pack matrices again after narrowing.
 
 Call `configure_thread` at the start of every thread that will use AMX operations.
 In a thread-pool setting, each worker thread needs its own call.
@@ -496,12 +497,12 @@ use numkong::{SparseIntersect, SparseDot};
 
 let a_idx = [1_u32, 3, 5, 7];
 let b_idx = [3_u32, 4, 5, 8];
-let count = u32::sparse_intersection_size(&a_idx, &b_idx);
+let count = u32::sparse_intersection_size(&a_idx, &b_idx).unwrap();
 assert_eq!(count, 2); // indices 3 and 5
 
 let a_weights = [1.0_f32, 2.0, 3.0, 4.0];
 let b_weights = [5.0_f32, 6.0, 7.0, 8.0];
-let dot = u32::sparse_dot(&a_idx, &b_idx, &a_weights, &b_weights);
+let dot = u32::sparse_dot(&a_idx, &b_idx, &a_weights, &b_weights).unwrap();
 assert!(dot > 0.0); // weighted dot over shared indices
 ```
 

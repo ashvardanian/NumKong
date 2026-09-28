@@ -134,19 +134,19 @@ let kernels: [Kernel] = {
 @Test func capabilities() {
     print("Capabilities: \(Capabilities.enabled)")
     let names: [(Capabilities, String)] = [
-        (.serial, "serial"), (.neon, "neon"), (.haswell, "haswell"), (.skylake, "skylake"),
-        (.neonHalf, "neonhalf"), (.neonSDot, "neonsdot"), (.neonFhm, "neonfhm"), (.icelake, "icelake"),
-        (.genoa, "genoa"), (.neonBfDot, "neonbfdot"), (.sve, "sve"), (.sveHalf, "svehalf"),
-        (.sveSDot, "svesdot"), (.alder, "alder"), (.sveBfDot, "svebfdot"), (.sve2, "sve2"),
-        (.v128Relaxed, "v128relaxed"), (.sapphire, "sapphire"), (.sapphireAmx, "sapphireamx"), (.rvv, "rvv"),
-        (.rvvHalf, "rvvhalf"), (.rvvBf16, "rvvbf16"), (.graniteAmx, "graniteamx"), (.turin, "turin"),
-        (.sme, "sme"), (.sme2, "sme2"), (.smeF64, "smef64"), (.smeFa64, "smefa64"),
-        (.sve2p1, "sve2p1"), (.sme2p1, "sme2p1"), (.smeHalf, "smehalf"), (.smeBf16, "smebf16"),
-        (.smeLut2, "smelut2"), (.rvvBB, "rvvbb"), (.sierra, "sierra"), (.smeBi32, "smebi32"),
-        (.loongsonAsx, "loongsonasx"), (.powerVsx, "powervsx"), (.diamond, "diamond"), (.neonFp8, "neonfp8"),
-        (.diamondAmx, "diamondamx"), (.v128, "v128"),
+        (.serial, "serial"), (.neon, "neon"), (.neonHalf, "neonhalf"), (.neonBfDot, "neonbfdot"),
+        (.neonFhm, "neonfhm"), (.neonSDot, "neonsdot"), (.neonFp8, "neonfp8"), (.sve, "sve"),
+        (.sveHalf, "svehalf"), (.sveSDot, "svesdot"), (.sveBfDot, "svebfdot"), (.sve2, "sve2"),
+        (.sme, "sme"), (.smeF64, "smef64"), (.smeBi32, "smebi32"), (.haswell, "haswell"),
+        (.alder, "alder"), (.sierra, "sierra"), (.skylake, "skylake"), (.icelake, "icelake"),
+        (.genoa, "genoa"), (.turin, "turin"), (.sapphire, "sapphire"), (.diamond, "diamond"),
+        (.sapphireAmx, "sapphireamx"), (.graniteAmx, "graniteamx"), (.diamondAmx, "diamondamx"), (.rvv, "rvv"),
+        (.rvvBf16, "rvvbf16"), (.rvvHalf, "rvvhalf"), (.rvvBB, "rvvbb"), (.v128, "v128"),
+        (.v128Relaxed, "v128relaxed"), (.powerVsx, "powervsx"), (.loongsonAsx, "loongsonasx"),
     ]
     for (capability, name) in names { #expect(capability.description == name) }
+    #expect(Capabilities.enabled.contains(.serial))
+    #expect(Capabilities.enabled.isSubset(of: Capabilities.detected.union(Capabilities.compiled)))
 }
 
 @Test(arguments: kernels)
@@ -222,6 +222,15 @@ func kernel(_ kernel: Kernel) throws {
     let result = try a.dotsPacked(b.packForDots())
     #expect((result.rows, result.cols) == (2, 2))
     #expect([result[0, 0], result[0, 1], result[1, 0], result[1, 1]] == [50, 4, 122, 10])
+}
+
+@Test func foreignPackThrows() throws {
+    let a = try Tensor<Float32>.fromArray([1, 2, 3, 4, 5, 6], rows: 2, cols: 3)
+    let packed = try a.packForDots()
+    // Every capability stamps the packs it writes, so bytes no capability wrote are refused rather than read.
+    UnsafeMutableRawPointer(mutating: packed.rawBuffer.baseAddress!)
+        .initializeMemory(as: UInt8.self, repeating: 0xFF, count: packed.byteCount)
+    #expect(throws: NumKongMatrixError.kernelFailed) { try a.dotsPacked(packed) }
 }
 
 @Test func tensorAngularsPacked() throws {

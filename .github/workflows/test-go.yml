@@ -34,5 +34,12 @@ jobs:
         with:
           go-version: "1.22"
 
+      - name: Build the Library
+        run: |
+          sudo apt-get update && sudo apt-get install -y cmake ninja-build
+          cmake --preset release_shared
+          cmake --build --preset release_shared --target numkong_static
+          cp build_release_shared/libnumkong_static.a golang/
+
       - name: Test Go Bindings
         run: go test -v -count=1 ./golang/

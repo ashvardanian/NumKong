@@ -39,8 +39,8 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+simd+fp16")
 #endif
 
-NUMKONG_API_COMPTIME nk_status_t nk_each_sum_f16_neonhalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
-                                                          nk_f16_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_each_sum_f16_neonhalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f16_t *result,
+                                                 void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // The main loop:
     nk_size_t i = 0;

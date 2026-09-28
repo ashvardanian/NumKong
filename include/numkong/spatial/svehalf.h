@@ -35,7 +35,7 @@
 
 #include "numkong/types.h"
 #include "numkong/reduce/sve.h"   // `nk_svaddv_f64_`
-#include "numkong/spatial/neon.h" // `nk_f32_sqrt_neon`
+#include "numkong/spatial/neon.h" // `nk_angular_normalize_f32_neon_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -48,9 +48,9 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+sve+fp16")
 #endif
 
-NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_f16_svehalf(nk_f16_t const *a_enum, nk_f16_t const *b_enum, nk_size_t n,
-                                                            nk_f32_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
+/** Sums the squared differences of @p n F16 pairs, widened to F32. */
+NUMKONG_INLINE void nk_squared_distance_f16_svehalf_(nk_f16_t const *a_enum, nk_f16_t const *b_enum, nk_size_t n,
+                                                     nk_f32_t *result) {
     nk_size_t i = 0;
     svfloat32_t d2_f32x = svdup_n_f32(0.0f);
     nk_f16_for_arm_simd_t const *a = (nk_f16_for_arm_simd_t const *)(a_enum);
@@ -79,19 +79,25 @@ NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_f16_svehalf(nk_f16_t const *a_en
         i += svcnth();
     } while (i < n);
     *result = nk_svaddv_f32_(svptrue_b32(), d2_f32x);
-    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_euclidean_f16_svehalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
-                                                          nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_sqeuclidean_f16_svehalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                   void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_sqeuclidean_f16_svehalf(a, b, n, result, stream);
-    *result = nk_f32_sqrt_neon(*result);
+    nk_squared_distance_f16_svehalf_(a, b, n, result);
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_angular_f16_svehalf(nk_f16_t const *a_enum, nk_f16_t const *b_enum, nk_size_t n,
-                                                        nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_euclidean_f16_svehalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                 void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_f16_svehalf_(a, b, n, result);
+    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(*result)), 0);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_f16_svehalf(nk_f16_t const *a_enum, nk_f16_t const *b_enum, nk_size_t n,
+                                               nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     svfloat32_t ab_f32x = svdup_n_f32(0.0f);

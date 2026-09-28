@@ -57,6 +57,9 @@ typedef struct PackedMatrix {
     /** Number of columns in original matrix, the depth. */
     nk_size_t depth;
 
+    /** The mask that packed it; later calls default to it, as only its capability reads the layout. */
+    nk_capability_t capabilities;
+
     /** Variable-length packed data. */
     char start[];
 } PackedMatrix;

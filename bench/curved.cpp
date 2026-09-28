@@ -16,24 +16,28 @@ using namespace ashvardanian::numkong::bench;
 
 #if NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
 
-void bilinear_f32_with_blas(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n, nk_f64_t *result) {
+nk_status_t bilinear_f32_with_blas(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
+                                   nk_f64_t *result, void *) {
     static thread_local std::vector<nk_f32_t> intermediate;
     if (intermediate.size() < n) intermediate.resize(n);
     int const ni = static_cast<int>(n);
     cblas_sgemv(CblasRowMajor, CblasNoTrans, ni, ni, 1.0f, c, ni, b, 1, 0.0f, intermediate.data(), 1);
     *result = cblas_dsdot(ni, a, 1, intermediate.data(), 1);
+    return nk_success_k;
 }
 
-void bilinear_f64_with_blas(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n, nk_f64_t *result) {
+nk_status_t bilinear_f64_with_blas(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
+                                   nk_f64_t *result, void *) {
     static thread_local std::vector<nk_f64_t> intermediate;
     if (intermediate.size() < n) intermediate.resize(n);
     int const ni = static_cast<int>(n);
     cblas_dgemv(CblasRowMajor, CblasNoTrans, ni, ni, 1.0, c, ni, b, 1, 0.0, intermediate.data(), 1);
     *result = cblas_ddot(ni, a, 1, intermediate.data(), 1);
+    return nk_success_k;
 }
 
-void bilinear_f32c_with_blas(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c, nk_size_t n,
-                             nk_f64c_t *results) {
+nk_status_t bilinear_f32c_with_blas(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c, nk_size_t n,
+                                    nk_f64c_t *results, void *) {
     static thread_local std::vector<nk_f32c_t> intermediate;
     nk_f32c_t reduced_result_f32;
     if (intermediate.size() < n) intermediate.resize(n);
@@ -55,10 +59,11 @@ void bilinear_f32c_with_blas(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t c
 #endif
     results->real = (nk_f64_t)reduced_result_f32.real;
     results->imag = (nk_f64_t)reduced_result_f32.imag;
+    return nk_success_k;
 }
 
-void bilinear_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c, nk_size_t n,
-                             nk_f64c_t *results) {
+nk_status_t bilinear_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c, nk_size_t n,
+                                    nk_f64c_t *results, void *) {
     static thread_local std::vector<nk_f64c_t> intermediate;
     if (intermediate.size() < n) intermediate.resize(n);
     int const ni = static_cast<int>(n);
@@ -76,6 +81,7 @@ void bilinear_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t c
     cblas_zdotu_sub(ni, reinterpret_cast<nk_f64_t const *>(a), 1,
                     reinterpret_cast<nk_f64_t const *>(intermediate.data()), 1, reinterpret_cast<nk_f64_t *>(results));
 #endif
+    return nk_success_k;
 }
 
 #endif // NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
@@ -112,8 +118,9 @@ void measure_curved(bm::State &state, kernel_type_ kernel, std::size_t dimension
     for (auto _ : state) {
         output_t output[2] = {};
         std::size_t const index = iterations & (vectors_count - 1);
-        kernel(first_vectors[index].raw_values_data(), second_vectors[index].raw_values_data(),
-               tensors[index].raw_values_data(), dimensions, &output[0].raw_);
+        if (!succeeded(state, kernel(first_vectors[index].raw_values_data(), second_vectors[index].raw_values_data(),
+                                     tensors[index].raw_values_data(), dimensions, &output[0].raw_, nullptr)))
+            break;
         bm::DoNotOptimize(output);
         iterations++;
     }

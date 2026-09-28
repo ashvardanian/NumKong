@@ -326,37 +326,103 @@ void svd3x3_(scalar_type_ const *a, scalar_type_ *svd_u, scalar_type_ *svd_s, sc
  *  @param[out] rotation 3x3 rotation matrix (9 values), always identity, can be nullptr
  *  @param[out] scale Scale factor, always 1.0, can be nullptr
  *  @param[out] metric Output RMSD value
+ *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *
  *  @tparam in_type_ Input point type (f32_t, f64_t, f16_t, bf16_t)
  *  @tparam transform_type_ Type of centroids, rotation, and scale outputs
  *  @tparam metric_type_ Type of the scalar fit metric output
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <typename in_type_, typename transform_type_ = typename in_type_::mesh_transform_t,
-          typename metric_type_ = typename in_type_::mesh_metric_t,
-          allow_simd_t allow_simd_ = prefer_simd_k>
-void rmsd(                                               //
+          typename metric_type_ = typename in_type_::mesh_metric_t>
+nk_status_t rmsd(                                        //
     in_type_ const *a, in_type_ const *b, std::size_t n, //
     transform_type_ *a_centroid, transform_type_ *b_centroid, transform_type_ *rotation, transform_type_ *scale,
-    metric_type_ *metric) noexcept {
-    constexpr bool simd = allow_simd_ == prefer_simd_k &&
-                          std::is_same_v<transform_type_, typename in_type_::mesh_transform_t> &&
-                          std::is_same_v<metric_type_, typename in_type_::mesh_metric_t>;
+    metric_type_ *metric, nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+    constexpr bool dispatch = std::is_same_v<transform_type_, typename in_type_::mesh_transform_t> &&
+                              std::is_same_v<metric_type_, typename in_type_::mesh_metric_t>;
 
-    if constexpr (std::is_same_v<in_type_, f64_t> && simd)
-        nk_rmsd_f64(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_, &scale->raw_,
-                    &metric->raw_);
-    else if constexpr (std::is_same_v<in_type_, f32_t> && simd)
-        nk_rmsd_f32(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_, &scale->raw_,
-                    &metric->raw_);
-    else if constexpr (std::is_same_v<in_type_, f16_t> && simd)
-        nk_rmsd_f16(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_, &scale->raw_,
-                    &metric->raw_);
-    else if constexpr (std::is_same_v<in_type_, bf16_t> && simd)
-        nk_rmsd_bf16(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_,
-                     scale ? &scale->raw_ : nullptr, &metric->raw_);
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
+            return nk_rmsd_f64_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_,
+                                    &scale->raw_, &metric->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+            return nk_rmsd_f32_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_,
+                                    &scale->raw_, &metric->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
+            return nk_rmsd_f16_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_,
+                                    &scale->raw_, &metric->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
+            return nk_rmsd_bf16_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_,
+                                     scale ? &scale->raw_ : nullptr, &metric->raw_, capabilities, stream);
+    }
     // Scalar fallback: raw √(Σ‖aᵢ − bᵢ‖² / n), no centering
-    else {
+    if (a_centroid)
+        a_centroid[0] = transform_type_(0.0), a_centroid[1] = transform_type_(0.0),
+        a_centroid[2] = transform_type_(0.0);
+    if (b_centroid)
+        b_centroid[0] = transform_type_(0.0), b_centroid[1] = transform_type_(0.0),
+        b_centroid[2] = transform_type_(0.0);
+    if (rotation) {
+        rotation[0] = transform_type_(1.0), rotation[1] = transform_type_(0.0), rotation[2] = transform_type_(0.0);
+        rotation[3] = transform_type_(0.0), rotation[4] = transform_type_(1.0), rotation[5] = transform_type_(0.0);
+        rotation[6] = transform_type_(0.0), rotation[7] = transform_type_(0.0), rotation[8] = transform_type_(1.0);
+    }
+    if (scale) *scale = transform_type_(1.0);
+
+    metric_type_ sum_squared {};
+    for (std::size_t i = 0; i < n; i++) {
+        metric_type_ dx = metric_type_(a[i * 3 + 0]) - metric_type_(b[i * 3 + 0]);
+        metric_type_ dy = metric_type_(a[i * 3 + 1]) - metric_type_(b[i * 3 + 1]);
+        metric_type_ dz = metric_type_(a[i * 3 + 2]) - metric_type_(b[i * 3 + 2]);
+        sum_squared = sum_squared + dx * dx + dy * dy + dz * dz;
+    }
+
+    *metric = n == 0 ? metric_type_(0.0) : (sum_squared / metric_type_(static_cast<double>(n))).sqrt();
+    return nk_success_k;
+}
+
+/**
+ *  @brief Kabsch algorithm: min ‖P − R × Q‖² over rotation R ∈ SO(3)
+ *  @param[in] a,b Point clouds [n x 3] interleaved (source and target)
+ *  @param[in] n Number of 3D points
+ *  @param[out] a_centroid,b_centroid Centroids (3 values each), can be nullptr
+ *  @param[out] rotation 3x3 rotation matrix (9 values, row-major), can be nullptr
+ *  @param[out] scale Scale factor, always 1.0 for Kabsch, can be nullptr
+ *  @param[out] metric Output RMSD after optimal rotation
+ *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
+ *
+ *  @tparam in_type_ Input point type (f32_t, f64_t, f16_t, bf16_t)
+ *  @tparam transform_type_ Type of centroids, rotation, and scale outputs
+ *  @tparam metric_type_ Type of the scalar fit metric output
+ */
+template <typename in_type_, typename transform_type_ = typename in_type_::mesh_transform_t,
+          typename metric_type_ = typename in_type_::mesh_metric_t>
+nk_status_t kabsch(                                      //
+    in_type_ const *a, in_type_ const *b, std::size_t n, //
+    transform_type_ *a_centroid, transform_type_ *b_centroid, transform_type_ *rotation, transform_type_ *scale,
+    metric_type_ *metric, nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+    constexpr bool dispatch = std::is_same_v<transform_type_, typename in_type_::mesh_transform_t> &&
+                              std::is_same_v<metric_type_, typename in_type_::mesh_metric_t>;
+
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
+            return nk_kabsch_f64_best(&a->raw_, &b->raw_, n, a_centroid ? &a_centroid->raw_ : nullptr,
+                                      &b_centroid->raw_, &rotation->raw_, &scale->raw_, &metric->raw_, capabilities,
+                                      stream);
+        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+            return nk_kabsch_f32_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_,
+                                      &scale->raw_, &metric->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
+            return nk_kabsch_f16_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_,
+                                      &scale->raw_, &metric->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
+            return nk_kabsch_bf16_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_,
+                                       &scale->raw_, &metric->raw_, capabilities, stream);
+    }
+    // Degenerate empty cloud: the neutral identity, no 1/n division.
+    if (n == 0) {
         if (a_centroid)
             a_centroid[0] = transform_type_(0.0), a_centroid[1] = transform_type_(0.0),
             a_centroid[2] = transform_type_(0.0);
@@ -369,132 +435,79 @@ void rmsd(                                               //
             rotation[6] = transform_type_(0.0), rotation[7] = transform_type_(0.0), rotation[8] = transform_type_(1.0);
         }
         if (scale) *scale = transform_type_(1.0);
-
-        metric_type_ sum_squared {};
-        for (std::size_t i = 0; i < n; i++) {
-            metric_type_ dx = metric_type_(a[i * 3 + 0]) - metric_type_(b[i * 3 + 0]);
-            metric_type_ dy = metric_type_(a[i * 3 + 1]) - metric_type_(b[i * 3 + 1]);
-            metric_type_ dz = metric_type_(a[i * 3 + 2]) - metric_type_(b[i * 3 + 2]);
-            sum_squared = sum_squared + dx * dx + dy * dy + dz * dz;
-        }
-
-        *metric = n == 0 ? metric_type_(0.0) : (sum_squared / metric_type_(static_cast<double>(n))).sqrt();
+        *metric = metric_type_(0.0);
+        return nk_success_k;
     }
-}
+    // Compute centroids
+    metric_type_ sum_a_x {}, sum_a_y {}, sum_a_z {};
+    metric_type_ sum_b_x {}, sum_b_y {}, sum_b_z {};
+    metric_type_ val_a_x, val_a_y, val_a_z, val_b_x, val_b_y, val_b_z;
 
-/**
- *  @brief Kabsch algorithm: min ‖P − R × Q‖² over rotation R ∈ SO(3)
- *  @param[in] a,b Point clouds [n x 3] interleaved (source and target)
- *  @param[in] n Number of 3D points
- *  @param[out] a_centroid,b_centroid Centroids (3 values each), can be nullptr
- *  @param[out] rotation 3x3 rotation matrix (9 values, row-major), can be nullptr
- *  @param[out] scale Scale factor, always 1.0 for Kabsch, can be nullptr
- *  @param[out] metric Output RMSD after optimal rotation
- *
- *  @tparam in_type_ Input point type (f32_t, f64_t, f16_t, bf16_t)
- *  @tparam transform_type_ Type of centroids, rotation, and scale outputs
- *  @tparam metric_type_ Type of the scalar fit metric output
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
- */
-template <typename in_type_, typename transform_type_ = typename in_type_::mesh_transform_t,
-          typename metric_type_ = typename in_type_::mesh_metric_t,
-          allow_simd_t allow_simd_ = prefer_simd_k>
-void kabsch(                                             //
-    in_type_ const *a, in_type_ const *b, std::size_t n, //
-    transform_type_ *a_centroid, transform_type_ *b_centroid, transform_type_ *rotation, transform_type_ *scale,
-    metric_type_ *metric) noexcept {
-    constexpr bool simd = allow_simd_ == prefer_simd_k &&
-                          std::is_same_v<transform_type_, typename in_type_::mesh_transform_t> &&
-                          std::is_same_v<metric_type_, typename in_type_::mesh_metric_t>;
+    for (std::size_t i = 0; i < n; i++) {
+        val_a_x = metric_type_(a[i * 3 + 0]), val_a_y = metric_type_(a[i * 3 + 1]),
+        val_a_z = metric_type_(a[i * 3 + 2]);
+        val_b_x = metric_type_(b[i * 3 + 0]), val_b_y = metric_type_(b[i * 3 + 1]),
+        val_b_z = metric_type_(b[i * 3 + 2]);
+        sum_a_x = sum_a_x + val_a_x, sum_a_y = sum_a_y + val_a_y, sum_a_z = sum_a_z + val_a_z;
+        sum_b_x = sum_b_x + val_b_x, sum_b_y = sum_b_y + val_b_y, sum_b_z = sum_b_z + val_b_z;
+    }
 
-    if constexpr (std::is_same_v<in_type_, f64_t> && simd)
-        nk_kabsch_f64(&a->raw_, &b->raw_, n, a_centroid ? &a_centroid->raw_ : nullptr, &b_centroid->raw_,
-                      &rotation->raw_, &scale->raw_, &metric->raw_);
-    else if constexpr (std::is_same_v<in_type_, f32_t> && simd)
-        nk_kabsch_f32(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_, &scale->raw_,
-                      &metric->raw_);
-    else if constexpr (std::is_same_v<in_type_, f16_t> && simd)
-        nk_kabsch_f16(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_, &scale->raw_,
-                      &metric->raw_);
-    else if constexpr (std::is_same_v<in_type_, bf16_t> && simd)
-        nk_kabsch_bf16(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_, &scale->raw_,
-                       &metric->raw_);
-    // Scalar fallback
-    else {
-        // Degenerate empty cloud: the neutral identity, no 1/n division.
-        if (n == 0) {
-            if (a_centroid)
-                a_centroid[0] = transform_type_(0.0), a_centroid[1] = transform_type_(0.0),
-                a_centroid[2] = transform_type_(0.0);
-            if (b_centroid)
-                b_centroid[0] = transform_type_(0.0), b_centroid[1] = transform_type_(0.0),
-                b_centroid[2] = transform_type_(0.0);
-            if (rotation) {
-                rotation[0] = transform_type_(1.0), rotation[1] = transform_type_(0.0),
-                rotation[2] = transform_type_(0.0);
-                rotation[3] = transform_type_(0.0), rotation[4] = transform_type_(1.0),
-                rotation[5] = transform_type_(0.0);
-                rotation[6] = transform_type_(0.0), rotation[7] = transform_type_(0.0),
-                rotation[8] = transform_type_(1.0);
-            }
-            if (scale) *scale = transform_type_(1.0);
-            *metric = metric_type_(0.0);
-            return;
-        }
-        // Compute centroids
-        metric_type_ sum_a_x {}, sum_a_y {}, sum_a_z {};
-        metric_type_ sum_b_x {}, sum_b_y {}, sum_b_z {};
-        metric_type_ val_a_x, val_a_y, val_a_z, val_b_x, val_b_y, val_b_z;
+    metric_type_ inv_n = metric_type_(1.0) / metric_type_(static_cast<double>(n));
+    metric_type_ centroid_a_x = sum_a_x * inv_n;
+    metric_type_ centroid_a_y = sum_a_y * inv_n;
+    metric_type_ centroid_a_z = sum_a_z * inv_n;
+    metric_type_ centroid_b_x = sum_b_x * inv_n;
+    metric_type_ centroid_b_y = sum_b_y * inv_n;
+    metric_type_ centroid_b_z = sum_b_z * inv_n;
 
-        for (std::size_t i = 0; i < n; i++) {
-            val_a_x = metric_type_(a[i * 3 + 0]), val_a_y = metric_type_(a[i * 3 + 1]),
-            val_a_z = metric_type_(a[i * 3 + 2]);
-            val_b_x = metric_type_(b[i * 3 + 0]), val_b_y = metric_type_(b[i * 3 + 1]),
-            val_b_z = metric_type_(b[i * 3 + 2]);
-            sum_a_x = sum_a_x + val_a_x, sum_a_y = sum_a_y + val_a_y, sum_a_z = sum_a_z + val_a_z;
-            sum_b_x = sum_b_x + val_b_x, sum_b_y = sum_b_y + val_b_y, sum_b_z = sum_b_z + val_b_z;
-        }
+    if (a_centroid)
+        a_centroid[0] = transform_type_(centroid_a_x), a_centroid[1] = transform_type_(centroid_a_y),
+        a_centroid[2] = transform_type_(centroid_a_z);
 
-        metric_type_ inv_n = metric_type_(1.0) / metric_type_(static_cast<double>(n));
-        metric_type_ centroid_a_x = sum_a_x * inv_n;
-        metric_type_ centroid_a_y = sum_a_y * inv_n;
-        metric_type_ centroid_a_z = sum_a_z * inv_n;
-        metric_type_ centroid_b_x = sum_b_x * inv_n;
-        metric_type_ centroid_b_y = sum_b_y * inv_n;
-        metric_type_ centroid_b_z = sum_b_z * inv_n;
+    if (b_centroid)
+        b_centroid[0] = transform_type_(centroid_b_x), b_centroid[1] = transform_type_(centroid_b_y),
+        b_centroid[2] = transform_type_(centroid_b_z);
 
-        if (a_centroid)
-            a_centroid[0] = transform_type_(centroid_a_x), a_centroid[1] = transform_type_(centroid_a_y),
-            a_centroid[2] = transform_type_(centroid_a_z);
+    // Build 3x3 covariance matrix H = (A - A_bar)^T x (B - B_bar)
+    metric_type_ cross_covariance[9] = {};
+    for (std::size_t i = 0; i < n; i++) {
+        val_a_x = metric_type_(a[i * 3 + 0]) - centroid_a_x, val_a_y = metric_type_(a[i * 3 + 1]) - centroid_a_y,
+        val_a_z = metric_type_(a[i * 3 + 2]) - centroid_a_z;
+        val_b_x = metric_type_(b[i * 3 + 0]) - centroid_b_x, val_b_y = metric_type_(b[i * 3 + 1]) - centroid_b_y,
+        val_b_z = metric_type_(b[i * 3 + 2]) - centroid_b_z;
+        cross_covariance[0] = cross_covariance[0] + val_a_x * val_b_x;
+        cross_covariance[1] = cross_covariance[1] + val_a_x * val_b_y;
+        cross_covariance[2] = cross_covariance[2] + val_a_x * val_b_z;
+        cross_covariance[3] = cross_covariance[3] + val_a_y * val_b_x;
+        cross_covariance[4] = cross_covariance[4] + val_a_y * val_b_y;
+        cross_covariance[5] = cross_covariance[5] + val_a_y * val_b_z;
+        cross_covariance[6] = cross_covariance[6] + val_a_z * val_b_x;
+        cross_covariance[7] = cross_covariance[7] + val_a_z * val_b_y;
+        cross_covariance[8] = cross_covariance[8] + val_a_z * val_b_z;
+    }
 
-        if (b_centroid)
-            b_centroid[0] = transform_type_(centroid_b_x), b_centroid[1] = transform_type_(centroid_b_y),
-            b_centroid[2] = transform_type_(centroid_b_z);
+    // SVD of H = U * S * Vt
+    metric_type_ svd_u[9], svd_s[9], svd_v[9];
+    svd3x3_(cross_covariance, svd_u, svd_s, svd_v);
 
-        // Build 3x3 covariance matrix H = (A - A_bar)^T x (B - B_bar)
-        metric_type_ cross_covariance[9] = {};
-        for (std::size_t i = 0; i < n; i++) {
-            val_a_x = metric_type_(a[i * 3 + 0]) - centroid_a_x, val_a_y = metric_type_(a[i * 3 + 1]) - centroid_a_y,
-            val_a_z = metric_type_(a[i * 3 + 2]) - centroid_a_z;
-            val_b_x = metric_type_(b[i * 3 + 0]) - centroid_b_x, val_b_y = metric_type_(b[i * 3 + 1]) - centroid_b_y,
-            val_b_z = metric_type_(b[i * 3 + 2]) - centroid_b_z;
-            cross_covariance[0] = cross_covariance[0] + val_a_x * val_b_x;
-            cross_covariance[1] = cross_covariance[1] + val_a_x * val_b_y;
-            cross_covariance[2] = cross_covariance[2] + val_a_x * val_b_z;
-            cross_covariance[3] = cross_covariance[3] + val_a_y * val_b_x;
-            cross_covariance[4] = cross_covariance[4] + val_a_y * val_b_y;
-            cross_covariance[5] = cross_covariance[5] + val_a_y * val_b_z;
-            cross_covariance[6] = cross_covariance[6] + val_a_z * val_b_x;
-            cross_covariance[7] = cross_covariance[7] + val_a_z * val_b_y;
-            cross_covariance[8] = cross_covariance[8] + val_a_z * val_b_z;
-        }
+    // R = V * Ut
+    metric_type_ rotation_matrix[9];
+    rotation_matrix[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
+    rotation_matrix[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
+    rotation_matrix[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
+    rotation_matrix[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
+    rotation_matrix[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
+    rotation_matrix[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
+    rotation_matrix[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
+    rotation_matrix[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
+    rotation_matrix[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
 
-        // SVD of H = U * S * Vt
-        metric_type_ svd_u[9], svd_s[9], svd_v[9];
-        svd3x3_(cross_covariance, svd_u, svd_s, svd_v);
-
-        // R = V * Ut
-        metric_type_ rotation_matrix[9];
+    // Handle reflection: if det(R) < 0, negate third column of V and recompute R
+    metric_type_ rotation_det = det3x3_(rotation_matrix);
+    if (rotation_det < metric_type_(0.0)) {
+        svd_v[2] = metric_type_(0.0) - svd_v[2];
+        svd_v[5] = metric_type_(0.0) - svd_v[5];
+        svd_v[8] = metric_type_(0.0) - svd_v[8];
         rotation_matrix[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
         rotation_matrix[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
         rotation_matrix[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
@@ -504,54 +517,36 @@ void kabsch(                                             //
         rotation_matrix[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
         rotation_matrix[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
         rotation_matrix[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
-
-        // Handle reflection: if det(R) < 0, negate third column of V and recompute R
-        metric_type_ rotation_det = det3x3_(rotation_matrix);
-        if (rotation_det < metric_type_(0.0)) {
-            svd_v[2] = metric_type_(0.0) - svd_v[2];
-            svd_v[5] = metric_type_(0.0) - svd_v[5];
-            svd_v[8] = metric_type_(0.0) - svd_v[8];
-            rotation_matrix[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-            rotation_matrix[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-            rotation_matrix[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-            rotation_matrix[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-            rotation_matrix[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-            rotation_matrix[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-            rotation_matrix[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-            rotation_matrix[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-            rotation_matrix[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
-        }
-
-        // Output rotation matrix and scale=1.0
-        if (rotation) {
-            for (unsigned int j = 0; j < 9; j++) rotation[j] = transform_type_(rotation_matrix[j]);
-        }
-        if (scale) *scale = transform_type_(1.0);
-
-        // Compute RMSD after rotation
-        metric_type_ sum_squared {};
-        for (std::size_t i = 0; i < n; i++) {
-            metric_type_ point_a[3], point_b[3], rotated_point_a[3];
-            point_a[0] = metric_type_(a[i * 3 + 0]) - centroid_a_x,
-            point_a[1] = metric_type_(a[i * 3 + 1]) - centroid_a_y,
-            point_a[2] = metric_type_(a[i * 3 + 2]) - centroid_a_z;
-            point_b[0] = metric_type_(b[i * 3 + 0]) - centroid_b_x,
-            point_b[1] = metric_type_(b[i * 3 + 1]) - centroid_b_y,
-            point_b[2] = metric_type_(b[i * 3 + 2]) - centroid_b_z;
-            rotated_point_a[0] = rotation_matrix[0] * point_a[0] + rotation_matrix[1] * point_a[1] +
-                                 rotation_matrix[2] * point_a[2];
-            rotated_point_a[1] = rotation_matrix[3] * point_a[0] + rotation_matrix[4] * point_a[1] +
-                                 rotation_matrix[5] * point_a[2];
-            rotated_point_a[2] = rotation_matrix[6] * point_a[0] + rotation_matrix[7] * point_a[1] +
-                                 rotation_matrix[8] * point_a[2];
-            metric_type_ dx = rotated_point_a[0] - point_b[0];
-            metric_type_ dy = rotated_point_a[1] - point_b[1];
-            metric_type_ dz = rotated_point_a[2] - point_b[2];
-            sum_squared = sum_squared + dx * dx + dy * dy + dz * dz;
-        }
-
-        *metric = (sum_squared * inv_n).sqrt();
     }
+
+    // Output rotation matrix and scale=1.0
+    if (rotation) {
+        for (unsigned int j = 0; j < 9; j++) rotation[j] = transform_type_(rotation_matrix[j]);
+    }
+    if (scale) *scale = transform_type_(1.0);
+
+    // Compute RMSD after rotation
+    metric_type_ sum_squared {};
+    for (std::size_t i = 0; i < n; i++) {
+        metric_type_ point_a[3], point_b[3], rotated_point_a[3];
+        point_a[0] = metric_type_(a[i * 3 + 0]) - centroid_a_x, point_a[1] = metric_type_(a[i * 3 + 1]) - centroid_a_y,
+        point_a[2] = metric_type_(a[i * 3 + 2]) - centroid_a_z;
+        point_b[0] = metric_type_(b[i * 3 + 0]) - centroid_b_x, point_b[1] = metric_type_(b[i * 3 + 1]) - centroid_b_y,
+        point_b[2] = metric_type_(b[i * 3 + 2]) - centroid_b_z;
+        rotated_point_a[0] = rotation_matrix[0] * point_a[0] + rotation_matrix[1] * point_a[1] +
+                             rotation_matrix[2] * point_a[2];
+        rotated_point_a[1] = rotation_matrix[3] * point_a[0] + rotation_matrix[4] * point_a[1] +
+                             rotation_matrix[5] * point_a[2];
+        rotated_point_a[2] = rotation_matrix[6] * point_a[0] + rotation_matrix[7] * point_a[1] +
+                             rotation_matrix[8] * point_a[2];
+        metric_type_ dx = rotated_point_a[0] - point_b[0];
+        metric_type_ dy = rotated_point_a[1] - point_b[1];
+        metric_type_ dz = rotated_point_a[2] - point_b[2];
+        sum_squared = sum_squared + dx * dx + dy * dy + dz * dz;
+    }
+
+    *metric = (sum_squared * inv_n).sqrt();
+    return nk_success_k;
 }
 
 /**
@@ -563,114 +558,135 @@ void kabsch(                                             //
  *  @param[out] rotation 3x3 rotation matrix (9 values, row-major), can be nullptr
  *  @param[out] scale Uniform scale factor, can be nullptr
  *  @param[out] metric Output RMSD after optimal transformation
+ *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *
  *  @tparam in_type_ Input point type (f32_t, f64_t, f16_t, bf16_t)
  *  @tparam transform_type_ Type of centroids, rotation, and scale outputs
  *  @tparam metric_type_ Type of the scalar fit metric output
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
 template <typename in_type_, typename transform_type_ = typename in_type_::mesh_transform_t,
-          typename metric_type_ = typename in_type_::mesh_metric_t, allow_simd_t allow_simd_ = prefer_simd_k>
-void umeyama(in_type_ const *a, in_type_ const *b, std::size_t n, transform_type_ *a_centroid,
-             transform_type_ *b_centroid, transform_type_ *rotation, transform_type_ *scale,
-             metric_type_ *metric) noexcept {
-    constexpr bool simd = allow_simd_ == prefer_simd_k &&
-                          std::is_same_v<transform_type_, typename in_type_::mesh_transform_t> &&
-                          std::is_same_v<metric_type_, typename in_type_::mesh_metric_t>;
+          typename metric_type_ = typename in_type_::mesh_metric_t>
+nk_status_t umeyama(in_type_ const *a, in_type_ const *b, std::size_t n, transform_type_ *a_centroid,
+                    transform_type_ *b_centroid, transform_type_ *rotation, transform_type_ *scale,
+                    metric_type_ *metric, nk_capability_t capabilities = cpu_capabilities(),
+                    void *stream = nullptr) noexcept {
+    constexpr bool dispatch = std::is_same_v<transform_type_, typename in_type_::mesh_transform_t> &&
+                              std::is_same_v<metric_type_, typename in_type_::mesh_metric_t>;
 
-    if constexpr (std::is_same_v<in_type_, f64_t> && simd)
-        nk_umeyama_f64(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_, &scale->raw_,
-                       &metric->raw_);
-    else if constexpr (std::is_same_v<in_type_, f32_t> && simd)
-        nk_umeyama_f32(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_, &scale->raw_,
-                       &metric->raw_);
-    else if constexpr (std::is_same_v<in_type_, f16_t> && simd)
-        nk_umeyama_f16(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_, &scale->raw_,
-                       &metric->raw_);
-    else if constexpr (std::is_same_v<in_type_, bf16_t> && simd)
-        nk_umeyama_bf16(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_, &scale->raw_,
-                        &metric->raw_);
-    // Scalar fallback
-    else {
-        // Degenerate empty cloud: the neutral identity, no 1/n division.
-        if (n == 0) {
-            if (a_centroid)
-                a_centroid[0] = transform_type_(0.0), a_centroid[1] = transform_type_(0.0),
-                a_centroid[2] = transform_type_(0.0);
-            if (b_centroid)
-                b_centroid[0] = transform_type_(0.0), b_centroid[1] = transform_type_(0.0),
-                b_centroid[2] = transform_type_(0.0);
-            if (rotation) {
-                rotation[0] = transform_type_(1.0), rotation[1] = transform_type_(0.0),
-                rotation[2] = transform_type_(0.0);
-                rotation[3] = transform_type_(0.0), rotation[4] = transform_type_(1.0),
-                rotation[5] = transform_type_(0.0);
-                rotation[6] = transform_type_(0.0), rotation[7] = transform_type_(0.0),
-                rotation[8] = transform_type_(1.0);
-            }
-            if (scale) *scale = transform_type_(1.0);
-            *metric = metric_type_(0.0);
-            return;
-        }
-        // Compute centroids
-        metric_type_ sum_a_x {}, sum_a_y {}, sum_a_z {};
-        metric_type_ sum_b_x {}, sum_b_y {}, sum_b_z {};
-        metric_type_ val_a_x, val_a_y, val_a_z, val_b_x, val_b_y, val_b_z;
-
-        for (std::size_t i = 0; i < n; i++) {
-            val_a_x = metric_type_(a[i * 3 + 0]), val_a_y = metric_type_(a[i * 3 + 1]),
-            val_a_z = metric_type_(a[i * 3 + 2]);
-            val_b_x = metric_type_(b[i * 3 + 0]), val_b_y = metric_type_(b[i * 3 + 1]),
-            val_b_z = metric_type_(b[i * 3 + 2]);
-            sum_a_x = sum_a_x + val_a_x, sum_a_y = sum_a_y + val_a_y, sum_a_z = sum_a_z + val_a_z;
-            sum_b_x = sum_b_x + val_b_x, sum_b_y = sum_b_y + val_b_y, sum_b_z = sum_b_z + val_b_z;
-        }
-
-        metric_type_ inv_n = metric_type_(1.0) / metric_type_(static_cast<double>(n));
-        metric_type_ centroid_a_x = sum_a_x * inv_n;
-        metric_type_ centroid_a_y = sum_a_y * inv_n;
-        metric_type_ centroid_a_z = sum_a_z * inv_n;
-        metric_type_ centroid_b_x = sum_b_x * inv_n;
-        metric_type_ centroid_b_y = sum_b_y * inv_n;
-        metric_type_ centroid_b_z = sum_b_z * inv_n;
-
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
+            return nk_umeyama_f64_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_,
+                                       &scale->raw_, &metric->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+            return nk_umeyama_f32_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_,
+                                       &scale->raw_, &metric->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
+            return nk_umeyama_f16_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_,
+                                       &scale->raw_, &metric->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
+            return nk_umeyama_bf16_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_,
+                                        &scale->raw_, &metric->raw_, capabilities, stream);
+    }
+    // Degenerate empty cloud: the neutral identity, no 1/n division.
+    if (n == 0) {
         if (a_centroid)
-            a_centroid[0] = transform_type_(centroid_a_x), a_centroid[1] = transform_type_(centroid_a_y),
-            a_centroid[2] = transform_type_(centroid_a_z);
-
+            a_centroid[0] = transform_type_(0.0), a_centroid[1] = transform_type_(0.0),
+            a_centroid[2] = transform_type_(0.0);
         if (b_centroid)
-            b_centroid[0] = transform_type_(centroid_b_x), b_centroid[1] = transform_type_(centroid_b_y),
-            b_centroid[2] = transform_type_(centroid_b_z);
-
-        // Build covariance matrix H and compute variance of A
-        metric_type_ cross_covariance[9] = {};
-        metric_type_ variance_a {};
-        for (std::size_t i = 0; i < n; i++) {
-            val_a_x = metric_type_(a[i * 3 + 0]) - centroid_a_x;
-            val_a_y = metric_type_(a[i * 3 + 1]) - centroid_a_y;
-            val_a_z = metric_type_(a[i * 3 + 2]) - centroid_a_z;
-            val_b_x = metric_type_(b[i * 3 + 0]) - centroid_b_x;
-            val_b_y = metric_type_(b[i * 3 + 1]) - centroid_b_y;
-            val_b_z = metric_type_(b[i * 3 + 2]) - centroid_b_z;
-            variance_a = variance_a + val_a_x * val_a_x + val_a_y * val_a_y + val_a_z * val_a_z;
-            cross_covariance[0] = cross_covariance[0] + val_a_x * val_b_x;
-            cross_covariance[1] = cross_covariance[1] + val_a_x * val_b_y;
-            cross_covariance[2] = cross_covariance[2] + val_a_x * val_b_z;
-            cross_covariance[3] = cross_covariance[3] + val_a_y * val_b_x;
-            cross_covariance[4] = cross_covariance[4] + val_a_y * val_b_y;
-            cross_covariance[5] = cross_covariance[5] + val_a_y * val_b_z;
-            cross_covariance[6] = cross_covariance[6] + val_a_z * val_b_x;
-            cross_covariance[7] = cross_covariance[7] + val_a_z * val_b_y;
-            cross_covariance[8] = cross_covariance[8] + val_a_z * val_b_z;
+            b_centroid[0] = transform_type_(0.0), b_centroid[1] = transform_type_(0.0),
+            b_centroid[2] = transform_type_(0.0);
+        if (rotation) {
+            rotation[0] = transform_type_(1.0), rotation[1] = transform_type_(0.0), rotation[2] = transform_type_(0.0);
+            rotation[3] = transform_type_(0.0), rotation[4] = transform_type_(1.0), rotation[5] = transform_type_(0.0);
+            rotation[6] = transform_type_(0.0), rotation[7] = transform_type_(0.0), rotation[8] = transform_type_(1.0);
         }
-        variance_a = variance_a * inv_n;
+        if (scale) *scale = transform_type_(1.0);
+        *metric = metric_type_(0.0);
+        return nk_success_k;
+    }
+    // Compute centroids
+    metric_type_ sum_a_x {}, sum_a_y {}, sum_a_z {};
+    metric_type_ sum_b_x {}, sum_b_y {}, sum_b_z {};
+    metric_type_ val_a_x, val_a_y, val_a_z, val_b_x, val_b_y, val_b_z;
 
-        // SVD of H = U * S * Vt
-        metric_type_ svd_u[9], svd_s[9], svd_v[9];
-        svd3x3_(cross_covariance, svd_u, svd_s, svd_v);
+    for (std::size_t i = 0; i < n; i++) {
+        val_a_x = metric_type_(a[i * 3 + 0]), val_a_y = metric_type_(a[i * 3 + 1]),
+        val_a_z = metric_type_(a[i * 3 + 2]);
+        val_b_x = metric_type_(b[i * 3 + 0]), val_b_y = metric_type_(b[i * 3 + 1]),
+        val_b_z = metric_type_(b[i * 3 + 2]);
+        sum_a_x = sum_a_x + val_a_x, sum_a_y = sum_a_y + val_a_y, sum_a_z = sum_a_z + val_a_z;
+        sum_b_x = sum_b_x + val_b_x, sum_b_y = sum_b_y + val_b_y, sum_b_z = sum_b_z + val_b_z;
+    }
 
-        // R = V * Ut
-        metric_type_ rotation_matrix[9];
+    metric_type_ inv_n = metric_type_(1.0) / metric_type_(static_cast<double>(n));
+    metric_type_ centroid_a_x = sum_a_x * inv_n;
+    metric_type_ centroid_a_y = sum_a_y * inv_n;
+    metric_type_ centroid_a_z = sum_a_z * inv_n;
+    metric_type_ centroid_b_x = sum_b_x * inv_n;
+    metric_type_ centroid_b_y = sum_b_y * inv_n;
+    metric_type_ centroid_b_z = sum_b_z * inv_n;
+
+    if (a_centroid)
+        a_centroid[0] = transform_type_(centroid_a_x), a_centroid[1] = transform_type_(centroid_a_y),
+        a_centroid[2] = transform_type_(centroid_a_z);
+
+    if (b_centroid)
+        b_centroid[0] = transform_type_(centroid_b_x), b_centroid[1] = transform_type_(centroid_b_y),
+        b_centroid[2] = transform_type_(centroid_b_z);
+
+    // Build covariance matrix H and compute variance of A
+    metric_type_ cross_covariance[9] = {};
+    metric_type_ variance_a {};
+    for (std::size_t i = 0; i < n; i++) {
+        val_a_x = metric_type_(a[i * 3 + 0]) - centroid_a_x;
+        val_a_y = metric_type_(a[i * 3 + 1]) - centroid_a_y;
+        val_a_z = metric_type_(a[i * 3 + 2]) - centroid_a_z;
+        val_b_x = metric_type_(b[i * 3 + 0]) - centroid_b_x;
+        val_b_y = metric_type_(b[i * 3 + 1]) - centroid_b_y;
+        val_b_z = metric_type_(b[i * 3 + 2]) - centroid_b_z;
+        variance_a = variance_a + val_a_x * val_a_x + val_a_y * val_a_y + val_a_z * val_a_z;
+        cross_covariance[0] = cross_covariance[0] + val_a_x * val_b_x;
+        cross_covariance[1] = cross_covariance[1] + val_a_x * val_b_y;
+        cross_covariance[2] = cross_covariance[2] + val_a_x * val_b_z;
+        cross_covariance[3] = cross_covariance[3] + val_a_y * val_b_x;
+        cross_covariance[4] = cross_covariance[4] + val_a_y * val_b_y;
+        cross_covariance[5] = cross_covariance[5] + val_a_y * val_b_z;
+        cross_covariance[6] = cross_covariance[6] + val_a_z * val_b_x;
+        cross_covariance[7] = cross_covariance[7] + val_a_z * val_b_y;
+        cross_covariance[8] = cross_covariance[8] + val_a_z * val_b_z;
+    }
+    variance_a = variance_a * inv_n;
+
+    // SVD of H = U * S * Vt
+    metric_type_ svd_u[9], svd_s[9], svd_v[9];
+    svd3x3_(cross_covariance, svd_u, svd_s, svd_v);
+
+    // R = V * Ut
+    metric_type_ rotation_matrix[9];
+    rotation_matrix[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
+    rotation_matrix[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
+    rotation_matrix[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
+    rotation_matrix[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
+    rotation_matrix[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
+    rotation_matrix[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
+    rotation_matrix[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
+    rotation_matrix[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
+    rotation_matrix[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
+
+    // Handle reflection and compute scale: c = trace(D*S) / variance_a.
+    // D = diag(1, 1, det(R)), svd_s contains singular values on diagonal.
+    metric_type_ rotation_det = det3x3_(rotation_matrix);
+    metric_type_ sign_det = rotation_det < metric_type_(0.0) ? metric_type_(-1.0) : metric_type_(1.0);
+    metric_type_ trace_scaled_s = svd_s[0] + svd_s[4] + sign_det * svd_s[8];
+    metric_type_ scale_factor = trace_scaled_s / (metric_type_(static_cast<double>(n)) * variance_a);
+
+    if (scale) *scale = transform_type_(scale_factor);
+
+    if (rotation_det < metric_type_(0.0)) {
+        svd_v[2] = metric_type_(0.0) - svd_v[2];
+        svd_v[5] = metric_type_(0.0) - svd_v[5];
+        svd_v[8] = metric_type_(0.0) - svd_v[8];
         rotation_matrix[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
         rotation_matrix[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
         rotation_matrix[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
@@ -680,60 +696,35 @@ void umeyama(in_type_ const *a, in_type_ const *b, std::size_t n, transform_type
         rotation_matrix[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
         rotation_matrix[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
         rotation_matrix[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
-
-        // Handle reflection and compute scale: c = trace(D*S) / variance_a
-        // D = diag(1, 1, det(R)), svd_s contains singular values on diagonal
-        metric_type_ rotation_det = det3x3_(rotation_matrix);
-        metric_type_ sign_det = rotation_det < metric_type_(0.0) ? metric_type_(-1.0) : metric_type_(1.0);
-        metric_type_ trace_scaled_s = svd_s[0] + svd_s[4] + sign_det * svd_s[8];
-        metric_type_ scale_factor = trace_scaled_s / (metric_type_(static_cast<double>(n)) * variance_a);
-
-        if (scale) *scale = transform_type_(scale_factor);
-
-        if (rotation_det < metric_type_(0.0)) {
-            svd_v[2] = metric_type_(0.0) - svd_v[2];
-            svd_v[5] = metric_type_(0.0) - svd_v[5];
-            svd_v[8] = metric_type_(0.0) - svd_v[8];
-            rotation_matrix[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-            rotation_matrix[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-            rotation_matrix[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-            rotation_matrix[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-            rotation_matrix[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-            rotation_matrix[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-            rotation_matrix[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-            rotation_matrix[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-            rotation_matrix[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
-        }
-
-        // Output rotation matrix
-        if (rotation) {
-            for (unsigned int j = 0; j < 9; j++) rotation[j] = transform_type_(rotation_matrix[j]);
-        }
-
-        // Compute RMSD after similarity transform: ||c * R * a - b||
-        metric_type_ sum_squared {};
-        for (std::size_t i = 0; i < n; i++) {
-            metric_type_ point_a[3], point_b[3], rotated_point_a[3];
-            point_a[0] = metric_type_(a[i * 3 + 0]) - centroid_a_x,
-            point_a[1] = metric_type_(a[i * 3 + 1]) - centroid_a_y,
-            point_a[2] = metric_type_(a[i * 3 + 2]) - centroid_a_z;
-            point_b[0] = metric_type_(b[i * 3 + 0]) - centroid_b_x,
-            point_b[1] = metric_type_(b[i * 3 + 1]) - centroid_b_y,
-            point_b[2] = metric_type_(b[i * 3 + 2]) - centroid_b_z;
-            rotated_point_a[0] = scale_factor * (rotation_matrix[0] * point_a[0] + rotation_matrix[1] * point_a[1] +
-                                                 rotation_matrix[2] * point_a[2]);
-            rotated_point_a[1] = scale_factor * (rotation_matrix[3] * point_a[0] + rotation_matrix[4] * point_a[1] +
-                                                 rotation_matrix[5] * point_a[2]);
-            rotated_point_a[2] = scale_factor * (rotation_matrix[6] * point_a[0] + rotation_matrix[7] * point_a[1] +
-                                                 rotation_matrix[8] * point_a[2]);
-            metric_type_ dx = rotated_point_a[0] - point_b[0];
-            metric_type_ dy = rotated_point_a[1] - point_b[1];
-            metric_type_ dz = rotated_point_a[2] - point_b[2];
-            sum_squared = sum_squared + dx * dx + dy * dy + dz * dz;
-        }
-
-        *metric = (sum_squared * inv_n).sqrt();
     }
+
+    // Output rotation matrix
+    if (rotation) {
+        for (unsigned int j = 0; j < 9; j++) rotation[j] = transform_type_(rotation_matrix[j]);
+    }
+
+    // Compute RMSD after similarity transform: ||c * R * a - b||
+    metric_type_ sum_squared {};
+    for (std::size_t i = 0; i < n; i++) {
+        metric_type_ point_a[3], point_b[3], rotated_point_a[3];
+        point_a[0] = metric_type_(a[i * 3 + 0]) - centroid_a_x, point_a[1] = metric_type_(a[i * 3 + 1]) - centroid_a_y,
+        point_a[2] = metric_type_(a[i * 3 + 2]) - centroid_a_z;
+        point_b[0] = metric_type_(b[i * 3 + 0]) - centroid_b_x, point_b[1] = metric_type_(b[i * 3 + 1]) - centroid_b_y,
+        point_b[2] = metric_type_(b[i * 3 + 2]) - centroid_b_z;
+        rotated_point_a[0] = scale_factor * (rotation_matrix[0] * point_a[0] + rotation_matrix[1] * point_a[1] +
+                                             rotation_matrix[2] * point_a[2]);
+        rotated_point_a[1] = scale_factor * (rotation_matrix[3] * point_a[0] + rotation_matrix[4] * point_a[1] +
+                                             rotation_matrix[5] * point_a[2]);
+        rotated_point_a[2] = scale_factor * (rotation_matrix[6] * point_a[0] + rotation_matrix[7] * point_a[1] +
+                                             rotation_matrix[8] * point_a[2]);
+        metric_type_ dx = rotated_point_a[0] - point_b[0];
+        metric_type_ dy = rotated_point_a[1] - point_b[1];
+        metric_type_ dz = rotated_point_a[2] - point_b[2];
+        sum_squared = sum_squared + dx * dx + dy * dy + dz * dz;
+    }
+
+    *metric = (sum_squared * inv_n).sqrt();
+    return nk_success_k;
 }
 
 #pragma endregion Mesh Alignment Kernels

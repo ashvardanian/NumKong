@@ -12,7 +12,7 @@
 #ifndef NUMKONG_SET_V128_H
 #define NUMKONG_SET_V128_H
 
-#if NUMKONG_TARGET_V128
+#if NUMKONG_ARCH_WASM_V128_
 
 #include "numkong/types.h"
 #include "numkong/reduce/v128.h" // `nk_reduce_add_u8x16_v128_`, `nk_reduce_add_u32x4_v128_`
@@ -26,10 +26,11 @@ extern "C" {
 #pragma clang attribute push(__attribute__((target("simd128"))), apply_to = function)
 #endif
 
+#if NUMKONG_TARGET_V128
 #pragma region Binary Sets
 
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                    nk_u32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_hamming_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
+                                           void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u8_t const *a_bytes = (nk_u8_t const *)a;
     nk_u8_t const *b_bytes = (nk_u8_t const *)b;
@@ -66,8 +67,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_hamming_u1_v128(nk_u1x8_t const *a, nk_u1x8_
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n,
-                                                    nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_jaccard_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result,
+                                           void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u8_t const *a_bytes = (nk_u8_t const *)a;
     nk_u8_t const *b_bytes = (nk_u8_t const *)b;
@@ -117,8 +118,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u1_v128(nk_u1x8_t const *a, nk_u1x8_
 
 #pragma region Integer Sets
 
-NUMKONG_API_COMPTIME nk_status_t nk_hamming_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                                    void *stream) {
+NUMKONG_API nk_status_t nk_hamming_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
+                                           void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t sum_total = 0;
     nk_size_t i = 0;
@@ -148,8 +149,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_hamming_u8_v128(nk_u8_t const *a, nk_u8_t co
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u32_v128(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n,
-                                                     nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_jaccard_u32_v128(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result,
+                                            void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t matches = 0;
     nk_size_t i = 0;
@@ -170,8 +171,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u32_v128(nk_u32_t const *a, nk_u32_t
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u16_v128(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n,
-                                                     nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_jaccard_u16_v128(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result,
+                                            void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t matches = 0;
     nk_size_t i = 0;
@@ -193,10 +194,11 @@ NUMKONG_API_COMPTIME nk_status_t nk_jaccard_u16_v128(nk_u16_t const *a, nk_u16_t
 }
 
 #pragma endregion Integer Sets
+#endif // NUMKONG_TARGET_V128
 
 #pragma region Binary Sets from Dot
 
-NUMKONG_HELPER_INLINE void nk_hamming_u32x4_from_dot_v128_( //
+NUMKONG_INLINE void nk_hamming_u32x4_from_dot_v128_( //
     nk_b128_vec_t const *dots_vec, nk_u32_t query_pop, nk_b128_vec_t const *target_pops_vec,
     nk_b128_vec_t *result_vec) {
     v128_t dots_u32x4 = dots_vec->v128;
@@ -205,7 +207,7 @@ NUMKONG_HELPER_INLINE void nk_hamming_u32x4_from_dot_v128_( //
     result_vec->v128 = wasm_i32x4_sub(wasm_i32x4_add(query_u32x4, target_u32x4), wasm_i32x4_shl(dots_u32x4, 1));
 }
 
-NUMKONG_HELPER_INLINE void nk_jaccard_f32x4_from_dot_v128_( //
+NUMKONG_INLINE void nk_jaccard_f32x4_from_dot_v128_( //
     nk_b128_vec_t const *dots_vec, nk_u32_t query_pop, nk_b128_vec_t const *target_pops_vec,
     nk_b128_vec_t *result_vec) {
     v128_t dot_f32x4 = wasm_f32x4_convert_u32x4(dots_vec->v128);
@@ -233,5 +235,5 @@ NUMKONG_HELPER_INLINE void nk_jaccard_f32x4_from_dot_v128_( //
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_V128
+#endif // NUMKONG_ARCH_WASM_V128_
 #endif // NUMKONG_SET_V128_H

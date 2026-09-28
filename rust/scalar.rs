@@ -10,17 +10,18 @@
 //! File: rust/scalar.rs
 //! Author: Ash Vardanian
 
+use crate::capabilities::cpu_capabilities;
 use crate::types::f16;
 
 #[link(name = "numkong")]
 extern "C" {
     // Scalar square-root / reciprocal-square-root, backing the `Roots` trait.
-    fn nk_f32_sqrt(x: f32) -> f32;
-    fn nk_f32_rsqrt(x: f32) -> f32;
-    fn nk_f64_sqrt(x: f64) -> f64;
-    fn nk_f64_rsqrt(x: f64) -> f64;
-    fn nk_f16_sqrt(x: u16) -> u16;
-    fn nk_f16_rsqrt(x: u16) -> u16;
+    fn nk_f32_sqrt_best(x: f32, capabilities: u64) -> f32;
+    fn nk_f32_rsqrt_best(x: f32, capabilities: u64) -> f32;
+    fn nk_f64_sqrt_best(x: f64, capabilities: u64) -> f64;
+    fn nk_f64_rsqrt_best(x: f64, capabilities: u64) -> f64;
+    fn nk_f16_sqrt_best(x: u16, capabilities: u64) -> u16;
+    fn nk_f16_rsqrt_best(x: u16, capabilities: u64) -> u16;
 }
 
 /// Scalar square-root and reciprocal-square-root operations backed by NumKong's exported kernels.
@@ -37,16 +38,16 @@ pub trait Roots: Sized {
 }
 
 impl Roots for f32 {
-    fn sqrt(self) -> Self { unsafe { nk_f32_sqrt(self) } }
-    fn rsqrt(self) -> Self { unsafe { nk_f32_rsqrt(self) } }
+    fn sqrt(self) -> Self { unsafe { nk_f32_sqrt_best(self, cpu_capabilities()) } }
+    fn rsqrt(self) -> Self { unsafe { nk_f32_rsqrt_best(self, cpu_capabilities()) } }
 }
 
 impl Roots for f64 {
-    fn sqrt(self) -> Self { unsafe { nk_f64_sqrt(self) } }
-    fn rsqrt(self) -> Self { unsafe { nk_f64_rsqrt(self) } }
+    fn sqrt(self) -> Self { unsafe { nk_f64_sqrt_best(self, cpu_capabilities()) } }
+    fn rsqrt(self) -> Self { unsafe { nk_f64_rsqrt_best(self, cpu_capabilities()) } }
 }
 
 impl Roots for f16 {
-    fn sqrt(self) -> Self { f16(unsafe { nk_f16_sqrt(self.0) }) }
-    fn rsqrt(self) -> Self { f16(unsafe { nk_f16_rsqrt(self.0) }) }
+    fn sqrt(self) -> Self { f16(unsafe { nk_f16_sqrt_best(self.0, cpu_capabilities()) }) }
+    fn rsqrt(self) -> Self { f16(unsafe { nk_f16_rsqrt_best(self.0, cpu_capabilities()) }) }
 }

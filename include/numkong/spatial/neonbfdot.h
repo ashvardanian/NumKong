@@ -36,7 +36,7 @@
 #include "numkong/types.h"
 #include "numkong/cast/serial.h"  // `nk_partial_load_b16x4_serial_`
 #include "numkong/reduce/neon.h"  // `nk_partial_load_b16x8_serial_`
-#include "numkong/spatial/neon.h" // `nk_angular_normalize_f32_neon_`, `nk_f32_sqrt_neon`
+#include "numkong/spatial/neon.h" // `nk_angular_normalize_f32_neon_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -49,8 +49,8 @@ extern "C" {
 #pragma GCC target("arch=armv8.6-a+simd+bf16")
 #endif
 
-NUMKONG_API_COMPTIME nk_status_t nk_angular_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                           nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_angular_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                  void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     // Similar to `nk_angular_i8_neonsdot`, we can use the `BFMMLA` instruction through
@@ -123,9 +123,9 @@ nk_angular_bf16_neonbfdot_cycle:
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                               nk_f32_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
+/** Sums the squared differences of @p n BF16 pairs, widened to F32. */
+NUMKONG_INLINE void nk_squared_distance_bf16_neonbfdot_(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                        nk_f32_t *result) {
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
     bfloat16x4_t a_bf16x4, b_bf16x4;
 
@@ -150,13 +150,20 @@ nk_sqeuclidean_bf16_neonbfdot_cycle:
     if (n) goto nk_sqeuclidean_bf16_neonbfdot_cycle;
 
     *result = vaddvq_f32(sum_f32x4);
+}
+
+NUMKONG_API nk_status_t nk_sqeuclidean_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                      nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_bf16_neonbfdot_(a, b, n, result);
     return nk_success_k;
 }
-NUMKONG_API_COMPTIME nk_status_t nk_euclidean_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                             nk_f32_t *result, void *stream) {
+
+NUMKONG_API nk_status_t nk_euclidean_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                    nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_sqeuclidean_bf16_neonbfdot(a, b, n, result, stream);
-    *result = nk_f32_sqrt_neon(*result);
+    nk_squared_distance_bf16_neonbfdot_(a, b, n, result);
+    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(*result)), 0);
     return nk_success_k;
 }
 

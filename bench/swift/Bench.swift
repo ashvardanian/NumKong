@@ -153,9 +153,10 @@ struct Bench {
     /// Reports the fastest of ten runs, the one least disturbed by the rest of the system.
     @Test(arguments: workloads, [false, true])
     func run(_ workload: Workload, serial: Bool) throws {
-        let call = try workload.prepare()
+        // Packed kernels refuse another capability's layout, so inputs are packed under the timed mask.
         if serial { Capabilities.enable(.serial) }
         defer { Capabilities.enable(.detected) }
+        let call = try workload.prepare()
         let clock = ContinuousClock()
         let fastest = (0..<10).map { _ in clock.measure(call) }.min()!
         print("\(workload.testDescription)\(serial ? ", serial" : ""): \(fastest)")

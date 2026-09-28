@@ -44,7 +44,7 @@
       "name": "Debug Test",
       "type": "cppdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/build_debug/numkong_test",
+      "program": "${workspaceFolder}/build_debug/numkong_cpu_test",
       "cwd": "${workspaceFolder}",
       "environment": [
         {

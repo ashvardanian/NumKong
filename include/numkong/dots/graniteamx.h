@@ -73,7 +73,7 @@
 #ifndef NUMKONG_DOTS_GRANITEAMX_H
 #define NUMKONG_DOTS_GRANITEAMX_H
 
-#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_ARCH_X8664_
 #if NUMKONG_TARGET_GRANITEAMX
 
 #include "numkong/dots/serial.h"
@@ -117,15 +117,15 @@ typedef struct {
 #pragma region Helpers
 
 /** Initialize FP16 output state to zero. */
-NUMKONG_HELPER_INLINE void nk_dots_f16_init_graniteamx_(nk_dots_f16_state_graniteamx_t *state) {
+NUMKONG_INLINE void nk_dots_f16_init_graniteamx_(nk_dots_f16_state_graniteamx_t *state) {
     __m512 zero_f32x16 = _mm512_setzero_ps();
     for (nk_size_t row_idx = 0; row_idx < 16; row_idx++) { _mm512_store_ps(state->data[row_idx], zero_f32x16); }
 }
 
 /* Load A tile from FP16 row-major source with masking for edge tiles */
-NUMKONG_HELPER_INLINE void nk_dots_f16_load_a_graniteamx_( //
-    nk_dots_f16_a16x32_graniteamx_t *a_tile,               //
-    nk_f16_t const *src, nk_size_t src_stride_elements,    //
+NUMKONG_INLINE void nk_dots_f16_load_a_graniteamx_(     //
+    nk_dots_f16_a16x32_graniteamx_t *a_tile,            //
+    nk_f16_t const *src, nk_size_t src_stride_elements, //
     nk_size_t valid_rows, nk_size_t valid_cols) {
 
     __mmask32 column_m32 = (valid_cols >= 32) ? 0xFFFFFFFF : ((__mmask32)1 << valid_cols) - 1;
@@ -142,9 +142,9 @@ NUMKONG_HELPER_INLINE void nk_dots_f16_load_a_graniteamx_( //
 }
 
 /* Store F32 state to output matrix with masking for edge tiles */
-NUMKONG_HELPER_INLINE void nk_dots_f16_store_graniteamx_( //
-    nk_dots_f16_state_graniteamx_t const *state,          //
-    nk_f32_t *dst, nk_size_t dst_stride_elements,         //
+NUMKONG_INLINE void nk_dots_f16_store_graniteamx_( //
+    nk_dots_f16_state_graniteamx_t const *state,   //
+    nk_f32_t *dst, nk_size_t dst_stride_elements,  //
     nk_size_t valid_rows, nk_size_t valid_cols) {
 
     __mmask16 column_m16 = (valid_cols >= 16) ? 0xFFFF : ((__mmask16)1 << valid_cols) - 1;
@@ -155,9 +155,9 @@ NUMKONG_HELPER_INLINE void nk_dots_f16_store_graniteamx_( //
     }
 }
 
-NUMKONG_HELPER_INLINE void nk_dots_f16_output2x2_graniteamx_( //
-    nk_dots_f16_state2x2_graniteamx_t const *state,           //
-    nk_f32_t *dst, nk_size_t dst_stride_elements,             //
+NUMKONG_INLINE void nk_dots_f16_output2x2_graniteamx_( //
+    nk_dots_f16_state2x2_graniteamx_t const *state,    //
+    nk_f32_t *dst, nk_size_t dst_stride_elements,      //
     nk_size_t valid_rows, nk_size_t valid_cols) {
 
     nk_size_t const rows_high = (valid_rows > 16) ? 16 : valid_rows;
@@ -179,13 +179,13 @@ NUMKONG_HELPER_INLINE void nk_dots_f16_output2x2_graniteamx_( //
     }
 }
 
-NUMKONG_HELPER_INLINE void nk_dots_f16_update_graniteamx_( //
-    nk_dots_f16_state_graniteamx_t *state,                 //
-    nk_dots_f16_a16x32_graniteamx_t const *a_tile_0,       //
-    nk_dots_f16_a16x32_graniteamx_t const *a_tile_1,       //
-    nk_dots_f16_a16x32_graniteamx_t const *a_tile_2,       //
-    nk_dots_f16_b32x16_graniteamx_t const *b_tile_0,       //
-    nk_dots_f16_b32x16_graniteamx_t const *b_tile_1,       //
+NUMKONG_INLINE void nk_dots_f16_update_graniteamx_(  //
+    nk_dots_f16_state_graniteamx_t *state,           //
+    nk_dots_f16_a16x32_graniteamx_t const *a_tile_0, //
+    nk_dots_f16_a16x32_graniteamx_t const *a_tile_1, //
+    nk_dots_f16_a16x32_graniteamx_t const *a_tile_2, //
+    nk_dots_f16_b32x16_graniteamx_t const *b_tile_0, //
+    nk_dots_f16_b32x16_graniteamx_t const *b_tile_1, //
     nk_dots_f16_b32x16_graniteamx_t const *b_tile_2) {
 
     _tile_loadd(0, state->data, 64);
@@ -207,7 +207,7 @@ NUMKONG_HELPER_INLINE void nk_dots_f16_update_graniteamx_( //
 
 #pragma region F16 Native
 
-NUMKONG_API_COMPTIME nk_size_t nk_dots_pack_size_f16_graniteamx(nk_size_t column_count, nk_size_t depth) {
+NUMKONG_API nk_status_t nk_dots_pack_size_f16_graniteamx(nk_size_t column_count, nk_size_t depth, nk_size_t *bytes) {
     nk_size_t const tmm_rows = 16;
     nk_size_t const tmm_cols = 32;
     nk_size_t const tile_bytes = 512 * sizeof(nk_f16_t); // 16 × 32 × 2 = 1KB
@@ -228,19 +228,24 @@ NUMKONG_API_COMPTIME nk_size_t nk_dots_pack_size_f16_graniteamx(nk_size_t column
     // Per-column norms for angular/euclidean distance (4 bytes each: f32)
     size += column_count * sizeof(nk_f32_t);
 
-    return size;
+    *bytes = size;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dots_packed_shape_f16_graniteamx(void const *b_packed, nk_size_t *width,
-                                                              nk_size_t *depth) {
+NUMKONG_API nk_status_t nk_dots_packed_shape_f16_graniteamx(void const *b_packed, nk_size_t *width, nk_size_t *depth,
+                                                            void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
+    if (header->capability != nk_cap_graniteamx_k) return nk_pack_mismatch_k;
     *width = header->columns;
     *depth = header->depth;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dots_pack_f16_graniteamx(          //
+NUMKONG_API nk_status_t nk_dots_pack_f16_graniteamx(            //
     nk_f16_t const *b, nk_size_t column_count, nk_size_t depth, //
-    nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end) {
+    nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     // AMX FP16 tile dimensions: 16 rows × 32 columns (512 FP16 elements = 1KB)
     nk_size_t const tmm_rows = 16;
@@ -265,6 +270,7 @@ NUMKONG_API_COMPTIME void nk_dots_pack_f16_graniteamx(          //
         header->full_column_tiles = (nk_u32_t)column_tiles_count;
         header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
         header->column_remainder_count = (nk_u32_t)column_remainder_count;
+        header->capability = nk_cap_graniteamx_k;
     }
 
     // Compute memory region offsets
@@ -341,16 +347,19 @@ NUMKONG_API_COMPTIME void nk_dots_pack_f16_graniteamx(          //
     if (columns_begin == 0) header->norms_byte_offset = (nk_u32_t)norms_offset;
     nk_f32_t *norms = (nk_f32_t *)((char *)b_packed + norms_offset);
     for (nk_size_t col = columns_begin; col < columns_end; col++)
-        norms[col] = nk_dots_reduce_sumsq_f16_(b + col * b_stride_elements, depth);
+        norms[col] = nk_dots_reduce_sumsq_f16_(b + col * b_stride_elements, depth, nk_cap_graniteamx_k);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dots_packed_f16_graniteamx(  //
-    nk_f16_t const *a, void const *b_packed, nk_f32_t *c, //
+/** @brief F16 GEMM of `a` rows against pre-packed B columns into F32 `c`, on AMX-FP16 tiles. */
+NUMKONG_INLINE nk_status_t nk_gemm_packed_f16_graniteamx_( //
+    nk_f16_t const *a, void const *b_packed, nk_f32_t *c,  //
     nk_size_t rows_count, nk_size_t cols_count, nk_size_t depth, nk_size_t a_stride_bytes, nk_size_t c_stride_bytes) {
     nk_unused_(cols_count);
 
     // Parse packed B header
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
+    if (header->capability != nk_cap_graniteamx_k) return nk_pack_mismatch_k;
     nk_size_t const column_tiles_count = header->full_column_tiles;
     nk_size_t const depth_tiles_count = header->full_depth_tiles;
     nk_size_t const column_remainder_count = header->column_remainder_count;
@@ -372,7 +381,7 @@ NUMKONG_API_COMPTIME void nk_dots_packed_f16_graniteamx(  //
     nk_size_t const row_blocks_count = nk_size_divide_round_up_(rows_count, 32);
     nk_size_t const col_blocks_count = column_tiles_count / 2;
 
-    if (depth_tiles_count == 0) return;
+    if (depth_tiles_count == 0) return nk_success_k;
 
     // Tile buffers for A (only used for edge tiles)
     nk_dots_f16_a16x32_graniteamx_t a_tile_top, a_tile_bottom;
@@ -659,9 +668,21 @@ NUMKONG_API_COMPTIME void nk_dots_packed_f16_graniteamx(  //
     }
 
     _tile_release();
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dots_symmetric_f16_graniteamx(                        //
+NUMKONG_API nk_status_t nk_dots_packed_f16_graniteamx(    //
+    nk_f16_t const *a, void const *b_packed, nk_f32_t *c, //
+    nk_size_t rows_count, nk_size_t cols_count, nk_size_t depth, nk_size_t a_stride_bytes, nk_size_t c_stride_bytes,
+    void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    return nk_gemm_packed_f16_graniteamx_(a, b_packed, c, rows_count, cols_count, depth, a_stride_bytes,
+                                          c_stride_bytes);
+}
+
+/** @brief F16 Gram matrix of `vectors` for rows [row_start, row_start + row_count), upper triangle, on AMX-FP16 tiles.
+ */
+NUMKONG_INLINE nk_status_t nk_gram_f16_graniteamx_(                                //
     nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,             //
     nk_size_t stride_in_bytes, nk_f32_t *result, nk_size_t result_stride_in_bytes, //
     nk_size_t row_start, nk_size_t row_count) {
@@ -732,6 +753,16 @@ NUMKONG_API_COMPTIME void nk_dots_symmetric_f16_graniteamx(                     
                 result_stride_elements, valid_rows, valid_cols, col_tile - row_tile);
         }
     }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_dots_symmetric_f16_graniteamx(                          //
+    nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,             //
+    nk_size_t stride_in_bytes, nk_f32_t *result, nk_size_t result_stride_in_bytes, //
+    nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    return nk_gram_f16_graniteamx_(vectors, vectors_count, depth, stride_in_bytes, result, result_stride_in_bytes,
+                                   row_start, row_count);
 }
 
 #pragma endregion F16 Native
@@ -748,14 +779,12 @@ NUMKONG_API_COMPTIME void nk_dots_symmetric_f16_graniteamx(                     
 #pragma region E5M2 Source Widened to FP16 Tiles
 
 typedef nk_dots_f16_a16x32_graniteamx_t nk_dots_e5m2_a16x32_graniteamx_t;
-typedef nk_dots_f16_b32x16_graniteamx_t nk_dots_e5m2_b32x16_graniteamx_t;
-typedef nk_dots_f16_state_graniteamx_t nk_dots_e5m2_state_graniteamx_t;
 typedef nk_dots_f16_state2x2_graniteamx_t nk_dots_e5m2_state2x2_graniteamx_t;
 
 /* Loads A tile from E5M2 row-major source, widens to F16 via `(byte << 8)` into the tile buffer. */
-NUMKONG_HELPER_INLINE void nk_dots_e5m2_load_a_graniteamx_( //
-    nk_dots_e5m2_a16x32_graniteamx_t *a_tile,               //
-    nk_e5m2_t const *src, nk_size_t src_stride_elements,    //
+NUMKONG_INLINE void nk_dots_e5m2_load_a_graniteamx_(     //
+    nk_dots_e5m2_a16x32_graniteamx_t *a_tile,            //
+    nk_e5m2_t const *src, nk_size_t src_stride_elements, //
     nk_size_t valid_rows, nk_size_t valid_cols) {
 
     __mmask32 column_m32 = (valid_cols >= 32) ? 0xFFFFFFFF : ((__mmask32)1 << valid_cols) - 1;
@@ -773,7 +802,7 @@ NUMKONG_HELPER_INLINE void nk_dots_e5m2_load_a_graniteamx_( //
     nk_compiler_barrier_sapphireamx_();
 }
 
-NUMKONG_API_COMPTIME nk_size_t nk_dots_pack_size_e5m2_graniteamx(nk_size_t column_count, nk_size_t depth) {
+NUMKONG_API nk_status_t nk_dots_pack_size_e5m2_graniteamx(nk_size_t column_count, nk_size_t depth, nk_size_t *bytes) {
     nk_size_t const tmm_rows = 16;
     nk_size_t const tmm_cols = 32;
     nk_size_t const tile_bytes = 512 * sizeof(nk_f16_t); // Tiles hold F16 after widen: same 1KB as F16.
@@ -787,19 +816,24 @@ NUMKONG_API_COMPTIME nk_size_t nk_dots_pack_size_e5m2_graniteamx(nk_size_t colum
     if (column_remainder_count > 0) size += column_remainder_count * depth * sizeof(nk_f16_t);
     size += column_count * sizeof(nk_f32_t);
 
-    return size;
+    *bytes = size;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dots_packed_shape_e5m2_graniteamx(void const *b_packed, nk_size_t *width,
-                                                               nk_size_t *depth) {
+NUMKONG_API nk_status_t nk_dots_packed_shape_e5m2_graniteamx(void const *b_packed, nk_size_t *width, nk_size_t *depth,
+                                                             void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
+    if (header->capability != nk_cap_graniteamx_k) return nk_pack_mismatch_k;
     *width = header->columns;
     *depth = header->depth;
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dots_pack_e5m2_graniteamx(          //
+NUMKONG_API nk_status_t nk_dots_pack_e5m2_graniteamx(            //
     nk_e5m2_t const *b, nk_size_t column_count, nk_size_t depth, //
-    nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end) {
+    nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
 
     nk_size_t const tmm_rows = 16;
     nk_size_t const tmm_cols = 32;
@@ -821,6 +855,7 @@ NUMKONG_API_COMPTIME void nk_dots_pack_e5m2_graniteamx(          //
         header->full_column_tiles = (nk_u32_t)column_tiles_count;
         header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
         header->column_remainder_count = (nk_u32_t)column_remainder_count;
+        header->capability = nk_cap_graniteamx_k;
     }
 
     nk_size_t const tiles_offset = sizeof(nk_dots_amx_packed_header_t);
@@ -891,15 +926,18 @@ NUMKONG_API_COMPTIME void nk_dots_pack_e5m2_graniteamx(          //
     if (columns_begin == 0) header->norms_byte_offset = (nk_u32_t)norms_offset;
     nk_f32_t *norms = (nk_f32_t *)((char *)b_packed + norms_offset);
     for (nk_size_t col = columns_begin; col < columns_end; col++)
-        norms[col] = nk_dots_reduce_sumsq_e5m2_(b + col * b_stride_elements, depth);
+        norms[col] = nk_dots_reduce_sumsq_e5m2_(b + col * b_stride_elements, depth, nk_cap_graniteamx_k);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dots_packed_e5m2_graniteamx(  //
-    nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, //
+/** @brief E5M2 GEMM of `a` rows against pre-packed B columns into F32 `c`, through F16 AMX tiles. */
+NUMKONG_INLINE nk_status_t nk_gemm_packed_e5m2_graniteamx_( //
+    nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,  //
     nk_size_t rows_count, nk_size_t cols_count, nk_size_t depth, nk_size_t a_stride_bytes, nk_size_t c_stride_bytes) {
     nk_unused_(cols_count);
 
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
+    if (header->capability != nk_cap_graniteamx_k) return nk_pack_mismatch_k;
     nk_size_t const column_tiles_count = header->full_column_tiles;
     nk_size_t const depth_tiles_count = header->full_depth_tiles;
     nk_size_t const column_remainder_count = header->column_remainder_count;
@@ -917,7 +955,7 @@ NUMKONG_API_COMPTIME void nk_dots_packed_e5m2_graniteamx(  //
     nk_size_t const row_blocks_count = nk_size_divide_round_up_(rows_count, 32);
     nk_size_t const col_blocks_count = column_tiles_count / 2;
 
-    if (depth_tiles_count == 0) return;
+    if (depth_tiles_count == 0) return nk_success_k;
 
     nk_dots_e5m2_a16x32_graniteamx_t a_tile_top, a_tile_bottom;
     nk_dots_e5m2_state2x2_graniteamx_t c_accum_buffer;
@@ -1108,9 +1146,21 @@ NUMKONG_API_COMPTIME void nk_dots_packed_e5m2_graniteamx(  //
     }
 
     _tile_release();
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_dots_symmetric_e5m2_graniteamx(                       //
+NUMKONG_API nk_status_t nk_dots_packed_e5m2_graniteamx(    //
+    nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, //
+    nk_size_t rows_count, nk_size_t cols_count, nk_size_t depth, nk_size_t a_stride_bytes, nk_size_t c_stride_bytes,
+    void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    return nk_gemm_packed_e5m2_graniteamx_(a, b_packed, c, rows_count, cols_count, depth, a_stride_bytes,
+                                           c_stride_bytes);
+}
+
+/** @brief E5M2 Gram matrix of `vectors` for rows [row_start, row_start + row_count), upper triangle, on AMX-FP16 tiles.
+ */
+NUMKONG_INLINE nk_status_t nk_gram_e5m2_graniteamx_(                               //
     nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,            //
     nk_size_t stride_in_bytes, nk_f32_t *result, nk_size_t result_stride_in_bytes, //
     nk_size_t row_start, nk_size_t row_count) {
@@ -1179,6 +1229,16 @@ NUMKONG_API_COMPTIME void nk_dots_symmetric_e5m2_graniteamx(                    
                 result_stride_elements, valid_rows, valid_cols, col_tile - row_tile);
         }
     }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_dots_symmetric_e5m2_graniteamx(                         //
+    nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,            //
+    nk_size_t stride_in_bytes, nk_f32_t *result, nk_size_t result_stride_in_bytes, //
+    nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    return nk_gram_e5m2_graniteamx_(vectors, vectors_count, depth, stride_in_bytes, result, result_stride_in_bytes,
+                                    row_start, row_count);
 }
 
 #pragma endregion E5M2 Source
@@ -1194,5 +1254,5 @@ NUMKONG_API_COMPTIME void nk_dots_symmetric_e5m2_graniteamx(                    
 #endif
 
 #endif // NUMKONG_TARGET_GRANITEAMX
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_DOTS_GRANITEAMX_H

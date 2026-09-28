@@ -202,6 +202,7 @@
     "*.gyp": "jsonc",
     "*.cu": "cuda-cpp",
     "*.cuh": "cuda-cpp",
+    "*.metal": "cpp",
     "*.tcc": "cpp",
     "algorithm": "cpp",
     "arm_neon.h": "c",

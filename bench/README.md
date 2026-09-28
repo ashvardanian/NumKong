@@ -4,7 +4,7 @@ Internal profiling suite comparing NumKong's SIMD backends against each other an
 For broader comparisons — Rust, Python, etc. — see [NumWars](https://github.com/ashvardanian/NumWars).
 
 - On x86 it compares serial code to manually-vectorized Haswell, Skylake, Ice Lake, Genoa, Sapphire Rapids and newer-generation SIMD kernels.
-- On Arm it compares serial code to manually-vectorized NEON, SVE, SVE2, SME, SME2 with various extensions for BF16 and mixed-precision dot-products.
+- On Arm it compares serial code to manually-vectorized NEON, SVE, SVE2, and SME with various extensions for BF16 and mixed-precision dot-products.
 - On RISC-V it compares serial code to manually-vectorized RVV 1.0 kernels with and without BB, BF16, and F16 extensions.
 - In WASM environments it compares serial code to manually-vectorized V128 kernels with Relaxed SIMD extensions.
 
@@ -30,6 +30,22 @@ On macOS with Homebrew Clang and OpenBLAS — see [CONTRIBUTING.md](../CONTRIBUT
 
 Compiler requirements vary by ISA target — see [CONTRIBUTING.md](../CONTRIBUTING.md#compiler-requirements) for the full table.
 
+### GPUs
+
+`NUMKONG_BUILD_CUDA` adds CUDA rows to `numkong_bench`, beside cuBLASLt and cuBLAS baselines unless `NUMKONG_COMPARE_TO_CUBLAS=OFF`.
+Building only the cubin of the GPU at hand keeps the compile short:
+
+```sh
+cmake -B build_cuda -D CMAKE_BUILD_TYPE=Release -D NUMKONG_BUILD_BENCH=ON -D NUMKONG_BUILD_CUDA=ON \
+      -D NUMKONG_CUDA_ARCHITECTURES=120f-real
+cmake --build build_cuda --target numkong_bench
+build_cuda/numkong_bench
+```
+
+Adding `-D NUMKONG_COMPARE_TO_CUDNN=ON -D NUMKONG_CUDNN_ROOT=<dir>` also times cuDNN attention, from a cuDNN 9.26 or newer tree holding `include/cudnn.h` and `lib/libcudnn.so*`.
+Adding `-D NUMKONG_COMPARE_TO_CUVS=ON -D NUMKONG_CUVS_ROOTS=<dir;dir>` also times cuVS pairwise distances, from prefixes holding `libcuvs_c`, `librmm`, `librapids_logger`, and the `dlpack` headers.
+`NUMKONG_BUILD_METAL` adds the Metal rows the same way on Apple Silicon.
+
 ### Running
 
 ```sh
@@ -46,7 +62,7 @@ build_release/numkong_bench --filter=dot                       # shorthand for -
 | `NUMWARS_FILTER`               |    `.*` | Regex to filter benchmarks by name                        |
 | `NUMKONG_SEED`                 |    `42` | RNG seed for reproducible inputs, or `random` to draw one |
 | `NUMWARS_PROFILE_SECONDS`      |    `10` | Minimum time per benchmark in seconds                     |
-| `NUMKONG_BUDGET_MB`            |  `1024` | Memory budget for pre-allocated inputs                    |
+| `NUMKONG_BUDGET_MB`            |  `1024` | Memory budget for pre-allocated inputs, `32` under WASI   |
 | `NUMWARS_DIMS`                 |  `1536` | Vector dimension for dot/spatial benchmarks               |
 | `NUMKONG_CURVED_DIMENSIONS`    |    `64` | Vector dimension for curved / bilinear form benchmarks    |
 | `NUMWARS_MESH_POINTS`          |  `1000` | Point count for mesh / RMSD / Kabsch benchmarks           |
@@ -135,7 +151,7 @@ cmake -B build-wasm64 -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm64-emscripten.c
 cmake --build build-wasm64 --parallel
 ```
 
-Each toolchain file picks one SIMD tier through `NUMKONG_WASM_SIMD`, `v128` for wasm32 and `v128relaxed` for wasm64 by default; pass `-DNUMKONG_WASM_SIMD=v128relaxed` to time the relaxed kernels on wasm32.
+Each toolchain file picks one SIMD capability through `NUMKONG_TARGET_ARCH`, `v128` for wasm32 and `v128relaxed` for wasm64 by default; pass `-DNUMKONG_TARGET_ARCH=v128relaxed` to time the relaxed kernels on wasm32.
 
 __WASI__
 
@@ -145,7 +161,7 @@ cmake -B build-wasi -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-wasi.cmake -DN
 cmake --build build-wasi --parallel
 ```
 
-`toolchain-wasm32-wasi-threads.cmake` is the threaded twin, with shared memory and the relaxed tier by default.
+`toolchain-wasm32-wasi-threads.cmake` is the threaded twin, with shared memory and the relaxed capability by default.
 
 __Running__
 
@@ -176,6 +192,16 @@ Expected performance relative to native:
 
 wasm64 / Memory64 adds ~5–10% overhead vs wasm32 due to 64-bit pointer arithmetic.
 Relaxed SIMD provides measurable gains for fused multiply-add patterns — compare with and without `-W relaxed-simd=y` to quantify.
+
+## Methodology
+
+The performance tables in the family READMEs under `include/numkong/` come from re-running `numkong_cpu_test` for accuracy and `numkong_bench` for throughput, at the input shapes and in the units each table names.
+
+- Each kernel runs for at least 20 seconds per configuration, unless its table says otherwise.
+- Benchmark threads are pinned to specific cores, and on machines with heterogeneous core types, like Apple's P and E cores, only the fastest cores are used — see [Pinning to Performance Cores](#pinning-to-performance-cores).
+- Workloads that significantly degrade CPU frequencies, like Intel AMX and Apple SME, run in separate passes, so they do not skew the throughput of other kernels — see [Frequency Scaling on AMX and SME](#frequency-scaling-on-amx-and-sme).
+- Accuracy is the mean ULP, units in last place, unless a table notes otherwise: the average number of representable floating-point values between the result and the exact answer.
+- Rows marked `🧩` time external BLAS or MKL baselines rather than NumKong kernels.
 
 ## Frequency Scaling on AMX and SME
 

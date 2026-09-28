@@ -50,7 +50,7 @@ You can inspect the runtime SIMD surface from Go.
 | :--------------------------- | :--------------------------------------------------------------------------------------- | :------------------------------------------------------- |
 | Operation families           | dots, distances, binary, probability, geospatial, MaxSim                                 | dots, distances, some statistics                         |
 | Precision                    | BFloat16 through sub-byte; automatic widening; Kahan summation; 0 ULP in Float32/Float64 | Float64 only; standard accuracy                          |
-| Runtime SIMD dispatch        | auto-selects best ISA per-thread at runtime across x86, ARM, RISC-V                      | no runtime dispatch; some hand-written assembly routines |
+| Runtime SIMD dispatch        | per call, the highest capability the CPU runs and the build holds, across x86, Arm, RISC-V     | no runtime dispatch; some hand-written assembly routines |
 | Packed matrix, GEMM-like     | pack once, reuse across query batches via `DotsPackedMatrix`                                 | `mat.Dense.Mul` — no persistent packing                  |
 | Symmetric kernels, SYRK-like | skips duplicate pairs, up to 2x speedup for self-distance                                | no duplicate-pair skipping                               |
 | Memory model                 | slice-based, caller-owned; cGo zero-copy pointer passing                                 | allocates internally in many functions                   |
@@ -60,8 +60,8 @@ You can inspect the runtime SIMD surface from Go.
 
 ## Installation
 
-The Go binding compiles the C library from headers at `go build` time via cGo.
-No pre-compiled shared library is required — just a C compiler.
+The Go binding links the prebuilt static NumKong library through cGo, so programs carry it whole.
+Install `libnumkong_static.a` from the latest release, the `.deb` on Linux or the archive on macOS, or build it with `cmake --build --preset release_shared --target numkong_static` and copy it next to the Go sources.
 
 Import the subpackage from the root module:
 
@@ -468,12 +468,13 @@ defer unlock()                                         // release the OS thread 
 
 enabled := nk.CapabilitiesEnabled()         // what dispatch uses: detected on this CPU and compiled in
 fmt.Println(enabled)                        // like "serial,neon,neonhalf,neonfhm,neonsdot"
-fmt.Println(enabled.Has(nk.CapNeon))        // test one tier
+fmt.Println(enabled.Has(nk.CapNeon))        // test one capability
 nk.CapabilitiesEnable(enabled &^ nk.CapSme) // narrow dispatch, returns what took effect
 ```
 
 `CapabilitiesDetected` and `CapabilitiesCompiled` report the two raw axes, what this CPU executes and what this binary contains.
-Every tier is a typed `Capability` constant, like `CapSerial`, `CapNeon`, `CapHaswell`, `CapSkylake`, `CapSapphire`, `CapSapphireAmx`, and `CapSme`.
+Every kernel call dispatches over `CapabilitiesEnabled`, so a matrix packed before `CapabilitiesEnable` narrows it must be packed again: packed kernels refuse another capability's layout.
+Every capability is a typed `Capability` constant, like `CapSerial`, `CapNeon`, `CapHaswell`, `CapSkylake`, `CapSapphire`, `CapSapphireAmx`, and `CapSme`.
 These are useful for logging the active platform or gating optional benchmark paths.
 
 ## cGo Integration Notes
@@ -483,6 +484,7 @@ That means a few rules matter:
 
 - Input slices must have matching lengths where the API expects paired vectors.
 - Length mismatches and insufficient slice capacity panic uniformly across all functions.
+- A kernel that reports a failure status, like a packed matrix of another capability, panics too.
 - Empty slices return zero for scalar outputs rather than crashing.
 - The slice backing arrays remain owned by Go.
 - `DotsPackedMatrix` and `MaxSimPackedMatrix` structs own their packed buffers and carry dimensions and dtype metadata.

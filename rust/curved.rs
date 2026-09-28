@@ -8,24 +8,124 @@
 //! File: rust/curved.rs
 //! Author: Ash Vardanian
 
+use core::ffi::c_void;
+use core::ptr::null_mut;
+
+use crate::capabilities::{cpu_capabilities, Status};
 use crate::types::{bf16, bf16c, f16, f16c, f32c, f64c, StorageElement};
 
 #[link(name = "numkong")]
 extern "C" {
-    fn nk_bilinear_f64(a: *const f64, b: *const f64, c: *const f64, n: usize, result: *mut f64);
-    fn nk_bilinear_f32(a: *const f32, b: *const f32, c: *const f32, n: usize, result: *mut f64);
-    fn nk_bilinear_f16(a: *const u16, b: *const u16, c: *const u16, n: usize, result: *mut f32);
-    fn nk_bilinear_bf16(a: *const u16, b: *const u16, c: *const u16, n: usize, result: *mut f32);
-    fn nk_bilinear_f64c(a: *const f64, b: *const f64, c: *const f64, n: usize, results: *mut f64);
-    fn nk_bilinear_f32c(a: *const f32, b: *const f32, c: *const f32, n: usize, results: *mut f64);
-    fn nk_bilinear_f16c(a: *const u16, b: *const u16, c: *const u16, n: usize, results: *mut f32);
-    fn nk_bilinear_bf16c(a: *const u16, b: *const u16, c: *const u16, n: usize, results: *mut f32);
+    fn nk_bilinear_f64_best(
+        a: *const f64,
+        b: *const f64,
+        c: *const f64,
+        n: usize,
+        result: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_bilinear_f32_best(
+        a: *const f32,
+        b: *const f32,
+        c: *const f32,
+        n: usize,
+        result: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_bilinear_f16_best(
+        a: *const u16,
+        b: *const u16,
+        c: *const u16,
+        n: usize,
+        result: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_bilinear_bf16_best(
+        a: *const u16,
+        b: *const u16,
+        c: *const u16,
+        n: usize,
+        result: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_bilinear_f64c_best(
+        a: *const f64,
+        b: *const f64,
+        c: *const f64,
+        n: usize,
+        results: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_bilinear_f32c_best(
+        a: *const f32,
+        b: *const f32,
+        c: *const f32,
+        n: usize,
+        results: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_bilinear_f16c_best(
+        a: *const u16,
+        b: *const u16,
+        c: *const u16,
+        n: usize,
+        results: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_bilinear_bf16c_best(
+        a: *const u16,
+        b: *const u16,
+        c: *const u16,
+        n: usize,
+        results: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
 
     // Mahalanobis distance
-    fn nk_mahalanobis_f64(a: *const f64, b: *const f64, c: *const f64, n: usize, result: *mut f64);
-    fn nk_mahalanobis_f32(a: *const f32, b: *const f32, c: *const f32, n: usize, result: *mut f64);
-    fn nk_mahalanobis_f16(a: *const u16, b: *const u16, c: *const u16, n: usize, result: *mut f32);
-    fn nk_mahalanobis_bf16(a: *const u16, b: *const u16, c: *const u16, n: usize, result: *mut f32);
+    fn nk_mahalanobis_f64_best(
+        a: *const f64,
+        b: *const f64,
+        c: *const f64,
+        n: usize,
+        result: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_mahalanobis_f32_best(
+        a: *const f32,
+        b: *const f32,
+        c: *const f32,
+        n: usize,
+        result: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_mahalanobis_f16_best(
+        a: *const u16,
+        b: *const u16,
+        c: *const u16,
+        n: usize,
+        result: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_mahalanobis_bf16_best(
+        a: *const u16,
+        b: *const u16,
+        c: *const u16,
+        n: usize,
+        result: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
 }
 
 /// Bilinear form computation: aᵀ × C × b where C is a metric tensor.
@@ -58,7 +158,16 @@ impl Bilinear for f64 {
         }
         let mut result: f64 = 0.0;
         unsafe {
-            nk_bilinear_f64(a.as_ptr(), b.as_ptr(), c.as_ptr(), point_count, &mut result);
+            nk_bilinear_f64_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                c.as_ptr(),
+                point_count,
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+            .ok()?;
         }
         Some(result)
     }
@@ -74,7 +183,16 @@ impl Bilinear for f32 {
         }
         let mut result: f64 = 0.0;
         unsafe {
-            nk_bilinear_f32(a.as_ptr(), b.as_ptr(), c.as_ptr(), point_count, &mut result);
+            nk_bilinear_f32_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                c.as_ptr(),
+                point_count,
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+            .ok()?;
         }
         Some(result)
     }
@@ -90,13 +208,16 @@ impl Bilinear for f16 {
         }
         let mut result: f32 = 0.0;
         unsafe {
-            nk_bilinear_f16(
+            nk_bilinear_f16_best(
                 a.as_ptr() as *const u16,
                 b.as_ptr() as *const u16,
                 c.as_ptr() as *const u16,
                 point_count,
                 &mut result,
-            );
+                cpu_capabilities(),
+                null_mut(),
+            )
+            .ok()?;
         }
         Some(result)
     }
@@ -112,13 +233,16 @@ impl Bilinear for bf16 {
         }
         let mut result: f32 = 0.0;
         unsafe {
-            nk_bilinear_bf16(
+            nk_bilinear_bf16_best(
                 a.as_ptr() as *const u16,
                 b.as_ptr() as *const u16,
                 c.as_ptr() as *const u16,
                 point_count,
                 &mut result,
-            );
+                cpu_capabilities(),
+                null_mut(),
+            )
+            .ok()?;
         }
         Some(result)
     }
@@ -134,13 +258,16 @@ impl Bilinear for f64c {
         }
         let mut result = [0.0f64; 2];
         unsafe {
-            nk_bilinear_f64c(
+            nk_bilinear_f64c_best(
                 a.as_ptr() as *const f64,
                 b.as_ptr() as *const f64,
                 c.as_ptr() as *const f64,
                 point_count,
                 result.as_mut_ptr(),
-            );
+                cpu_capabilities(),
+                null_mut(),
+            )
+            .ok()?;
         }
         Some(f64c {
             re: result[0],
@@ -159,13 +286,16 @@ impl Bilinear for f32c {
         }
         let mut result = [0.0f64; 2];
         unsafe {
-            nk_bilinear_f32c(
+            nk_bilinear_f32c_best(
                 a.as_ptr() as *const f32,
                 b.as_ptr() as *const f32,
                 c.as_ptr() as *const f32,
                 point_count,
                 result.as_mut_ptr(),
-            );
+                cpu_capabilities(),
+                null_mut(),
+            )
+            .ok()?;
         }
         Some(f64c {
             re: result[0],
@@ -184,13 +314,16 @@ impl Bilinear for f16c {
         }
         let mut result = [0.0f32; 2];
         unsafe {
-            nk_bilinear_f16c(
+            nk_bilinear_f16c_best(
                 a.as_ptr() as *const u16,
                 b.as_ptr() as *const u16,
                 c.as_ptr() as *const u16,
                 point_count,
                 result.as_mut_ptr(),
-            );
+                cpu_capabilities(),
+                null_mut(),
+            )
+            .ok()?;
         }
         Some(f32c {
             re: result[0],
@@ -209,13 +342,16 @@ impl Bilinear for bf16c {
         }
         let mut result = [0.0f32; 2];
         unsafe {
-            nk_bilinear_bf16c(
+            nk_bilinear_bf16c_best(
                 a.as_ptr() as *const u16,
                 b.as_ptr() as *const u16,
                 c.as_ptr() as *const u16,
                 point_count,
                 result.as_mut_ptr(),
-            );
+                cpu_capabilities(),
+                null_mut(),
+            )
+            .ok()?;
         }
         Some(f32c {
             re: result[0],
@@ -255,7 +391,16 @@ impl Mahalanobis for f64 {
         }
         let mut result: f64 = 0.0;
         unsafe {
-            nk_mahalanobis_f64(a.as_ptr(), b.as_ptr(), c.as_ptr(), point_count, &mut result);
+            nk_mahalanobis_f64_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                c.as_ptr(),
+                point_count,
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+            .ok()?;
         }
         Some(result)
     }
@@ -271,7 +416,16 @@ impl Mahalanobis for f32 {
         }
         let mut result: f64 = 0.0;
         unsafe {
-            nk_mahalanobis_f32(a.as_ptr(), b.as_ptr(), c.as_ptr(), point_count, &mut result);
+            nk_mahalanobis_f32_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                c.as_ptr(),
+                point_count,
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+            .ok()?;
         }
         Some(result)
     }
@@ -287,13 +441,16 @@ impl Mahalanobis for f16 {
         }
         let mut result: f32 = 0.0;
         unsafe {
-            nk_mahalanobis_f16(
+            nk_mahalanobis_f16_best(
                 a.as_ptr() as *const u16,
                 b.as_ptr() as *const u16,
                 c.as_ptr() as *const u16,
                 point_count,
                 &mut result,
-            );
+                cpu_capabilities(),
+                null_mut(),
+            )
+            .ok()?;
         }
         Some(result)
     }
@@ -309,13 +466,16 @@ impl Mahalanobis for bf16 {
         }
         let mut result: f32 = 0.0;
         unsafe {
-            nk_mahalanobis_bf16(
+            nk_mahalanobis_bf16_best(
                 a.as_ptr() as *const u16,
                 b.as_ptr() as *const u16,
                 c.as_ptr() as *const u16,
                 point_count,
                 &mut result,
-            );
+                cpu_capabilities(),
+                null_mut(),
+            )
+            .ok()?;
         }
         Some(result)
     }

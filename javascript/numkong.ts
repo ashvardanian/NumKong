@@ -201,7 +201,7 @@ export const capabilitiesEnabled = (): bigint => addon.capabilitiesEnabled();
  */
 export const capabilitiesEnable = (wanted: bigint): bigint => addon.capabilitiesEnable(wanted);
 
-/** Lowercase CPU tier names, like `haswell` or `neon`, mapped to their capability bits. */
+/** Lowercase CPU capability names, like `haswell` or `neon`, mapped to their capability bits. */
 export const Capability: Readonly<Record<string, bigint>> = Object.freeze(addon.Capability);
 
 /**

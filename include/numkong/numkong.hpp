@@ -9,12 +9,12 @@
  *  namespaces and templates, so it needs verbose signatures and naming conventions like:
  *
  *  @code{.c}
- *  void nk_dot_f64(nk_f64_t const*, nk_f64_t const*, nk_size_t, nk_f64_t *);
- *  void nk_dot_f32(nk_f32_t const*, nk_f32_t const*, nk_size_t, nk_f64_t *);
- *  void nk_dot_f16(nk_f16_t const*, nk_f16_t const*, nk_size_t, nk_f32_t *);
- *  void nk_dot_bf16(nk_bf16_t const*, nk_bf16_t const*, nk_size_t, nk_f32_t *);
- *  void nk_dot_e4m3(nk_e4m3_t const*, nk_e4m3_t const*, nk_size_t, nk_f32_t *);
- *  void nk_dot_e5m2(nk_e5m2_t const*, nk_e5m2_t const*, nk_size_t, nk_f32_t *);
+ *  nk_status_t nk_dot_f64_best(nk_f64_t const*, nk_f64_t const*, nk_size_t, nk_f64_t *, nk_capability_t, void *);
+ *  nk_status_t nk_dot_f32_best(nk_f32_t const*, nk_f32_t const*, nk_size_t, nk_f64_t *, nk_capability_t, void *);
+ *  nk_status_t nk_dot_f16_best(nk_f16_t const*, nk_f16_t const*, nk_size_t, nk_f32_t *, nk_capability_t, void *);
+ *  nk_status_t nk_dot_bf16_best(nk_bf16_t const*, nk_bf16_t const*, nk_size_t, nk_f32_t *, nk_capability_t, void *);
+ *  nk_status_t nk_dot_e4m3_best(nk_e4m3_t const*, nk_e4m3_t const*, nk_size_t, nk_f32_t *, nk_capability_t, void *);
+ *  nk_status_t nk_dot_e5m2_best(nk_e5m2_t const*, nk_e5m2_t const*, nk_size_t, nk_f32_t *, nk_capability_t, void *);
  *  @endcode
  *
  *  As opposed to C++:
@@ -22,14 +22,15 @@
  *  @code{.cpp}
  *  namespace ashvardanian::numkong {
  *      template <typename input_type_, typename result_type_>
- *      void dot(input_type_ const*, input_type_ const*, size_t, result_type_ *);
+ *      nk_status_t dot(input_type_ const*, input_type_ const*, size_t, result_type_ *,
+ *                      nk_capability_t = cpu_capabilities(), void * = nullptr);
  *  }
  *  @endcode
  *
  *  In HPC implementations, where pretty much every kernel and every datatype uses different
  *  Assembly instructions on different CPU generations/models, those higher-level abstractions
  *  aren't always productive for the primary implementation, but they can still be handy as a
- *  higher-level API for NumKong. They are also used for algorithm verification in no-SIMD mode,
+ *  higher-level API for NumKong. Given a mask of no capability, they also verify the algorithms,
  *  upcasting to much larger number types like @c f118_t.
  */
 

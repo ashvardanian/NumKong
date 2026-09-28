@@ -11,12 +11,12 @@
 #ifndef NUMKONG_CURVED_GENOA_H
 #define NUMKONG_CURVED_GENOA_H
 
-#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_ARCH_X8664_
 #if NUMKONG_TARGET_GENOA
 
 #include "numkong/types.h"
-#include "numkong/scalar/haswell.h" // `nk_f32_sqrt_haswell`
-#include "numkong/reduce/skylake.h"  // `nk_reduce_add_f32x16_skylake_`
+#include "numkong/cast/serial.h"    // `nk_bf16_to_f32_`
+#include "numkong/reduce/skylake.h" // `nk_reduce_add_f32x16_skylake_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -31,8 +31,8 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "avx512bf16", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NUMKONG_API_COMPTIME nk_status_t nk_bilinear_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
-                                                        nk_size_t n, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_bilinear_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
+                                               nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const tail_length = n % 32;
     nk_size_t const tail_start = n - tail_length;
@@ -41,7 +41,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_bilinear_bf16_genoa(nk_bf16_t const *a, nk_b
 
     for (nk_size_t i = 0; i != n; ++i) {
         nk_f32_t a_f32;
-        nk_bf16_to_f32_serial(a + i, &a_f32);
+        nk_bf16_to_f32_(a + i, &a_f32);
         __m512 a_f32x16 = _mm512_set1_ps(a_f32);
         __m512 cb_j_f32x16 = _mm512_setzero_ps();
         __m512i b_bf16x32, c_bf16x32;
@@ -66,8 +66,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_bilinear_bf16_genoa(nk_bf16_t const *a, nk_b
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_mahalanobis_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
-                                                           nk_size_t n, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_mahalanobis_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
+                                                  nk_size_t n, nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const tail_length = n % 32;
     nk_size_t const tail_start = n - tail_length;
@@ -77,8 +77,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_mahalanobis_bf16_genoa(nk_bf16_t const *a, n
 
     for (nk_size_t i = 0; i != n; ++i) {
         nk_f32_t a_i, b_i;
-        nk_bf16_to_f32_serial(a + i, &a_i);
-        nk_bf16_to_f32_serial(b + i, &b_i);
+        nk_bf16_to_f32_(a + i, &a_i);
+        nk_bf16_to_f32_(b + i, &b_i);
         __m512 diff_i_f32x16 = _mm512_set1_ps(a_i - b_i);
         __m512 cdiff_j_f32x16 = _mm512_setzero_ps();
         __m512i a_j_bf16x32, b_j_bf16x32, c_bf16x32;
@@ -110,12 +110,12 @@ NUMKONG_API_COMPTIME nk_status_t nk_mahalanobis_bf16_genoa(nk_bf16_t const *a, n
     }
 
     nk_f32_t quadratic = _mm512_reduce_add_ps(sum_f32x16);
-    *result = nk_f32_sqrt_haswell(quadratic > 0 ? quadratic : 0);
+    *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(quadratic > 0 ? quadratic : 0)));
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_bilinear_bf16c_genoa(nk_bf16c_t const *a, nk_bf16c_t const *b, nk_bf16c_t const *c,
-                                                         nk_size_t n, nk_f32c_t *results, void *stream) {
+NUMKONG_API nk_status_t nk_bilinear_bf16c_genoa(nk_bf16c_t const *a, nk_bf16c_t const *b, nk_bf16c_t const *c,
+                                                nk_size_t n, nk_f32c_t *results, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     // We take into account, that FMS is the same as FMA with a negative multiplier.
@@ -140,8 +140,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_bilinear_bf16c_genoa(nk_bf16c_t const *a, nk
 
     for (nk_size_t i = 0; i != n; ++i) {
         nk_f32_t a_i_real, a_i_imag;
-        nk_bf16_to_f32_serial(&a[i].real, &a_i_real);
-        nk_bf16_to_f32_serial(&a[i].imag, &a_i_imag);
+        nk_bf16_to_f32_(&a[i].real, &a_i_real);
+        nk_bf16_to_f32_(&a[i].imag, &a_i_imag);
         __m512 cb_j_real_f32x16 = _mm512_setzero_ps();
         __m512 cb_j_imag_f32x16 = _mm512_setzero_ps();
         __m512i b_bf16x32, c_bf16x32;
@@ -190,5 +190,5 @@ NUMKONG_API_COMPTIME nk_status_t nk_bilinear_bf16c_genoa(nk_bf16c_t const *a, nk
 #endif
 
 #endif // NUMKONG_TARGET_GENOA
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_CURVED_GENOA_H

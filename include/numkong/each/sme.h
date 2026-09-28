@@ -13,7 +13,7 @@
 #define NUMKONG_EACH_SME_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_SME
+#if NUMKONG_ARCH_ARM64_SME_
 
 #include <arm_sme.h>
 
@@ -31,7 +31,7 @@ extern "C" {
 #endif
 
 /** Vectorized `2^x` (SME streaming SVE); matches @c nk_f32_exp2_serial_ to polynomial precision. */
-NUMKONG_HELPER_INLINE svfloat32_t nk_exp2_f32x_sme_(svfloat32_t x_f32x) NUMKONG_STREAMING_ {
+NUMKONG_INLINE svfloat32_t nk_exp2_f32x_sme_(svfloat32_t x_f32x) NUMKONG_STREAMING_ {
     svbool_t const predicate_all_b32x = svptrue_b32();
     x_f32x = svmax_f32_x(predicate_all_b32x, svmin_f32_x(predicate_all_b32x, x_f32x, svdup_f32(127.0f)),
                          svdup_f32(-125.0f));
@@ -50,7 +50,7 @@ NUMKONG_HELPER_INLINE svfloat32_t nk_exp2_f32x_sme_(svfloat32_t x_f32x) NUMKONG_
 /** Degree-3 evaluation of `2^r` over the reduced fraction `r ∈ [-0.5, 0.5]`, 32 lanes at a time:
  *  the family coefficients with the degree-4 term dropped, which falls below the F16 resolution of
  *  the weights it feeds. */
-NUMKONG_HELPER_INLINE svfloat16_t nk_exp2_polynomial_f16x_sme_(svfloat16_t reduced_f16x) NUMKONG_STREAMING_ {
+NUMKONG_INLINE svfloat16_t nk_exp2_polynomial_f16x_sme_(svfloat16_t reduced_f16x) NUMKONG_STREAMING_ {
     svbool_t const predicate_all_b16x = svptrue_b16();
     svfloat16_t poly_f16x = svdup_f16((__fp16)5.55041087e-2f);
     poly_f16x = svmad_f16_x(predicate_all_b16x, poly_f16x, reduced_f16x, svdup_f16((__fp16)2.40226507e-1f));
@@ -62,7 +62,7 @@ NUMKONG_HELPER_INLINE svfloat16_t nk_exp2_polynomial_f16x_sme_(svfloat16_t reduc
 /** I-BERT-style integer 2ᵗ without floats: takes a Q15 exponent in [−10 × 2¹⁵, 0] and returns
  *  round(2ᵗ × 255) as a U8 weight in each I32 lane, through a degree-3 Q14 polynomial and a
  *  lane-variable shift. */
-NUMKONG_HELPER_INLINE svint32_t nk_exp2_u8_i32x_sme_(svint32_t t_q15_i32x) NUMKONG_STREAMING_ {
+NUMKONG_INLINE svint32_t nk_exp2_u8_i32x_sme_(svint32_t t_q15_i32x) NUMKONG_STREAMING_ {
     svbool_t const predicate_all_b32x = svptrue_b32();
     svint32_t const whole_i32x = svasr_n_s32_x(predicate_all_b32x, t_q15_i32x, 15); // floor, in [-10, 0]
     svint32_t const fraction_i32x = svand_n_s32_x(predicate_all_b32x, t_q15_i32x, 0x7FFF);
@@ -93,6 +93,6 @@ NUMKONG_HELPER_INLINE svint32_t nk_exp2_u8_i32x_sme_(svint32_t t_q15_i32x) NUMKO
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_SME
+#endif // NUMKONG_ARCH_ARM64_SME_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_EACH_SME_H

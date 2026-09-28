@@ -59,8 +59,8 @@ If you build from source, the package uses `node-gyp-build` on install and TypeS
 
 ## Browser and WASM
 
-The npm package includes pre-built WASM modules under `wasm/`, one per SIMD tier and address width: `numkong-wasm32-v128`, `numkong-wasm32-v128relaxed`, and `numkong-wasm64-v128relaxed`.
-The `wasm/numkong.js` loader validates two tiny probe modules on import and picks the best wasm32 tier the engine accepts, so Chrome, Firefox, and Node get Relaxed SIMD while Safari and iOS WebKit get strict SIMD128.
+The npm package includes pre-built WASM modules under `wasm/`, one per SIMD capability and address width: `numkong-wasm32-v128`, `numkong-wasm32-v128relaxed`, and `numkong-wasm64-v128relaxed`.
+The `wasm/numkong.js` loader validates two tiny probe modules on import and picks the best wasm32 capability the engine accepts, so Chrome, Firefox, and Node get Relaxed SIMD while Safari and iOS WebKit get strict SIMD128.
 The simplest way to use it in a browser is via a CDN — no build step required:
 
 ```html
@@ -75,7 +75,7 @@ The simplest way to use it in a browser is via a CDN — no build step required:
 ```
 
 For self-hosted WASM, download the loader and the modules from a [GitHub Release](https://github.com/ashvardanian/NumKong/releases) and serve them from one directory.
-The loader resolves the glue and binary of the chosen tier relative to its own URL:
+The loader resolves the glue and binary of the chosen capability relative to its own URL:
 
 ```html
 <script type="module">
@@ -249,7 +249,7 @@ capabilitiesEnable(capabilitiesEnabled() & ~Capability.skylake); // stop dispatc
 
 `capabilitiesDetected()` describes the machine and says nothing about whether a kernel was compiled in, so a prebuild whose ISA probes failed still reports your CPU's full feature set while containing no SIMD kernels at all.
 The enabled set always keeps the `serial` fallback.
-`Capability` maps each lowercase CPU tier name, like `haswell`, `neon` or `v128relaxed`, to its bit, and is built at load from the C library's own names.
+`Capability` maps each lowercase CPU capability name, like `haswell`, `neon` or `v128relaxed`, to its bit, and is built at load from the C library's own names.
 
 The exact bitmask depends on whether you are running the native addon or a WASM runtime.
 

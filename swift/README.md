@@ -47,7 +47,7 @@ Packing handles internal layout itself.
 | :--------------------------- | :--------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------- | :----------------------------------------------------------------- |
 | Operation families           | dots, distances, binary, geospatial, MaxSim                                                                            | dots, distances, FFT, some BLAS                                   | matmul, elementwise, reductions, FFT                               |
 | Precision                    | BFloat16 through sub-byte — Float8, Float6, packed bits; automatic widening; Kahan summation; 0 ULP in Float32/Float64 | Float32/Float64, limited Float16; no auto-widening; IEEE defaults | Float16/BFloat16/Float32; no Float8 or sub-byte; backend-dependent |
-| Runtime SIMD dispatch        | auto-selects best ISA per-thread at runtime across x86, ARM, RISC-V                                                    | Apple-only, no runtime ISA selection                              | GPU dispatch only, no CPU ISA selection                            |
+| Runtime SIMD dispatch        | per call, the highest capability the CPU runs and the build holds, across x86, Arm, RISC-V                                   | Apple-only, no runtime ISA selection                              | GPU dispatch only, no CPU ISA selection                            |
 | Packed matrix, GEMM-like     | `PackedMatrix` packs once, reused across query batches                                                                 | BLAS GEMM available                                               | GEMM via graph, implicit caching                                   |
 | Symmetric kernels, SYRK-like | `dots_symmetric`, `angulars_symmetric`, etc. skip duplicate pairs, up to 2x speedup                                    | `cblas_ssyrk` available for rank-k updates                        | no duplicate-pair skipping                                         |
 | Collection-based API         | works with any `RandomAccessCollection` conforming type                                                                | pointer-based vDSP functions                                      | `MLXArray`-based                                                   |
@@ -76,7 +76,7 @@ Then add the product to your target:
 )
 ```
 
-The root package manifest already exposes the `NumKong` and `CNumKongDispatch` library products.
+The root package manifest already exposes the `NumKong` and `CNumKong` library products.
 Xcode package integration uses the same URL.
 
 ## Collection-Based Dot Products
@@ -319,7 +319,7 @@ let docs = try Tensor<Float32>.full(rows: 8, cols: 16, value: 1.0)
 let queryPacked = try queries.maxSimPack()  // MaxSimPackedMatrix<Float32>
 let docPacked   = try docs.maxSimPack()     // MaxSimPackedMatrix<Float32>
 
-let score = queryPacked.score(docPacked)    // Float64
+let score = try queryPacked.score(docPacked)  // Float64
 assert(score.isFinite)
 ```
 
@@ -454,7 +454,8 @@ Capabilities.configureThread(.enabled)
 - `Capabilities.compiled` is what this binary contains, from the ISA probes at build time.
 - `Capabilities.enabled` is what dispatch uses, both axes at once unless narrowed, and always contains `.serial`.
 - `Capabilities.enable(_:)` makes its argument the enabled set, clamped to both axes, and returns what took effect.
-- `Capabilities.configureThread(_:)` sets per-thread state such as Intel AMX tiles for the given tiers, usually `.enabled`.
+  Narrow it before starting threads, and pack matrices again afterwards, since packed kernels refuse another capability's layout.
+- `Capabilities.configureThread(_:)` sets per-thread state such as Intel AMX tiles for the given capabilities, usually `.enabled`.
 
 Reach for `enabled` unless you specifically mean one of the raw axes.
 `detected` describes the machine and says nothing about whether a kernel was compiled in, so a build whose ISA probes failed still reports your CPU's full feature set while containing no SIMD kernels at all.

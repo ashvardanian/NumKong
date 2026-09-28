@@ -15,6 +15,7 @@
 #if NUMKONG_ARCH_ARM64_
 #if NUMKONG_TARGET_NEONFP8
 
+#include "numkong/dots/serial.h"
 #include "numkong/dot/neonfp8.h"
 
 #if defined(__cplusplus)

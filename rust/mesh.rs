@@ -29,11 +29,15 @@
 //! File: rust/mesh.rs
 //! Author: Ash Vardanian
 
+use core::ffi::c_void;
+use core::ptr::null_mut;
+
+use crate::capabilities::{cpu_capabilities, Status};
 use crate::types::{bf16, f16};
 
 #[link(name = "numkong")]
 extern "C" {
-    fn nk_rmsd_f32(
+    fn nk_rmsd_f32_best(
         a: *const f32,
         b: *const f32,
         n: usize,
@@ -42,8 +46,10 @@ extern "C" {
         rotation: *mut f32,
         scale: *mut f32,
         result: *mut f64,
-    );
-    fn nk_rmsd_f64(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_rmsd_f64_best(
         a: *const f64,
         b: *const f64,
         n: usize,
@@ -52,8 +58,10 @@ extern "C" {
         rotation: *mut f64,
         scale: *mut f64,
         result: *mut f64,
-    );
-    fn nk_rmsd_f16(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_rmsd_f16_best(
         a: *const u16,
         b: *const u16,
         n: usize,
@@ -62,8 +70,10 @@ extern "C" {
         rotation: *mut f32,
         scale: *mut f32,
         result: *mut f32,
-    );
-    fn nk_rmsd_bf16(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_rmsd_bf16_best(
         a: *const u16,
         b: *const u16,
         n: usize,
@@ -72,8 +82,10 @@ extern "C" {
         rotation: *mut f32,
         scale: *mut f32,
         result: *mut f32,
-    );
-    fn nk_kabsch_f32(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_kabsch_f32_best(
         a: *const f32,
         b: *const f32,
         n: usize,
@@ -82,8 +94,10 @@ extern "C" {
         rotation: *mut f32,
         scale: *mut f32,
         result: *mut f64,
-    );
-    fn nk_kabsch_f64(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_kabsch_f64_best(
         a: *const f64,
         b: *const f64,
         n: usize,
@@ -92,8 +106,10 @@ extern "C" {
         rotation: *mut f64,
         scale: *mut f64,
         result: *mut f64,
-    );
-    fn nk_kabsch_f16(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_kabsch_f16_best(
         a: *const u16,
         b: *const u16,
         n: usize,
@@ -102,8 +118,10 @@ extern "C" {
         rotation: *mut f32,
         scale: *mut f32,
         result: *mut f32,
-    );
-    fn nk_kabsch_bf16(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_kabsch_bf16_best(
         a: *const u16,
         b: *const u16,
         n: usize,
@@ -112,8 +130,10 @@ extern "C" {
         rotation: *mut f32,
         scale: *mut f32,
         result: *mut f32,
-    );
-    fn nk_umeyama_f32(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_umeyama_f32_best(
         a: *const f32,
         b: *const f32,
         n: usize,
@@ -122,8 +142,10 @@ extern "C" {
         rotation: *mut f32,
         scale: *mut f32,
         result: *mut f64,
-    );
-    fn nk_umeyama_f64(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_umeyama_f64_best(
         a: *const f64,
         b: *const f64,
         n: usize,
@@ -132,8 +154,10 @@ extern "C" {
         rotation: *mut f64,
         scale: *mut f64,
         result: *mut f64,
-    );
-    fn nk_umeyama_f16(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_umeyama_f16_best(
         a: *const u16,
         b: *const u16,
         n: usize,
@@ -142,8 +166,10 @@ extern "C" {
         rotation: *mut f32,
         scale: *mut f32,
         result: *mut f32,
-    );
-    fn nk_umeyama_bf16(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_umeyama_bf16_best(
         a: *const u16,
         b: *const u16,
         n: usize,
@@ -152,7 +178,9 @@ extern "C" {
         rotation: *mut f32,
         scale: *mut f32,
         result: *mut f32,
-    );
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
 }
 
 /// Result of mesh alignment operations: RMSD, Kabsch, Umeyama.
@@ -297,7 +325,7 @@ impl MeshAlignment for f64 {
             b_centroid: [0.0; 3],
         };
         unsafe {
-            nk_rmsd_f64(
+            nk_rmsd_f64_best(
                 a.as_ptr() as *const f64,
                 b.as_ptr() as *const f64,
                 a.len(),
@@ -306,8 +334,11 @@ impl MeshAlignment for f64 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(result)
     }
 
@@ -323,7 +354,7 @@ impl MeshAlignment for f64 {
             b_centroid: [0.0; 3],
         };
         unsafe {
-            nk_kabsch_f64(
+            nk_kabsch_f64_best(
                 a.as_ptr() as *const f64,
                 b.as_ptr() as *const f64,
                 a.len(),
@@ -332,8 +363,11 @@ impl MeshAlignment for f64 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(result)
     }
 
@@ -349,7 +383,7 @@ impl MeshAlignment for f64 {
             b_centroid: [0.0; 3],
         };
         unsafe {
-            nk_umeyama_f64(
+            nk_umeyama_f64_best(
                 a.as_ptr() as *const f64,
                 b.as_ptr() as *const f64,
                 a.len(),
@@ -358,8 +392,11 @@ impl MeshAlignment for f64 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -380,7 +417,7 @@ impl MeshAlignment for f32 {
             b_centroid: [0.0; 3],
         };
         unsafe {
-            nk_rmsd_f32(
+            nk_rmsd_f32_best(
                 a.as_ptr() as *const f32,
                 b.as_ptr() as *const f32,
                 a.len(),
@@ -389,8 +426,11 @@ impl MeshAlignment for f32 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(result)
     }
 
@@ -406,7 +446,7 @@ impl MeshAlignment for f32 {
             b_centroid: [0.0; 3],
         };
         unsafe {
-            nk_kabsch_f32(
+            nk_kabsch_f32_best(
                 a.as_ptr() as *const f32,
                 b.as_ptr() as *const f32,
                 a.len(),
@@ -415,8 +455,11 @@ impl MeshAlignment for f32 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(result)
     }
 
@@ -432,7 +475,7 @@ impl MeshAlignment for f32 {
             b_centroid: [0.0; 3],
         };
         unsafe {
-            nk_umeyama_f32(
+            nk_umeyama_f32_best(
                 a.as_ptr() as *const f32,
                 b.as_ptr() as *const f32,
                 a.len(),
@@ -441,8 +484,11 @@ impl MeshAlignment for f32 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -463,7 +509,7 @@ impl MeshAlignment for f16 {
             b_centroid: [0.0; 3],
         };
         unsafe {
-            nk_rmsd_f16(
+            nk_rmsd_f16_best(
                 a.as_ptr() as *const u16,
                 b.as_ptr() as *const u16,
                 a.len(),
@@ -472,8 +518,11 @@ impl MeshAlignment for f16 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(result)
     }
 
@@ -489,7 +538,7 @@ impl MeshAlignment for f16 {
             b_centroid: [0.0; 3],
         };
         unsafe {
-            nk_kabsch_f16(
+            nk_kabsch_f16_best(
                 a.as_ptr() as *const u16,
                 b.as_ptr() as *const u16,
                 a.len(),
@@ -498,8 +547,11 @@ impl MeshAlignment for f16 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(result)
     }
 
@@ -515,7 +567,7 @@ impl MeshAlignment for f16 {
             b_centroid: [0.0; 3],
         };
         unsafe {
-            nk_umeyama_f16(
+            nk_umeyama_f16_best(
                 a.as_ptr() as *const u16,
                 b.as_ptr() as *const u16,
                 a.len(),
@@ -524,8 +576,11 @@ impl MeshAlignment for f16 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -546,7 +601,7 @@ impl MeshAlignment for bf16 {
             b_centroid: [0.0; 3],
         };
         unsafe {
-            nk_rmsd_bf16(
+            nk_rmsd_bf16_best(
                 a.as_ptr() as *const u16,
                 b.as_ptr() as *const u16,
                 a.len(),
@@ -555,8 +610,11 @@ impl MeshAlignment for bf16 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(result)
     }
 
@@ -572,7 +630,7 @@ impl MeshAlignment for bf16 {
             b_centroid: [0.0; 3],
         };
         unsafe {
-            nk_kabsch_bf16(
+            nk_kabsch_bf16_best(
                 a.as_ptr() as *const u16,
                 b.as_ptr() as *const u16,
                 a.len(),
@@ -581,8 +639,11 @@ impl MeshAlignment for bf16 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(result)
     }
 
@@ -598,7 +659,7 @@ impl MeshAlignment for bf16 {
             b_centroid: [0.0; 3],
         };
         unsafe {
-            nk_umeyama_bf16(
+            nk_umeyama_bf16_best(
                 a.as_ptr() as *const u16,
                 b.as_ptr() as *const u16,
                 a.len(),
@@ -607,8 +668,11 @@ impl MeshAlignment for bf16 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
+                cpu_capabilities(),
+                null_mut(),
             )
-        };
+        }
+        .ok()?;
         Some(result)
     }
 }

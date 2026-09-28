@@ -21,32 +21,46 @@ namespace ashvardanian::numkong {
  *  @param[in] a,b Input vectors
  *  @param[in] d Number of dimensions in input vectors
  *  @param[out] c Output vector
+ *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *
  *  @tparam in_type_ Element type
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
-template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
-void sum(in_type_ const *a, in_type_ const *b, std::size_t d, in_type_ *c) noexcept {
-    constexpr bool simd = allow_simd_ == prefer_simd_k;
-
-    if constexpr (std::is_same_v<in_type_, f64_t> && simd) nk_each_sum_f64(&a->raw_, &b->raw_, d, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, f32_t> && simd) nk_each_sum_f32(&a->raw_, &b->raw_, d, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, f16_t> && simd) nk_each_sum_f16(&a->raw_, &b->raw_, d, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, bf16_t> && simd) nk_each_sum_bf16(&a->raw_, &b->raw_, d, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, i8_t> && simd) nk_each_sum_i8(&a->raw_, &b->raw_, d, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, u8_t> && simd) nk_each_sum_u8(&a->raw_, &b->raw_, d, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, i16_t> && simd) nk_each_sum_i16(&a->raw_, &b->raw_, d, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, u16_t> && simd) nk_each_sum_u16(&a->raw_, &b->raw_, d, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, i32_t> && simd) nk_each_sum_i32(&a->raw_, &b->raw_, d, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, u32_t> && simd) nk_each_sum_u32(&a->raw_, &b->raw_, d, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, i64_t> && simd) nk_each_sum_i64(&a->raw_, &b->raw_, d, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, u64_t> && simd) nk_each_sum_u64(&a->raw_, &b->raw_, d, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, f32c_t> && simd) nk_each_sum_f32c(&a->raw_, &b->raw_, d, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, f64c_t> && simd) nk_each_sum_f64c(&a->raw_, &b->raw_, d, &c->raw_);
-    // Scalar fallback
-    else {
-        for (std::size_t i = 0; i < d; i++) c[i] = saturating_add(a[i], b[i]);
+template <numeric_dtype in_type_>
+nk_status_t sum(in_type_ const *a, in_type_ const *b, std::size_t d, in_type_ *c,
+                nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f64_t>)
+            return nk_each_sum_f64_best(&a->raw_, &b->raw_, d, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f32_t>)
+            return nk_each_sum_f32_best(&a->raw_, &b->raw_, d, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f16_t>)
+            return nk_each_sum_f16_best(&a->raw_, &b->raw_, d, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, bf16_t>)
+            return nk_each_sum_bf16_best(&a->raw_, &b->raw_, d, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, i8_t>)
+            return nk_each_sum_i8_best(&a->raw_, &b->raw_, d, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u8_t>)
+            return nk_each_sum_u8_best(&a->raw_, &b->raw_, d, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, i16_t>)
+            return nk_each_sum_i16_best(&a->raw_, &b->raw_, d, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u16_t>)
+            return nk_each_sum_u16_best(&a->raw_, &b->raw_, d, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, i32_t>)
+            return nk_each_sum_i32_best(&a->raw_, &b->raw_, d, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u32_t>)
+            return nk_each_sum_u32_best(&a->raw_, &b->raw_, d, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, i64_t>)
+            return nk_each_sum_i64_best(&a->raw_, &b->raw_, d, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u64_t>)
+            return nk_each_sum_u64_best(&a->raw_, &b->raw_, d, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f32c_t>)
+            return nk_each_sum_f32c_best(&a->raw_, &b->raw_, d, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f64c_t>)
+            return nk_each_sum_f64c_best(&a->raw_, &b->raw_, d, &c->raw_, capabilities, stream);
     }
+    for (std::size_t i = 0; i < d; i++) c[i] = saturating_add(a[i], b[i]);
+    return nk_success_k;
 }
 
 /**
@@ -55,35 +69,55 @@ void sum(in_type_ const *a, in_type_ const *b, std::size_t d, in_type_ *c) noexc
  *  @param[in] d Number of dimensions in input vector
  *  @param[in] alpha,beta Scale and shift coefficients
  *  @param[out] c Output vector
+ *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *
  *  @tparam in_type_ Element type
  *  @tparam precision_type_ Precision type for scalar fallback computations, defaults to @c in_type_
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
-template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
-void scale(in_type_ const *a, std::size_t d, typename in_type_::scale_t const *alpha,
-           typename in_type_::scale_t const *beta, in_type_ *c) noexcept {
-    constexpr bool simd = allow_simd_ == prefer_simd_k && std::is_same_v<precision_type_, in_type_>;
+template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
+nk_status_t scale(in_type_ const *a, std::size_t d, typename in_type_::scale_t const *alpha,
+                  typename in_type_::scale_t const *beta, in_type_ *c,
+                  nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+    constexpr bool dispatch = std::is_same_v<precision_type_, in_type_>;
 
-    if constexpr (std::is_same_v<in_type_, f64_t> && simd) nk_each_scale_f64(&a->raw_, d, alpha, beta, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, f32_t> && simd) nk_each_scale_f32(&a->raw_, d, alpha, beta, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, f16_t> && simd) nk_each_scale_f16(&a->raw_, d, alpha, beta, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, bf16_t> && simd) nk_each_scale_bf16(&a->raw_, d, alpha, beta, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, i8_t> && simd) nk_each_scale_i8(&a->raw_, d, alpha, beta, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, u8_t> && simd) nk_each_scale_u8(&a->raw_, d, alpha, beta, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, i16_t> && simd) nk_each_scale_i16(&a->raw_, d, alpha, beta, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, u16_t> && simd) nk_each_scale_u16(&a->raw_, d, alpha, beta, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, i32_t> && simd) nk_each_scale_i32(&a->raw_, d, alpha, beta, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, u32_t> && simd) nk_each_scale_u32(&a->raw_, d, alpha, beta, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, i64_t> && simd) nk_each_scale_i64(&a->raw_, d, alpha, beta, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, u64_t> && simd) nk_each_scale_u64(&a->raw_, d, alpha, beta, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, f32c_t> && simd) nk_each_scale_f32c(&a->raw_, d, alpha, beta, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, f64c_t> && simd) nk_each_scale_f64c(&a->raw_, d, alpha, beta, &c->raw_);
-    // Scalar fallback with high-precision intermediates
-    else {
-        for (std::size_t i = 0; i < d; i++)
-            c[i] = (precision_type_(a[i]) * precision_type_(*alpha) + precision_type_(*beta)).template to<in_type_>();
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
+            return nk_each_scale_f64_best(&a->raw_, d, alpha, beta, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+            return nk_each_scale_f32_best(&a->raw_, d, alpha, beta, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
+            return nk_each_scale_f16_best(&a->raw_, d, alpha, beta, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
+            return nk_each_scale_bf16_best(&a->raw_, d, alpha, beta, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, i8_t> && dispatch)
+            return nk_each_scale_i8_best(&a->raw_, d, alpha, beta, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u8_t> && dispatch)
+            return nk_each_scale_u8_best(&a->raw_, d, alpha, beta, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, i16_t> && dispatch)
+            return nk_each_scale_i16_best(&a->raw_, d, alpha, beta, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u16_t> && dispatch)
+            return nk_each_scale_u16_best(&a->raw_, d, alpha, beta, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, i32_t> && dispatch)
+            return nk_each_scale_i32_best(&a->raw_, d, alpha, beta, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u32_t> && dispatch)
+            return nk_each_scale_u32_best(&a->raw_, d, alpha, beta, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, i64_t> && dispatch)
+            return nk_each_scale_i64_best(&a->raw_, d, alpha, beta, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u64_t> && dispatch)
+            return nk_each_scale_u64_best(&a->raw_, d, alpha, beta, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f32c_t> && dispatch)
+            return nk_each_scale_f32c_best(&a->raw_, d, alpha, beta, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f64c_t> && dispatch)
+            return nk_each_scale_f64c_best(&a->raw_, d, alpha, beta, &c->raw_, capabilities, stream);
     }
+    // Scalar fallback with high-precision intermediates
+    for (std::size_t i = 0; i < d; i++) {
+        precision_type_ const result = precision_type_(a[i]) * precision_type_(*alpha) + precision_type_(*beta);
+        if constexpr (dispatch) c[i] = result;
+        else c[i] = result.template to<in_type_>();
+    }
+    return nk_success_k;
 }
 
 /**
@@ -92,51 +126,56 @@ void scale(in_type_ const *a, std::size_t d, typename in_type_::scale_t const *a
  *  @param[in] d Number of dimensions in input vectors
  *  @param[in] alpha,beta Weight coefficients
  *  @param[out] c Output vector
+ *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *
  *  @tparam in_type_ Element type
  *  @tparam precision_type_ Precision type for scalar fallback computations, defaults to @c in_type_
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
-template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
-void blend(in_type_ const *a, in_type_ const *b, std::size_t d, typename in_type_::scale_t const *alpha,
-           typename in_type_::scale_t const *beta, in_type_ *c) noexcept {
-    constexpr bool simd = allow_simd_ == prefer_simd_k && std::is_same_v<precision_type_, in_type_>;
+template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
+nk_status_t blend(in_type_ const *a, in_type_ const *b, std::size_t d, typename in_type_::scale_t const *alpha,
+                  typename in_type_::scale_t const *beta, in_type_ *c,
+                  nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+    constexpr bool dispatch = std::is_same_v<precision_type_, in_type_>;
 
-    if constexpr (std::is_same_v<in_type_, f64_t> && simd)
-        nk_each_blend_f64(&a->raw_, &b->raw_, d, alpha, beta, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, f32_t> && simd)
-        nk_each_blend_f32(&a->raw_, &b->raw_, d, alpha, beta, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, f16_t> && simd)
-        nk_each_blend_f16(&a->raw_, &b->raw_, d, alpha, beta, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, bf16_t> && simd)
-        nk_each_blend_bf16(&a->raw_, &b->raw_, d, alpha, beta, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, i8_t> && simd)
-        nk_each_blend_i8(&a->raw_, &b->raw_, d, alpha, beta, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, u8_t> && simd)
-        nk_each_blend_u8(&a->raw_, &b->raw_, d, alpha, beta, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, i16_t> && simd)
-        nk_each_blend_i16(&a->raw_, &b->raw_, d, alpha, beta, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, u16_t> && simd)
-        nk_each_blend_u16(&a->raw_, &b->raw_, d, alpha, beta, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, i32_t> && simd)
-        nk_each_blend_i32(&a->raw_, &b->raw_, d, alpha, beta, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, u32_t> && simd)
-        nk_each_blend_u32(&a->raw_, &b->raw_, d, alpha, beta, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, i64_t> && simd)
-        nk_each_blend_i64(&a->raw_, &b->raw_, d, alpha, beta, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, u64_t> && simd)
-        nk_each_blend_u64(&a->raw_, &b->raw_, d, alpha, beta, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, f32c_t> && simd)
-        nk_each_blend_f32c(&a->raw_, &b->raw_, d, alpha, beta, &c->raw_);
-    else if constexpr (std::is_same_v<in_type_, f64c_t> && simd)
-        nk_each_blend_f64c(&a->raw_, &b->raw_, d, alpha, beta, &c->raw_);
-    // Scalar fallback with high-precision intermediates
-    else {
-        for (std::size_t i = 0; i < d; i++) {
-            c[i] = (precision_type_(a[i]) * precision_type_(*alpha) + precision_type_(b[i]) * precision_type_(*beta))
-                       .template to<in_type_>();
-        }
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
+            return nk_each_blend_f64_best(&a->raw_, &b->raw_, d, alpha, beta, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+            return nk_each_blend_f32_best(&a->raw_, &b->raw_, d, alpha, beta, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
+            return nk_each_blend_f16_best(&a->raw_, &b->raw_, d, alpha, beta, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
+            return nk_each_blend_bf16_best(&a->raw_, &b->raw_, d, alpha, beta, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, i8_t> && dispatch)
+            return nk_each_blend_i8_best(&a->raw_, &b->raw_, d, alpha, beta, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u8_t> && dispatch)
+            return nk_each_blend_u8_best(&a->raw_, &b->raw_, d, alpha, beta, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, i16_t> && dispatch)
+            return nk_each_blend_i16_best(&a->raw_, &b->raw_, d, alpha, beta, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u16_t> && dispatch)
+            return nk_each_blend_u16_best(&a->raw_, &b->raw_, d, alpha, beta, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, i32_t> && dispatch)
+            return nk_each_blend_i32_best(&a->raw_, &b->raw_, d, alpha, beta, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u32_t> && dispatch)
+            return nk_each_blend_u32_best(&a->raw_, &b->raw_, d, alpha, beta, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, i64_t> && dispatch)
+            return nk_each_blend_i64_best(&a->raw_, &b->raw_, d, alpha, beta, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u64_t> && dispatch)
+            return nk_each_blend_u64_best(&a->raw_, &b->raw_, d, alpha, beta, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f32c_t> && dispatch)
+            return nk_each_blend_f32c_best(&a->raw_, &b->raw_, d, alpha, beta, &c->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f64c_t> && dispatch)
+            return nk_each_blend_f64c_best(&a->raw_, &b->raw_, d, alpha, beta, &c->raw_, capabilities, stream);
     }
+    // Scalar fallback with high-precision intermediates
+    for (std::size_t i = 0; i < d; i++) {
+        precision_type_ const result = precision_type_(a[i]) * precision_type_(*alpha) +
+                                       precision_type_(b[i]) * precision_type_(*beta);
+        if constexpr (dispatch) c[i] = result;
+        else c[i] = result.template to<in_type_>();
+    }
+    return nk_success_k;
 }
 
 /**
@@ -145,52 +184,59 @@ void blend(in_type_ const *a, in_type_ const *b, std::size_t d, typename in_type
  *  @param[in] d Number of dimensions in input vectors
  *  @param[in] alpha,beta Coefficients
  *  @param[out] out Output vector
+ *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *
  *  @tparam in_type_ Element type
  *  @tparam precision_type_ Precision type for scalar fallback computations, defaults to @c in_type_
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
-template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
-void fma(in_type_ const *a, in_type_ const *b, std::size_t d, in_type_ const *c,
-         typename in_type_::scale_t const *alpha, typename in_type_::scale_t const *beta, in_type_ *out) noexcept {
-    constexpr bool simd = allow_simd_ == prefer_simd_k && std::is_same_v<precision_type_, in_type_>;
+template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
+nk_status_t fma(in_type_ const *a, in_type_ const *b, std::size_t d, in_type_ const *c,
+                typename in_type_::scale_t const *alpha, typename in_type_::scale_t const *beta, in_type_ *out,
+                nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+    constexpr bool dispatch = std::is_same_v<precision_type_, in_type_>;
 
-    if constexpr (std::is_same_v<in_type_, f64_t> && simd)
-        nk_each_fma_f64(&a->raw_, &b->raw_, &c->raw_, d, alpha, beta, &out->raw_);
-    else if constexpr (std::is_same_v<in_type_, f32_t> && simd)
-        nk_each_fma_f32(&a->raw_, &b->raw_, &c->raw_, d, alpha, beta, &out->raw_);
-    else if constexpr (std::is_same_v<in_type_, f16_t> && simd)
-        nk_each_fma_f16(&a->raw_, &b->raw_, &c->raw_, d, alpha, beta, &out->raw_);
-    else if constexpr (std::is_same_v<in_type_, bf16_t> && simd)
-        nk_each_fma_bf16(&a->raw_, &b->raw_, &c->raw_, d, alpha, beta, &out->raw_);
-    else if constexpr (std::is_same_v<in_type_, i8_t> && simd)
-        nk_each_fma_i8(&a->raw_, &b->raw_, &c->raw_, d, alpha, beta, &out->raw_);
-    else if constexpr (std::is_same_v<in_type_, u8_t> && simd)
-        nk_each_fma_u8(&a->raw_, &b->raw_, &c->raw_, d, alpha, beta, &out->raw_);
-    else if constexpr (std::is_same_v<in_type_, i16_t> && simd)
-        nk_each_fma_i16(&a->raw_, &b->raw_, &c->raw_, d, alpha, beta, &out->raw_);
-    else if constexpr (std::is_same_v<in_type_, u16_t> && simd)
-        nk_each_fma_u16(&a->raw_, &b->raw_, &c->raw_, d, alpha, beta, &out->raw_);
-    else if constexpr (std::is_same_v<in_type_, i32_t> && simd)
-        nk_each_fma_i32(&a->raw_, &b->raw_, &c->raw_, d, alpha, beta, &out->raw_);
-    else if constexpr (std::is_same_v<in_type_, u32_t> && simd)
-        nk_each_fma_u32(&a->raw_, &b->raw_, &c->raw_, d, alpha, beta, &out->raw_);
-    else if constexpr (std::is_same_v<in_type_, i64_t> && simd)
-        nk_each_fma_i64(&a->raw_, &b->raw_, &c->raw_, d, alpha, beta, &out->raw_);
-    else if constexpr (std::is_same_v<in_type_, u64_t> && simd)
-        nk_each_fma_u64(&a->raw_, &b->raw_, &c->raw_, d, alpha, beta, &out->raw_);
-    else if constexpr (std::is_same_v<in_type_, f32c_t> && simd)
-        nk_each_fma_f32c(&a->raw_, &b->raw_, &c->raw_, d, alpha, beta, &out->raw_);
-    else if constexpr (std::is_same_v<in_type_, f64c_t> && simd)
-        nk_each_fma_f64c(&a->raw_, &b->raw_, &c->raw_, d, alpha, beta, &out->raw_);
-    // Scalar fallback with high-precision intermediates
-    else {
-        for (std::size_t i = 0; i < d; i++) {
-            out[i] = (precision_type_(a[i]) * precision_type_(b[i]) * precision_type_(*alpha) +
-                      precision_type_(c[i]) * precision_type_(*beta))
-                         .template to<in_type_>();
-        }
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
+            return nk_each_fma_f64_best(&a->raw_, &b->raw_, &c->raw_, d, alpha, beta, &out->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+            return nk_each_fma_f32_best(&a->raw_, &b->raw_, &c->raw_, d, alpha, beta, &out->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
+            return nk_each_fma_f16_best(&a->raw_, &b->raw_, &c->raw_, d, alpha, beta, &out->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
+            return nk_each_fma_bf16_best(&a->raw_, &b->raw_, &c->raw_, d, alpha, beta, &out->raw_, capabilities,
+                                         stream);
+        else if constexpr (std::is_same_v<in_type_, i8_t> && dispatch)
+            return nk_each_fma_i8_best(&a->raw_, &b->raw_, &c->raw_, d, alpha, beta, &out->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u8_t> && dispatch)
+            return nk_each_fma_u8_best(&a->raw_, &b->raw_, &c->raw_, d, alpha, beta, &out->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, i16_t> && dispatch)
+            return nk_each_fma_i16_best(&a->raw_, &b->raw_, &c->raw_, d, alpha, beta, &out->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u16_t> && dispatch)
+            return nk_each_fma_u16_best(&a->raw_, &b->raw_, &c->raw_, d, alpha, beta, &out->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, i32_t> && dispatch)
+            return nk_each_fma_i32_best(&a->raw_, &b->raw_, &c->raw_, d, alpha, beta, &out->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u32_t> && dispatch)
+            return nk_each_fma_u32_best(&a->raw_, &b->raw_, &c->raw_, d, alpha, beta, &out->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, i64_t> && dispatch)
+            return nk_each_fma_i64_best(&a->raw_, &b->raw_, &c->raw_, d, alpha, beta, &out->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, u64_t> && dispatch)
+            return nk_each_fma_u64_best(&a->raw_, &b->raw_, &c->raw_, d, alpha, beta, &out->raw_, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f32c_t> && dispatch)
+            return nk_each_fma_f32c_best(&a->raw_, &b->raw_, &c->raw_, d, alpha, beta, &out->raw_, capabilities,
+                                         stream);
+        else if constexpr (std::is_same_v<in_type_, f64c_t> && dispatch)
+            return nk_each_fma_f64c_best(&a->raw_, &b->raw_, &c->raw_, d, alpha, beta, &out->raw_, capabilities,
+                                         stream);
     }
+    // Scalar fallback with high-precision intermediates
+    for (std::size_t i = 0; i < d; i++) {
+        precision_type_ const result = precision_type_(a[i]) * precision_type_(b[i]) * precision_type_(*alpha) +
+                                       precision_type_(c[i]) * precision_type_(*beta);
+        if constexpr (dispatch) out[i] = result;
+        else out[i] = result.template to<in_type_>();
+    }
+    return nk_success_k;
 }
 
 /**
@@ -207,42 +253,45 @@ void fma(in_type_ const *a, in_type_ const *b, std::size_t d, in_type_ const *c,
  *  @param[in] up_row_stride Row stride of @p up in bytes
  *  @param[in] y_row_stride Row stride of @p y in bytes
  *  @param[in] input_scale Scalar applied to each loaded element: E4M3 descale, or 1.0 for BF16/F32
+ *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *
  *  @tparam in_type_ Element type
- *  @tparam allow_simd_ Enable SIMD kernel dispatch when @c prefer_simd_k
  */
-template <numeric_dtype in_type_, allow_simd_t allow_simd_ = prefer_simd_k>
-void swiglu(in_type_ const *gate, in_type_ const *up, in_type_ *y, std::size_t rows, std::size_t cols,
-            std::size_t gate_row_stride, std::size_t up_row_stride, std::size_t y_row_stride,
-            float input_scale = 1.0f) noexcept {
-    constexpr bool simd = allow_simd_ == prefer_simd_k;
-    if constexpr (std::is_same_v<in_type_, f32_t> && simd)
-        nk_each_swiglu_f32(&gate->raw_, up ? &up->raw_ : nullptr, &y->raw_, rows, cols, gate_row_stride, up_row_stride,
-                           y_row_stride, input_scale);
-    else if constexpr (std::is_same_v<in_type_, bf16_t> && simd)
-        nk_each_swiglu_bf16(&gate->raw_, up ? &up->raw_ : nullptr, &y->raw_, rows, cols, gate_row_stride, up_row_stride,
-                            y_row_stride, input_scale);
-    else if constexpr (std::is_same_v<in_type_, e4m3_t> && simd)
-        nk_each_swiglu_e4m3(&gate->raw_, up ? &up->raw_ : nullptr, &y->raw_, rows, cols, gate_row_stride, up_row_stride,
-                            y_row_stride, input_scale);
-    // Scalar fallback for other numeric dtypes or when SIMD is disabled.
-    else {
-        for (std::size_t row = 0; row < rows; ++row) {
-            in_type_ const *gate_row = reinterpret_cast<in_type_ const *>(reinterpret_cast<char const *>(gate) +
-                                                                          row * gate_row_stride);
-            in_type_ const *up_row = up ? reinterpret_cast<in_type_ const *>(reinterpret_cast<char const *>(up) +
-                                                                             row * up_row_stride)
-                                        : nullptr;
-            in_type_ *output_row = reinterpret_cast<in_type_ *>(reinterpret_cast<char *>(y) + row * y_row_stride);
-            // SiLU(g) = g * sigmoid(g) = g / (1 + exp(-g)); exp via the type method, like sin/cos fallbacks.
-            for (std::size_t column = 0; column < cols; ++column) {
-                float gate_value = static_cast<float>(gate_row[column]) * input_scale;
-                float result = gate_value / (1.0f + static_cast<float>(f32_t(-gate_value).exp()));
-                if (up_row) result *= static_cast<float>(up_row[column]) * input_scale;
-                output_row[column] = f32_t(result).template to<in_type_>();
-            }
+template <numeric_dtype in_type_>
+nk_status_t swiglu(in_type_ const *gate, in_type_ const *up, in_type_ *y, std::size_t rows, std::size_t cols,
+                   std::size_t gate_row_stride, std::size_t up_row_stride, std::size_t y_row_stride,
+                   float input_scale = 1.0f, nk_capability_t capabilities = cpu_capabilities(),
+                   void *stream = nullptr) noexcept {
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f32_t>)
+            return nk_each_swiglu_f32_best(&gate->raw_, up ? &up->raw_ : nullptr, &y->raw_, rows, cols, gate_row_stride,
+                                           up_row_stride, y_row_stride, input_scale, capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, bf16_t>)
+            return nk_each_swiglu_bf16_best(&gate->raw_, up ? &up->raw_ : nullptr, &y->raw_, rows, cols,
+                                            gate_row_stride, up_row_stride, y_row_stride, input_scale, capabilities,
+                                            stream);
+        else if constexpr (std::is_same_v<in_type_, e4m3_t>)
+            return nk_each_swiglu_e4m3_best(&gate->raw_, up ? &up->raw_ : nullptr, &y->raw_, rows, cols,
+                                            gate_row_stride, up_row_stride, y_row_stride, input_scale, capabilities,
+                                            stream);
+    }
+    // Scalar fallback for other numeric dtypes or a mask of no capability.
+    for (std::size_t row = 0; row < rows; ++row) {
+        in_type_ const *gate_row = reinterpret_cast<in_type_ const *>(reinterpret_cast<char const *>(gate) +
+                                                                      row * gate_row_stride);
+        in_type_ const *up_row =
+            up ? reinterpret_cast<in_type_ const *>(reinterpret_cast<char const *>(up) + row * up_row_stride) : nullptr;
+        in_type_ *output_row = reinterpret_cast<in_type_ *>(reinterpret_cast<char *>(y) + row * y_row_stride);
+        // SiLU(g) = g / (1 + exp(-g)), with exp from the type method, like the sin/cos fallbacks.
+        for (std::size_t column = 0; column < cols; ++column) {
+            float gate_value = static_cast<float>(gate_row[column]) * input_scale;
+            float result = gate_value / (1.0f + static_cast<float>(f32_t(-gate_value).exp()));
+            if (up_row) result *= static_cast<float>(up_row[column]) * input_scale;
+            output_row[column] = f32_t(result).template to<in_type_>();
         }
     }
+    return nk_success_k;
 }
 
 } // namespace ashvardanian::numkong
@@ -263,10 +312,9 @@ bool swiglu(matrix_view<value_type_> gate, matrix_view<value_type_> up, matrix_s
     if (has_up && (up.extent(0) != gate.extent(0) || up.extent(1) != gate.extent(1))) return false;
     value_type_ const *up_ptr = has_up ? up.data() : nullptr;
     std::size_t const up_stride = has_up ? static_cast<std::size_t>(up.stride_bytes(0)) : 0;
-    numkong::swiglu<value_type_>(gate.data(), up_ptr, output.data(), gate.extent(0), gate.extent(1),
-                                 static_cast<std::size_t>(gate.stride_bytes(0)), up_stride,
-                                 static_cast<std::size_t>(output.stride_bytes(0)), input_scale);
-    return true;
+    return numkong::swiglu<value_type_>(gate.data(), up_ptr, output.data(), gate.extent(0), gate.extent(1),
+                                        static_cast<std::size_t>(gate.stride_bytes(0)), up_stride,
+                                        static_cast<std::size_t>(output.stride_bytes(0)), input_scale) == nk_success_k;
 }
 
 /** Allocating SwiGLU returning a fresh matrix — @p up empty means SiLU. */

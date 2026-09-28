@@ -67,7 +67,7 @@
       "inherits": "base",
       "cacheVariables": { "NUMKONG_BUILD_SHARED": "ON" }
     },
-    { "name": "linux_aarch64", "inherits": "cross", "toolchainFile": "${sourceDir}/cmake/toolchain-aarch64-gnu.cmake" },
+    { "name": "linux_arm64", "inherits": "cross", "toolchainFile": "${sourceDir}/cmake/toolchain-aarch64-gnu.cmake" },
     {
       "name": "linux_loongarch64",
       "inherits": "cross",
@@ -127,8 +127,20 @@
     {
       "name": "cuda",
       "inherits": ["base", "linux"],
-      "displayName": "CUDA - compiles the device tests for every architecture in NUMKONG_CUDA_ARCHITECTURES",
-      "cacheVariables": { "NUMKONG_BUILD_CUDA": "ON" }
+      "displayName": "CUDA - the cross-kernel tests for every NUMKONG_CUDA_ARCHITECTURES, header-only and through the library",
+      "cacheVariables": { "NUMKONG_BUILD_CUDA": "ON", "NUMKONG_BUILD_SHARED": "ON" }
+    },
+    {
+      "name": "rocm",
+      "inherits": ["base", "linux"],
+      "displayName": "ROCm - the cross-kernel tests for every NUMKONG_ROCM_ARCHITECTURES, header-only and through the library",
+      "cacheVariables": { "NUMKONG_BUILD_ROCM": "ON", "NUMKONG_BUILD_SHARED": "ON" }
+    },
+    {
+      "name": "metal",
+      "inherits": ["base", "darwin"],
+      "displayName": "Metal - the cross-kernel tests on the Apple GPU, header-only and through the library",
+      "cacheVariables": { "NUMKONG_BUILD_SHARED": "ON", "NUMKONG_BUILD_METAL": "ON" }
     }
   ],
   "buildPresets": [
@@ -137,7 +149,7 @@
     { "name": "release_shared", "configurePreset": "release_shared" },
     { "name": "msvc_x64", "configurePreset": "msvc_x64", "configuration": "Release" },
     { "name": "msvc_arm64", "configurePreset": "msvc_arm64", "configuration": "Release" },
-    { "name": "linux_aarch64", "configurePreset": "linux_aarch64" },
+    { "name": "linux_arm64", "configurePreset": "linux_arm64" },
     { "name": "linux_loongarch64", "configurePreset": "linux_loongarch64" },
     { "name": "linux_ppc64le", "configurePreset": "linux_ppc64le" },
     { "name": "linux_riscv64", "configurePreset": "linux_riscv64" },
@@ -149,7 +161,9 @@
     { "name": "wasm64_emscripten", "configurePreset": "wasm64_emscripten" },
     { "name": "wasm32_wasi", "configurePreset": "wasm32_wasi" },
     { "name": "wasm32_wasi_threads", "configurePreset": "wasm32_wasi_threads" },
-    { "name": "cuda", "configurePreset": "cuda" }
+    { "name": "cuda", "configurePreset": "cuda" },
+    { "name": "rocm", "configurePreset": "rocm" },
+    { "name": "metal", "configurePreset": "metal", "targets": ["numkong_metal_header_test", "numkong_metal_shared_test"] }
   ],
   "testPresets": [
     {
@@ -180,13 +194,31 @@
     },
     { "name": "release", "inherits": "base", "configurePreset": "release" },
     { "name": "msvc_x64", "inherits": "base", "configurePreset": "msvc_x64", "configuration": "Release" },
-    { "name": "linux_aarch64", "inherits": "emulated", "configurePreset": "linux_aarch64" },
+    { "name": "linux_arm64", "inherits": "emulated", "configurePreset": "linux_arm64" },
     { "name": "linux_loongarch64", "inherits": "emulated", "configurePreset": "linux_loongarch64" },
     { "name": "linux_ppc64le", "inherits": "emulated", "configurePreset": "linux_ppc64le" },
     { "name": "linux_riscv64", "inherits": "emulated", "configurePreset": "linux_riscv64" },
     { "name": "linux_riscv64_llvm", "inherits": "emulated", "configurePreset": "linux_riscv64_llvm" },
     { "name": "wasm32_wasi", "inherits": "emulated", "configurePreset": "wasm32_wasi" },
-    { "name": "wasm32_wasi_threads", "inherits": "emulated", "configurePreset": "wasm32_wasi_threads" }
+    { "name": "wasm32_wasi_threads", "inherits": "emulated", "configurePreset": "wasm32_wasi_threads" },
+    {
+      "name": "cuda",
+      "inherits": "base",
+      "configurePreset": "cuda",
+      "filter": { "include": { "name": "^numkong_cuda_(header|shared)_test$" } }
+    },
+    {
+      "name": "rocm",
+      "inherits": "base",
+      "configurePreset": "rocm",
+      "filter": { "include": { "name": "^numkong_rocm_(header|shared)_test$" } }
+    },
+    {
+      "name": "metal",
+      "inherits": "base",
+      "configurePreset": "metal",
+      "filter": { "include": { "name": "^numkong_metal_(header|shared)_test$" } }
+    }
   ],
   "workflowPresets": [
     {
@@ -209,7 +241,24 @@
       "name": "cuda",
       "steps": [
         { "type": "configure", "name": "cuda" },
-        { "type": "build", "name": "cuda" }
+        { "type": "build", "name": "cuda" },
+        { "type": "test", "name": "cuda" }
+      ]
+    },
+    {
+      "name": "rocm",
+      "steps": [
+        { "type": "configure", "name": "rocm" },
+        { "type": "build", "name": "rocm" },
+        { "type": "test", "name": "rocm" }
+      ]
+    },
+    {
+      "name": "metal",
+      "steps": [
+        { "type": "configure", "name": "metal" },
+        { "type": "build", "name": "metal" },
+        { "type": "test", "name": "metal" }
       ]
     }
   ]

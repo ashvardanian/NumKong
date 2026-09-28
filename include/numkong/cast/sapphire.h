@@ -24,29 +24,30 @@
 #ifndef NUMKONG_CAST_SAPPHIRE_H
 #define NUMKONG_CAST_SAPPHIRE_H
 
-#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_ARCH_X8664_
 #if NUMKONG_TARGET_SAPPHIRE
 
 #include "numkong/types.h"
-#include "numkong/cast/icelake.h" // `nk_cast_icelake`
+#include "numkong/cast/icelake.h" // `nk_cast_elementwise_icelake_`
 
 #if defined(__cplusplus)
 extern "C" {
 #endif
 
 #if defined(__clang__)
-#pragma clang attribute push(__attribute__((target("avx2,avx512f,avx512vl,avx512bw,avx512fp16,f16c,fma,bmi,bmi2"))), \
-                             apply_to = function)
+#pragma clang attribute push(                                                                        \
+    __attribute__((target("avx2,avx512f,avx512vl,avx512bw,avx512dq,avx512fp16,f16c,fma,bmi,bmi2"))), \
+    apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
-#pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512fp16", "f16c", "fma", "bmi", "bmi2")
+#pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "avx512fp16", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NUMKONG_API_COMPTIME void nk_f32_to_f16_sapphire(nk_f32_t const *from, nk_f16_t *to) {
+NUMKONG_API void nk_f32_to_f16_sapphire(nk_f32_t const *from, nk_f16_t *to) {
     *(nk_u16_t *)to = (nk_u16_t)_mm_cvtsi128_si32(_mm_castph_si128(_mm_cvtss_sh(_mm_setzero_ph(), _mm_set_ss(*from))));
 }
 
-NUMKONG_API_COMPTIME void nk_f16_to_f32_sapphire(nk_f16_t const *from, nk_f32_t *to) {
+NUMKONG_API void nk_f16_to_f32_sapphire(nk_f16_t const *from, nk_f32_t *to) {
     *to = _mm_cvtss_f32(_mm_cvtsh_ss(_mm_setzero_ps(), _mm_castsi128_ph(_mm_cvtsi32_si128(*(nk_u16_t const *)from))));
 }
 
@@ -59,7 +60,7 @@ NUMKONG_API_COMPTIME void nk_f16_to_f32_sapphire(nk_f16_t const *from, nk_f32_t 
  *  Normal: sign | ((exp+8)<<10) | (mant<<7).
  *  Subnormals (exp=0): value = mantissa ÷ 512, computed via f16 arithmetic.
  */
-NUMKONG_HELPER_INLINE __m256h nk_e4m3x16_to_f16x16_sapphire_(__m128i e4m3_i8x16) {
+NUMKONG_INLINE __m256h nk_e4m3x16_to_f16x16_sapphire_(__m128i e4m3_i8x16) {
     __m256i e4m3_i16x16 = _mm256_cvtepu8_epi16(e4m3_i8x16);
 
     // Extract fields
@@ -93,7 +94,7 @@ NUMKONG_HELPER_INLINE __m256h nk_e4m3x16_to_f16x16_sapphire_(__m128i e4m3_i8x16)
  *  Normal: sign | (exp<<10) | (mant<<8) (same exponent bias).
  *  Subnormals (exp=0): value = mantissa ÷ 65536, computed via f16 arithmetic.
  */
-NUMKONG_HELPER_INLINE __m256h nk_e5m2x16_to_f16x16_sapphire_(__m128i e5m2_i8x16) {
+NUMKONG_INLINE __m256h nk_e5m2x16_to_f16x16_sapphire_(__m128i e5m2_i8x16) {
     __m256i e5m2_i16x16 = _mm256_cvtepu8_epi16(e5m2_i8x16);
 
     // Extract fields
@@ -115,7 +116,7 @@ NUMKONG_HELPER_INLINE __m256h nk_e5m2x16_to_f16x16_sapphire_(__m128i e5m2_i8x16)
 /** Convert 16x f16 → 16x e4m3 via bit manipulation (AVX-512 FP16). F16: S EEEEE MMMMMMMMMM
  *  (bias=15). E4M3: S EEEE MMM (bias=7). Handles normal, subnormal, and overflow cases, and
  *  rounds to nearest even. */
-NUMKONG_HELPER_INLINE __m128i nk_f16x16_to_e4m3x16_sapphire_(__m256h f16x16) {
+NUMKONG_INLINE __m128i nk_f16x16_to_e4m3x16_sapphire_(__m256h f16x16) {
     __m256i bits_i16x16 = _mm256_castph_si256(f16x16);
     __m256i sign_i16x16 = _mm256_srli_epi16(bits_i16x16, 15);
     __m256i f16_exp_i16x16 = _mm256_and_si256(_mm256_srli_epi16(bits_i16x16, 10), _mm256_set1_epi16(0x1F));
@@ -173,7 +174,7 @@ NUMKONG_HELPER_INLINE __m128i nk_f16x16_to_e4m3x16_sapphire_(__m256h f16x16) {
 /** Convert 16x f16 → 16x e5m2 via bit manipulation (AVX-512 FP16). F16: S EEEEE MMMMMMMMMM
  *  (bias=15). E5M2: S EEEEE MM (bias=15). With the same exponent bias, only the mantissa is
  *  rounded, from 10 bits to 2. */
-NUMKONG_HELPER_INLINE __m128i nk_f16x16_to_e5m2x16_sapphire_(__m256h f16x16) {
+NUMKONG_INLINE __m128i nk_f16x16_to_e5m2x16_sapphire_(__m256h f16x16) {
     __m256i bits_i16x16 = _mm256_castph_si256(f16x16);
     __m256i sign_i16x16 = _mm256_srli_epi16(bits_i16x16, 15);
     __m256i f16_exp_i16x16 = _mm256_and_si256(_mm256_srli_epi16(bits_i16x16, 10), _mm256_set1_epi16(0x1F));
@@ -228,8 +229,8 @@ NUMKONG_HELPER_INLINE __m128i nk_f16x16_to_e5m2x16_sapphire_(__m256h f16x16) {
 
 #pragma region Public API
 
-NUMKONG_API_COMPTIME nk_status_t nk_cast_sapphire(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                                  nk_dtype_t to_type, void *stream) {
+NUMKONG_API nk_status_t nk_cast_sapphire(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
+                                         nk_dtype_t to_type, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Group 1: Conversions to f16 (e4m3 → f16, e5m2 → f16)
     if (to_type == nk_f16_k && (from_type == nk_e4m3_k || from_type == nk_e5m2_k)) {
@@ -260,7 +261,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_cast_sapphire(void const *from, nk_dtype_t f
     }
 
     // Default: delegate to Ice for all other conversions
-    else nk_cast_icelake(from, from_type, n, to, to_type, stream);
+    else nk_cast_elementwise_icelake_(from, from_type, n, to, to_type);
     return nk_success_k;
 }
 
@@ -277,5 +278,5 @@ NUMKONG_API_COMPTIME nk_status_t nk_cast_sapphire(void const *from, nk_dtype_t f
 #endif
 
 #endif // NUMKONG_TARGET_SAPPHIRE
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_CAST_SAPPHIRE_H

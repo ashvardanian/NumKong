@@ -105,7 +105,7 @@ The tables below follow the [benchmark methodology](../../../bench/README.md#met
 The input size is controlled by the `NUMWARS_DIMS` environment variable and set to 256, 1024, and 4096 elements.
 The throughput is measured in GB/s as the number of input bytes per second.
 The published tables below summarize mean ULP (units in last place) across all test pairs — the average number of representable floating-point values between the computed result and the exact answer.
-The current `numkong_test` family also reports max/mean absolute and relative divergence error for detailed inspection.
+The current `numkong_cpu_test` family also reports max/mean absolute and relative divergence error for detailed inspection.
 
 ### Intel Sapphire Rapids
 

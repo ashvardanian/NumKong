@@ -29,11 +29,12 @@ error_stats_t test_kld(typename scalar_type_::probability_kernel_t kernel) {
         nk::fill_probability(generator, q.values_data(), global_config.dense_dimensions);
 
         result_t result;
-        kernel(p.raw_values_data(), q.raw_values_data(), global_config.dense_dimensions, &result.raw_);
+        stats.expect(
+            kernel(p.raw_values_data(), q.raw_values_data(), global_config.dense_dimensions, &result.raw_, nullptr));
 
         reference_t reference;
-        nk::kld<scalar_t, reference_t, nk::no_simd_k>(p.values_data(), q.values_data(), global_config.dense_dimensions,
-                                                      &reference);
+        nk::kld<scalar_t, reference_t>(p.values_data(), q.values_data(), global_config.dense_dimensions, &reference,
+                                       no_tiers_k);
 
         stats.accumulate(result, reference);
     }
@@ -60,11 +61,12 @@ error_stats_t test_jsd(typename scalar_type_::probability_kernel_t kernel) {
         nk::fill_probability(generator, q.values_data(), global_config.dense_dimensions);
 
         result_t result;
-        kernel(p.raw_values_data(), q.raw_values_data(), global_config.dense_dimensions, &result.raw_);
+        stats.expect(
+            kernel(p.raw_values_data(), q.raw_values_data(), global_config.dense_dimensions, &result.raw_, nullptr));
 
         reference_t reference;
-        nk::jsd<scalar_t, reference_t, nk::no_simd_k>(p.values_data(), q.values_data(), global_config.dense_dimensions,
-                                                      &reference);
+        nk::jsd<scalar_t, reference_t>(p.values_data(), q.values_data(), global_config.dense_dimensions, &reference,
+                                       no_tiers_k);
 
         stats.accumulate(result, reference);
     }
@@ -85,16 +87,16 @@ void test_probability() {
     check("jsd_bf16_serial", test_jsd<bf16_t>, nk_jsd_bf16_serial);
     check("jsd_f16_serial", test_jsd<f16_t>, nk_jsd_f16_serial);
 
-#if NUMKONG_RUNTIME_DISPATCH
+#if !NUMKONG_HEADER_ONLY
     check.section("Probability Divergences Runtime Dispatch", nk_cap_serial_k);
-    check("kld_f32", test_kld<f32_t>, nk_kld_f32);
-    check("kld_f64", test_kld<f64_t>, nk_kld_f64);
-    check("kld_f16", test_kld<f16_t>, nk_kld_f16);
-    check("kld_bf16", test_kld<bf16_t>, nk_kld_bf16);
-    check("jsd_f32", test_jsd<f32_t>, nk_jsd_f32);
-    check("jsd_f64", test_jsd<f64_t>, nk_jsd_f64);
-    check("jsd_f16", test_jsd<f16_t>, nk_jsd_f16);
-    check("jsd_bf16", test_jsd<bf16_t>, nk_jsd_bf16);
+    check("kld_f32", test_kld<f32_t>, cpu_best<nk_kld_f32_best>);
+    check("kld_f64", test_kld<f64_t>, cpu_best<nk_kld_f64_best>);
+    check("kld_f16", test_kld<f16_t>, cpu_best<nk_kld_f16_best>);
+    check("kld_bf16", test_kld<bf16_t>, cpu_best<nk_kld_bf16_best>);
+    check("jsd_f32", test_jsd<f32_t>, cpu_best<nk_jsd_f32_best>);
+    check("jsd_f64", test_jsd<f64_t>, cpu_best<nk_jsd_f64_best>);
+    check("jsd_f16", test_jsd<f16_t>, cpu_best<nk_jsd_f16_best>);
+    check("jsd_bf16", test_jsd<bf16_t>, cpu_best<nk_jsd_bf16_best>);
 #endif
 
 #if NUMKONG_TARGET_NEON

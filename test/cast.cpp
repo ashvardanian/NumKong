@@ -12,7 +12,7 @@
 
 using namespace ashvardanian::numkong::test;
 
-using cast_t = void (*)(void const *, nk_dtype_t, nk_size_t, void *, nk_dtype_t);
+using cast_t = nk_status_t (*)(void const *, nk_dtype_t, nk_size_t, void *, nk_dtype_t, void *);
 
 /**
  *  @brief Pull one logical element out of a vector as a primitive comparable value.
@@ -48,9 +48,9 @@ error_stats_t test_cast(cast_t kernel) {
         fill_random_bits(generator, source_vec);
 
         nk_cast_serial(source_vec.raw_values_data(), from_type_::dtype(), dimensions, reference_vec.raw_values_data(),
-                       to_type_::dtype());
-        kernel(source_vec.raw_values_data(), from_type_::dtype(), dimensions, target_vec.raw_values_data(),
-               to_type_::dtype());
+                       to_type_::dtype(), nullptr);
+        stats.expect(kernel(source_vec.raw_values_data(), from_type_::dtype(), dimensions, target_vec.raw_values_data(),
+                            to_type_::dtype(), nullptr));
 
         // Per-element comparison, dispatched to the smart reference for sub-byte types.
         for (std::size_t i = 0; i < target_vec.size(); ++i)
@@ -59,9 +59,9 @@ error_stats_t test_cast(cast_t kernel) {
     return stats;
 }
 
-using block_scaled_cast_t = void (*)(                                                         //
+using block_scaled_cast_t = nk_status_t (*)(                                                  //
     void const *, void const *, nk_scalar_buffer_t const *, nk_block_scaled_format_t const *, //
-    void *, void *, nk_scalar_buffer_t *, nk_block_scaled_format_t const *, nk_size_t);
+    void *, void *, nk_scalar_buffer_t *, nk_block_scaled_format_t const *, nk_size_t, void *);
 using block_scaled_format_factory_t = nk_block_scaled_format_t (*)(void);
 
 /** Tests a block-scaled cast kernel against the serial reference; direct analog of @c test_cast,
@@ -93,11 +93,11 @@ error_stats_t test_cast_block_scaled(block_scaled_cast_t kernel, block_scaled_fo
         nk_cast_block_scaled_serial(                                                          //
             source_vec.raw_values_data(), nullptr, nullptr, &plain_f32_format,                //
             reference_elements_vec.raw_values_data(), reference_scales_vec.raw_values_data(), //
-            has_tensor_scale ? &tensor_scale_reference : nullptr, &target_format, dimensions);
-        kernel(                                                                         //
+            has_tensor_scale ? &tensor_scale_reference : nullptr, &target_format, dimensions, nullptr);
+        stats.expect(kernel(                                                            //
             source_vec.raw_values_data(), nullptr, nullptr, &plain_f32_format,          //
             target_elements_vec.raw_values_data(), target_scales_vec.raw_values_data(), //
-            has_tensor_scale ? &tensor_scale_target : nullptr, &target_format, dimensions);
+            has_tensor_scale ? &tensor_scale_target : nullptr, &target_format, dimensions, nullptr));
 
         auto const *target_elements_raw = target_elements_vec.raw_values_data();
         auto const *reference_elements_raw = reference_elements_vec.raw_values_data();
@@ -149,43 +149,43 @@ void test_casts() {
     check("cast_block_scaled_mxfp8_e5m2_serial", test_cast_block_scaled, nk_cast_block_scaled_serial, nk_mxfp8_e5m2);
     check("cast_block_scaled_mxint8_serial", test_cast_block_scaled, nk_cast_block_scaled_serial, nk_mxint8);
 
-#if NUMKONG_RUNTIME_DISPATCH
+#if !NUMKONG_HEADER_ONLY
     check.section("Type Casts Runtime Dispatch", nk_cap_serial_k);
-    check("cast_f32_to_f16", test_cast<f32_t, f16_t>, nk_cast);
-    check("cast_f16_to_f32", test_cast<f16_t, f32_t>, nk_cast);
-    check("cast_f32_to_bf16", test_cast<f32_t, bf16_t>, nk_cast);
-    check("cast_bf16_to_f32", test_cast<bf16_t, f32_t>, nk_cast);
-    check("cast_f32_to_e4m3", test_cast<f32_t, e4m3_t>, nk_cast);
-    check("cast_e4m3_to_f32", test_cast<e4m3_t, f32_t>, nk_cast);
-    check("cast_f32_to_e5m2", test_cast<f32_t, e5m2_t>, nk_cast);
-    check("cast_e5m2_to_f32", test_cast<e5m2_t, f32_t>, nk_cast);
-    check("cast_f32_to_e2m3", test_cast<f32_t, e2m3_t>, nk_cast);
-    check("cast_e2m3_to_f32", test_cast<e2m3_t, f32_t>, nk_cast);
-    check("cast_f32_to_e3m2", test_cast<f32_t, e3m2_t>, nk_cast);
-    check("cast_e3m2_to_f32", test_cast<e3m2_t, f32_t>, nk_cast);
-    check("cast_f64_to_f32", test_cast<f64_t, f32_t>, nk_cast);
-    check("cast_f32_to_f64", test_cast<f32_t, f64_t>, nk_cast);
+    check("cast_f32_to_f16", test_cast<f32_t, f16_t>, cpu_best<nk_cast_best>);
+    check("cast_f16_to_f32", test_cast<f16_t, f32_t>, cpu_best<nk_cast_best>);
+    check("cast_f32_to_bf16", test_cast<f32_t, bf16_t>, cpu_best<nk_cast_best>);
+    check("cast_bf16_to_f32", test_cast<bf16_t, f32_t>, cpu_best<nk_cast_best>);
+    check("cast_f32_to_e4m3", test_cast<f32_t, e4m3_t>, cpu_best<nk_cast_best>);
+    check("cast_e4m3_to_f32", test_cast<e4m3_t, f32_t>, cpu_best<nk_cast_best>);
+    check("cast_f32_to_e5m2", test_cast<f32_t, e5m2_t>, cpu_best<nk_cast_best>);
+    check("cast_e5m2_to_f32", test_cast<e5m2_t, f32_t>, cpu_best<nk_cast_best>);
+    check("cast_f32_to_e2m3", test_cast<f32_t, e2m3_t>, cpu_best<nk_cast_best>);
+    check("cast_e2m3_to_f32", test_cast<e2m3_t, f32_t>, cpu_best<nk_cast_best>);
+    check("cast_f32_to_e3m2", test_cast<f32_t, e3m2_t>, cpu_best<nk_cast_best>);
+    check("cast_e3m2_to_f32", test_cast<e3m2_t, f32_t>, cpu_best<nk_cast_best>);
+    check("cast_f64_to_f32", test_cast<f64_t, f32_t>, cpu_best<nk_cast_best>);
+    check("cast_f32_to_f64", test_cast<f32_t, f64_t>, cpu_best<nk_cast_best>);
     // Integer ↔ integer
-    check("cast_i8_to_i32", test_cast<i8_t, i32_t>, nk_cast);
-    check("cast_i32_to_i8", test_cast<i32_t, i8_t>, nk_cast);
-    check("cast_u8_to_u32", test_cast<u8_t, u32_t>, nk_cast);
-    check("cast_u32_to_u8", test_cast<u32_t, u8_t>, nk_cast);
-    check("cast_i16_to_i64", test_cast<i16_t, i64_t>, nk_cast);
-    check("cast_i64_to_i16", test_cast<i64_t, i16_t>, nk_cast);
-    check("cast_i32_to_u32", test_cast<i32_t, u32_t>, nk_cast);
+    check("cast_i8_to_i32", test_cast<i8_t, i32_t>, cpu_best<nk_cast_best>);
+    check("cast_i32_to_i8", test_cast<i32_t, i8_t>, cpu_best<nk_cast_best>);
+    check("cast_u8_to_u32", test_cast<u8_t, u32_t>, cpu_best<nk_cast_best>);
+    check("cast_u32_to_u8", test_cast<u32_t, u8_t>, cpu_best<nk_cast_best>);
+    check("cast_i16_to_i64", test_cast<i16_t, i64_t>, cpu_best<nk_cast_best>);
+    check("cast_i64_to_i16", test_cast<i64_t, i16_t>, cpu_best<nk_cast_best>);
+    check("cast_i32_to_u32", test_cast<i32_t, u32_t>, cpu_best<nk_cast_best>);
     // Integer ↔ float
-    check("cast_i32_to_f64", test_cast<i32_t, f64_t>, nk_cast);
-    check("cast_f64_to_i32", test_cast<f64_t, i32_t>, nk_cast);
-    check("cast_i16_to_f32", test_cast<i16_t, f32_t>, nk_cast);
-    check("cast_u8_to_f32", test_cast<u8_t, f32_t>, nk_cast);
-    check("cast_f32_to_i8", test_cast<f32_t, i8_t>, nk_cast);
-    check("cast_i8_to_f64", test_cast<i8_t, f64_t>, nk_cast);
-    check("cast_f64_to_u8", test_cast<f64_t, u8_t>, nk_cast);
+    check("cast_i32_to_f64", test_cast<i32_t, f64_t>, cpu_best<nk_cast_best>);
+    check("cast_f64_to_i32", test_cast<f64_t, i32_t>, cpu_best<nk_cast_best>);
+    check("cast_i16_to_f32", test_cast<i16_t, f32_t>, cpu_best<nk_cast_best>);
+    check("cast_u8_to_f32", test_cast<u8_t, f32_t>, cpu_best<nk_cast_best>);
+    check("cast_f32_to_i8", test_cast<f32_t, i8_t>, cpu_best<nk_cast_best>);
+    check("cast_i8_to_f64", test_cast<i8_t, f64_t>, cpu_best<nk_cast_best>);
+    check("cast_f64_to_u8", test_cast<f64_t, u8_t>, cpu_best<nk_cast_best>);
     // Verify serial fallbacks for rare paths
-    check("cast_f64_to_f16", test_cast<f64_t, f16_t>, nk_cast);
-    check("cast_f16_to_f64", test_cast<f16_t, f64_t>, nk_cast);
-    check("cast_f64_to_bf16", test_cast<f64_t, bf16_t>, nk_cast);
-    check("cast_bf16_to_f64", test_cast<bf16_t, f64_t>, nk_cast);
+    check("cast_f64_to_f16", test_cast<f64_t, f16_t>, cpu_best<nk_cast_best>);
+    check("cast_f16_to_f64", test_cast<f16_t, f64_t>, cpu_best<nk_cast_best>);
+    check("cast_f64_to_bf16", test_cast<f64_t, bf16_t>, cpu_best<nk_cast_best>);
+    check("cast_bf16_to_f64", test_cast<bf16_t, f64_t>, cpu_best<nk_cast_best>);
 #endif
 
 #if NUMKONG_TARGET_HASWELL
@@ -318,6 +318,8 @@ void test_casts() {
 
 #if NUMKONG_TARGET_NEON
     check.section("Type Casts NEON", nk_cap_neon_k);
+    check("cast_bf16_to_f32_neon", test_cast<bf16_t, f32_t>, nk_cast_neon);
+    check("cast_f32_to_bf16_neon", test_cast<f32_t, bf16_t>, nk_cast_neon);
     check("cast_e4m3_to_f32_neon", test_cast<e4m3_t, f32_t>, nk_cast_neon);
     check("cast_f32_to_e4m3_neon", test_cast<f32_t, e4m3_t>, nk_cast_neon);
     check("cast_e5m2_to_f32_neon", test_cast<e5m2_t, f32_t>, nk_cast_neon);

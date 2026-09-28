@@ -44,15 +44,14 @@
 #ifndef NUMKONG_MAXSIM_SAPPHIREAMX_H
 #define NUMKONG_MAXSIM_SAPPHIREAMX_H
 
-#if NUMKONG_ARCH_X86_64_
-#if NUMKONG_TARGET_SAPPHIREAMX
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_SAPPHIREAMX_
 
 #include "numkong/types.h"
 #include "numkong/dots/sapphireamx.h" // AMX tile types, configure, load, transpose
-#include "numkong/dot/skylake.h"      // `nk_dot_f32_skylake`, `nk_dot_f16_skylake`
-#include "numkong/cast/haswell.h"     // `nk_f16_to_f32_haswell`
-#include "numkong/cast/serial.h"      // `nk_bf16_to_f32_serial`
-#include "numkong/scalar/haswell.h"   // `nk_f32_rsqrt_haswell`
+#include "numkong/dot/skylake.h"      // `nk_dot_f32_through_f64_skylake_`, `nk_dot_f16_through_f32_skylake_`
+#include "numkong/cast/serial.h"      // `nk_f16_to_f32_`, `nk_bf16_to_f32_`
+#include "numkong/spatial/haswell.h"  // `nk_rsqrt_f32x4_haswell_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -107,7 +106,10 @@ typedef struct {
     nk_u32_t screen_weights_offset;
 
     /** Padding to 64 bytes. */
-    nk_u32_t reserved[6];
+    nk_u32_t reserved[4];
+
+    /** The capability that packed the buffer, which every consumer checks. */
+    nk_capability_t capability;
 } nk_maxsim_sapphireamx_i8_header_t;
 
 nk_static_assert_(sizeof(nk_maxsim_sapphireamx_i8_header_t) == 64, nk_maxsim_sapphireamx_i8_header_must_be_64_bytes);
@@ -116,28 +118,40 @@ nk_static_assert_(sizeof(nk_maxsim_sapphireamx_i8_header_t) == 64, nk_maxsim_sap
 
 #pragma region F32 Floats
 
-NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_sapphireamx(nk_size_t vector_count, nk_size_t depth) {
+/** Bytes an F32 MaxSim pack of @p vector_count vectors of @p depth takes: header, AMX tiles, originals, norms. */
+NUMKONG_INLINE nk_size_t nk_maxsim_packed_bytes_f32_sapphireamx_(nk_size_t vector_count, nk_size_t depth) {
     nk_size_t column_tile_count = nk_size_divide_round_up_(vector_count, 16);
     nk_size_t depth_tile_count = nk_size_divide_round_up_(depth, 64);
     nk_size_t a_side_bytes = column_tile_count * depth_tile_count * 1024;
     nk_size_t b_side_bytes = column_tile_count * depth_tile_count * 1024;
     nk_size_t original_stride = nk_size_round_up_to_multiple_(depth * sizeof(nk_f32_t), 64);
     nk_size_t originals_bytes = vector_count * original_stride;
-    nk_size_t norms_bytes = vector_count * sizeof(nk_f32_t);
+    nk_size_t norms_bytes = vector_count * sizeof(nk_f64_t);
     nk_size_t screen_weights_bytes = vector_count * sizeof(nk_f32_t);
     return 64 + 63 + a_side_bytes + b_side_bytes + originals_bytes + norms_bytes + screen_weights_bytes;
 }
 
-NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f32_sapphireamx(void const *packed, nk_size_t *vectors,
-                                                                 nk_size_t *depth) {
-    nk_maxsim_sapphireamx_i8_header_t const *header = (nk_maxsim_sapphireamx_i8_header_t const *)packed;
-    *vectors = header->columns;
-    *depth = header->depth;
+#if NUMKONG_TARGET_SAPPHIREAMX
+NUMKONG_API nk_status_t nk_maxsim_pack_size_f32_sapphireamx(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes) {
+    *bytes = nk_maxsim_packed_bytes_f32_sapphireamx_(vector_count, depth);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_maxsim_pack_f32_sapphireamx( //
-    nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
-    nk_size_t const blob_bytes = nk_maxsim_pack_size_f32_sapphireamx(vector_count, depth);
+NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_sapphireamx(void const *packed, nk_size_t *vectors, nk_size_t *depth,
+                                                               void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_maxsim_sapphireamx_i8_header_t const *header = (nk_maxsim_sapphireamx_i8_header_t const *)packed;
+    if (header->capability != nk_cap_sapphireamx_k) return nk_pack_mismatch_k;
+    *vectors = header->columns;
+    *depth = header->depth;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_maxsim_pack_f32_sapphireamx( //
+    nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed,
+    void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_size_t blob_bytes = nk_maxsim_packed_bytes_f32_sapphireamx_(vector_count, depth);
     for (nk_size_t byte_index = 0; byte_index < blob_bytes; byte_index++) ((char *)packed)[byte_index] = 0;
 
     nk_size_t column_tile_count = nk_size_divide_round_up_(vector_count, 16);
@@ -160,14 +174,15 @@ NUMKONG_API_COMPTIME void nk_maxsim_pack_f32_sapphireamx( //
     header->original_stride_bytes = (nk_u32_t)original_stride_bytes;
     header->norms_offset = (nk_u32_t)(a_side_offset + a_side_total_bytes + b_side_total_bytes +
                                       vector_count * original_stride_bytes);
-    header->screen_weights_offset = (nk_u32_t)(header->norms_offset + vector_count * sizeof(nk_f32_t));
-    for (nk_size_t reserved_index = 0; reserved_index < 6; reserved_index++) header->reserved[reserved_index] = 0;
+    header->screen_weights_offset = (nk_u32_t)(header->norms_offset + vector_count * sizeof(nk_f64_t));
+    header->capability = nk_cap_sapphireamx_k;
+    for (nk_size_t reserved_index = 0; reserved_index < 4; reserved_index++) header->reserved[reserved_index] = 0;
 
     // Pointers to data regions (A-side is guaranteed 64B-aligned)
     nk_i8_t *a_side_base = (nk_i8_t *)((char *)packed + a_side_offset);
     char *b_side_base = (char *)packed + header->b_side_offset;
     char *originals_base = (char *)packed + header->originals_offset;
-    nk_f32_t *inverse_norms = (nk_f32_t *)((char *)packed + header->norms_offset);
+    nk_f64_t *inverse_norms = (nk_f64_t *)((char *)packed + header->norms_offset);
     nk_f32_t *screen_weights = (nk_f32_t *)((char *)packed + header->screen_weights_offset);
 
     // Zero all A-side tiles (aligned stores — A-side offset is 64B-aligned)
@@ -183,12 +198,12 @@ NUMKONG_API_COMPTIME void nk_maxsim_pack_f32_sapphireamx( //
 
         // Pass 1: find absmax and norm_squared
         nk_f32_t absmax_f32 = 0.0f;
-        nk_f32_t norm_squared_f32 = 0.0f;
+        nk_f64_t norm_squared_f64 = 0.0;
         for (nk_size_t dimension_index = 0; dimension_index < depth; dimension_index++) {
             nk_f32_t element_f32 = source_vector[dimension_index];
             nk_f32_t abs_element_f32 = nk_f32_abs_(element_f32);
             if (abs_element_f32 > absmax_f32) absmax_f32 = abs_element_f32;
-            norm_squared_f32 += element_f32 * element_f32;
+            norm_squared_f64 += (nk_f64_t)element_f32 * element_f32;
         }
 
         // Pass 2: quantize to i8 [-127,127] and scatter into A-side tile positions
@@ -208,8 +223,8 @@ NUMKONG_API_COMPTIME void nk_maxsim_pack_f32_sapphireamx( //
         }
 
         // Store inverse norm and screening weight
-        inverse_norms[vector_index] = (norm_squared_f32 > 0.0f) ? nk_f32_rsqrt_haswell(norm_squared_f32) : 0.0f;
-        screen_weights[vector_index] = absmax_f32 / 127.0f * inverse_norms[vector_index];
+        inverse_norms[vector_index] = norm_squared_f64 > 0.0 ? nk_f64_rsqrt_(norm_squared_f64) : 0.0;
+        screen_weights[vector_index] = absmax_f32 / 127.0f * (nk_f32_t)inverse_norms[vector_index];
 
         // Copy original vector with 64B-aligned stride
         char *destination_original = originals_base + vector_index * original_stride_bytes;
@@ -226,11 +241,26 @@ NUMKONG_API_COMPTIME void nk_maxsim_pack_f32_sapphireamx( //
                                                                                       tile_flat_index * 1024);
         nk_dots_pack_i8_transposed_sapphireamx_(a_tile, b_tile);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_maxsim_packed_f32_sapphireamx( //
-    void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
-    nk_size_t depth, nk_f64_t *result) {
+NUMKONG_INLINE nk_f64_t nk_maxsim_refine_f32_sapphireamx_(void const *query, void const *document, nk_size_t depth) {
+    nk_f64_t dot;
+    nk_dot_f32_through_f64_skylake_((nk_f32_t const *)query, (nk_f32_t const *)document, depth, &dot);
+    return dot;
+}
+
+NUMKONG_INLINE nk_f64_t nk_maxsim_refine_f16_sapphireamx_(void const *query, void const *document, nk_size_t depth) {
+    nk_f32_t dot;
+    nk_dot_f16_through_f32_skylake_((nk_f16_t const *)query, (nk_f16_t const *)document, depth, &dot);
+    return dot;
+}
+
+/** Σ minⱼ angular(qᵢ, dⱼ) over two i8 packs: screens 16 × 64 blocks with TDPBSSD, then refines with
+ *  @p refine_dot every document the screen cannot rule out, so the result matches an exhaustive search. */
+NUMKONG_INLINE nk_f64_t nk_maxsim_packed_i8_sapphireamx_(                                   //
+    void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count, //
+    nk_size_t depth, nk_maxsim_refine_dot_t refine_dot) {
 
     nk_maxsim_sapphireamx_i8_header_t const *query_header = (nk_maxsim_sapphireamx_i8_header_t const *)query_packed;
     nk_maxsim_sapphireamx_i8_header_t const *document_header =
@@ -250,29 +280,35 @@ NUMKONG_API_COMPTIME void nk_maxsim_packed_f32_sapphireamx( //
     nk_size_t const query_original_stride = query_header->original_stride_bytes;
     nk_size_t const document_original_stride = document_header->original_stride_bytes;
 
-    nk_f32_t const *query_inverse_norms = (nk_f32_t const *)((char const *)query_packed + query_header->norms_offset);
-    nk_f32_t const *document_inverse_norms = (nk_f32_t const *)((char const *)document_packed +
+    nk_f64_t const *query_inverse_norms = (nk_f64_t const *)((char const *)query_packed + query_header->norms_offset);
+    nk_f64_t const *document_inverse_norms = (nk_f64_t const *)((char const *)document_packed +
                                                                 document_header->norms_offset);
+    nk_f32_t const *query_screen_weights = (nk_f32_t const *)((char const *)query_packed +
+                                                              query_header->screen_weights_offset);
     nk_f32_t const *document_screen_weights = (nk_f32_t const *)((char const *)document_packed +
                                                                  document_header->screen_weights_offset);
+    nk_f32_t const residue = 0.5f * nk_f32_sqrt_((nk_f32_t)depth);
 
     nk_amx_tile_configure_sapphireamx_();
 
-    // Gather indices for column extraction from 16×16 tile:
-    // tile_result[row][col] at i32 offset row*16 + col
-    __m512i const row_stride_indices_i32x16 = _mm512_setr_epi32(0, 16, 32, 48, 64, 80, 96, 112, 128, 144, 160, 176, 192,
-                                                                208, 224, 240);
-
-    nk_f64_t total_angular_distance_f64 = 0.0;
+    nk_f64_t total_angular_distance_f64 = 0.0, total_compensation_f64 = 0.0;
 
     for (nk_size_t query_tile_index = 0; query_tile_index < query_tile_count; query_tile_index++) {
         nk_size_t query_row_start = query_tile_index * 16;
         nk_size_t valid_queries = (query_row_start + 16 <= query_count) ? 16 : (query_count - query_row_start);
 
-        __m512 running_maximum_f32x16 = _mm512_set1_ps(NUMKONG_F32_MIN);
-        __m512i running_argmax_i32x16 = _mm512_setzero_si512();
+        nk_maxsim_screen_error_t errors[16];
+        nk_f32_t lower_bounds[16];
+        nk_f64_t best_cosines[16];
+        for (nk_size_t query_in_tile = 0; query_in_tile < valid_queries; query_in_tile++) {
+            errors[query_in_tile] = nk_maxsim_screen_error_(query_screen_weights[query_row_start + query_in_tile],
+                                                            residue, depth);
+            lower_bounds[query_in_tile] = NUMKONG_F32_MIN;
+            best_cosines[query_in_tile] = NUMKONG_F32_MIN;
+        }
 
         NUMKONG_ALIGN64_ nk_i32_t tile_results_i32[4][16][16];
+        nk_u32_t candidates[16];
         nk_size_t document_tile_index = 0;
 
         // Fast path: 4 document tiles at a time
@@ -377,9 +413,10 @@ NUMKONG_API_COMPTIME void nk_maxsim_packed_f32_sapphireamx( //
             nk_u32_t best_document_index = (nk_u32_t)best_document_indices_i32[query_in_tile];
 
             nk_f64_t dot_result_f64;
-            nk_dot_f32_skylake((nk_f32_t const *)(query_originals + query_index * query_original_stride),
-                               (nk_f32_t const *)(document_originals + best_document_index * document_original_stride),
-                               depth, &dot_result_f64);
+            nk_dot_f32_through_f64_skylake_(
+                (nk_f32_t const *)(query_originals + query_index * query_original_stride),
+                (nk_f32_t const *)(document_originals + best_document_index * document_original_stride), depth,
+                &dot_result_f64);
 
             nk_f64_t cosine_f64 = dot_result_f64 * (nk_f64_t)query_inverse_norms[query_index] *
                                   (nk_f64_t)document_inverse_norms[best_document_index];
@@ -390,13 +427,16 @@ NUMKONG_API_COMPTIME void nk_maxsim_packed_f32_sapphireamx( //
     }
 
     *result = total_angular_distance_f64;
+    return nk_success_k;
 }
+#endif // NUMKONG_TARGET_SAPPHIREAMX
 
 #pragma endregion F32 Floats
 
 #pragma region F16 Floats
 
-NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_sapphireamx(nk_size_t vector_count, nk_size_t depth) {
+/** Bytes an F16 MaxSim pack of @p vector_count vectors of @p depth takes: header, AMX tiles, originals, norms. */
+NUMKONG_INLINE nk_size_t nk_maxsim_packed_bytes_f16_sapphireamx_(nk_size_t vector_count, nk_size_t depth) {
     nk_size_t column_tile_count = nk_size_divide_round_up_(vector_count, 16);
     nk_size_t depth_tile_count = nk_size_divide_round_up_(depth, 64);
     nk_size_t a_side_bytes = column_tile_count * depth_tile_count * 1024;
@@ -408,16 +448,27 @@ NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_sapphireamx(nk_size_t vec
     return 64 + 63 + a_side_bytes + b_side_bytes + originals_bytes + norms_bytes + screen_weights_bytes;
 }
 
-NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f16_sapphireamx(void const *packed, nk_size_t *vectors,
-                                                                 nk_size_t *depth) {
-    nk_maxsim_sapphireamx_i8_header_t const *header = (nk_maxsim_sapphireamx_i8_header_t const *)packed;
-    *vectors = header->columns;
-    *depth = header->depth;
+#if NUMKONG_TARGET_SAPPHIREAMX
+NUMKONG_API nk_status_t nk_maxsim_pack_size_f16_sapphireamx(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes) {
+    *bytes = nk_maxsim_packed_bytes_f16_sapphireamx_(vector_count, depth);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_sapphireamx( //
-    nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
-    nk_size_t const blob_bytes = nk_maxsim_pack_size_f16_sapphireamx(vector_count, depth);
+NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_sapphireamx(void const *packed, nk_size_t *vectors, nk_size_t *depth,
+                                                               void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_maxsim_sapphireamx_i8_header_t const *header = (nk_maxsim_sapphireamx_i8_header_t const *)packed;
+    if (header->capability != nk_cap_sapphireamx_k) return nk_pack_mismatch_k;
+    *vectors = header->columns;
+    *depth = header->depth;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_maxsim_pack_f16_sapphireamx( //
+    nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed,
+    void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_size_t blob_bytes = nk_maxsim_packed_bytes_f16_sapphireamx_(vector_count, depth);
     for (nk_size_t byte_index = 0; byte_index < blob_bytes; byte_index++) ((char *)packed)[byte_index] = 0;
 
     nk_size_t column_tile_count = nk_size_divide_round_up_(vector_count, 16);
@@ -441,7 +492,8 @@ NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_sapphireamx( //
     header->norms_offset = (nk_u32_t)(a_side_offset + a_side_total_bytes + b_side_total_bytes +
                                       vector_count * original_stride_bytes);
     header->screen_weights_offset = (nk_u32_t)(header->norms_offset + vector_count * sizeof(nk_f32_t));
-    for (nk_size_t reserved_index = 0; reserved_index < 6; reserved_index++) header->reserved[reserved_index] = 0;
+    header->capability = nk_cap_sapphireamx_k;
+    for (nk_size_t reserved_index = 0; reserved_index < 4; reserved_index++) header->reserved[reserved_index] = 0;
 
     // Pointers to data regions (A-side is guaranteed 64B-aligned)
     nk_i8_t *a_side_base = (nk_i8_t *)((char *)packed + a_side_offset);
@@ -467,7 +519,7 @@ NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_sapphireamx( //
         nk_f32_t norm_squared_f32 = 0.0f;
         for (nk_size_t dimension_index = 0; dimension_index < depth; dimension_index++) {
             nk_f32_t element_f32;
-            nk_f16_to_f32_haswell(&source_vector[dimension_index], &element_f32);
+            nk_f16_to_f32_(&source_vector[dimension_index], &element_f32);
             nk_f32_t abs_element_f32 = nk_f32_abs_(element_f32);
             if (abs_element_f32 > absmax_f32) absmax_f32 = abs_element_f32;
             norm_squared_f32 += element_f32 * element_f32;
@@ -480,7 +532,7 @@ NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_sapphireamx( //
 
         for (nk_size_t dimension_index = 0; dimension_index < depth; dimension_index++) {
             nk_f32_t element_f32;
-            nk_f16_to_f32_haswell(&source_vector[dimension_index], &element_f32);
+            nk_f16_to_f32_(&source_vector[dimension_index], &element_f32);
             nk_f32_t scaled_f32 = element_f32 * inverse_absmax_f32 * 127.0f;
             nk_i8_t quantized_i8 = (nk_i8_t)(scaled_f32 + (element_f32 > 0.0f ? 0.5f : -0.5f));
 
@@ -491,7 +543,9 @@ NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_sapphireamx( //
         }
 
         // Store inverse norm and screening weight
-        inverse_norms[vector_index] = (norm_squared_f32 > 0.0f) ? nk_f32_rsqrt_haswell(norm_squared_f32) : 0.0f;
+        inverse_norms[vector_index] = (norm_squared_f32 > 0.0f)
+                                          ? _mm_cvtss_f32(nk_rsqrt_f32x4_haswell_(_mm_set_ss(norm_squared_f32)))
+                                          : 0.0f;
         screen_weights[vector_index] = absmax_f32 / 127.0f * inverse_norms[vector_index];
 
         // Copy original f16 vector with 64B-aligned stride
@@ -509,11 +563,16 @@ NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_sapphireamx( //
                                                                                       tile_flat_index * 1024);
         nk_dots_pack_i8_transposed_sapphireamx_(a_tile, b_tile);
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_maxsim_packed_f16_sapphireamx( //
+NUMKONG_API nk_status_t nk_maxsim_packed_f16_sapphireamx( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
-    nk_size_t depth, nk_f32_t *result) {
+    nk_size_t depth, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (((nk_maxsim_sapphireamx_i8_header_t const *)query_packed)->capability != nk_cap_sapphireamx_k ||
+        ((nk_maxsim_sapphireamx_i8_header_t const *)document_packed)->capability != nk_cap_sapphireamx_k)
+        return nk_pack_mismatch_k;
 
     nk_maxsim_sapphireamx_i8_header_t const *query_header = (nk_maxsim_sapphireamx_i8_header_t const *)query_packed;
     nk_maxsim_sapphireamx_i8_header_t const *document_header =
@@ -657,9 +716,10 @@ NUMKONG_API_COMPTIME void nk_maxsim_packed_f16_sapphireamx( //
             nk_u32_t best_document_index = (nk_u32_t)best_document_indices_i32[query_in_tile];
 
             nk_f32_t dot_result_f32;
-            nk_dot_f16_skylake((nk_f16_t const *)(query_originals + query_index * query_original_stride),
-                               (nk_f16_t const *)(document_originals + best_document_index * document_original_stride),
-                               depth, &dot_result_f32);
+            nk_dot_f16_through_f32_skylake_(
+                (nk_f16_t const *)(query_originals + query_index * query_original_stride),
+                (nk_f16_t const *)(document_originals + best_document_index * document_original_stride), depth,
+                &dot_result_f32);
 
             nk_f32_t cosine_f32 = dot_result_f32 * query_inverse_norms[query_index] *
                                   document_inverse_norms[best_document_index];
@@ -670,7 +730,9 @@ NUMKONG_API_COMPTIME void nk_maxsim_packed_f16_sapphireamx( //
     }
 
     *result = (nk_f32_t)total_angular_distance_f64;
+    return nk_success_k;
 }
+#endif // NUMKONG_TARGET_SAPPHIREAMX
 
 #pragma endregion F16 Floats
 
@@ -703,13 +765,17 @@ typedef struct {
     nk_u32_t norms_offset;
 
     /** Padding to 64 bytes. */
-    nk_u32_t reserved[9];
+    nk_u32_t reserved[7];
+
+    /** The capability that packed the buffer, which every consumer checks. */
+    nk_capability_t capability;
 } nk_maxsim_sapphireamx_bf16_header_t;
 
 nk_static_assert_(sizeof(nk_maxsim_sapphireamx_bf16_header_t) == 64,
                   nk_maxsim_sapphireamx_bf16_header_must_be_64_bytes);
 
-NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_sapphireamx(nk_size_t vector_count, nk_size_t depth) {
+/** Bytes a BF16 MaxSim pack of @p vector_count vectors of @p depth takes: header, AMX tiles, norms. */
+NUMKONG_INLINE nk_size_t nk_maxsim_packed_bytes_bf16_sapphireamx_(nk_size_t vector_count, nk_size_t depth) {
     nk_size_t const tile_bytes = 1024; // 16 × 32 × 2B = 1KB per tile
     nk_size_t column_tile_count = nk_size_divide_round_up_(vector_count, 16);
     nk_size_t depth_tile_count = nk_size_divide_round_up_(depth, 32);
@@ -719,16 +785,28 @@ NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_sapphireamx(nk_size_t ve
     return sizeof(nk_maxsim_sapphireamx_bf16_header_t) + 63 + a_side_bytes + b_side_bytes + norms_bytes;
 }
 
-NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_bf16_sapphireamx(void const *packed, nk_size_t *vectors,
-                                                                  nk_size_t *depth) {
-    nk_maxsim_sapphireamx_bf16_header_t const *header = (nk_maxsim_sapphireamx_bf16_header_t const *)packed;
-    *vectors = header->columns;
-    *depth = header->depth;
+#if NUMKONG_TARGET_SAPPHIREAMX
+NUMKONG_API nk_status_t nk_maxsim_pack_size_bf16_sapphireamx(nk_size_t vector_count, nk_size_t depth,
+                                                             nk_size_t *bytes) {
+    *bytes = nk_maxsim_packed_bytes_bf16_sapphireamx_(vector_count, depth);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_maxsim_pack_bf16_sapphireamx( //
-    nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
-    nk_size_t const blob_bytes = nk_maxsim_pack_size_bf16_sapphireamx(vector_count, depth);
+NUMKONG_API nk_status_t nk_maxsim_packed_shape_bf16_sapphireamx(void const *packed, nk_size_t *vectors,
+                                                                nk_size_t *depth, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_maxsim_sapphireamx_bf16_header_t const *header = (nk_maxsim_sapphireamx_bf16_header_t const *)packed;
+    if (header->capability != nk_cap_sapphireamx_k) return nk_pack_mismatch_k;
+    *vectors = header->columns;
+    *depth = header->depth;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_maxsim_pack_bf16_sapphireamx( //
+    nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed,
+    void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_size_t blob_bytes = nk_maxsim_packed_bytes_bf16_sapphireamx_(vector_count, depth);
     for (nk_size_t byte_index = 0; byte_index < blob_bytes; byte_index++) ((char *)packed)[byte_index] = 0;
 
     nk_size_t const tile_bytes = 1024;
@@ -752,7 +830,8 @@ NUMKONG_API_COMPTIME void nk_maxsim_pack_bf16_sapphireamx( //
     nk_size_t b_side_total_bytes = column_tile_count * depth_tile_count * tile_bytes;
     header->b_side_offset = (nk_u32_t)(a_side_offset + a_side_total_bytes);
     header->norms_offset = (nk_u32_t)(a_side_offset + a_side_total_bytes + b_side_total_bytes);
-    for (nk_size_t reserved_index = 0; reserved_index < 9; reserved_index++) header->reserved[reserved_index] = 0;
+    header->capability = nk_cap_sapphireamx_k;
+    for (nk_size_t reserved_index = 0; reserved_index < 7; reserved_index++) header->reserved[reserved_index] = 0;
 
     // Pointers to data regions (A-side is guaranteed 64B-aligned)
     char *a_side_base = (char *)packed + a_side_offset;
@@ -791,16 +870,23 @@ NUMKONG_API_COMPTIME void nk_maxsim_pack_bf16_sapphireamx( //
         nk_f32_t norm_squared_f32 = 0.0f;
         for (nk_size_t dimension_index = 0; dimension_index < depth; dimension_index++) {
             nk_f32_t element_f32;
-            nk_bf16_to_f32_serial(&source_vector[dimension_index], &element_f32);
+            nk_bf16_to_f32_(&source_vector[dimension_index], &element_f32);
             norm_squared_f32 += element_f32 * element_f32;
         }
-        inverse_norms[vector_index] = (norm_squared_f32 > 0.0f) ? nk_f32_rsqrt_haswell(norm_squared_f32) : 0.0f;
+        inverse_norms[vector_index] = (norm_squared_f32 > 0.0f)
+                                          ? _mm_cvtss_f32(nk_rsqrt_f32x4_haswell_(_mm_set_ss(norm_squared_f32)))
+                                          : 0.0f;
     }
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_maxsim_packed_bf16_sapphireamx( //
+NUMKONG_API nk_status_t nk_maxsim_packed_bf16_sapphireamx( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
-    nk_size_t depth, nk_f32_t *result) {
+    nk_size_t depth, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (((nk_maxsim_sapphireamx_bf16_header_t const *)query_packed)->capability != nk_cap_sapphireamx_k ||
+        ((nk_maxsim_sapphireamx_bf16_header_t const *)document_packed)->capability != nk_cap_sapphireamx_k)
+        return nk_pack_mismatch_k;
 
     nk_unused_(depth); // tile counts from header encode depth
 
@@ -938,7 +1024,9 @@ NUMKONG_API_COMPTIME void nk_maxsim_packed_bf16_sapphireamx( //
     }
 
     *result = (nk_f32_t)total_angular_distance_f64;
+    return nk_success_k;
 }
+#endif // NUMKONG_TARGET_SAPPHIREAMX
 
 #pragma endregion BF16 Floats
 
@@ -952,6 +1040,6 @@ NUMKONG_API_COMPTIME void nk_maxsim_packed_bf16_sapphireamx( //
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_SAPPHIREAMX
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_SAPPHIREAMX_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_MAXSIM_SAPPHIREAMX_H

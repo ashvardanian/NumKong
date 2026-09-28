@@ -85,12 +85,22 @@ This ensures the output is always a proper rotation matrix with $\det(R) = +1$.
 `nk_umeyama_f32_haswell`, `nk_umeyama_f64_skylake` fold the computed scale factor $s$ into the rotation matrix before applying to points.
 The Umeyama transform is $b_i = s R a_i + t$; by precomputing $R' = s R$ once, the per-point operation reduces to $b_i = R' a_i + t$, avoiding a per-point scalar multiply.
 
+### Pivot-Shifted Moments and Residual SSD
+
+Kabsch and Umeyama shift every point by the first one of its cloud before accumulating the sums and products, so the centering correction scales with the spread of the cloud rather than its distance from the origin.
+`f64` and `f32` inputs then take a second pass, summing $\|s R (a_i - \bar{a}) - (b_i - \bar{b})\|^2$ directly, as folding it into $\|A\|^2 + \|B\|^2 - 2 s \operatorname{tr}(R H)$ cancels to $\sqrt{\varepsilon}$ once the clouds align.
+`f32` inputs run both passes in `f64`.
+`f16` and `bf16` inputs keep a single pass with the folded form, clamped at zero, since its $\sqrt{\varepsilon}$ of `f32` stays below their own quantization.
+FMLAL shifts `f16` points with FP16 subtraction, while BFDOT and VDPBF16PS shift `bf16` points in `f32` and round them back, each rounding by at most half a ULP of the shifted value.
+Clouds with a point over 65504 away from its pivot overflow the FP16 shift and take the widening NEON pass instead.
+Tests judge these kernels against a bound derived from that arithmetic: the input type's unit roundoff over the clouds' RMS distance from their pivots, plus $n$ roundings of the `f32` moments.
+
 ### Why SME and SVE Were Removed
 
 Historical note: experimental SME variants of RMSD, Kabsch, and Umeyama were implemented in 1,052 lines across `sme.h` and `smef64.h` (commit `0e0bc30c`) and removed 4 days later (commit `f55e9a71`).
 The fundamental mismatch: the algorithm computes a 3×3 cross-covariance matrix $H = \sum (a_i - \bar{a})(b_i - \bar{b})^T$ — a sum of outer products of 3D vectors.
 SME's `FMOPA` operates on SVL-wide vectors (16+ elements at SVL=512), but the outer products here are 3×3 — the tile is 99.6% wasted (9 useful cells out of 256).
-Three approaches were explored in a design document (`sme_design.h`, 398 lines):
+Three approaches were explored in a design document that never landed in the repository:
 (1) batched outer products — reformulates as 9 independent dot products but loses SME's outer-product strength, falling back to what NEON already does;
 (2) streaming SVE with `svld3` — hardware stride-3 deinterleaving processes 16 points per iteration vs NEON's 4, but `SMSTART`/`SMSTOP` mode transitions cost ~100 cycles and the 3×3 SVD step cannot use streaming mode at all;
 (3) SME for SVD — the 3×3 matrix cannot fill even one 16×16 tile.
@@ -99,14 +109,10 @@ Experimental SVE mesh kernels (`sve.h`, `svehalf.h`, 112 lines total) were remov
 
 ## Performance
 
-The following performance tables are produced by manually re-running `numkong_test` and `numkong_bench` included internal tools to measure both accuracy and throughput at different input shapes.
+The tables below follow the [benchmark methodology](../../../bench/README.md#methodology).
 The input size is controlled by the `NUMWARS_MESH_POINTS` environment variable and set to 256, 1024, and 4096 points.
 Each alignment computes centroids, covariance, and a 3×3 SVD over $N$ point pairs, so cost is $O(N)$ per alignment with a large constant.
 The throughput is measured in mp/s as millions of 3D points aligned per second.
-Accuracy is reported as mean ULP (units in last place) unless noted otherwise — the average number of representable floating-point values between the result and the exact answer.
-Each kernel runs for at least 20 seconds per configuration.
-Benchmark threads are pinned to specific cores; on machines with heterogeneous core types (e.g., Apple P/E cores), only the fastest cores are used.
-Workloads that significantly degrade CPU frequencies (Intel AMX, Apple SME) run in separate passes to avoid affecting throughput measurements of other kernels.
 
 ### Intel Granite Rapids
 

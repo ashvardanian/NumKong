@@ -41,7 +41,7 @@
  *  multiple of 64, K pads positions to a multiple of 16, one 16-lane score tile, and V to a
  *  multiple of 4. The row-max sweep covers live columns only: a zero-padded position's score of 0
  *  could otherwise raise the max and zero out an all-negative row's weight sum. depth > 256 routes
- *  to the width-agnostic serial tier from every entry point.
+ *  to the width-agnostic serial kernel from every entry point.
  *
  *  Per-segment payload is [K planes][V planes][Σk tables] across @c num_kv_heads heads: the K and V
  *  planes as above, round_up(length, 16) · dim_padded bytes each, then one I32 Σk per padded KV
@@ -52,8 +52,8 @@
 #ifndef NUMKONG_ATTENTION_ICELAKE_H
 #define NUMKONG_ATTENTION_ICELAKE_H
 
-#if NUMKONG_ARCH_X86_64_
-#if NUMKONG_TARGET_ICELAKE
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_ICELAKE_
 
 #include "numkong/attention/serial.h" // shared packed-KV header/directory, width-agnostic fallback
 #include "numkong/each/skylake.h"     // `nk_exp2_f32x16_skylake_`, `nk_exp2_u8_i32x16_skylake_`
@@ -80,7 +80,7 @@ enum {
     /** KV panel width in positions; the I32 score row (2 KB) stays L1-resident. */
     nk_attention_panel_icelake_k_ = 512,
 
-    /** Widest head this backend handles in registers; larger heads route to the serial tier. */
+    /** Widest head this backend handles in registers; larger heads route to the serial kernel. */
     nk_attention_max_depth_icelake_k_ = 256,
 };
 
@@ -89,8 +89,8 @@ enum {
  *  the VNNI depth-quad tiles. The @c shuffle_i32x4 stages emit rows in the group order
  *  `groups[i]` holds group `{0,1,2,3,8,9,10,11,4,5,6,7,12,13,14,15}[i]`; the caller restores
  *  natural order at store. */
-NUMKONG_HELPER_INLINE void nk_attention_transpose_i32x16x16_icelake_(__m512i const rows_i32x16[16],
-                                                                     __m512i groups_i32x16[16]) {
+NUMKONG_INLINE void nk_attention_transpose_i32x16x16_icelake_(__m512i const rows_i32x16[16],
+                                                              __m512i groups_i32x16[16]) {
     __m512i t01_low_i32x16 = _mm512_unpacklo_epi32(rows_i32x16[0], rows_i32x16[1]),
             t01_high_i32x16 = _mm512_unpackhi_epi32(rows_i32x16[0], rows_i32x16[1]);
     __m512i t23_low_i32x16 = _mm512_unpacklo_epi32(rows_i32x16[2], rows_i32x16[3]),
@@ -157,9 +157,8 @@ NUMKONG_HELPER_INLINE void nk_attention_transpose_i32x16x16_icelake_(__m512i con
     groups_i32x16[15] = _mm512_shuffle_i32x4(v3_b_i32x16, v7_b_i32x16, 0xDD);
 }
 
-NUMKONG_HELPER_INLINE nk_size_t nk_attention_pack_size_icelake_(nk_size_t key_value_head_count, nk_size_t depth,
-                                                                nk_u32_t const *segment_lengths,
-                                                                nk_size_t segment_count) {
+NUMKONG_INLINE nk_size_t nk_attention_pack_size_icelake_(nk_size_t key_value_head_count, nk_size_t depth,
+                                                         nk_u32_t const *segment_lengths, nk_size_t segment_count) {
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 64);
     nk_size_t payload_bytes = 0; // raw I8 K/V planes plus one I32 Σk per KV position, folded as `+ 2` per plane pair
     for (nk_size_t segment_idx = 0; segment_idx < segment_count; segment_idx++)
@@ -169,40 +168,48 @@ NUMKONG_HELPER_INLINE nk_size_t nk_attention_pack_size_icelake_(nk_size_t key_va
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
 }
 
-NUMKONG_API_COMPTIME nk_size_t nk_attention_pack_size_i8_icelake(nk_size_t key_value_head_count, nk_size_t depth,
-                                                                 nk_u32_t const *segment_lengths,
-                                                                 nk_size_t segment_count) {
-    if (depth > nk_attention_max_depth_icelake_k_)
-        return nk_attention_pack_size_i8_serial(key_value_head_count, depth, segment_lengths, segment_count);
-    return nk_attention_pack_size_icelake_(key_value_head_count, depth, segment_lengths, segment_count);
+#if NUMKONG_TARGET_ICELAKE
+NUMKONG_API nk_status_t nk_attention_pack_size_i8_icelake(nk_size_t key_value_head_count, nk_size_t depth,
+                                                          nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                          nk_size_t *bytes) {
+    if (depth > nk_attention_max_depth_icelake_k_) {
+        *bytes = nk_attention_pack_size_i8_(key_value_head_count, depth, segment_lengths, segment_count);
+        return nk_success_k;
+    }
+    *bytes = nk_attention_pack_size_icelake_(key_value_head_count, depth, segment_lengths, segment_count);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_attention_packed_shape_i8_icelake(void const *key_value_packed, nk_size_t *heads,
-                                                               nk_size_t *depth, nk_size_t *segments) {
+NUMKONG_API nk_status_t nk_attention_packed_shape_i8_icelake(void const *key_value_packed, nk_size_t *heads,
+                                                             nk_size_t *depth, nk_size_t *segments, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!nk_attention_packed_by_(key_value_packed, nk_cap_icelake_k)) return nk_pack_mismatch_k;
     nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
+    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME void nk_attention_pack_i8_icelake(                                                        //
+NUMKONG_API nk_status_t nk_attention_pack_i8_icelake(                                                          //
     nk_i8_t const *keys, nk_i8_t const *values, nk_size_t key_value_head_count, nk_size_t depth,               //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                                          //
     nk_size_t segment_count, nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, void *key_value_packed, //
-    nk_size_t task_begin, nk_size_t task_end) {
+    nk_size_t task_begin, nk_size_t task_end, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
     if (depth > nk_attention_max_depth_icelake_k_) {
-        nk_attention_pack_i8_serial(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
-                                    segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, task_begin,
-                                    task_end);
-        return;
+        nk_attention_pack_i8_serial_(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
+                                     segment_count, key_stride_bytes, value_stride_bytes, key_value_packed, task_begin,
+                                     task_end, nk_cap_icelake_k);
+        return nk_success_k;
     }
 
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 64);
     nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count,
-                                 task_begin, 16, depth_padded + 2);
+                                 task_begin, 16, depth_padded + 2, nk_cap_icelake_k);
     nk_attention_packed_header_t *header = (nk_attention_packed_header_t *)key_value_packed;
     nk_u64_t const *payload_offsets_ro = (nk_u64_t const *)((char *)key_value_packed + sizeof(*header));
     char *payload_base = (char *)key_value_packed + sizeof(*header) + nk_attention_pack_directory_size_(segment_count);
 
     nk_size_t const total_tasks = segment_count * key_value_head_count;
-    if (task_begin >= total_tasks) return;
+    if (task_begin >= total_tasks) return nk_success_k;
     if (task_end > total_tasks) task_end = total_tasks;
 
     for (nk_size_t task_idx = task_begin; task_idx < task_end; task_idx++) {
@@ -296,7 +303,9 @@ NUMKONG_API_COMPTIME void nk_attention_pack_i8_icelake(                         
             }
         }
     }
+    return nk_success_k;
 }
+#endif // NUMKONG_TARGET_ICELAKE
 
 /** Drain-free exact I32 scores for a 16-query block over one panel: for each 16-KV tile it holds 16
  *  lane-parallel accumulators (one score per KV position), broadcasts each query's four-channel
@@ -304,10 +313,9 @@ NUMKONG_API_COMPTIME void nk_attention_pack_i8_icelake(                         
  *  reduction and no transpose: Σq · k lands directly per lane. The 128 · Σk correction is one
  *  16-wide `zmm ≪ 7` subtract per tile. Writes a @b [16,panel_width] score block whose query rows
  *  sit @c panel_width apart. */
-NUMKONG_HELPER_INLINE void nk_attention_score_block_icelake_(nk_u8_t const *queries_biased, nk_i8_t const *keys_plane,
-                                                             nk_i32_t const *key_sums_plane, nk_size_t panel_start,
-                                                             nk_size_t panel_len, nk_size_t depth_padded,
-                                                             nk_i32_t *scores) {
+NUMKONG_INLINE void nk_attention_score_block_icelake_(nk_u8_t const *queries_biased, nk_i8_t const *keys_plane,
+                                                      nk_i32_t const *key_sums_plane, nk_size_t panel_start,
+                                                      nk_size_t panel_len, nk_size_t depth_padded, nk_i32_t *scores) {
     nk_size_t const depth_groups = depth_padded / 4;
     nk_size_t const tile_first = panel_start / 16;
     nk_size_t const tile_count = (panel_len + 15) / 16;
@@ -339,11 +347,10 @@ NUMKONG_HELPER_INLINE void nk_attention_score_block_icelake_(nk_u8_t const *quer
  *  and the weight sum accumulates in I32. Weights outside the range, from its 16-aligned start to
  *  its quad-rounded end, are zero. Only the online correction, 2^((m_old − m_new) · scale₂) per
  *  panel, stays in F32, where it scales the F32 output accumulators anyway, and is returned. */
-NUMKONG_HELPER_INLINE nk_f32_t nk_attention_softmax_panel_icelake_(nk_i32_t const *scores, nk_u8_t *weights,
-                                                                   nk_size_t range_begin, nk_size_t range_end,
-                                                                   nk_f32_t scale2, nk_i32_t scale_fixed,
-                                                                   nk_i32_t delta_floor, nk_i32_t *running_max,
-                                                                   nk_f32_t *running_sum) {
+NUMKONG_INLINE nk_f32_t nk_attention_softmax_panel_icelake_(nk_i32_t const *scores, nk_u8_t *weights,
+                                                            nk_size_t range_begin, nk_size_t range_end, nk_f32_t scale2,
+                                                            nk_i32_t scale_fixed, nk_i32_t delta_floor,
+                                                            nk_i32_t *running_max, nk_f32_t *running_sum) {
     nk_size_t const panel_len = range_end;
     nk_size_t const full = panel_len & ~(nk_size_t)15;
     __mmask16 const tail_m16 = (__mmask16)((1u << (panel_len - full)) - 1);
@@ -426,10 +433,10 @@ NUMKONG_HELPER_INLINE nk_f32_t nk_attention_softmax_panel_icelake_(nk_i32_t cons
 /** P × V over the quads covering the panel-relative range from @p range_begin inclusive to
  *  @p range_end exclusive: `dpbusd(weight_quad, v_quad)` over the quad-interleaved V plane, I32
  *  accumulators drained to F32 and folded into O = O · correction + panel. */
-NUMKONG_HELPER_INLINE void nk_attention_weighted_sum_panel_icelake_(nk_u8_t const *weights, nk_i8_t const *values_plane,
-                                                                    nk_size_t panel_start, nk_size_t range_begin,
-                                                                    nk_size_t range_end, nk_size_t depth_padded,
-                                                                    nk_f32_t correction, nk_f32_t *output_row) {
+NUMKONG_INLINE void nk_attention_weighted_sum_panel_icelake_(nk_u8_t const *weights, nk_i8_t const *values_plane,
+                                                             nk_size_t panel_start, nk_size_t range_begin,
+                                                             nk_size_t range_end, nk_size_t depth_padded,
+                                                             nk_f32_t correction, nk_f32_t *output_row) {
     nk_size_t const quad_first = range_begin / 4;
     nk_size_t const quad_count = (range_end + 3) / 4;
     nk_size_t const quad_start = panel_start / 4;
@@ -449,18 +456,11 @@ NUMKONG_HELPER_INLINE void nk_attention_weighted_sum_panel_icelake_(nk_u8_t cons
 
 /** Shared I8 body: row @c r reads the keys that @c nk_attention_row_range_ admits for position
  *  r + @p diagonal_offset and @p window. */
-NUMKONG_HELPER_INLINE void nk_attention_packed_i8_icelake_(                                                     //
+NUMKONG_INLINE void nk_attention_packed_i8_icelake_(                                                            //
     nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,                                     //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
     nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count) {
-    if (depth > nk_attention_max_depth_icelake_k_) {
-        nk_attention_causal_packed_i8_serial(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                             query_offsets, query_stride_bytes, output_stride_bytes, scale,
-                                             diagonal_offset, window, task_start, task_count);
-        return;
-    }
-
     nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
     nk_assert_(header->depth == depth && header->heads == key_value_head_count && key_value_head_count != 0 &&
                head_count % key_value_head_count == 0);
@@ -590,25 +590,48 @@ NUMKONG_HELPER_INLINE void nk_attention_packed_i8_icelake_(                     
     }
 }
 
-NUMKONG_API_COMPTIME void nk_attention_bidirectional_packed_i8_icelake(                                         //
-    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,                                     //
-    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
-    nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
-    nk_size_t task_start, nk_size_t task_count) {
-    nk_attention_packed_i8_icelake_(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                    query_offsets, query_stride_bytes, output_stride_bytes, scale, NUMKONG_I64_MAX / 2,
-                                    NUMKONG_SIZE_MAX, task_start, task_count);
-}
-
-NUMKONG_API_COMPTIME void nk_attention_causal_packed_i8_icelake(                                                //
+/** I8 attention over a packed KV cache, masked by @p diagonal_offset and @p window. */
+NUMKONG_INLINE nk_status_t nk_attention_masked_i8_icelake_(                                                     //
     nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,                                     //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
     nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
     nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count) {
+    if (!nk_attention_packed_by_(key_value_packed, nk_cap_icelake_k)) return nk_pack_mismatch_k;
+    if (depth > nk_attention_max_depth_icelake_k_) {
+        nk_attention_packed_i8_serial_(queries, key_value_packed, output, head_count, key_value_head_count, depth,
+                                       query_offsets, query_stride_bytes, output_stride_bytes, scale, diagonal_offset,
+                                       window, task_start, task_count);
+        return nk_success_k;
+    }
     nk_attention_packed_i8_icelake_(queries, key_value_packed, output, head_count, key_value_head_count, depth,
                                     query_offsets, query_stride_bytes, output_stride_bytes, scale, diagonal_offset,
                                     window, task_start, task_count);
+    return nk_success_k;
 }
+
+#if NUMKONG_TARGET_ICELAKE
+NUMKONG_API nk_status_t nk_attention_bidirectional_packed_i8_icelake(                                           //
+    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,                                     //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
+    nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
+    nk_size_t task_start, nk_size_t task_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    return nk_attention_masked_i8_icelake_(queries, key_value_packed, output, head_count, key_value_head_count, depth,
+                                           query_offsets, query_stride_bytes, output_stride_bytes, scale,
+                                           NUMKONG_I64_MAX / 2, NUMKONG_SIZE_MAX, task_start, task_count);
+}
+
+NUMKONG_API nk_status_t nk_attention_causal_packed_i8_icelake(                                                  //
+    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,                                     //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
+    nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
+    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    return nk_attention_masked_i8_icelake_(queries, key_value_packed, output, head_count, key_value_head_count, depth,
+                                           query_offsets, query_stride_bytes, output_stride_bytes, scale,
+                                           diagonal_offset, window, task_start, task_count);
+}
+#endif // NUMKONG_TARGET_ICELAKE
 
 #if defined(__clang__)
 #pragma clang attribute pop
@@ -620,6 +643,6 @@ NUMKONG_API_COMPTIME void nk_attention_causal_packed_i8_icelake(                
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_ICELAKE
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_ICELAKE_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_ATTENTION_ICELAKE_H

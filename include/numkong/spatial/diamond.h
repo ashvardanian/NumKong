@@ -12,11 +12,11 @@
 #ifndef NUMKONG_SPATIAL_DIAMOND_H
 #define NUMKONG_SPATIAL_DIAMOND_H
 
-#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_ARCH_X8664_
 #if NUMKONG_TARGET_DIAMOND
 
 #include "numkong/types.h"
-#include "numkong/spatial/haswell.h" // `nk_angular_normalize_f32_haswell_`, `nk_f32_sqrt_haswell`
+#include "numkong/spatial/haswell.h" // `nk_angular_normalize_f32_haswell_`
 #include "numkong/reduce/skylake.h"  // `nk_reduce_add_f32x16_skylake_`
 
 #if defined(__cplusplus)
@@ -37,9 +37,9 @@ extern "C" {
                    "bmi", "bmi2")
 #endif
 
-NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_e4m3_diamond(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
-                                                             nk_f32_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
+/** @brief Squared Euclidean distance between two e4m3 vectors. */
+NUMKONG_INLINE void nk_squared_distance_e4m3_diamond_(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                      nk_f32_t *result) {
     __m512 a_sq_f32x16 = _mm512_setzero_ps();
     __m512 b_sq_f32x16 = _mm512_setzero_ps();
     __m512 ab_f32x16 = _mm512_setzero_ps();
@@ -66,19 +66,25 @@ nk_sqeuclidean_e4m3_diamond_cycle:
 
     __m512 sum_sq_f32x16 = _mm512_add_ps(a_sq_f32x16, b_sq_f32x16);
     *result = nk_reduce_add_f32x16_skylake_(_mm512_fnmadd_ps(_mm512_set1_ps(2.0f), ab_f32x16, sum_sq_f32x16));
-    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_euclidean_e4m3_diamond(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
-                                                           nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_sqeuclidean_e4m3_diamond(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                    nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_sqeuclidean_e4m3_diamond(a, b, n, result, stream);
-    *result = nk_f32_sqrt_haswell(*result);
+    nk_squared_distance_e4m3_diamond_(a, b, n, result);
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_angular_e4m3_diamond(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
-                                                         nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_euclidean_e4m3_diamond(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result,
+                                                  void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_e4m3_diamond_(a, b, n, result);
+    *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(*result)));
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_e4m3_diamond(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result,
+                                                void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m512 dot_f32x16 = _mm512_setzero_ps();
     __m512 a_norm_sq_f32x16 = _mm512_setzero_ps();
@@ -111,9 +117,9 @@ nk_angular_e4m3_diamond_cycle:
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_e5m2_diamond(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
-                                                             nk_f32_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
+/** @brief Squared Euclidean distance between two e5m2 vectors. */
+NUMKONG_INLINE void nk_squared_distance_e5m2_diamond_(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                      nk_f32_t *result) {
     __m512 a_sq_f32x16 = _mm512_setzero_ps();
     __m512 b_sq_f32x16 = _mm512_setzero_ps();
     __m512 ab_f32x16 = _mm512_setzero_ps();
@@ -140,19 +146,25 @@ nk_sqeuclidean_e5m2_diamond_cycle:
 
     __m512 sum_sq_f32x16 = _mm512_add_ps(a_sq_f32x16, b_sq_f32x16);
     *result = nk_reduce_add_f32x16_skylake_(_mm512_fnmadd_ps(_mm512_set1_ps(2.0f), ab_f32x16, sum_sq_f32x16));
-    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_euclidean_e5m2_diamond(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
-                                                           nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_sqeuclidean_e5m2_diamond(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                    nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_sqeuclidean_e5m2_diamond(a, b, n, result, stream);
-    *result = nk_f32_sqrt_haswell(*result);
+    nk_squared_distance_e5m2_diamond_(a, b, n, result);
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_angular_e5m2_diamond(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
-                                                         nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_euclidean_e5m2_diamond(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result,
+                                                  void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_e5m2_diamond_(a, b, n, result);
+    *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(*result)));
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_e5m2_diamond(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result,
+                                                void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m512 dot_f32x16 = _mm512_setzero_ps();
     __m512 a_norm_sq_f32x16 = _mm512_setzero_ps();
@@ -185,9 +197,9 @@ nk_angular_e5m2_diamond_cycle:
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_sqeuclidean_f16_diamond(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
-                                                            nk_f32_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
+/** @brief Squared Euclidean distance between two f16 vectors. */
+NUMKONG_INLINE void nk_squared_distance_f16_diamond_(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                     nk_f32_t *result) {
     __m512 a_sq_f32x16 = _mm512_setzero_ps();
     __m512 b_sq_f32x16 = _mm512_setzero_ps();
     __m512 ab_f32x16 = _mm512_setzero_ps();
@@ -212,19 +224,25 @@ nk_sqeuclidean_f16_diamond_cycle:
 
     __m512 sum_sq_f32x16 = _mm512_add_ps(a_sq_f32x16, b_sq_f32x16);
     *result = nk_reduce_add_f32x16_skylake_(_mm512_fnmadd_ps(_mm512_set1_ps(2.0f), ab_f32x16, sum_sq_f32x16));
-    return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_euclidean_f16_diamond(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
-                                                          nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_sqeuclidean_f16_diamond(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                   void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_sqeuclidean_f16_diamond(a, b, n, result, stream);
-    *result = nk_f32_sqrt_haswell(*result);
+    nk_squared_distance_f16_diamond_(a, b, n, result);
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_angular_f16_diamond(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
-                                                        nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_euclidean_f16_diamond(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                 void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_f16_diamond_(a, b, n, result);
+    *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(*result)));
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_f16_diamond(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                               void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m512 dot_f32x16 = _mm512_setzero_ps();
     __m512 a_norm_sq_f32x16 = _mm512_setzero_ps();
@@ -266,5 +284,5 @@ nk_angular_f16_diamond_cycle:
 #endif
 
 #endif // NUMKONG_TARGET_DIAMOND
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_SPATIAL_DIAMOND_H

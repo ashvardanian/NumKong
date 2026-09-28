@@ -5,10 +5,10 @@
  *  @brief Backend-neutral cross-kernel benchmarks: batched dots, angular and euclidean distances,
  *      and ragged attention.
  *
- *  Every driver is a template over the input dtype, its kernels, and a backend owning where
- *  operands live, how a kernel is called, and when its results become readable. The benchmarks
- *  extend the backends of `test/` with how a window of calls is timed: @c host_backend_t under
- *  Google Benchmark's wall time, the CUDA benchmark's under CUDA events.
+ *  Every driver is a template over the input dtype, its kernels, and a backend value owning where
+ *  operands live, how a kernel is called, when its results become readable, and how a window of
+ *  calls is timed: @c host_backend_t under Google Benchmark's wall time, the CUDA benchmark's under
+ *  CUDA events, the Metal benchmark's under a wall clock around a queue synchronization.
  *
  *  Input sets rotate, as many as the backend asks for, so a small problem does not time a
  *  cache-resident replay. Matrix rows report `scalar-ops` and, against a double-double reference
@@ -23,7 +23,7 @@
 
 #include <cmath>   // `std::fma`, `std::sqrt`
 #include <cstdint> // `std::int64_t`, `std::uint64_t`
-#include <cstring> // `std::memcpy`
+#include <cstring> // `std::memcpy`, `std::memset`
 
 #include <algorithm>   // `std::min`, `std::max`
 #include <array>       // `std::array`
@@ -34,7 +34,6 @@
 
 #include "numkong/cast.h" // `nk_cast_serial`
 
-#include "../test/harness.hpp" // `test::host_backend_t`
 #include "harness.hpp"
 
 namespace ashvardanian::numkong::bench {
@@ -56,8 +55,15 @@ struct attention_shape_t {
     std::size_t keys;
 };
 
-/** The shared host backend, timed by Google Benchmark's wall clock. */
-struct host_backend_t : test::host_backend_t {
+/** Runs CPU kernels in place over host memory, timed by Google Benchmark's wall clock. */
+struct host_backend_t {
+
+    /** The allocator every kernel operand comes from. */
+    template <typename value_type_>
+    using allocator = nk::aligned_allocator<value_type_>;
+
+    /** Row stride for @p row_bytes: exactly one row, keeping the tightest stride covered. */
+    static constexpr std::size_t row_stride(std::size_t row_bytes) noexcept { return row_bytes; }
 
     /** Rotation sets of @p bytes_per_set each: as many as the memory budget holds, up to 1024. */
     std::size_t input_sets(std::size_t bytes_per_set) const noexcept { return bench_input_count(bytes_per_set); }
@@ -66,6 +72,30 @@ struct host_backend_t : test::host_backend_t {
      *  from its depth. */
     static std::vector<attention_shape_t> attention_shapes() {
         return {{"", 8, 8, bench_config.matrix_width, bench_config.matrix_depth, bench_config.matrix_height}};
+    }
+
+    /** Copies @p bytes between host buffers. */
+    void copy(void *destination, void const *source, std::size_t bytes) noexcept {
+        std::memcpy(destination, source, bytes);
+    }
+
+    /** Zeroes @p bytes of a host buffer. */
+    void zero(void *destination, std::size_t bytes) noexcept { std::memset(destination, 0, bytes); }
+
+    /** The first failure since the last synchronization. */
+    nk_status_t status = nk_success_k;
+
+    /** Calls @p kernel with @p arguments and no stream, keeping its status. */
+    template <typename kernel_type_, typename... arguments_types_>
+    void call(kernel_type_ kernel, arguments_types_... arguments) noexcept {
+        if (status == nk_success_k) status = kernel(arguments..., nullptr);
+    }
+
+    /** Returns the name of the first failure since the last call, or @c nullptr. */
+    char const *synchronize() noexcept {
+        nk_status_t const failure = status;
+        status = nk_success_k;
+        return failure == nk_success_k ? nullptr : nk_status_to_string(failure);
     }
 
     /** Calls @p launch once per iteration over rotating sets, returning the call count. */
@@ -84,13 +114,20 @@ struct host_backend_t : test::host_backend_t {
     static void configure(bm::internal::Benchmark *) noexcept {}
 };
 
+/** The allocator @p backend hands out @p value_type_ from: stateless, unless the backend's memory
+ *  belongs to a context it holds and it overloads this. */
+template <typename value_type_, typename backend_type_>
+typename backend_type_::template allocator<value_type_> allocator_of(backend_type_ const &) noexcept {
+    return {};
+}
+
 /** A backend copy of @p count values at @p source, left empty when the allocation fails. */
 template <typename backend_type_, typename value_type_>
 nk::vector<value_type_, typename backend_type_::template allocator<value_type_>> upload(backend_type_ &backend,
                                                                                         value_type_ const *source,
                                                                                         std::size_t count) {
     auto destination = nk::vector<value_type_, typename backend_type_::template allocator<value_type_>>::try_empty(
-        count);
+        count, allocator_of<value_type_>(backend));
     if (!destination.empty()) backend.copy(destination.raw_values_data(), source, destination.size_bytes());
     return destination;
 }
@@ -215,9 +252,9 @@ double sampled_accuracy(backend_type_ &backend,
         if (written == written_entries_t::upper_triangle_k && column < row) continue;
         if (written == written_entries_t::strict_upper_triangle_k && column <= row) continue;
         nk_cast_serial(first.byte_data() + row * first.stride_bytes(0), input_dtype_, depth, first_decoded.data(),
-                       nk_f64_k);
+                       nk_f64_k, nullptr);
         nk_cast_serial(second.byte_data() + column * second.stride_bytes(0), input_dtype_, depth, second_decoded.data(),
-                       nk_f64_k);
+                       nk_f64_k, nullptr);
         double const expected = reference_distance(metric, first_decoded.data(), second_decoded.data(), depth);
         if constexpr (std::is_integral_v<output_raw_t>) score_sum += double(double(result[entry]) == expected);
         else if constexpr (sizeof(output_raw_t) == 8) score_sum += double(ulp_distance_f64(result[entry], expected));
@@ -259,24 +296,25 @@ struct matrix_set {
  *  reference. */
 template <nk_dtype_t input_dtype_, typename output_type_, typename backend_type_, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename kernel_type_>
-void measure_packed(bm::State &state, reference_metric_t metric, pack_size_kernel_type_ packed_size_fn,
-                    pack_kernel_type_ pack_fn, kernel_type_ kernel, std::size_t height, std::size_t width,
-                    std::size_t depth) {
+void measure_packed(bm::State &state, backend_type_ backend, reference_metric_t metric,
+                    pack_size_kernel_type_ packed_size_fn, pack_kernel_type_ pack_fn, kernel_type_ kernel,
+                    std::size_t height, std::size_t width, std::size_t depth) {
     using input_t = typename nk::type_for<input_dtype_>::type;
     using set_t = matrix_set<backend_type_, output_type_>;
-    backend_type_ backend;
     auto const [a, b] = random_matrices<input_dtype_, backend_type_>(height, width, depth);
     if (a.empty() || b.empty()) return state.SkipWithError("input allocation failed");
     std::size_t const a_stride = a.stride_bytes(0), row_bytes = b.stride_bytes(0), a_bytes = height * a_stride;
-    std::size_t const packed_bytes = packed_size_fn(width, depth);
+    nk_size_t packed_bytes = 0;
+    if (!succeeded(state, packed_size_fn(width, depth, &packed_bytes))) return;
     auto const b_uploaded = upload(backend, b.data(), b.numel());
     if (b_uploaded.empty()) return state.SkipWithError("B allocation failed");
 
     // One B upload, packed into every set, since the sets differ only in where they live.
     std::vector<set_t> sets(backend.input_sets(a_bytes + packed_bytes + height * width * sizeof(output_type_)));
     for (set_t &set : sets) {
-        set = {set_t::bytes_t::try_empty(a_bytes), set_t::bytes_t::try_empty(packed_bytes),
-               set_t::outputs_t::try_empty(height * width)};
+        set = {set_t::bytes_t::try_empty(a_bytes, allocator_of<char>(backend)),
+               set_t::bytes_t::try_empty(packed_bytes, allocator_of<char>(backend)),
+               set_t::outputs_t::try_empty(height * width, allocator_of<output_type_>(backend))};
         if (set.a.empty() || set.b.empty() || set.c.empty()) return state.SkipWithError("set allocation failed");
         backend.copy(set.a.raw_values_data(), a.data(), a_bytes);
         backend.zero(set.b.raw_values_data(), packed_bytes), backend.zero(set.c.raw_values_data(), set.c.size_bytes());
@@ -298,18 +336,18 @@ void measure_packed(bm::State &state, reference_metric_t metric, pack_size_kerne
 /** Times a symmetric kernel over A × Aᵀ, judged on the upper triangle: with the diagonal for dots,
  *  without it for distances. `scalar-ops` counts the triangle's height · (height + 1) · depth. */
 template <nk_dtype_t input_dtype_, typename output_type_, typename backend_type_, typename kernel_type_>
-void measure_symmetric(bm::State &state, reference_metric_t metric, kernel_type_ kernel, std::size_t height,
-                       std::size_t depth) {
+void measure_symmetric(bm::State &state, backend_type_ backend, reference_metric_t metric, kernel_type_ kernel,
+                       std::size_t height, std::size_t depth) {
     using input_t = typename nk::type_for<input_dtype_>::type;
     using set_t = matrix_set<backend_type_, output_type_>;
-    backend_type_ backend;
     auto const matrices = random_matrices<input_dtype_, backend_type_>(height, 0, depth);
     auto const &a = matrices[0];
     if (a.empty()) return state.SkipWithError("input allocation failed");
     std::size_t const a_stride = a.stride_bytes(0), a_bytes = height * a_stride;
     std::vector<set_t> sets(backend.input_sets(a_bytes + height * height * sizeof(output_type_)));
     for (set_t &set : sets) {
-        set.a = set_t::bytes_t::try_empty(a_bytes), set.c = set_t::outputs_t::try_empty(height * height);
+        set.a = set_t::bytes_t::try_empty(a_bytes, allocator_of<char>(backend));
+        set.c = set_t::outputs_t::try_empty(height * height, allocator_of<output_type_>(backend));
         if (set.a.empty() || set.c.empty()) return state.SkipWithError("set allocation failed");
         backend.copy(set.a.raw_values_data(), a.data(), a_bytes);
         backend.zero(set.c.raw_values_data(), set.c.size_bytes());
@@ -332,71 +370,72 @@ inline std::string matrix_row_name(std::string const &name, std::size_t height, 
     return name + "<" + std::to_string(height) + "x" + std::to_string(width) + "x" + std::to_string(depth) + ">";
 }
 
-/** Registers a packed-B row over the configured matrix shape. */
+/** Registers a packed-B row over the configured matrix shape, run on @p backend. */
 template <nk_dtype_t input_dtype_, typename output_type_, typename backend_type_, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename kernel_type_>
 void register_packed(std::string const &name, reference_metric_t metric, pack_size_kernel_type_ packed_size_fn,
-                     pack_kernel_type_ pack_fn, kernel_type_ kernel) {
+                     pack_kernel_type_ pack_fn, kernel_type_ kernel, backend_type_ backend) {
     std::size_t const height = bench_config.matrix_height, width = bench_config.matrix_width,
                       depth = bench_config.matrix_depth;
     backend_type_::configure(
         bm::RegisterBenchmark(matrix_row_name(name, height, width, depth).c_str(),
                               measure_packed<input_dtype_, output_type_, backend_type_, pack_size_kernel_type_,
                                              pack_kernel_type_, kernel_type_>,
-                              metric, packed_size_fn, pack_fn, kernel, height, width, depth));
+                              backend, metric, packed_size_fn, pack_fn, kernel, height, width, depth));
 }
 
 /** Registers a symmetric row over @c NUMWARS_DIMS_HEIGHT vectors of @c NUMWARS_DIMS_DEPTH
- *  dimensions. */
+ *  dimensions, run on @p backend. */
 template <nk_dtype_t input_dtype_, typename output_type_, typename backend_type_, typename kernel_type_>
-void register_symmetric(std::string const &name, reference_metric_t metric, kernel_type_ kernel) {
+void register_symmetric(std::string const &name, reference_metric_t metric, kernel_type_ kernel,
+                        backend_type_ backend) {
     std::size_t const height = bench_config.matrix_height, depth = bench_config.matrix_depth;
     std::string const row_name = name + "<" + std::to_string(height) + "x" + std::to_string(depth) + ">";
     backend_type_::configure(bm::RegisterBenchmark(
-        row_name.c_str(), measure_symmetric<input_dtype_, output_type_, backend_type_, kernel_type_>, metric, kernel,
-        height, depth));
+        row_name.c_str(), measure_symmetric<input_dtype_, output_type_, backend_type_, kernel_type_>, backend, metric,
+        kernel, height, depth));
 }
 
 template <nk_dtype_t input_dtype_, typename backend_type_ = host_backend_t, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename kernel_type_>
 void run_dots_packed(std::string const &name, pack_size_kernel_type_ packed_size_fn, pack_kernel_type_ pack_fn,
-                     kernel_type_ kernel) {
+                     kernel_type_ kernel, backend_type_ backend = {}) {
     register_packed<input_dtype_, typename nk::type_for<input_dtype_>::type::dot_result_t, backend_type_>(
-        name, reference_metric_t::dot_k, packed_size_fn, pack_fn, kernel);
+        name, reference_metric_t::dot_k, packed_size_fn, pack_fn, kernel, backend);
 }
 
 template <nk_dtype_t input_dtype_, typename backend_type_ = host_backend_t, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename kernel_type_>
 void run_angulars_packed(std::string const &name, pack_size_kernel_type_ packed_size_fn, pack_kernel_type_ pack_fn,
-                         kernel_type_ kernel) {
+                         kernel_type_ kernel, backend_type_ backend = {}) {
     register_packed<input_dtype_, typename nk::type_for<input_dtype_>::type::angular_result_t, backend_type_>(
-        name, reference_metric_t::angular_k, packed_size_fn, pack_fn, kernel);
+        name, reference_metric_t::angular_k, packed_size_fn, pack_fn, kernel, backend);
 }
 
 template <nk_dtype_t input_dtype_, typename backend_type_ = host_backend_t, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename kernel_type_>
 void run_euclideans_packed(std::string const &name, pack_size_kernel_type_ packed_size_fn, pack_kernel_type_ pack_fn,
-                           kernel_type_ kernel) {
+                           kernel_type_ kernel, backend_type_ backend = {}) {
     register_packed<input_dtype_, typename nk::type_for<input_dtype_>::type::euclidean_result_t, backend_type_>(
-        name, reference_metric_t::euclidean_k, packed_size_fn, pack_fn, kernel);
+        name, reference_metric_t::euclidean_k, packed_size_fn, pack_fn, kernel, backend);
 }
 
 template <nk_dtype_t input_dtype_, typename backend_type_ = host_backend_t, typename kernel_type_>
-void run_dots_symmetric(std::string const &name, kernel_type_ kernel) {
+void run_dots_symmetric(std::string const &name, kernel_type_ kernel, backend_type_ backend = {}) {
     register_symmetric<input_dtype_, typename nk::type_for<input_dtype_>::type::dot_result_t, backend_type_>(
-        name, reference_metric_t::dot_k, kernel);
+        name, reference_metric_t::dot_k, kernel, backend);
 }
 
 template <nk_dtype_t input_dtype_, typename backend_type_ = host_backend_t, typename kernel_type_>
-void run_angulars_symmetric(std::string const &name, kernel_type_ kernel) {
+void run_angulars_symmetric(std::string const &name, kernel_type_ kernel, backend_type_ backend = {}) {
     register_symmetric<input_dtype_, typename nk::type_for<input_dtype_>::type::angular_result_t, backend_type_>(
-        name, reference_metric_t::angular_k, kernel);
+        name, reference_metric_t::angular_k, kernel, backend);
 }
 
 template <nk_dtype_t input_dtype_, typename backend_type_ = host_backend_t, typename kernel_type_>
-void run_euclideans_symmetric(std::string const &name, kernel_type_ kernel) {
+void run_euclideans_symmetric(std::string const &name, kernel_type_ kernel, backend_type_ backend = {}) {
     register_symmetric<input_dtype_, typename nk::type_for<input_dtype_>::type::euclidean_result_t, backend_type_>(
-        name, reference_metric_t::euclidean_k, kernel);
+        name, reference_metric_t::euclidean_k, kernel, backend);
 }
 
 #pragma endregion Matrices
@@ -514,11 +553,10 @@ struct attention_set {
  *  rotating sets. */
 template <nk_dtype_t input_dtype_, attention_visibility_t visibility_, typename backend_type_,
           typename pack_size_kernel_type_, typename pack_kernel_type_, typename attention_kernel_type_>
-void measure_attention(bm::State &state, pack_size_kernel_type_ packed_size_fn, pack_kernel_type_ pack_fn,
-                       attention_kernel_type_ attention_fn, attention_shape_t shape) {
+void measure_attention(bm::State &state, backend_type_ backend, pack_size_kernel_type_ packed_size_fn,
+                       pack_kernel_type_ pack_fn, attention_kernel_type_ attention_fn, attention_shape_t shape) {
     using input_t = typename nk::type_for<input_dtype_>::type;
     using set_t = attention_set<backend_type_, input_t>;
-    backend_type_ backend;
     auto const [queries, keys, values] = random_attention<input_dtype_>(shape);
     auto const keys_uploaded = upload(backend, keys.values_data(), keys.size());
     auto const values_uploaded = upload(backend, values.values_data(), values.size());
@@ -527,12 +565,14 @@ void measure_attention(bm::State &state, pack_size_kernel_type_ packed_size_fn, 
     if (keys_uploaded.empty() || values_uploaded.empty() || directory.empty())
         return state.SkipWithError("input allocation failed");
     nk_u32_t const lengths[1] = {nk_u32_t(shape.keys)};
-    std::size_t const packed_bytes = packed_size_fn(shape.key_value_head_count, shape.depth, lengths, 1);
+    nk_size_t packed_bytes = 0;
+    if (!succeeded(state, packed_size_fn(shape.key_value_head_count, shape.depth, lengths, 1, &packed_bytes))) return;
     std::size_t const output_count = shape.queries * shape.head_count * shape.depth;
     std::vector<set_t> sets(backend.input_sets(queries.size_bytes() + packed_bytes + output_count * sizeof(nk_f32_t)));
     for (set_t &set : sets) {
-        set = {upload(backend, queries.values_data(), queries.size()), set_t::bytes_t::try_empty(packed_bytes),
-               set_t::outputs_t::try_empty(output_count)};
+        set = {upload(backend, queries.values_data(), queries.size()),
+               set_t::bytes_t::try_empty(packed_bytes, allocator_of<char>(backend)),
+               set_t::outputs_t::try_empty(output_count, allocator_of<nk::f32_t>(backend))};
         if (set.queries.empty() || set.packed.empty() || set.output.empty())
             return state.SkipWithError("set allocation failed");
         backend.zero(set.packed.raw_values_data(), packed_bytes);
@@ -548,38 +588,39 @@ void measure_attention(bm::State &state, pack_size_kernel_type_ packed_size_fn, 
     if (calls) report_attention(state, calls, visibility_, shape);
 }
 
-/** Registers one attention row of @p shape under @p visibility_. */
+/** Registers one attention row of @p shape under @p visibility_, run on @p backend. */
 template <nk_dtype_t input_dtype_, attention_visibility_t visibility_, typename backend_type_,
           typename pack_size_kernel_type_, typename pack_kernel_type_, typename attention_kernel_type_>
 void register_attention(std::string const &name, pack_size_kernel_type_ packed_size_fn, pack_kernel_type_ pack_fn,
-                        attention_kernel_type_ attention_fn, attention_shape_t shape) {
+                        attention_kernel_type_ attention_fn, attention_shape_t shape, backend_type_ backend) {
     backend_type_::configure(
         bm::RegisterBenchmark(attention_row_name(name, visibility_, shape).c_str(),
                               measure_attention<input_dtype_, visibility_, backend_type_, pack_size_kernel_type_,
                                                 pack_kernel_type_, attention_kernel_type_>,
-                              packed_size_fn, pack_fn, attention_fn, shape));
+                              backend, packed_size_fn, pack_fn, attention_fn, shape));
 }
 
 template <nk_dtype_t input_dtype_, typename backend_type_ = host_backend_t, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename attention_kernel_type_>
 void run_attention_bidirectional(std::string const &name, pack_size_kernel_type_ packed_size_fn,
-                                 pack_kernel_type_ pack_fn, attention_kernel_type_ attention_fn) {
-    for (attention_shape_t const shape : backend_type_::attention_shapes())
+                                 pack_kernel_type_ pack_fn, attention_kernel_type_ attention_fn,
+                                 backend_type_ backend = {}) {
+    for (attention_shape_t const shape : backend.attention_shapes())
         register_attention<input_dtype_, attention_visibility_t::bidirectional_k, backend_type_>(
-            name, packed_size_fn, pack_fn, attention_fn, shape);
+            name, packed_size_fn, pack_fn, attention_fn, shape, backend);
 }
 
 /** Causal rows per backend shape, plus a 1024-key window wherever it hides keys. */
 template <nk_dtype_t input_dtype_, typename backend_type_ = host_backend_t, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename attention_kernel_type_>
 void run_attention_causal(std::string const &name, pack_size_kernel_type_ packed_size_fn, pack_kernel_type_ pack_fn,
-                          attention_kernel_type_ attention_fn) {
-    for (attention_shape_t const shape : backend_type_::attention_shapes()) {
+                          attention_kernel_type_ attention_fn, backend_type_ backend = {}) {
+    for (attention_shape_t const shape : backend.attention_shapes()) {
         register_attention<input_dtype_, attention_visibility_t::causal_k, backend_type_>(name, packed_size_fn, pack_fn,
-                                                                                          attention_fn, shape);
+                                                                                          attention_fn, shape, backend);
         if (attention_window_clips(shape))
             register_attention<input_dtype_, attention_visibility_t::causal_window_1024_k, backend_type_>(
-                name, packed_size_fn, pack_fn, attention_fn, shape);
+                name, packed_size_fn, pack_fn, attention_fn, shape, backend);
     }
 }
 

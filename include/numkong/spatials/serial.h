@@ -15,6 +15,8 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_SERIAL
+
 /*  Keep the serial instantiations below actually scalar, regardless of build type. Without this,
  *  -O3 + LTO can vectorize or clone the serial kernels under AVX-512 callers in dispatch_*.c, which
  *  wastes binary and breaks the nk_*_serial-as-scalar-oracle contract that tests and
@@ -274,6 +276,8 @@ nk_define_cross_normalized_symmetric_(euclidean, u4, serial, u4x2, u32, /*norm_v
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+
+#endif // NUMKONG_TARGET_SERIAL
 
 #if defined(__cplusplus)
 } // extern "C"

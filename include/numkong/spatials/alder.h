@@ -9,11 +9,12 @@
 #ifndef NUMKONG_SPATIALS_ALDER_H
 #define NUMKONG_SPATIALS_ALDER_H
 
-#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_ARCH_X8664_
 #if NUMKONG_TARGET_ALDER
 
 #include "numkong/spatial/haswell.h"
 #include "numkong/dots/alder.h"
+#include "numkong/dots/serial.h"
 
 #if defined(__cplusplus)
 extern "C" {
@@ -107,5 +108,5 @@ nk_define_cross_normalized_symmetric_(euclidean, e2m1, alder, e2m1x2, f32, /*nor
 #endif
 
 #endif // NUMKONG_TARGET_ALDER
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_SPATIALS_ALDER_H

@@ -445,7 +445,7 @@ error_stats_t test_scaled_tensor() {
     nk_cast_block_scaled_serial(                       //
         weights.data(), nullptr, nullptr, &f32_format, //
         reference_elements.raw_values_data(), reference_scales.raw_values_data(), //
-        &reference_tensor_scale, &nvfp4_format, rows * cols);
+        &reference_tensor_scale, &nvfp4_format, rows * cols, nullptr);
 
     auto const *encoded_elements = reinterpret_cast<unsigned char const *>(quantized.elements().byte_data());
     for (std::size_t i = 0; i < reference_elements.size_values(); ++i)
@@ -470,7 +470,7 @@ error_stats_t test_scaled_tensor() {
             reference_elements.raw_values_data() + 1 * row_element_bytes, //
             reference_scales.raw_values_data() + 1 * row_scale_bytes,     //
             &tensor_scale, &nvfp4_format,                                 //
-            reference_row.raw_values_data(), nullptr, nullptr, &f32_format, cols);
+            reference_row.raw_values_data(), nullptr, nullptr, &f32_format, cols, nullptr);
         for (std::size_t c = 0; c < cols; ++c)
             stats.expect(restored_row.raw_values_data()[c] == reference_row.raw_values_data()[c],
                          "row materialization differs from reference");
@@ -494,7 +494,7 @@ error_stats_t test_scaled_tensor() {
                 reference_elements.raw_values_data() + r * row_element_bytes, //
                 reference_scales.raw_values_data() + r * row_scale_bytes,     //
                 &tensor_scale, &nvfp4_format,                                 //
-                reference_tile_row.raw_values_data(), nullptr, nullptr, &f32_format, 32);
+                reference_tile_row.raw_values_data(), nullptr, nullptr, &f32_format, 32, nullptr);
             for (std::size_t c = 0; c < 32; ++c)
                 stats.expect(tile_raw[r * 32 + c] == reference_tile_row.raw_values_data()[c],
                              "column-tile materialization differs from reference");
@@ -531,7 +531,7 @@ error_stats_t test_scaled_tensor() {
                 reference_elements.raw_values_data() + r * row_element_bytes + 16 / 2, // column 16 → byte 8
                 reference_scales.raw_values_data() + r * row_scale_bytes + 16 / 16,    // block 1
                 &tensor_scale, &nvfp4_format,                                          //
-                reference_mid.raw_values_data(), nullptr, nullptr, &f32_format, 32);
+                reference_mid.raw_values_data(), nullptr, nullptr, &f32_format, 32, nullptr);
             for (std::size_t c = 0; c < 32; ++c)
                 stats.expect(mid_raw[r * 32 + c] == reference_mid.raw_values_data()[c],
                              "non-zero-start column tile differs from reference");
@@ -551,7 +551,7 @@ error_stats_t test_scaled_tensor() {
         auto reference_restored = make_vector<f32_t>(rows * cols);
         nk_cast_block_scaled_serial( //
             mx.elements().byte_data(), mx.block_scales().byte_data(), nullptr, &mx_format,
-            reference_restored.raw_values_data(), nullptr, nullptr, &f32_format, rows * cols);
+            reference_restored.raw_values_data(), nullptr, nullptr, &f32_format, rows * cols, nullptr);
         auto const *restored_raw = reinterpret_cast<float const *>(mx_restored.data());
         for (std::size_t i = 0; i < rows * cols; ++i)
             stats.expect(restored_raw[i] == reference_restored.raw_values_data()[i],

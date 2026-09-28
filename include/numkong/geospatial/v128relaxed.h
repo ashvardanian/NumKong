@@ -48,7 +48,7 @@ extern "C" {
 /*  WASM Relaxed SIMD implementations using 2-wide f64 and 4-wide f32 SIMD.
  *  These require WASM trigonometric kernels from trigonometry/v128relaxed.h. */
 
-NUMKONG_HELPER_INLINE v128_t nk_haversine_f64x2_v128relaxed_(    //
+NUMKONG_INLINE v128_t nk_haversine_f64x2_v128relaxed_(           //
     v128_t first_latitudes_f64x2, v128_t first_longitudes_f64x2, //
     v128_t second_latitudes_f64x2, v128_t second_longitudes_f64x2) {
 
@@ -94,9 +94,9 @@ NUMKONG_HELPER_INLINE v128_t nk_haversine_f64x2_v128relaxed_(    //
     return wasm_f64x2_mul(earth_radius_f64x2, central_angle_f64x2);
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_haversine_f64_v128relaxed( //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons,            //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons,            //
+NUMKONG_API nk_status_t nk_haversine_f64_v128relaxed( //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons,   //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons,   //
     nk_size_t n, nk_f64_t *results, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
@@ -128,7 +128,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_haversine_f64_v128relaxed( //
     return nk_success_k;
 }
 
-NUMKONG_HELPER_INLINE v128_t nk_haversine_f32x4_v128relaxed_(    //
+NUMKONG_INLINE v128_t nk_haversine_f32x4_v128relaxed_(           //
     v128_t first_latitudes_f32x4, v128_t first_longitudes_f32x4, //
     v128_t second_latitudes_f32x4, v128_t second_longitudes_f32x4) {
 
@@ -175,9 +175,9 @@ NUMKONG_HELPER_INLINE v128_t nk_haversine_f32x4_v128relaxed_(    //
     return wasm_f32x4_mul(earth_radius_f32x4, central_angle_f32x4);
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_haversine_f32_v128relaxed( //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons,            //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons,            //
+NUMKONG_API nk_status_t nk_haversine_f32_v128relaxed( //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons,   //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons,   //
     nk_size_t n, nk_f32_t *results, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
@@ -213,7 +213,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_haversine_f32_v128relaxed( //
  *  @brief WASM Relaxed SIMD helper for Vincenty's geodesic distance on 2 f64 point pairs.
  *  @note This is a true SIMD implementation using masked convergence tracking via blending.
  */
-NUMKONG_HELPER_INLINE v128_t nk_vincenty_f64x2_v128relaxed_(     //
+NUMKONG_INLINE v128_t nk_vincenty_f64x2_v128relaxed_(            //
     v128_t first_latitudes_f64x2, v128_t first_longitudes_f64x2, //
     v128_t second_latitudes_f64x2, v128_t second_longitudes_f64x2) {
 
@@ -397,9 +397,9 @@ NUMKONG_HELPER_INLINE v128_t nk_vincenty_f64x2_v128relaxed_(     //
     return distances_f64x2;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f64_v128relaxed( //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons,           //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons,           //
+NUMKONG_API nk_status_t nk_vincenty_f64_v128relaxed( //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons,  //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons,  //
     nk_size_t n, nk_f64_t *results, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
@@ -435,7 +435,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f64_v128relaxed( //
  *  @brief WASM Relaxed SIMD helper for Vincenty's geodesic distance on 4 f32 point pairs.
  *  @note This is a true SIMD implementation using masked convergence tracking via blending.
  */
-NUMKONG_HELPER_INLINE v128_t nk_vincenty_f32x4_v128relaxed_(     //
+NUMKONG_INLINE v128_t nk_vincenty_f32x4_v128relaxed_(            //
     v128_t first_latitudes_f32x4, v128_t first_longitudes_f32x4, //
     v128_t second_latitudes_f32x4, v128_t second_longitudes_f32x4) {
 
@@ -613,9 +613,9 @@ NUMKONG_HELPER_INLINE v128_t nk_vincenty_f32x4_v128relaxed_(     //
     return distances_f32x4;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f32_v128relaxed( //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons,           //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons,           //
+NUMKONG_API nk_status_t nk_vincenty_f32_v128relaxed( //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons,  //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons,  //
     nk_size_t n, nk_f32_t *results, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 

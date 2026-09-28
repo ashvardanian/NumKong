@@ -30,32 +30,32 @@ extern "C" {
 #if defined(__CUDA_ARCH_FAMILY_SPECIFIC__) && __CUDA_ARCH_FAMILY_SPECIFIC__ >= 1200 && \
     __CUDA_ARCH_FAMILY_SPECIFIC__ < 1300
 
-NUMKONG_HELPER_DEVICE_INLINE void nk_mma_e5m2_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4],
-                                                            nk_u32_t b_first, nk_u32_t b_second) {
+NUMKONG_DEVICE void nk_mma_e5m2_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
+                                              nk_u32_t b_second) {
     asm volatile("mma.sync.aligned.m16n8k32.row.col.kind::f8f6f4.f32.e5m2.e5m2.f32 " //
                  "{%0, %1, %2, %3}, {%4, %5, %6, %7}, {%8, %9}, {%0, %1, %2, %3};\n"
                  : "+f"(accumulator[0].f), "+f"(accumulator[1].f), "+f"(accumulator[2].f), "+f"(accumulator[3].f)
                  : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b_first), "r"(b_second));
 }
 
-NUMKONG_HELPER_DEVICE_INLINE void nk_mma_e4m3_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4],
-                                                            nk_u32_t b_first, nk_u32_t b_second) {
+NUMKONG_DEVICE void nk_mma_e4m3_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
+                                              nk_u32_t b_second) {
     asm volatile("mma.sync.aligned.m16n8k32.row.col.kind::f8f6f4.f32.e4m3.e4m3.f32 " //
                  "{%0, %1, %2, %3}, {%4, %5, %6, %7}, {%8, %9}, {%0, %1, %2, %3};\n"
                  : "+f"(accumulator[0].f), "+f"(accumulator[1].f), "+f"(accumulator[2].f), "+f"(accumulator[3].f)
                  : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b_first), "r"(b_second));
 }
 
-NUMKONG_HELPER_DEVICE_INLINE void nk_mma_e3m2_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4],
-                                                            nk_u32_t b_first, nk_u32_t b_second) {
+NUMKONG_DEVICE void nk_mma_e3m2_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
+                                              nk_u32_t b_second) {
     asm volatile("mma.sync.aligned.m16n8k32.row.col.kind::f8f6f4.f32.e3m2.e3m2.f32 " //
                  "{%0, %1, %2, %3}, {%4, %5, %6, %7}, {%8, %9}, {%0, %1, %2, %3};\n"
                  : "+f"(accumulator[0].f), "+f"(accumulator[1].f), "+f"(accumulator[2].f), "+f"(accumulator[3].f)
                  : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b_first), "r"(b_second));
 }
 
-NUMKONG_HELPER_DEVICE_INLINE void nk_mma_e2m3_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4],
-                                                            nk_u32_t b_first, nk_u32_t b_second) {
+NUMKONG_DEVICE void nk_mma_e2m3_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
+                                              nk_u32_t b_second) {
     asm volatile("mma.sync.aligned.m16n8k32.row.col.kind::f8f6f4.f32.e2m3.e2m3.f32 " //
                  "{%0, %1, %2, %3}, {%4, %5, %6, %7}, {%8, %9}, {%0, %1, %2, %3};\n"
                  : "+f"(accumulator[0].f), "+f"(accumulator[1].f), "+f"(accumulator[2].f), "+f"(accumulator[3].f)
@@ -64,8 +64,8 @@ NUMKONG_HELPER_DEVICE_INLINE void nk_mma_e2m3_blackwellrtx_(nk_fui32_t accumulat
 
 /*  One 16 × 8 × 64 step from nibble pairs, both block scales at 2⁰ so the products are the codes'
  *  own. */
-NUMKONG_HELPER_DEVICE_INLINE void nk_mma_e2m1_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4],
-                                                            nk_u32_t b_first, nk_u32_t b_second) {
+NUMKONG_DEVICE void nk_mma_e2m1_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
+                                              nk_u32_t b_second) {
     asm volatile("mma.sync.aligned.m16n8k64.row.col.kind::mxf4.block_scale.scale_vec::2X.f32.e2m1.e2m1.f32.ue8m0 " //
                  "{%0, %1, %2, %3}, {%4, %5, %6, %7}, {%8, %9}, {%0, %1, %2, %3}, %10, {0, 0}, %10, {0, 0};\n"
                  : "+f"(accumulator[0].f), "+f"(accumulator[1].f), "+f"(accumulator[2].f), "+f"(accumulator[3].f)
@@ -74,24 +74,24 @@ NUMKONG_HELPER_DEVICE_INLINE void nk_mma_e2m1_blackwellrtx_(nk_fui32_t accumulat
 
 #else
 
-NUMKONG_HELPER_DEVICE_INLINE void nk_mma_e5m2_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4],
-                                                            nk_u32_t b_first, nk_u32_t b_second) {
+NUMKONG_DEVICE void nk_mma_e5m2_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
+                                              nk_u32_t b_second) {
     __trap();
 }
-NUMKONG_HELPER_DEVICE_INLINE void nk_mma_e4m3_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4],
-                                                            nk_u32_t b_first, nk_u32_t b_second) {
+NUMKONG_DEVICE void nk_mma_e4m3_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
+                                              nk_u32_t b_second) {
     __trap();
 }
-NUMKONG_HELPER_DEVICE_INLINE void nk_mma_e3m2_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4],
-                                                            nk_u32_t b_first, nk_u32_t b_second) {
+NUMKONG_DEVICE void nk_mma_e3m2_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
+                                              nk_u32_t b_second) {
     __trap();
 }
-NUMKONG_HELPER_DEVICE_INLINE void nk_mma_e2m3_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4],
-                                                            nk_u32_t b_first, nk_u32_t b_second) {
+NUMKONG_DEVICE void nk_mma_e2m3_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
+                                              nk_u32_t b_second) {
     __trap();
 }
-NUMKONG_HELPER_DEVICE_INLINE void nk_mma_e2m1_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4],
-                                                            nk_u32_t b_first, nk_u32_t b_second) {
+NUMKONG_DEVICE void nk_mma_e2m1_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
+                                              nk_u32_t b_second) {
     __trap();
 }
 
@@ -101,8 +101,8 @@ NUMKONG_HELPER_DEVICE_INLINE void nk_mma_e2m1_blackwellrtx_(nk_fui32_t accumulat
 
 #pragma region Multiplies
 
-NUMKONG_HELPER_DEVICE_INLINE void nk_dots_e5m2_multiply_blackwellrtx_(nk_fui32_t accumulators[4][8][4],
-                                                                      nk_u32_t const a[4][4], nk_u32_t const b[8][2]) {
+NUMKONG_DEVICE void nk_dots_e5m2_multiply_blackwellrtx_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
+                                                        nk_u32_t const b[8][2]) {
 #pragma unroll
     for (unsigned row_tile = 0; row_tile < 4; ++row_tile)
 #pragma unroll
@@ -111,8 +111,8 @@ NUMKONG_HELPER_DEVICE_INLINE void nk_dots_e5m2_multiply_blackwellrtx_(nk_fui32_t
                                       b[column_tile][1]);
 }
 
-NUMKONG_HELPER_DEVICE_INLINE void nk_dots_e4m3_multiply_blackwellrtx_(nk_fui32_t accumulators[4][8][4],
-                                                                      nk_u32_t const a[4][4], nk_u32_t const b[8][2]) {
+NUMKONG_DEVICE void nk_dots_e4m3_multiply_blackwellrtx_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
+                                                        nk_u32_t const b[8][2]) {
 #pragma unroll
     for (unsigned row_tile = 0; row_tile < 4; ++row_tile)
 #pragma unroll
@@ -121,8 +121,8 @@ NUMKONG_HELPER_DEVICE_INLINE void nk_dots_e4m3_multiply_blackwellrtx_(nk_fui32_t
                                       b[column_tile][1]);
 }
 
-NUMKONG_HELPER_DEVICE_INLINE void nk_dots_e3m2_multiply_blackwellrtx_(nk_fui32_t accumulators[4][8][4],
-                                                                      nk_u32_t const a[4][4], nk_u32_t const b[8][2]) {
+NUMKONG_DEVICE void nk_dots_e3m2_multiply_blackwellrtx_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
+                                                        nk_u32_t const b[8][2]) {
 #pragma unroll
     for (unsigned row_tile = 0; row_tile < 4; ++row_tile)
 #pragma unroll
@@ -131,8 +131,8 @@ NUMKONG_HELPER_DEVICE_INLINE void nk_dots_e3m2_multiply_blackwellrtx_(nk_fui32_t
                                       b[column_tile][1]);
 }
 
-NUMKONG_HELPER_DEVICE_INLINE void nk_dots_e2m3_multiply_blackwellrtx_(nk_fui32_t accumulators[4][8][4],
-                                                                      nk_u32_t const a[4][4], nk_u32_t const b[8][2]) {
+NUMKONG_DEVICE void nk_dots_e2m3_multiply_blackwellrtx_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
+                                                        nk_u32_t const b[8][2]) {
 #pragma unroll
     for (unsigned row_tile = 0; row_tile < 4; ++row_tile)
 #pragma unroll
@@ -141,8 +141,8 @@ NUMKONG_HELPER_DEVICE_INLINE void nk_dots_e2m3_multiply_blackwellrtx_(nk_fui32_t
                                       b[column_tile][1]);
 }
 
-NUMKONG_HELPER_DEVICE_INLINE void nk_dots_e2m1_multiply_blackwellrtx_(nk_fui32_t accumulators[4][8][4],
-                                                                      nk_u32_t const a[4][4], nk_u32_t const b[8][2]) {
+NUMKONG_DEVICE void nk_dots_e2m1_multiply_blackwellrtx_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
+                                                        nk_u32_t const b[8][2]) {
 #pragma unroll
     for (unsigned row_tile = 0; row_tile < 4; ++row_tile)
 #pragma unroll
@@ -155,77 +155,51 @@ NUMKONG_HELPER_DEVICE_INLINE void nk_dots_e2m1_multiply_blackwellrtx_(nk_fui32_t
 
 #pragma region E5M2
 
-nk_define_cross_pack_size_(dots, e5m2, blackwellrtx, e5m2, e5m2, /*norm_value_type=*/f32,
-                           /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1)
-nk_define_cross_cuda_packed_shape_(dots, e5m2, blackwellrtx)
-nk_define_cross_cuda_pack_(dots, e5m2, blackwellrtx, e5m2, e5m2, nk_load_b8_ampere_, /*norm_value_type=*/f32,
-                           nk_dots_reduce_sumsq_e5m2_ampere_, /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1)
-nk_define_cross_cuda_symmetric_(dots, e5m2, blackwellrtx, e5m2, f32, nk_dots_e5m2_multiply_blackwellrtx_,
-                                nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, /*dimensions_per_value=*/1)
-nk_define_cross_cuda_packed_(dots, e5m2, blackwellrtx, e5m2, e5m2, f32, nk_dots_e5m2_multiply_blackwellrtx_,
-                             nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, /*depth_simd_dimensions=*/64,
-                             /*dimensions_per_value=*/1)
+nk_define_device_cross_pack_(e5m2, blackwellrtx, e5m2, e5m2, nk_load_b8_, /*norm_value_type=*/f32,
+                             /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
+nk_define_device_cross_(dot, e5m2, blackwellrtx, ampere, e5m2, e5m2, f32, /*depth_simd_dimensions=*/16,
+                        /*dimensions_per_value=*/1, nk_dots_e5m2_multiply_blackwellrtx_, nk_cross_epilogue_f32_k,
+                        /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
 #pragma endregion E5M2
 
 #pragma region E4M3
 
-nk_define_cross_pack_size_(dots, e4m3, blackwellrtx, e4m3, e4m3, /*norm_value_type=*/f32,
-                           /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1)
-nk_define_cross_cuda_packed_shape_(dots, e4m3, blackwellrtx)
-nk_define_cross_cuda_pack_(dots, e4m3, blackwellrtx, e4m3, e4m3, nk_load_b8_ampere_, /*norm_value_type=*/f32,
-                           nk_dots_reduce_sumsq_e4m3_ampere_, /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1)
-nk_define_cross_cuda_symmetric_(dots, e4m3, blackwellrtx, e4m3, f32, nk_dots_e4m3_multiply_blackwellrtx_,
-                                nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, /*dimensions_per_value=*/1)
-nk_define_cross_cuda_packed_(dots, e4m3, blackwellrtx, e4m3, e4m3, f32, nk_dots_e4m3_multiply_blackwellrtx_,
-                             nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, /*depth_simd_dimensions=*/64,
-                             /*dimensions_per_value=*/1)
+nk_define_device_cross_pack_(e4m3, blackwellrtx, e4m3, e4m3, nk_load_b8_, /*norm_value_type=*/f32,
+                             /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
+nk_define_device_cross_(dot, e4m3, blackwellrtx, ampere, e4m3, e4m3, f32, /*depth_simd_dimensions=*/16,
+                        /*dimensions_per_value=*/1, nk_dots_e4m3_multiply_blackwellrtx_, nk_cross_epilogue_f32_k,
+                        /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
 #pragma endregion E4M3
 
 #pragma region E3M2
 
-nk_define_cross_pack_size_(dots, e3m2, blackwellrtx, e3m2, e3m2, /*norm_value_type=*/f32,
-                           /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1)
-nk_define_cross_cuda_packed_shape_(dots, e3m2, blackwellrtx)
-nk_define_cross_cuda_pack_(dots, e3m2, blackwellrtx, e3m2, e3m2, nk_load_b8_ampere_, /*norm_value_type=*/f32,
-                           nk_dots_reduce_sumsq_e3m2_ampere_, /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1)
-nk_define_cross_cuda_symmetric_(dots, e3m2, blackwellrtx, e3m2, f32, nk_dots_e3m2_multiply_blackwellrtx_,
-                                nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, /*dimensions_per_value=*/1)
-nk_define_cross_cuda_packed_(dots, e3m2, blackwellrtx, e3m2, e3m2, f32, nk_dots_e3m2_multiply_blackwellrtx_,
-                             nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, /*depth_simd_dimensions=*/64,
-                             /*dimensions_per_value=*/1)
+nk_define_device_cross_pack_(e3m2, blackwellrtx, e3m2, e3m2, nk_load_b8_, /*norm_value_type=*/f32,
+                             /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
+nk_define_device_cross_(dot, e3m2, blackwellrtx, ampere, e3m2, e3m2, f32, /*depth_simd_dimensions=*/16,
+                        /*dimensions_per_value=*/1, nk_dots_e3m2_multiply_blackwellrtx_, nk_cross_epilogue_f32_k,
+                        /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
 #pragma endregion E3M2
 
 #pragma region E2M3
 
-nk_define_cross_pack_size_(dots, e2m3, blackwellrtx, e2m3, e2m3, /*norm_value_type=*/f32,
-                           /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1)
-nk_define_cross_cuda_packed_shape_(dots, e2m3, blackwellrtx)
-nk_define_cross_cuda_pack_(dots, e2m3, blackwellrtx, e2m3, e2m3, nk_load_b8_ampere_, /*norm_value_type=*/f32,
-                           nk_dots_reduce_sumsq_e2m3_ampere_, /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1)
-nk_define_cross_cuda_symmetric_(dots, e2m3, blackwellrtx, e2m3, f32, nk_dots_e2m3_multiply_blackwellrtx_,
-                                nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, /*dimensions_per_value=*/1)
-nk_define_cross_cuda_packed_(dots, e2m3, blackwellrtx, e2m3, e2m3, f32, nk_dots_e2m3_multiply_blackwellrtx_,
-                             nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, /*depth_simd_dimensions=*/64,
-                             /*dimensions_per_value=*/1)
+nk_define_device_cross_pack_(e2m3, blackwellrtx, e2m3, e2m3, nk_load_b8_, /*norm_value_type=*/f32,
+                             /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
+nk_define_device_cross_(dot, e2m3, blackwellrtx, ampere, e2m3, e2m3, f32, /*depth_simd_dimensions=*/16,
+                        /*dimensions_per_value=*/1, nk_dots_e2m3_multiply_blackwellrtx_, nk_cross_epilogue_f32_k,
+                        /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
 #pragma endregion E2M3
 
 #pragma region E2M1
 
-nk_define_cross_pack_size_(dots, e2m1, blackwellrtx, e2m1x2, e2m1x2, /*norm_value_type=*/f32,
-                           /*depth_simd_dimensions=*/128, /*dimensions_per_value=*/2)
-nk_define_cross_cuda_packed_shape_(dots, e2m1, blackwellrtx)
-nk_define_cross_cuda_pack_(dots, e2m1, blackwellrtx, e2m1x2, e2m1x2, nk_load_b8_ampere_, /*norm_value_type=*/f32,
-                           nk_dots_reduce_sumsq_e2m1_ampere_, /*depth_simd_dimensions=*/128,
-                           /*dimensions_per_value=*/2)
-nk_define_cross_cuda_symmetric_(dots, e2m1, blackwellrtx, e2m1x2, f32, nk_dots_e2m1_multiply_blackwellrtx_,
-                                nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, /*dimensions_per_value=*/2)
-nk_define_cross_cuda_packed_(dots, e2m1, blackwellrtx, e2m1x2, e2m1x2, f32, nk_dots_e2m1_multiply_blackwellrtx_,
-                             nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, /*depth_simd_dimensions=*/128,
-                             /*dimensions_per_value=*/2)
+nk_define_device_cross_pack_(e2m1, blackwellrtx, e2m1x2, e2m1x2, nk_load_b8_, /*norm_value_type=*/f32,
+                             /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
+nk_define_device_cross_(dot, e2m1, blackwellrtx, ampere, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
+                        /*dimensions_per_value=*/2, nk_dots_e2m1_multiply_blackwellrtx_, nk_cross_epilogue_f32_k,
+                        /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
 #pragma endregion E2M1
 

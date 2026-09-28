@@ -53,12 +53,12 @@ error_stats_t test_bilinear(typename scalar_type_::curved_kernel_t kernel) {
         fill_random(generator, m);
 
         result_t result;
-        kernel(a.raw_values_data(), b.raw_values_data(), m.raw_values_data(), global_config.curved_dimensions,
-               &result.raw_);
+        stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), m.raw_values_data(),
+                            global_config.curved_dimensions, &result.raw_, nullptr));
 
         reference_t reference;
-        nk::bilinear<scalar_t, reference_t, nk::no_simd_k>(a.values_data(), b.values_data(), m.values_data(),
-                                                           global_config.curved_dimensions, &reference);
+        nk::bilinear<scalar_t, reference_t>(a.values_data(), b.values_data(), m.values_data(),
+                                            global_config.curved_dimensions, &reference, no_tiers_k);
 
         stats.accumulate(result, reference);
     }
@@ -88,12 +88,12 @@ error_stats_t test_mahalanobis(typename scalar_type_::curved_kernel_t kernel) {
         make_psd(m.values_data(), global_config.curved_dimensions);
 
         result_t result;
-        kernel(a.raw_values_data(), b.raw_values_data(), m.raw_values_data(), global_config.curved_dimensions,
-               &result.raw_);
+        stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), m.raw_values_data(),
+                            global_config.curved_dimensions, &result.raw_, nullptr));
 
         reference_t reference;
-        nk::mahalanobis<scalar_t, reference_t, nk::no_simd_k>(a.values_data(), b.values_data(), m.values_data(),
-                                                              global_config.curved_dimensions, &reference);
+        nk::mahalanobis<scalar_t, reference_t>(a.values_data(), b.values_data(), m.values_data(),
+                                               global_config.curved_dimensions, &reference, no_tiers_k);
 
         stats.accumulate(result, reference);
     }
@@ -117,14 +117,14 @@ void test_curved() {
     check("bilinear_bf16c_serial", test_bilinear<bf16c_t>, nk_bilinear_bf16c_serial);
     check("mahalanobis_bf16_serial", test_mahalanobis<bf16_t>, nk_mahalanobis_bf16_serial);
 
-#if NUMKONG_RUNTIME_DISPATCH
+#if !NUMKONG_HEADER_ONLY
     check.section("Curved Kernels Runtime Dispatch", nk_cap_serial_k);
-    check("bilinear_f32", test_bilinear<f32_t>, nk_bilinear_f32);
-    check("bilinear_f64", test_bilinear<f64_t>, nk_bilinear_f64);
-    check("bilinear_f32c", test_bilinear<f32c_t>, nk_bilinear_f32c);
-    check("bilinear_f64c", test_bilinear<f64c_t>, nk_bilinear_f64c);
-    check("mahalanobis_f32", test_mahalanobis<f32_t>, nk_mahalanobis_f32);
-    check("mahalanobis_f64", test_mahalanobis<f64_t>, nk_mahalanobis_f64);
+    check("bilinear_f32", test_bilinear<f32_t>, cpu_best<nk_bilinear_f32_best>);
+    check("bilinear_f64", test_bilinear<f64_t>, cpu_best<nk_bilinear_f64_best>);
+    check("bilinear_f32c", test_bilinear<f32c_t>, cpu_best<nk_bilinear_f32c_best>);
+    check("bilinear_f64c", test_bilinear<f64c_t>, cpu_best<nk_bilinear_f64c_best>);
+    check("mahalanobis_f32", test_mahalanobis<f32_t>, cpu_best<nk_mahalanobis_f32_best>);
+    check("mahalanobis_f64", test_mahalanobis<f64_t>, cpu_best<nk_mahalanobis_f64_best>);
 #endif
 
 #if NUMKONG_TARGET_NEON

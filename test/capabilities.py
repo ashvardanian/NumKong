@@ -3,7 +3,7 @@
 
 Capabilities are reported along two independent axes — `detected` (what this CPU can execute)
 and `compiled` (what the ISA probes baked into this build) — plus `enabled` (what dispatch uses,
-their intersection unless narrowed by `capabilities_enable`).
+their intersection unless narrowed by `capabilities_enable`, or for one call by `capabilities=`).
 
 Conflating the axes is a silent performance cliff rather than a build error, which is how
 SIMD-free wheels once shipped with every check green: `detected` is true of the machine no
@@ -14,6 +14,7 @@ Author: Ash Vardanian
 Date: July 16, 2026
 """
 
+import array
 import os
 import platform
 import sys
@@ -51,29 +52,27 @@ def restore_enabled_capabilities():
     nk.capabilities_enable(enabled)
 
 
-def test_capability_members_are_the_cpu_tiers():
-    """`Capability` has one member per CPU tier and none for the GPU tiers.
+def test_capability_members_are_the_cpu_capabilities():
+    """`Capability` has one member per CPU capability, in bit order, and none for the GPU capabilities.
 
-    A name missing here means the names drifted from the `nk_cap_*_k` bits.
+    A name missing or moved here means the names drifted from the `nk_cap_*_k` bits.
     """
     # fmt: off
     expected = [
         "serial",
-        "haswell", "alder", "sierra",
-        "skylake", "icelake", "genoa", "sapphire", "turin", "diamond",
+        "neon", "neonhalf", "neonbfdot", "neonfhm", "neonsdot", "neonfp8",
+        "sve", "svehalf", "svesdot", "svebfdot", "sve2", "sme", "smef64", "smebi32",
+        "haswell", "alder", "sierra", "skylake", "icelake", "genoa", "turin", "sapphire", "diamond",
         "sapphireamx", "graniteamx", "diamondamx",
-        "neon", "neonhalf", "neonfhm", "neonbfdot", "neonsdot", "neonfp8",
-        "sve", "svehalf", "svebfdot", "svesdot", "sve2", "sve2p1",
-        "sme", "sme2", "sme2p1", "smef64", "smehalf", "smebf16", "smebi32", "smelut2", "smefa64",
-        "rvv", "rvvhalf", "rvvbf16", "rvvbb",
-        "loongsonasx", "powervsx", "v128", "v128relaxed",
+        "rvv", "rvvbf16", "rvvhalf", "rvvbb",
+        "v128", "v128relaxed", "powervsx", "loongsonasx",
     ]
     # fmt: on
-    assert sorted(nk.Capability.__members__) == sorted(name.upper() for name in expected)
+    assert list(nk.Capability.__members__) == [name.upper() for name in expected], "members follow the bit order"
 
 
 def test_enabling_everything_keeps_what_runs_here():
-    """Asking for every tier leaves exactly the ones both detected and compiled, serial included.
+    """Asking for every capability leaves exactly the ones both detected and compiled, serial included.
 
     Without the clamp, enabling an ISA that was compiled in but that this CPU lacks points
     dispatch at instructions the hardware refuses to execute.
@@ -107,17 +106,49 @@ def test_compiled_covers_the_baseline_this_machine_detects():
 
 
 def test_enable_drops_the_tiers_left_out():
-    """`capabilities_enable` makes `wanted` the enabled set, so a tier left out stops dispatching."""
+    """`capabilities_enable` makes `wanted` the enabled set, so a capability left out stops dispatching."""
     available = nk.capabilities_detected() & nk.capabilities_compiled()
-    tiers = [tier for tier in nk.Capability if tier in available and tier != nk.Capability.SERIAL]
-    if not tiers:
-        pytest.skip("scalar build: no tier other than serial to toggle")
+    capabilities = [capability for capability in nk.Capability if capability in available and capability != nk.Capability.SERIAL]
+    if not capabilities:
+        pytest.skip("scalar build: no capability other than serial to toggle")
 
-    enabled = nk.capabilities_enable(available ^ tiers[0])
-    assert tiers[0] not in enabled and enabled == nk.capabilities_enabled()
+    enabled = nk.capabilities_enable(available ^ capabilities[0])
+    assert capabilities[0] not in enabled and enabled == nk.capabilities_enabled()
     assert nk.capabilities_enable(available) == available
 
 
 def test_serial_survives_enabling_nothing():
     """The serial fallback always remains, so a kernel is always found."""
     assert nk.capabilities_enable(nk.Capability(0)) == nk.Capability.SERIAL
+
+
+def test_capabilities_keyword_narrows_one_call():
+    """`capabilities=` picks the capabilities of one call and leaves the default of every other call alone.
+
+    Unlike `capabilities_enable`, the keyword keeps no serial fallback, so a mask of no capability finds no kernel.
+    """
+    a, b = array.array("f", [0.25] * 64), array.array("f", [0.5] * 64)
+    enabled = nk.capabilities_enabled()
+    assert nk.dot(a, b, capabilities=nk.Capability.SERIAL) == nk.dot(a, b) == 8.0
+    assert nk.capabilities_enabled() == enabled
+    with pytest.raises(LookupError):
+        nk.dot(a, b, capabilities=nk.Capability(0))
+    with pytest.raises(TypeError):
+        nk.dot(a, b, stream="not a pointer")
+
+
+def test_packed_matrix_keeps_the_mask_it_was_packed_with():
+    """A packed matrix is read by the capability that packed it, even after the default narrows.
+
+    Pack layouts differ per capability, so another capability's kernel refuses the buffer rather than misreading it.
+    """
+    vectors = memoryview(array.array("f", [float(i % 7) for i in range(8 * 64)])).cast("B").cast("f", [8, 64])
+    packed = nk.dots_pack(vectors)
+    expected = nk.dots_packed(vectors, packed)
+    nk.capabilities_enable(nk.Capability.SERIAL)
+    serial_packed = nk.dots_pack(vectors)
+    assert nk.dots_packed(vectors, packed) == expected
+    assert nk.dots_packed(vectors, serial_packed) == expected
+    if serial_packed.nbytes != packed.nbytes:
+        with pytest.raises(RuntimeError):
+            nk.dots_packed(vectors, packed, capabilities=nk.Capability.SERIAL)

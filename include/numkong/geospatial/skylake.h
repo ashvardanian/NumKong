@@ -22,8 +22,8 @@
 #ifndef NUMKONG_GEOSPATIAL_SKYLAKE_H
 #define NUMKONG_GEOSPATIAL_SKYLAKE_H
 
-#if NUMKONG_ARCH_X86_64_
-#if NUMKONG_TARGET_SKYLAKE
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_SKYLAKE_
 
 #include "numkong/types.h"
 #include "numkong/trigonometry/skylake.h" // `nk_sin_f64x8_skylake_`, `nk_cos_f64x8_skylake_`, `nk_atan2_f64x8_skylake_`
@@ -40,7 +40,7 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NUMKONG_HELPER_INLINE __m512d nk_haversine_f64x8_skylake_(         //
+NUMKONG_INLINE __m512d nk_haversine_f64x8_skylake_(                //
     __m512d first_latitudes_f64x8, __m512d first_longitudes_f64x8, //
     __m512d second_latitudes_f64x8, __m512d second_longitudes_f64x8) {
 
@@ -83,9 +83,10 @@ NUMKONG_HELPER_INLINE __m512d nk_haversine_f64x8_skylake_(         //
     return _mm512_mul_pd(earth_radius_f64x8, central_angle_f64x8);
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_haversine_f64_skylake( //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons,        //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons,        //
+#if NUMKONG_TARGET_SKYLAKE
+NUMKONG_API nk_status_t nk_haversine_f64_skylake(   //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
@@ -116,12 +117,13 @@ NUMKONG_API_COMPTIME nk_status_t nk_haversine_f64_skylake( //
     }
     return nk_success_k;
 }
+#endif // NUMKONG_TARGET_SKYLAKE
 
 /**
  *  @brief AVX-512 helper for Vincenty's geodesic distance on 8 f64 point pairs.
  *  @note This is a true SIMD implementation using masked convergence tracking.
  */
-NUMKONG_HELPER_INLINE __m512d nk_vincenty_f64x8_skylake_(          //
+NUMKONG_INLINE __m512d nk_vincenty_f64x8_skylake_(                 //
     __m512d first_latitudes_f64x8, __m512d first_longitudes_f64x8, //
     __m512d second_latitudes_f64x8, __m512d second_longitudes_f64x8) {
 
@@ -286,9 +288,10 @@ NUMKONG_HELPER_INLINE __m512d nk_vincenty_f64x8_skylake_(          //
     return distances_f64x8;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f64_skylake( //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons,       //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons,       //
+#if NUMKONG_TARGET_SKYLAKE
+NUMKONG_API nk_status_t nk_vincenty_f64_skylake(    //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
     nk_size_t n, nk_f64_t *results, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
@@ -319,8 +322,9 @@ NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f64_skylake( //
     }
     return nk_success_k;
 }
+#endif // NUMKONG_TARGET_SKYLAKE
 
-NUMKONG_HELPER_INLINE __m512 nk_haversine_f32x16_skylake_(         //
+NUMKONG_INLINE __m512 nk_haversine_f32x16_skylake_(                //
     __m512 first_latitudes_f32x16, __m512 first_longitudes_f32x16, //
     __m512 second_latitudes_f32x16, __m512 second_longitudes_f32x16) {
 
@@ -365,9 +369,10 @@ NUMKONG_HELPER_INLINE __m512 nk_haversine_f32x16_skylake_(         //
     return _mm512_mul_ps(earth_radius_f32x16, central_angle_f32x16);
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_haversine_f32_skylake( //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons,        //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons,        //
+#if NUMKONG_TARGET_SKYLAKE
+NUMKONG_API nk_status_t nk_haversine_f32_skylake(   //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
@@ -398,12 +403,13 @@ NUMKONG_API_COMPTIME nk_status_t nk_haversine_f32_skylake( //
     }
     return nk_success_k;
 }
+#endif // NUMKONG_TARGET_SKYLAKE
 
 /**
  *  @brief AVX-512 helper for Vincenty's geodesic distance on 16 f32 point pairs.
  *  @note This is a true SIMD implementation using masked convergence tracking.
  */
-NUMKONG_HELPER_INLINE __m512 nk_vincenty_f32x16_skylake_(          //
+NUMKONG_INLINE __m512 nk_vincenty_f32x16_skylake_(                 //
     __m512 first_latitudes_f32x16, __m512 first_longitudes_f32x16, //
     __m512 second_latitudes_f32x16, __m512 second_longitudes_f32x16) {
 
@@ -571,9 +577,10 @@ NUMKONG_HELPER_INLINE __m512 nk_vincenty_f32x16_skylake_(          //
     return distances_f32x16;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f32_skylake( //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons,       //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons,       //
+#if NUMKONG_TARGET_SKYLAKE
+NUMKONG_API nk_status_t nk_vincenty_f32_skylake(    //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
     nk_size_t n, nk_f32_t *results, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
@@ -604,6 +611,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f32_skylake( //
     }
     return nk_success_k;
 }
+#endif // NUMKONG_TARGET_SKYLAKE
 
 #if defined(__clang__)
 #pragma clang attribute pop
@@ -615,6 +623,6 @@ NUMKONG_API_COMPTIME nk_status_t nk_vincenty_f32_skylake( //
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_SKYLAKE
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_SKYLAKE_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_GEOSPATIAL_SKYLAKE_H

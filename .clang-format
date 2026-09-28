@@ -77,11 +77,10 @@ PenaltyBreakBeforeFirstCallParameter: 1
 AttributeMacros:
   - PyObject_HEAD
   - PyObject_VAR_HEAD
-  - NUMKONG_API_COMPTIME
-  - NUMKONG_API_RUNTIME
-  - NUMKONG_HELPER_AUTO
-  - NUMKONG_HELPER_INLINE
-  - NUMKONG_HELPER_DEVICE
+  - NUMKONG_API
+  - NUMKONG_CONSTEXPR
+  - NUMKONG_INLINE
+  - NUMKONG_DEVICE
 StatementMacros:
   - nk_define_bilinear_
   - nk_define_bilinear_complex_
@@ -89,10 +88,12 @@ StatementMacros:
   - nk_define_dot_
   - nk_define_dot_complex_
   - nk_define_vdot_complex_
+  - nk_define_dot_serial_
   - nk_define_kld_
   - nk_define_jsd_
   - nk_define_sparse_intersect_helpers_
   - nk_define_sparse_intersect_
+  - nk_define_sparse_dot_helpers_
   - nk_define_sparse_dot_
   - nk_define_each_scale_
   - nk_define_each_sum_
@@ -100,11 +101,13 @@ StatementMacros:
   - nk_define_each_fma_
   - nk_define_each_swiglu_
   - nk_define_sqeuclidean_
+  - nk_define_sqeuclidean_serial_
   - nk_define_euclidean_
   - nk_define_angular_
   - nk_define_rmsd_
   - nk_define_kabsch_
   - nk_define_umeyama_
+  - nk_define_mesh_
   - nk_define_cond_swap_
   - nk_define_conditional_negating_swap_
   - nk_define_approximate_givens_quaternion_
@@ -130,21 +133,14 @@ StatementMacros:
   - nk_define_cross_normalized_symmetric_
   - nk_define_device_cross_pack_size_
   - nk_define_device_cross_packed_shape_
+  - nk_define_device_cross_pack_rows_
   - nk_define_device_cross_pack_
   - nk_define_device_cross_packed_
   - nk_define_device_cross_symmetric_
-  - nk_define_device_cross_normalized_packed_
-  - nk_define_device_cross_normalized_symmetric_
-  - nk_define_device_cross_baseline_packed_
-  - nk_define_device_cross_baseline_symmetric_
-  - nk_define_device_cross_baseline_normalized_packed_
-  - nk_define_device_cross_baseline_normalized_symmetric_
-  - nk_define_device_cross_baseline_
-  - nk_define_device_cross_baseline_normalized_
+  - nk_define_device_cross_
   - nk_define_device_cross_tma_packed_
   - nk_define_device_cross_tma_symmetric_
-  - nk_define_device_cross_tma_normalized_packed_
-  - nk_define_device_cross_tma_normalized_symmetric_
+  - nk_define_device_cross_tma_
   - nk_define_device_cross_msl_
   - nk_define_device_lane_sumsq_
   - nk_define_device_attention_pack_size_
@@ -154,38 +150,6 @@ StatementMacros:
   - nk_define_device_attention_baseline_
   - nk_define_device_attention_packed_
   - nk_define_trig_rope_
-  - nk_dispatch_dense_
-  - nk_dispatch_sparse_
-  - nk_dispatch_sparse_dot_
-  - nk_dispatch_curved_
-  - nk_dispatch_geospatial_
-  - nk_dispatch_each_fma_
-  - nk_dispatch_each_blend_
-  - nk_dispatch_each_scale_
-  - nk_dispatch_each_sum_
-  - nk_dispatch_each_swiglu_
-  - nk_dispatch_trig_
-  - nk_dispatch_trig_rope_
-  - nk_dispatch_mesh_
-  - nk_dispatch_reduce_moments_
-  - nk_dispatch_reduce_minmax_
-  - nk_dispatch_reduce_rmsnorm_
-  - nk_dispatch_cross_pack_size_
-  - nk_dispatch_cross_packed_shape_
-  - nk_dispatch_cross_pack_
-  - nk_dispatch_cross_packed_
-  - nk_dispatch_cross_symmetric_
-  - nk_dispatch_dots_pack_
-  - nk_dispatch_maxsim_packed_
-  - nk_dispatch_attention_pack_size_
-  - nk_dispatch_attention_packed_shape_
-  - nk_dispatch_attention_pack_
-  - nk_dispatch_attention_bidirectional_packed_
-  - nk_dispatch_attention_causal_packed_
-  - nk_dispatch_scalar_convert_
-  - nk_dispatch_scalar_unary_
-  - nk_dispatch_scalar_binary_
-  - nk_dispatch_scalar_ternary_
 
 # Align consecutive macro definitions (useful for NUMKONG_TARGET_* flags)
 AlignConsecutiveMacros:

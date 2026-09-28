@@ -15,18 +15,9 @@ using namespace ashvardanian::numkong::bench;
 
 #if NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
 
-struct identity_init_t {
-    template <typename scalar_type_>
-    scalar_type_ operator()(scalar_type_ v) const noexcept {
-        return v;
-    }
-};
-
 template <typename input_type_, typename input_b_type_ = input_type_, typename output_type_ = input_type_,
-          typename init_first_type_ = identity_init_t, typename init_second_type_ = identity_init_t,
           typename kernel_type_>
-void measure_dots_unpacked(bm::State &state, std::size_t m, std::size_t n, std::size_t k, kernel_type_ kernel,
-                           init_first_type_ init_first = {}, init_second_type_ init_second = {}) {
+void measure_dots_unpacked(bm::State &state, std::size_t m, std::size_t n, std::size_t k, kernel_type_ kernel) {
 
     std::size_t bytes_per_set = m * k * sizeof(input_type_) + n * k * sizeof(input_b_type_) +
                                 m * n * sizeof(output_type_);
@@ -75,10 +66,8 @@ void measure_dots_f64_with_blas(bm::State &state, std::size_t m, std::size_t n, 
                                   });
 }
 
-template <typename input_type_, typename output_type_ = input_type_, typename init_type_ = identity_init_t,
-          typename kernel_type_>
-void measure_dots_symmetric_unpacked(bm::State &state, std::size_t n, std::size_t k, kernel_type_ kernel,
-                                     init_type_ init = {}) {
+template <typename input_type_, typename output_type_ = input_type_, typename kernel_type_>
+void measure_dots_symmetric_unpacked(bm::State &state, std::size_t n, std::size_t k, kernel_type_ kernel) {
     std::size_t bytes_per_set = n * k * sizeof(input_type_) + n * n * sizeof(output_type_);
     std::size_t const sets_count = bench_input_count(bytes_per_set);
 
@@ -134,43 +123,21 @@ static BNNSNDArrayDescriptor bnns_matrix_desc(BNNSDataType dtype, void *data, st
 
 void measure_dots_f16_with_accelerate(bm::State &state, std::size_t m, std::size_t n, std::size_t k) {
     measure_dots_unpacked<nk_f16_t, nk_f16_t, float>(
-        state, m, n, k,
-        [](nk_f16_t *a, nk_f16_t *b, float *c, std::size_t m, std::size_t n, std::size_t k) {
+        state, m, n, k, [](nk_f16_t *a, nk_f16_t *b, float *c, std::size_t m, std::size_t n, std::size_t k) {
             auto a_desc = bnns_matrix_desc(BNNSDataTypeFloat16, a, m, k);
             auto b_desc = bnns_matrix_desc(BNNSDataTypeFloat16, b, n, k);
             auto c_desc = bnns_matrix_desc(BNNSDataTypeFloat32, c, m, n);
             BNNSMatMul(false, true, 1.0f, &a_desc, &b_desc, &c_desc, nullptr, nullptr);
-        },
-        [](float val) -> nk_f16_t {
-            nk_f16_t result;
-            nk_f32_to_f16(&val, &result);
-            return result;
-        },
-        [](float val) -> nk_f16_t {
-            nk_f16_t result;
-            nk_f32_to_f16(&val, &result);
-            return result;
         });
 }
 
 void measure_dots_bf16_with_accelerate(bm::State &state, std::size_t m, std::size_t n, std::size_t k) {
     measure_dots_unpacked<nk_bf16_t, nk_bf16_t, float>(
-        state, m, n, k,
-        [](nk_bf16_t *a, nk_bf16_t *b, float *c, std::size_t m, std::size_t n, std::size_t k) {
+        state, m, n, k, [](nk_bf16_t *a, nk_bf16_t *b, float *c, std::size_t m, std::size_t n, std::size_t k) {
             auto a_desc = bnns_matrix_desc(BNNSDataTypeBFloat16, a, m, k);
             auto b_desc = bnns_matrix_desc(BNNSDataTypeBFloat16, b, n, k);
             auto c_desc = bnns_matrix_desc(BNNSDataTypeFloat32, c, m, n);
             BNNSMatMul(false, true, 1.0f, &a_desc, &b_desc, &c_desc, nullptr, nullptr);
-        },
-        [](float val) -> nk_bf16_t {
-            nk_bf16_t result;
-            nk_f32_to_bf16(&val, &result);
-            return result;
-        },
-        [](float val) -> nk_bf16_t {
-            nk_bf16_t result;
-            nk_f32_to_bf16(&val, &result);
-            return result;
         });
 }
 
@@ -188,47 +155,17 @@ void measure_dots_f32_with_mkl(bm::State &state, std::size_t m, std::size_t n, s
 
 void measure_dots_bf16_with_mkl(bm::State &state, std::size_t m, std::size_t n, std::size_t k) {
     measure_dots_unpacked<MKL_BF16, MKL_BF16, float>(
-        state, m, n, k,
-        [](MKL_BF16 *a, MKL_BF16 *b, float *c, std::size_t m, std::size_t n, std::size_t k) {
+        state, m, n, k, [](MKL_BF16 *a, MKL_BF16 *b, float *c, std::size_t m, std::size_t n, std::size_t k) {
             cblas_gemm_bf16bf16f32(CblasRowMajor, CblasNoTrans, CblasTrans, (MKL_INT)m, (MKL_INT)n, (MKL_INT)k, 1.0f, a,
                                    (MKL_INT)k, b, (MKL_INT)k, 0.0f, c, (MKL_INT)n);
-        },
-        [](float val) -> MKL_BF16 {
-            nk_bf16_t result;
-            nk_f32_to_bf16(&val, &result);
-            MKL_BF16 mkl_result;
-            std::memcpy(&mkl_result, &result, sizeof(mkl_result));
-            return mkl_result;
-        },
-        [](float val) -> MKL_BF16 {
-            nk_bf16_t result;
-            nk_f32_to_bf16(&val, &result);
-            MKL_BF16 mkl_result;
-            std::memcpy(&mkl_result, &result, sizeof(mkl_result));
-            return mkl_result;
         });
 }
 
 void measure_dots_f16_with_mkl(bm::State &state, std::size_t m, std::size_t n, std::size_t k) {
     measure_dots_unpacked<MKL_F16, MKL_F16, float>(
-        state, m, n, k,
-        [](MKL_F16 *a, MKL_F16 *b, float *c, std::size_t m, std::size_t n, std::size_t k) {
+        state, m, n, k, [](MKL_F16 *a, MKL_F16 *b, float *c, std::size_t m, std::size_t n, std::size_t k) {
             cblas_gemm_f16f16f32(CblasRowMajor, CblasNoTrans, CblasTrans, (MKL_INT)m, (MKL_INT)n, (MKL_INT)k, 1.0f, a,
                                  (MKL_INT)k, b, (MKL_INT)k, 0.0f, c, (MKL_INT)n);
-        },
-        [](float val) -> MKL_F16 {
-            nk_f16_t result;
-            nk_f32_to_f16(&val, &result);
-            MKL_F16 mkl_result;
-            std::memcpy(&mkl_result, &result, sizeof(mkl_result));
-            return mkl_result;
-        },
-        [](float val) -> MKL_F16 {
-            nk_f16_t result;
-            nk_f32_to_f16(&val, &result);
-            MKL_F16 mkl_result;
-            std::memcpy(&mkl_result, &result, sizeof(mkl_result));
-            return mkl_result;
         });
 }
 

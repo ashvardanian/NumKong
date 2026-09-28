@@ -9,10 +9,11 @@
 #ifndef NUMKONG_DOTS_GENOA_H
 #define NUMKONG_DOTS_GENOA_H
 
-#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_ARCH_X8664_
 #if NUMKONG_TARGET_GENOA
 
 #include "numkong/dot/genoa.h"
+#include "numkong/dots/serial.h"    // `nk_define_cross_pack_size_`
 #include "numkong/cast/icelake.h"   // `nk_load_e4m3x32_to_bf16x32_icelake_`
 #include "numkong/dot/skylake.h"    // `nk_dot_through_f32_finalize_skylake_`
 #include "numkong/reduce/skylake.h" // `nk_reduce_add_f32x16_skylake_`
@@ -101,5 +102,5 @@ nk_define_cross_packed_(dots, e5m2, genoa, e5m2, bf16, f32, nk_b512_vec_t, nk_do
 #endif
 
 #endif // NUMKONG_TARGET_GENOA
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_DOTS_GENOA_H

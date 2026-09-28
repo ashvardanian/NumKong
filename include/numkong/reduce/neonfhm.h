@@ -13,9 +13,9 @@
 #if NUMKONG_TARGET_NEONFHM
 
 #include "numkong/types.h"         // `nk_e4m3_t`
-#include "numkong/cast/serial.h"   // `nk_f16_to_f32_serial`
+#include "numkong/cast/serial.h"   // `nk_partial_load_b8x8_serial_`
 #include "numkong/cast/neon.h"     // `nk_e4m3x8_to_f16x8_neon_`
-#include "numkong/reduce/serial.h" // `nk_reduce_moments_e4m3_serial`
+#include "numkong/reduce/serial.h" // `nk_reduce_moments_e4m3_strided_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -28,8 +28,8 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+simd+fp16+fp16fml")
 #endif
 
-NUMKONG_HELPER_INLINE void nk_reduce_moments_e4m3_neonfhm_contiguous_( //
-    nk_e4m3_t const *data_ptr, nk_size_t count,                        //
+NUMKONG_INLINE void nk_reduce_moments_e4m3_neonfhm_contiguous_( //
+    nk_e4m3_t const *data_ptr, nk_size_t count,                 //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
 
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
@@ -61,7 +61,7 @@ NUMKONG_HELPER_INLINE void nk_reduce_moments_e4m3_neonfhm_contiguous_( //
     *sumsq_ptr = vaddvq_f32(sumsq_f32x4);
 }
 
-NUMKONG_HELPER_INLINE void nk_reduce_moments_e4m3_neonfhm_strided_(        //
+NUMKONG_INLINE void nk_reduce_moments_e4m3_neonfhm_strided_(               //
     nk_e4m3_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
 
@@ -134,29 +134,37 @@ NUMKONG_HELPER_INLINE void nk_reduce_moments_e4m3_neonfhm_strided_(        //
     *sumsq_ptr = vaddvq_f32(sumsq_f32x4);
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_reduce_moments_e4m3_neonfhm(        //
+NUMKONG_INLINE void nk_reduce_moments_e4m3_neonfhm_chunked_(            //
     nk_e4m3_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
-    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
+    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_e4m3_t);
     int aligned = (stride_bytes % sizeof(nk_e4m3_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) nk_reduce_moments_e4m3_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr, stream);
-    else if (count > (nk_size_t)5000 * 8) {
-        nk_size_t left_count = count / 2;
-        nk_f32_t left_sum_value, left_sumsq_value, right_sum_value, right_sumsq_value;
-        nk_reduce_moments_e4m3_neonfhm(data_ptr, left_count, stride_bytes, &left_sum_value, &left_sumsq_value, stream);
-        nk_reduce_moments_e4m3_neonfhm(data_ptr + left_count * stride_elements, count - left_count, stride_bytes,
-                                       &right_sum_value, &right_sumsq_value, stream);
-        *sum_ptr = left_sum_value + right_sum_value, *sumsq_ptr = left_sumsq_value + right_sumsq_value;
+    else if (!aligned) nk_reduce_moments_e4m3_strided_(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    else {
+        nk_size_t const chunk_limit = (nk_size_t)5000 * 8;
+        for (nk_size_t start = 0; start < count; start += chunk_limit) {
+            nk_e4m3_t const *chunk_ptr = data_ptr + start * stride_elements;
+            nk_size_t chunk_count = count - start < chunk_limit ? count - start : chunk_limit;
+            nk_f32_t sum, sumsq;
+            if (stride_elements == 1) nk_reduce_moments_e4m3_neonfhm_contiguous_(chunk_ptr, chunk_count, &sum, &sumsq);
+            else nk_reduce_moments_e4m3_neonfhm_strided_(chunk_ptr, chunk_count, stride_elements, &sum, &sumsq);
+            if (start == 0) *sum_ptr = sum, *sumsq_ptr = sumsq;
+            else *sum_ptr += sum, *sumsq_ptr += sumsq;
+        }
     }
-    else if (stride_elements == 1) nk_reduce_moments_e4m3_neonfhm_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr);
-    else nk_reduce_moments_e4m3_neonfhm_strided_(data_ptr, count, stride_elements, sum_ptr, sumsq_ptr);
+}
+
+NUMKONG_API nk_status_t nk_reduce_moments_e4m3_neonfhm(                 //
+    nk_e4m3_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
+    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_reduce_moments_e4m3_neonfhm_chunked_(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
     return nk_success_k;
 }
 
-NUMKONG_HELPER_INLINE void nk_reduce_moments_e5m2_neonfhm_contiguous_( //
-    nk_e5m2_t const *data_ptr, nk_size_t count,                        //
+NUMKONG_INLINE void nk_reduce_moments_e5m2_neonfhm_contiguous_( //
+    nk_e5m2_t const *data_ptr, nk_size_t count,                 //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
 
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
@@ -188,7 +196,7 @@ NUMKONG_HELPER_INLINE void nk_reduce_moments_e5m2_neonfhm_contiguous_( //
     *sumsq_ptr = vaddvq_f32(sumsq_f32x4);
 }
 
-NUMKONG_HELPER_INLINE void nk_reduce_moments_e5m2_neonfhm_strided_(        //
+NUMKONG_INLINE void nk_reduce_moments_e5m2_neonfhm_strided_(               //
     nk_e5m2_t const *data_ptr, nk_size_t count, nk_size_t stride_elements, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
 
@@ -261,24 +269,32 @@ NUMKONG_HELPER_INLINE void nk_reduce_moments_e5m2_neonfhm_strided_(        //
     *sumsq_ptr = vaddvq_f32(sumsq_f32x4);
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_reduce_moments_e5m2_neonfhm(        //
+NUMKONG_INLINE void nk_reduce_moments_e5m2_neonfhm_chunked_(            //
     nk_e5m2_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
-    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
+    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     nk_size_t stride_elements = stride_bytes / sizeof(nk_e5m2_t);
     int aligned = (stride_bytes % sizeof(nk_e5m2_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) nk_reduce_moments_e5m2_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr, stream);
-    else if (count > (nk_size_t)5000 * 8) {
-        nk_size_t left_count = count / 2;
-        nk_f32_t left_sum_value, left_sumsq_value, right_sum_value, right_sumsq_value;
-        nk_reduce_moments_e5m2_neonfhm(data_ptr, left_count, stride_bytes, &left_sum_value, &left_sumsq_value, stream);
-        nk_reduce_moments_e5m2_neonfhm(data_ptr + left_count * stride_elements, count - left_count, stride_bytes,
-                                       &right_sum_value, &right_sumsq_value, stream);
-        *sum_ptr = left_sum_value + right_sum_value, *sumsq_ptr = left_sumsq_value + right_sumsq_value;
+    else if (!aligned) nk_reduce_moments_e5m2_strided_(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    else {
+        nk_size_t const chunk_limit = (nk_size_t)5000 * 8;
+        for (nk_size_t start = 0; start < count; start += chunk_limit) {
+            nk_e5m2_t const *chunk_ptr = data_ptr + start * stride_elements;
+            nk_size_t chunk_count = count - start < chunk_limit ? count - start : chunk_limit;
+            nk_f32_t sum, sumsq;
+            if (stride_elements == 1) nk_reduce_moments_e5m2_neonfhm_contiguous_(chunk_ptr, chunk_count, &sum, &sumsq);
+            else nk_reduce_moments_e5m2_neonfhm_strided_(chunk_ptr, chunk_count, stride_elements, &sum, &sumsq);
+            if (start == 0) *sum_ptr = sum, *sumsq_ptr = sumsq;
+            else *sum_ptr += sum, *sumsq_ptr += sumsq;
+        }
     }
-    else if (stride_elements == 1) nk_reduce_moments_e5m2_neonfhm_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr);
-    else nk_reduce_moments_e5m2_neonfhm_strided_(data_ptr, count, stride_elements, sum_ptr, sumsq_ptr);
+}
+
+NUMKONG_API nk_status_t nk_reduce_moments_e5m2_neonfhm(                 //
+    nk_e5m2_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
+    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_reduce_moments_e5m2_neonfhm_chunked_(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
     return nk_success_k;
 }
 

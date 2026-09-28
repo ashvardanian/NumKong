@@ -55,6 +55,7 @@
 
 #include "numkong/dots.h"
 #include "numkong/types.h"
+#include "numkong/capabilities.h"
 
 #if defined(__cplusplus)
 extern "C" {
@@ -63,7 +64,8 @@ extern "C" {
 /**
  *  @brief Computes batched angular distances using a packed second matrix.
  *  @param[in] a Input A matrix in row-major order.
- *  @param[in] b_packed Packed B matrix (produced by nk_dots_pack_*), with norms in footer.
+ *  @param[in] b_packed Packed B matrix with norms in its footer, from `nk_dots_pack_*_best` with
+ *      the same @p capabilities, as the capability that packed it must be the one that reads it.
  *  @param[out] result Output matrix (rows x cols) of angular distances.
  *  @param[in] rows Number of rows in A.
  *  @param[in] cols Number of columns in B (packed).
@@ -71,10 +73,14 @@ extern "C" {
  *      values per byte.
  *  @param[in] a_stride_in_bytes Row stride in bytes for A.
  *  @param[in] r_stride_in_bytes Row stride in bytes for the result matrix.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  */
-NUMKONG_API_RUNTIME void nk_angulars_packed_f32(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
-                                                nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
+NUMKONG_API nk_status_t nk_angulars_packed_f32_best(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
+                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                    nk_capability_t capabilities, void *stream);
 
 /**
  *  @brief Computes symmetric angular distance matrix (Gram-style) for a set of vectors.
@@ -86,15 +92,20 @@ NUMKONG_API_RUNTIME void nk_angulars_packed_f32(nk_f32_t const *a, void const *b
  *  @param[in] result_stride Row stride in bytes for the result matrix.
  *  @param[in] row_start Starting row offset of results to compute (for parallelism).
  *  @param[in] row_count Number of rows of results to compute (for parallelism).
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  */
-NUMKONG_API_RUNTIME void nk_angulars_symmetric_f32(nk_f32_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                   nk_size_t stride, nk_f64_t *result, nk_size_t result_stride,
-                                                   nk_size_t row_start, nk_size_t row_count);
+NUMKONG_API nk_status_t nk_angulars_symmetric_f32_best(nk_f32_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, nk_capability_t capabilities, void *stream);
 
 /**
  *  @brief Computes batched euclidean distances using a packed second matrix.
  *  @param[in] a Input A matrix in row-major order.
- *  @param[in] b_packed Packed B matrix (produced by nk_dots_pack_*), with norms in footer.
+ *  @param[in] b_packed Packed B matrix with norms in its footer, from `nk_dots_pack_*_best` with
+ *      the same @p capabilities, as the capability that packed it must be the one that reads it.
  *  @param[out] result Output matrix (rows x cols) of euclidean distances.
  *  @param[in] rows Number of rows in A.
  *  @param[in] cols Number of columns in B (packed).
@@ -102,10 +113,14 @@ NUMKONG_API_RUNTIME void nk_angulars_symmetric_f32(nk_f32_t const *vectors, nk_s
  *      values per byte.
  *  @param[in] a_stride_in_bytes Row stride in bytes for A.
  *  @param[in] r_stride_in_bytes Row stride in bytes for the result matrix.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  */
-NUMKONG_API_RUNTIME void nk_euclideans_packed_f32(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
-                                                  nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                  nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
+NUMKONG_API nk_status_t nk_euclideans_packed_f32_best(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      nk_capability_t capabilities, void *stream);
 
 /**
  *  @brief Computes symmetric euclidean distance matrix (Gram-style) for a set of vectors.
@@ -117,567 +132,667 @@ NUMKONG_API_RUNTIME void nk_euclideans_packed_f32(nk_f32_t const *a, void const 
  *  @param[in] result_stride Row stride in bytes for the result matrix.
  *  @param[in] row_start Starting row offset of results to compute (for parallelism).
  *  @param[in] row_count Number of rows of results to compute (for parallelism).
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  */
-NUMKONG_API_RUNTIME void nk_euclideans_symmetric_f32(nk_f32_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                     nk_size_t stride, nk_f64_t *result, nk_size_t result_stride,
-                                                     nk_size_t row_start, nk_size_t row_count);
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f32_best(nk_f32_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, nk_capability_t capabilities,
+                                                         void *stream);
 
-/** @copydoc nk_angulars_packed_f32 */
-NUMKONG_API_RUNTIME void nk_angulars_packed_f64(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
-                                                nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f32 */
-NUMKONG_API_RUNTIME void nk_angulars_symmetric_f64(nk_f64_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                   nk_size_t stride, nk_f64_t *result, nk_size_t result_stride,
-                                                   nk_size_t row_start, nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f32 */
-NUMKONG_API_RUNTIME void nk_euclideans_packed_f64(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
-                                                  nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                  nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f32 */
-NUMKONG_API_RUNTIME void nk_euclideans_symmetric_f64(nk_f64_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                     nk_size_t stride, nk_f64_t *result, nk_size_t result_stride,
-                                                     nk_size_t row_start, nk_size_t row_count);
+/** @copydoc nk_angulars_packed_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f64_best(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
+                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                    nk_capability_t capabilities, void *stream);
+/** @copydoc nk_angulars_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f64_best(nk_f64_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, nk_capability_t capabilities, void *stream);
+/** @copydoc nk_euclideans_packed_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f64_best(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      nk_capability_t capabilities, void *stream);
+/** @copydoc nk_euclideans_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f64_best(nk_f64_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, nk_capability_t capabilities,
+                                                         void *stream);
 
-/** @copydoc nk_angulars_packed_f32 */
-NUMKONG_API_RUNTIME void nk_angulars_packed_f16(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
-                                                nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f32 */
-NUMKONG_API_RUNTIME void nk_angulars_symmetric_f16(nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                   nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                   nk_size_t row_start, nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f32 */
-NUMKONG_API_RUNTIME void nk_euclideans_packed_f16(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
-                                                  nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                  nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f32 */
-NUMKONG_API_RUNTIME void nk_euclideans_symmetric_f16(nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                     nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                     nk_size_t row_start, nk_size_t row_count);
+/** @copydoc nk_angulars_packed_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f16_best(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                    nk_capability_t capabilities, void *stream);
+/** @copydoc nk_angulars_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f16_best(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, nk_capability_t capabilities, void *stream);
+/** @copydoc nk_euclideans_packed_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f16_best(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      nk_capability_t capabilities, void *stream);
+/** @copydoc nk_euclideans_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_best(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, nk_capability_t capabilities,
+                                                         void *stream);
 
-/** @copydoc nk_angulars_packed_f32 */
-NUMKONG_API_RUNTIME void nk_angulars_packed_bf16(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
-                                                 nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                 nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f32 */
-NUMKONG_API_RUNTIME void nk_angulars_symmetric_bf16(nk_bf16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                    nk_size_t row_start, nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f32 */
-NUMKONG_API_RUNTIME void nk_euclideans_packed_bf16(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_bf16_best(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                     nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                     nk_capability_t capabilities, void *stream);
+/** @copydoc nk_angulars_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_best(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, nk_capability_t capabilities,
+                                                        void *stream);
+/** @copydoc nk_euclideans_packed_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_bf16_best(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       nk_capability_t capabilities, void *stream);
+/** @copydoc nk_euclideans_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_best(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, nk_capability_t capabilities,
+                                                          void *stream);
+
+/** @copydoc nk_angulars_packed_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e4m3_best(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
+                                                     nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                     nk_capability_t capabilities, void *stream);
+/** @copydoc nk_angulars_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e4m3_best(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, nk_capability_t capabilities,
+                                                        void *stream);
+/** @copydoc nk_euclideans_packed_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e4m3_best(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
+                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       nk_capability_t capabilities, void *stream);
+/** @copydoc nk_euclideans_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e4m3_best(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, nk_capability_t capabilities,
+                                                          void *stream);
+
+/** @copydoc nk_angulars_packed_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e5m2_best(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                     nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                     nk_capability_t capabilities, void *stream);
+/** @copydoc nk_angulars_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_best(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, nk_capability_t capabilities,
+                                                        void *stream);
+/** @copydoc nk_euclideans_packed_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_best(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       nk_capability_t capabilities, void *stream);
+/** @copydoc nk_euclideans_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_best(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, nk_capability_t capabilities,
+                                                          void *stream);
+
+/** @copydoc nk_angulars_packed_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m3_best(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
+                                                     nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                     nk_capability_t capabilities, void *stream);
+/** @copydoc nk_angulars_packed_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m1_best(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                     nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                     nk_capability_t capabilities, void *stream);
+/** @copydoc nk_angulars_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_best(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, nk_capability_t capabilities,
+                                                        void *stream);
+/** @copydoc nk_angulars_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_best(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, nk_capability_t capabilities,
+                                                        void *stream);
+/** @copydoc nk_euclideans_packed_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_best(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
+                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       nk_capability_t capabilities, void *stream);
+/** @copydoc nk_euclideans_packed_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_best(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       nk_capability_t capabilities, void *stream);
+/** @copydoc nk_euclideans_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_best(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, nk_capability_t capabilities,
+                                                          void *stream);
+/** @copydoc nk_euclideans_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_best(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, nk_capability_t capabilities,
+                                                          void *stream);
+
+/** @copydoc nk_angulars_packed_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e3m2_best(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                     nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                     nk_capability_t capabilities, void *stream);
+/** @copydoc nk_angulars_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e3m2_best(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, nk_capability_t capabilities,
+                                                        void *stream);
+/** @copydoc nk_euclideans_packed_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e3m2_best(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       nk_capability_t capabilities, void *stream);
+/** @copydoc nk_euclideans_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e3m2_best(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, nk_capability_t capabilities,
+                                                          void *stream);
+
+/** @copydoc nk_angulars_packed_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i8_best(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                   nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f32 */
-NUMKONG_API_RUNTIME void nk_euclideans_symmetric_bf16(nk_bf16_t const *vectors, nk_size_t vectors_count,
-                                                      nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                      nk_size_t result_stride, nk_size_t row_start,
-                                                      nk_size_t row_count);
+                                                   nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                   nk_capability_t capabilities, void *stream);
+/** @copydoc nk_angulars_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i8_best(nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                      nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                      nk_size_t row_start, nk_size_t row_count,
+                                                      nk_capability_t capabilities, void *stream);
+/** @copydoc nk_euclideans_packed_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i8_best(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                     nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                     nk_capability_t capabilities, void *stream);
+/** @copydoc nk_euclideans_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_best(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, nk_capability_t capabilities,
+                                                        void *stream);
 
-/** @copydoc nk_angulars_packed_f32 */
-NUMKONG_API_RUNTIME void nk_angulars_packed_e4m3(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                 nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                 nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f32 */
-NUMKONG_API_RUNTIME void nk_angulars_symmetric_e4m3(nk_e4m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                    nk_size_t row_start, nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f32 */
-NUMKONG_API_RUNTIME void nk_euclideans_packed_e4m3(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u8_best(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                   nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f32 */
-NUMKONG_API_RUNTIME void nk_euclideans_symmetric_e4m3(nk_e4m3_t const *vectors, nk_size_t vectors_count,
-                                                      nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                      nk_size_t result_stride, nk_size_t row_start,
-                                                      nk_size_t row_count);
+                                                   nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                   nk_capability_t capabilities, void *stream);
+/** @copydoc nk_angulars_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u8_best(nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                      nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                      nk_size_t row_start, nk_size_t row_count,
+                                                      nk_capability_t capabilities, void *stream);
+/** @copydoc nk_euclideans_packed_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u8_best(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                     nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                     nk_capability_t capabilities, void *stream);
+/** @copydoc nk_euclideans_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_best(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, nk_capability_t capabilities,
+                                                        void *stream);
 
-/** @copydoc nk_angulars_packed_f32 */
-NUMKONG_API_RUNTIME void nk_angulars_packed_e5m2(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                 nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                 nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f32 */
-NUMKONG_API_RUNTIME void nk_angulars_symmetric_e5m2(nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                    nk_size_t row_start, nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f32 */
-NUMKONG_API_RUNTIME void nk_euclideans_packed_e5m2(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i4_best(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *result,
                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                   nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f32 */
-NUMKONG_API_RUNTIME void nk_euclideans_symmetric_e5m2(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                   nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                   nk_capability_t capabilities, void *stream);
+/** @copydoc nk_angulars_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i4_best(nk_i4x2_t const *vectors, nk_size_t vectors_count,
                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                      nk_size_t result_stride, nk_size_t row_start,
-                                                      nk_size_t row_count);
+                                                      nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count,
+                                                      nk_capability_t capabilities, void *stream);
+/** @copydoc nk_euclideans_packed_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i4_best(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                     nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                     nk_capability_t capabilities, void *stream);
+/** @copydoc nk_euclideans_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i4_best(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, nk_capability_t capabilities,
+                                                        void *stream);
 
-/** @copydoc nk_angulars_packed_f32 */
-NUMKONG_API_RUNTIME void nk_angulars_packed_e2m3(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                 nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                 nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_packed_f32 */
-NUMKONG_API_RUNTIME void nk_angulars_packed_e2m1(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                 nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                 nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f32 */
-NUMKONG_API_RUNTIME void nk_angulars_symmetric_e2m3(nk_e2m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                    nk_size_t row_start, nk_size_t row_count);
-/** @copydoc nk_angulars_symmetric_f32 */
-NUMKONG_API_RUNTIME void nk_angulars_symmetric_e2m1(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
-                                                    nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f32 */
-NUMKONG_API_RUNTIME void nk_euclideans_packed_e2m3(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u4_best(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *result,
                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                   nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_packed_f32 */
-NUMKONG_API_RUNTIME void nk_euclideans_packed_e2m1(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                   nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                   nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f32 */
-NUMKONG_API_RUNTIME void nk_euclideans_symmetric_e2m3(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                   nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                   nk_capability_t capabilities, void *stream);
+/** @copydoc nk_angulars_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u4_best(nk_u4x2_t const *vectors, nk_size_t vectors_count,
                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                      nk_size_t result_stride, nk_size_t row_start,
-                                                      nk_size_t row_count);
-/** @copydoc nk_euclideans_symmetric_f32 */
-NUMKONG_API_RUNTIME void nk_euclideans_symmetric_e2m1(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
-                                                      nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                      nk_size_t result_stride, nk_size_t row_start,
-                                                      nk_size_t row_count);
+                                                      nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count,
+                                                      nk_capability_t capabilities, void *stream);
+/** @copydoc nk_euclideans_packed_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u4_best(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                     nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                     nk_capability_t capabilities, void *stream);
+/** @copydoc nk_euclideans_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u4_best(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, nk_capability_t capabilities,
+                                                        void *stream);
 
-/** @copydoc nk_angulars_packed_f32 */
-NUMKONG_API_RUNTIME void nk_angulars_packed_e3m2(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                 nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                 nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f32 */
-NUMKONG_API_RUNTIME void nk_angulars_symmetric_e3m2(nk_e3m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                    nk_size_t row_start, nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f32 */
-NUMKONG_API_RUNTIME void nk_euclideans_packed_e3m2(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                   nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                   nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f32 */
-NUMKONG_API_RUNTIME void nk_euclideans_symmetric_e3m2(nk_e3m2_t const *vectors, nk_size_t vectors_count,
-                                                      nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                      nk_size_t result_stride, nk_size_t row_start,
-                                                      nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_f32 */
-NUMKONG_API_RUNTIME void nk_angulars_packed_i8(nk_i8_t const *a, void const *b_packed, nk_f32_t *result, nk_size_t rows,
-                                               nk_size_t cols, nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                               nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f32 */
-NUMKONG_API_RUNTIME void nk_angulars_symmetric_i8(nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                  nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                  nk_size_t row_start, nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f32 */
-NUMKONG_API_RUNTIME void nk_euclideans_packed_i8(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
-                                                 nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                 nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f32 */
-NUMKONG_API_RUNTIME void nk_euclideans_symmetric_i8(nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                    nk_size_t row_start, nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_f32 */
-NUMKONG_API_RUNTIME void nk_angulars_packed_u8(nk_u8_t const *a, void const *b_packed, nk_f32_t *result, nk_size_t rows,
-                                               nk_size_t cols, nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                               nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f32 */
-NUMKONG_API_RUNTIME void nk_angulars_symmetric_u8(nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                  nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                  nk_size_t row_start, nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f32 */
-NUMKONG_API_RUNTIME void nk_euclideans_packed_u8(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
-                                                 nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                 nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f32 */
-NUMKONG_API_RUNTIME void nk_euclideans_symmetric_u8(nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                    nk_size_t row_start, nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_f32 */
-NUMKONG_API_RUNTIME void nk_angulars_packed_i4(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *result,
-                                               nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                               nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f32 */
-NUMKONG_API_RUNTIME void nk_angulars_symmetric_i4(nk_i4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                  nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                  nk_size_t row_start, nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f32 */
-NUMKONG_API_RUNTIME void nk_euclideans_packed_i4(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                 nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                 nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f32 */
-NUMKONG_API_RUNTIME void nk_euclideans_symmetric_i4(nk_i4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                    nk_size_t row_start, nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_f32 */
-NUMKONG_API_RUNTIME void nk_angulars_packed_u4(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *result,
-                                               nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                               nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f32 */
-NUMKONG_API_RUNTIME void nk_angulars_symmetric_u4(nk_u4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                  nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                  nk_size_t row_start, nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f32 */
-NUMKONG_API_RUNTIME void nk_euclideans_packed_u4(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                 nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                 nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f32 */
-NUMKONG_API_RUNTIME void nk_euclideans_symmetric_u4(nk_u4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                    nk_size_t row_start, nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_f32 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_f32_serial(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
+/** @copydoc nk_angulars_packed_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f32_serial(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_angulars_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f32_serial(nk_f32_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f32_serial(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f32 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_f32_serial(nk_f32_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_euclideans_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f32_serial(nk_f32_t const *vectors, nk_size_t vectors_count,
                                                            nk_size_t depth, nk_size_t stride, nk_f64_t *result,
                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f32 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_f32_serial(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
-                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f32 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f32_serial(nk_f32_t const *vectors, nk_size_t vectors_count,
-                                                             nk_size_t depth, nk_size_t stride, nk_f64_t *result,
-                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
+                                                           nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_f64 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_f64_serial(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
+/** @copydoc nk_angulars_packed_f64_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f64_serial(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_angulars_symmetric_f64_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f64_serial(nk_f64_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f64_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f64_serial(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f64 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_f64_serial(nk_f64_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_euclideans_symmetric_f64_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f64_serial(nk_f64_t const *vectors, nk_size_t vectors_count,
                                                            nk_size_t depth, nk_size_t stride, nk_f64_t *result,
                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f64 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_f64_serial(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
-                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f64 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f64_serial(nk_f64_t const *vectors, nk_size_t vectors_count,
-                                                             nk_size_t depth, nk_size_t stride, nk_f64_t *result,
-                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
+                                                           nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_f16 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_f16_serial(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_f16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f16_serial(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_angulars_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f16_serial(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f16_serial(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f16 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_f16_serial(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_euclideans_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_serial(nk_f16_t const *vectors, nk_size_t vectors_count,
                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f16 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_f16_serial(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
-                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f16 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f16_serial(nk_f16_t const *vectors, nk_size_t vectors_count,
-                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
+                                                           nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_bf16 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_bf16_serial(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
-                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_bf16 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_bf16_serial(nk_bf16_t const *vectors, nk_size_t vectors_count,
-                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_bf16 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_bf16_serial(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
-                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_bf16 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_bf16_serial(nk_bf16_t const *vectors, nk_size_t vectors_count,
-                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                              nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_e4m3 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e4m3_serial(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e4m3 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e4m3_serial(nk_e4m3_t const *vectors, nk_size_t vectors_count,
-                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e4m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e4m3_serial(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e4m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e4m3_serial(nk_e4m3_t const *vectors, nk_size_t vectors_count,
-                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                              nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_e5m2 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e5m2_serial(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e5m2 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e5m2_serial(nk_e5m2_t const *vectors, nk_size_t vectors_count,
-                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e5m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e5m2_serial(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e5m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e5m2_serial(nk_e5m2_t const *vectors, nk_size_t vectors_count,
-                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                              nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_e2m3 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e2m3_serial(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_packed_e2m1 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e2m1_serial(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e2m3 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m3_serial(nk_e2m3_t const *vectors, nk_size_t vectors_count,
-                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count);
-/** @copydoc nk_angulars_symmetric_e2m1 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m1_serial(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
-                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e2m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m3_serial(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_packed_e2m1 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m1_serial(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e2m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m3_serial(nk_e2m3_t const *vectors, nk_size_t vectors_count,
-                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                              nk_size_t row_count);
-/** @copydoc nk_euclideans_symmetric_e2m1 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m1_serial(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
-                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                              nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_e3m2 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e3m2_serial(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e3m2 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e3m2_serial(nk_e3m2_t const *vectors, nk_size_t vectors_count,
-                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e3m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e3m2_serial(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e3m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e3m2_serial(nk_e3m2_t const *vectors, nk_size_t vectors_count,
-                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                              nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_i8 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_i8_serial(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_bf16_serial(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_i8 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_i8_serial(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       void *stream);
+/** @copydoc nk_angulars_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_serial(nk_bf16_t const *vectors, nk_size_t vectors_count,
                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                          nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_i8 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_i8_serial(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_bf16_serial(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_i8 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_i8_serial(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                         void *stream);
+/** @copydoc nk_euclideans_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_serial(nk_bf16_t const *vectors, nk_size_t vectors_count,
                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count);
+                                                            nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_u8 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_u8_serial(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e4m3_serial(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_u8 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_u8_serial(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       void *stream);
+/** @copydoc nk_angulars_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e4m3_serial(nk_e4m3_t const *vectors, nk_size_t vectors_count,
                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                          nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_u8 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_u8_serial(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e4m3_serial(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_u8 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_u8_serial(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                         void *stream);
+/** @copydoc nk_euclideans_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e4m3_serial(nk_e4m3_t const *vectors, nk_size_t vectors_count,
                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count);
+                                                            nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_i4 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_i4_serial(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e5m2_serial(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_i4 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_i4_serial(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       void *stream);
+/** @copydoc nk_angulars_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_serial(nk_e5m2_t const *vectors, nk_size_t vectors_count,
                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                          nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_i4 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_i4_serial(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_serial(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_i4 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_i4_serial(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                         void *stream);
+/** @copydoc nk_euclideans_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_serial(nk_e5m2_t const *vectors, nk_size_t vectors_count,
                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count);
+                                                            nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_u4 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_u4_serial(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m3_serial(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_u4 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_u4_serial(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       void *stream);
+/** @copydoc nk_angulars_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m1_serial(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       void *stream);
+/** @copydoc nk_angulars_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_serial(nk_e2m3_t const *vectors, nk_size_t vectors_count,
                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                          nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_u4 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_u4_serial(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_serial(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_serial(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_u4 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_u4_serial(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                         void *stream);
+/** @copydoc nk_euclideans_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_serial(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                         void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_serial(nk_e2m3_t const *vectors, nk_size_t vectors_count,
                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count);
+                                                            nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_serial(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                            nk_size_t result_stride, nk_size_t row_start,
+                                                            nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e3m2_serial(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       void *stream);
+/** @copydoc nk_angulars_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e3m2_serial(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e3m2_serial(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                         void *stream);
+/** @copydoc nk_euclideans_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e3m2_serial(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                            nk_size_t result_stride, nk_size_t row_start,
+                                                            nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_i8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i8_serial(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                     nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                     void *stream);
+/** @copydoc nk_angulars_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i8_serial(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i8_serial(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       void *stream);
+/** @copydoc nk_euclideans_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_serial(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_u8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u8_serial(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                     nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                     void *stream);
+/** @copydoc nk_angulars_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u8_serial(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u8_serial(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       void *stream);
+/** @copydoc nk_euclideans_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_serial(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_i4_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i4_serial(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                     nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                     void *stream);
+/** @copydoc nk_angulars_symmetric_i4_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i4_serial(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i4_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i4_serial(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       void *stream);
+/** @copydoc nk_euclideans_symmetric_i4_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i4_serial(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_u4_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u4_serial(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                     nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                     void *stream);
+/** @copydoc nk_angulars_symmetric_u4_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u4_serial(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u4_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u4_serial(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       void *stream);
+/** @copydoc nk_euclideans_symmetric_u4_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u4_serial(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
 
 /*  Genoa backends using AVX-512 with BF16 extensions.
  *  These use VDPBF16PS for BF16 dot products.
  *  Packing interleaves elements for SIMD broadcast patterns. */
 #if NUMKONG_TARGET_GENOA
-/** @copydoc nk_angulars_packed_bf16 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_bf16_genoa(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_bf16_genoa(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_angulars_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_genoa(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_bf16_genoa(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_bf16 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_bf16_genoa(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_euclideans_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_genoa(nk_bf16_t const *vectors, nk_size_t vectors_count,
                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_bf16 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_bf16_genoa(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
-                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_bf16 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_bf16_genoa(nk_bf16_t const *vectors, nk_size_t vectors_count,
-                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
+                                                           nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_e4m3 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e4m3_genoa(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e4m3_genoa(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_angulars_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e4m3_genoa(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e4m3_genoa(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e4m3 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e4m3_genoa(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_euclideans_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e4m3_genoa(nk_e4m3_t const *vectors, nk_size_t vectors_count,
                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e4m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e4m3_genoa(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e4m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e4m3_genoa(nk_e4m3_t const *vectors, nk_size_t vectors_count,
-                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
+                                                           nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_e5m2 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e5m2_genoa(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e5m2_genoa(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_angulars_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_genoa(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_genoa(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e5m2 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e5m2_genoa(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_euclideans_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_genoa(nk_e5m2_t const *vectors, nk_size_t vectors_count,
                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e5m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e5m2_genoa(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e5m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e5m2_genoa(nk_e5m2_t const *vectors, nk_size_t vectors_count,
-                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
-
+                                                           nk_size_t row_count, void *stream);
 #endif // NUMKONG_TARGET_GENOA
 
 #if NUMKONG_TARGET_DIAMOND
-/** @copydoc nk_angulars_packed_e4m3 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e4m3_diamond(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e4m3_diamond(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_angulars_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e4m3_diamond(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e4m3_diamond(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e4m3 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e4m3_diamond(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_euclideans_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e4m3_diamond(nk_e4m3_t const *vectors, nk_size_t vectors_count,
                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e4m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e4m3_diamond(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e4m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e4m3_diamond(nk_e4m3_t const *vectors, nk_size_t vectors_count,
-                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                               nk_size_t result_stride, nk_size_t row_start,
-                                                               nk_size_t row_count);
+                                                             nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_e5m2 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e5m2_diamond(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e5m2_diamond(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_angulars_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_diamond(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_diamond(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e5m2 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e5m2_diamond(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_euclideans_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_diamond(nk_e5m2_t const *vectors, nk_size_t vectors_count,
                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e5m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e5m2_diamond(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e5m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e5m2_diamond(nk_e5m2_t const *vectors, nk_size_t vectors_count,
-                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                               nk_size_t result_stride, nk_size_t row_start,
-                                                               nk_size_t row_count);
+                                                             nk_size_t row_count, void *stream);
 #endif // NUMKONG_TARGET_DIAMOND
 
 /*  Sapphire Rapids backends using Intel AMX (Advanced Matrix Extensions).
@@ -685,2339 +800,3917 @@ NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e5m2_diamond(nk_e5m2_t const *
  *  Tiles are configured as 16 rows x 64 bytes, enabling (16 x 32) BF16 or (16 x 64) INT8 tiles.
  *  Packing arranges data into AMX-native tile layout with pair interleaving for TDPBF16PS. */
 #if NUMKONG_TARGET_SAPPHIREAMX
-/** @copydoc nk_angulars_packed_bf16 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_bf16_sapphireamx(nk_bf16_t const *a, void const *b_packed,
-                                                              nk_f32_t *result, nk_size_t rows, nk_size_t cols,
-                                                              nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                              nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_bf16 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_bf16_sapphireamx(nk_bf16_t const *vectors, nk_size_t vectors_count,
-                                                                 nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                 nk_size_t result_stride, nk_size_t row_start,
-                                                                 nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_bf16 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_bf16_sapphireamx(nk_bf16_t const *a, void const *b_packed,
-                                                                nk_f32_t *result, nk_size_t rows, nk_size_t cols,
-                                                                nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                                nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_bf16 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_bf16_sapphireamx(nk_bf16_t const *vectors, nk_size_t vectors_count,
-                                                                   nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                   nk_size_t result_stride, nk_size_t row_start,
-                                                                   nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_e4m3 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e4m3_sapphireamx(nk_e4m3_t const *a, void const *b_packed,
-                                                              nk_f32_t *result, nk_size_t rows, nk_size_t cols,
-                                                              nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                              nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e4m3 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e4m3_sapphireamx(nk_e4m3_t const *vectors, nk_size_t vectors_count,
-                                                                 nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                 nk_size_t result_stride, nk_size_t row_start,
-                                                                 nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e4m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e4m3_sapphireamx(nk_e4m3_t const *a, void const *b_packed,
-                                                                nk_f32_t *result, nk_size_t rows, nk_size_t cols,
-                                                                nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                                nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e4m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e4m3_sapphireamx(nk_e4m3_t const *vectors, nk_size_t vectors_count,
-                                                                   nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                   nk_size_t result_stride, nk_size_t row_start,
-                                                                   nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_e5m2 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e5m2_sapphireamx(nk_e5m2_t const *a, void const *b_packed,
-                                                              nk_f32_t *result, nk_size_t rows, nk_size_t cols,
-                                                              nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                              nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e5m2 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e5m2_sapphireamx(nk_e5m2_t const *vectors, nk_size_t vectors_count,
-                                                                 nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                 nk_size_t result_stride, nk_size_t row_start,
-                                                                 nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e5m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e5m2_sapphireamx(nk_e5m2_t const *a, void const *b_packed,
-                                                                nk_f32_t *result, nk_size_t rows, nk_size_t cols,
-                                                                nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                                nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e5m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e5m2_sapphireamx(nk_e5m2_t const *vectors, nk_size_t vectors_count,
-                                                                   nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                   nk_size_t result_stride, nk_size_t row_start,
-                                                                   nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_e2m3 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e2m3_sapphireamx(nk_e2m3_t const *a, void const *b_packed,
-                                                              nk_f32_t *result, nk_size_t rows, nk_size_t cols,
-                                                              nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                              nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_packed_e2m1 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e2m1_sapphireamx(nk_e2m1x2_t const *a, void const *b_packed,
-                                                              nk_f32_t *result, nk_size_t rows, nk_size_t cols,
-                                                              nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                              nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e2m3 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m3_sapphireamx(nk_e2m3_t const *vectors, nk_size_t vectors_count,
-                                                                 nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                 nk_size_t result_stride, nk_size_t row_start,
-                                                                 nk_size_t row_count);
-/** @copydoc nk_angulars_symmetric_e2m1 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m1_sapphireamx(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
-                                                                 nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                 nk_size_t result_stride, nk_size_t row_start,
-                                                                 nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e2m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m3_sapphireamx(nk_e2m3_t const *a, void const *b_packed,
-                                                                nk_f32_t *result, nk_size_t rows, nk_size_t cols,
-                                                                nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                                nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_packed_e2m1 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m1_sapphireamx(nk_e2m1x2_t const *a, void const *b_packed,
-                                                                nk_f32_t *result, nk_size_t rows, nk_size_t cols,
-                                                                nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                                nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e2m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m3_sapphireamx(nk_e2m3_t const *vectors, nk_size_t vectors_count,
-                                                                   nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                   nk_size_t result_stride, nk_size_t row_start,
-                                                                   nk_size_t row_count);
-/** @copydoc nk_euclideans_symmetric_e2m1 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m1_sapphireamx(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
-                                                                   nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                   nk_size_t result_stride, nk_size_t row_start,
-                                                                   nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_e3m2 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e3m2_sapphireamx(nk_e3m2_t const *a, void const *b_packed,
-                                                              nk_f32_t *result, nk_size_t rows, nk_size_t cols,
-                                                              nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                              nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e3m2 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e3m2_sapphireamx(nk_e3m2_t const *vectors, nk_size_t vectors_count,
-                                                                 nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                 nk_size_t result_stride, nk_size_t row_start,
-                                                                 nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e3m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e3m2_sapphireamx(nk_e3m2_t const *a, void const *b_packed,
-                                                                nk_f32_t *result, nk_size_t rows, nk_size_t cols,
-                                                                nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                                nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e3m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e3m2_sapphireamx(nk_e3m2_t const *vectors, nk_size_t vectors_count,
-                                                                   nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                   nk_size_t result_stride, nk_size_t row_start,
-                                                                   nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_i8 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_i8_sapphireamx(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_bf16_sapphireamx(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
                                                             nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_i8 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_i8_sapphireamx(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                            void *stream);
+/** @copydoc nk_angulars_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_sapphireamx(nk_bf16_t const *vectors, nk_size_t vectors_count,
                                                                nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                                nk_size_t result_stride, nk_size_t row_start,
-                                                               nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_i8 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_i8_sapphireamx(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
-                                                              nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                              nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_i8 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_i8_sapphireamx(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                               nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_bf16_sapphireamx(nk_bf16_t const *a, void const *b_packed,
+                                                              nk_f32_t *result, nk_size_t rows, nk_size_t cols,
+                                                              nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                                              nk_size_t r_stride_in_bytes, void *stream);
+/** @copydoc nk_euclideans_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_sapphireamx(nk_bf16_t const *vectors, nk_size_t vectors_count,
                                                                  nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                                  nk_size_t result_stride, nk_size_t row_start,
-                                                                 nk_size_t row_count);
+                                                                 nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_u8 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_u8_sapphireamx(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e4m3_sapphireamx(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
                                                             nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_u8 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_u8_sapphireamx(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                            void *stream);
+/** @copydoc nk_angulars_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e4m3_sapphireamx(nk_e4m3_t const *vectors, nk_size_t vectors_count,
                                                                nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                                nk_size_t result_stride, nk_size_t row_start,
-                                                               nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_u8 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_u8_sapphireamx(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
-                                                              nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                              nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_u8 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_u8_sapphireamx(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                               nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e4m3_sapphireamx(nk_e4m3_t const *a, void const *b_packed,
+                                                              nk_f32_t *result, nk_size_t rows, nk_size_t cols,
+                                                              nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                                              nk_size_t r_stride_in_bytes, void *stream);
+/** @copydoc nk_euclideans_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e4m3_sapphireamx(nk_e4m3_t const *vectors, nk_size_t vectors_count,
                                                                  nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                                  nk_size_t result_stride, nk_size_t row_start,
-                                                                 nk_size_t row_count);
+                                                                 nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e5m2_sapphireamx(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                            void *stream);
+/** @copydoc nk_angulars_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_sapphireamx(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                               nk_size_t result_stride, nk_size_t row_start,
+                                                               nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_sapphireamx(nk_e5m2_t const *a, void const *b_packed,
+                                                              nk_f32_t *result, nk_size_t rows, nk_size_t cols,
+                                                              nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                                              nk_size_t r_stride_in_bytes, void *stream);
+/** @copydoc nk_euclideans_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_sapphireamx(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                                 nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                                 nk_size_t result_stride, nk_size_t row_start,
+                                                                 nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m3_sapphireamx(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
+                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                            void *stream);
+/** @copydoc nk_angulars_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m1_sapphireamx(nk_e2m1x2_t const *a, void const *b_packed,
+                                                            nk_f32_t *result, nk_size_t rows, nk_size_t cols,
+                                                            nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                                            nk_size_t r_stride_in_bytes, void *stream);
+/** @copydoc nk_angulars_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_sapphireamx(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                               nk_size_t result_stride, nk_size_t row_start,
+                                                               nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_sapphireamx(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                               nk_size_t result_stride, nk_size_t row_start,
+                                                               nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_sapphireamx(nk_e2m3_t const *a, void const *b_packed,
+                                                              nk_f32_t *result, nk_size_t rows, nk_size_t cols,
+                                                              nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                                              nk_size_t r_stride_in_bytes, void *stream);
+/** @copydoc nk_euclideans_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_sapphireamx(nk_e2m1x2_t const *a, void const *b_packed,
+                                                              nk_f32_t *result, nk_size_t rows, nk_size_t cols,
+                                                              nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                                              nk_size_t r_stride_in_bytes, void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_sapphireamx(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                                 nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                                 nk_size_t result_stride, nk_size_t row_start,
+                                                                 nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_sapphireamx(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                                 nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                                 nk_size_t result_stride, nk_size_t row_start,
+                                                                 nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e3m2_sapphireamx(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                            void *stream);
+/** @copydoc nk_angulars_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e3m2_sapphireamx(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                               nk_size_t result_stride, nk_size_t row_start,
+                                                               nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e3m2_sapphireamx(nk_e3m2_t const *a, void const *b_packed,
+                                                              nk_f32_t *result, nk_size_t rows, nk_size_t cols,
+                                                              nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                                              nk_size_t r_stride_in_bytes, void *stream);
+/** @copydoc nk_euclideans_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e3m2_sapphireamx(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                                 nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                                 nk_size_t result_stride, nk_size_t row_start,
+                                                                 nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_i8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i8_sapphireamx(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_angulars_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i8_sapphireamx(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i8_sapphireamx(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                            void *stream);
+/** @copydoc nk_euclideans_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_sapphireamx(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                               nk_size_t result_stride, nk_size_t row_start,
+                                                               nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_u8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u8_sapphireamx(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_angulars_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u8_sapphireamx(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u8_sapphireamx(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                            void *stream);
+/** @copydoc nk_euclideans_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_sapphireamx(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                               nk_size_t result_stride, nk_size_t row_start,
+                                                               nk_size_t row_count, void *stream);
 #endif // NUMKONG_TARGET_SAPPHIREAMX
 
 /*  Granite Rapids backends using Intel AMX-FP16.
  *  Native FP16 spatial kernels. */
 #if NUMKONG_TARGET_GRANITEAMX
-/** @copydoc nk_angulars_packed_f16 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_f16_graniteamx(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_f16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f16_graniteamx(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_angulars_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f16_graniteamx(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f16_graniteamx(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
                                                             nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f16 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_f16_graniteamx(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                            void *stream);
+/** @copydoc nk_euclideans_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_graniteamx(nk_f16_t const *vectors, nk_size_t vectors_count,
                                                                nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                                nk_size_t result_stride, nk_size_t row_start,
-                                                               nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f16 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_f16_graniteamx(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
-                                                              nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                              nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f16 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f16_graniteamx(nk_f16_t const *vectors, nk_size_t vectors_count,
-                                                                 nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                 nk_size_t result_stride, nk_size_t row_start,
-                                                                 nk_size_t row_count);
-/** @copydoc nk_angulars_packed_f16 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e5m2_graniteamx(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                               nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_f16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e5m2_graniteamx(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                           void *stream);
+/** @copydoc nk_angulars_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_graniteamx(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                              nk_size_t result_stride, nk_size_t row_start,
+                                                              nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_graniteamx(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
                                                              nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                             nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f16 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e5m2_graniteamx(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                             void *stream);
+/** @copydoc nk_euclideans_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_graniteamx(nk_e5m2_t const *vectors, nk_size_t vectors_count,
                                                                 nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                                 nk_size_t result_stride, nk_size_t row_start,
-                                                                nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f16 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e5m2_graniteamx(nk_e5m2_t const *a, void const *b_packed,
-                                                               nk_f32_t *result, nk_size_t rows, nk_size_t cols,
-                                                               nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                               nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f16 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e5m2_graniteamx(nk_e5m2_t const *vectors, nk_size_t vectors_count,
-                                                                  nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                  nk_size_t result_stride, nk_size_t row_start,
-                                                                  nk_size_t row_count);
+                                                                nk_size_t row_count, void *stream);
 #endif // NUMKONG_TARGET_GRANITEAMX
 
 /*  ARM SME backends using Scalable Matrix Extension.
  *  SME provides ZA tile registers for outer product operations.
  *  F16/BF16/I8/U8/E4M3 use ZA32 tiles, F32/F64 use ZA64 tiles (FEAT_SME_F64F64). */
 #if NUMKONG_TARGET_SME
-/** @copydoc nk_angulars_packed_f16 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_f16_sme(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_f16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f16_sme(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                   nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                   nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                   void *stream);
+/** @copydoc nk_angulars_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f16_sme(nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                      nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                      nk_size_t row_start, nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f16_sme(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f16 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_f16_sme(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                     void *stream);
+/** @copydoc nk_euclideans_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_sme(nk_f16_t const *vectors, nk_size_t vectors_count,
                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                        nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f16 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_f16_sme(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
-                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f16 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f16_sme(nk_f16_t const *vectors, nk_size_t vectors_count,
-                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                          nk_size_t result_stride, nk_size_t row_start,
-                                                          nk_size_t row_count);
+                                                        nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_bf16 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_bf16_sme(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
-                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_bf16 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_bf16_sme(nk_bf16_t const *vectors, nk_size_t vectors_count,
-                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                         nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_bf16 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_bf16_sme(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
-                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_bf16 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_bf16_sme(nk_bf16_t const *vectors, nk_size_t vectors_count,
-                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_e4m3 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e4m3_sme(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e4m3 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e4m3_sme(nk_e4m3_t const *vectors, nk_size_t vectors_count,
-                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                         nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e4m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e4m3_sme(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e4m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e4m3_sme(nk_e4m3_t const *vectors, nk_size_t vectors_count,
-                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_e5m2 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e5m2_sme(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e5m2 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e5m2_sme(nk_e5m2_t const *vectors, nk_size_t vectors_count,
-                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                         nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e5m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e5m2_sme(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e5m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e5m2_sme(nk_e5m2_t const *vectors, nk_size_t vectors_count,
-                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_e2m3 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e2m3_sme(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_packed_e2m1 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e2m1_sme(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e2m3 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m3_sme(nk_e2m3_t const *vectors, nk_size_t vectors_count,
-                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                         nk_size_t row_count);
-/** @copydoc nk_angulars_symmetric_e2m1 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m1_sme(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
-                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                         nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e2m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m3_sme(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_packed_e2m1 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m1_sme(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e2m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m3_sme(nk_e2m3_t const *vectors, nk_size_t vectors_count,
-                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-/** @copydoc nk_euclideans_symmetric_e2m1 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m1_sme(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
-                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_e3m2 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e3m2_sme(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e3m2 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e3m2_sme(nk_e3m2_t const *vectors, nk_size_t vectors_count,
-                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                         nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e3m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e3m2_sme(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e3m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e3m2_sme(nk_e3m2_t const *vectors, nk_size_t vectors_count,
-                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_i8 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_i8_sme(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_bf16_sme(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
                                                     nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_i8 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_i8_sme(nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                       nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                       nk_size_t row_start, nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_i8 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_i8_sme(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
-                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_i8 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_i8_sme(nk_i8_t const *vectors, nk_size_t vectors_count,
-                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                         nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_u8 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_u8_sme(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
-                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_u8 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_u8_sme(nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                       nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                       nk_size_t row_start, nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_u8 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_u8_sme(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
-                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_u8 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_u8_sme(nk_u8_t const *vectors, nk_size_t vectors_count,
-                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                         nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_i4 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_i4_sme(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_i4 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_i4_sme(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                    void *stream);
+/** @copydoc nk_angulars_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_sme(nk_bf16_t const *vectors, nk_size_t vectors_count,
                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                        nk_size_t result_stride, nk_size_t row_start,
-                                                       nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_i4 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_i4_sme(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                       nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_bf16_sme(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_i4 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_i4_sme(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_euclideans_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_sme(nk_bf16_t const *vectors, nk_size_t vectors_count,
                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                          nk_size_t result_stride, nk_size_t row_start,
-                                                         nk_size_t row_count);
+                                                         nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_u4 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_u4_sme(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e4m3_sme(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
                                                     nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_u4 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_u4_sme(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                    void *stream);
+/** @copydoc nk_angulars_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e4m3_sme(nk_e4m3_t const *vectors, nk_size_t vectors_count,
                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                        nk_size_t result_stride, nk_size_t row_start,
-                                                       nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_u4 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_u4_sme(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                       nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e4m3_sme(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_u4 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_u4_sme(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_euclideans_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e4m3_sme(nk_e4m3_t const *vectors, nk_size_t vectors_count,
                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                          nk_size_t result_stride, nk_size_t row_start,
-                                                         nk_size_t row_count);
+                                                         nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e5m2_sme(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                    void *stream);
+/** @copydoc nk_angulars_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_sme(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_sme(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_euclideans_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_sme(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m3_sme(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
+                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                    void *stream);
+/** @copydoc nk_angulars_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m1_sme(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                    void *stream);
+/** @copydoc nk_angulars_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_sme(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_sme(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_sme(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_euclideans_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_sme(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_sme(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_sme(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e3m2_sme(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                    void *stream);
+/** @copydoc nk_angulars_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e3m2_sme(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e3m2_sme(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_euclideans_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e3m2_sme(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_i8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i8_sme(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                  nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                  nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                  void *stream);
+/** @copydoc nk_angulars_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i8_sme(nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                     nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                     nk_size_t row_start, nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i8_sme(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                    void *stream);
+/** @copydoc nk_euclideans_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_sme(nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                       nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                       nk_size_t row_start, nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_u8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u8_sme(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                  nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                  nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                  void *stream);
+/** @copydoc nk_angulars_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u8_sme(nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                     nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                     nk_size_t row_start, nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u8_sme(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                    void *stream);
+/** @copydoc nk_euclideans_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_sme(nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                       nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                       nk_size_t row_start, nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_i4_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i4_sme(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                  nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                  nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                  void *stream);
+/** @copydoc nk_angulars_symmetric_i4_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i4_sme(nk_i4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                     nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                     nk_size_t row_start, nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i4_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i4_sme(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                    void *stream);
+/** @copydoc nk_euclideans_symmetric_i4_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i4_sme(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_u4_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u4_sme(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                  nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                  nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                  void *stream);
+/** @copydoc nk_angulars_symmetric_u4_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u4_sme(nk_u4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                     nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                     nk_size_t row_start, nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u4_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u4_sme(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                    void *stream);
+/** @copydoc nk_euclideans_symmetric_u4_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u4_sme(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, void *stream);
 #endif // NUMKONG_TARGET_SME
 
 /*  ARM SME with FEAT_SME_F64F64 (F32/F64 with F64 accumulators).
  *  Requires Apple M4 or equivalent with F64 outer product support. */
 #if NUMKONG_TARGET_SMEF64
-/** @copydoc nk_angulars_packed_f32 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_f32_smef64(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
+/** @copydoc nk_angulars_packed_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f32_smef64(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_angulars_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f32_smef64(nk_f32_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f32_smef64(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f32 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_f32_smef64(nk_f32_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_euclideans_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f32_smef64(nk_f32_t const *vectors, nk_size_t vectors_count,
                                                            nk_size_t depth, nk_size_t stride, nk_f64_t *result,
                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f32 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_f32_smef64(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
-                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f32 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f32_smef64(nk_f32_t const *vectors, nk_size_t vectors_count,
-                                                             nk_size_t depth, nk_size_t stride, nk_f64_t *result,
-                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
+                                                           nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_f64 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_f64_smef64(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
+/** @copydoc nk_angulars_packed_f64_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f64_smef64(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_angulars_symmetric_f64_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f64_smef64(nk_f64_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f64_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f64_smef64(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f64 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_f64_smef64(nk_f64_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_euclideans_symmetric_f64_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f64_smef64(nk_f64_t const *vectors, nk_size_t vectors_count,
                                                            nk_size_t depth, nk_size_t stride, nk_f64_t *result,
                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f64 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_f64_smef64(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
-                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f64 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f64_smef64(nk_f64_t const *vectors, nk_size_t vectors_count,
-                                                             nk_size_t depth, nk_size_t stride, nk_f64_t *result,
-                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
+                                                           nk_size_t row_count, void *stream);
 #endif // NUMKONG_TARGET_SMEF64
 
 /*  Haswell backends using AVX2 (Intel Core 4th gen).
  *  Supports F32/F64 via FMA, F16/BF16/FP8 via software emulation, I8/U8 via VPMADDUBSW+VPADDD. */
 #if NUMKONG_TARGET_HASWELL
-/** @copydoc nk_angulars_packed_f32 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_f32_haswell(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
+/** @copydoc nk_angulars_packed_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f32_haswell(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
+                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       void *stream);
+/** @copydoc nk_angulars_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f32_haswell(nk_f32_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f32_haswell(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f32 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_f32_haswell(nk_f32_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                         void *stream);
+/** @copydoc nk_euclideans_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f32_haswell(nk_f32_t const *vectors, nk_size_t vectors_count,
                                                             nk_size_t depth, nk_size_t stride, nk_f64_t *result,
                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f32 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_f32_haswell(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
-                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f32 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f32_haswell(nk_f32_t const *vectors, nk_size_t vectors_count,
-                                                              nk_size_t depth, nk_size_t stride, nk_f64_t *result,
-                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                              nk_size_t row_count);
+                                                            nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_f64 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_f64_haswell(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
+/** @copydoc nk_angulars_packed_f64_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f64_haswell(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
+                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       void *stream);
+/** @copydoc nk_angulars_symmetric_f64_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f64_haswell(nk_f64_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f64_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f64_haswell(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f64 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_f64_haswell(nk_f64_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                         void *stream);
+/** @copydoc nk_euclideans_symmetric_f64_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f64_haswell(nk_f64_t const *vectors, nk_size_t vectors_count,
                                                             nk_size_t depth, nk_size_t stride, nk_f64_t *result,
                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f64 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_f64_haswell(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
-                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f64 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f64_haswell(nk_f64_t const *vectors, nk_size_t vectors_count,
-                                                              nk_size_t depth, nk_size_t stride, nk_f64_t *result,
-                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                              nk_size_t row_count);
+                                                            nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_f16 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_f16_haswell(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_f16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f16_haswell(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       void *stream);
+/** @copydoc nk_angulars_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f16_haswell(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f16_haswell(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f16 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_f16_haswell(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                         void *stream);
+/** @copydoc nk_euclideans_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_haswell(nk_f16_t const *vectors, nk_size_t vectors_count,
                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f16 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_f16_haswell(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
-                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f16 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f16_haswell(nk_f16_t const *vectors, nk_size_t vectors_count,
-                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                              nk_size_t row_count);
+                                                            nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_bf16 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_bf16_haswell(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
-                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_bf16 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_bf16_haswell(nk_bf16_t const *vectors, nk_size_t vectors_count,
-                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_bf16 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_bf16_haswell(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
-                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_bf16 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_bf16_haswell(nk_bf16_t const *vectors, nk_size_t vectors_count,
-                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                               nk_size_t result_stride, nk_size_t row_start,
-                                                               nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_e4m3 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e4m3_haswell(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e4m3 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e4m3_haswell(nk_e4m3_t const *vectors, nk_size_t vectors_count,
-                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e4m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e4m3_haswell(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e4m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e4m3_haswell(nk_e4m3_t const *vectors, nk_size_t vectors_count,
-                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                               nk_size_t result_stride, nk_size_t row_start,
-                                                               nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_e5m2 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e5m2_haswell(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e5m2 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e5m2_haswell(nk_e5m2_t const *vectors, nk_size_t vectors_count,
-                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e5m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e5m2_haswell(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e5m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e5m2_haswell(nk_e5m2_t const *vectors, nk_size_t vectors_count,
-                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                               nk_size_t result_stride, nk_size_t row_start,
-                                                               nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_e2m3 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e2m3_haswell(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_packed_e2m1 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e2m1_haswell(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e2m3 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m3_haswell(nk_e2m3_t const *vectors, nk_size_t vectors_count,
-                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
-/** @copydoc nk_angulars_symmetric_e2m1 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m1_haswell(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
-                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e2m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m3_haswell(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_packed_e2m1 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m1_haswell(nk_e2m1x2_t const *a, void const *b_packed,
-                                                            nk_f32_t *result, nk_size_t rows, nk_size_t cols,
-                                                            nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                            nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e2m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m3_haswell(nk_e2m3_t const *vectors, nk_size_t vectors_count,
-                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                               nk_size_t result_stride, nk_size_t row_start,
-                                                               nk_size_t row_count);
-/** @copydoc nk_euclideans_symmetric_e2m1 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m1_haswell(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
-                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                               nk_size_t result_stride, nk_size_t row_start,
-                                                               nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_e3m2 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e3m2_haswell(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e3m2 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e3m2_haswell(nk_e3m2_t const *vectors, nk_size_t vectors_count,
-                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e3m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e3m2_haswell(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e3m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e3m2_haswell(nk_e3m2_t const *vectors, nk_size_t vectors_count,
-                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                               nk_size_t result_stride, nk_size_t row_start,
-                                                               nk_size_t row_count);
-/** @copydoc nk_angulars_packed_i8 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_i8_haswell(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_bf16_haswell(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_i8 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_i8_haswell(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_angulars_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_haswell(nk_bf16_t const *vectors, nk_size_t vectors_count,
                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_i8 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_i8_haswell(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_bf16_haswell(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_i8 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_i8_haswell(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_euclideans_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_haswell(nk_bf16_t const *vectors, nk_size_t vectors_count,
                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
-/** @copydoc nk_angulars_packed_u8 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_u8_haswell(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                             nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e4m3_haswell(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_u8 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_u8_haswell(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_angulars_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e4m3_haswell(nk_e4m3_t const *vectors, nk_size_t vectors_count,
                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_u8 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_u8_haswell(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e4m3_haswell(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_u8 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_u8_haswell(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_euclideans_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e4m3_haswell(nk_e4m3_t const *vectors, nk_size_t vectors_count,
                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
+                                                             nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e5m2_haswell(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_angulars_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_haswell(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_haswell(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_euclideans_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_haswell(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m3_haswell(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_angulars_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m1_haswell(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_angulars_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_haswell(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_haswell(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_haswell(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
+                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_euclideans_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_haswell(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_haswell(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_haswell(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e3m2_haswell(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_angulars_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e3m2_haswell(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e3m2_haswell(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_euclideans_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e3m2_haswell(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_i8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i8_haswell(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_angulars_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i8_haswell(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i8_haswell(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_euclideans_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_haswell(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_u8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u8_haswell(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_angulars_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u8_haswell(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u8_haswell(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_euclideans_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_haswell(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_i4_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i4_haswell(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_angulars_symmetric_i4_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i4_haswell(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i4_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i4_haswell(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_euclideans_symmetric_i4_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i4_haswell(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_u4_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u4_haswell(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_angulars_symmetric_u4_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u4_haswell(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u4_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u4_haswell(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_euclideans_symmetric_u4_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u4_haswell(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
 #endif // NUMKONG_TARGET_HASWELL
 
 /*  Skylake backends using AVX-512 (Intel Core 6th gen+).
  *  Provides 512-bit vectors (16x f32, 8x f64), supporting F32/F64/F16/BF16/FP8 with FMA. */
 #if NUMKONG_TARGET_SKYLAKE
-/** @copydoc nk_angulars_packed_f32 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_f32_skylake(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
+/** @copydoc nk_angulars_packed_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f32_skylake(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
+                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       void *stream);
+/** @copydoc nk_angulars_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f32_skylake(nk_f32_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f32_skylake(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f32 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_f32_skylake(nk_f32_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                         void *stream);
+/** @copydoc nk_euclideans_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f32_skylake(nk_f32_t const *vectors, nk_size_t vectors_count,
                                                             nk_size_t depth, nk_size_t stride, nk_f64_t *result,
                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f32 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_f32_skylake(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
-                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f32 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f32_skylake(nk_f32_t const *vectors, nk_size_t vectors_count,
-                                                              nk_size_t depth, nk_size_t stride, nk_f64_t *result,
-                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                              nk_size_t row_count);
+                                                            nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_f64 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_f64_skylake(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
+/** @copydoc nk_angulars_packed_f64_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f64_skylake(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
+                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       void *stream);
+/** @copydoc nk_angulars_symmetric_f64_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f64_skylake(nk_f64_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f64_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f64_skylake(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f64 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_f64_skylake(nk_f64_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                         void *stream);
+/** @copydoc nk_euclideans_symmetric_f64_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f64_skylake(nk_f64_t const *vectors, nk_size_t vectors_count,
                                                             nk_size_t depth, nk_size_t stride, nk_f64_t *result,
                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f64 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_f64_skylake(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
-                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f64 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f64_skylake(nk_f64_t const *vectors, nk_size_t vectors_count,
-                                                              nk_size_t depth, nk_size_t stride, nk_f64_t *result,
-                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                              nk_size_t row_count);
+                                                            nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_f16 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_f16_skylake(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_f16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f16_skylake(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       void *stream);
+/** @copydoc nk_angulars_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f16_skylake(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f16_skylake(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f16 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_f16_skylake(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                         void *stream);
+/** @copydoc nk_euclideans_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_skylake(nk_f16_t const *vectors, nk_size_t vectors_count,
                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f16 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_f16_skylake(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
-                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f16 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f16_skylake(nk_f16_t const *vectors, nk_size_t vectors_count,
-                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                              nk_size_t row_count);
+                                                            nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_bf16 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_bf16_skylake(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_bf16_skylake(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_angulars_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_skylake(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_bf16_skylake(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_bf16 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_bf16_skylake(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_euclideans_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_skylake(nk_bf16_t const *vectors, nk_size_t vectors_count,
                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_bf16 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_bf16_skylake(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
-                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_bf16 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_bf16_skylake(nk_bf16_t const *vectors, nk_size_t vectors_count,
-                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                               nk_size_t result_stride, nk_size_t row_start,
-                                                               nk_size_t row_count);
+                                                             nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_e4m3 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e4m3_skylake(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e4m3_skylake(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_angulars_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e4m3_skylake(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e4m3_skylake(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e4m3 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e4m3_skylake(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_euclideans_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e4m3_skylake(nk_e4m3_t const *vectors, nk_size_t vectors_count,
                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e4m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e4m3_skylake(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e4m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e4m3_skylake(nk_e4m3_t const *vectors, nk_size_t vectors_count,
-                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                               nk_size_t result_stride, nk_size_t row_start,
-                                                               nk_size_t row_count);
+                                                             nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_e5m2 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e5m2_skylake(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e5m2_skylake(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_angulars_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_skylake(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_skylake(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e5m2 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e5m2_skylake(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_euclideans_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_skylake(nk_e5m2_t const *vectors, nk_size_t vectors_count,
                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e5m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e5m2_skylake(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e5m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e5m2_skylake(nk_e5m2_t const *vectors, nk_size_t vectors_count,
-                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                               nk_size_t result_stride, nk_size_t row_start,
-                                                               nk_size_t row_count);
+                                                             nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_e2m3 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e2m3_skylake(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m3_skylake(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_angulars_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m1_skylake(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_angulars_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_skylake(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_skylake(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_skylake(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_packed_e2m1 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e2m1_skylake(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_euclideans_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_skylake(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e2m3 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m3_skylake(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_skylake(nk_e2m3_t const *vectors, nk_size_t vectors_count,
                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
-/** @copydoc nk_angulars_symmetric_e2m1 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m1_skylake(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_skylake(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e2m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m3_skylake(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_packed_e2m1 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m1_skylake(nk_e2m1x2_t const *a, void const *b_packed,
-                                                            nk_f32_t *result, nk_size_t rows, nk_size_t cols,
-                                                            nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                            nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e2m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m3_skylake(nk_e2m3_t const *vectors, nk_size_t vectors_count,
-                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                               nk_size_t result_stride, nk_size_t row_start,
-                                                               nk_size_t row_count);
-/** @copydoc nk_euclideans_symmetric_e2m1 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m1_skylake(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
-                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                               nk_size_t result_stride, nk_size_t row_start,
-                                                               nk_size_t row_count);
+                                                             nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_e3m2 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e3m2_skylake(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e3m2_skylake(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_angulars_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e3m2_skylake(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e3m2_skylake(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e3m2 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e3m2_skylake(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_euclideans_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e3m2_skylake(nk_e3m2_t const *vectors, nk_size_t vectors_count,
                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e3m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e3m2_skylake(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e3m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e3m2_skylake(nk_e3m2_t const *vectors, nk_size_t vectors_count,
-                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                               nk_size_t result_stride, nk_size_t row_start,
-                                                               nk_size_t row_count);
+                                                             nk_size_t row_count, void *stream);
 #endif // NUMKONG_TARGET_SKYLAKE
 
 /*  Ice Lake backends using AVX-512 with VNNI (Vector Neural Network Instructions).
  *  Adds VPDPBUSD for I8/U8, VPDPWSSD for I4/U4 with efficient dot products. */
 #if NUMKONG_TARGET_ICELAKE
-/** @copydoc nk_angulars_packed_i8 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_i8_icelake(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_i8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i8_icelake(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_angulars_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i8_icelake(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i8_icelake(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_i8 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_i8_icelake(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_euclideans_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_icelake(nk_i8_t const *vectors, nk_size_t vectors_count,
                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_i8 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_i8_icelake(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
-                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_i8 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_i8_icelake(nk_i8_t const *vectors, nk_size_t vectors_count,
-                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
+                                                           nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_u8 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_u8_icelake(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_u8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u8_icelake(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_angulars_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u8_icelake(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u8_icelake(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_u8 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_u8_icelake(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_euclideans_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_icelake(nk_u8_t const *vectors, nk_size_t vectors_count,
                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_u8 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_u8_icelake(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
-                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_u8 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_u8_icelake(nk_u8_t const *vectors, nk_size_t vectors_count,
-                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
+                                                           nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_i4 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_i4_icelake(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_i4_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i4_icelake(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_angulars_symmetric_i4_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i4_icelake(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i4_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i4_icelake(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *result,
                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_i4 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_i4_icelake(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_euclideans_symmetric_i4_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i4_icelake(nk_i4x2_t const *vectors, nk_size_t vectors_count,
                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_i4 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_i4_icelake(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_i4 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_i4_icelake(nk_i4x2_t const *vectors, nk_size_t vectors_count,
-                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
+                                                           nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_u4 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_u4_icelake(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_u4_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u4_icelake(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_angulars_symmetric_u4_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u4_icelake(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u4_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u4_icelake(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *result,
                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_u4 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_u4_icelake(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_euclideans_symmetric_u4_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u4_icelake(nk_u4x2_t const *vectors, nk_size_t vectors_count,
                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_u4 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_u4_icelake(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_u4 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_u4_icelake(nk_u4x2_t const *vectors, nk_size_t vectors_count,
-                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
+                                                           nk_size_t row_count, void *stream);
 #endif // NUMKONG_TARGET_ICELAKE
 
 #if NUMKONG_TARGET_ALDER
-/** @copydoc nk_angulars_packed_i8 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_i8_alder(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_i8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i8_alder(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                    void *stream);
+/** @copydoc nk_angulars_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i8_alder(nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                       nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                       nk_size_t row_start, nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i8_alder(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_i8 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_i8_alder(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_euclideans_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_alder(nk_i8_t const *vectors, nk_size_t vectors_count,
                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                          nk_size_t result_stride, nk_size_t row_start,
-                                                         nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_i8 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_i8_alder(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
-                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_i8 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_i8_alder(nk_i8_t const *vectors, nk_size_t vectors_count,
-                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-/** @copydoc nk_angulars_packed_u8 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_u8_alder(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_u8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u8_alder(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                    void *stream);
+/** @copydoc nk_angulars_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u8_alder(nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                       nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                       nk_size_t row_start, nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u8_alder(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_u8 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_u8_alder(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_euclideans_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_alder(nk_u8_t const *vectors, nk_size_t vectors_count,
                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                          nk_size_t result_stride, nk_size_t row_start,
-                                                         nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_u8 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_u8_alder(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m3_alder(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_angulars_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m1_alder(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_angulars_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_alder(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_alder(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_alder(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_u8 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_u8_alder(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_euclideans_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_alder(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_alder(nk_e2m3_t const *vectors, nk_size_t vectors_count,
                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-/** @copydoc nk_angulars_packed_e2m3 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e2m3_alder(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_packed_e2m1 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e2m1_alder(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e2m3 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m3_alder(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_alder(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-/** @copydoc nk_angulars_symmetric_e2m1 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m1_alder(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
-                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e2m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m3_alder(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_packed_e2m1 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m1_alder(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e2m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m3_alder(nk_e2m3_t const *vectors, nk_size_t vectors_count,
-                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
-/** @copydoc nk_euclideans_symmetric_e2m1 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m1_alder(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
-                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
+                                                           nk_size_t row_count, void *stream);
 #endif // NUMKONG_TARGET_ALDER
 
 /*  Sierra backends using AVX10.2 with VMPSADBW.
  *  Optimized for I8/U8 via VMPSADBW (vector multiply-sum of absolute differences). */
 #if NUMKONG_TARGET_SIERRA
-/** @copydoc nk_angulars_packed_i8 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_i8_sierra(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_i8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i8_sierra(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                     nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                     void *stream);
+/** @copydoc nk_angulars_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i8_sierra(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i8_sierra(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_i8 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_i8_sierra(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       void *stream);
+/** @copydoc nk_euclideans_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_sierra(nk_i8_t const *vectors, nk_size_t vectors_count,
                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                          nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_i8 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_i8_sierra(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
-                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_i8 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_i8_sierra(nk_i8_t const *vectors, nk_size_t vectors_count,
-                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count);
-/** @copydoc nk_angulars_packed_u8 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_u8_sierra(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_u8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u8_sierra(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                     nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                     void *stream);
+/** @copydoc nk_angulars_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u8_sierra(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u8_sierra(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_u8 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_u8_sierra(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       void *stream);
+/** @copydoc nk_euclideans_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_sierra(nk_u8_t const *vectors, nk_size_t vectors_count,
                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                          nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_u8 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_u8_sierra(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m3_sierra(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
+                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       void *stream);
+/** @copydoc nk_angulars_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m1_sierra(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       void *stream);
+/** @copydoc nk_angulars_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_sierra(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_sierra(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_sierra(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_u8 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_u8_sierra(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                         void *stream);
+/** @copydoc nk_euclideans_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_sierra(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                         void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_sierra(nk_e2m3_t const *vectors, nk_size_t vectors_count,
                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count);
-/** @copydoc nk_angulars_packed_e2m3 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e2m3_sierra(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_packed_e2m1 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e2m1_sierra(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e2m3 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m3_sierra(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                            nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_sierra(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count);
-/** @copydoc nk_angulars_symmetric_e2m1 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m1_sierra(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
-                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e2m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m3_sierra(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_packed_e2m1 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m1_sierra(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e2m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m3_sierra(nk_e2m3_t const *vectors, nk_size_t vectors_count,
-                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                              nk_size_t row_count);
-/** @copydoc nk_euclideans_symmetric_e2m1 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m1_sierra(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
-                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                              nk_size_t row_count);
+                                                            nk_size_t row_count, void *stream);
 #endif // NUMKONG_TARGET_SIERRA
 
 /*  WASM Relaxed SIMD backends for angular/euclidean distances.
  *  Covers I8/U8/E2M3/BF16/F32/F64 spatial distance operations. */
 #if NUMKONG_TARGET_V128RELAXED
-/** @copydoc nk_angulars_packed_i8 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_i8_v128relaxed(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_i8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i8_v128relaxed(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_angulars_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i8_v128relaxed(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i8_v128relaxed(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
                                                             nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_i8 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_i8_v128relaxed(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                            void *stream);
+/** @copydoc nk_euclideans_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_v128relaxed(nk_i8_t const *vectors, nk_size_t vectors_count,
                                                                nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                                nk_size_t result_stride, nk_size_t row_start,
-                                                               nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_i8 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_i8_v128relaxed(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
-                                                              nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                              nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_i8 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_i8_v128relaxed(nk_i8_t const *vectors, nk_size_t vectors_count,
-                                                                 nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                 nk_size_t result_stride, nk_size_t row_start,
-                                                                 nk_size_t row_count);
-/** @copydoc nk_angulars_packed_u8 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_u8_v128relaxed(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                               nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_u8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u8_v128relaxed(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_angulars_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u8_v128relaxed(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u8_v128relaxed(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
                                                             nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_u8 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_u8_v128relaxed(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                            void *stream);
+/** @copydoc nk_euclideans_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_v128relaxed(nk_u8_t const *vectors, nk_size_t vectors_count,
                                                                nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                                nk_size_t result_stride, nk_size_t row_start,
-                                                               nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_u8 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_u8_v128relaxed(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
-                                                              nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                              nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_u8 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_u8_v128relaxed(nk_u8_t const *vectors, nk_size_t vectors_count,
-                                                                 nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                 nk_size_t result_stride, nk_size_t row_start,
-                                                                 nk_size_t row_count);
-/** @copydoc nk_angulars_packed_e2m3 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e2m3_v128relaxed(nk_e2m3_t const *a, void const *b_packed,
+                                                               nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m3_v128relaxed(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
+                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                            void *stream);
+/** @copydoc nk_angulars_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m1_v128relaxed(nk_e2m1x2_t const *a, void const *b_packed,
+                                                            nk_f32_t *result, nk_size_t rows, nk_size_t cols,
+                                                            nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                                            nk_size_t r_stride_in_bytes, void *stream);
+/** @copydoc nk_angulars_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_v128relaxed(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                               nk_size_t result_stride, nk_size_t row_start,
+                                                               nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_v128relaxed(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                               nk_size_t result_stride, nk_size_t row_start,
+                                                               nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_v128relaxed(nk_e2m3_t const *a, void const *b_packed,
                                                               nk_f32_t *result, nk_size_t rows, nk_size_t cols,
                                                               nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                              nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_packed_e2m1 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e2m1_v128relaxed(nk_e2m1x2_t const *a, void const *b_packed,
+                                                              nk_size_t r_stride_in_bytes, void *stream);
+/** @copydoc nk_euclideans_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_v128relaxed(nk_e2m1x2_t const *a, void const *b_packed,
                                                               nk_f32_t *result, nk_size_t rows, nk_size_t cols,
                                                               nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                              nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e2m3 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m3_v128relaxed(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                              nk_size_t r_stride_in_bytes, void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_v128relaxed(nk_e2m3_t const *vectors, nk_size_t vectors_count,
                                                                  nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                                  nk_size_t result_stride, nk_size_t row_start,
-                                                                 nk_size_t row_count);
-/** @copydoc nk_angulars_symmetric_e2m1 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m1_v128relaxed(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                                 nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_v128relaxed(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
                                                                  nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                                  nk_size_t result_stride, nk_size_t row_start,
-                                                                 nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e2m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m3_v128relaxed(nk_e2m3_t const *a, void const *b_packed,
-                                                                nk_f32_t *result, nk_size_t rows, nk_size_t cols,
-                                                                nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                                nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_packed_e2m1 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m1_v128relaxed(nk_e2m1x2_t const *a, void const *b_packed,
-                                                                nk_f32_t *result, nk_size_t rows, nk_size_t cols,
-                                                                nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                                nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e2m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m3_v128relaxed(nk_e2m3_t const *vectors, nk_size_t vectors_count,
-                                                                   nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                   nk_size_t result_stride, nk_size_t row_start,
-                                                                   nk_size_t row_count);
-/** @copydoc nk_euclideans_symmetric_e2m1 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m1_v128relaxed(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
-                                                                   nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                   nk_size_t result_stride, nk_size_t row_start,
-                                                                   nk_size_t row_count);
-/** @copydoc nk_angulars_packed_e4m3 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e4m3_v128relaxed(nk_e4m3_t const *a, void const *b_packed,
+                                                                 nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e4m3_v128relaxed(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
+                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                            void *stream);
+/** @copydoc nk_angulars_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e4m3_v128relaxed(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                               nk_size_t result_stride, nk_size_t row_start,
+                                                               nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e4m3_v128relaxed(nk_e4m3_t const *a, void const *b_packed,
                                                               nk_f32_t *result, nk_size_t rows, nk_size_t cols,
                                                               nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                              nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e4m3 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e4m3_v128relaxed(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                              nk_size_t r_stride_in_bytes, void *stream);
+/** @copydoc nk_euclideans_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e4m3_v128relaxed(nk_e4m3_t const *vectors, nk_size_t vectors_count,
                                                                  nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                                  nk_size_t result_stride, nk_size_t row_start,
-                                                                 nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e4m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e4m3_v128relaxed(nk_e4m3_t const *a, void const *b_packed,
-                                                                nk_f32_t *result, nk_size_t rows, nk_size_t cols,
-                                                                nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                                nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e4m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e4m3_v128relaxed(nk_e4m3_t const *vectors, nk_size_t vectors_count,
-                                                                   nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                   nk_size_t result_stride, nk_size_t row_start,
-                                                                   nk_size_t row_count);
-/** @copydoc nk_angulars_packed_e5m2 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e5m2_v128relaxed(nk_e5m2_t const *a, void const *b_packed,
+                                                                 nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e5m2_v128relaxed(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                            void *stream);
+/** @copydoc nk_angulars_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_v128relaxed(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                               nk_size_t result_stride, nk_size_t row_start,
+                                                               nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_v128relaxed(nk_e5m2_t const *a, void const *b_packed,
                                                               nk_f32_t *result, nk_size_t rows, nk_size_t cols,
                                                               nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                              nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e5m2 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e5m2_v128relaxed(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                              nk_size_t r_stride_in_bytes, void *stream);
+/** @copydoc nk_euclideans_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_v128relaxed(nk_e5m2_t const *vectors, nk_size_t vectors_count,
                                                                  nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                                  nk_size_t result_stride, nk_size_t row_start,
-                                                                 nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e5m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e5m2_v128relaxed(nk_e5m2_t const *a, void const *b_packed,
-                                                                nk_f32_t *result, nk_size_t rows, nk_size_t cols,
-                                                                nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                                nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e5m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e5m2_v128relaxed(nk_e5m2_t const *vectors, nk_size_t vectors_count,
-                                                                   nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                   nk_size_t result_stride, nk_size_t row_start,
-                                                                   nk_size_t row_count);
-/** @copydoc nk_angulars_packed_bf16 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_bf16_v128relaxed(nk_bf16_t const *a, void const *b_packed,
+                                                                 nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_bf16_v128relaxed(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                            void *stream);
+/** @copydoc nk_angulars_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_v128relaxed(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                               nk_size_t result_stride, nk_size_t row_start,
+                                                               nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_bf16_v128relaxed(nk_bf16_t const *a, void const *b_packed,
                                                               nk_f32_t *result, nk_size_t rows, nk_size_t cols,
                                                               nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                              nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_bf16 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_bf16_v128relaxed(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                              nk_size_t r_stride_in_bytes, void *stream);
+/** @copydoc nk_euclideans_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_v128relaxed(nk_bf16_t const *vectors, nk_size_t vectors_count,
                                                                  nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                                  nk_size_t result_stride, nk_size_t row_start,
-                                                                 nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_bf16 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_bf16_v128relaxed(nk_bf16_t const *a, void const *b_packed,
-                                                                nk_f32_t *result, nk_size_t rows, nk_size_t cols,
-                                                                nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                                nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_bf16 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_bf16_v128relaxed(nk_bf16_t const *vectors, nk_size_t vectors_count,
-                                                                   nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                   nk_size_t result_stride, nk_size_t row_start,
-                                                                   nk_size_t row_count);
-/** @copydoc nk_angulars_packed_f16 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_f16_v128relaxed(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                                 nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_f16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f16_v128relaxed(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                           void *stream);
+/** @copydoc nk_angulars_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f16_v128relaxed(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                              nk_size_t result_stride, nk_size_t row_start,
+                                                              nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f16_v128relaxed(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
                                                              nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                             nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f16 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_f16_v128relaxed(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                             void *stream);
+/** @copydoc nk_euclideans_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_v128relaxed(nk_f16_t const *vectors, nk_size_t vectors_count,
                                                                 nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                                 nk_size_t result_stride, nk_size_t row_start,
-                                                                nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f16 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_f16_v128relaxed(nk_f16_t const *a, void const *b_packed,
-                                                               nk_f32_t *result, nk_size_t rows, nk_size_t cols,
-                                                               nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                               nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f16 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f16_v128relaxed(nk_f16_t const *vectors, nk_size_t vectors_count,
-                                                                  nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                  nk_size_t result_stride, nk_size_t row_start,
-                                                                  nk_size_t row_count);
-/** @copydoc nk_angulars_packed_e3m2 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e3m2_v128relaxed(nk_e3m2_t const *a, void const *b_packed,
+                                                                nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e3m2_v128relaxed(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                            void *stream);
+/** @copydoc nk_angulars_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e3m2_v128relaxed(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                               nk_size_t result_stride, nk_size_t row_start,
+                                                               nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e3m2_v128relaxed(nk_e3m2_t const *a, void const *b_packed,
                                                               nk_f32_t *result, nk_size_t rows, nk_size_t cols,
                                                               nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                              nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e3m2 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e3m2_v128relaxed(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                              nk_size_t r_stride_in_bytes, void *stream);
+/** @copydoc nk_euclideans_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e3m2_v128relaxed(nk_e3m2_t const *vectors, nk_size_t vectors_count,
                                                                  nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                                  nk_size_t result_stride, nk_size_t row_start,
-                                                                 nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e3m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e3m2_v128relaxed(nk_e3m2_t const *a, void const *b_packed,
-                                                                nk_f32_t *result, nk_size_t rows, nk_size_t cols,
-                                                                nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                                nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e3m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e3m2_v128relaxed(nk_e3m2_t const *vectors, nk_size_t vectors_count,
-                                                                   nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                   nk_size_t result_stride, nk_size_t row_start,
-                                                                   nk_size_t row_count);
-/** @copydoc nk_angulars_packed_f32 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_f32_v128relaxed(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
+                                                                 nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f32_v128relaxed(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
+                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                           void *stream);
+/** @copydoc nk_angulars_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f32_v128relaxed(nk_f32_t const *vectors, nk_size_t vectors_count,
+                                                              nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                              nk_size_t result_stride, nk_size_t row_start,
+                                                              nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f32_v128relaxed(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
                                                              nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                             nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f32 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_f32_v128relaxed(nk_f32_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                             void *stream);
+/** @copydoc nk_euclideans_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f32_v128relaxed(nk_f32_t const *vectors, nk_size_t vectors_count,
                                                                 nk_size_t depth, nk_size_t stride, nk_f64_t *result,
                                                                 nk_size_t result_stride, nk_size_t row_start,
-                                                                nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f32 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_f32_v128relaxed(nk_f32_t const *a, void const *b_packed,
-                                                               nk_f64_t *result, nk_size_t rows, nk_size_t cols,
-                                                               nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                               nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f32 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f32_v128relaxed(nk_f32_t const *vectors, nk_size_t vectors_count,
-                                                                  nk_size_t depth, nk_size_t stride, nk_f64_t *result,
-                                                                  nk_size_t result_stride, nk_size_t row_start,
-                                                                  nk_size_t row_count);
-/** @copydoc nk_angulars_packed_f64 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_f64_v128relaxed(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
+                                                                nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_f64_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f64_v128relaxed(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
+                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                           void *stream);
+/** @copydoc nk_angulars_symmetric_f64_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f64_v128relaxed(nk_f64_t const *vectors, nk_size_t vectors_count,
+                                                              nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                              nk_size_t result_stride, nk_size_t row_start,
+                                                              nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f64_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f64_v128relaxed(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
                                                              nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                             nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f64 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_f64_v128relaxed(nk_f64_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                             void *stream);
+/** @copydoc nk_euclideans_symmetric_f64_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f64_v128relaxed(nk_f64_t const *vectors, nk_size_t vectors_count,
                                                                 nk_size_t depth, nk_size_t stride, nk_f64_t *result,
                                                                 nk_size_t result_stride, nk_size_t row_start,
-                                                                nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f64 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_f64_v128relaxed(nk_f64_t const *a, void const *b_packed,
-                                                               nk_f64_t *result, nk_size_t rows, nk_size_t cols,
-                                                               nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                               nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f64 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f64_v128relaxed(nk_f64_t const *vectors, nk_size_t vectors_count,
-                                                                  nk_size_t depth, nk_size_t stride, nk_f64_t *result,
-                                                                  nk_size_t result_stride, nk_size_t row_start,
-                                                                  nk_size_t row_count);
+                                                                nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_i4_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i4_v128relaxed(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_angulars_symmetric_i4_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i4_v128relaxed(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i4_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i4_v128relaxed(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                            void *stream);
+/** @copydoc nk_euclideans_symmetric_i4_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i4_v128relaxed(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                               nk_size_t result_stride, nk_size_t row_start,
+                                                               nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_u4_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u4_v128relaxed(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_angulars_symmetric_u4_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u4_v128relaxed(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u4_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u4_v128relaxed(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                            void *stream);
+/** @copydoc nk_euclideans_symmetric_u4_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u4_v128relaxed(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                               nk_size_t result_stride, nk_size_t row_start,
+                                                               nk_size_t row_count, void *stream);
 #endif // NUMKONG_TARGET_V128RELAXED
 
 #if NUMKONG_TARGET_V128
-/** @copydoc nk_angulars_packed_bf16 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_bf16_v128(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
-                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_bf16 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_bf16_v128(nk_bf16_t const *vectors, nk_size_t vectors_count,
-                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                          nk_size_t result_stride, nk_size_t row_start,
-                                                          nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_bf16 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_bf16_v128(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
-                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_bf16 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_bf16_v128(nk_bf16_t const *vectors, nk_size_t vectors_count,
-                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count);
-/** @copydoc nk_angulars_packed_i8 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_i8_v128(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_bf16_v128(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_i8 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_i8_v128(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                     void *stream);
+/** @copydoc nk_angulars_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_v128(nk_bf16_t const *vectors, nk_size_t vectors_count,
                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                        nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_i8 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_i8_v128(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_bf16_v128(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_i8 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_i8_v128(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       void *stream);
+/** @copydoc nk_euclideans_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_v128(nk_bf16_t const *vectors, nk_size_t vectors_count,
                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                          nk_size_t row_count);
-/** @copydoc nk_angulars_packed_u8 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_u8_v128(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_i8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i8_v128(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                   nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                   nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                   void *stream);
+/** @copydoc nk_angulars_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i8_v128(nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                      nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                      nk_size_t row_start, nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i8_v128(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_u8 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_u8_v128(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                     void *stream);
+/** @copydoc nk_euclideans_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_v128(nk_i8_t const *vectors, nk_size_t vectors_count,
                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                        nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_u8 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_u8_v128(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
-                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_u8 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_u8_v128(nk_u8_t const *vectors, nk_size_t vectors_count,
-                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                          nk_size_t result_stride, nk_size_t row_start,
-                                                          nk_size_t row_count);
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_u8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u8_v128(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                   nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                   nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                   void *stream);
+/** @copydoc nk_angulars_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u8_v128(nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                      nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                      nk_size_t row_start, nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u8_v128(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                     nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                     void *stream);
+/** @copydoc nk_euclideans_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_v128(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
 #endif // NUMKONG_TARGET_V128
 
 /*  ARM NEON backends (base NEON with F32/F64 support).
  *  Uses FMLA for F32 dots, FMLA (scalar) for F64. */
 #if NUMKONG_TARGET_NEON
-/** @copydoc nk_angulars_packed_f32 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_f32_neon(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
+/** @copydoc nk_angulars_packed_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f32_neon(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
+                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                    void *stream);
+/** @copydoc nk_angulars_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f32_neon(nk_f32_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f32_neon(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f32 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_f32_neon(nk_f32_t const *vectors, nk_size_t vectors_count,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_euclideans_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f32_neon(nk_f32_t const *vectors, nk_size_t vectors_count,
                                                          nk_size_t depth, nk_size_t stride, nk_f64_t *result,
                                                          nk_size_t result_stride, nk_size_t row_start,
-                                                         nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f32 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_f32_neon(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
-                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f32 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f32_neon(nk_f32_t const *vectors, nk_size_t vectors_count,
-                                                           nk_size_t depth, nk_size_t stride, nk_f64_t *result,
-                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
+                                                         nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_f64 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_f64_neon(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
+/** @copydoc nk_angulars_packed_f64_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f64_neon(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
+                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                    void *stream);
+/** @copydoc nk_angulars_symmetric_f64_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f64_neon(nk_f64_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f64_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f64_neon(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f64 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_f64_neon(nk_f64_t const *vectors, nk_size_t vectors_count,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_euclideans_symmetric_f64_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f64_neon(nk_f64_t const *vectors, nk_size_t vectors_count,
                                                          nk_size_t depth, nk_size_t stride, nk_f64_t *result,
                                                          nk_size_t result_stride, nk_size_t row_start,
-                                                         nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f64 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_f64_neon(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
-                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f64 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f64_neon(nk_f64_t const *vectors, nk_size_t vectors_count,
-                                                           nk_size_t depth, nk_size_t stride, nk_f64_t *result,
-                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-/** @copydoc nk_angulars_packed_bf16 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_bf16_neon(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_bf16_neon(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                     nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                     void *stream);
+/** @copydoc nk_angulars_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_neon(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_bf16_neon(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_bf16 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_bf16_neon(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       void *stream);
+/** @copydoc nk_euclideans_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_neon(nk_bf16_t const *vectors, nk_size_t vectors_count,
                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                          nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_bf16 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_bf16_neon(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
-                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_bf16 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_bf16_neon(nk_bf16_t const *vectors, nk_size_t vectors_count,
-                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count);
-/** @copydoc nk_angulars_packed_f16 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_f16_neon(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_f16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f16_neon(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                    void *stream);
+/** @copydoc nk_angulars_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f16_neon(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f16_neon(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f16 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_f16_neon(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_euclideans_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_neon(nk_f16_t const *vectors, nk_size_t vectors_count,
                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                          nk_size_t result_stride, nk_size_t row_start,
-                                                         nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f16 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_f16_neon(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
-                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f16 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f16_neon(nk_f16_t const *vectors, nk_size_t vectors_count,
-                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
+                                                         nk_size_t row_count, void *stream);
 #endif // NUMKONG_TARGET_NEON
 
 /*  ARM NEON with BF16 dot product (ARMv8.6-A BF16).
  *  Uses BFDOT/BFMMLA for efficient BF16 matrix operations. */
 #if NUMKONG_TARGET_NEONBFDOT
-/** @copydoc nk_angulars_packed_bf16 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_bf16_neonbfdot(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_bf16_neonbfdot(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_angulars_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_neonbfdot(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_bf16_neonbfdot(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
                                                             nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_bf16 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_bf16_neonbfdot(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                            void *stream);
+/** @copydoc nk_euclideans_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_neonbfdot(nk_bf16_t const *vectors, nk_size_t vectors_count,
                                                                nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                                nk_size_t result_stride, nk_size_t row_start,
-                                                               nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_bf16 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_bf16_neonbfdot(nk_bf16_t const *a, void const *b_packed,
-                                                              nk_f32_t *result, nk_size_t rows, nk_size_t cols,
-                                                              nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                              nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_bf16 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_bf16_neonbfdot(nk_bf16_t const *vectors, nk_size_t vectors_count,
-                                                                 nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                 nk_size_t result_stride, nk_size_t row_start,
-                                                                 nk_size_t row_count);
+                                                               nk_size_t row_count, void *stream);
 #endif // NUMKONG_TARGET_NEONBFDOT
 
 /*  ARM NEON with signed/unsigned dot product (ARMv8.2-A DotProd).
  *  Provides SDOT/UDOT for I8/U8 vector dot products. */
 #if NUMKONG_TARGET_NEONSDOT
-/** @copydoc nk_angulars_packed_i8 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_i8_neonsdot(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_i8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i8_neonsdot(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       void *stream);
+/** @copydoc nk_angulars_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i8_neonsdot(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i8_neonsdot(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_i8 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_i8_neonsdot(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                         void *stream);
+/** @copydoc nk_euclideans_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_neonsdot(nk_i8_t const *vectors, nk_size_t vectors_count,
                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_i8 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_i8_neonsdot(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
-                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_i8 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_i8_neonsdot(nk_i8_t const *vectors, nk_size_t vectors_count,
-                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                              nk_size_t row_count);
+                                                            nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_u8 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_u8_neonsdot(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_u8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u8_neonsdot(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       void *stream);
+/** @copydoc nk_angulars_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u8_neonsdot(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u8_neonsdot(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_u8 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_u8_neonsdot(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                         void *stream);
+/** @copydoc nk_euclideans_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_neonsdot(nk_u8_t const *vectors, nk_size_t vectors_count,
                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_u8 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_u8_neonsdot(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
-                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_u8 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_u8_neonsdot(nk_u8_t const *vectors, nk_size_t vectors_count,
-                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                              nk_size_t row_count);
+                                                            nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_i4 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_i4_neonsdot(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_i4_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i4_neonsdot(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       void *stream);
+/** @copydoc nk_angulars_symmetric_i4_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i4_neonsdot(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i4_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i4_neonsdot(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *result,
                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_i4 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_i4_neonsdot(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                         void *stream);
+/** @copydoc nk_euclideans_symmetric_i4_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i4_neonsdot(nk_i4x2_t const *vectors, nk_size_t vectors_count,
                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_i4 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_i4_neonsdot(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_i4 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_i4_neonsdot(nk_i4x2_t const *vectors, nk_size_t vectors_count,
-                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                              nk_size_t row_count);
+                                                            nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_u4 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_u4_neonsdot(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_u4_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u4_neonsdot(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       void *stream);
+/** @copydoc nk_angulars_symmetric_u4_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u4_neonsdot(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u4_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u4_neonsdot(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *result,
                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_u4 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_u4_neonsdot(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                         void *stream);
+/** @copydoc nk_euclideans_symmetric_u4_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u4_neonsdot(nk_u4x2_t const *vectors, nk_size_t vectors_count,
                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_u4 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_u4_neonsdot(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                            nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m3_neonsdot(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
+                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                         void *stream);
+/** @copydoc nk_angulars_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m1_neonsdot(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                         void *stream);
+/** @copydoc nk_angulars_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_neonsdot(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                            nk_size_t result_stride, nk_size_t row_start,
+                                                            nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_neonsdot(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                            nk_size_t result_stride, nk_size_t row_start,
+                                                            nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_neonsdot(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_u4 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_u4_neonsdot(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                           void *stream);
+/** @copydoc nk_euclideans_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_neonsdot(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                           void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_neonsdot(nk_e2m3_t const *vectors, nk_size_t vectors_count,
                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                               nk_size_t result_stride, nk_size_t row_start,
-                                                              nk_size_t row_count);
-/** @copydoc nk_angulars_packed_e2m3 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e2m3_neonsdot(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_packed_e2m1 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e2m1_neonsdot(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e2m3 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m3_neonsdot(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                              nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_neonsdot(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                               nk_size_t result_stride, nk_size_t row_start,
-                                                              nk_size_t row_count);
-/** @copydoc nk_angulars_symmetric_e2m1 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m1_neonsdot(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                              nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e3m2_neonsdot(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                         void *stream);
+/** @copydoc nk_angulars_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e3m2_neonsdot(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                            nk_size_t result_stride, nk_size_t row_start,
+                                                            nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e3m2_neonsdot(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                           void *stream);
+/** @copydoc nk_euclideans_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e3m2_neonsdot(nk_e3m2_t const *vectors, nk_size_t vectors_count,
                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                               nk_size_t result_stride, nk_size_t row_start,
-                                                              nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e2m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m3_neonsdot(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                             nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                             nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_packed_e2m1 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m1_neonsdot(nk_e2m1x2_t const *a, void const *b_packed,
-                                                             nk_f32_t *result, nk_size_t rows, nk_size_t cols,
-                                                             nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                             nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e2m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m3_neonsdot(nk_e2m3_t const *vectors, nk_size_t vectors_count,
-                                                                nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                nk_size_t result_stride, nk_size_t row_start,
-                                                                nk_size_t row_count);
-/** @copydoc nk_euclideans_symmetric_e2m1 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m1_neonsdot(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
-                                                                nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                nk_size_t result_stride, nk_size_t row_start,
-                                                                nk_size_t row_count);
+                                                              nk_size_t row_count, void *stream);
 #endif // NUMKONG_TARGET_NEONSDOT
 
 /*  ARM NEON with FP16 FML (fused multiply-long, ARMv8.2-A FP16FML).
  *  Uses FMLAL/FMLSL for F16 and custom FP8 (E2M3/E3M2) operations. */
 #if NUMKONG_TARGET_NEONFHM
-/** @copydoc nk_angulars_packed_f16 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_f16_neonfhm(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_f16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f16_neonfhm(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       void *stream);
+/** @copydoc nk_angulars_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f16_neonfhm(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f16_neonfhm(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f16 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_f16_neonfhm(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                         void *stream);
+/** @copydoc nk_euclideans_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_neonfhm(nk_f16_t const *vectors, nk_size_t vectors_count,
                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f16 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_f16_neonfhm(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
-                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f16 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f16_neonfhm(nk_f16_t const *vectors, nk_size_t vectors_count,
-                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                              nk_size_t row_count);
+                                                            nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_e4m3 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e4m3_neonfhm(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e4m3_neonfhm(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_angulars_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e4m3_neonfhm(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e4m3_neonfhm(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e4m3 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e4m3_neonfhm(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_euclideans_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e4m3_neonfhm(nk_e4m3_t const *vectors, nk_size_t vectors_count,
                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e4m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e4m3_neonfhm(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e4m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e4m3_neonfhm(nk_e4m3_t const *vectors, nk_size_t vectors_count,
-                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                               nk_size_t result_stride, nk_size_t row_start,
-                                                               nk_size_t row_count);
+                                                             nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_e5m2 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e5m2_neonfhm(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e5m2_neonfhm(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_angulars_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_neonfhm(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_neonfhm(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e5m2 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e5m2_neonfhm(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_euclideans_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_neonfhm(nk_e5m2_t const *vectors, nk_size_t vectors_count,
                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e5m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e5m2_neonfhm(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e5m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e5m2_neonfhm(nk_e5m2_t const *vectors, nk_size_t vectors_count,
-                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                               nk_size_t result_stride, nk_size_t row_start,
-                                                               nk_size_t row_count);
-
+                                                             nk_size_t row_count, void *stream);
 #endif // NUMKONG_TARGET_NEONFHM
 
 /*  ARM NEON with FP8 (ARMv9.2-A FP8).
  *  Uses native FP8 dot-product instructions for E4M3/E5M2/E2M3/E3M2 operations. */
 #if NUMKONG_TARGET_NEONFP8
-/** @copydoc nk_angulars_packed_e4m3 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e4m3_neonfp8(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e4m3_neonfp8(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_angulars_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e4m3_neonfp8(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e4m3_neonfp8(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e4m3 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e4m3_neonfp8(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_euclideans_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e4m3_neonfp8(nk_e4m3_t const *vectors, nk_size_t vectors_count,
                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e4m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e4m3_neonfp8(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e4m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e4m3_neonfp8(nk_e4m3_t const *vectors, nk_size_t vectors_count,
-                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                               nk_size_t result_stride, nk_size_t row_start,
-                                                               nk_size_t row_count);
+                                                             nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_e5m2 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e5m2_neonfp8(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e5m2_neonfp8(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_angulars_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_neonfp8(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_neonfp8(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e5m2 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e5m2_neonfp8(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_euclideans_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_neonfp8(nk_e5m2_t const *vectors, nk_size_t vectors_count,
                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e5m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e5m2_neonfp8(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e5m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e5m2_neonfp8(nk_e5m2_t const *vectors, nk_size_t vectors_count,
-                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                               nk_size_t result_stride, nk_size_t row_start,
-                                                               nk_size_t row_count);
+                                                             nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_e2m3 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e2m3_neonfp8(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m3_neonfp8(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_angulars_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m1_neonfp8(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_angulars_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_neonfp8(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_neonfp8(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_neonfp8(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_packed_e2m1 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e2m1_neonfp8(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_euclideans_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_neonfp8(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e2m3 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m3_neonfp8(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_neonfp8(nk_e2m3_t const *vectors, nk_size_t vectors_count,
                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
-/** @copydoc nk_angulars_symmetric_e2m1 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m1_neonfp8(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_neonfp8(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e2m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m3_neonfp8(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_packed_e2m1 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m1_neonfp8(nk_e2m1x2_t const *a, void const *b_packed,
-                                                            nk_f32_t *result, nk_size_t rows, nk_size_t cols,
-                                                            nk_size_t depth, nk_size_t a_stride_in_bytes,
-                                                            nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e2m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m3_neonfp8(nk_e2m3_t const *vectors, nk_size_t vectors_count,
-                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                               nk_size_t result_stride, nk_size_t row_start,
-                                                               nk_size_t row_count);
-/** @copydoc nk_euclideans_symmetric_e2m1 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m1_neonfp8(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
-                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                               nk_size_t result_stride, nk_size_t row_start,
-                                                               nk_size_t row_count);
+                                                             nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_e3m2 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e3m2_neonfp8(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e3m2_neonfp8(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_angulars_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e3m2_neonfp8(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e3m2_neonfp8(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e3m2 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e3m2_neonfp8(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_euclideans_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e3m2_neonfp8(nk_e3m2_t const *vectors, nk_size_t vectors_count,
                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e3m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e3m2_neonfp8(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e3m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e3m2_neonfp8(nk_e3m2_t const *vectors, nk_size_t vectors_count,
-                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                               nk_size_t result_stride, nk_size_t row_start,
-                                                               nk_size_t row_count);
-
+                                                             nk_size_t row_count, void *stream);
 #endif // NUMKONG_TARGET_NEONFP8
 
 #if NUMKONG_TARGET_RVV
-/** @copydoc nk_angulars_packed_f32 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_f32_rvv(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
+/** @copydoc nk_angulars_packed_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f32_rvv(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
+                                                   nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                   nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                   void *stream);
+/** @copydoc nk_angulars_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f32_rvv(nk_f32_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                      nk_size_t stride, nk_f64_t *result, nk_size_t result_stride,
+                                                      nk_size_t row_start, nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f32_rvv(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f32 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_f32_rvv(nk_f32_t const *vectors, nk_size_t vectors_count,
+                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                     void *stream);
+/** @copydoc nk_euclideans_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f32_rvv(nk_f32_t const *vectors, nk_size_t vectors_count,
                                                         nk_size_t depth, nk_size_t stride, nk_f64_t *result,
                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                        nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f32 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_f32_rvv(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
-                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f32 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f32_rvv(nk_f32_t const *vectors, nk_size_t vectors_count,
-                                                          nk_size_t depth, nk_size_t stride, nk_f64_t *result,
-                                                          nk_size_t result_stride, nk_size_t row_start,
-                                                          nk_size_t row_count);
+                                                        nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_f64 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_f64_rvv(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
+/** @copydoc nk_angulars_packed_f64_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f64_rvv(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
+                                                   nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                   nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                   void *stream);
+/** @copydoc nk_angulars_symmetric_f64_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f64_rvv(nk_f64_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                      nk_size_t stride, nk_f64_t *result, nk_size_t result_stride,
+                                                      nk_size_t row_start, nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f64_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f64_rvv(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f64 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_f64_rvv(nk_f64_t const *vectors, nk_size_t vectors_count,
+                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                     void *stream);
+/** @copydoc nk_euclideans_symmetric_f64_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f64_rvv(nk_f64_t const *vectors, nk_size_t vectors_count,
                                                         nk_size_t depth, nk_size_t stride, nk_f64_t *result,
                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                        nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f64 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_f64_rvv(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
-                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f64 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f64_rvv(nk_f64_t const *vectors, nk_size_t vectors_count,
-                                                          nk_size_t depth, nk_size_t stride, nk_f64_t *result,
-                                                          nk_size_t result_stride, nk_size_t row_start,
-                                                          nk_size_t row_count);
+                                                        nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_f16 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_f16_rvv(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_f16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f16_rvv(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                   nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                   nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                   void *stream);
+/** @copydoc nk_angulars_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f16_rvv(nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                      nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                      nk_size_t row_start, nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f16_rvv(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_f16 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_f16_rvv(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                     nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                     void *stream);
+/** @copydoc nk_euclideans_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_rvv(nk_f16_t const *vectors, nk_size_t vectors_count,
                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                        nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_f16 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_f16_rvv(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
-                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_f16 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f16_rvv(nk_f16_t const *vectors, nk_size_t vectors_count,
-                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                          nk_size_t result_stride, nk_size_t row_start,
-                                                          nk_size_t row_count);
+                                                        nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_bf16 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_bf16_rvv(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
-                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_bf16 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_bf16_rvv(nk_bf16_t const *vectors, nk_size_t vectors_count,
-                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                         nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_bf16 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_bf16_rvv(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
-                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_bf16 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_bf16_rvv(nk_bf16_t const *vectors, nk_size_t vectors_count,
-                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_e4m3 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e4m3_rvv(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e4m3 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e4m3_rvv(nk_e4m3_t const *vectors, nk_size_t vectors_count,
-                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                         nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e4m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e4m3_rvv(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e4m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e4m3_rvv(nk_e4m3_t const *vectors, nk_size_t vectors_count,
-                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_e5m2 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e5m2_rvv(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e5m2 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e5m2_rvv(nk_e5m2_t const *vectors, nk_size_t vectors_count,
-                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                         nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e5m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e5m2_rvv(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e5m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e5m2_rvv(nk_e5m2_t const *vectors, nk_size_t vectors_count,
-                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_e2m3 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e2m3_rvv(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_packed_e2m1 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e2m1_rvv(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e2m3 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m3_rvv(nk_e2m3_t const *vectors, nk_size_t vectors_count,
-                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                         nk_size_t row_count);
-/** @copydoc nk_angulars_symmetric_e2m1 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m1_rvv(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
-                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                         nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e2m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m3_rvv(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_packed_e2m1 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m1_rvv(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e2m3 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m3_rvv(nk_e2m3_t const *vectors, nk_size_t vectors_count,
-                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-/** @copydoc nk_euclideans_symmetric_e2m1 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m1_rvv(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
-                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_e3m2 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_e3m2_rvv(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_e3m2 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e3m2_rvv(nk_e3m2_t const *vectors, nk_size_t vectors_count,
-                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                         nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_e3m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e3m2_rvv(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_e3m2 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e3m2_rvv(nk_e3m2_t const *vectors, nk_size_t vectors_count,
-                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count);
-
-/** @copydoc nk_angulars_packed_i8 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_i8_rvv(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_bf16_rvv(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
                                                     nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_i8 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_i8_rvv(nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                       nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                       nk_size_t row_start, nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_i8 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_i8_rvv(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                    void *stream);
+/** @copydoc nk_angulars_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_rvv(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_bf16_rvv(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_i8 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_i8_rvv(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_euclideans_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_rvv(nk_bf16_t const *vectors, nk_size_t vectors_count,
                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                          nk_size_t result_stride, nk_size_t row_start,
-                                                         nk_size_t row_count);
+                                                         nk_size_t row_count, void *stream);
 
-/** @copydoc nk_angulars_packed_u8 */
-NUMKONG_API_COMPTIME void nk_angulars_packed_u8_rvv(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+/** @copydoc nk_angulars_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e4m3_rvv(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
                                                     nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_angulars_symmetric_u8 */
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_u8_rvv(nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                       nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                       nk_size_t row_start, nk_size_t row_count);
-/** @copydoc nk_euclideans_packed_u8 */
-NUMKONG_API_COMPTIME void nk_euclideans_packed_u8_rvv(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                    void *stream);
+/** @copydoc nk_angulars_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e4m3_rvv(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e4m3_rvv(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes);
-/** @copydoc nk_euclideans_symmetric_u8 */
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_u8_rvv(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_euclideans_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e4m3_rvv(nk_e4m3_t const *vectors, nk_size_t vectors_count,
                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                          nk_size_t result_stride, nk_size_t row_start,
-                                                         nk_size_t row_count);
+                                                         nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e5m2_rvv(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                    void *stream);
+/** @copydoc nk_angulars_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_rvv(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_rvv(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_euclideans_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_rvv(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m3_rvv(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
+                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                    void *stream);
+/** @copydoc nk_angulars_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m1_rvv(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                    void *stream);
+/** @copydoc nk_angulars_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_rvv(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_rvv(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_rvv(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_euclideans_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_rvv(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_rvv(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_rvv(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e3m2_rvv(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                    void *stream);
+/** @copydoc nk_angulars_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e3m2_rvv(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e3m2_rvv(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                      nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                      nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                      void *stream);
+/** @copydoc nk_euclideans_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e3m2_rvv(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_i8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i8_rvv(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                  nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                  nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                  void *stream);
+/** @copydoc nk_angulars_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i8_rvv(nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                     nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                     nk_size_t row_start, nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i8_rvv(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                    void *stream);
+/** @copydoc nk_euclideans_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_rvv(nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                       nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                       nk_size_t row_start, nk_size_t row_count, void *stream);
+
+/** @copydoc nk_angulars_packed_u8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u8_rvv(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                  nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                  nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                  void *stream);
+/** @copydoc nk_angulars_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u8_rvv(nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                     nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                     nk_size_t row_start, nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u8_rvv(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                    void *stream);
+/** @copydoc nk_euclideans_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_rvv(nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                       nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                       nk_size_t row_start, nk_size_t row_count, void *stream);
 #endif // NUMKONG_TARGET_RVV
 
-/*  NVIDIA backends from Ampere on, reusing the CUDA dots packs and tiles with the metric
- *  applied in the epilogue: F64 outputs for F64 and F32 inputs, F32 for the rest.
- *  Pointers are device-reachable, and every call is asynchronous on its @c stream and
- *  returns the launch status. */
+/*  Power VSX backends, POWER9 and newer. */
+#if NUMKONG_TARGET_POWERVSX
+/** @copydoc nk_angulars_packed_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f32_powervsx(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
+                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_angulars_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f32_powervsx(nk_f32_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f32_powervsx(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
+                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_euclideans_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f32_powervsx(nk_f32_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_f64_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f64_powervsx(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
+                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_angulars_symmetric_f64_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f64_powervsx(nk_f64_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f64_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f64_powervsx(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
+                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_euclideans_symmetric_f64_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f64_powervsx(nk_f64_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_f16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f16_powervsx(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                        nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                        void *stream);
+/** @copydoc nk_angulars_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f16_powervsx(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f16_powervsx(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_euclideans_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_powervsx(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_bf16_powervsx(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                         void *stream);
+/** @copydoc nk_angulars_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_powervsx(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                            nk_size_t result_stride, nk_size_t row_start,
+                                                            nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_bf16_powervsx(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                           void *stream);
+/** @copydoc nk_euclideans_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_powervsx(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                              nk_size_t result_stride, nk_size_t row_start,
+                                                              nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_i8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i8_powervsx(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       void *stream);
+/** @copydoc nk_angulars_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i8_powervsx(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i8_powervsx(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                         void *stream);
+/** @copydoc nk_euclideans_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_powervsx(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                            nk_size_t result_stride, nk_size_t row_start,
+                                                            nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_u8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u8_powervsx(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                       nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                       nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                       void *stream);
+/** @copydoc nk_angulars_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u8_powervsx(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u8_powervsx(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                         nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                         nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                         void *stream);
+/** @copydoc nk_euclideans_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_powervsx(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                            nk_size_t result_stride, nk_size_t row_start,
+                                                            nk_size_t row_count, void *stream);
+#endif // NUMKONG_TARGET_POWERVSX
+
+/*  LoongArch LASX backends, 256-bit vectors. */
+#if NUMKONG_TARGET_LOONGSONASX
+/** @copydoc nk_angulars_packed_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f32_loongsonasx(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
+                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                           void *stream);
+/** @copydoc nk_angulars_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f32_loongsonasx(nk_f32_t const *vectors, nk_size_t vectors_count,
+                                                              nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                              nk_size_t result_stride, nk_size_t row_start,
+                                                              nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f32_loongsonasx(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
+                                                             nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                             nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                             void *stream);
+/** @copydoc nk_euclideans_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f32_loongsonasx(nk_f32_t const *vectors, nk_size_t vectors_count,
+                                                                nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                                nk_size_t result_stride, nk_size_t row_start,
+                                                                nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_f64_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f64_loongsonasx(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
+                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                           void *stream);
+/** @copydoc nk_angulars_symmetric_f64_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f64_loongsonasx(nk_f64_t const *vectors, nk_size_t vectors_count,
+                                                              nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                              nk_size_t result_stride, nk_size_t row_start,
+                                                              nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f64_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f64_loongsonasx(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
+                                                             nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                             nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                             void *stream);
+/** @copydoc nk_euclideans_symmetric_f64_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f64_loongsonasx(nk_f64_t const *vectors, nk_size_t vectors_count,
+                                                                nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                                nk_size_t result_stride, nk_size_t row_start,
+                                                                nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_f16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f16_loongsonasx(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                           nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                           nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                           void *stream);
+/** @copydoc nk_angulars_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f16_loongsonasx(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                              nk_size_t result_stride, nk_size_t row_start,
+                                                              nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f16_loongsonasx(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                             nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                             nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                             void *stream);
+/** @copydoc nk_euclideans_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_loongsonasx(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                                nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                                nk_size_t result_stride, nk_size_t row_start,
+                                                                nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_bf16_loongsonasx(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                            void *stream);
+/** @copydoc nk_angulars_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_loongsonasx(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                               nk_size_t result_stride, nk_size_t row_start,
+                                                               nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_bf16_loongsonasx(nk_bf16_t const *a, void const *b_packed,
+                                                              nk_f32_t *result, nk_size_t rows, nk_size_t cols,
+                                                              nk_size_t depth, nk_size_t a_stride_in_bytes,
+                                                              nk_size_t r_stride_in_bytes, void *stream);
+/** @copydoc nk_euclideans_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_loongsonasx(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                                 nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                                 nk_size_t result_stride, nk_size_t row_start,
+                                                                 nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_i8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i8_loongsonasx(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_angulars_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i8_loongsonasx(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i8_loongsonasx(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                            void *stream);
+/** @copydoc nk_euclideans_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_loongsonasx(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                               nk_size_t result_stride, nk_size_t row_start,
+                                                               nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_u8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u8_loongsonasx(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                          nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                          nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                          void *stream);
+/** @copydoc nk_angulars_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u8_loongsonasx(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u8_loongsonasx(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                            nk_size_t rows, nk_size_t cols, nk_size_t depth,
+                                                            nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes,
+                                                            void *stream);
+/** @copydoc nk_euclideans_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_loongsonasx(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                               nk_size_t result_stride, nk_size_t row_start,
+                                                               nk_size_t row_count, void *stream);
+#endif // NUMKONG_TARGET_LOONGSONASX
+
+/*  GPU kernels take their CPU counterparts' arguments and return without waiting on the device,
+ *  each reading a B packed by its own capability's `nk_dots_pack_*`. Apple GPUs have none.
+ *
+ *  NVIDIA backends on every device, reusing the baseline dots packs and scalar-FMA tile with
+ *  the metric applied in the epilogue. Products and norms accumulate in F64, F64 inputs in
+ *  Dot2; outputs are F64 for F64 and F32 inputs, F32 for the rest. */
+#if NUMKONG_ARCH_CUDA_
+/** @copydoc nk_angulars_packed_f64_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f64_cuda(nk_f64_t const *a, void const *b_packed, nk_f64_t *c,
+                                                    nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                    nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_f64_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f64_cuda(nk_f64_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f64_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f64_cuda(nk_f64_t const *a, void const *b_packed, nk_f64_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_f64_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f64_cuda(nk_f64_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f32_cuda(nk_f32_t const *a, void const *b_packed, nk_f64_t *c,
+                                                    nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                    nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f32_cuda(nk_f32_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f32_cuda(nk_f32_t const *a, void const *b_packed, nk_f64_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f32_cuda(nk_f32_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_bf16_cuda(nk_bf16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_cuda(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_bf16_cuda(nk_bf16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_cuda(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_f16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f16_cuda(nk_f16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                    nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                    nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f16_cuda(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f16_cuda(nk_f16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_cuda(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e5m2_cuda(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_cuda(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_cuda(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_cuda(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e4m3_cuda(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e4m3_cuda(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e4m3_cuda(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e4m3_cuda(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e3m2_cuda(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e3m2_cuda(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e3m2_cuda(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e3m2_cuda(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m3_cuda(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_cuda(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_cuda(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_cuda(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m1_cuda(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_cuda(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_cuda(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_cuda(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_i8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i8_cuda(nk_i8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                   nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                   nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i8_cuda(nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                      nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                      nk_size_t row_start, nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i8_cuda(nk_i8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_cuda(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_u8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u8_cuda(nk_u8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                   nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                   nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u8_cuda(nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                      nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                      nk_size_t row_start, nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u8_cuda(nk_u8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_cuda(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_i4_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i4_cuda(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                   nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                   nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_i4_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i4_cuda(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                      nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                      nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count,
+                                                      void *stream);
+/** @copydoc nk_euclideans_packed_i4_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i4_cuda(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_i4_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i4_cuda(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_u4_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u4_cuda(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                   nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                   nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_u4_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u4_cuda(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                      nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                      nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count,
+                                                      void *stream);
+/** @copydoc nk_euclideans_packed_u4_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u4_cuda(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_u4_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u4_cuda(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+#endif // NUMKONG_ARCH_CUDA_
+
+/*  NVIDIA backends from Ampere on, reusing the CUDA dots packs and tiles with the metric applied
+ *  in the epilogue, every output F32. */
 #if NUMKONG_TARGET_AMPERE
-/** @copydoc nk_angulars_packed_f64 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_packed_f64_ampere(nk_f64_t const *a, void const *b_packed, nk_f64_t *c,
-                                                               nk_size_t height, nk_size_t width, nk_size_t depth,
-                                                               nk_size_t a_stride, nk_size_t c_stride,
-                                                               cudaStream_t stream);
-/** @copydoc nk_angulars_symmetric_f64 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_symmetric_f64_ampere(nk_f64_t const *vectors, nk_size_t vectors_count,
-                                                                  nk_size_t depth, nk_size_t stride, nk_f64_t *result,
-                                                                  nk_size_t result_stride, nk_size_t row_start,
-                                                                  nk_size_t row_count, cudaStream_t stream);
-/** @copydoc nk_euclideans_packed_f64 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_packed_f64_ampere(nk_f64_t const *a, void const *b_packed, nk_f64_t *c,
-                                                                 nk_size_t height, nk_size_t width, nk_size_t depth,
-                                                                 nk_size_t a_stride, nk_size_t c_stride,
-                                                                 cudaStream_t stream);
-/** @copydoc nk_euclideans_symmetric_f64 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_symmetric_f64_ampere(nk_f64_t const *vectors, nk_size_t vectors_count,
-                                                                    nk_size_t depth, nk_size_t stride, nk_f64_t *result,
-                                                                    nk_size_t result_stride, nk_size_t row_start,
-                                                                    nk_size_t row_count, cudaStream_t stream);
-/** @copydoc nk_angulars_packed_f32 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_packed_f32_ampere(nk_f32_t const *a, void const *b_packed, nk_f64_t *c,
-                                                               nk_size_t height, nk_size_t width, nk_size_t depth,
-                                                               nk_size_t a_stride, nk_size_t c_stride,
-                                                               cudaStream_t stream);
-/** @copydoc nk_angulars_symmetric_f32 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_symmetric_f32_ampere(nk_f32_t const *vectors, nk_size_t vectors_count,
-                                                                  nk_size_t depth, nk_size_t stride, nk_f64_t *result,
-                                                                  nk_size_t result_stride, nk_size_t row_start,
-                                                                  nk_size_t row_count, cudaStream_t stream);
-/** @copydoc nk_euclideans_packed_f32 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_packed_f32_ampere(nk_f32_t const *a, void const *b_packed, nk_f64_t *c,
-                                                                 nk_size_t height, nk_size_t width, nk_size_t depth,
-                                                                 nk_size_t a_stride, nk_size_t c_stride,
-                                                                 cudaStream_t stream);
-/** @copydoc nk_euclideans_symmetric_f32 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_symmetric_f32_ampere(nk_f32_t const *vectors, nk_size_t vectors_count,
-                                                                    nk_size_t depth, nk_size_t stride, nk_f64_t *result,
-                                                                    nk_size_t result_stride, nk_size_t row_start,
-                                                                    nk_size_t row_count, cudaStream_t stream);
-/** @copydoc nk_angulars_packed_bf16 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_packed_bf16_ampere(nk_bf16_t const *a, void const *b_packed, nk_f32_t *c,
-                                                                nk_size_t height, nk_size_t width, nk_size_t depth,
-                                                                nk_size_t a_stride, nk_size_t c_stride,
-                                                                cudaStream_t stream);
-/** @copydoc nk_angulars_symmetric_bf16 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_symmetric_bf16_ampere(nk_bf16_t const *vectors, nk_size_t vectors_count,
-                                                                   nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                   nk_size_t result_stride, nk_size_t row_start,
-                                                                   nk_size_t row_count, cudaStream_t stream);
-/** @copydoc nk_euclideans_packed_bf16 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_packed_bf16_ampere(nk_bf16_t const *a, void const *b_packed, nk_f32_t *c,
-                                                                  nk_size_t height, nk_size_t width, nk_size_t depth,
-                                                                  nk_size_t a_stride, nk_size_t c_stride,
-                                                                  cudaStream_t stream);
-/** @copydoc nk_euclideans_symmetric_bf16 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_symmetric_bf16_ampere(nk_bf16_t const *vectors, nk_size_t vectors_count,
-                                                                     nk_size_t depth, nk_size_t stride,
-                                                                     nk_f32_t *result, nk_size_t result_stride,
-                                                                     nk_size_t row_start, nk_size_t row_count,
-                                                                     cudaStream_t stream);
-/** @copydoc nk_angulars_packed_f16 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_packed_f16_ampere(nk_f16_t const *a, void const *b_packed, nk_f32_t *c,
-                                                               nk_size_t height, nk_size_t width, nk_size_t depth,
-                                                               nk_size_t a_stride, nk_size_t c_stride,
-                                                               cudaStream_t stream);
-/** @copydoc nk_angulars_symmetric_f16 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_symmetric_f16_ampere(nk_f16_t const *vectors, nk_size_t vectors_count,
-                                                                  nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                  nk_size_t result_stride, nk_size_t row_start,
-                                                                  nk_size_t row_count, cudaStream_t stream);
-/** @copydoc nk_euclideans_packed_f16 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_packed_f16_ampere(nk_f16_t const *a, void const *b_packed, nk_f32_t *c,
-                                                                 nk_size_t height, nk_size_t width, nk_size_t depth,
-                                                                 nk_size_t a_stride, nk_size_t c_stride,
-                                                                 cudaStream_t stream);
-/** @copydoc nk_euclideans_symmetric_f16 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_symmetric_f16_ampere(nk_f16_t const *vectors, nk_size_t vectors_count,
-                                                                    nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                    nk_size_t result_stride, nk_size_t row_start,
-                                                                    nk_size_t row_count, cudaStream_t stream);
-/** @copydoc nk_angulars_packed_e5m2 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_packed_e5m2_ampere(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,
-                                                                nk_size_t height, nk_size_t width, nk_size_t depth,
-                                                                nk_size_t a_stride, nk_size_t c_stride,
-                                                                cudaStream_t stream);
-/** @copydoc nk_angulars_symmetric_e5m2 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_symmetric_e5m2_ampere(nk_e5m2_t const *vectors, nk_size_t vectors_count,
-                                                                   nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                   nk_size_t result_stride, nk_size_t row_start,
-                                                                   nk_size_t row_count, cudaStream_t stream);
-/** @copydoc nk_euclideans_packed_e5m2 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_packed_e5m2_ampere(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,
-                                                                  nk_size_t height, nk_size_t width, nk_size_t depth,
-                                                                  nk_size_t a_stride, nk_size_t c_stride,
-                                                                  cudaStream_t stream);
-/** @copydoc nk_euclideans_symmetric_e5m2 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_symmetric_e5m2_ampere(nk_e5m2_t const *vectors, nk_size_t vectors_count,
-                                                                     nk_size_t depth, nk_size_t stride,
-                                                                     nk_f32_t *result, nk_size_t result_stride,
-                                                                     nk_size_t row_start, nk_size_t row_count,
-                                                                     cudaStream_t stream);
-/** @copydoc nk_angulars_packed_e4m3 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_packed_e4m3_ampere(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,
-                                                                nk_size_t height, nk_size_t width, nk_size_t depth,
-                                                                nk_size_t a_stride, nk_size_t c_stride,
-                                                                cudaStream_t stream);
-/** @copydoc nk_angulars_symmetric_e4m3 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_symmetric_e4m3_ampere(nk_e4m3_t const *vectors, nk_size_t vectors_count,
-                                                                   nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                   nk_size_t result_stride, nk_size_t row_start,
-                                                                   nk_size_t row_count, cudaStream_t stream);
-/** @copydoc nk_euclideans_packed_e4m3 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_packed_e4m3_ampere(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,
-                                                                  nk_size_t height, nk_size_t width, nk_size_t depth,
-                                                                  nk_size_t a_stride, nk_size_t c_stride,
-                                                                  cudaStream_t stream);
-/** @copydoc nk_euclideans_symmetric_e4m3 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_symmetric_e4m3_ampere(nk_e4m3_t const *vectors, nk_size_t vectors_count,
-                                                                     nk_size_t depth, nk_size_t stride,
-                                                                     nk_f32_t *result, nk_size_t result_stride,
-                                                                     nk_size_t row_start, nk_size_t row_count,
-                                                                     cudaStream_t stream);
-/** @copydoc nk_angulars_packed_e3m2 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_packed_e3m2_ampere(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,
-                                                                nk_size_t height, nk_size_t width, nk_size_t depth,
-                                                                nk_size_t a_stride, nk_size_t c_stride,
-                                                                cudaStream_t stream);
-/** @copydoc nk_angulars_symmetric_e3m2 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_symmetric_e3m2_ampere(nk_e3m2_t const *vectors, nk_size_t vectors_count,
-                                                                   nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                   nk_size_t result_stride, nk_size_t row_start,
-                                                                   nk_size_t row_count, cudaStream_t stream);
-/** @copydoc nk_euclideans_packed_e3m2 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_packed_e3m2_ampere(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,
-                                                                  nk_size_t height, nk_size_t width, nk_size_t depth,
-                                                                  nk_size_t a_stride, nk_size_t c_stride,
-                                                                  cudaStream_t stream);
-/** @copydoc nk_euclideans_symmetric_e3m2 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_symmetric_e3m2_ampere(nk_e3m2_t const *vectors, nk_size_t vectors_count,
-                                                                     nk_size_t depth, nk_size_t stride,
-                                                                     nk_f32_t *result, nk_size_t result_stride,
-                                                                     nk_size_t row_start, nk_size_t row_count,
-                                                                     cudaStream_t stream);
-/** @copydoc nk_angulars_packed_e2m3 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_packed_e2m3_ampere(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,
-                                                                nk_size_t height, nk_size_t width, nk_size_t depth,
-                                                                nk_size_t a_stride, nk_size_t c_stride,
-                                                                cudaStream_t stream);
-/** @copydoc nk_angulars_symmetric_e2m3 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_symmetric_e2m3_ampere(nk_e2m3_t const *vectors, nk_size_t vectors_count,
-                                                                   nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                   nk_size_t result_stride, nk_size_t row_start,
-                                                                   nk_size_t row_count, cudaStream_t stream);
-/** @copydoc nk_euclideans_packed_e2m3 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_packed_e2m3_ampere(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,
-                                                                  nk_size_t height, nk_size_t width, nk_size_t depth,
-                                                                  nk_size_t a_stride, nk_size_t c_stride,
-                                                                  cudaStream_t stream);
-/** @copydoc nk_euclideans_symmetric_e2m3 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_symmetric_e2m3_ampere(nk_e2m3_t const *vectors, nk_size_t vectors_count,
-                                                                     nk_size_t depth, nk_size_t stride,
-                                                                     nk_f32_t *result, nk_size_t result_stride,
-                                                                     nk_size_t row_start, nk_size_t row_count,
-                                                                     cudaStream_t stream);
-/** @copydoc nk_angulars_packed_e2m1 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_packed_e2m1_ampere(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c,
-                                                                nk_size_t height, nk_size_t width, nk_size_t depth,
-                                                                nk_size_t a_stride, nk_size_t c_stride,
-                                                                cudaStream_t stream);
-/** @copydoc nk_angulars_symmetric_e2m1 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_symmetric_e2m1_ampere(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
-                                                                   nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                   nk_size_t result_stride, nk_size_t row_start,
-                                                                   nk_size_t row_count, cudaStream_t stream);
-/** @copydoc nk_euclideans_packed_e2m1 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_packed_e2m1_ampere(nk_e2m1x2_t const *a, void const *b_packed,
-                                                                  nk_f32_t *c, nk_size_t height, nk_size_t width,
-                                                                  nk_size_t depth, nk_size_t a_stride,
-                                                                  nk_size_t c_stride, cudaStream_t stream);
-/** @copydoc nk_euclideans_symmetric_e2m1 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_symmetric_e2m1_ampere(nk_e2m1x2_t const *vectors,
-                                                                     nk_size_t vectors_count, nk_size_t depth,
-                                                                     nk_size_t stride, nk_f32_t *result,
-                                                                     nk_size_t result_stride, nk_size_t row_start,
-                                                                     nk_size_t row_count, cudaStream_t stream);
-/** @copydoc nk_angulars_packed_i8 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_packed_i8_ampere(nk_i8_t const *a, void const *b_packed, nk_f32_t *c,
-                                                              nk_size_t height, nk_size_t width, nk_size_t depth,
-                                                              nk_size_t a_stride, nk_size_t c_stride,
-                                                              cudaStream_t stream);
-/** @copydoc nk_angulars_symmetric_i8 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_symmetric_i8_ampere(nk_i8_t const *vectors, nk_size_t vectors_count,
-                                                                 nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                 nk_size_t result_stride, nk_size_t row_start,
-                                                                 nk_size_t row_count, cudaStream_t stream);
-/** @copydoc nk_euclideans_packed_i8 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_packed_i8_ampere(nk_i8_t const *a, void const *b_packed, nk_f32_t *c,
-                                                                nk_size_t height, nk_size_t width, nk_size_t depth,
-                                                                nk_size_t a_stride, nk_size_t c_stride,
-                                                                cudaStream_t stream);
-/** @copydoc nk_euclideans_symmetric_i8 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_symmetric_i8_ampere(nk_i8_t const *vectors, nk_size_t vectors_count,
-                                                                   nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                   nk_size_t result_stride, nk_size_t row_start,
-                                                                   nk_size_t row_count, cudaStream_t stream);
-/** @copydoc nk_angulars_packed_i4 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_packed_i4_ampere(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c,
-                                                              nk_size_t height, nk_size_t width, nk_size_t depth,
-                                                              nk_size_t a_stride, nk_size_t c_stride,
-                                                              cudaStream_t stream);
-/** @copydoc nk_angulars_symmetric_i4 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_symmetric_i4_ampere(nk_i4x2_t const *vectors, nk_size_t vectors_count,
-                                                                 nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                 nk_size_t result_stride, nk_size_t row_start,
-                                                                 nk_size_t row_count, cudaStream_t stream);
-/** @copydoc nk_euclideans_packed_i4 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_packed_i4_ampere(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c,
-                                                                nk_size_t height, nk_size_t width, nk_size_t depth,
-                                                                nk_size_t a_stride, nk_size_t c_stride,
-                                                                cudaStream_t stream);
-/** @copydoc nk_euclideans_symmetric_i4 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_symmetric_i4_ampere(nk_i4x2_t const *vectors, nk_size_t vectors_count,
-                                                                   nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                   nk_size_t result_stride, nk_size_t row_start,
-                                                                   nk_size_t row_count, cudaStream_t stream);
-/** @copydoc nk_angulars_packed_u8 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_packed_u8_ampere(nk_u8_t const *a, void const *b_packed, nk_f32_t *c,
-                                                              nk_size_t height, nk_size_t width, nk_size_t depth,
-                                                              nk_size_t a_stride, nk_size_t c_stride,
-                                                              cudaStream_t stream);
-/** @copydoc nk_angulars_symmetric_u8 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_symmetric_u8_ampere(nk_u8_t const *vectors, nk_size_t vectors_count,
-                                                                 nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                 nk_size_t result_stride, nk_size_t row_start,
-                                                                 nk_size_t row_count, cudaStream_t stream);
-/** @copydoc nk_euclideans_packed_u8 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_packed_u8_ampere(nk_u8_t const *a, void const *b_packed, nk_f32_t *c,
-                                                                nk_size_t height, nk_size_t width, nk_size_t depth,
-                                                                nk_size_t a_stride, nk_size_t c_stride,
-                                                                cudaStream_t stream);
-/** @copydoc nk_euclideans_symmetric_u8 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_symmetric_u8_ampere(nk_u8_t const *vectors, nk_size_t vectors_count,
-                                                                   nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                   nk_size_t result_stride, nk_size_t row_start,
-                                                                   nk_size_t row_count, cudaStream_t stream);
-/** @copydoc nk_angulars_packed_u4 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_packed_u4_ampere(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c,
-                                                              nk_size_t height, nk_size_t width, nk_size_t depth,
-                                                              nk_size_t a_stride, nk_size_t c_stride,
-                                                              cudaStream_t stream);
-/** @copydoc nk_angulars_symmetric_u4 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_symmetric_u4_ampere(nk_u4x2_t const *vectors, nk_size_t vectors_count,
-                                                                 nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                 nk_size_t result_stride, nk_size_t row_start,
-                                                                 nk_size_t row_count, cudaStream_t stream);
-/** @copydoc nk_euclideans_packed_u4 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_packed_u4_ampere(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c,
-                                                                nk_size_t height, nk_size_t width, nk_size_t depth,
-                                                                nk_size_t a_stride, nk_size_t c_stride,
-                                                                cudaStream_t stream);
-/** @copydoc nk_euclideans_symmetric_u4 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_symmetric_u4_ampere(nk_u4x2_t const *vectors, nk_size_t vectors_count,
-                                                                   nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                                   nk_size_t result_stride, nk_size_t row_start,
-                                                                   nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_angulars_packed_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_bf16_ampere(nk_bf16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_ampere(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_bf16_ampere(nk_bf16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                         nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                         nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_ampere(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                            nk_size_t result_stride, nk_size_t row_start,
+                                                            nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_f16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f16_ampere(nk_f16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f16_ampere(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f16_ampere(nk_f16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                        nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                        nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_ampere(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e5m2_ampere(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_ampere(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_ampere(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                         nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                         nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_ampere(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                            nk_size_t result_stride, nk_size_t row_start,
+                                                            nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e4m3_ampere(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e4m3_ampere(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e4m3_ampere(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                         nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                         nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e4m3_ampere(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                            nk_size_t result_stride, nk_size_t row_start,
+                                                            nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e3m2_ampere(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e3m2_ampere(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e3m2_ampere(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                         nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                         nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e3m2_ampere(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                            nk_size_t result_stride, nk_size_t row_start,
+                                                            nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m3_ampere(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_ampere(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_ampere(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                         nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                         nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_ampere(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                            nk_size_t result_stride, nk_size_t row_start,
+                                                            nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m1_ampere(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_ampere(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_ampere(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                         nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                         nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_ampere(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                            nk_size_t result_stride, nk_size_t row_start,
+                                                            nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_i8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i8_ampere(nk_i8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i8_ampere(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i8_ampere(nk_i8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_ampere(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_u8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u8_ampere(nk_u8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u8_ampere(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u8_ampere(nk_u8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_ampere(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_i4_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i4_ampere(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_i4_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i4_ampere(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i4_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i4_ampere(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_i4_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i4_ampere(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_u4_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u4_ampere(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_u4_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u4_ampere(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u4_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u4_ampere(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_u4_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u4_ampere(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
 #endif // NUMKONG_TARGET_AMPERE
+
+/*  NVIDIA Hopper backends, compute capability 9.0, through warpgroup @c wgmma over shared-memory
+ *  descriptors. */
+#if NUMKONG_TARGET_HOPPER
+/** @copydoc nk_angulars_packed_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_bf16_hopper(nk_bf16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_hopper(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_bf16_hopper(nk_bf16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                         nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                         nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_hopper(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                            nk_size_t result_stride, nk_size_t row_start,
+                                                            nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_f16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f16_hopper(nk_f16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f16_hopper(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f16_hopper(nk_f16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                        nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                        nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_hopper(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m3_hopper(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_hopper(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_hopper(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                         nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                         nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_hopper(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                            nk_size_t result_stride, nk_size_t row_start,
+                                                            nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m1_hopper(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_hopper(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_hopper(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                         nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                         nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_hopper(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                            nk_size_t result_stride, nk_size_t row_start,
+                                                            nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_i8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i8_hopper(nk_i8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i8_hopper(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i8_hopper(nk_i8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_hopper(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_u8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u8_hopper(nk_u8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u8_hopper(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u8_hopper(nk_u8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_hopper(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_i4_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i4_hopper(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_i4_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i4_hopper(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i4_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i4_hopper(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_i4_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i4_hopper(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_u4_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u4_hopper(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_u4_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u4_hopper(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u4_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u4_hopper(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_u4_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u4_hopper(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+#endif // NUMKONG_TARGET_HOPPER
+
+/*  NVIDIA datacenter Blackwell backends, the compute capability 10.x family, through single-thread
+ *  @c tcgen05 MMAs into tensor memory. */
+#if NUMKONG_TARGET_BLACKWELL
+/** @copydoc nk_angulars_packed_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_bf16_blackwell(nk_bf16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                          nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                          nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_blackwell(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_bf16_blackwell(nk_bf16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                            nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                            nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_blackwell(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                               nk_size_t result_stride, nk_size_t row_start,
+                                                               nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_f16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f16_blackwell(nk_f16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                         nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                         nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f16_blackwell(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                            nk_size_t result_stride, nk_size_t row_start,
+                                                            nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f16_blackwell(nk_f16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                           nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                           nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_blackwell(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                              nk_size_t result_stride, nk_size_t row_start,
+                                                              nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e5m2_blackwell(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                          nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                          nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_blackwell(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_blackwell(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                            nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                            nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_blackwell(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                               nk_size_t result_stride, nk_size_t row_start,
+                                                               nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e4m3_blackwell(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                          nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                          nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e4m3_blackwell(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e4m3_blackwell(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                            nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                            nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e4m3_blackwell(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                               nk_size_t result_stride, nk_size_t row_start,
+                                                               nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e3m2_blackwell(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                          nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                          nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e3m2_blackwell(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e3m2_blackwell(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                            nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                            nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e3m2_blackwell(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                               nk_size_t result_stride, nk_size_t row_start,
+                                                               nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m3_blackwell(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                          nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                          nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_blackwell(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_blackwell(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                            nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                            nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_blackwell(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                               nk_size_t result_stride, nk_size_t row_start,
+                                                               nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m1_blackwell(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                          nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                          nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_blackwell(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_blackwell(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                            nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                            nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_blackwell(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                               nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                               nk_size_t result_stride, nk_size_t row_start,
+                                                               nk_size_t row_count, void *stream);
+#endif // NUMKONG_TARGET_BLACKWELL
 
 /*  NVIDIA backends for the compute capability 12.x family, with Float8, Float6 and Float4 products
  *  on the tensor cores natively. */
 #if NUMKONG_TARGET_BLACKWELLRTX
-/** @copydoc nk_angulars_packed_e5m2 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_packed_e5m2_blackwellrtx(nk_e5m2_t const *a, void const *b_packed,
-                                                                      nk_f32_t *c, nk_size_t height, nk_size_t width,
-                                                                      nk_size_t depth, nk_size_t a_stride,
-                                                                      nk_size_t c_stride, cudaStream_t stream);
-/** @copydoc nk_angulars_symmetric_e5m2 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_symmetric_e5m2_blackwellrtx(nk_e5m2_t const *vectors,
-                                                                         nk_size_t vectors_count, nk_size_t depth,
-                                                                         nk_size_t stride, nk_f32_t *result,
-                                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                                         nk_size_t row_count, cudaStream_t stream);
-/** @copydoc nk_euclideans_packed_e5m2 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_packed_e5m2_blackwellrtx(nk_e5m2_t const *a, void const *b_packed,
-                                                                        nk_f32_t *c, nk_size_t height, nk_size_t width,
-                                                                        nk_size_t depth, nk_size_t a_stride,
-                                                                        nk_size_t c_stride, cudaStream_t stream);
-/** @copydoc nk_euclideans_symmetric_e5m2 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_symmetric_e5m2_blackwellrtx(nk_e5m2_t const *vectors,
-                                                                           nk_size_t vectors_count, nk_size_t depth,
-                                                                           nk_size_t stride, nk_f32_t *result,
-                                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                                           nk_size_t row_count, cudaStream_t stream);
-/** @copydoc nk_angulars_packed_e4m3 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_packed_e4m3_blackwellrtx(nk_e4m3_t const *a, void const *b_packed,
-                                                                      nk_f32_t *c, nk_size_t height, nk_size_t width,
-                                                                      nk_size_t depth, nk_size_t a_stride,
-                                                                      nk_size_t c_stride, cudaStream_t stream);
-/** @copydoc nk_angulars_symmetric_e4m3 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_symmetric_e4m3_blackwellrtx(nk_e4m3_t const *vectors,
-                                                                         nk_size_t vectors_count, nk_size_t depth,
-                                                                         nk_size_t stride, nk_f32_t *result,
-                                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                                         nk_size_t row_count, cudaStream_t stream);
-/** @copydoc nk_euclideans_packed_e4m3 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_packed_e4m3_blackwellrtx(nk_e4m3_t const *a, void const *b_packed,
-                                                                        nk_f32_t *c, nk_size_t height, nk_size_t width,
-                                                                        nk_size_t depth, nk_size_t a_stride,
-                                                                        nk_size_t c_stride, cudaStream_t stream);
-/** @copydoc nk_euclideans_symmetric_e4m3 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_symmetric_e4m3_blackwellrtx(nk_e4m3_t const *vectors,
-                                                                           nk_size_t vectors_count, nk_size_t depth,
-                                                                           nk_size_t stride, nk_f32_t *result,
-                                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                                           nk_size_t row_count, cudaStream_t stream);
-/** @copydoc nk_angulars_packed_e3m2 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_packed_e3m2_blackwellrtx(nk_e3m2_t const *a, void const *b_packed,
-                                                                      nk_f32_t *c, nk_size_t height, nk_size_t width,
-                                                                      nk_size_t depth, nk_size_t a_stride,
-                                                                      nk_size_t c_stride, cudaStream_t stream);
-/** @copydoc nk_angulars_symmetric_e3m2 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_symmetric_e3m2_blackwellrtx(nk_e3m2_t const *vectors,
-                                                                         nk_size_t vectors_count, nk_size_t depth,
-                                                                         nk_size_t stride, nk_f32_t *result,
-                                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                                         nk_size_t row_count, cudaStream_t stream);
-/** @copydoc nk_euclideans_packed_e3m2 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_packed_e3m2_blackwellrtx(nk_e3m2_t const *a, void const *b_packed,
-                                                                        nk_f32_t *c, nk_size_t height, nk_size_t width,
-                                                                        nk_size_t depth, nk_size_t a_stride,
-                                                                        nk_size_t c_stride, cudaStream_t stream);
-/** @copydoc nk_euclideans_symmetric_e3m2 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_symmetric_e3m2_blackwellrtx(nk_e3m2_t const *vectors,
-                                                                           nk_size_t vectors_count, nk_size_t depth,
-                                                                           nk_size_t stride, nk_f32_t *result,
-                                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                                           nk_size_t row_count, cudaStream_t stream);
-/** @copydoc nk_angulars_packed_e2m3 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_packed_e2m3_blackwellrtx(nk_e2m3_t const *a, void const *b_packed,
-                                                                      nk_f32_t *c, nk_size_t height, nk_size_t width,
-                                                                      nk_size_t depth, nk_size_t a_stride,
-                                                                      nk_size_t c_stride, cudaStream_t stream);
-/** @copydoc nk_angulars_symmetric_e2m3 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_symmetric_e2m3_blackwellrtx(nk_e2m3_t const *vectors,
-                                                                         nk_size_t vectors_count, nk_size_t depth,
-                                                                         nk_size_t stride, nk_f32_t *result,
-                                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                                         nk_size_t row_count, cudaStream_t stream);
-/** @copydoc nk_euclideans_packed_e2m3 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_packed_e2m3_blackwellrtx(nk_e2m3_t const *a, void const *b_packed,
-                                                                        nk_f32_t *c, nk_size_t height, nk_size_t width,
-                                                                        nk_size_t depth, nk_size_t a_stride,
-                                                                        nk_size_t c_stride, cudaStream_t stream);
-/** @copydoc nk_euclideans_symmetric_e2m3 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_symmetric_e2m3_blackwellrtx(nk_e2m3_t const *vectors,
-                                                                           nk_size_t vectors_count, nk_size_t depth,
-                                                                           nk_size_t stride, nk_f32_t *result,
-                                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                                           nk_size_t row_count, cudaStream_t stream);
-/** @copydoc nk_angulars_packed_e2m1 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_packed_e2m1_blackwellrtx(nk_e2m1x2_t const *a, void const *b_packed,
-                                                                      nk_f32_t *c, nk_size_t height, nk_size_t width,
-                                                                      nk_size_t depth, nk_size_t a_stride,
-                                                                      nk_size_t c_stride, cudaStream_t stream);
-/** @copydoc nk_angulars_symmetric_e2m1 */
-NUMKONG_API_COMPTIME cudaError_t nk_angulars_symmetric_e2m1_blackwellrtx(nk_e2m1x2_t const *vectors,
-                                                                         nk_size_t vectors_count, nk_size_t depth,
-                                                                         nk_size_t stride, nk_f32_t *result,
-                                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                                         nk_size_t row_count, cudaStream_t stream);
-/** @copydoc nk_euclideans_packed_e2m1 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_packed_e2m1_blackwellrtx(nk_e2m1x2_t const *a, void const *b_packed,
-                                                                        nk_f32_t *c, nk_size_t height, nk_size_t width,
-                                                                        nk_size_t depth, nk_size_t a_stride,
-                                                                        nk_size_t c_stride, cudaStream_t stream);
-/** @copydoc nk_euclideans_symmetric_e2m1 */
-NUMKONG_API_COMPTIME cudaError_t nk_euclideans_symmetric_e2m1_blackwellrtx(nk_e2m1x2_t const *vectors,
-                                                                           nk_size_t vectors_count, nk_size_t depth,
-                                                                           nk_size_t stride, nk_f32_t *result,
-                                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                                           nk_size_t row_count, cudaStream_t stream);
+/** @copydoc nk_angulars_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e5m2_blackwellrtx(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                             nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                             nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_blackwellrtx(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                                nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                                nk_size_t result_stride, nk_size_t row_start,
+                                                                nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_blackwellrtx(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                               nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                               nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_blackwellrtx(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                                  nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                                  nk_size_t result_stride, nk_size_t row_start,
+                                                                  nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e4m3_blackwellrtx(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                             nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                             nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e4m3_blackwellrtx(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                                nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                                nk_size_t result_stride, nk_size_t row_start,
+                                                                nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e4m3_blackwellrtx(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                               nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                               nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e4m3_blackwellrtx(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                                  nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                                  nk_size_t result_stride, nk_size_t row_start,
+                                                                  nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e3m2_blackwellrtx(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                             nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                             nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e3m2_blackwellrtx(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                                nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                                nk_size_t result_stride, nk_size_t row_start,
+                                                                nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e3m2_blackwellrtx(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                               nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                               nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e3m2_blackwellrtx(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                                  nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                                  nk_size_t result_stride, nk_size_t row_start,
+                                                                  nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m3_blackwellrtx(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                             nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                             nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_blackwellrtx(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                                nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                                nk_size_t result_stride, nk_size_t row_start,
+                                                                nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_blackwellrtx(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                               nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                               nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_blackwellrtx(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                                  nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                                  nk_size_t result_stride, nk_size_t row_start,
+                                                                  nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m1_blackwellrtx(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                             nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                             nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_blackwellrtx(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                                nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                                nk_size_t result_stride, nk_size_t row_start,
+                                                                nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_blackwellrtx(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                               nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                               nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_blackwellrtx(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                                  nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                                  nk_size_t result_stride, nk_size_t row_start,
+                                                                  nk_size_t row_count, void *stream);
 #endif // NUMKONG_TARGET_BLACKWELLRTX
+
+/*  AMD backends on every device: the CUDA baseline's source, compiled by HIP. */
+#if NUMKONG_ARCH_ROCM_
+/** @copydoc nk_angulars_packed_f64_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f64_rocm(nk_f64_t const *a, void const *b_packed, nk_f64_t *c,
+                                                    nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                    nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_f64_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f64_rocm(nk_f64_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f64_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f64_rocm(nk_f64_t const *a, void const *b_packed, nk_f64_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_f64_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f64_rocm(nk_f64_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f32_rocm(nk_f32_t const *a, void const *b_packed, nk_f64_t *c,
+                                                    nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                    nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f32_rocm(nk_f32_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f32_rocm(nk_f32_t const *a, void const *b_packed, nk_f64_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f32_rocm(nk_f32_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_bf16_rocm(nk_bf16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_rocm(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_bf16_rocm(nk_bf16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_rocm(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_f16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f16_rocm(nk_f16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                    nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                    nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f16_rocm(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f16_rocm(nk_f16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_rocm(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e5m2_rocm(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_rocm(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_rocm(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_rocm(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e4m3_rocm(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e4m3_rocm(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e4m3_rocm(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e4m3_rocm(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e3m2_rocm(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e3m2_rocm(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e3m2_rocm(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e3m2_rocm(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m3_rocm(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_rocm(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_rocm(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_rocm(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m1_rocm(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_rocm(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_rocm(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_rocm(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_i8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i8_rocm(nk_i8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                   nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                   nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i8_rocm(nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                      nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                      nk_size_t row_start, nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i8_rocm(nk_i8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_rocm(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_u8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u8_rocm(nk_u8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                   nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                   nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u8_rocm(nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                      nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                      nk_size_t row_start, nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u8_rocm(nk_u8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_rocm(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_i4_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i4_rocm(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                   nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                   nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_i4_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i4_rocm(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                      nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                      nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count,
+                                                      void *stream);
+/** @copydoc nk_euclideans_packed_i4_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i4_rocm(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_i4_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i4_rocm(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_u4_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u4_rocm(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                   nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                   nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_u4_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u4_rocm(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                      nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                      nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count,
+                                                      void *stream);
+/** @copydoc nk_euclideans_packed_u4_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u4_rocm(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_u4_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u4_rocm(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+#endif // NUMKONG_ARCH_ROCM_
+
+/*  AMD Instinct MI350 backends, gfx950, through its matrix cores. */
+#if NUMKONG_TARGET_CDNA4
+/** @copydoc nk_angulars_packed_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_bf16_cdna4(nk_bf16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_cdna4(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_bf16_cdna4(nk_bf16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                        nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                        nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_cdna4(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_f16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f16_cdna4(nk_f16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f16_cdna4(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f16_cdna4(nk_f16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_cdna4(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e5m2_cdna4(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_cdna4(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_cdna4(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                        nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                        nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_cdna4(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e4m3_cdna4(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e4m3_cdna4(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e4m3_cdna4(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                        nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                        nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e4m3_cdna4(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e3m2_cdna4(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e3m2_cdna4(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e3m2_cdna4(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                        nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                        nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e3m2_cdna4(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m3_cdna4(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_cdna4(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_cdna4(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                        nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                        nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_cdna4(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m1_cdna4(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_cdna4(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_cdna4(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                        nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                        nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_cdna4(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_i8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i8_cdna4(nk_i8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                    nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                    nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i8_cdna4(nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                       nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                       nk_size_t row_start, nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i8_cdna4(nk_i8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_cdna4(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_u8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u8_cdna4(nk_u8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                    nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                    nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u8_cdna4(nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                       nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                       nk_size_t row_start, nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u8_cdna4(nk_u8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_cdna4(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_i4_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i4_cdna4(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                    nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                    nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_i4_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i4_cdna4(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i4_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i4_cdna4(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_i4_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i4_cdna4(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_u4_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u4_cdna4(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                    nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                    nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_u4_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u4_cdna4(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u4_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u4_cdna4(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_u4_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u4_cdna4(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+#endif // NUMKONG_TARGET_CDNA4
+
+/*  AMD Instinct MI400 backends, through its matrix cores. */
+#if NUMKONG_TARGET_CDNA5
+/** @copydoc nk_angulars_packed_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_bf16_cdna5(nk_bf16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_cdna5(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_bf16_cdna5(nk_bf16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                        nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                        nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_cdna5(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_f16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f16_cdna5(nk_f16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f16_cdna5(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f16_cdna5(nk_f16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_cdna5(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e5m2_cdna5(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_cdna5(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_cdna5(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                        nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                        nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e5m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_cdna5(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e4m3_cdna5(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e4m3_cdna5(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e4m3_cdna5(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                        nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                        nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e4m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e4m3_cdna5(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e3m2_cdna5(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e3m2_cdna5(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e3m2_cdna5(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                        nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                        nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e3m2_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e3m2_cdna5(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m3_cdna5(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_cdna5(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_cdna5(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                        nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                        nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_cdna5(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m1_cdna5(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_cdna5(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_cdna5(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                        nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                        nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_cdna5(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_i8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i8_cdna5(nk_i8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                    nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                    nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i8_cdna5(nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                       nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                       nk_size_t row_start, nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i8_cdna5(nk_i8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_cdna5(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_u8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u8_cdna5(nk_u8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                    nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                    nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u8_cdna5(nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                       nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                       nk_size_t row_start, nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u8_cdna5(nk_u8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_cdna5(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_i4_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i4_cdna5(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                    nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                    nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_i4_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i4_cdna5(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i4_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i4_cdna5(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_i4_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i4_cdna5(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_u4_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u4_cdna5(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                    nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                    nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_u4_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u4_cdna5(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u4_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u4_cdna5(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_u4_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u4_cdna5(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, void *stream);
+#endif // NUMKONG_TARGET_CDNA5
+
+/**
+ *  @brief Finds the batched spatial distance kernel of @p kind for @p dtype, from the best of @p capabilities.
+ *  @param[out] kernel The kernel, or null when none of @p capabilities has it.
+ *  @param[out] capability The capability the kernel belongs to, or zero.
+ *  @return @c nk_success_k, @c nk_missing_kernel_k, or @c nk_missing_library_k in header-only builds.
+ */
+NUMKONG_API nk_status_t nk_spatials_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
+                                                nk_kernel_punned_t *kernel, nk_capability_t *capability);
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
+#if NUMKONG_HEADER_ONLY
 #include "numkong/spatials/serial.h"
 #include "numkong/spatials/neon.h"
 #include "numkong/spatials/neonfhm.h"
@@ -3040,1461 +4733,544 @@ NUMKONG_API_COMPTIME cudaError_t nk_euclideans_symmetric_e2m1_blackwellrtx(nk_e2
 #include "numkong/spatials/smef64.h"
 #include "numkong/spatials/powervsx.h"
 #include "numkong/spatials/loongsonasx.h"
+#include "numkong/spatials/simt.cuh"
 #include "numkong/spatials/ampere.cuh"
+#include "numkong/spatials/hopper.cuh"
+#include "numkong/spatials/blackwell.cuh"
 #include "numkong/spatials/blackwellrtx.cuh"
+#include "numkong/spatials/cdna4.cuh"
+#include "numkong/spatials/cdna5.cuh"
 
 #if defined(__cplusplus)
 extern "C" {
 #endif
 
-#if !NUMKONG_RUNTIME_DISPATCH
-
-NUMKONG_API_COMPTIME void nk_angulars_packed_f64(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
-                                                 nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                 nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes) {
-#if NUMKONG_TARGET_SMEF64
-    nk_angulars_packed_f64_smef64(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEON
-    nk_angulars_packed_f64_neon(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_angulars_packed_f64_skylake(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_HASWELL
-    nk_angulars_packed_f64_haswell(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_POWERVSX
-    nk_angulars_packed_f64_powervsx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_RVV
-    nk_angulars_packed_f64_rvv(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_angulars_packed_f64_v128relaxed(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#else
-    nk_angulars_packed_f64_serial(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_f64(nk_f64_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                    nk_size_t stride, nk_f64_t *result, nk_size_t result_stride,
-                                                    nk_size_t row_start, nk_size_t row_count) {
-#if NUMKONG_TARGET_SMEF64
-    nk_angulars_symmetric_f64_smef64(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#elif NUMKONG_TARGET_NEON
-    nk_angulars_symmetric_f64_neon(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_angulars_symmetric_f64_skylake(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
-#elif NUMKONG_TARGET_HASWELL
-    nk_angulars_symmetric_f64_haswell(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
-#elif NUMKONG_TARGET_POWERVSX
-    nk_angulars_symmetric_f64_powervsx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_RVV
-    nk_angulars_symmetric_f64_rvv(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_angulars_symmetric_f64_v128relaxed(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                          row_count);
-#else
-    nk_angulars_symmetric_f64_serial(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_euclideans_packed_f64(nk_f64_t const *a, void const *b_packed, nk_f64_t *result,
-                                                   nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                   nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes) {
-#if NUMKONG_TARGET_SMEF64
-    nk_euclideans_packed_f64_smef64(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEON
-    nk_euclideans_packed_f64_neon(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_euclideans_packed_f64_skylake(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_HASWELL
-    nk_euclideans_packed_f64_haswell(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_POWERVSX
-    nk_euclideans_packed_f64_powervsx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_RVV
-    nk_euclideans_packed_f64_rvv(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_euclideans_packed_f64_v128relaxed(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#else
-    nk_euclideans_packed_f64_serial(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f64(nk_f64_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                      nk_size_t stride, nk_f64_t *result, nk_size_t result_stride,
-                                                      nk_size_t row_start, nk_size_t row_count) {
-#if NUMKONG_TARGET_SMEF64
-    nk_euclideans_symmetric_f64_smef64(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_NEON
-    nk_euclideans_symmetric_f64_neon(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_euclideans_symmetric_f64_skylake(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                        row_count);
-#elif NUMKONG_TARGET_HASWELL
-    nk_euclideans_symmetric_f64_haswell(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                        row_count);
-#elif NUMKONG_TARGET_POWERVSX
-    nk_euclideans_symmetric_f64_powervsx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_RVV
-    nk_euclideans_symmetric_f64_rvv(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_euclideans_symmetric_f64_v128relaxed(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                            row_count);
-#else
-    nk_euclideans_symmetric_f64_serial(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#endif
+NUMKONG_API nk_status_t nk_angulars_packed_f64_best(nk_f64_t const *a, void const *b_packed, nk_f64_t *c,
+                                                    nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                    nk_size_t a_stride, nk_size_t c_stride,
+                                                    nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b_packed), nk_unused_(c), nk_unused_(height), nk_unused_(width), nk_unused_(depth),
+        nk_unused_(a_stride), nk_unused_(c_stride), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_packed_f32(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
-                                                 nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                 nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes) {
-#if NUMKONG_TARGET_SMEF64
-    nk_angulars_packed_f32_smef64(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEON
-    nk_angulars_packed_f32_neon(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_angulars_packed_f32_skylake(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_HASWELL
-    nk_angulars_packed_f32_haswell(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_POWERVSX
-    nk_angulars_packed_f32_powervsx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_RVV
-    nk_angulars_packed_f32_rvv(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_angulars_packed_f32_v128relaxed(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#else
-    nk_angulars_packed_f32_serial(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_f32(nk_f32_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                    nk_size_t stride, nk_f64_t *result, nk_size_t result_stride,
-                                                    nk_size_t row_start, nk_size_t row_count) {
-#if NUMKONG_TARGET_SMEF64
-    nk_angulars_symmetric_f32_smef64(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#elif NUMKONG_TARGET_NEON
-    nk_angulars_symmetric_f32_neon(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_angulars_symmetric_f32_skylake(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
-#elif NUMKONG_TARGET_HASWELL
-    nk_angulars_symmetric_f32_haswell(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
-#elif NUMKONG_TARGET_POWERVSX
-    nk_angulars_symmetric_f32_powervsx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_RVV
-    nk_angulars_symmetric_f32_rvv(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_angulars_symmetric_f32_v128relaxed(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                          row_count);
-#else
-    nk_angulars_symmetric_f32_serial(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_euclideans_packed_f32(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
-                                                   nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                   nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes) {
-#if NUMKONG_TARGET_SMEF64
-    nk_euclideans_packed_f32_smef64(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEON
-    nk_euclideans_packed_f32_neon(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_euclideans_packed_f32_skylake(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_HASWELL
-    nk_euclideans_packed_f32_haswell(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_POWERVSX
-    nk_euclideans_packed_f32_powervsx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_RVV
-    nk_euclideans_packed_f32_rvv(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_euclideans_packed_f32_v128relaxed(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#else
-    nk_euclideans_packed_f32_serial(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f32(nk_f32_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                      nk_size_t stride, nk_f64_t *result, nk_size_t result_stride,
-                                                      nk_size_t row_start, nk_size_t row_count) {
-#if NUMKONG_TARGET_SMEF64
-    nk_euclideans_symmetric_f32_smef64(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_NEON
-    nk_euclideans_symmetric_f32_neon(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_euclideans_symmetric_f32_skylake(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                        row_count);
-#elif NUMKONG_TARGET_HASWELL
-    nk_euclideans_symmetric_f32_haswell(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                        row_count);
-#elif NUMKONG_TARGET_POWERVSX
-    nk_euclideans_symmetric_f32_powervsx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_RVV
-    nk_euclideans_symmetric_f32_rvv(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_euclideans_symmetric_f32_v128relaxed(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                            row_count);
-#else
-    nk_euclideans_symmetric_f32_serial(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#endif
+NUMKONG_API nk_status_t nk_angulars_symmetric_f64_best(nk_f64_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, nk_capability_t capabilities,
+                                                       void *stream) {
+    nk_unused_(vectors), nk_unused_(vectors_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
+        nk_unused_(result_stride), nk_unused_(row_start), nk_unused_(row_count), nk_unused_(capabilities),
+        nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_packed_f16(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
-                                                 nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                 nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes) {
-#if NUMKONG_TARGET_GRANITEAMX
-    nk_angulars_packed_f16_graniteamx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SME
-    nk_angulars_packed_f16_sme(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONFHM
-    nk_angulars_packed_f16_neonfhm(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEON
-    nk_angulars_packed_f16_neon(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_angulars_packed_f16_skylake(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_HASWELL
-    nk_angulars_packed_f16_haswell(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_POWERVSX
-    nk_angulars_packed_f16_powervsx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_RVV
-    nk_angulars_packed_f16_rvv(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_angulars_packed_f16_v128relaxed(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#else
-    nk_angulars_packed_f16_serial(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#endif
+NUMKONG_API nk_status_t nk_euclideans_packed_f64_best(nk_f64_t const *a, void const *b_packed, nk_f64_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride,
+                                                      nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b_packed), nk_unused_(c), nk_unused_(height), nk_unused_(width), nk_unused_(depth),
+        nk_unused_(a_stride), nk_unused_(c_stride), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
 }
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_f16(nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                    nk_size_t row_start, nk_size_t row_count) {
-#if NUMKONG_TARGET_GRANITEAMX
-    nk_angulars_symmetric_f16_graniteamx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_SME
-    nk_angulars_symmetric_f16_sme(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_NEONFHM
-    nk_angulars_symmetric_f16_neonfhm(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
-#elif NUMKONG_TARGET_NEON
-    nk_angulars_symmetric_f16_neon(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_angulars_symmetric_f16_skylake(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
-#elif NUMKONG_TARGET_HASWELL
-    nk_angulars_symmetric_f16_haswell(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
-#elif NUMKONG_TARGET_POWERVSX
-    nk_angulars_symmetric_f16_powervsx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_RVV
-    nk_angulars_symmetric_f16_rvv(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_angulars_symmetric_f16_v128relaxed(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                          row_count);
-#else
-    nk_angulars_symmetric_f16_serial(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#endif
+
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f64_best(nk_f64_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, nk_capability_t capabilities,
+                                                         void *stream) {
+    nk_unused_(vectors), nk_unused_(vectors_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
+        nk_unused_(result_stride), nk_unused_(row_start), nk_unused_(row_count), nk_unused_(capabilities),
+        nk_unused_(stream);
+    return nk_missing_library_k;
 }
-NUMKONG_API_COMPTIME void nk_euclideans_packed_f16(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
-                                                   nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                   nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes) {
-#if NUMKONG_TARGET_GRANITEAMX
-    nk_euclideans_packed_f16_graniteamx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SME
-    nk_euclideans_packed_f16_sme(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONFHM
-    nk_euclideans_packed_f16_neonfhm(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEON
-    nk_euclideans_packed_f16_neon(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_euclideans_packed_f16_skylake(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_HASWELL
-    nk_euclideans_packed_f16_haswell(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_POWERVSX
-    nk_euclideans_packed_f16_powervsx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_RVV
-    nk_euclideans_packed_f16_rvv(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_euclideans_packed_f16_v128relaxed(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#else
-    nk_euclideans_packed_f16_serial(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#endif
+
+NUMKONG_API nk_status_t nk_angulars_packed_f32_best(nk_f32_t const *a, void const *b_packed, nk_f64_t *c,
+                                                    nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                    nk_size_t a_stride, nk_size_t c_stride,
+                                                    nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b_packed), nk_unused_(c), nk_unused_(height), nk_unused_(width), nk_unused_(depth),
+        nk_unused_(a_stride), nk_unused_(c_stride), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
 }
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_f16(nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+
+NUMKONG_API nk_status_t nk_angulars_symmetric_f32_best(nk_f32_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, nk_capability_t capabilities,
+                                                       void *stream) {
+    nk_unused_(vectors), nk_unused_(vectors_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
+        nk_unused_(result_stride), nk_unused_(row_start), nk_unused_(row_count), nk_unused_(capabilities),
+        nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_packed_f32_best(nk_f32_t const *a, void const *b_packed, nk_f64_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride,
+                                                      nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b_packed), nk_unused_(c), nk_unused_(height), nk_unused_(width), nk_unused_(depth),
+        nk_unused_(a_stride), nk_unused_(c_stride), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f32_best(nk_f32_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, nk_capability_t capabilities,
+                                                         void *stream) {
+    nk_unused_(vectors), nk_unused_(vectors_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
+        nk_unused_(result_stride), nk_unused_(row_start), nk_unused_(row_count), nk_unused_(capabilities),
+        nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_angulars_packed_bf16_best(nk_bf16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride,
+                                                     nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b_packed), nk_unused_(c), nk_unused_(height), nk_unused_(width), nk_unused_(depth),
+        nk_unused_(a_stride), nk_unused_(c_stride), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_best(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, nk_capability_t capabilities,
+                                                        void *stream) {
+    nk_unused_(vectors), nk_unused_(vectors_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
+        nk_unused_(result_stride), nk_unused_(row_start), nk_unused_(row_count), nk_unused_(capabilities),
+        nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_packed_bf16_best(nk_bf16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride,
+                                                       nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b_packed), nk_unused_(c), nk_unused_(height), nk_unused_(width), nk_unused_(depth),
+        nk_unused_(a_stride), nk_unused_(c_stride), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_best(nk_bf16_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, nk_capability_t capabilities,
+                                                          void *stream) {
+    nk_unused_(vectors), nk_unused_(vectors_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
+        nk_unused_(result_stride), nk_unused_(row_start), nk_unused_(row_count), nk_unused_(capabilities),
+        nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_angulars_packed_f16_best(nk_f16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                    nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                    nk_size_t a_stride, nk_size_t c_stride,
+                                                    nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b_packed), nk_unused_(c), nk_unused_(height), nk_unused_(width), nk_unused_(depth),
+        nk_unused_(a_stride), nk_unused_(c_stride), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_angulars_symmetric_f16_best(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                       nk_size_t result_stride, nk_size_t row_start,
+                                                       nk_size_t row_count, nk_capability_t capabilities,
+                                                       void *stream) {
+    nk_unused_(vectors), nk_unused_(vectors_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
+        nk_unused_(result_stride), nk_unused_(row_start), nk_unused_(row_count), nk_unused_(capabilities),
+        nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_packed_f16_best(nk_f16_t const *a, void const *b_packed, nk_f32_t *c,
+                                                      nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride,
+                                                      nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b_packed), nk_unused_(c), nk_unused_(height), nk_unused_(width), nk_unused_(depth),
+        nk_unused_(a_stride), nk_unused_(c_stride), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_best(nk_f16_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, nk_capability_t capabilities,
+                                                         void *stream) {
+    nk_unused_(vectors), nk_unused_(vectors_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
+        nk_unused_(result_stride), nk_unused_(row_start), nk_unused_(row_count), nk_unused_(capabilities),
+        nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_angulars_packed_e5m2_best(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride,
+                                                     nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b_packed), nk_unused_(c), nk_unused_(height), nk_unused_(width), nk_unused_(depth),
+        nk_unused_(a_stride), nk_unused_(c_stride), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_best(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, nk_capability_t capabilities,
+                                                        void *stream) {
+    nk_unused_(vectors), nk_unused_(vectors_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
+        nk_unused_(result_stride), nk_unused_(row_start), nk_unused_(row_count), nk_unused_(capabilities),
+        nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_best(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride,
+                                                       nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b_packed), nk_unused_(c), nk_unused_(height), nk_unused_(width), nk_unused_(depth),
+        nk_unused_(a_stride), nk_unused_(c_stride), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_best(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, nk_capability_t capabilities,
+                                                          void *stream) {
+    nk_unused_(vectors), nk_unused_(vectors_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
+        nk_unused_(result_stride), nk_unused_(row_start), nk_unused_(row_count), nk_unused_(capabilities),
+        nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_angulars_packed_e4m3_best(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride,
+                                                     nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b_packed), nk_unused_(c), nk_unused_(height), nk_unused_(width), nk_unused_(depth),
+        nk_unused_(a_stride), nk_unused_(c_stride), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_angulars_symmetric_e4m3_best(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, nk_capability_t capabilities,
+                                                        void *stream) {
+    nk_unused_(vectors), nk_unused_(vectors_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
+        nk_unused_(result_stride), nk_unused_(row_start), nk_unused_(row_count), nk_unused_(capabilities),
+        nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_packed_e4m3_best(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride,
+                                                       nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b_packed), nk_unused_(c), nk_unused_(height), nk_unused_(width), nk_unused_(depth),
+        nk_unused_(a_stride), nk_unused_(c_stride), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e4m3_best(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, nk_capability_t capabilities,
+                                                          void *stream) {
+    nk_unused_(vectors), nk_unused_(vectors_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
+        nk_unused_(result_stride), nk_unused_(row_start), nk_unused_(row_count), nk_unused_(capabilities),
+        nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_angulars_packed_e3m2_best(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride,
+                                                     nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b_packed), nk_unused_(c), nk_unused_(height), nk_unused_(width), nk_unused_(depth),
+        nk_unused_(a_stride), nk_unused_(c_stride), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_angulars_symmetric_e3m2_best(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, nk_capability_t capabilities,
+                                                        void *stream) {
+    nk_unused_(vectors), nk_unused_(vectors_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
+        nk_unused_(result_stride), nk_unused_(row_start), nk_unused_(row_count), nk_unused_(capabilities),
+        nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_packed_e3m2_best(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride,
+                                                       nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b_packed), nk_unused_(c), nk_unused_(height), nk_unused_(width), nk_unused_(depth),
+        nk_unused_(a_stride), nk_unused_(c_stride), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e3m2_best(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, nk_capability_t capabilities,
+                                                          void *stream) {
+    nk_unused_(vectors), nk_unused_(vectors_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
+        nk_unused_(result_stride), nk_unused_(row_start), nk_unused_(row_count), nk_unused_(capabilities),
+        nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_angulars_packed_e2m3_best(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride,
+                                                     nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b_packed), nk_unused_(c), nk_unused_(height), nk_unused_(width), nk_unused_(depth),
+        nk_unused_(a_stride), nk_unused_(c_stride), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_best(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, nk_capability_t capabilities,
+                                                        void *stream) {
+    nk_unused_(vectors), nk_unused_(vectors_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
+        nk_unused_(result_stride), nk_unused_(row_start), nk_unused_(row_count), nk_unused_(capabilities),
+        nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_best(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride,
+                                                       nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b_packed), nk_unused_(c), nk_unused_(height), nk_unused_(width), nk_unused_(depth),
+        nk_unused_(a_stride), nk_unused_(c_stride), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_best(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, nk_capability_t capabilities,
+                                                          void *stream) {
+    nk_unused_(vectors), nk_unused_(vectors_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
+        nk_unused_(result_stride), nk_unused_(row_start), nk_unused_(row_count), nk_unused_(capabilities),
+        nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_angulars_packed_e2m1_best(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride,
+                                                     nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b_packed), nk_unused_(c), nk_unused_(height), nk_unused_(width), nk_unused_(depth),
+        nk_unused_(a_stride), nk_unused_(c_stride), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_best(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, nk_capability_t capabilities,
+                                                        void *stream) {
+    nk_unused_(vectors), nk_unused_(vectors_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
+        nk_unused_(result_stride), nk_unused_(row_start), nk_unused_(row_count), nk_unused_(capabilities),
+        nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_best(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                       nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t c_stride,
+                                                       nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b_packed), nk_unused_(c), nk_unused_(height), nk_unused_(width), nk_unused_(depth),
+        nk_unused_(a_stride), nk_unused_(c_stride), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_best(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t row_start,
+                                                          nk_size_t row_count, nk_capability_t capabilities,
+                                                          void *stream) {
+    nk_unused_(vectors), nk_unused_(vectors_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
+        nk_unused_(result_stride), nk_unused_(row_start), nk_unused_(row_count), nk_unused_(capabilities),
+        nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_angulars_packed_i8_best(nk_i8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                   nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                   nk_size_t a_stride, nk_size_t c_stride, nk_capability_t capabilities,
+                                                   void *stream) {
+    nk_unused_(a), nk_unused_(b_packed), nk_unused_(c), nk_unused_(height), nk_unused_(width), nk_unused_(depth),
+        nk_unused_(a_stride), nk_unused_(c_stride), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_angulars_symmetric_i8_best(nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                                       nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                      nk_size_t row_start, nk_size_t row_count) {
-#if NUMKONG_TARGET_GRANITEAMX
-    nk_euclideans_symmetric_f16_graniteamx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                           row_count);
-#elif NUMKONG_TARGET_SME
-    nk_euclideans_symmetric_f16_sme(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_NEONFHM
-    nk_euclideans_symmetric_f16_neonfhm(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                        row_count);
-#elif NUMKONG_TARGET_NEON
-    nk_euclideans_symmetric_f16_neon(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_euclideans_symmetric_f16_skylake(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                        row_count);
-#elif NUMKONG_TARGET_HASWELL
-    nk_euclideans_symmetric_f16_haswell(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                        row_count);
-#elif NUMKONG_TARGET_POWERVSX
-    nk_euclideans_symmetric_f16_powervsx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_RVV
-    nk_euclideans_symmetric_f16_rvv(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_euclideans_symmetric_f16_v128relaxed(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                            row_count);
-#else
-    nk_euclideans_symmetric_f16_serial(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#endif
+                                                      nk_size_t row_start, nk_size_t row_count,
+                                                      nk_capability_t capabilities, void *stream) {
+    nk_unused_(vectors), nk_unused_(vectors_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
+        nk_unused_(result_stride), nk_unused_(row_start), nk_unused_(row_count), nk_unused_(capabilities),
+        nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_packed_bf16(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
-                                                  nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                  nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes) {
-#if NUMKONG_TARGET_SME
-    nk_angulars_packed_bf16_sme(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONBFDOT
-    nk_angulars_packed_bf16_neonbfdot(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_angulars_packed_bf16_sapphireamx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_GENOA
-    nk_angulars_packed_bf16_genoa(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_angulars_packed_bf16_skylake(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_HASWELL
-    nk_angulars_packed_bf16_haswell(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_POWERVSX
-    nk_angulars_packed_bf16_powervsx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_RVV
-    nk_angulars_packed_bf16_rvv(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_angulars_packed_bf16_v128relaxed(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_V128
-    nk_angulars_packed_bf16_v128(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#else
-    nk_angulars_packed_bf16_serial(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_bf16(nk_bf16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                     nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                     nk_size_t row_start, nk_size_t row_count) {
-#if NUMKONG_TARGET_SME
-    nk_angulars_symmetric_bf16_sme(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_NEONBFDOT
-    nk_angulars_symmetric_bf16_neonbfdot(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_angulars_symmetric_bf16_sapphireamx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                           row_count);
-#elif NUMKONG_TARGET_GENOA
-    nk_angulars_symmetric_bf16_genoa(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_angulars_symmetric_bf16_skylake(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_HASWELL
-    nk_angulars_symmetric_bf16_haswell(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_POWERVSX
-    nk_angulars_symmetric_bf16_powervsx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                        row_count);
-#elif NUMKONG_TARGET_RVV
-    nk_angulars_symmetric_bf16_rvv(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_angulars_symmetric_bf16_v128relaxed(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                           row_count);
-#elif NUMKONG_TARGET_V128
-    nk_angulars_symmetric_bf16_v128(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#else
-    nk_angulars_symmetric_bf16_serial(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_euclideans_packed_bf16(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
-                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes) {
-#if NUMKONG_TARGET_SME
-    nk_euclideans_packed_bf16_sme(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONBFDOT
-    nk_euclideans_packed_bf16_neonbfdot(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_euclideans_packed_bf16_sapphireamx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_GENOA
-    nk_euclideans_packed_bf16_genoa(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_euclideans_packed_bf16_skylake(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_HASWELL
-    nk_euclideans_packed_bf16_haswell(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_POWERVSX
-    nk_euclideans_packed_bf16_powervsx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_RVV
-    nk_euclideans_packed_bf16_rvv(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_euclideans_packed_bf16_v128relaxed(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_V128
-    nk_euclideans_packed_bf16_v128(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#else
-    nk_euclideans_packed_bf16_serial(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_bf16(nk_bf16_t const *vectors, nk_size_t vectors_count,
-                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                       nk_size_t result_stride, nk_size_t row_start,
-                                                       nk_size_t row_count) {
-#if NUMKONG_TARGET_SME
-    nk_euclideans_symmetric_bf16_sme(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#elif NUMKONG_TARGET_NEONBFDOT
-    nk_euclideans_symmetric_bf16_neonbfdot(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                           row_count);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_euclideans_symmetric_bf16_sapphireamx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                             row_count);
-#elif NUMKONG_TARGET_GENOA
-    nk_euclideans_symmetric_bf16_genoa(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_euclideans_symmetric_bf16_skylake(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_HASWELL
-    nk_euclideans_symmetric_bf16_haswell(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_POWERVSX
-    nk_euclideans_symmetric_bf16_powervsx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                          row_count);
-#elif NUMKONG_TARGET_RVV
-    nk_euclideans_symmetric_bf16_rvv(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_euclideans_symmetric_bf16_v128relaxed(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                             row_count);
-#elif NUMKONG_TARGET_V128
-    nk_euclideans_symmetric_bf16_v128(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
-#else
-    nk_euclideans_symmetric_bf16_serial(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                        row_count);
-#endif
+NUMKONG_API nk_status_t nk_euclideans_packed_i8_best(nk_i8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride,
+                                                     nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b_packed), nk_unused_(c), nk_unused_(height), nk_unused_(width), nk_unused_(depth),
+        nk_unused_(a_stride), nk_unused_(c_stride), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_packed_e4m3(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                  nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                  nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes) {
-#if NUMKONG_TARGET_SME
-    nk_angulars_packed_e4m3_sme(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONFP8
-    nk_angulars_packed_e4m3_neonfp8(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONFHM
-    nk_angulars_packed_e4m3_neonfhm(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_angulars_packed_e4m3_sapphireamx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_DIAMOND
-    nk_angulars_packed_e4m3_diamond(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_GENOA
-    nk_angulars_packed_e4m3_genoa(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_angulars_packed_e4m3_skylake(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_HASWELL
-    nk_angulars_packed_e4m3_haswell(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_RVV
-    nk_angulars_packed_e4m3_rvv(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_angulars_packed_e4m3_v128relaxed(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#else
-    nk_angulars_packed_e4m3_serial(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e4m3(nk_e4m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                     nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                     nk_size_t row_start, nk_size_t row_count) {
-#if NUMKONG_TARGET_SME
-    nk_angulars_symmetric_e4m3_sme(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_NEONFP8
-    nk_angulars_symmetric_e4m3_neonfp8(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_NEONFHM
-    nk_angulars_symmetric_e4m3_neonfhm(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_angulars_symmetric_e4m3_sapphireamx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                           row_count);
-#elif NUMKONG_TARGET_DIAMOND
-    nk_angulars_symmetric_e4m3_diamond(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_GENOA
-    nk_angulars_symmetric_e4m3_genoa(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_angulars_symmetric_e4m3_skylake(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_HASWELL
-    nk_angulars_symmetric_e4m3_haswell(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_RVV
-    nk_angulars_symmetric_e4m3_rvv(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_angulars_symmetric_e4m3_v128relaxed(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                           row_count);
-#else
-    nk_angulars_symmetric_e4m3_serial(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e4m3(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes) {
-#if NUMKONG_TARGET_SME
-    nk_euclideans_packed_e4m3_sme(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONFP8
-    nk_euclideans_packed_e4m3_neonfp8(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONFHM
-    nk_euclideans_packed_e4m3_neonfhm(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_euclideans_packed_e4m3_sapphireamx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_DIAMOND
-    nk_euclideans_packed_e4m3_diamond(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_GENOA
-    nk_euclideans_packed_e4m3_genoa(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_euclideans_packed_e4m3_skylake(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_HASWELL
-    nk_euclideans_packed_e4m3_haswell(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_RVV
-    nk_euclideans_packed_e4m3_rvv(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_euclideans_packed_e4m3_v128relaxed(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#else
-    nk_euclideans_packed_e4m3_serial(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e4m3(nk_e4m3_t const *vectors, nk_size_t vectors_count,
-                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                       nk_size_t result_stride, nk_size_t row_start,
-                                                       nk_size_t row_count) {
-#if NUMKONG_TARGET_SME
-    nk_euclideans_symmetric_e4m3_sme(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#elif NUMKONG_TARGET_NEONFP8
-    nk_euclideans_symmetric_e4m3_neonfp8(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_NEONFHM
-    nk_euclideans_symmetric_e4m3_neonfhm(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_euclideans_symmetric_e4m3_sapphireamx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                             row_count);
-#elif NUMKONG_TARGET_DIAMOND
-    nk_euclideans_symmetric_e4m3_diamond(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_GENOA
-    nk_euclideans_symmetric_e4m3_genoa(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_euclideans_symmetric_e4m3_skylake(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_HASWELL
-    nk_euclideans_symmetric_e4m3_haswell(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_RVV
-    nk_euclideans_symmetric_e4m3_rvv(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_euclideans_symmetric_e4m3_v128relaxed(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                             row_count);
-#else
-    nk_euclideans_symmetric_e4m3_serial(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                        row_count);
-#endif
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_best(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, nk_capability_t capabilities,
+                                                        void *stream) {
+    nk_unused_(vectors), nk_unused_(vectors_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
+        nk_unused_(result_stride), nk_unused_(row_start), nk_unused_(row_count), nk_unused_(capabilities),
+        nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_packed_e5m2(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                  nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                  nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes) {
-#if NUMKONG_TARGET_SME
-    nk_angulars_packed_e5m2_sme(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONFP8
-    nk_angulars_packed_e5m2_neonfp8(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONFHM
-    nk_angulars_packed_e5m2_neonfhm(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_angulars_packed_e5m2_sapphireamx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_DIAMOND
-    nk_angulars_packed_e5m2_diamond(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_GENOA
-    nk_angulars_packed_e5m2_genoa(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_angulars_packed_e5m2_skylake(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_HASWELL
-    nk_angulars_packed_e5m2_haswell(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_RVV
-    nk_angulars_packed_e5m2_rvv(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_angulars_packed_e5m2_v128relaxed(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#else
-    nk_angulars_packed_e5m2_serial(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e5m2(nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                     nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                     nk_size_t row_start, nk_size_t row_count) {
-#if NUMKONG_TARGET_SME
-    nk_angulars_symmetric_e5m2_sme(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_NEONFP8
-    nk_angulars_symmetric_e5m2_neonfp8(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_NEONFHM
-    nk_angulars_symmetric_e5m2_neonfhm(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_angulars_symmetric_e5m2_sapphireamx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                           row_count);
-#elif NUMKONG_TARGET_DIAMOND
-    nk_angulars_symmetric_e5m2_diamond(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_GENOA
-    nk_angulars_symmetric_e5m2_genoa(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_angulars_symmetric_e5m2_skylake(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_HASWELL
-    nk_angulars_symmetric_e5m2_haswell(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_RVV
-    nk_angulars_symmetric_e5m2_rvv(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_angulars_symmetric_e5m2_v128relaxed(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                           row_count);
-#else
-    nk_angulars_symmetric_e5m2_serial(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e5m2(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes) {
-#if NUMKONG_TARGET_SME
-    nk_euclideans_packed_e5m2_sme(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONFP8
-    nk_euclideans_packed_e5m2_neonfp8(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONFHM
-    nk_euclideans_packed_e5m2_neonfhm(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_euclideans_packed_e5m2_sapphireamx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_DIAMOND
-    nk_euclideans_packed_e5m2_diamond(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_GENOA
-    nk_euclideans_packed_e5m2_genoa(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_euclideans_packed_e5m2_skylake(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_HASWELL
-    nk_euclideans_packed_e5m2_haswell(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_RVV
-    nk_euclideans_packed_e5m2_rvv(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_euclideans_packed_e5m2_v128relaxed(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#else
-    nk_euclideans_packed_e5m2_serial(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e5m2(nk_e5m2_t const *vectors, nk_size_t vectors_count,
-                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                       nk_size_t result_stride, nk_size_t row_start,
-                                                       nk_size_t row_count) {
-#if NUMKONG_TARGET_SME
-    nk_euclideans_symmetric_e5m2_sme(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#elif NUMKONG_TARGET_NEONFP8
-    nk_euclideans_symmetric_e5m2_neonfp8(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_NEONFHM
-    nk_euclideans_symmetric_e5m2_neonfhm(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_euclideans_symmetric_e5m2_sapphireamx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                             row_count);
-#elif NUMKONG_TARGET_DIAMOND
-    nk_euclideans_symmetric_e5m2_diamond(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_GENOA
-    nk_euclideans_symmetric_e5m2_genoa(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_euclideans_symmetric_e5m2_skylake(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_HASWELL
-    nk_euclideans_symmetric_e5m2_haswell(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_RVV
-    nk_euclideans_symmetric_e5m2_rvv(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_euclideans_symmetric_e5m2_v128relaxed(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                             row_count);
-#else
-    nk_euclideans_symmetric_e5m2_serial(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                        row_count);
-#endif
+NUMKONG_API nk_status_t nk_angulars_packed_i4_best(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                   nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                   nk_size_t a_stride, nk_size_t c_stride, nk_capability_t capabilities,
+                                                   void *stream) {
+    nk_unused_(a), nk_unused_(b_packed), nk_unused_(c), nk_unused_(height), nk_unused_(width), nk_unused_(depth),
+        nk_unused_(a_stride), nk_unused_(c_stride), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_packed_e2m3(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                  nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                  nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes) {
-#if NUMKONG_TARGET_SME
-    nk_angulars_packed_e2m3_sme(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_angulars_packed_e2m3_sapphireamx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONFP8
-    nk_angulars_packed_e2m3_neonfp8(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONSDOT
-    nk_angulars_packed_e2m3_neonsdot(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_angulars_packed_e2m3_skylake(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SIERRA
-    nk_angulars_packed_e2m3_sierra(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_ALDER
-    nk_angulars_packed_e2m3_alder(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_HASWELL
-    nk_angulars_packed_e2m3_haswell(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_RVV
-    nk_angulars_packed_e2m3_rvv(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_angulars_packed_e2m3_v128relaxed(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#else
-    nk_angulars_packed_e2m3_serial(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_angulars_packed_e2m1(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                  nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                  nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes) {
-#if NUMKONG_TARGET_SME
-    nk_angulars_packed_e2m1_sme(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_angulars_packed_e2m1_sapphireamx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONFP8
-    nk_angulars_packed_e2m1_neonfp8(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONSDOT
-    nk_angulars_packed_e2m1_neonsdot(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_angulars_packed_e2m1_skylake(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SIERRA
-    nk_angulars_packed_e2m1_sierra(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_ALDER
-    nk_angulars_packed_e2m1_alder(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_HASWELL
-    nk_angulars_packed_e2m1_haswell(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_RVV
-    nk_angulars_packed_e2m1_rvv(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_angulars_packed_e2m1_v128relaxed(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#else
-    nk_angulars_packed_e2m1_serial(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m3(nk_e2m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                     nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                     nk_size_t row_start, nk_size_t row_count) {
-#if NUMKONG_TARGET_SME
-    nk_angulars_symmetric_e2m3_sme(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_angulars_symmetric_e2m3_sapphireamx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                           row_count);
-#elif NUMKONG_TARGET_NEONFP8
-    nk_angulars_symmetric_e2m3_neonfp8(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_NEONSDOT
-    nk_angulars_symmetric_e2m3_neonsdot(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                        row_count);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_angulars_symmetric_e2m3_skylake(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_SIERRA
-    nk_angulars_symmetric_e2m3_sierra(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
-#elif NUMKONG_TARGET_ALDER
-    nk_angulars_symmetric_e2m3_alder(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#elif NUMKONG_TARGET_HASWELL
-    nk_angulars_symmetric_e2m3_haswell(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_RVV
-    nk_angulars_symmetric_e2m3_rvv(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_angulars_symmetric_e2m3_v128relaxed(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                           row_count);
-#else
-    nk_angulars_symmetric_e2m3_serial(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e2m1(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
-                                                     nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                     nk_size_t result_stride, nk_size_t row_start,
-                                                     nk_size_t row_count) {
-#if NUMKONG_TARGET_SME
-    nk_angulars_symmetric_e2m1_sme(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_angulars_symmetric_e2m1_sapphireamx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                           row_count);
-#elif NUMKONG_TARGET_NEONFP8
-    nk_angulars_symmetric_e2m1_neonfp8(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_NEONSDOT
-    nk_angulars_symmetric_e2m1_neonsdot(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                        row_count);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_angulars_symmetric_e2m1_skylake(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_SIERRA
-    nk_angulars_symmetric_e2m1_sierra(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
-#elif NUMKONG_TARGET_ALDER
-    nk_angulars_symmetric_e2m1_alder(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#elif NUMKONG_TARGET_HASWELL
-    nk_angulars_symmetric_e2m1_haswell(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_RVV
-    nk_angulars_symmetric_e2m1_rvv(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_angulars_symmetric_e2m1_v128relaxed(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                           row_count);
-#else
-    nk_angulars_symmetric_e2m1_serial(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m3(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
-                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes) {
-#if NUMKONG_TARGET_SME
-    nk_euclideans_packed_e2m3_sme(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_euclideans_packed_e2m3_sapphireamx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONFP8
-    nk_euclideans_packed_e2m3_neonfp8(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONSDOT
-    nk_euclideans_packed_e2m3_neonsdot(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_euclideans_packed_e2m3_skylake(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SIERRA
-    nk_euclideans_packed_e2m3_sierra(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_ALDER
-    nk_euclideans_packed_e2m3_alder(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_HASWELL
-    nk_euclideans_packed_e2m3_haswell(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_RVV
-    nk_euclideans_packed_e2m3_rvv(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_euclideans_packed_e2m3_v128relaxed(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#else
-    nk_euclideans_packed_e2m3_serial(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e2m1(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes) {
-#if NUMKONG_TARGET_SME
-    nk_euclideans_packed_e2m1_sme(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_euclideans_packed_e2m1_sapphireamx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONFP8
-    nk_euclideans_packed_e2m1_neonfp8(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONSDOT
-    nk_euclideans_packed_e2m1_neonsdot(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_euclideans_packed_e2m1_skylake(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SIERRA
-    nk_euclideans_packed_e2m1_sierra(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_ALDER
-    nk_euclideans_packed_e2m1_alder(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_HASWELL
-    nk_euclideans_packed_e2m1_haswell(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_RVV
-    nk_euclideans_packed_e2m1_rvv(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_euclideans_packed_e2m1_v128relaxed(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#else
-    nk_euclideans_packed_e2m1_serial(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m3(nk_e2m3_t const *vectors, nk_size_t vectors_count,
-                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                       nk_size_t result_stride, nk_size_t row_start,
-                                                       nk_size_t row_count) {
-#if NUMKONG_TARGET_SME
-    nk_euclideans_symmetric_e2m3_sme(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_euclideans_symmetric_e2m3_sapphireamx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                             row_count);
-#elif NUMKONG_TARGET_NEONFP8
-    nk_euclideans_symmetric_e2m3_neonfp8(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_NEONSDOT
-    nk_euclideans_symmetric_e2m3_neonsdot(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                          row_count);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_euclideans_symmetric_e2m3_skylake(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_SIERRA
-    nk_euclideans_symmetric_e2m3_sierra(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                        row_count);
-#elif NUMKONG_TARGET_ALDER
-    nk_euclideans_symmetric_e2m3_alder(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_HASWELL
-    nk_euclideans_symmetric_e2m3_haswell(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_RVV
-    nk_euclideans_symmetric_e2m3_rvv(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_euclideans_symmetric_e2m3_v128relaxed(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                             row_count);
-#else
-    nk_euclideans_symmetric_e2m3_serial(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                        row_count);
-#endif
+NUMKONG_API nk_status_t nk_angulars_symmetric_i4_best(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                      nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                      nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count,
+                                                      nk_capability_t capabilities, void *stream) {
+    nk_unused_(vectors), nk_unused_(vectors_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
+        nk_unused_(result_stride), nk_unused_(row_start), nk_unused_(row_count), nk_unused_(capabilities),
+        nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e2m1(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
-                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                       nk_size_t result_stride, nk_size_t row_start,
-                                                       nk_size_t row_count) {
-#if NUMKONG_TARGET_SME
-    nk_euclideans_symmetric_e2m1_sme(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_euclideans_symmetric_e2m1_sapphireamx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                             row_count);
-#elif NUMKONG_TARGET_NEONFP8
-    nk_euclideans_symmetric_e2m1_neonfp8(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_NEONSDOT
-    nk_euclideans_symmetric_e2m1_neonsdot(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                          row_count);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_euclideans_symmetric_e2m1_skylake(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_SIERRA
-    nk_euclideans_symmetric_e2m1_sierra(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                        row_count);
-#elif NUMKONG_TARGET_ALDER
-    nk_euclideans_symmetric_e2m1_alder(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_HASWELL
-    nk_euclideans_symmetric_e2m1_haswell(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_RVV
-    nk_euclideans_symmetric_e2m1_rvv(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_euclideans_symmetric_e2m1_v128relaxed(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                             row_count);
-#else
-    nk_euclideans_symmetric_e2m1_serial(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                        row_count);
-#endif
+NUMKONG_API nk_status_t nk_euclideans_packed_i4_best(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride,
+                                                     nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b_packed), nk_unused_(c), nk_unused_(height), nk_unused_(width), nk_unused_(depth),
+        nk_unused_(a_stride), nk_unused_(c_stride), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_packed_e3m2(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                  nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                  nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes) {
-#if NUMKONG_TARGET_SME
-    nk_angulars_packed_e3m2_sme(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_angulars_packed_e3m2_sapphireamx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONFP8
-    nk_angulars_packed_e3m2_neonfp8(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_angulars_packed_e3m2_skylake(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_HASWELL
-    nk_angulars_packed_e3m2_haswell(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_RVV
-    nk_angulars_packed_e3m2_rvv(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_angulars_packed_e3m2_v128relaxed(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#else
-    nk_angulars_packed_e3m2_serial(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_e3m2(nk_e3m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                     nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                     nk_size_t row_start, nk_size_t row_count) {
-#if NUMKONG_TARGET_SME
-    nk_angulars_symmetric_e3m2_sme(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_angulars_symmetric_e3m2_sapphireamx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                           row_count);
-#elif NUMKONG_TARGET_NEONFP8
-    nk_angulars_symmetric_e3m2_neonfp8(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_angulars_symmetric_e3m2_skylake(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_HASWELL
-    nk_angulars_symmetric_e3m2_haswell(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_RVV
-    nk_angulars_symmetric_e3m2_rvv(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_angulars_symmetric_e3m2_v128relaxed(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                           row_count);
-#else
-    nk_angulars_symmetric_e3m2_serial(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_euclideans_packed_e3m2(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                    nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                    nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes) {
-#if NUMKONG_TARGET_SME
-    nk_euclideans_packed_e3m2_sme(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_euclideans_packed_e3m2_sapphireamx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONFP8
-    nk_euclideans_packed_e3m2_neonfp8(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_euclideans_packed_e3m2_skylake(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_HASWELL
-    nk_euclideans_packed_e3m2_haswell(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_RVV
-    nk_euclideans_packed_e3m2_rvv(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_euclideans_packed_e3m2_v128relaxed(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#else
-    nk_euclideans_packed_e3m2_serial(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_e3m2(nk_e3m2_t const *vectors, nk_size_t vectors_count,
-                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                       nk_size_t result_stride, nk_size_t row_start,
-                                                       nk_size_t row_count) {
-#if NUMKONG_TARGET_SME
-    nk_euclideans_symmetric_e3m2_sme(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_euclideans_symmetric_e3m2_sapphireamx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                             row_count);
-#elif NUMKONG_TARGET_NEONFP8
-    nk_euclideans_symmetric_e3m2_neonfp8(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_SKYLAKE
-    nk_euclideans_symmetric_e3m2_skylake(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_HASWELL
-    nk_euclideans_symmetric_e3m2_haswell(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_RVV
-    nk_euclideans_symmetric_e3m2_rvv(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_euclideans_symmetric_e3m2_v128relaxed(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                             row_count);
-#else
-    nk_euclideans_symmetric_e3m2_serial(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                        row_count);
-#endif
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i4_best(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, nk_capability_t capabilities,
+                                                        void *stream) {
+    nk_unused_(vectors), nk_unused_(vectors_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
+        nk_unused_(result_stride), nk_unused_(row_start), nk_unused_(row_count), nk_unused_(capabilities),
+        nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_packed_i8(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
-                                                nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes) {
-#if NUMKONG_TARGET_SME
-    nk_angulars_packed_i8_sme(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONSDOT
-    nk_angulars_packed_i8_neonsdot(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_angulars_packed_i8_sapphireamx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_ICELAKE
-    nk_angulars_packed_i8_icelake(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SIERRA
-    nk_angulars_packed_i8_sierra(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_ALDER
-    nk_angulars_packed_i8_alder(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_HASWELL
-    nk_angulars_packed_i8_haswell(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_POWERVSX
-    nk_angulars_packed_i8_powervsx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_RVV
-    nk_angulars_packed_i8_rvv(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_angulars_packed_i8_v128relaxed(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_V128
-    nk_angulars_packed_i8_v128(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#else
-    nk_angulars_packed_i8_serial(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_i8(nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                   nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                   nk_size_t row_start, nk_size_t row_count) {
-#if NUMKONG_TARGET_SME
-    nk_angulars_symmetric_i8_sme(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_NEONSDOT
-    nk_angulars_symmetric_i8_neonsdot(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_angulars_symmetric_i8_sapphireamx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_ICELAKE
-    nk_angulars_symmetric_i8_icelake(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#elif NUMKONG_TARGET_SIERRA
-    nk_angulars_symmetric_i8_sierra(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_ALDER
-    nk_angulars_symmetric_i8_alder(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_HASWELL
-    nk_angulars_symmetric_i8_haswell(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#elif NUMKONG_TARGET_POWERVSX
-    nk_angulars_symmetric_i8_powervsx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
-#elif NUMKONG_TARGET_RVV
-    nk_angulars_symmetric_i8_rvv(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_angulars_symmetric_i8_v128relaxed(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_V128
-    nk_angulars_symmetric_i8_v128(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#else
-    nk_angulars_symmetric_i8_serial(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_euclideans_packed_i8(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
-                                                  nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                  nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes) {
-#if NUMKONG_TARGET_SME
-    nk_euclideans_packed_i8_sme(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONSDOT
-    nk_euclideans_packed_i8_neonsdot(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_euclideans_packed_i8_sapphireamx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_ICELAKE
-    nk_euclideans_packed_i8_icelake(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SIERRA
-    nk_euclideans_packed_i8_sierra(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_ALDER
-    nk_euclideans_packed_i8_alder(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_HASWELL
-    nk_euclideans_packed_i8_haswell(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_POWERVSX
-    nk_euclideans_packed_i8_powervsx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_RVV
-    nk_euclideans_packed_i8_rvv(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_euclideans_packed_i8_v128relaxed(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_V128
-    nk_euclideans_packed_i8_v128(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#else
-    nk_euclideans_packed_i8_serial(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_i8(nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                     nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                     nk_size_t row_start, nk_size_t row_count) {
-#if NUMKONG_TARGET_SME
-    nk_euclideans_symmetric_i8_sme(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_NEONSDOT
-    nk_euclideans_symmetric_i8_neonsdot(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                        row_count);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_euclideans_symmetric_i8_sapphireamx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                           row_count);
-#elif NUMKONG_TARGET_ICELAKE
-    nk_euclideans_symmetric_i8_icelake(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_SIERRA
-    nk_euclideans_symmetric_i8_sierra(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
-#elif NUMKONG_TARGET_ALDER
-    nk_euclideans_symmetric_i8_alder(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#elif NUMKONG_TARGET_HASWELL
-    nk_euclideans_symmetric_i8_haswell(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_POWERVSX
-    nk_euclideans_symmetric_i8_powervsx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                        row_count);
-#elif NUMKONG_TARGET_RVV
-    nk_euclideans_symmetric_i8_rvv(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_euclideans_symmetric_i8_v128relaxed(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                           row_count);
-#elif NUMKONG_TARGET_V128
-    nk_euclideans_symmetric_i8_v128(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#else
-    nk_euclideans_symmetric_i8_serial(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
-#endif
+NUMKONG_API nk_status_t nk_angulars_packed_u8_best(nk_u8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                   nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                   nk_size_t a_stride, nk_size_t c_stride, nk_capability_t capabilities,
+                                                   void *stream) {
+    nk_unused_(a), nk_unused_(b_packed), nk_unused_(c), nk_unused_(height), nk_unused_(width), nk_unused_(depth),
+        nk_unused_(a_stride), nk_unused_(c_stride), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_packed_u8(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
-                                                nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes) {
-#if NUMKONG_TARGET_SME
-    nk_angulars_packed_u8_sme(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONSDOT
-    nk_angulars_packed_u8_neonsdot(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_angulars_packed_u8_sapphireamx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_ICELAKE
-    nk_angulars_packed_u8_icelake(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SIERRA
-    nk_angulars_packed_u8_sierra(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_ALDER
-    nk_angulars_packed_u8_alder(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_HASWELL
-    nk_angulars_packed_u8_haswell(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_POWERVSX
-    nk_angulars_packed_u8_powervsx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_RVV
-    nk_angulars_packed_u8_rvv(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_angulars_packed_u8_v128relaxed(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_V128
-    nk_angulars_packed_u8_v128(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#else
-    nk_angulars_packed_u8_serial(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_u8(nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                   nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                   nk_size_t row_start, nk_size_t row_count) {
-#if NUMKONG_TARGET_SME
-    nk_angulars_symmetric_u8_sme(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_NEONSDOT
-    nk_angulars_symmetric_u8_neonsdot(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_angulars_symmetric_u8_sapphireamx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_ICELAKE
-    nk_angulars_symmetric_u8_icelake(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#elif NUMKONG_TARGET_SIERRA
-    nk_angulars_symmetric_u8_sierra(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_ALDER
-    nk_angulars_symmetric_u8_alder(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_HASWELL
-    nk_angulars_symmetric_u8_haswell(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#elif NUMKONG_TARGET_POWERVSX
-    nk_angulars_symmetric_u8_powervsx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
-#elif NUMKONG_TARGET_RVV
-    nk_angulars_symmetric_u8_rvv(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_angulars_symmetric_u8_v128relaxed(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                         row_count);
-#elif NUMKONG_TARGET_V128
-    nk_angulars_symmetric_u8_v128(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#else
-    nk_angulars_symmetric_u8_serial(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_euclideans_packed_u8(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
-                                                  nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                  nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes) {
-#if NUMKONG_TARGET_SME
-    nk_euclideans_packed_u8_sme(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONSDOT
-    nk_euclideans_packed_u8_neonsdot(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_euclideans_packed_u8_sapphireamx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_ICELAKE
-    nk_euclideans_packed_u8_icelake(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_SIERRA
-    nk_euclideans_packed_u8_sierra(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_ALDER
-    nk_euclideans_packed_u8_alder(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_HASWELL
-    nk_euclideans_packed_u8_haswell(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_POWERVSX
-    nk_euclideans_packed_u8_powervsx(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_RVV
-    nk_euclideans_packed_u8_rvv(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_euclideans_packed_u8_v128relaxed(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_V128
-    nk_euclideans_packed_u8_v128(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#else
-    nk_euclideans_packed_u8_serial(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_u8(nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                     nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                     nk_size_t row_start, nk_size_t row_count) {
-#if NUMKONG_TARGET_SME
-    nk_euclideans_symmetric_u8_sme(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_NEONSDOT
-    nk_euclideans_symmetric_u8_neonsdot(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                        row_count);
-#elif NUMKONG_TARGET_SAPPHIREAMX
-    nk_euclideans_symmetric_u8_sapphireamx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                           row_count);
-#elif NUMKONG_TARGET_ICELAKE
-    nk_euclideans_symmetric_u8_icelake(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_SIERRA
-    nk_euclideans_symmetric_u8_sierra(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
-#elif NUMKONG_TARGET_ALDER
-    nk_euclideans_symmetric_u8_alder(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#elif NUMKONG_TARGET_HASWELL
-    nk_euclideans_symmetric_u8_haswell(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#elif NUMKONG_TARGET_POWERVSX
-    nk_euclideans_symmetric_u8_powervsx(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                        row_count);
-#elif NUMKONG_TARGET_RVV
-    nk_euclideans_symmetric_u8_rvv(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_V128RELAXED
-    nk_euclideans_symmetric_u8_v128relaxed(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                           row_count);
-#elif NUMKONG_TARGET_V128
-    nk_euclideans_symmetric_u8_v128(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#else
-    nk_euclideans_symmetric_u8_serial(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
-#endif
+NUMKONG_API nk_status_t nk_angulars_symmetric_u8_best(nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                      nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                      nk_size_t row_start, nk_size_t row_count,
+                                                      nk_capability_t capabilities, void *stream) {
+    nk_unused_(vectors), nk_unused_(vectors_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
+        nk_unused_(result_stride), nk_unused_(row_start), nk_unused_(row_count), nk_unused_(capabilities),
+        nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_packed_i4(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes) {
-#if NUMKONG_TARGET_SME
-    nk_angulars_packed_i4_sme(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONSDOT
-    nk_angulars_packed_i4_neonsdot(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_ICELAKE
-    nk_angulars_packed_i4_icelake(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#else
-    nk_angulars_packed_i4_serial(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_i4(nk_i4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                   nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                   nk_size_t row_start, nk_size_t row_count) {
-#if NUMKONG_TARGET_SME
-    nk_angulars_symmetric_i4_sme(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_NEONSDOT
-    nk_angulars_symmetric_i4_neonsdot(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
-#elif NUMKONG_TARGET_ICELAKE
-    nk_angulars_symmetric_i4_icelake(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#else
-    nk_angulars_symmetric_i4_serial(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_euclideans_packed_i4(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                  nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                  nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes) {
-#if NUMKONG_TARGET_SME
-    nk_euclideans_packed_i4_sme(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONSDOT
-    nk_euclideans_packed_i4_neonsdot(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_ICELAKE
-    nk_euclideans_packed_i4_icelake(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#else
-    nk_euclideans_packed_i4_serial(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_i4(nk_i4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                     nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                     nk_size_t row_start, nk_size_t row_count) {
-#if NUMKONG_TARGET_SME
-    nk_euclideans_symmetric_i4_sme(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_NEONSDOT
-    nk_euclideans_symmetric_i4_neonsdot(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                        row_count);
-#elif NUMKONG_TARGET_ICELAKE
-    nk_euclideans_symmetric_i4_icelake(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#else
-    nk_euclideans_symmetric_i4_serial(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
-#endif
+NUMKONG_API nk_status_t nk_euclideans_packed_u8_best(nk_u8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride,
+                                                     nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b_packed), nk_unused_(c), nk_unused_(height), nk_unused_(width), nk_unused_(depth),
+        nk_unused_(a_stride), nk_unused_(c_stride), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-NUMKONG_API_COMPTIME void nk_angulars_packed_u4(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes) {
-#if NUMKONG_TARGET_SME
-    nk_angulars_packed_u4_sme(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONSDOT
-    nk_angulars_packed_u4_neonsdot(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_ICELAKE
-    nk_angulars_packed_u4_icelake(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#else
-    nk_angulars_packed_u4_serial(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_angulars_symmetric_u4(nk_u4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                   nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                   nk_size_t row_start, nk_size_t row_count) {
-#if NUMKONG_TARGET_SME
-    nk_angulars_symmetric_u4_sme(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_NEONSDOT
-    nk_angulars_symmetric_u4_neonsdot(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
-#elif NUMKONG_TARGET_ICELAKE
-    nk_angulars_symmetric_u4_icelake(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
-#else
-    nk_angulars_symmetric_u4_serial(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_euclideans_packed_u4(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *result,
-                                                  nk_size_t rows, nk_size_t cols, nk_size_t depth,
-                                                  nk_size_t a_stride_in_bytes, nk_size_t r_stride_in_bytes) {
-#if NUMKONG_TARGET_SME
-    nk_euclideans_packed_u4_sme(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_NEONSDOT
-    nk_euclideans_packed_u4_neonsdot(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#elif NUMKONG_TARGET_ICELAKE
-    nk_euclideans_packed_u4_icelake(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#else
-    nk_euclideans_packed_u4_serial(a, b_packed, result, rows, cols, depth, a_stride_in_bytes, r_stride_in_bytes);
-#endif
-}
-NUMKONG_API_COMPTIME void nk_euclideans_symmetric_u4(nk_u4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                     nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                     nk_size_t row_start, nk_size_t row_count) {
-#if NUMKONG_TARGET_SME
-    nk_euclideans_symmetric_u4_sme(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
-#elif NUMKONG_TARGET_NEONSDOT
-    nk_euclideans_symmetric_u4_neonsdot(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                        row_count);
-#elif NUMKONG_TARGET_ICELAKE
-    nk_euclideans_symmetric_u4_icelake(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                       row_count);
-#else
-    nk_euclideans_symmetric_u4_serial(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
-#endif
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_best(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, nk_capability_t capabilities,
+                                                        void *stream) {
+    nk_unused_(vectors), nk_unused_(vectors_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
+        nk_unused_(result_stride), nk_unused_(row_start), nk_unused_(row_count), nk_unused_(capabilities),
+        nk_unused_(stream);
+    return nk_missing_library_k;
 }
 
-#endif // !NUMKONG_RUNTIME_DISPATCH
+NUMKONG_API nk_status_t nk_angulars_packed_u4_best(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                   nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                   nk_size_t a_stride, nk_size_t c_stride, nk_capability_t capabilities,
+                                                   void *stream) {
+    nk_unused_(a), nk_unused_(b_packed), nk_unused_(c), nk_unused_(height), nk_unused_(width), nk_unused_(depth),
+        nk_unused_(a_stride), nk_unused_(c_stride), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_angulars_symmetric_u4_best(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                      nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                      nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count,
+                                                      nk_capability_t capabilities, void *stream) {
+    nk_unused_(vectors), nk_unused_(vectors_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
+        nk_unused_(result_stride), nk_unused_(row_start), nk_unused_(row_count), nk_unused_(capabilities),
+        nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_packed_u4_best(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
+                                                     nk_size_t a_stride, nk_size_t c_stride,
+                                                     nk_capability_t capabilities, void *stream) {
+    nk_unused_(a), nk_unused_(b_packed), nk_unused_(c), nk_unused_(height), nk_unused_(width), nk_unused_(depth),
+        nk_unused_(a_stride), nk_unused_(c_stride), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u4_best(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                        nk_size_t result_stride, nk_size_t row_start,
+                                                        nk_size_t row_count, nk_capability_t capabilities,
+                                                        void *stream) {
+    nk_unused_(vectors), nk_unused_(vectors_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
+        nk_unused_(result_stride), nk_unused_(row_start), nk_unused_(row_count), nk_unused_(capabilities),
+        nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_spatials_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
+                                                nk_kernel_punned_t *kernel, nk_capability_t *capability) {
+    nk_unused_(kind), nk_unused_(dtype), nk_unused_(capabilities);
+    *kernel = NUMKONG_NULL, *capability = 0;
+    return nk_missing_library_k;
+}
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
+#endif // NUMKONG_HEADER_ONLY
 
 #endif // NUMKONG_SPATIALS_H

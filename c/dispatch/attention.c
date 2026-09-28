@@ -1,0 +1,1330 @@
+/**
+ *  @file c/dispatch/attention.c
+ *  @author Ash Vardanian
+ *  @date September 28, 2026
+ *  @brief The attention capability lists, @c _best dispatch points and @c nk_attention_find_kernel.
+ */
+#include "dispatch.h"
+#include "numkong/attention.h"
+
+static nk_capability_kernels_t const *nk_attention_pack_size_bf16_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_attention_pack_size_bf16_serial,
+#if NUMKONG_TARGET_NEONBFDOT
+        (nk_kernel_punned_t)&nk_attention_pack_size_bf16_neonbfdot,
+#endif
+#if NUMKONG_TARGET_SME
+        (nk_kernel_punned_t)&nk_attention_pack_size_bf16_sme,
+#endif
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_attention_pack_size_bf16_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_attention_pack_size_bf16_skylake,
+#endif
+#if NUMKONG_TARGET_GENOA
+        (nk_kernel_punned_t)&nk_attention_pack_size_bf16_genoa,
+#endif
+#if NUMKONG_TARGET_SAPPHIREAMX
+        (nk_kernel_punned_t)&nk_attention_pack_size_bf16_sapphireamx,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_attention_pack_size_bf16_rvv,
+#endif
+#if NUMKONG_TARGET_V128RELAXED
+        (nk_kernel_punned_t)&nk_attention_pack_size_bf16_v128relaxed,
+#endif
+    };
+#if NUMKONG_ARCH_CUDA_
+    static nk_kernel_punned_t const nvidia[] = {
+        (nk_kernel_punned_t)&nk_attention_pack_size_bf16_cuda,
+#if NUMKONG_TARGET_AMPERE
+        (nk_kernel_punned_t)&nk_attention_pack_size_bf16_ampere,
+#endif
+#if NUMKONG_TARGET_HOPPER
+        (nk_kernel_punned_t)&nk_attention_pack_size_bf16_hopper,
+#endif
+    };
+#endif
+#if NUMKONG_ARCH_ROCM_
+    static nk_kernel_punned_t const amd[] = {
+        (nk_kernel_punned_t)&nk_attention_pack_size_bf16_rocm,
+#if NUMKONG_TARGET_CDNA4
+        (nk_kernel_punned_t)&nk_attention_pack_size_bf16_cdna4,
+#endif
+#if NUMKONG_TARGET_CDNA5
+        (nk_kernel_punned_t)&nk_attention_pack_size_bf16_cdna5,
+#endif
+    };
+#endif
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neonbfdot_k * NUMKONG_TARGET_NEONBFDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
+             nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
+             nk_cap_genoa_k * NUMKONG_TARGET_GENOA | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
+             nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
+         cpu},
+#if NUMKONG_ARCH_CUDA_
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+#else
+        {0, NUMKONG_NULL},
+#endif
+#if NUMKONG_ARCH_ROCM_
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+#else
+        {0, NUMKONG_NULL},
+#endif
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_API nk_status_t nk_attention_pack_size_bf16_best(nk_size_t key_value_head_count, nk_size_t depth,
+                                                         nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                         nk_capability_t capabilities, nk_size_t *bytes) {
+    nk_attention_pack_size_punned_t const kernel = (nk_attention_pack_size_punned_t)nk_kernel_pick_(
+        capabilities, nk_attention_pack_size_bf16_capabilities());
+    return kernel ? kernel(key_value_head_count, depth, segment_lengths, segment_count, bytes) : nk_missing_kernel_k;
+}
+
+static nk_capability_kernels_t const *nk_attention_pack_size_e4m3_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_attention_pack_size_e4m3_serial,
+#if NUMKONG_TARGET_NEONFHM
+        (nk_kernel_punned_t)&nk_attention_pack_size_e4m3_neonfhm,
+#endif
+#if NUMKONG_TARGET_SME
+        (nk_kernel_punned_t)&nk_attention_pack_size_e4m3_sme,
+#endif
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_attention_pack_size_e4m3_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_attention_pack_size_e4m3_skylake,
+#endif
+#if NUMKONG_TARGET_GENOA
+        (nk_kernel_punned_t)&nk_attention_pack_size_e4m3_genoa,
+#endif
+#if NUMKONG_TARGET_SAPPHIREAMX
+        (nk_kernel_punned_t)&nk_attention_pack_size_e4m3_sapphireamx,
+#endif
+#if NUMKONG_TARGET_DIAMONDAMX
+        (nk_kernel_punned_t)&nk_attention_pack_size_e4m3_diamondamx,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_attention_pack_size_e4m3_rvv,
+#endif
+#if NUMKONG_TARGET_V128RELAXED
+        (nk_kernel_punned_t)&nk_attention_pack_size_e4m3_v128relaxed,
+#endif
+    };
+#if NUMKONG_ARCH_CUDA_
+    static nk_kernel_punned_t const nvidia[] = {
+        (nk_kernel_punned_t)&nk_attention_pack_size_e4m3_cuda,
+#if NUMKONG_TARGET_AMPERE
+        (nk_kernel_punned_t)&nk_attention_pack_size_e4m3_ampere,
+#endif
+#if NUMKONG_TARGET_HOPPER
+        (nk_kernel_punned_t)&nk_attention_pack_size_e4m3_hopper,
+#endif
+#if NUMKONG_TARGET_BLACKWELL
+        (nk_kernel_punned_t)&nk_attention_pack_size_e4m3_blackwell,
+#endif
+#if NUMKONG_TARGET_BLACKWELLRTX
+        (nk_kernel_punned_t)&nk_attention_pack_size_e4m3_blackwellrtx,
+#endif
+    };
+#endif
+#if NUMKONG_ARCH_ROCM_
+    static nk_kernel_punned_t const amd[] = {
+        (nk_kernel_punned_t)&nk_attention_pack_size_e4m3_rocm,
+#if NUMKONG_TARGET_CDNA4
+        (nk_kernel_punned_t)&nk_attention_pack_size_e4m3_cdna4,
+#endif
+#if NUMKONG_TARGET_CDNA5
+        (nk_kernel_punned_t)&nk_attention_pack_size_e4m3_cdna5,
+#endif
+    };
+#endif
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neonfhm_k * NUMKONG_TARGET_NEONFHM | nk_cap_sme_k * NUMKONG_TARGET_SME |
+             nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
+             nk_cap_genoa_k * NUMKONG_TARGET_GENOA | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
+             nk_cap_diamondamx_k * NUMKONG_TARGET_DIAMONDAMX | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
+             nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
+         cpu},
+#if NUMKONG_ARCH_CUDA_
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+         nvidia},
+#else
+        {0, NUMKONG_NULL},
+#endif
+#if NUMKONG_ARCH_ROCM_
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+#else
+        {0, NUMKONG_NULL},
+#endif
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_best(nk_size_t key_value_head_count, nk_size_t depth,
+                                                         nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                         nk_capability_t capabilities, nk_size_t *bytes) {
+    nk_attention_pack_size_punned_t const kernel = (nk_attention_pack_size_punned_t)nk_kernel_pick_(
+        capabilities, nk_attention_pack_size_e4m3_capabilities());
+    return kernel ? kernel(key_value_head_count, depth, segment_lengths, segment_count, bytes) : nk_missing_kernel_k;
+}
+
+static nk_capability_kernels_t const *nk_attention_pack_size_i8_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_attention_pack_size_i8_serial,
+#if NUMKONG_TARGET_NEONSDOT
+        (nk_kernel_punned_t)&nk_attention_pack_size_i8_neonsdot,
+#endif
+#if NUMKONG_TARGET_SME
+        (nk_kernel_punned_t)&nk_attention_pack_size_i8_sme,
+#endif
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_attention_pack_size_i8_haswell,
+#endif
+#if NUMKONG_TARGET_ICELAKE
+        (nk_kernel_punned_t)&nk_attention_pack_size_i8_icelake,
+#endif
+#if NUMKONG_TARGET_SAPPHIREAMX
+        (nk_kernel_punned_t)&nk_attention_pack_size_i8_sapphireamx,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_attention_pack_size_i8_rvv,
+#endif
+#if NUMKONG_TARGET_V128RELAXED
+        (nk_kernel_punned_t)&nk_attention_pack_size_i8_v128relaxed,
+#endif
+    };
+#if NUMKONG_ARCH_CUDA_
+    static nk_kernel_punned_t const nvidia[] = {
+        (nk_kernel_punned_t)&nk_attention_pack_size_i8_cuda,
+#if NUMKONG_TARGET_AMPERE
+        (nk_kernel_punned_t)&nk_attention_pack_size_i8_ampere,
+#endif
+#if NUMKONG_TARGET_HOPPER
+        (nk_kernel_punned_t)&nk_attention_pack_size_i8_hopper,
+#endif
+    };
+#endif
+#if NUMKONG_ARCH_ROCM_
+    static nk_kernel_punned_t const amd[] = {
+        (nk_kernel_punned_t)&nk_attention_pack_size_i8_rocm,
+#if NUMKONG_TARGET_CDNA4
+        (nk_kernel_punned_t)&nk_attention_pack_size_i8_cdna4,
+#endif
+#if NUMKONG_TARGET_CDNA5
+        (nk_kernel_punned_t)&nk_attention_pack_size_i8_cdna5,
+#endif
+    };
+#endif
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
+             nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE |
+             nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
+             nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
+         cpu},
+#if NUMKONG_ARCH_CUDA_
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+#else
+        {0, NUMKONG_NULL},
+#endif
+#if NUMKONG_ARCH_ROCM_
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+#else
+        {0, NUMKONG_NULL},
+#endif
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_API nk_status_t nk_attention_pack_size_i8_best(nk_size_t key_value_head_count, nk_size_t depth,
+                                                       nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                       nk_capability_t capabilities, nk_size_t *bytes) {
+    nk_attention_pack_size_punned_t const kernel = (nk_attention_pack_size_punned_t)nk_kernel_pick_(
+        capabilities, nk_attention_pack_size_i8_capabilities());
+    return kernel ? kernel(key_value_head_count, depth, segment_lengths, segment_count, bytes) : nk_missing_kernel_k;
+}
+
+static nk_capability_kernels_t const *nk_attention_packed_shape_bf16_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_attention_packed_shape_bf16_serial,
+#if NUMKONG_TARGET_NEONBFDOT
+        (nk_kernel_punned_t)&nk_attention_packed_shape_bf16_neonbfdot,
+#endif
+#if NUMKONG_TARGET_SME
+        (nk_kernel_punned_t)&nk_attention_packed_shape_bf16_sme,
+#endif
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_attention_packed_shape_bf16_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_attention_packed_shape_bf16_skylake,
+#endif
+#if NUMKONG_TARGET_GENOA
+        (nk_kernel_punned_t)&nk_attention_packed_shape_bf16_genoa,
+#endif
+#if NUMKONG_TARGET_SAPPHIREAMX
+        (nk_kernel_punned_t)&nk_attention_packed_shape_bf16_sapphireamx,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_attention_packed_shape_bf16_rvv,
+#endif
+#if NUMKONG_TARGET_V128RELAXED
+        (nk_kernel_punned_t)&nk_attention_packed_shape_bf16_v128relaxed,
+#endif
+    };
+#if NUMKONG_ARCH_CUDA_
+    static nk_kernel_punned_t const nvidia[] = {
+        (nk_kernel_punned_t)&nk_attention_packed_shape_bf16_cuda,
+#if NUMKONG_TARGET_AMPERE
+        (nk_kernel_punned_t)&nk_attention_packed_shape_bf16_ampere,
+#endif
+#if NUMKONG_TARGET_HOPPER
+        (nk_kernel_punned_t)&nk_attention_packed_shape_bf16_hopper,
+#endif
+    };
+#endif
+#if NUMKONG_ARCH_ROCM_
+    static nk_kernel_punned_t const amd[] = {
+        (nk_kernel_punned_t)&nk_attention_packed_shape_bf16_rocm,
+#if NUMKONG_TARGET_CDNA4
+        (nk_kernel_punned_t)&nk_attention_packed_shape_bf16_cdna4,
+#endif
+#if NUMKONG_TARGET_CDNA5
+        (nk_kernel_punned_t)&nk_attention_packed_shape_bf16_cdna5,
+#endif
+    };
+#endif
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neonbfdot_k * NUMKONG_TARGET_NEONBFDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
+             nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
+             nk_cap_genoa_k * NUMKONG_TARGET_GENOA | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
+             nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
+         cpu},
+#if NUMKONG_ARCH_CUDA_
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+#else
+        {0, NUMKONG_NULL},
+#endif
+#if NUMKONG_ARCH_ROCM_
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+#else
+        {0, NUMKONG_NULL},
+#endif
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_API nk_status_t nk_attention_packed_shape_bf16_best(void const *key_value_packed, nk_size_t *heads,
+                                                            nk_size_t *depth, nk_size_t *segments,
+                                                            nk_capability_t capabilities, void *stream) {
+    nk_attention_packed_shape_punned_t const kernel = (nk_attention_packed_shape_punned_t)nk_kernel_pick_(
+        capabilities, nk_attention_packed_shape_bf16_capabilities());
+    return kernel ? kernel(key_value_packed, heads, depth, segments, stream) : nk_missing_kernel_k;
+}
+
+static nk_capability_kernels_t const *nk_attention_packed_shape_e4m3_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_attention_packed_shape_e4m3_serial,
+#if NUMKONG_TARGET_NEONFHM
+        (nk_kernel_punned_t)&nk_attention_packed_shape_e4m3_neonfhm,
+#endif
+#if NUMKONG_TARGET_SME
+        (nk_kernel_punned_t)&nk_attention_packed_shape_e4m3_sme,
+#endif
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_attention_packed_shape_e4m3_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_attention_packed_shape_e4m3_skylake,
+#endif
+#if NUMKONG_TARGET_GENOA
+        (nk_kernel_punned_t)&nk_attention_packed_shape_e4m3_genoa,
+#endif
+#if NUMKONG_TARGET_SAPPHIREAMX
+        (nk_kernel_punned_t)&nk_attention_packed_shape_e4m3_sapphireamx,
+#endif
+#if NUMKONG_TARGET_DIAMONDAMX
+        (nk_kernel_punned_t)&nk_attention_packed_shape_e4m3_diamondamx,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_attention_packed_shape_e4m3_rvv,
+#endif
+#if NUMKONG_TARGET_V128RELAXED
+        (nk_kernel_punned_t)&nk_attention_packed_shape_e4m3_v128relaxed,
+#endif
+    };
+#if NUMKONG_ARCH_CUDA_
+    static nk_kernel_punned_t const nvidia[] = {
+        (nk_kernel_punned_t)&nk_attention_packed_shape_e4m3_cuda,
+#if NUMKONG_TARGET_AMPERE
+        (nk_kernel_punned_t)&nk_attention_packed_shape_e4m3_ampere,
+#endif
+#if NUMKONG_TARGET_HOPPER
+        (nk_kernel_punned_t)&nk_attention_packed_shape_e4m3_hopper,
+#endif
+#if NUMKONG_TARGET_BLACKWELL
+        (nk_kernel_punned_t)&nk_attention_packed_shape_e4m3_blackwell,
+#endif
+#if NUMKONG_TARGET_BLACKWELLRTX
+        (nk_kernel_punned_t)&nk_attention_packed_shape_e4m3_blackwellrtx,
+#endif
+    };
+#endif
+#if NUMKONG_ARCH_ROCM_
+    static nk_kernel_punned_t const amd[] = {
+        (nk_kernel_punned_t)&nk_attention_packed_shape_e4m3_rocm,
+#if NUMKONG_TARGET_CDNA4
+        (nk_kernel_punned_t)&nk_attention_packed_shape_e4m3_cdna4,
+#endif
+#if NUMKONG_TARGET_CDNA5
+        (nk_kernel_punned_t)&nk_attention_packed_shape_e4m3_cdna5,
+#endif
+    };
+#endif
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neonfhm_k * NUMKONG_TARGET_NEONFHM | nk_cap_sme_k * NUMKONG_TARGET_SME |
+             nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
+             nk_cap_genoa_k * NUMKONG_TARGET_GENOA | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
+             nk_cap_diamondamx_k * NUMKONG_TARGET_DIAMONDAMX | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
+             nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
+         cpu},
+#if NUMKONG_ARCH_CUDA_
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+         nvidia},
+#else
+        {0, NUMKONG_NULL},
+#endif
+#if NUMKONG_ARCH_ROCM_
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+#else
+        {0, NUMKONG_NULL},
+#endif
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_API nk_status_t nk_attention_packed_shape_e4m3_best(void const *key_value_packed, nk_size_t *heads,
+                                                            nk_size_t *depth, nk_size_t *segments,
+                                                            nk_capability_t capabilities, void *stream) {
+    nk_attention_packed_shape_punned_t const kernel = (nk_attention_packed_shape_punned_t)nk_kernel_pick_(
+        capabilities, nk_attention_packed_shape_e4m3_capabilities());
+    return kernel ? kernel(key_value_packed, heads, depth, segments, stream) : nk_missing_kernel_k;
+}
+
+static nk_capability_kernels_t const *nk_attention_packed_shape_i8_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_attention_packed_shape_i8_serial,
+#if NUMKONG_TARGET_NEONSDOT
+        (nk_kernel_punned_t)&nk_attention_packed_shape_i8_neonsdot,
+#endif
+#if NUMKONG_TARGET_SME
+        (nk_kernel_punned_t)&nk_attention_packed_shape_i8_sme,
+#endif
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_attention_packed_shape_i8_haswell,
+#endif
+#if NUMKONG_TARGET_ICELAKE
+        (nk_kernel_punned_t)&nk_attention_packed_shape_i8_icelake,
+#endif
+#if NUMKONG_TARGET_SAPPHIREAMX
+        (nk_kernel_punned_t)&nk_attention_packed_shape_i8_sapphireamx,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_attention_packed_shape_i8_rvv,
+#endif
+#if NUMKONG_TARGET_V128RELAXED
+        (nk_kernel_punned_t)&nk_attention_packed_shape_i8_v128relaxed,
+#endif
+    };
+#if NUMKONG_ARCH_CUDA_
+    static nk_kernel_punned_t const nvidia[] = {
+        (nk_kernel_punned_t)&nk_attention_packed_shape_i8_cuda,
+#if NUMKONG_TARGET_AMPERE
+        (nk_kernel_punned_t)&nk_attention_packed_shape_i8_ampere,
+#endif
+#if NUMKONG_TARGET_HOPPER
+        (nk_kernel_punned_t)&nk_attention_packed_shape_i8_hopper,
+#endif
+    };
+#endif
+#if NUMKONG_ARCH_ROCM_
+    static nk_kernel_punned_t const amd[] = {
+        (nk_kernel_punned_t)&nk_attention_packed_shape_i8_rocm,
+#if NUMKONG_TARGET_CDNA4
+        (nk_kernel_punned_t)&nk_attention_packed_shape_i8_cdna4,
+#endif
+#if NUMKONG_TARGET_CDNA5
+        (nk_kernel_punned_t)&nk_attention_packed_shape_i8_cdna5,
+#endif
+    };
+#endif
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
+             nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE |
+             nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
+             nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
+         cpu},
+#if NUMKONG_ARCH_CUDA_
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+#else
+        {0, NUMKONG_NULL},
+#endif
+#if NUMKONG_ARCH_ROCM_
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+#else
+        {0, NUMKONG_NULL},
+#endif
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_API nk_status_t nk_attention_packed_shape_i8_best(void const *key_value_packed, nk_size_t *heads,
+                                                          nk_size_t *depth, nk_size_t *segments,
+                                                          nk_capability_t capabilities, void *stream) {
+    nk_attention_packed_shape_punned_t const kernel = (nk_attention_packed_shape_punned_t)nk_kernel_pick_(
+        capabilities, nk_attention_packed_shape_i8_capabilities());
+    return kernel ? kernel(key_value_packed, heads, depth, segments, stream) : nk_missing_kernel_k;
+}
+
+static nk_capability_kernels_t const *nk_attention_pack_bf16_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_attention_pack_bf16_serial,
+#if NUMKONG_TARGET_NEONBFDOT
+        (nk_kernel_punned_t)&nk_attention_pack_bf16_neonbfdot,
+#endif
+#if NUMKONG_TARGET_SME
+        (nk_kernel_punned_t)&nk_attention_pack_bf16_sme,
+#endif
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_attention_pack_bf16_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_attention_pack_bf16_skylake,
+#endif
+#if NUMKONG_TARGET_GENOA
+        (nk_kernel_punned_t)&nk_attention_pack_bf16_genoa,
+#endif
+#if NUMKONG_TARGET_SAPPHIREAMX
+        (nk_kernel_punned_t)&nk_attention_pack_bf16_sapphireamx,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_attention_pack_bf16_rvv,
+#endif
+#if NUMKONG_TARGET_V128RELAXED
+        (nk_kernel_punned_t)&nk_attention_pack_bf16_v128relaxed,
+#endif
+    };
+#if NUMKONG_ARCH_CUDA_
+    static nk_kernel_punned_t const nvidia[] = {
+        (nk_kernel_punned_t)&nk_attention_pack_bf16_cuda,
+#if NUMKONG_TARGET_AMPERE
+        (nk_kernel_punned_t)&nk_attention_pack_bf16_ampere,
+#endif
+#if NUMKONG_TARGET_HOPPER
+        (nk_kernel_punned_t)&nk_attention_pack_bf16_hopper,
+#endif
+    };
+#endif
+#if NUMKONG_ARCH_ROCM_
+    static nk_kernel_punned_t const amd[] = {
+        (nk_kernel_punned_t)&nk_attention_pack_bf16_rocm,
+#if NUMKONG_TARGET_CDNA4
+        (nk_kernel_punned_t)&nk_attention_pack_bf16_cdna4,
+#endif
+#if NUMKONG_TARGET_CDNA5
+        (nk_kernel_punned_t)&nk_attention_pack_bf16_cdna5,
+#endif
+    };
+#endif
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neonbfdot_k * NUMKONG_TARGET_NEONBFDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
+             nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
+             nk_cap_genoa_k * NUMKONG_TARGET_GENOA | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
+             nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
+         cpu},
+#if NUMKONG_ARCH_CUDA_
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+#else
+        {0, NUMKONG_NULL},
+#endif
+#if NUMKONG_ARCH_ROCM_
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+#else
+        {0, NUMKONG_NULL},
+#endif
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_API nk_status_t nk_attention_pack_bf16_best(nk_bf16_t const *keys, nk_bf16_t const *values,
+                                                    nk_size_t key_value_head_count, nk_size_t depth,
+                                                    nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
+                                                    nk_size_t segment_count, nk_size_t key_stride_bytes,
+                                                    nk_size_t value_stride_bytes, void *key_value_packed,
+                                                    nk_size_t task_begin, nk_size_t task_end,
+                                                    nk_capability_t capabilities, void *stream) {
+    nk_attention_pack_punned_t const kernel = (nk_attention_pack_punned_t)nk_kernel_pick_(
+        capabilities, nk_attention_pack_bf16_capabilities());
+    return kernel ? kernel(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
+                           key_stride_bytes, value_stride_bytes, key_value_packed, task_begin, task_end, stream)
+                  : nk_missing_kernel_k;
+}
+
+static nk_capability_kernels_t const *nk_attention_pack_e4m3_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_attention_pack_e4m3_serial,
+#if NUMKONG_TARGET_NEONFHM
+        (nk_kernel_punned_t)&nk_attention_pack_e4m3_neonfhm,
+#endif
+#if NUMKONG_TARGET_SME
+        (nk_kernel_punned_t)&nk_attention_pack_e4m3_sme,
+#endif
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_attention_pack_e4m3_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_attention_pack_e4m3_skylake,
+#endif
+#if NUMKONG_TARGET_GENOA
+        (nk_kernel_punned_t)&nk_attention_pack_e4m3_genoa,
+#endif
+#if NUMKONG_TARGET_SAPPHIREAMX
+        (nk_kernel_punned_t)&nk_attention_pack_e4m3_sapphireamx,
+#endif
+#if NUMKONG_TARGET_DIAMONDAMX
+        (nk_kernel_punned_t)&nk_attention_pack_e4m3_diamondamx,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_attention_pack_e4m3_rvv,
+#endif
+#if NUMKONG_TARGET_V128RELAXED
+        (nk_kernel_punned_t)&nk_attention_pack_e4m3_v128relaxed,
+#endif
+    };
+#if NUMKONG_ARCH_CUDA_
+    static nk_kernel_punned_t const nvidia[] = {
+        (nk_kernel_punned_t)&nk_attention_pack_e4m3_cuda,
+#if NUMKONG_TARGET_AMPERE
+        (nk_kernel_punned_t)&nk_attention_pack_e4m3_ampere,
+#endif
+#if NUMKONG_TARGET_HOPPER
+        (nk_kernel_punned_t)&nk_attention_pack_e4m3_hopper,
+#endif
+#if NUMKONG_TARGET_BLACKWELL
+        (nk_kernel_punned_t)&nk_attention_pack_e4m3_blackwell,
+#endif
+#if NUMKONG_TARGET_BLACKWELLRTX
+        (nk_kernel_punned_t)&nk_attention_pack_e4m3_blackwellrtx,
+#endif
+    };
+#endif
+#if NUMKONG_ARCH_ROCM_
+    static nk_kernel_punned_t const amd[] = {
+        (nk_kernel_punned_t)&nk_attention_pack_e4m3_rocm,
+#if NUMKONG_TARGET_CDNA4
+        (nk_kernel_punned_t)&nk_attention_pack_e4m3_cdna4,
+#endif
+#if NUMKONG_TARGET_CDNA5
+        (nk_kernel_punned_t)&nk_attention_pack_e4m3_cdna5,
+#endif
+    };
+#endif
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neonfhm_k * NUMKONG_TARGET_NEONFHM | nk_cap_sme_k * NUMKONG_TARGET_SME |
+             nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
+             nk_cap_genoa_k * NUMKONG_TARGET_GENOA | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
+             nk_cap_diamondamx_k * NUMKONG_TARGET_DIAMONDAMX | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
+             nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
+         cpu},
+#if NUMKONG_ARCH_CUDA_
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+         nvidia},
+#else
+        {0, NUMKONG_NULL},
+#endif
+#if NUMKONG_ARCH_ROCM_
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+#else
+        {0, NUMKONG_NULL},
+#endif
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_API nk_status_t nk_attention_pack_e4m3_best(nk_e4m3_t const *keys, nk_e4m3_t const *values,
+                                                    nk_size_t key_value_head_count, nk_size_t depth,
+                                                    nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
+                                                    nk_size_t segment_count, nk_size_t key_stride_bytes,
+                                                    nk_size_t value_stride_bytes, void *key_value_packed,
+                                                    nk_size_t task_begin, nk_size_t task_end,
+                                                    nk_capability_t capabilities, void *stream) {
+    nk_attention_pack_punned_t const kernel = (nk_attention_pack_punned_t)nk_kernel_pick_(
+        capabilities, nk_attention_pack_e4m3_capabilities());
+    return kernel ? kernel(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
+                           key_stride_bytes, value_stride_bytes, key_value_packed, task_begin, task_end, stream)
+                  : nk_missing_kernel_k;
+}
+
+static nk_capability_kernels_t const *nk_attention_pack_i8_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_attention_pack_i8_serial,
+#if NUMKONG_TARGET_NEONSDOT
+        (nk_kernel_punned_t)&nk_attention_pack_i8_neonsdot,
+#endif
+#if NUMKONG_TARGET_SME
+        (nk_kernel_punned_t)&nk_attention_pack_i8_sme,
+#endif
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_attention_pack_i8_haswell,
+#endif
+#if NUMKONG_TARGET_ICELAKE
+        (nk_kernel_punned_t)&nk_attention_pack_i8_icelake,
+#endif
+#if NUMKONG_TARGET_SAPPHIREAMX
+        (nk_kernel_punned_t)&nk_attention_pack_i8_sapphireamx,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_attention_pack_i8_rvv,
+#endif
+#if NUMKONG_TARGET_V128RELAXED
+        (nk_kernel_punned_t)&nk_attention_pack_i8_v128relaxed,
+#endif
+    };
+#if NUMKONG_ARCH_CUDA_
+    static nk_kernel_punned_t const nvidia[] = {
+        (nk_kernel_punned_t)&nk_attention_pack_i8_cuda,
+#if NUMKONG_TARGET_AMPERE
+        (nk_kernel_punned_t)&nk_attention_pack_i8_ampere,
+#endif
+#if NUMKONG_TARGET_HOPPER
+        (nk_kernel_punned_t)&nk_attention_pack_i8_hopper,
+#endif
+    };
+#endif
+#if NUMKONG_ARCH_ROCM_
+    static nk_kernel_punned_t const amd[] = {
+        (nk_kernel_punned_t)&nk_attention_pack_i8_rocm,
+#if NUMKONG_TARGET_CDNA4
+        (nk_kernel_punned_t)&nk_attention_pack_i8_cdna4,
+#endif
+#if NUMKONG_TARGET_CDNA5
+        (nk_kernel_punned_t)&nk_attention_pack_i8_cdna5,
+#endif
+    };
+#endif
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
+             nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE |
+             nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
+             nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
+         cpu},
+#if NUMKONG_ARCH_CUDA_
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+#else
+        {0, NUMKONG_NULL},
+#endif
+#if NUMKONG_ARCH_ROCM_
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+#else
+        {0, NUMKONG_NULL},
+#endif
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_API nk_status_t nk_attention_pack_i8_best(nk_i8_t const *keys, nk_i8_t const *values,
+                                                  nk_size_t key_value_head_count, nk_size_t depth,
+                                                  nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
+                                                  nk_size_t segment_count, nk_size_t key_stride_bytes,
+                                                  nk_size_t value_stride_bytes, void *key_value_packed,
+                                                  nk_size_t task_begin, nk_size_t task_end,
+                                                  nk_capability_t capabilities, void *stream) {
+    nk_attention_pack_punned_t const kernel = (nk_attention_pack_punned_t)nk_kernel_pick_(
+        capabilities, nk_attention_pack_i8_capabilities());
+    return kernel ? kernel(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
+                           key_stride_bytes, value_stride_bytes, key_value_packed, task_begin, task_end, stream)
+                  : nk_missing_kernel_k;
+}
+
+static nk_capability_kernels_t const *nk_attention_bidirectional_packed_bf16_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_bf16_serial,
+#if NUMKONG_TARGET_NEONBFDOT
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_bf16_neonbfdot,
+#endif
+#if NUMKONG_TARGET_SME
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_bf16_sme,
+#endif
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_bf16_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_bf16_skylake,
+#endif
+#if NUMKONG_TARGET_GENOA
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_bf16_genoa,
+#endif
+#if NUMKONG_TARGET_SAPPHIREAMX
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_bf16_sapphireamx,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_bf16_rvv,
+#endif
+#if NUMKONG_TARGET_V128RELAXED
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_bf16_v128relaxed,
+#endif
+    };
+#if NUMKONG_ARCH_CUDA_
+    static nk_kernel_punned_t const nvidia[] = {
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_bf16_cuda,
+#if NUMKONG_TARGET_AMPERE
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_bf16_ampere,
+#endif
+#if NUMKONG_TARGET_HOPPER
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_bf16_hopper,
+#endif
+    };
+#endif
+#if NUMKONG_ARCH_ROCM_
+    static nk_kernel_punned_t const amd[] = {
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_bf16_rocm,
+#if NUMKONG_TARGET_CDNA4
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_bf16_cdna4,
+#endif
+#if NUMKONG_TARGET_CDNA5
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_bf16_cdna5,
+#endif
+    };
+#endif
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neonbfdot_k * NUMKONG_TARGET_NEONBFDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
+             nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
+             nk_cap_genoa_k * NUMKONG_TARGET_GENOA | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
+             nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
+         cpu},
+#if NUMKONG_ARCH_CUDA_
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+#else
+        {0, NUMKONG_NULL},
+#endif
+#if NUMKONG_ARCH_ROCM_
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+#else
+        {0, NUMKONG_NULL},
+#endif
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_API nk_status_t nk_attention_bidirectional_packed_bf16_best(
+    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride_bytes,
+    nk_size_t output_stride_bytes, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count,
+    nk_capability_t capabilities, void *stream) {
+    nk_attention_bidirectional_packed_punned_t const kernel = (nk_attention_bidirectional_packed_punned_t)
+        nk_kernel_pick_(capabilities, nk_attention_bidirectional_packed_bf16_capabilities());
+    return kernel ? kernel(queries, key_value_packed, output, head_count, key_value_head_count, depth, query_offsets,
+                           query_stride_bytes, output_stride_bytes, scale, task_start, task_count, stream)
+                  : nk_missing_kernel_k;
+}
+
+static nk_capability_kernels_t const *nk_attention_causal_packed_bf16_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_attention_causal_packed_bf16_serial,
+#if NUMKONG_TARGET_NEONBFDOT
+        (nk_kernel_punned_t)&nk_attention_causal_packed_bf16_neonbfdot,
+#endif
+#if NUMKONG_TARGET_SME
+        (nk_kernel_punned_t)&nk_attention_causal_packed_bf16_sme,
+#endif
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_attention_causal_packed_bf16_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_attention_causal_packed_bf16_skylake,
+#endif
+#if NUMKONG_TARGET_GENOA
+        (nk_kernel_punned_t)&nk_attention_causal_packed_bf16_genoa,
+#endif
+#if NUMKONG_TARGET_SAPPHIREAMX
+        (nk_kernel_punned_t)&nk_attention_causal_packed_bf16_sapphireamx,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_attention_causal_packed_bf16_rvv,
+#endif
+#if NUMKONG_TARGET_V128RELAXED
+        (nk_kernel_punned_t)&nk_attention_causal_packed_bf16_v128relaxed,
+#endif
+    };
+#if NUMKONG_ARCH_CUDA_
+    static nk_kernel_punned_t const nvidia[] = {
+        (nk_kernel_punned_t)&nk_attention_causal_packed_bf16_cuda,
+#if NUMKONG_TARGET_AMPERE
+        (nk_kernel_punned_t)&nk_attention_causal_packed_bf16_ampere,
+#endif
+#if NUMKONG_TARGET_HOPPER
+        (nk_kernel_punned_t)&nk_attention_causal_packed_bf16_hopper,
+#endif
+    };
+#endif
+#if NUMKONG_ARCH_ROCM_
+    static nk_kernel_punned_t const amd[] = {
+        (nk_kernel_punned_t)&nk_attention_causal_packed_bf16_rocm,
+#if NUMKONG_TARGET_CDNA4
+        (nk_kernel_punned_t)&nk_attention_causal_packed_bf16_cdna4,
+#endif
+#if NUMKONG_TARGET_CDNA5
+        (nk_kernel_punned_t)&nk_attention_causal_packed_bf16_cdna5,
+#endif
+    };
+#endif
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neonbfdot_k * NUMKONG_TARGET_NEONBFDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
+             nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
+             nk_cap_genoa_k * NUMKONG_TARGET_GENOA | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
+             nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
+         cpu},
+#if NUMKONG_ARCH_CUDA_
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+#else
+        {0, NUMKONG_NULL},
+#endif
+#if NUMKONG_ARCH_ROCM_
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+#else
+        {0, NUMKONG_NULL},
+#endif
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_API nk_status_t nk_attention_causal_packed_bf16_best(
+    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride_bytes,
+    nk_size_t output_stride_bytes, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
+    nk_size_t task_count, nk_capability_t capabilities, void *stream) {
+    nk_attention_causal_packed_punned_t const kernel = (nk_attention_causal_packed_punned_t)nk_kernel_pick_(
+        capabilities, nk_attention_causal_packed_bf16_capabilities());
+    return kernel ? kernel(queries, key_value_packed, output, head_count, key_value_head_count, depth, query_offsets,
+                           query_stride_bytes, output_stride_bytes, scale, diagonal_offset, window, task_start,
+                           task_count, stream)
+                  : nk_missing_kernel_k;
+}
+
+static nk_capability_kernels_t const *nk_attention_bidirectional_packed_e4m3_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_e4m3_serial,
+#if NUMKONG_TARGET_NEONFHM
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_e4m3_neonfhm,
+#endif
+#if NUMKONG_TARGET_SME
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_e4m3_sme,
+#endif
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_e4m3_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_e4m3_skylake,
+#endif
+#if NUMKONG_TARGET_GENOA
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_e4m3_genoa,
+#endif
+#if NUMKONG_TARGET_SAPPHIREAMX
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_e4m3_sapphireamx,
+#endif
+#if NUMKONG_TARGET_DIAMONDAMX
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_e4m3_diamondamx,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_e4m3_rvv,
+#endif
+#if NUMKONG_TARGET_V128RELAXED
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_e4m3_v128relaxed,
+#endif
+    };
+#if NUMKONG_ARCH_CUDA_
+    static nk_kernel_punned_t const nvidia[] = {
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_e4m3_cuda,
+#if NUMKONG_TARGET_AMPERE
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_e4m3_ampere,
+#endif
+#if NUMKONG_TARGET_HOPPER
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_e4m3_hopper,
+#endif
+#if NUMKONG_TARGET_BLACKWELL
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_e4m3_blackwell,
+#endif
+#if NUMKONG_TARGET_BLACKWELLRTX
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_e4m3_blackwellrtx,
+#endif
+    };
+#endif
+#if NUMKONG_ARCH_ROCM_
+    static nk_kernel_punned_t const amd[] = {
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_e4m3_rocm,
+#if NUMKONG_TARGET_CDNA4
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_e4m3_cdna4,
+#endif
+#if NUMKONG_TARGET_CDNA5
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_e4m3_cdna5,
+#endif
+    };
+#endif
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neonfhm_k * NUMKONG_TARGET_NEONFHM | nk_cap_sme_k * NUMKONG_TARGET_SME |
+             nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
+             nk_cap_genoa_k * NUMKONG_TARGET_GENOA | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
+             nk_cap_diamondamx_k * NUMKONG_TARGET_DIAMONDAMX | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
+             nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
+         cpu},
+#if NUMKONG_ARCH_CUDA_
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+         nvidia},
+#else
+        {0, NUMKONG_NULL},
+#endif
+#if NUMKONG_ARCH_ROCM_
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+#else
+        {0, NUMKONG_NULL},
+#endif
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_API nk_status_t nk_attention_bidirectional_packed_e4m3_best(
+    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride_bytes,
+    nk_size_t output_stride_bytes, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count,
+    nk_capability_t capabilities, void *stream) {
+    nk_attention_bidirectional_packed_punned_t const kernel = (nk_attention_bidirectional_packed_punned_t)
+        nk_kernel_pick_(capabilities, nk_attention_bidirectional_packed_e4m3_capabilities());
+    return kernel ? kernel(queries, key_value_packed, output, head_count, key_value_head_count, depth, query_offsets,
+                           query_stride_bytes, output_stride_bytes, scale, task_start, task_count, stream)
+                  : nk_missing_kernel_k;
+}
+
+static nk_capability_kernels_t const *nk_attention_causal_packed_e4m3_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_attention_causal_packed_e4m3_serial,
+#if NUMKONG_TARGET_NEONFHM
+        (nk_kernel_punned_t)&nk_attention_causal_packed_e4m3_neonfhm,
+#endif
+#if NUMKONG_TARGET_SME
+        (nk_kernel_punned_t)&nk_attention_causal_packed_e4m3_sme,
+#endif
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_attention_causal_packed_e4m3_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_attention_causal_packed_e4m3_skylake,
+#endif
+#if NUMKONG_TARGET_GENOA
+        (nk_kernel_punned_t)&nk_attention_causal_packed_e4m3_genoa,
+#endif
+#if NUMKONG_TARGET_SAPPHIREAMX
+        (nk_kernel_punned_t)&nk_attention_causal_packed_e4m3_sapphireamx,
+#endif
+#if NUMKONG_TARGET_DIAMONDAMX
+        (nk_kernel_punned_t)&nk_attention_causal_packed_e4m3_diamondamx,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_attention_causal_packed_e4m3_rvv,
+#endif
+#if NUMKONG_TARGET_V128RELAXED
+        (nk_kernel_punned_t)&nk_attention_causal_packed_e4m3_v128relaxed,
+#endif
+    };
+#if NUMKONG_ARCH_CUDA_
+    static nk_kernel_punned_t const nvidia[] = {
+        (nk_kernel_punned_t)&nk_attention_causal_packed_e4m3_cuda,
+#if NUMKONG_TARGET_AMPERE
+        (nk_kernel_punned_t)&nk_attention_causal_packed_e4m3_ampere,
+#endif
+#if NUMKONG_TARGET_HOPPER
+        (nk_kernel_punned_t)&nk_attention_causal_packed_e4m3_hopper,
+#endif
+#if NUMKONG_TARGET_BLACKWELL
+        (nk_kernel_punned_t)&nk_attention_causal_packed_e4m3_blackwell,
+#endif
+#if NUMKONG_TARGET_BLACKWELLRTX
+        (nk_kernel_punned_t)&nk_attention_causal_packed_e4m3_blackwellrtx,
+#endif
+    };
+#endif
+#if NUMKONG_ARCH_ROCM_
+    static nk_kernel_punned_t const amd[] = {
+        (nk_kernel_punned_t)&nk_attention_causal_packed_e4m3_rocm,
+#if NUMKONG_TARGET_CDNA4
+        (nk_kernel_punned_t)&nk_attention_causal_packed_e4m3_cdna4,
+#endif
+#if NUMKONG_TARGET_CDNA5
+        (nk_kernel_punned_t)&nk_attention_causal_packed_e4m3_cdna5,
+#endif
+    };
+#endif
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neonfhm_k * NUMKONG_TARGET_NEONFHM | nk_cap_sme_k * NUMKONG_TARGET_SME |
+             nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
+             nk_cap_genoa_k * NUMKONG_TARGET_GENOA | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
+             nk_cap_diamondamx_k * NUMKONG_TARGET_DIAMONDAMX | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
+             nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
+         cpu},
+#if NUMKONG_ARCH_CUDA_
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+         nvidia},
+#else
+        {0, NUMKONG_NULL},
+#endif
+#if NUMKONG_ARCH_ROCM_
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+#else
+        {0, NUMKONG_NULL},
+#endif
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_best(
+    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride_bytes,
+    nk_size_t output_stride_bytes, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
+    nk_size_t task_count, nk_capability_t capabilities, void *stream) {
+    nk_attention_causal_packed_punned_t const kernel = (nk_attention_causal_packed_punned_t)nk_kernel_pick_(
+        capabilities, nk_attention_causal_packed_e4m3_capabilities());
+    return kernel ? kernel(queries, key_value_packed, output, head_count, key_value_head_count, depth, query_offsets,
+                           query_stride_bytes, output_stride_bytes, scale, diagonal_offset, window, task_start,
+                           task_count, stream)
+                  : nk_missing_kernel_k;
+}
+
+static nk_capability_kernels_t const *nk_attention_bidirectional_packed_i8_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_i8_serial,
+#if NUMKONG_TARGET_NEONSDOT
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_i8_neonsdot,
+#endif
+#if NUMKONG_TARGET_SME
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_i8_sme,
+#endif
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_i8_haswell,
+#endif
+#if NUMKONG_TARGET_ICELAKE
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_i8_icelake,
+#endif
+#if NUMKONG_TARGET_SAPPHIREAMX
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_i8_sapphireamx,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_i8_rvv,
+#endif
+#if NUMKONG_TARGET_V128RELAXED
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_i8_v128relaxed,
+#endif
+    };
+#if NUMKONG_ARCH_CUDA_
+    static nk_kernel_punned_t const nvidia[] = {
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_i8_cuda,
+#if NUMKONG_TARGET_AMPERE
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_i8_ampere,
+#endif
+#if NUMKONG_TARGET_HOPPER
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_i8_hopper,
+#endif
+    };
+#endif
+#if NUMKONG_ARCH_ROCM_
+    static nk_kernel_punned_t const amd[] = {
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_i8_rocm,
+#if NUMKONG_TARGET_CDNA4
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_i8_cdna4,
+#endif
+#if NUMKONG_TARGET_CDNA5
+        (nk_kernel_punned_t)&nk_attention_bidirectional_packed_i8_cdna5,
+#endif
+    };
+#endif
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
+             nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE |
+             nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
+             nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
+         cpu},
+#if NUMKONG_ARCH_CUDA_
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+#else
+        {0, NUMKONG_NULL},
+#endif
+#if NUMKONG_ARCH_ROCM_
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+#else
+        {0, NUMKONG_NULL},
+#endif
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_API nk_status_t nk_attention_bidirectional_packed_i8_best(
+    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride_bytes,
+    nk_size_t output_stride_bytes, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count,
+    nk_capability_t capabilities, void *stream) {
+    nk_attention_bidirectional_packed_punned_t const kernel = (nk_attention_bidirectional_packed_punned_t)
+        nk_kernel_pick_(capabilities, nk_attention_bidirectional_packed_i8_capabilities());
+    return kernel ? kernel(queries, key_value_packed, output, head_count, key_value_head_count, depth, query_offsets,
+                           query_stride_bytes, output_stride_bytes, scale, task_start, task_count, stream)
+                  : nk_missing_kernel_k;
+}
+
+static nk_capability_kernels_t const *nk_attention_causal_packed_i8_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        (nk_kernel_punned_t)&nk_attention_causal_packed_i8_serial,
+#if NUMKONG_TARGET_NEONSDOT
+        (nk_kernel_punned_t)&nk_attention_causal_packed_i8_neonsdot,
+#endif
+#if NUMKONG_TARGET_SME
+        (nk_kernel_punned_t)&nk_attention_causal_packed_i8_sme,
+#endif
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_attention_causal_packed_i8_haswell,
+#endif
+#if NUMKONG_TARGET_ICELAKE
+        (nk_kernel_punned_t)&nk_attention_causal_packed_i8_icelake,
+#endif
+#if NUMKONG_TARGET_SAPPHIREAMX
+        (nk_kernel_punned_t)&nk_attention_causal_packed_i8_sapphireamx,
+#endif
+#if NUMKONG_TARGET_RVV
+        (nk_kernel_punned_t)&nk_attention_causal_packed_i8_rvv,
+#endif
+#if NUMKONG_TARGET_V128RELAXED
+        (nk_kernel_punned_t)&nk_attention_causal_packed_i8_v128relaxed,
+#endif
+    };
+#if NUMKONG_ARCH_CUDA_
+    static nk_kernel_punned_t const nvidia[] = {
+        (nk_kernel_punned_t)&nk_attention_causal_packed_i8_cuda,
+#if NUMKONG_TARGET_AMPERE
+        (nk_kernel_punned_t)&nk_attention_causal_packed_i8_ampere,
+#endif
+#if NUMKONG_TARGET_HOPPER
+        (nk_kernel_punned_t)&nk_attention_causal_packed_i8_hopper,
+#endif
+    };
+#endif
+#if NUMKONG_ARCH_ROCM_
+    static nk_kernel_punned_t const amd[] = {
+        (nk_kernel_punned_t)&nk_attention_causal_packed_i8_rocm,
+#if NUMKONG_TARGET_CDNA4
+        (nk_kernel_punned_t)&nk_attention_causal_packed_i8_cdna4,
+#endif
+#if NUMKONG_TARGET_CDNA5
+        (nk_kernel_punned_t)&nk_attention_causal_packed_i8_cdna5,
+#endif
+    };
+#endif
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
+             nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE |
+             nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
+             nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
+         cpu},
+#if NUMKONG_ARCH_CUDA_
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+#else
+        {0, NUMKONG_NULL},
+#endif
+#if NUMKONG_ARCH_ROCM_
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+#else
+        {0, NUMKONG_NULL},
+#endif
+        {0, NUMKONG_NULL},
+    };
+    return lists;
+}
+
+NUMKONG_API nk_status_t nk_attention_causal_packed_i8_best(
+    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride_bytes,
+    nk_size_t output_stride_bytes, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
+    nk_size_t task_count, nk_capability_t capabilities, void *stream) {
+    nk_attention_causal_packed_punned_t const kernel = (nk_attention_causal_packed_punned_t)nk_kernel_pick_(
+        capabilities, nk_attention_causal_packed_i8_capabilities());
+    return kernel ? kernel(queries, key_value_packed, output, head_count, key_value_head_count, depth, query_offsets,
+                           query_stride_bytes, output_stride_bytes, scale, diagonal_offset, window, task_start,
+                           task_count, stream)
+                  : nk_missing_kernel_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
+                                                 nk_kernel_punned_t *kernel, nk_capability_t *capability) {
+    nk_capability_kernels_t const *lists = NUMKONG_NULL;
+    switch (dtype) {
+    case nk_bf16_k:
+        switch (kind) {
+        case nk_kernel_attention_pack_size_k: lists = nk_attention_pack_size_bf16_capabilities(); break;
+        case nk_kernel_attention_packed_shape_k: lists = nk_attention_packed_shape_bf16_capabilities(); break;
+        case nk_kernel_attention_pack_k: lists = nk_attention_pack_bf16_capabilities(); break;
+        case nk_kernel_attention_bidirectional_packed_k:
+            lists = nk_attention_bidirectional_packed_bf16_capabilities();
+            break;
+        case nk_kernel_attention_causal_packed_k: lists = nk_attention_causal_packed_bf16_capabilities(); break;
+        default: break;
+        }
+        break;
+    case nk_e4m3_k:
+        switch (kind) {
+        case nk_kernel_attention_pack_size_k: lists = nk_attention_pack_size_e4m3_capabilities(); break;
+        case nk_kernel_attention_packed_shape_k: lists = nk_attention_packed_shape_e4m3_capabilities(); break;
+        case nk_kernel_attention_pack_k: lists = nk_attention_pack_e4m3_capabilities(); break;
+        case nk_kernel_attention_bidirectional_packed_k:
+            lists = nk_attention_bidirectional_packed_e4m3_capabilities();
+            break;
+        case nk_kernel_attention_causal_packed_k: lists = nk_attention_causal_packed_e4m3_capabilities(); break;
+        default: break;
+        }
+        break;
+    case nk_i8_k:
+        switch (kind) {
+        case nk_kernel_attention_pack_size_k: lists = nk_attention_pack_size_i8_capabilities(); break;
+        case nk_kernel_attention_packed_shape_k: lists = nk_attention_packed_shape_i8_capabilities(); break;
+        case nk_kernel_attention_pack_k: lists = nk_attention_pack_i8_capabilities(); break;
+        case nk_kernel_attention_bidirectional_packed_k:
+            lists = nk_attention_bidirectional_packed_i8_capabilities();
+            break;
+        case nk_kernel_attention_causal_packed_k: lists = nk_attention_causal_packed_i8_capabilities(); break;
+        default: break;
+        }
+        break;
+    default: break;
+    }
+    *kernel = lists ? nk_kernel_pick_(capabilities, lists) : (nk_kernel_punned_t)NUMKONG_NULL;
+    *capability = *kernel ? nk_capability_pick_(capabilities, lists) : 0;
+    return *kernel ? nk_success_k : nk_missing_kernel_k;
+}

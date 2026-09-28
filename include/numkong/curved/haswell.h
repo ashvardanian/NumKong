@@ -11,17 +11,19 @@
 #ifndef NUMKONG_CURVED_HASWELL_H
 #define NUMKONG_CURVED_HASWELL_H
 
-#if NUMKONG_ARCH_X86_64_
-#if NUMKONG_TARGET_HASWELL
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_HASWELL_
 
 #include "numkong/types.h"
-#include "numkong/reduce/haswell.h"  // `nk_reduce_add_f32x8_haswell_`
-#include "numkong/scalar/haswell.h"  // `nk_f32_sqrt_haswell`
+#include "numkong/cast/serial.h"    // `nk_bf16_to_f32_`
+#include "numkong/cast/haswell.h"   // `nk_partial_load_bf16x8_to_f32x8_haswell_`
+#include "numkong/reduce/haswell.h" // `nk_reduce_add_f32x8_haswell_`
 
 #if defined(__cplusplus)
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_HASWELL
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("avx2,f16c,fma,bmi,bmi2"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -29,8 +31,8 @@ extern "C" {
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c,
-                                                         nk_size_t n, nk_f64_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_bilinear_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
+                                                nk_f64_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const tail_length = n % 4;
     nk_size_t const tail_start = n - tail_length;
@@ -65,8 +67,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f32_haswell(nk_f32_t const *a, nk_f
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_mahalanobis_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c,
-                                                            nk_size_t n, nk_f64_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_mahalanobis_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
+                                                   nk_f64_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const tail_length = n % 4;
     nk_size_t const tail_start = n - tail_length;
@@ -99,12 +101,12 @@ NUMKONG_API_COMPTIME nk_status_t nk_mahalanobis_f32_haswell(nk_f32_t const *a, n
         }
     }
 
-    *result = nk_f64_sqrt_haswell(sum > 0 ? sum : 0);
+    *result = _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(sum > 0 ? sum : 0)));
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c,
-                                                         nk_size_t n, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_bilinear_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
+                                                nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 sum_f32x8 = _mm256_setzero_ps();
     for (nk_size_t i = 0; i != n; ++i) {
@@ -140,8 +142,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_bilinear_f16_haswell(nk_f16_t const *a, nk_f
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_mahalanobis_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c,
-                                                            nk_size_t n, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_mahalanobis_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
+                                                   nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 sum_f32x8 = _mm256_setzero_ps();
     for (nk_size_t i = 0; i != n; ++i) {
@@ -180,18 +182,18 @@ NUMKONG_API_COMPTIME nk_status_t nk_mahalanobis_f16_haswell(nk_f16_t const *a, n
         }
     }
 
-    *result = nk_f32_sqrt_haswell(sum > 0 ? sum : 0);
+    *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(sum > 0 ? sum : 0)));
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_bilinear_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
-                                                          nk_size_t n, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_bilinear_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
+                                                 nk_size_t n, nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 sum_f32x8 = _mm256_setzero_ps();
     for (nk_size_t i = 0; i != n; ++i) {
-        // The `nk_bf16_to_f32_serial` is cheaper than `nk_bf16x8_to_f32x8_haswell_`
+        // The `nk_bf16_to_f32_` is cheaper than `nk_bf16x8_to_f32x8_haswell_`
         nk_f32_t a_f32;
-        nk_bf16_to_f32_serial(a + i, &a_f32);
+        nk_bf16_to_f32_(a + i, &a_f32);
         __m256 a_f32x8 = _mm256_set1_ps(a_f32);
         __m256 cb_j_f32x8 = _mm256_setzero_ps();
         for (nk_size_t j = 0; j + 8 <= n; j += 8) {
@@ -209,7 +211,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_bilinear_bf16_haswell(nk_bf16_t const *a, nk
     if (tail_length) {
         for (nk_size_t i = 0; i != n; ++i) {
             nk_f32_t a_i;
-            nk_bf16_to_f32_serial(a + i, &a_i);
+            nk_bf16_to_f32_(a + i, &a_i);
             nk_b256_vec_t b_vec;
             nk_partial_load_bf16x8_to_f32x8_haswell_(b + tail_start, &b_vec, tail_length);
             __m256 b_f32x8 = b_vec.ymm_ps;
@@ -225,14 +227,14 @@ NUMKONG_API_COMPTIME nk_status_t nk_bilinear_bf16_haswell(nk_bf16_t const *a, nk
     return nk_success_k;
 }
 
-NUMKONG_API_COMPTIME nk_status_t nk_mahalanobis_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
-                                                             nk_size_t n, nk_f32_t *result, void *stream) {
+NUMKONG_API nk_status_t nk_mahalanobis_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
+                                                    nk_size_t n, nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 sum_f32x8 = _mm256_setzero_ps();
     for (nk_size_t i = 0; i != n; ++i) {
         nk_f32_t a_i, b_i;
-        nk_bf16_to_f32_serial(a + i, &a_i);
-        nk_bf16_to_f32_serial(b + i, &b_i);
+        nk_bf16_to_f32_(a + i, &a_i);
+        nk_bf16_to_f32_(b + i, &b_i);
         __m256 diff_i_f32x8 = _mm256_sub_ps( //
             _mm256_set1_ps(a_i),             //
             _mm256_set1_ps(b_i));
@@ -254,8 +256,8 @@ NUMKONG_API_COMPTIME nk_status_t nk_mahalanobis_bf16_haswell(nk_bf16_t const *a,
     if (tail_length) {
         for (nk_size_t i = 0; i != n; ++i) {
             nk_f32_t a_i, b_i;
-            nk_bf16_to_f32_serial(a + i, &a_i);
-            nk_bf16_to_f32_serial(b + i, &b_i);
+            nk_bf16_to_f32_(a + i, &a_i);
+            nk_bf16_to_f32_(b + i, &b_i);
             nk_f32_t diff_i = a_i - b_i;
             nk_b256_vec_t a_tail_vec, b_tail_vec;
             nk_partial_load_bf16x8_to_f32x8_haswell_(a + tail_start, &a_tail_vec, tail_length);
@@ -269,7 +271,7 @@ NUMKONG_API_COMPTIME nk_status_t nk_mahalanobis_bf16_haswell(nk_bf16_t const *a,
         }
     }
 
-    *result = nk_f32_sqrt_haswell(sum > 0 ? sum : 0);
+    *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(sum > 0 ? sum : 0)));
     return nk_success_k;
 }
 
@@ -278,11 +280,12 @@ NUMKONG_API_COMPTIME nk_status_t nk_mahalanobis_bf16_haswell(nk_bf16_t const *a,
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_HASWELL
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_HASWELL
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_HASWELL_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_CURVED_HASWELL_H

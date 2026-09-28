@@ -12,7 +12,7 @@
 #ifndef NUMKONG_CAST_DIAMOND_H
 #define NUMKONG_CAST_DIAMOND_H
 
-#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_ARCH_X8664_
 #if NUMKONG_TARGET_DIAMOND
 
 #include "numkong/types.h"
@@ -35,22 +35,20 @@ extern "C" {
                    "bmi", "bmi2")
 #endif
 
-NUMKONG_HELPER_INLINE void nk_load_e4m3x32_to_f16x32_diamond_(void const *src, nk_b512_vec_t *dst) {
+NUMKONG_INLINE void nk_load_e4m3x32_to_f16x32_diamond_(void const *src, nk_b512_vec_t *dst) {
     dst->zmm = nk_m512i_from_m512h_(_mm512_cvthf8_ph(_mm256_loadu_epi8(src)));
 }
 
-NUMKONG_HELPER_INLINE void nk_partial_load_e4m3x32_to_f16x32_diamond_(void const *src, nk_b512_vec_t *dst,
-                                                                      nk_size_t count) {
+NUMKONG_INLINE void nk_partial_load_e4m3x32_to_f16x32_diamond_(void const *src, nk_b512_vec_t *dst, nk_size_t count) {
     __mmask32 mask = (__mmask32)_bzhi_u32(0xFFFFFFFF, count);
     dst->zmm = nk_m512i_from_m512h_(_mm512_cvthf8_ph(_mm256_maskz_loadu_epi8(mask, src)));
 }
 
-NUMKONG_HELPER_INLINE void nk_load_e5m2x32_to_f16x32_diamond_(void const *src, nk_b512_vec_t *dst) {
+NUMKONG_INLINE void nk_load_e5m2x32_to_f16x32_diamond_(void const *src, nk_b512_vec_t *dst) {
     dst->zmm = nk_m512i_from_m512h_(_mm512_cvtbf8_ph(_mm256_loadu_epi8(src)));
 }
 
-NUMKONG_HELPER_INLINE void nk_partial_load_e5m2x32_to_f16x32_diamond_(void const *src, nk_b512_vec_t *dst,
-                                                                      nk_size_t count) {
+NUMKONG_INLINE void nk_partial_load_e5m2x32_to_f16x32_diamond_(void const *src, nk_b512_vec_t *dst, nk_size_t count) {
     __mmask32 mask = (__mmask32)_bzhi_u32(0xFFFFFFFF, count);
     dst->zmm = nk_m512i_from_m512h_(_mm512_cvtbf8_ph(_mm256_maskz_loadu_epi8(mask, src)));
 }
@@ -66,5 +64,5 @@ NUMKONG_HELPER_INLINE void nk_partial_load_e5m2x32_to_f16x32_diamond_(void const
 #endif
 
 #endif // NUMKONG_TARGET_DIAMOND
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_CAST_DIAMOND_H

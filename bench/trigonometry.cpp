@@ -27,8 +27,9 @@ struct atan_with_stl {
 };
 
 template <typename scalar_type_, typename kernel_type_>
-void elementwise_with_stl(scalar_type_ const *ins, nk_size_t n, scalar_type_ *outs) {
+nk_status_t elementwise_with_stl(scalar_type_ const *ins, nk_size_t n, scalar_type_ *outs, void *) {
     for (nk_size_t i = 0; i != n; ++i) outs[i] = kernel_type_ {}(ins[i]);
+    return nk_success_k;
 }
 
 /**
@@ -58,7 +59,9 @@ void measure_trigonometry(bm::State &state, kernel_type_ kernel, std::size_t dim
     std::size_t iterations = 0;
     for (auto _ : state) {
         std::size_t const index = iterations & (vectors_count - 1);
-        kernel(input_a[index].raw_values_data(), dimensions, output[index].raw_values_data());
+        if (!succeeded(state,
+                       kernel(input_a[index].raw_values_data(), dimensions, output[index].raw_values_data(), nullptr)))
+            break;
         bm::ClobberMemory();
         iterations++;
     }
@@ -92,7 +95,9 @@ void measure_rope(bm::State &state, kernel_type_ kernel, std::size_t dimensions)
     for (auto _ : state) {
         std::size_t const index = iterations & (vectors_count - 1);
         auto *ptr = tokens[index].raw_values_data();
-        kernel(ptr, ptr, cos_grid.data(), sin_grid.data(), 1, 1, half_dim, stride, stride, 1.0f);
+        if (!succeeded(state, kernel(ptr, ptr, cos_grid.data(), sin_grid.data(), 1, 1, half_dim, stride, stride, 1.0f,
+                                     nullptr)))
+            break;
         bm::ClobberMemory();
         ++iterations;
     }

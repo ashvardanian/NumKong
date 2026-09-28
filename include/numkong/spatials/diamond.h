@@ -12,10 +12,12 @@
 #ifndef NUMKONG_SPATIALS_DIAMOND_H
 #define NUMKONG_SPATIALS_DIAMOND_H
 
-#if NUMKONG_ARCH_X86_64_
+#if NUMKONG_ARCH_X8664_
 #if NUMKONG_TARGET_DIAMOND
 
+#include "numkong/spatial/haswell.h" // `nk_angular_through_f32_from_dot_haswell_`
 #include "numkong/dots/diamond.h"
+#include "numkong/dots/serial.h"
 
 #if defined(__cplusplus)
 extern "C" {
@@ -82,5 +84,5 @@ nk_define_cross_normalized_symmetric_(euclidean, e5m2, diamond, e5m2, f32, /*nor
 #endif
 
 #endif // NUMKONG_TARGET_DIAMOND
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_SPATIALS_DIAMOND_H

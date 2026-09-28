@@ -6,11 +6,11 @@
  *      ragged attention windows.
  *
  *  Every scenario is a template over the scalar type, its kernels, and a backend owning where
- *  kernel operands live, how a kernel is called, and when its results become readable:
- *  @c host_backend_t by default, @c cuda_backend_t from `harness.cuh` for the CUDA suite. Every
- *  backend is held to the same `nk_*_error_bound` of each family. Set distances run on the host
- *  only. References always run the serial `nk::` templates on the host. Outputs start filled with
- *  @c canary_k bytes, so a stray write shows.
+ *  kernel operands live, how a kernel is called, and when its results become readable: the backends
+ *  of `harness.hpp`, @c host_backend_t by default. Every backend is held to the same
+ *  `nk_*_error_bound` of each family. Set distances run on the host only. References always run the
+ *  serial `nk::` templates on the host. Outputs start filled with @c canary_k bytes, so any stray
+ *  write shows up.
  */
 #pragma once
 #ifndef NUMKONG_TEST_CROSS_HPP
@@ -60,6 +60,16 @@ void synchronize(backend_type_ &backend, error_stats_t &stats) noexcept {
     if (char const *failure = backend.synchronize()) stats.expect(false, failure);
 }
 
+/** The bytes @p packed_size_fn asks to pack its @p arguments into, failing @p stats when it has no
+ *  kernel. Pack sizes are host arithmetic on every backend, so they run here. */
+template <typename packed_size_kernel_type_, typename... arguments_types_>
+std::size_t pack_size_bytes(error_stats_t &stats, packed_size_kernel_type_ packed_size_fn,
+                            arguments_types_... arguments) noexcept {
+    nk_size_t bytes = 0;
+    stats.expect(packed_size_fn(arguments..., &bytes));
+    return bytes;
+}
+
 #pragma endregion Backend Policy
 
 #pragma region Tolerances
@@ -86,7 +96,7 @@ std::vector<double> decode_rows(nk::vector<scalar_type_, allocator_type_> const 
     std::vector<double> decoded(rows * depth);
     for (std::size_t row = 0; row < rows; row++)
         nk_cast_serial(matrix.raw_values_data() + row * row_stride_values, scalar_type_::dtype(), depth,
-                       decoded.data() + row * depth, nk_f64_k);
+                       decoded.data() + row * depth, nk_f64_k, nullptr);
     return decoded;
 }
 
@@ -379,18 +389,18 @@ nk::vector<typename scalar_type_::attention_result_t> reference_by_rows(
             nk_u32_t const visible_offsets[2] = {static_cast<nk_u32_t>(first_key + key_begin),
                                                  static_cast<nk_u32_t>(first_key + key_end)};
             nk_u32_t const visible_length = static_cast<nk_u32_t>(key_end - key_begin);
-            auto key_value_reference = make_vector<char>(nk::attention_pack_size<scalar_type_, nk::no_simd_k>(
-                layout.key_value_head_count, layout.depth, &visible_length, 1));
-            nk::attention_pack<scalar_type_, nk::no_simd_k>(
-                keys.values_data(), values.values_data(), layout.key_value_head_count, layout.depth, visible_offsets,
-                &visible_length, 1, key_value_stride_bytes, key_value_stride_bytes,
-                key_value_reference.raw_values_data());
+            auto key_value_reference = make_vector<char>(nk::attention_pack_size<scalar_type_>(
+                layout.key_value_head_count, layout.depth, &visible_length, 1, 0));
+            nk::attention_pack<scalar_type_>(keys.values_data(), values.values_data(), layout.key_value_head_count,
+                                             layout.depth, visible_offsets, &visible_length, 1, key_value_stride_bytes,
+                                             key_value_stride_bytes, key_value_reference.raw_values_data(), 0,
+                                             static_cast<std::size_t>(-1), 0);
             std::size_t const query_row = segments.query_offsets.values_data()[segment] + row;
-            nk::attention_bidirectional_packed<scalar_type_, result_t, nk::no_simd_k>(
+            nk::attention_bidirectional_packed<scalar_type_, result_t>(
                 queries.values_data() + query_row * layout.query_width(), key_value_reference.raw_values_data(),
                 reference.values_data() + query_row * layout.query_width(), layout.head_count,
                 layout.key_value_head_count, layout.depth, single_query_offsets, query_stride_bytes,
-                output_stride_bytes, layout.scale);
+                output_stride_bytes, layout.scale, 0, static_cast<std::size_t>(-1), 0);
         }
     }
     return reference;
@@ -504,7 +514,7 @@ double worst_error_ulps(computed_type_ computed, reference_vector_type_ const &r
  *  left untouched. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename dots_kernel_type_>
-error_stats_t test_dots_packed(pack_size_kernel_type_ packed_size_fn, pack_kernel_type_ pack_fn,
+error_stats_t test_dots_packed(backend_type_ backend, pack_size_kernel_type_ packed_size_fn, pack_kernel_type_ pack_fn,
                                dots_kernel_type_ dots_fn) {
     using scalar_t = scalar_type_;
     using result_t = typename scalar_t::dot_result_t;
@@ -513,7 +523,6 @@ error_stats_t test_dots_packed(pack_size_kernel_type_ packed_size_fn, pack_kerne
     using results_t = nk::vector<result_t, typename backend_type_::template allocator<result_t>>;
     using bytes_t = nk::vector<char, typename backend_type_::template allocator<char>>;
 
-    backend_type_ backend;
     error_stats_t stats(nk_dot_error_bound(scalar_t::dtype()));
     std::mt19937 generator(global_config.seed);
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
@@ -532,12 +541,15 @@ error_stats_t test_dots_packed(pack_size_kernel_type_ packed_size_fn, pack_kerne
             std::size_t const a_stride_values = a_stride / sizeof(scalar_t),
                               b_stride_values = b_stride / sizeof(scalar_t);
 
-            auto a = scalars_t::try_zeros(height * a_stride_values * dimensions_per_value),
-                 b = scalars_t::try_zeros(width * b_stride_values * dimensions_per_value);
-            auto c = results_t::try_zeros(height * c_stride / sizeof(result_t));
-            auto b_packed = bytes_t::try_zeros(packed_size_fn(width, depth));
+            auto a = scalars_t::try_zeros(height * a_stride_values * dimensions_per_value,
+                                          allocator_of<scalar_t>(backend)),
+                 b = scalars_t::try_zeros(width * b_stride_values * dimensions_per_value,
+                                          allocator_of<scalar_t>(backend));
+            auto c = results_t::try_zeros(height * c_stride / sizeof(result_t), allocator_of<result_t>(backend));
+            auto b_packed = bytes_t::try_zeros(pack_size_bytes(stats, packed_size_fn, width, depth),
+                                               allocator_of<char>(backend));
             std::vector<reference_t> c_reference(height * width);
-            auto b_packed_reference = make_vector<char>(nk::dots_pack_size<scalar_t, nk::no_simd_k>(width, depth));
+            auto b_packed_reference = make_vector<char>(nk::dots_pack_size<scalar_t>(width, depth, no_tiers_k));
 
             if constexpr (std::is_same_v<scalar_t, f64_t>) {
                 if (test_case.operands == dots_operands_t::ill_conditioned_k)
@@ -555,11 +567,11 @@ error_stats_t test_dots_packed(pack_size_kernel_type_ packed_size_fn, pack_kerne
             synchronize(backend, stats);
 
             // Compute reference using nk:: template
-            nk::dots_pack<scalar_t, nk::no_simd_k>(b.values_data(), width, depth, b_stride,
-                                                   b_packed_reference.raw_values_data());
-            nk::dots_packed<scalar_t, reference_t, nk::no_simd_k>(a.values_data(), b_packed_reference.raw_values_data(),
-                                                                  c_reference.data(), height, width, depth, a_stride,
-                                                                  width * sizeof(reference_t));
+            nk::dots_pack<scalar_t>(b.values_data(), width, depth, b_stride, b_packed_reference.raw_values_data(),
+                                    no_tiers_k);
+            nk::dots_packed<scalar_t, reference_t>(a.values_data(), b_packed_reference.raw_values_data(),
+                                                   c_reference.data(), height, width, depth, a_stride,
+                                                   width * sizeof(reference_t), no_tiers_k);
 
             for (std::size_t row = 0; row < height; row++)
                 for (std::size_t column = 0; column < width; column++)
@@ -590,16 +602,23 @@ error_stats_t test_dots_packed(pack_size_kernel_type_ packed_size_fn, pack_kerne
     return stats;
 }
 
+/** @c test_dots_packed on a default-constructed @p backend_type_. */
+template <typename scalar_type_, typename backend_type_ = host_backend_t, typename pack_size_kernel_type_,
+          typename pack_kernel_type_, typename dots_kernel_type_>
+error_stats_t test_dots_packed(pack_size_kernel_type_ packed_size_fn, pack_kernel_type_ pack_fn,
+                               dots_kernel_type_ dots_fn) {
+    return test_dots_packed<scalar_type_, backend_type_>(backend_type_ {}, packed_size_fn, pack_fn, dots_fn);
+}
+
 /** The packed B layout over the widths and depths of @c dots_packed_cases: packing two column
  *  windows equals packing all columns at once byte for byte, and @c packed_shape_fn_ reads back the
  *  width and depth the pack was given. */
 template <typename scalar_type_, typename backend_type_, auto packed_size_fn_, auto packed_shape_fn_, auto pack_fn_>
-error_stats_t test_dots_pack_layout() {
+error_stats_t test_dots_pack_layout(backend_type_ backend) {
     using scalar_t = scalar_type_;
     using scalars_t = nk::vector<scalar_t, typename backend_type_::template allocator<scalar_t>>;
     using bytes_t = nk::vector<char, typename backend_type_::template allocator<char>>;
 
-    backend_type_ backend;
     error_stats_t stats(comparison_family_t::exact_k);
     std::mt19937 generator(global_config.seed);
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
@@ -610,9 +629,10 @@ error_stats_t test_dots_pack_layout() {
             std::size_t const width = test_case.width;
             std::size_t const depth = nk::divide_round_up(test_case.depth, dimensions_per_value) * dimensions_per_value;
             std::size_t const row_bytes = depth / dimensions_per_value * sizeof(scalar_t);
-            auto b = scalars_t::try_zeros(width * depth);
-            auto whole = bytes_t::try_zeros(packed_size_fn_(width, depth)),
-                 windows = bytes_t::try_zeros(packed_size_fn_(width, depth));
+            auto b = scalars_t::try_zeros(width * depth, allocator_of<scalar_t>(backend));
+            std::size_t const packed_size = pack_size_bytes(stats, packed_size_fn_, width, depth);
+            auto whole = bytes_t::try_zeros(packed_size, allocator_of<char>(backend)),
+                 windows = bytes_t::try_zeros(packed_size, allocator_of<char>(backend));
             fill_random(generator, b);
             fill_canary(whole), fill_canary(windows);
 
@@ -632,6 +652,13 @@ error_stats_t test_dots_pack_layout() {
         }
     }
     return stats;
+}
+
+/** @c test_dots_pack_layout on a default-constructed @p backend_type_. */
+template <typename scalar_type_, typename backend_type_, auto packed_size_fn_, auto packed_shape_fn_, auto pack_fn_>
+error_stats_t test_dots_pack_layout() {
+    return test_dots_pack_layout<scalar_type_, backend_type_, packed_size_fn_, packed_shape_fn_, pack_fn_>(
+        backend_type_ {});
 }
 
 /** One Gram-matrix case over @c count vectors, computing rows [row_start, row_start + row_count)
@@ -672,14 +699,14 @@ inline std::vector<dots_symmetric_case_t> dots_symmetric_cases() {
  *  above the diagonal of the computed rows, with everything else in the output left untouched.
  *  External baselines summing less precisely than NumKong pass their own @p term_error_bound. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t, typename symmetric_kernel_type_>
-error_stats_t test_dots_symmetric(symmetric_kernel_type_ symmetric_fn, nk_f64_t term_error_bound) {
+error_stats_t test_dots_symmetric(backend_type_ backend, symmetric_kernel_type_ symmetric_fn,
+                                  nk_f64_t term_error_bound) {
     using scalar_t = scalar_type_;
     using result_t = typename scalar_t::dot_result_t;
     using reference_t = bounded_reference_for<scalar_t, result_t>;
     using scalars_t = nk::vector<scalar_t, typename backend_type_::template allocator<scalar_t>>;
     using results_t = nk::vector<result_t, typename backend_type_::template allocator<result_t>>;
 
-    backend_type_ backend;
     error_stats_t stats(term_error_bound);
     std::mt19937 generator(global_config.seed);
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
@@ -696,8 +723,9 @@ error_stats_t test_dots_symmetric(symmetric_kernel_type_ symmetric_fn, nk_f64_t 
             std::size_t const c_stride = (count + (padded ? 3 : 0)) * sizeof(result_t);
             std::size_t const stride_values = stride / sizeof(scalar_t);
 
-            auto a = scalars_t::try_zeros(count * stride_values * dimensions_per_value);
-            auto c = results_t::try_zeros(count * c_stride / sizeof(result_t));
+            auto a = scalars_t::try_zeros(count * stride_values * dimensions_per_value,
+                                          allocator_of<scalar_t>(backend));
+            auto c = results_t::try_zeros(count * c_stride / sizeof(result_t), allocator_of<result_t>(backend));
             std::vector<reference_t> c_reference(count * count);
             fill_random(generator, a);
             fill_padding_canary(a, count, row_bytes, stride), fill_canary(c);
@@ -708,9 +736,9 @@ error_stats_t test_dots_symmetric(symmetric_kernel_type_ symmetric_fn, nk_f64_t 
             synchronize(backend, stats);
 
             // Compute reference using nk:: template
-            nk::dots_symmetric<scalar_t, reference_t, nk::no_simd_k>(a.values_data(), count, depth, stride,
-                                                                     c_reference.data(), count * sizeof(reference_t),
-                                                                     row_start, row_end - row_start);
+            nk::dots_symmetric<scalar_t, reference_t>(a.values_data(), count, depth, stride, c_reference.data(),
+                                                      count * sizeof(reference_t), row_start, row_end - row_start,
+                                                      no_tiers_k);
 
             for (std::size_t row = row_start; row < row_end; row++)
                 for (std::size_t column = row; column < count; column++)
@@ -719,6 +747,19 @@ error_stats_t test_dots_symmetric(symmetric_kernel_type_ symmetric_fn, nk_f64_t 
         }
     }
     return stats;
+}
+
+/** @c test_dots_symmetric on @p backend, held to the @c nk_dot_error_bound of @p scalar_type_. */
+template <typename scalar_type_, typename backend_type_, typename symmetric_kernel_type_>
+error_stats_t test_dots_symmetric(backend_type_ backend, symmetric_kernel_type_ symmetric_fn) {
+    return test_dots_symmetric<scalar_type_, backend_type_>(backend, symmetric_fn,
+                                                            nk_dot_error_bound(scalar_type_::dtype()));
+}
+
+/** @c test_dots_symmetric on a default-constructed @p backend_type_. */
+template <typename scalar_type_, typename backend_type_ = host_backend_t, typename symmetric_kernel_type_>
+error_stats_t test_dots_symmetric(symmetric_kernel_type_ symmetric_fn, nk_f64_t term_error_bound) {
+    return test_dots_symmetric<scalar_type_, backend_type_>(backend_type_ {}, symmetric_fn, term_error_bound);
 }
 
 /** @c test_dots_symmetric held to the `nk_dot_error_bound` of @p scalar_type_. */
@@ -730,9 +771,9 @@ error_stats_t test_dots_symmetric(symmetric_kernel_type_ symmetric_fn) {
 /** The launch contract of a backend refusing misaligned operands, which a CPU backend has no part
  *  in: pack sizes over @c dots_packed_cases hold a 64-byte header, every B row and one norm per
  *  column, and an A or vectors pointer or stride off 16 bytes, or a C stride off the result size,
- *  is refused before launch with its output untouched. */
+ *  is refused before launch with its output untouched. A NaN input comes out NaN. */
 template <typename scalar_type_, typename backend_type_, auto packed_size_fn_, auto dots_fn_, auto symmetric_fn_>
-error_stats_t test_dots_launch_contract() {
+error_stats_t test_dots_launch_contract(backend_type_ backend) {
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     using result_t = typename scalar_t::dot_result_t;
@@ -740,7 +781,6 @@ error_stats_t test_dots_launch_contract() {
     using results_t = nk::vector<result_t, typename backend_type_::template allocator<result_t>>;
     using bytes_t = nk::vector<char, typename backend_type_::template allocator<char>>;
 
-    backend_type_ backend;
     error_stats_t stats(comparison_family_t::exact_k);
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
 
@@ -748,16 +788,18 @@ error_stats_t test_dots_launch_contract() {
         std::size_t const width = test_case.width;
         std::size_t const depth = nk::divide_round_up(test_case.depth, dimensions_per_value) * dimensions_per_value;
         std::size_t const row_bytes = depth / dimensions_per_value * sizeof(scalar_t);
-        stats.expect(packed_size_fn_(width, depth) >= 64 + width * row_bytes + width * sizeof(norm_t),
-                     "pack size below a header, every row, and every norm");
+        stats.expect(
+            pack_size_bytes(stats, packed_size_fn_, width, depth) >= 64 + width * row_bytes + width * sizeof(norm_t),
+            "pack size below a header, every row, and every norm");
     }
 
     std::size_t const count = 4, depth = 16 * dimensions_per_value, row_bytes = 16 * sizeof(scalar_t);
     std::size_t const aligned_stride = backend.row_stride(row_bytes), output_stride = count * sizeof(result_t);
     std::size_t const odd_stride = row_bytes % 16 == 15 ? row_bytes + 2 : row_bytes + 1;
-    auto rows = bytes_t::try_zeros(count * (aligned_stride + odd_stride) + 16);
-    auto packed = bytes_t::try_zeros(packed_size_fn_(count, depth));
-    auto output = results_t::try_zeros(count * 2 * count);
+    auto rows = bytes_t::try_zeros(count * (aligned_stride + odd_stride) + 16, allocator_of<char>(backend));
+    auto packed = bytes_t::try_zeros(pack_size_bytes(stats, packed_size_fn_, count, depth),
+                                     allocator_of<char>(backend));
+    auto output = results_t::try_zeros(count * 2 * count, allocator_of<result_t>(backend));
     fill_canary(output);
 
     auto const *aligned = reinterpret_cast<raw_t const *>(rows.raw_values_data());
@@ -788,14 +830,45 @@ error_stats_t test_dots_launch_contract() {
     }
     synchronize(backend, stats);
     stats.expect(overwritten_bytes(output, 0, output.size_bytes()) == 0, "a refused call wrote its output");
+
+    // A NaN input reaches every sum it enters, however the capability widens its codes
+    if constexpr (nk::nan_capable_dtype<scalar_t>) {
+        reinterpret_cast<scalar_t *>(rows.raw_values_data())[0] = scalar_t::quiet_nan();
+        backend.call(symmetric_fn_, aligned, count, depth, aligned_stride, cells, output_stride, 0, count);
+        synchronize(backend, stats);
+        stats.expect(std::isnan(static_cast<double>(cells[0])), "a NaN input summed to a finite dot");
+    }
     return stats;
+}
+
+/** @c test_dots_launch_contract on a default-constructed @p backend_type_. */
+template <typename scalar_type_, typename backend_type_, auto packed_size_fn_, auto dots_fn_, auto symmetric_fn_>
+error_stats_t test_dots_launch_contract() {
+    return test_dots_launch_contract<scalar_type_, backend_type_, packed_size_fn_, dots_fn_, symmetric_fn_>(
+        backend_type_ {});
 }
 
 #pragma endregion Dots
 
 #pragma region Set Distances
 
-/** Batched Hamming distances with a packed B matrix, exact against the serial `nk::` reference. */
+/** Rows of A, rows of B, and dimensions per row of one set or spatial distance matrix. */
+struct matrix_shape_t {
+    std::size_t height, width, depth;
+};
+
+/** The configured shape, then one to three rows and columns over depths off every vector width, and
+ *  a depth past one 512-bit tile over odd tile edges. */
+inline std::vector<matrix_shape_t> matrix_shapes() {
+    return {{global_config.matrix_height, global_config.matrix_width, global_config.matrix_depth},
+            {1, 1, 3},
+            {2, 3, 17},
+            {3, 2, 33},
+            {17, 33, 523}};
+}
+
+/** Batched Hamming distances with a packed B matrix over @c matrix_shapes, exact against the serial
+ *  `nk::` reference. */
 template <typename scalar_type_>
 error_stats_t test_hammings_packed(typename scalar_type_::hammings_pack_size_kernel_t packed_size_fn,
                                    typename scalar_type_::hammings_pack_kernel_t pack_fn,
@@ -805,41 +878,39 @@ error_stats_t test_hammings_packed(typename scalar_type_::hammings_pack_size_ker
 
     error_stats_t stats(comparison_family_t::exact_k);
     std::mt19937 generator(global_config.seed);
-
-    std::size_t m = global_config.matrix_height, n = global_config.matrix_width;
     std::size_t const dims_per_value = nk::dimensions_per_value<scalar_t>();
-    std::size_t const k = nk::divide_round_up(global_config.dense_dimensions, dims_per_value) * dims_per_value;
-    std::size_t const stride = nk::divide_round_up(k, 8) * sizeof(scalar_t);
-    std::size_t const stride_dimensions = stride / sizeof(scalar_t) * dims_per_value;
-    std::size_t c_stride = n * sizeof(result_t);
 
-    auto a = make_vector<scalar_t>(m * stride_dimensions), b = make_vector<scalar_t>(n * stride_dimensions);
-    auto c = make_vector<result_t>(m * n);
-    auto c_ref = make_vector<result_t>(m * n);
-    auto b_packed = make_vector<char>(packed_size_fn(n, k));
-    auto b_packed_ref = make_vector<char>(nk::dots_pack_size<scalar_t, nk::no_simd_k>(n, k));
+    for (auto start = test_start_time(); within_time_budget(start);)
+        for (matrix_shape_t const &shape : matrix_shapes()) {
+            std::size_t const m = shape.height, n = shape.width;
+            std::size_t const k = nk::divide_round_up(shape.depth, dims_per_value) * dims_per_value;
+            std::size_t const stride = nk::divide_round_up(k, 8) * sizeof(scalar_t);
+            std::size_t const stride_dimensions = stride / sizeof(scalar_t) * dims_per_value;
+            std::size_t const c_stride = n * sizeof(result_t);
 
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        fill_random(generator, a);
-        fill_random(generator, b);
+            auto a = make_vector<scalar_t>(m * stride_dimensions), b = make_vector<scalar_t>(n * stride_dimensions);
+            auto c = make_vector<result_t>(m * n);
+            auto c_ref = make_vector<result_t>(m * n);
+            auto b_packed = make_vector<char>(pack_size_bytes(stats, packed_size_fn, n, k));
+            auto b_packed_ref = make_vector<char>(nk::dots_pack_size<scalar_t>(n, k, no_tiers_k));
+            fill_random(generator, a);
+            fill_random(generator, b);
 
-        // Run kernel being tested
-        pack_fn(b.raw_values_data(), n, k, stride, b_packed.raw_values_data(), 0, n);
-        hammings_fn(a.raw_values_data(), b_packed.raw_values_data(), c.raw_values_data(), m, n, k, stride, c_stride);
+            stats.expect(pack_fn(b.raw_values_data(), n, k, stride, b_packed.raw_values_data(), 0, n, nullptr));
+            stats.expect(hammings_fn(a.raw_values_data(), b_packed.raw_values_data(), c.raw_values_data(), m, n, k,
+                                     stride, c_stride, nullptr));
 
-        // Compute reference using C++ template with no_simd_k
-        nk::dots_pack<scalar_t, nk::no_simd_k>(b.values_data(), n, k, stride, b_packed_ref.raw_values_data());
-        nk::hammings_packed<scalar_t, result_t, nk::no_simd_k>(a.values_data(), b_packed_ref.raw_values_data(),
-                                                               c_ref.values_data(), m, n, k, stride, c_stride);
+            nk::dots_pack<scalar_t>(b.values_data(), n, k, stride, b_packed_ref.raw_values_data(), no_tiers_k);
+            nk::hammings_packed<scalar_t, result_t>(a.values_data(), b_packed_ref.raw_values_data(),
+                                                    c_ref.values_data(), m, n, k, stride, c_stride, no_tiers_k);
 
-        // Hamming distances are exact integers
-        for (std::size_t i = 0; i < m * n; i++) stats.accumulate(c[i], c_ref[i]);
-    }
+            for (std::size_t i = 0; i < m * n; i++) stats.accumulate(c[i], c_ref[i]);
+        }
     return stats;
 }
 
-/** Symmetric Hamming distances, exact against the serial `nk::` reference over the upper triangle,
- *  and untouched below it. */
+/** Symmetric Hamming distances over @c matrix_shapes, exact against the serial `nk::` reference over
+ *  the upper triangle, and untouched below it. */
 template <typename scalar_type_>
 error_stats_t test_hammings_symmetric(typename scalar_type_::hammings_symmetric_kernel_t symmetric_fn) {
     using scalar_t = scalar_type_;
@@ -847,38 +918,35 @@ error_stats_t test_hammings_symmetric(typename scalar_type_::hammings_symmetric_
 
     error_stats_t stats(comparison_family_t::exact_k);
     std::mt19937 generator(global_config.seed);
-
-    std::size_t n = global_config.matrix_height;
     std::size_t const dims_per_value = nk::dimensions_per_value<scalar_t>();
-    std::size_t const k = nk::divide_round_up(global_config.dense_dimensions, dims_per_value) * dims_per_value;
-    std::size_t const stride = nk::divide_round_up(k, 8) * sizeof(scalar_t);
-    std::size_t const stride_dimensions = stride / sizeof(scalar_t) * dims_per_value;
-    std::size_t c_stride = n * sizeof(result_t);
 
-    auto a = make_vector<scalar_t>(n * stride_dimensions);
-    auto c = make_vector<result_t>(n * n);
-    auto c_ref = make_vector<result_t>(n * n);
+    for (auto start = test_start_time(); within_time_budget(start);)
+        for (matrix_shape_t const &shape : matrix_shapes()) {
+            std::size_t const n = shape.height;
+            std::size_t const k = nk::divide_round_up(shape.depth, dims_per_value) * dims_per_value;
+            std::size_t const stride = nk::divide_round_up(k, 8) * sizeof(scalar_t);
+            std::size_t const stride_dimensions = stride / sizeof(scalar_t) * dims_per_value;
+            std::size_t const c_stride = n * sizeof(result_t);
 
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        fill_random(generator, a);
-        fill_canary(c);
+            auto a = make_vector<scalar_t>(n * stride_dimensions);
+            auto c = make_vector<result_t>(n * n);
+            auto c_ref = make_vector<result_t>(n * n);
+            fill_random(generator, a);
+            fill_canary(c);
 
-        // Run kernel being tested
-        symmetric_fn(a.raw_values_data(), n, k, stride, c.raw_values_data(), c_stride, 0, n);
+            stats.expect(symmetric_fn(a.raw_values_data(), n, k, stride, c.raw_values_data(), c_stride, 0, n, nullptr));
+            nk::hammings_symmetric<scalar_t, result_t>(a.values_data(), n, k, stride, c_ref.values_data(),
+                                                       n * sizeof(result_t), 0, n, no_tiers_k);
 
-        // Compute reference using nk:: template
-        nk::hammings_symmetric<scalar_t, result_t, nk::no_simd_k>(a.values_data(), n, k, stride, c_ref.values_data(),
-                                                                  n * sizeof(result_t));
-
-        // Hamming distances are exact integers on and above the diagonal, with nothing written below it
-        for (std::size_t i = 0; i < n; i++)
-            for (std::size_t j = i; j < n; j++) stats.accumulate(c[i * n + j], c_ref[i * n + j]);
-        expect_symmetric_untouched<result_t>(stats, c, n, c_stride, 0, n);
-    }
+            for (std::size_t i = 0; i < n; i++)
+                for (std::size_t j = i; j < n; j++) stats.accumulate(c[i * n + j], c_ref[i * n + j]);
+            expect_symmetric_untouched<result_t>(stats, c, n, c_stride, 0, n);
+        }
     return stats;
 }
 
-/** Batched Jaccard distances with a packed B matrix, exact against the serial `nk::` reference. */
+/** Batched Jaccard distances with a packed B matrix over @c matrix_shapes, exact against the serial
+ *  `nk::` reference. Row 0 of A and column 0 of B are empty, so cell (0, 0) has an empty union. */
 template <typename scalar_type_>
 error_stats_t test_jaccards_packed(typename scalar_type_::jaccards_pack_size_kernel_t packed_size_fn,
                                    typename scalar_type_::jaccards_pack_kernel_t pack_fn,
@@ -888,40 +956,42 @@ error_stats_t test_jaccards_packed(typename scalar_type_::jaccards_pack_size_ker
 
     error_stats_t stats(comparison_family_t::exact_k);
     std::mt19937 generator(global_config.seed);
-
-    std::size_t m = global_config.matrix_height, n = global_config.matrix_width;
     std::size_t const dims_per_value = nk::dimensions_per_value<scalar_t>();
-    std::size_t const k = nk::divide_round_up(global_config.dense_dimensions, dims_per_value) * dims_per_value;
-    std::size_t const stride = nk::divide_round_up(k, 8) * sizeof(scalar_t);
-    std::size_t const stride_dimensions = stride / sizeof(scalar_t) * dims_per_value;
-    std::size_t c_stride = n * sizeof(result_t);
 
-    auto a = make_vector<scalar_t>(m * stride_dimensions), b = make_vector<scalar_t>(n * stride_dimensions);
-    auto c = make_vector<result_t>(m * n);
-    auto c_ref = make_vector<result_t>(m * n);
-    auto b_packed = make_vector<char>(packed_size_fn(n, k));
-    auto b_packed_ref = make_vector<char>(nk::dots_pack_size<scalar_t, nk::no_simd_k>(n, k));
+    for (auto start = test_start_time(); within_time_budget(start);)
+        for (matrix_shape_t const &shape : matrix_shapes()) {
+            std::size_t const m = shape.height, n = shape.width;
+            std::size_t const k = nk::divide_round_up(shape.depth, dims_per_value) * dims_per_value;
+            std::size_t const stride = nk::divide_round_up(k, 8) * sizeof(scalar_t);
+            std::size_t const stride_dimensions = stride / sizeof(scalar_t) * dims_per_value;
+            std::size_t const c_stride = n * sizeof(result_t);
 
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        fill_random(generator, a);
-        fill_random(generator, b);
+            auto a = make_vector<scalar_t>(m * stride_dimensions), b = make_vector<scalar_t>(n * stride_dimensions);
+            auto c = make_vector<result_t>(m * n);
+            auto c_ref = make_vector<result_t>(m * n);
+            auto b_packed = make_vector<char>(pack_size_bytes(stats, packed_size_fn, n, k));
+            auto b_packed_ref = make_vector<char>(nk::dots_pack_size<scalar_t>(n, k, no_tiers_k));
+            fill_random(generator, a);
+            fill_random(generator, b);
+            std::memset(a.raw_values_data(), 0, stride);
+            std::memset(b.raw_values_data(), 0, stride);
 
-        // Run kernel being tested
-        pack_fn(b.raw_values_data(), n, k, stride, b_packed.raw_values_data(), 0, n);
-        jaccards_fn(a.raw_values_data(), b_packed.raw_values_data(), c.raw_values_data(), m, n, k, stride, c_stride);
+            stats.expect(pack_fn(b.raw_values_data(), n, k, stride, b_packed.raw_values_data(), 0, n, nullptr));
+            stats.expect(jaccards_fn(a.raw_values_data(), b_packed.raw_values_data(), c.raw_values_data(), m, n, k,
+                                     stride, c_stride, nullptr));
 
-        // Compute reference using C++ template with no_simd_k
-        nk::dots_pack<scalar_t, nk::no_simd_k>(b.values_data(), n, k, stride, b_packed_ref.raw_values_data());
-        nk::jaccards_packed<scalar_t, result_t, nk::no_simd_k>(a.values_data(), b_packed_ref.raw_values_data(),
-                                                               c_ref.values_data(), m, n, k, stride, c_stride);
+            nk::dots_pack<scalar_t>(b.values_data(), n, k, stride, b_packed_ref.raw_values_data(), no_tiers_k);
+            nk::jaccards_packed<scalar_t, result_t>(a.values_data(), b_packed_ref.raw_values_data(),
+                                                    c_ref.values_data(), m, n, k, stride, c_stride, no_tiers_k);
 
-        for (std::size_t i = 0; i < m * n; i++) stats.accumulate(c[i], c_ref[i]);
-    }
+            for (std::size_t i = 0; i < m * n; i++) stats.accumulate(c[i], c_ref[i]);
+        }
     return stats;
 }
 
-/** Symmetric Jaccard distances, exact against the serial `nk::` reference over the upper triangle,
- *  and untouched below it. */
+/** Symmetric Jaccard distances over @c matrix_shapes, exact against the serial `nk::` reference over
+ *  the upper triangle, and untouched below it. Row 0 is empty, so the first diagonal cell has an
+ *  empty union. */
 template <typename scalar_type_>
 error_stats_t test_jaccards_symmetric(typename scalar_type_::jaccards_symmetric_kernel_t symmetric_fn) {
     using scalar_t = scalar_type_;
@@ -929,34 +999,31 @@ error_stats_t test_jaccards_symmetric(typename scalar_type_::jaccards_symmetric_
 
     error_stats_t stats(comparison_family_t::exact_k);
     std::mt19937 generator(global_config.seed);
-
-    std::size_t n = global_config.matrix_height;
     std::size_t const dims_per_value = nk::dimensions_per_value<scalar_t>();
-    std::size_t const k = nk::divide_round_up(global_config.dense_dimensions, dims_per_value) * dims_per_value;
-    std::size_t const stride = nk::divide_round_up(k, 8) * sizeof(scalar_t);
-    std::size_t const stride_dimensions = stride / sizeof(scalar_t) * dims_per_value;
-    std::size_t c_stride = n * sizeof(result_t);
 
-    auto a = make_vector<scalar_t>(n * stride_dimensions);
-    auto c = make_vector<result_t>(n * n);
-    auto c_ref = make_vector<result_t>(n * n);
+    for (auto start = test_start_time(); within_time_budget(start);)
+        for (matrix_shape_t const &shape : matrix_shapes()) {
+            std::size_t const n = shape.height;
+            std::size_t const k = nk::divide_round_up(shape.depth, dims_per_value) * dims_per_value;
+            std::size_t const stride = nk::divide_round_up(k, 8) * sizeof(scalar_t);
+            std::size_t const stride_dimensions = stride / sizeof(scalar_t) * dims_per_value;
+            std::size_t const c_stride = n * sizeof(result_t);
 
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        fill_random(generator, a);
-        fill_canary(c);
+            auto a = make_vector<scalar_t>(n * stride_dimensions);
+            auto c = make_vector<result_t>(n * n);
+            auto c_ref = make_vector<result_t>(n * n);
+            fill_random(generator, a);
+            std::memset(a.raw_values_data(), 0, stride);
+            fill_canary(c);
 
-        // Run kernel being tested
-        symmetric_fn(a.raw_values_data(), n, k, stride, c.raw_values_data(), c_stride, 0, n);
+            stats.expect(symmetric_fn(a.raw_values_data(), n, k, stride, c.raw_values_data(), c_stride, 0, n, nullptr));
+            nk::jaccards_symmetric<scalar_t, result_t>(a.values_data(), n, k, stride, c_ref.values_data(),
+                                                       n * sizeof(result_t), 0, n, no_tiers_k);
 
-        // Compute reference using nk:: template
-        nk::jaccards_symmetric<scalar_t, result_t, nk::no_simd_k>(a.values_data(), n, k, stride, c_ref.values_data(),
-                                                                  n * sizeof(result_t));
-
-        // Values on and above the diagonal, with nothing written below it
-        for (std::size_t i = 0; i < n; i++)
-            for (std::size_t j = i; j < n; j++) stats.accumulate(c[i * n + j], c_ref[i * n + j]);
-        expect_symmetric_untouched<result_t>(stats, c, n, c_stride, 0, n);
-    }
+            for (std::size_t i = 0; i < n; i++)
+                for (std::size_t j = i; j < n; j++) stats.accumulate(c[i * n + j], c_ref[i * n + j]);
+            expect_symmetric_untouched<result_t>(stats, c, n, c_stride, 0, n);
+        }
     return stats;
 }
 
@@ -979,59 +1046,57 @@ error_stats_t test_angulars_packed(pack_size_kernel_type_ packed_size_fn, pack_k
     backend_type_ backend;
     error_stats_t stats(nk_angular_error_bound(scalar_t::dtype()));
     std::mt19937 generator(global_config.seed);
-
-    std::size_t m = global_config.matrix_height, n = global_config.matrix_width;
     std::size_t const dims_per_value = nk::dimensions_per_value<scalar_t>();
-    std::size_t c_stride = n * sizeof(result_t);
 
-    std::size_t const k = nk::divide_round_up(global_config.matrix_depth, dims_per_value) * dims_per_value;
-    std::size_t const stride = backend.row_stride(nk::divide_round_up(k, dims_per_value) * sizeof(scalar_t));
-    std::size_t const stride_values = stride / sizeof(scalar_t);
+    for (auto start = test_start_time(); within_time_budget(start);)
+        for (matrix_shape_t const &shape : matrix_shapes()) {
+            std::size_t const m = shape.height, n = shape.width;
+            std::size_t const c_stride = n * sizeof(result_t);
+            std::size_t const k = nk::divide_round_up(shape.depth, dims_per_value) * dims_per_value;
+            std::size_t const stride = backend.row_stride(nk::divide_round_up(k, dims_per_value) * sizeof(scalar_t));
+            std::size_t const stride_values = stride / sizeof(scalar_t);
 
-    auto a = scalars_t::try_zeros(m * stride_values * dims_per_value),
-         b = scalars_t::try_zeros(n * stride_values * dims_per_value);
-    auto c = results_t::try_zeros(m * n);
-    auto c_ref = make_vector<reference_t>(m * n);
-    auto b_packed = bytes_t::try_zeros(packed_size_fn(n, k));
-    auto b_packed_ref = make_vector<char>(nk::dots_pack_size<scalar_t, nk::no_simd_k>(n, k));
-    auto a_sumsqs = make_vector<reference_t>(m);
-    auto b_sumsqs = make_vector<reference_t>(n);
+            auto a = scalars_t::try_zeros(m * stride_values * dims_per_value),
+                 b = scalars_t::try_zeros(n * stride_values * dims_per_value);
+            auto c = results_t::try_zeros(m * n);
+            auto c_ref = make_vector<reference_t>(m * n);
+            auto b_packed = bytes_t::try_zeros(pack_size_bytes(stats, packed_size_fn, n, k));
+            auto b_packed_ref = make_vector<char>(nk::dots_pack_size<scalar_t>(n, k, no_tiers_k));
+            auto a_sumsqs = make_vector<reference_t>(m);
+            auto b_sumsqs = make_vector<reference_t>(n);
+            fill_random(generator, a);
+            fill_random(generator, b);
 
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        fill_random(generator, a);
-        fill_random(generator, b);
+            nk::dots_pack<scalar_t>(b.values_data(), n, k, stride, b_packed_ref.raw_values_data(), no_tiers_k);
+            nk::dots_packed<scalar_t, reference_t>(a.values_data(), b_packed_ref.raw_values_data(), c_ref.values_data(),
+                                                   m, n, k, stride, n * sizeof(reference_t), no_tiers_k);
 
-        // Reference: compute dot products in reference precision
-        nk::dots_pack<scalar_t, nk::no_simd_k>(b.values_data(), n, k, stride, b_packed_ref.raw_values_data());
-        nk::dots_packed<scalar_t, reference_t, nk::no_simd_k>(a.values_data(), b_packed_ref.raw_values_data(),
-                                                              c_ref.values_data(), m, n, k, stride,
-                                                              n * sizeof(reference_t));
+            reference_t sum_unused;
+            for (std::size_t i = 0; i < m; ++i)
+                nk::reduce_moments<scalar_t, reference_t, reference_t>(a.values_data() + i * stride_values, k,
+                                                                       sizeof(scalar_t), &sum_unused,
+                                                                       a_sumsqs.values_data() + i, no_tiers_k);
+            for (std::size_t j = 0; j < n; ++j)
+                nk::reduce_moments<scalar_t, reference_t, reference_t>(b.values_data() + j * stride_values, k,
+                                                                       sizeof(scalar_t), &sum_unused,
+                                                                       b_sumsqs.values_data() + j, no_tiers_k);
 
-        reference_t sum_unused;
-        for (std::size_t i = 0; i < m; ++i)
-            nk::reduce_moments<scalar_t, reference_t, reference_t, nk::no_simd_k>(
-                a.values_data() + i * stride_values, k, sizeof(scalar_t), &sum_unused, a_sumsqs.values_data() + i);
-        for (std::size_t j = 0; j < n; ++j)
-            nk::reduce_moments<scalar_t, reference_t, reference_t, nk::no_simd_k>(
-                b.values_data() + j * stride_values, k, sizeof(scalar_t), &sum_unused, b_sumsqs.values_data() + j);
+            for (std::size_t i = 0; i < m; ++i)
+                for (std::size_t j = 0; j < n; ++j) {
+                    reference_t ab_sumsq = a_sumsqs[i] * b_sumsqs[j];
+                    reference_t &c_cell = c_ref[i * n + j];
+                    c_cell = ab_sumsq > reference_t(0) ? (reference_t(1) - c_cell * ab_sumsq.rsqrt()) : reference_t(0);
+                }
 
-        // Convert dots to angular distances: 1 - dot / sqrt(sumsq_a * sumsq_b)
-        for (std::size_t i = 0; i < m; ++i)
-            for (std::size_t j = 0; j < n; ++j) {
-                reference_t ab_sumsq = a_sumsqs[i] * b_sumsqs[j];
-                reference_t &c_cell = c_ref[i * n + j];
-                c_cell = ab_sumsq > reference_t(0) ? (reference_t(1) - c_cell * ab_sumsq.rsqrt()) : reference_t(0);
-            }
+            // The norms of the second window's columns come from a pack not starting at zero
+            backend.call(pack_fn, b.raw_values_data(), n, k, stride, b_packed.raw_values_data(), 0, n / 2);
+            backend.call(pack_fn, b.raw_values_data(), n, k, stride, b_packed.raw_values_data(), n / 2, n);
+            backend.call(angulars_fn, a.raw_values_data(), b_packed.raw_values_data(), c.raw_values_data(), m, n, k,
+                         stride, c_stride);
+            synchronize(backend, stats);
 
-        // Run kernel being tested: the norms of the second window's columns come from a pack not starting at zero
-        backend.call(pack_fn, b.raw_values_data(), n, k, stride, b_packed.raw_values_data(), 0, n / 2);
-        backend.call(pack_fn, b.raw_values_data(), n, k, stride, b_packed.raw_values_data(), n / 2, n);
-        backend.call(angulars_fn, a.raw_values_data(), b_packed.raw_values_data(), c.raw_values_data(), m, n, k, stride,
-                     c_stride);
-        synchronize(backend, stats);
-
-        for (std::size_t i = 0; i < m * n; i++) accumulate_angular(stats, c[i], c_ref[i], k);
-    }
+            for (std::size_t i = 0; i < m * n; i++) accumulate_angular(stats, c[i], c_ref[i], k);
+        }
     return stats;
 }
 
@@ -1051,62 +1116,61 @@ error_stats_t test_euclideans_packed(pack_size_kernel_type_ packed_size_fn, pack
     backend_type_ backend;
     error_stats_t stats(nk_euclidean_error_bound(scalar_t::dtype()));
     std::mt19937 generator(global_config.seed);
-
-    std::size_t m = global_config.matrix_height, n = global_config.matrix_width;
     std::size_t const dims_per_value = nk::dimensions_per_value<scalar_t>();
-    std::size_t c_stride = n * sizeof(result_t);
 
-    std::size_t const k = nk::divide_round_up(global_config.matrix_depth, dims_per_value) * dims_per_value;
-    std::size_t const stride = backend.row_stride(nk::divide_round_up(k, dims_per_value) * sizeof(scalar_t));
-    std::size_t const stride_values = stride / sizeof(scalar_t);
+    for (auto start = test_start_time(); within_time_budget(start);)
+        for (matrix_shape_t const &shape : matrix_shapes()) {
+            std::size_t const m = shape.height, n = shape.width;
+            std::size_t const c_stride = n * sizeof(result_t);
+            std::size_t const k = nk::divide_round_up(shape.depth, dims_per_value) * dims_per_value;
+            std::size_t const stride = backend.row_stride(nk::divide_round_up(k, dims_per_value) * sizeof(scalar_t));
+            std::size_t const stride_values = stride / sizeof(scalar_t);
 
-    auto a = scalars_t::try_zeros(m * stride_values * dims_per_value),
-         b = scalars_t::try_zeros(n * stride_values * dims_per_value);
-    auto c = results_t::try_zeros(m * n);
-    auto c_ref = make_vector<reference_t>(m * n);
-    auto b_packed = bytes_t::try_zeros(packed_size_fn(n, k));
-    auto b_packed_ref = make_vector<char>(nk::dots_pack_size<scalar_t, nk::no_simd_k>(n, k));
-    auto a_sumsqs = make_vector<reference_t>(m);
-    auto b_sumsqs = make_vector<reference_t>(n);
+            auto a = scalars_t::try_zeros(m * stride_values * dims_per_value),
+                 b = scalars_t::try_zeros(n * stride_values * dims_per_value);
+            auto c = results_t::try_zeros(m * n);
+            auto c_ref = make_vector<reference_t>(m * n);
+            auto b_packed = bytes_t::try_zeros(pack_size_bytes(stats, packed_size_fn, n, k));
+            auto b_packed_ref = make_vector<char>(nk::dots_pack_size<scalar_t>(n, k, no_tiers_k));
+            auto a_sumsqs = make_vector<reference_t>(m);
+            auto b_sumsqs = make_vector<reference_t>(n);
+            fill_random(generator, a);
+            fill_random(generator, b);
+            std::memset(a.raw_values_data(), 0, stride);
 
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        fill_random(generator, a);
-        fill_random(generator, b);
-        std::memset(a.raw_values_data(), 0, stride);
+            nk::dots_pack<scalar_t>(b.values_data(), n, k, stride, b_packed_ref.raw_values_data(), no_tiers_k);
+            nk::dots_packed<scalar_t, reference_t>(a.values_data(), b_packed_ref.raw_values_data(), c_ref.values_data(),
+                                                   m, n, k, stride, n * sizeof(reference_t), no_tiers_k);
 
-        // Reference: compute dot products in reference precision
-        nk::dots_pack<scalar_t, nk::no_simd_k>(b.values_data(), n, k, stride, b_packed_ref.raw_values_data());
-        nk::dots_packed<scalar_t, reference_t, nk::no_simd_k>(a.values_data(), b_packed_ref.raw_values_data(),
-                                                              c_ref.values_data(), m, n, k, stride,
-                                                              n * sizeof(reference_t));
+            reference_t sum_unused;
+            for (std::size_t i = 0; i < m; ++i)
+                nk::reduce_moments<scalar_t, reference_t, reference_t>(a.values_data() + i * stride_values, k,
+                                                                       sizeof(scalar_t), &sum_unused,
+                                                                       a_sumsqs.values_data() + i, no_tiers_k);
+            for (std::size_t j = 0; j < n; ++j)
+                nk::reduce_moments<scalar_t, reference_t, reference_t>(b.values_data() + j * stride_values, k,
+                                                                       sizeof(scalar_t), &sum_unused,
+                                                                       b_sumsqs.values_data() + j, no_tiers_k);
 
-        reference_t sum_unused;
-        for (std::size_t i = 0; i < m; ++i)
-            nk::reduce_moments<scalar_t, reference_t, reference_t, nk::no_simd_k>(
-                a.values_data() + i * stride_values, k, sizeof(scalar_t), &sum_unused, a_sumsqs.values_data() + i);
-        for (std::size_t j = 0; j < n; ++j)
-            nk::reduce_moments<scalar_t, reference_t, reference_t, nk::no_simd_k>(
-                b.values_data() + j * stride_values, k, sizeof(scalar_t), &sum_unused, b_sumsqs.values_data() + j);
+            for (std::size_t i = 0; i < m; ++i)
+                for (std::size_t j = 0; j < n; ++j) {
+                    reference_t &c_cell = c_ref[i * n + j];
+                    reference_t diff = a_sumsqs[i] + b_sumsqs[j] - reference_t(2) * c_cell;
+                    c_cell = diff > reference_t(0) ? diff.sqrt() : reference_t(0);
+                }
 
-        // Convert dots to euclidean distances: sqrt(max(0, sumsq_a + sumsq_b - 2*dot))
-        for (std::size_t i = 0; i < m; ++i)
-            for (std::size_t j = 0; j < n; ++j) {
-                reference_t &c_cell = c_ref[i * n + j];
-                reference_t diff = a_sumsqs[i] + b_sumsqs[j] - reference_t(2) * c_cell;
-                c_cell = diff > reference_t(0) ? diff.sqrt() : reference_t(0);
-            }
+            // The norms of the second window's columns come from a pack not starting at zero
+            backend.call(pack_fn, b.raw_values_data(), n, k, stride, b_packed.raw_values_data(), 0, n / 2);
+            backend.call(pack_fn, b.raw_values_data(), n, k, stride, b_packed.raw_values_data(), n / 2, n);
+            backend.call(euclideans_fn, a.raw_values_data(), b_packed.raw_values_data(), c.raw_values_data(), m, n, k,
+                         stride, c_stride);
+            synchronize(backend, stats);
 
-        // Run kernel being tested: the norms of the second window's columns come from a pack not starting at zero
-        backend.call(pack_fn, b.raw_values_data(), n, k, stride, b_packed.raw_values_data(), 0, n / 2);
-        backend.call(pack_fn, b.raw_values_data(), n, k, stride, b_packed.raw_values_data(), n / 2, n);
-        backend.call(euclideans_fn, a.raw_values_data(), b_packed.raw_values_data(), c.raw_values_data(), m, n, k,
-                     stride, c_stride);
-        synchronize(backend, stats);
-
-        for (std::size_t i = 0; i < m; i++)
-            for (std::size_t j = 0; j < n; j++)
-                accumulate_euclidean(stats, c[i * n + j], c_ref[i * n + j], reference_t(a_sumsqs[i] + b_sumsqs[j]), k);
-    }
+            for (std::size_t i = 0; i < m; i++)
+                for (std::size_t j = 0; j < n; j++)
+                    accumulate_euclidean(stats, c[i * n + j], c_ref[i * n + j], reference_t(a_sumsqs[i] + b_sumsqs[j]),
+                                         k);
+        }
     return stats;
 }
 
@@ -1123,52 +1187,48 @@ error_stats_t test_angulars_symmetric(symmetric_kernel_type_ symmetric_fn) {
     backend_type_ backend;
     error_stats_t stats(nk_angular_error_bound(scalar_t::dtype()));
     std::mt19937 generator(global_config.seed);
-
-    std::size_t n = global_config.matrix_height;
     std::size_t const dims_per_value = nk::dimensions_per_value<scalar_t>();
-    std::size_t c_stride = n * sizeof(result_t);
 
-    std::size_t const k = nk::divide_round_up(global_config.matrix_depth, dims_per_value) * dims_per_value;
-    std::size_t const stride = backend.row_stride(nk::divide_round_up(k, dims_per_value) * sizeof(scalar_t));
-    std::size_t const stride_values = stride / sizeof(scalar_t);
+    for (auto start = test_start_time(); within_time_budget(start);)
+        for (matrix_shape_t const &shape : matrix_shapes()) {
+            std::size_t const n = shape.height;
+            std::size_t const c_stride = n * sizeof(result_t);
+            std::size_t const k = nk::divide_round_up(shape.depth, dims_per_value) * dims_per_value;
+            std::size_t const stride = backend.row_stride(nk::divide_round_up(k, dims_per_value) * sizeof(scalar_t));
+            std::size_t const stride_values = stride / sizeof(scalar_t);
 
-    auto a = scalars_t::try_zeros(n * stride_values * dims_per_value);
-    auto c = results_t::try_zeros(n * n);
-    auto c_ref = make_vector<reference_t>(n * n);
-    auto sumsqs = make_vector<reference_t>(n);
+            auto a = scalars_t::try_zeros(n * stride_values * dims_per_value);
+            auto c = results_t::try_zeros(n * n);
+            auto c_ref = make_vector<reference_t>(n * n);
+            auto sumsqs = make_vector<reference_t>(n);
+            fill_random(generator, a);
+            fill_canary(c);
 
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        fill_random(generator, a);
-        fill_canary(c);
+            nk::dots_symmetric<scalar_t, reference_t>(a.values_data(), n, k, stride, c_ref.values_data(),
+                                                      n * sizeof(reference_t), 0, n, no_tiers_k);
 
-        // Reference: compute dots symmetric in reference precision
-        nk::dots_symmetric<scalar_t, reference_t, nk::no_simd_k>(a.values_data(), n, k, stride, c_ref.values_data(),
-                                                                 n * sizeof(reference_t));
+            reference_t sum_unused;
+            for (std::size_t i = 0; i < n; ++i)
+                nk::reduce_moments<scalar_t, reference_t, reference_t>(a.values_data() + i * stride_values, k,
+                                                                       sizeof(scalar_t), &sum_unused,
+                                                                       sumsqs.values_data() + i, no_tiers_k);
 
-        reference_t sum_unused;
-        for (std::size_t i = 0; i < n; ++i)
-            nk::reduce_moments<scalar_t, reference_t, reference_t, nk::no_simd_k>(
-                a.values_data() + i * stride_values, k, sizeof(scalar_t), &sum_unused, sumsqs.values_data() + i);
-
-        // Convert dots to angular distances: diagonal=0, upper triangle uses formula
-        for (std::size_t i = 0; i < n; ++i) {
-            c_ref[i * n + i] = reference_t(0);
-            for (std::size_t j = i + 1; j < n; ++j) {
-                reference_t ab_sumsq = sumsqs[i] * sumsqs[j];
-                reference_t &c_cell = c_ref[i * n + j];
-                c_cell = ab_sumsq > reference_t(0) ? (reference_t(1) - c_cell * ab_sumsq.rsqrt()) : reference_t(0);
+            for (std::size_t i = 0; i < n; ++i) {
+                c_ref[i * n + i] = reference_t(0);
+                for (std::size_t j = i + 1; j < n; ++j) {
+                    reference_t ab_sumsq = sumsqs[i] * sumsqs[j];
+                    reference_t &c_cell = c_ref[i * n + j];
+                    c_cell = ab_sumsq > reference_t(0) ? (reference_t(1) - c_cell * ab_sumsq.rsqrt()) : reference_t(0);
+                }
             }
+
+            backend.call(symmetric_fn, a.raw_values_data(), n, k, stride, c.raw_values_data(), c_stride, 0, n);
+            synchronize(backend, stats);
+
+            for (std::size_t i = 0; i < n; i++)
+                for (std::size_t j = i; j < n; j++) accumulate_angular(stats, c[i * n + j], c_ref[i * n + j], k);
+            expect_symmetric_untouched<result_t>(stats, c, n, c_stride, 0, n);
         }
-
-        // Run kernel being tested
-        backend.call(symmetric_fn, a.raw_values_data(), n, k, stride, c.raw_values_data(), c_stride, 0, n);
-        synchronize(backend, stats);
-
-        // Values on and above the diagonal, with nothing written below it
-        for (std::size_t i = 0; i < n; i++)
-            for (std::size_t j = i; j < n; j++) accumulate_angular(stats, c[i * n + j], c_ref[i * n + j], k);
-        expect_symmetric_untouched<result_t>(stats, c, n, c_stride, 0, n);
-    }
     return stats;
 }
 
@@ -1185,53 +1245,49 @@ error_stats_t test_euclideans_symmetric(symmetric_kernel_type_ symmetric_fn) {
     backend_type_ backend;
     error_stats_t stats(nk_euclidean_error_bound(scalar_t::dtype()));
     std::mt19937 generator(global_config.seed);
-
-    std::size_t n = global_config.matrix_height;
     std::size_t const dims_per_value = nk::dimensions_per_value<scalar_t>();
-    std::size_t c_stride = n * sizeof(result_t);
 
-    std::size_t const k = nk::divide_round_up(global_config.matrix_depth, dims_per_value) * dims_per_value;
-    std::size_t const stride = backend.row_stride(nk::divide_round_up(k, dims_per_value) * sizeof(scalar_t));
-    std::size_t const stride_values = stride / sizeof(scalar_t);
+    for (auto start = test_start_time(); within_time_budget(start);)
+        for (matrix_shape_t const &shape : matrix_shapes()) {
+            std::size_t const n = shape.height;
+            std::size_t const c_stride = n * sizeof(result_t);
+            std::size_t const k = nk::divide_round_up(shape.depth, dims_per_value) * dims_per_value;
+            std::size_t const stride = backend.row_stride(nk::divide_round_up(k, dims_per_value) * sizeof(scalar_t));
+            std::size_t const stride_values = stride / sizeof(scalar_t);
 
-    auto a = scalars_t::try_zeros(n * stride_values * dims_per_value);
-    auto c = results_t::try_zeros(n * n);
-    auto c_ref = make_vector<reference_t>(n * n);
-    auto sumsqs = make_vector<reference_t>(n);
+            auto a = scalars_t::try_zeros(n * stride_values * dims_per_value);
+            auto c = results_t::try_zeros(n * n);
+            auto c_ref = make_vector<reference_t>(n * n);
+            auto sumsqs = make_vector<reference_t>(n);
+            fill_random(generator, a);
+            fill_canary(c);
 
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        fill_random(generator, a);
-        fill_canary(c);
+            nk::dots_symmetric<scalar_t, reference_t>(a.values_data(), n, k, stride, c_ref.values_data(),
+                                                      n * sizeof(reference_t), 0, n, no_tiers_k);
 
-        // Reference: compute dots symmetric in reference precision
-        nk::dots_symmetric<scalar_t, reference_t, nk::no_simd_k>(a.values_data(), n, k, stride, c_ref.values_data(),
-                                                                 n * sizeof(reference_t));
+            reference_t sum_unused;
+            for (std::size_t i = 0; i < n; ++i)
+                nk::reduce_moments<scalar_t, reference_t, reference_t>(a.values_data() + i * stride_values, k,
+                                                                       sizeof(scalar_t), &sum_unused,
+                                                                       sumsqs.values_data() + i, no_tiers_k);
 
-        reference_t sum_unused;
-        for (std::size_t i = 0; i < n; ++i)
-            nk::reduce_moments<scalar_t, reference_t, reference_t, nk::no_simd_k>(
-                a.values_data() + i * stride_values, k, sizeof(scalar_t), &sum_unused, sumsqs.values_data() + i);
-
-        // Convert dots to euclidean distances: diagonal=0, upper triangle uses formula
-        for (std::size_t i = 0; i < n; ++i) {
-            c_ref[i * n + i] = reference_t(0);
-            for (std::size_t j = i + 1; j < n; ++j) {
-                reference_t &c_cell = c_ref[i * n + j];
-                reference_t diff = sumsqs[i] + sumsqs[j] - reference_t(2) * c_cell;
-                c_cell = diff > reference_t(0) ? diff.sqrt() : reference_t(0);
+            for (std::size_t i = 0; i < n; ++i) {
+                c_ref[i * n + i] = reference_t(0);
+                for (std::size_t j = i + 1; j < n; ++j) {
+                    reference_t &c_cell = c_ref[i * n + j];
+                    reference_t diff = sumsqs[i] + sumsqs[j] - reference_t(2) * c_cell;
+                    c_cell = diff > reference_t(0) ? diff.sqrt() : reference_t(0);
+                }
             }
+
+            backend.call(symmetric_fn, a.raw_values_data(), n, k, stride, c.raw_values_data(), c_stride, 0, n);
+            synchronize(backend, stats);
+
+            for (std::size_t i = 0; i < n; i++)
+                for (std::size_t j = i; j < n; j++)
+                    accumulate_euclidean(stats, c[i * n + j], c_ref[i * n + j], reference_t(sumsqs[i] + sumsqs[j]), k);
+            expect_symmetric_untouched<result_t>(stats, c, n, c_stride, 0, n);
         }
-
-        // Run kernel being tested
-        backend.call(symmetric_fn, a.raw_values_data(), n, k, stride, c.raw_values_data(), c_stride, 0, n);
-        synchronize(backend, stats);
-
-        // Values on and above the diagonal, with nothing written below it
-        for (std::size_t i = 0; i < n; i++)
-            for (std::size_t j = i; j < n; j++)
-                accumulate_euclidean(stats, c[i * n + j], c_ref[i * n + j], reference_t(sumsqs[i] + sumsqs[j]), k);
-        expect_symmetric_untouched<result_t>(stats, c, n, c_stride, 0, n);
-    }
     return stats;
 }
 
@@ -1274,8 +1330,9 @@ error_stats_t test_attention_bidirectional_packed(pack_size_kernel_type_ packed_
                  values = scalars_t::try_zeros(segments.key_tokens() * layout.key_value_width());
             fill_random(generator, queries), fill_random(generator, keys), fill_random(generator, values);
 
-            auto key_value_packed = bytes_t::try_zeros(packed_size_fn(
-                layout.key_value_head_count, layout.depth, segments.lengths.values_data(), segments.count()));
+            auto key_value_packed = bytes_t::try_zeros(
+                pack_size_bytes(stats, packed_size_fn, layout.key_value_head_count, layout.depth,
+                                segments.lengths.values_data(), segments.count()));
             // Run kernel being tested: pack in two windows, then attention over the whole task grid
             pack_attention_in_two_windows(backend, pack_fn, keys, values, segments, layout, key_value_packed);
             auto output = results_t::try_zeros(segments.query_tokens() * layout.query_width());
@@ -1285,18 +1342,19 @@ error_stats_t test_attention_bidirectional_packed(pack_size_kernel_type_ packed_
                          total_tasks);
             synchronize(backend, stats);
 
-            auto key_value_reference = make_vector<char>(nk::attention_pack_size<scalar_t, nk::no_simd_k>(
-                layout.key_value_head_count, layout.depth, segments.lengths.values_data(), segments.count()));
+            auto key_value_reference = make_vector<char>(nk::attention_pack_size<scalar_t>(
+                layout.key_value_head_count, layout.depth, segments.lengths.values_data(), segments.count(), 0));
             // Compute reference through the serial backend via the C++ wrappers
-            nk::attention_pack<scalar_t, nk::no_simd_k>(
-                keys.values_data(), values.values_data(), layout.key_value_head_count, layout.depth,
-                segments.key_offsets.values_data(), segments.lengths.values_data(), segments.count(),
-                key_value_stride_bytes, key_value_stride_bytes, key_value_reference.raw_values_data());
+            nk::attention_pack<scalar_t>(keys.values_data(), values.values_data(), layout.key_value_head_count,
+                                         layout.depth, segments.key_offsets.values_data(),
+                                         segments.lengths.values_data(), segments.count(), key_value_stride_bytes,
+                                         key_value_stride_bytes, key_value_reference.raw_values_data(), 0,
+                                         static_cast<std::size_t>(-1), 0);
             auto reference = make_vector<result_t>(segments.query_tokens() * layout.query_width());
-            nk::attention_bidirectional_packed<scalar_t, result_t, nk::no_simd_k>(
+            nk::attention_bidirectional_packed<scalar_t, result_t>(
                 queries.values_data(), key_value_reference.raw_values_data(), reference.values_data(),
                 layout.head_count, layout.key_value_head_count, layout.depth, segments.query_offsets.values_data(),
-                query_stride_bytes, output_stride_bytes, layout.scale);
+                query_stride_bytes, output_stride_bytes, layout.scale, 0, static_cast<std::size_t>(-1), 0);
 
             accumulate_attention<weights_>(stats, output, reference, values);
         }
@@ -1340,8 +1398,9 @@ error_stats_t test_attention_causal_packed(pack_size_kernel_type_ packed_size_fn
                  values = scalars_t::try_zeros(segments.key_tokens() * layout.key_value_width());
             fill_random(generator, queries), fill_random(generator, keys), fill_random(generator, values);
 
-            auto key_value_packed = bytes_t::try_zeros(packed_size_fn(
-                layout.key_value_head_count, layout.depth, segments.lengths.values_data(), segments.count()));
+            auto key_value_packed = bytes_t::try_zeros(
+                pack_size_bytes(stats, packed_size_fn, layout.key_value_head_count, layout.depth,
+                                segments.lengths.values_data(), segments.count()));
             auto output = results_t::try_zeros(segments.query_tokens() * layout.query_width());
             pack_attention_in_two_windows(backend, pack_fn, keys, values, segments, layout, key_value_packed);
             backend.call(attention_fn, queries.raw_values_data(), key_value_packed.raw_values_data(),

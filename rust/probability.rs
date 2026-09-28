@@ -9,19 +9,79 @@
 //! File: rust/probability.rs
 //! Author: Ash Vardanian
 
+use core::ffi::c_void;
+use core::ptr::null_mut;
+
+use crate::capabilities::{cpu_capabilities, Status};
 use crate::types::{bf16, f16};
 
 #[link(name = "numkong")]
 extern "C" {
-    fn nk_jsd_f16(a: *const u16, b: *const u16, c: usize, d: *mut f32);
-    fn nk_jsd_bf16(a: *const u16, b: *const u16, c: usize, d: *mut f32);
-    fn nk_jsd_f32(a: *const f32, b: *const f32, c: usize, d: *mut f64);
-    fn nk_jsd_f64(a: *const f64, b: *const f64, c: usize, d: *mut f64);
+    fn nk_jsd_f16_best(
+        a: *const u16,
+        b: *const u16,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_jsd_bf16_best(
+        a: *const u16,
+        b: *const u16,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_jsd_f32_best(
+        a: *const f32,
+        b: *const f32,
+        c: usize,
+        d: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_jsd_f64_best(
+        a: *const f64,
+        b: *const f64,
+        c: usize,
+        d: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
 
-    fn nk_kld_f16(a: *const u16, b: *const u16, c: usize, d: *mut f32);
-    fn nk_kld_bf16(a: *const u16, b: *const u16, c: usize, d: *mut f32);
-    fn nk_kld_f32(a: *const f32, b: *const f32, c: usize, d: *mut f64);
-    fn nk_kld_f64(a: *const f64, b: *const f64, c: usize, d: *mut f64);
+    fn nk_kld_f16_best(
+        a: *const u16,
+        b: *const u16,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_kld_bf16_best(
+        a: *const u16,
+        b: *const u16,
+        c: usize,
+        d: *mut f32,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_kld_f32_best(
+        a: *const f32,
+        b: *const f32,
+        c: usize,
+        d: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_kld_f64_best(
+        a: *const f64,
+        b: *const f64,
+        c: usize,
+        d: *mut f64,
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
 }
 
 // region: KullbackLeibler
@@ -48,7 +108,17 @@ impl KullbackLeibler for f64 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_kld_f64(a.as_ptr(), b.as_ptr(), a.len(), &mut result) };
+        unsafe {
+            nk_kld_f64_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -60,7 +130,17 @@ impl KullbackLeibler for f32 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_kld_f32(a.as_ptr(), b.as_ptr(), a.len(), &mut result) };
+        unsafe {
+            nk_kld_f32_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -72,7 +152,17 @@ impl KullbackLeibler for f16 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_kld_f16(a.as_ptr() as *const u16, b.as_ptr() as *const u16, a.len(), &mut result) };
+        unsafe {
+            nk_kld_f16_best(
+                a.as_ptr() as *const u16,
+                b.as_ptr() as *const u16,
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -84,7 +174,17 @@ impl KullbackLeibler for bf16 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_kld_bf16(a.as_ptr() as *const u16, b.as_ptr() as *const u16, a.len(), &mut result) };
+        unsafe {
+            nk_kld_bf16_best(
+                a.as_ptr() as *const u16,
+                b.as_ptr() as *const u16,
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -115,7 +215,17 @@ impl JensenShannon for f64 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_jsd_f64(a.as_ptr(), b.as_ptr(), a.len(), &mut result) };
+        unsafe {
+            nk_jsd_f64_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -127,7 +237,17 @@ impl JensenShannon for f32 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_jsd_f32(a.as_ptr(), b.as_ptr(), a.len(), &mut result) };
+        unsafe {
+            nk_jsd_f32_best(
+                a.as_ptr(),
+                b.as_ptr(),
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -139,7 +259,17 @@ impl JensenShannon for f16 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_jsd_f16(a.as_ptr() as *const u16, b.as_ptr() as *const u16, a.len(), &mut result) };
+        unsafe {
+            nk_jsd_f16_best(
+                a.as_ptr() as *const u16,
+                b.as_ptr() as *const u16,
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }
@@ -151,7 +281,17 @@ impl JensenShannon for bf16 {
             return None;
         }
         let mut result: Self::Output = 0.0;
-        unsafe { nk_jsd_bf16(a.as_ptr() as *const u16, b.as_ptr() as *const u16, a.len(), &mut result) };
+        unsafe {
+            nk_jsd_bf16_best(
+                a.as_ptr() as *const u16,
+                b.as_ptr() as *const u16,
+                a.len(),
+                &mut result,
+                cpu_capabilities(),
+                null_mut(),
+            )
+        }
+        .ok()?;
         Some(result)
     }
 }

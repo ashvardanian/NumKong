@@ -23,16 +23,20 @@
 #ifndef NUMKONG_DOTS_ICELAKE_H
 #define NUMKONG_DOTS_ICELAKE_H
 
-#if NUMKONG_ARCH_X86_64_
-#if NUMKONG_TARGET_ICELAKE
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_ICELAKE_
 
 #include "numkong/dot/icelake.h"
+#include "numkong/cast/haswell.h"   // `nk_load_b128_haswell_`
+#include "numkong/cast/skylake.h"   // `nk_load_b512_skylake_`
+#include "numkong/dots/serial.h"    // `nk_define_cross_pack_size_`
 #include "numkong/reduce/skylake.h" // `nk_reduce_add_f32x16_skylake_`
 
 #if defined(__cplusplus)
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_ICELAKE
 #if defined(__clang__)
 #pragma clang attribute push(                                                                                        \
     __attribute__((                                                                                                  \
@@ -178,11 +182,12 @@ nk_define_cross_packed_(dots, u1, icelake, u1x8, u1x8, u32, nk_b512_vec_t, nk_do
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_ICELAKE
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_ICELAKE
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_ICELAKE_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_DOTS_ICELAKE_H

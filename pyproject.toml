@@ -121,50 +121,50 @@ test-command = """
 [[tool.cibuildwheel.overrides]]
 select = "*-win_amd64"
 environment.NUMKONG_ARCH_ARM64_ = "0"
-environment.NUMKONG_ARCH_X86_64_ = "1"
+environment.NUMKONG_ARCH_X8664_ = "1"
 inherit.environment = "append"
 
 [[tool.cibuildwheel.overrides]]
 select = "*-manylinux*_x86_64"
 environment.NUMKONG_ARCH_ARM64_ = "0"
-environment.NUMKONG_ARCH_X86_64_ = "1"
+environment.NUMKONG_ARCH_X8664_ = "1"
 inherit.environment = "append"
 
 [[tool.cibuildwheel.overrides]]
 select = "*-musllinux*_x86_64"
 environment.NUMKONG_ARCH_ARM64_ = "0"
-environment.NUMKONG_ARCH_X86_64_ = "1"
+environment.NUMKONG_ARCH_X8664_ = "1"
 inherit.environment = "append"
 
 [[tool.cibuildwheel.overrides]]
 select = "*-macos*_x86_64"
 environment.NUMKONG_ARCH_ARM64_ = "0"
-environment.NUMKONG_ARCH_X86_64_ = "1"
+environment.NUMKONG_ARCH_X8664_ = "1"
 inherit.environment = "append"
 
 # ARM64 builds
 [[tool.cibuildwheel.overrides]]
 select = "*-win_arm64"
 environment.NUMKONG_ARCH_ARM64_ = "1"
-environment.NUMKONG_ARCH_X86_64_ = "0"
+environment.NUMKONG_ARCH_X8664_ = "0"
 inherit.environment = "append"
 
 [[tool.cibuildwheel.overrides]]
 select = "*-manylinux*_aarch64"
 environment.NUMKONG_ARCH_ARM64_ = "1"
-environment.NUMKONG_ARCH_X86_64_ = "0"
+environment.NUMKONG_ARCH_X8664_ = "0"
 inherit.environment = "append"
 
 [[tool.cibuildwheel.overrides]]
 select = "*-musllinux*_aarch64"
 environment.NUMKONG_ARCH_ARM64_ = "1"
-environment.NUMKONG_ARCH_X86_64_ = "0"
+environment.NUMKONG_ARCH_X8664_ = "0"
 inherit.environment = "append"
 
 [[tool.cibuildwheel.overrides]]
 select = "*-macos*_arm64"
 environment.NUMKONG_ARCH_ARM64_ = "1"
-environment.NUMKONG_ARCH_X86_64_ = "0"
+environment.NUMKONG_ARCH_X8664_ = "0"
 inherit.environment = "append"
 
 # RISC-V builds: the images' GCC 14 ignores `#pragma GCC target`, which is how the RVV kernels
@@ -177,7 +177,7 @@ environment.CXX = "clang++"
 environment.LDFLAGS = "-fuse-ld=lld"
 environment.NUMKONG_ARCH_ARM64_ = "0"
 environment.NUMKONG_ARCH_RISCV64_ = "1"
-environment.NUMKONG_ARCH_X86_64_ = "0"
+environment.NUMKONG_ARCH_X8664_ = "0"
 inherit.environment = "append"
 
 # Pyodide / Emscripten WASM builds

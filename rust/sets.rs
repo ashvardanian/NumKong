@@ -11,6 +11,10 @@
 //!
 //! File: rust/sets.rs
 //! Author: Ash Vardanian
+use core::ffi::c_void;
+use core::ptr::null_mut;
+
+use crate::capabilities::{cpu_capabilities, Status};
 use crate::tensor::{Allocator, Global, Tensor, TensorError, TensorMut, TensorRef, TensorView};
 use crate::types::{u1x8, StorageElement};
 
@@ -18,13 +22,15 @@ use crate::types::{u1x8, StorageElement};
 use forkunion as fu;
 
 #[cfg(feature = "parallel")]
+use crate::capabilities::WorkerStatus;
+#[cfg(feature = "parallel")]
 use crate::dots::compute_thread_rows;
 use crate::dots::{validate_matrix_output, validate_packed_input, validate_symmetric_input, Dots, DotsPackedMatrix};
 
 #[link(name = "numkong")]
 extern "C" {
 
-    fn nk_hammings_packed_u1(
+    fn nk_hammings_packed_u1_best(
         queries: *const u8,
         packed: *const u8,
         result: *mut u32,
@@ -33,8 +39,10 @@ extern "C" {
         depth: usize,
         v_stride: usize,
         r_stride: usize,
-    );
-    fn nk_hammings_symmetric_u1(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_hammings_symmetric_u1_best(
         vectors: *const u8,
         vector_count: usize,
         d: usize,
@@ -43,9 +51,11 @@ extern "C" {
         result_stride: usize,
         row_start: usize,
         row_count: usize,
-    );
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
 
-    fn nk_jaccards_packed_u1(
+    fn nk_jaccards_packed_u1_best(
         queries: *const u8,
         packed: *const u8,
         result: *mut f32,
@@ -54,8 +64,10 @@ extern "C" {
         depth: usize,
         v_stride: usize,
         r_stride: usize,
-    );
-    fn nk_jaccards_symmetric_u1(
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
+    fn nk_jaccards_symmetric_u1_best(
         vectors: *const u8,
         vector_count: usize,
         d: usize,
@@ -64,7 +76,9 @@ extern "C" {
         result_stride: usize,
         row_start: usize,
         row_count: usize,
-    );
+        capabilities: u64,
+        stream: *mut c_void,
+    ) -> Status;
 }
 
 // region: Hammings Trait
@@ -82,6 +96,11 @@ extern "C" {
 /// search and bloom-filter-style retrieval. Packing the query set once and running Hamming distance
 /// against many candidate rows is the hot path. Results accumulate in `u32`, wide enough for any
 /// practical binary vector length.
+///
+/// # Errors
+///
+/// [`TensorError::KernelFailed`] when the kernel refuses to run, like on a buffer packed under
+/// other [`Capabilities`](crate::Capabilities) than the current ones.
 pub trait Hammings: Dots {
     /// Computes Hamming distances between values matrix rows and packed query rows.
     ///
@@ -98,7 +117,7 @@ pub trait Hammings: Dots {
         depth: usize,
         v_stride: usize,
         r_stride: usize,
-    );
+    ) -> Result<(), TensorError>;
 
     /// Computes symmetric Gram matrix of Hamming distances: C = A × Aᵀ.
     ///
@@ -114,7 +133,7 @@ pub trait Hammings: Dots {
         result_stride: usize,
         row_start: usize,
         row_count: usize,
-    );
+    ) -> Result<(), TensorError>;
 }
 
 impl Hammings for u1x8 {
@@ -127,8 +146,8 @@ impl Hammings for u1x8 {
         depth: usize,
         v_stride: usize,
         r_stride: usize,
-    ) {
-        nk_hammings_packed_u1(
+    ) -> Result<(), TensorError> {
+        nk_hammings_packed_u1_best(
             queries as *const u8,
             packed,
             result,
@@ -137,7 +156,10 @@ impl Hammings for u1x8 {
             depth,
             v_stride,
             r_stride,
+            cpu_capabilities(),
+            null_mut(),
         )
+        .check()
     }
 
     unsafe fn hammings_symmetric(
@@ -149,8 +171,8 @@ impl Hammings for u1x8 {
         result_stride: usize,
         row_start: usize,
         row_count: usize,
-    ) {
-        nk_hammings_symmetric_u1(
+    ) -> Result<(), TensorError> {
+        nk_hammings_symmetric_u1_best(
             vectors as *const u8,
             vector_count,
             depth,
@@ -159,7 +181,10 @@ impl Hammings for u1x8 {
             result_stride,
             row_start,
             row_count,
+            cpu_capabilities(),
+            null_mut(),
         )
+        .check()
     }
 }
 
@@ -179,6 +204,11 @@ impl Hammings for u1x8 {
 /// Jaccard distance measures set dissimilarity and is the natural metric for binary feature
 /// presence/absence. Pack the query set once and query many candidates in a single batched kernel
 /// call. The result type is `f32` because the ratio is inherently fractional.
+///
+/// # Errors
+///
+/// [`TensorError::KernelFailed`] when the kernel refuses to run, like on a buffer packed under
+/// other [`Capabilities`](crate::Capabilities) than the current ones.
 pub trait Jaccards: Dots {
     /// Result type for Jaccard distances.
     type JaccardResult: StorageElement;
@@ -198,7 +228,7 @@ pub trait Jaccards: Dots {
         depth: usize,
         v_stride: usize,
         r_stride: usize,
-    );
+    ) -> Result<(), TensorError>;
 
     /// Computes symmetric Gram matrix of Jaccard distances.
     ///
@@ -214,7 +244,7 @@ pub trait Jaccards: Dots {
         result_stride: usize,
         row_start: usize,
         row_count: usize,
-    );
+    ) -> Result<(), TensorError>;
 }
 
 impl Jaccards for u1x8 {
@@ -229,8 +259,8 @@ impl Jaccards for u1x8 {
         depth: usize,
         v_stride: usize,
         r_stride: usize,
-    ) {
-        nk_jaccards_packed_u1(
+    ) -> Result<(), TensorError> {
+        nk_jaccards_packed_u1_best(
             queries as *const u8,
             packed,
             result,
@@ -239,7 +269,10 @@ impl Jaccards for u1x8 {
             depth,
             v_stride,
             r_stride,
+            cpu_capabilities(),
+            null_mut(),
         )
+        .check()
     }
 
     unsafe fn jaccards_symmetric(
@@ -251,8 +284,8 @@ impl Jaccards for u1x8 {
         result_stride: usize,
         row_start: usize,
         row_count: usize,
-    ) {
-        nk_jaccards_symmetric_u1(
+    ) -> Result<(), TensorError> {
+        nk_jaccards_symmetric_u1_best(
             vectors as *const u8,
             vector_count,
             depth,
@@ -261,7 +294,10 @@ impl Jaccards for u1x8 {
             result_stride,
             row_start,
             row_count,
+            cpu_capabilities(),
+            null_mut(),
         )
+        .check()
     }
 }
 
@@ -287,7 +323,7 @@ impl<Scalar: Hammings, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<S
                 depth,
                 self.stride_bytes(0) as usize,
                 output.stride_bytes(0) as usize,
-            );
+            )?;
         }
         Ok(output)
     }
@@ -319,6 +355,7 @@ pub trait HammingsPackedOps<Scalar: Hammings, const MAX_RANK: usize>: TensorRef<
     /// - self has non-contiguous rows
     /// - inner dimensions don't match
     /// - output allocation fails
+    /// - the kernel refuses `packed_right`, like one packed under other capabilities
     fn try_hammings_packed<PackedAlloc: Allocator>(
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
@@ -335,7 +372,7 @@ pub trait HammingsPackedOps<Scalar: Hammings, const MAX_RANK: usize>: TensorRef<
                 depth,
                 self.stride_bytes(0) as usize,
                 output.stride_bytes(0) as usize,
-            );
+            )?;
         }
         Ok(output)
     }
@@ -374,7 +411,7 @@ pub trait HammingsPackedOps<Scalar: Hammings, const MAX_RANK: usize>: TensorRef<
                 depth,
                 self.stride_bytes(0) as usize,
                 output.stride_bytes(0) as usize,
-            );
+            )?;
         }
         Ok(())
     }
@@ -403,7 +440,7 @@ impl<Scalar: Jaccards, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<S
                 depth,
                 self.stride_bytes(0) as usize,
                 output.stride_bytes(0) as usize,
-            );
+            )?;
         }
         Ok(output)
     }
@@ -435,6 +472,7 @@ pub trait JaccardsPackedOps<Scalar: Jaccards, const MAX_RANK: usize>: TensorRef<
     /// - self has non-contiguous rows
     /// - inner dimensions don't match
     /// - output allocation fails
+    /// - the kernel refuses `packed_right`, like one packed under other capabilities
     fn try_jaccards_packed<PackedAlloc: Allocator>(
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
@@ -454,7 +492,7 @@ pub trait JaccardsPackedOps<Scalar: Jaccards, const MAX_RANK: usize>: TensorRef<
                 depth,
                 self.stride_bytes(0) as usize,
                 output.stride_bytes(0) as usize,
-            );
+            )?;
         }
         Ok(output)
     }
@@ -493,7 +531,7 @@ pub trait JaccardsPackedOps<Scalar: Jaccards, const MAX_RANK: usize>: TensorRef<
                 depth,
                 self.stride_bytes(0) as usize,
                 output.stride_bytes(0) as usize,
-            );
+            )?;
         }
         Ok(())
     }
@@ -541,6 +579,8 @@ where
         let num_threads = pool.threads_count().max(1);
         let rows_per_thread = height.div_ceil(num_threads);
 
+        let failure = WorkerStatus::default();
+        let failure = &failure;
         pool.broadcast(move |thread_index, _colocation_index| {
             crate::capabilities::configure_thread(crate::Capabilities::enabled());
             let row_start = thread_index * rows_per_thread;
@@ -551,7 +591,7 @@ where
             unsafe {
                 let a_row = (queries_ptr.as_ptr() as *const u8).add(row_start * query_stride) as *const Scalar;
                 let c_row = (output_ptr.as_ptr() as *mut u8).add(row_start * output_stride) as *mut u32;
-                Scalar::hammings_packed(
+                failure.record(Scalar::hammings_packed(
                     a_row,
                     packed_ptr.as_ptr(),
                     c_row,
@@ -560,10 +600,10 @@ where
                     depth,
                     query_stride,
                     output_stride,
-                );
+                ));
             }
         });
-        Ok(())
+        failure.check()
     }
 
     /// Parallel Hamming distances with allocation.
@@ -634,11 +674,13 @@ impl<Scalar: Hammings + Clone + Send + Sync, Alloc: Allocator + Clone, const MAX
         let stride = self.stride_bytes(0) as usize;
         let result_stride = output.stride_bytes(0) as usize;
 
+        let failure = WorkerStatus::default();
+        let failure = &failure;
         pool.broadcast(move |thread_index, _colocation_index| {
             crate::capabilities::configure_thread(crate::Capabilities::enabled());
             let (row_start, row_count) = compute_thread_rows(thread_index, num_threads, vector_count);
             unsafe {
-                Scalar::hammings_symmetric(
+                failure.record(Scalar::hammings_symmetric(
                     vectors_ptr.as_ptr(),
                     vector_count,
                     depth,
@@ -647,10 +689,10 @@ impl<Scalar: Hammings + Clone + Send + Sync, Alloc: Allocator + Clone, const MAX
                     result_stride,
                     row_start,
                     row_count,
-                );
+                ));
             }
         });
-        Ok(())
+        failure.check()
     }
 
     /// Convenience method that panics on error.
@@ -694,6 +736,8 @@ where
         let num_threads = pool.threads_count().max(1);
         let rows_per_thread = height.div_ceil(num_threads);
 
+        let failure = WorkerStatus::default();
+        let failure = &failure;
         pool.broadcast(move |thread_index, _colocation_index| {
             crate::capabilities::configure_thread(crate::Capabilities::enabled());
             let row_start = thread_index * rows_per_thread;
@@ -705,7 +749,7 @@ where
                 let a_row = (queries_ptr.as_ptr() as *const u8).add(row_start * query_stride) as *const Scalar;
                 let c_row =
                     (output_ptr.as_ptr() as *mut u8).add(row_start * output_stride) as *mut Scalar::JaccardResult;
-                Scalar::jaccards_packed(
+                failure.record(Scalar::jaccards_packed(
                     a_row,
                     packed_ptr.as_ptr(),
                     c_row,
@@ -714,10 +758,10 @@ where
                     depth,
                     query_stride,
                     output_stride,
-                );
+                ));
             }
         });
-        Ok(())
+        failure.check()
     }
 
     /// Parallel Jaccard distances with allocation.
@@ -797,11 +841,13 @@ where
         let stride = self.stride_bytes(0) as usize;
         let result_stride = output.stride_bytes(0) as usize;
 
+        let failure = WorkerStatus::default();
+        let failure = &failure;
         pool.broadcast(move |thread_index, _colocation_index| {
             crate::capabilities::configure_thread(crate::Capabilities::enabled());
             let (row_start, row_count) = compute_thread_rows(thread_index, num_threads, vector_count);
             unsafe {
-                Scalar::jaccards_symmetric(
+                failure.record(Scalar::jaccards_symmetric(
                     vectors_ptr.as_ptr(),
                     vector_count,
                     depth,
@@ -810,10 +856,10 @@ where
                     result_stride,
                     row_start,
                     row_count,
-                );
+                ));
             }
         });
-        Ok(())
+        failure.check()
     }
 
     /// Convenience method that panics on error.
@@ -859,7 +905,7 @@ impl<'queries, Scalar: Hammings, const MAX_RANK: usize> TensorView<'queries, Sca
                 output.stride_bytes(0) as usize,
                 0,
                 vector_count,
-            );
+            )?;
         }
         Ok(())
     }
@@ -898,7 +944,7 @@ impl<'queries, Scalar: Jaccards, const MAX_RANK: usize> TensorView<'queries, Sca
                 output.stride_bytes(0) as usize,
                 0,
                 vector_count,
-            );
+            )?;
         }
         Ok(())
     }

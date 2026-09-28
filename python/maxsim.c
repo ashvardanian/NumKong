@@ -20,9 +20,11 @@ static void MaxSimPackedMatrix_dealloc(PyObject *self) { Py_TYPE(self)->tp_free(
 static size_t maxsim_packed_matrix_nbytes(MaxSimPackedMatrix *mm) {
     nk_dots_pack_size_punned_t size_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_maxsim_pack_size_k, mm->dtype, (nk_kernel_punned_t *)&size_fn, &cap);
-    if (!size_fn || !cap) return 0;
-    return size_fn(mm->vectors, mm->depth);
+    nk_find_kernel_punned(nk_kernel_maxsim_pack_size_k, mm->dtype, mm->capabilities, (nk_kernel_punned_t *)&size_fn,
+                          &cap);
+    nk_size_t bytes = 0;
+    if (size_fn) size_fn(mm->vectors, mm->depth, &bytes);
+    return bytes;
 }
 
 static PyObject *MaxSimPackedMatrix_repr(PyObject *self) {
@@ -57,14 +59,15 @@ static PyObject *MaxSimPackedMatrix_get_shape(PyObject *self, void *closure) {
     MaxSimPackedMatrix *mm = (MaxSimPackedMatrix *)self;
     nk_dots_packed_shape_punned_t shape_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_maxsim_packed_shape_k, mm->dtype, (nk_kernel_punned_t *)&shape_fn, &cap);
+    nk_find_kernel_punned(nk_kernel_maxsim_packed_shape_k, mm->dtype, mm->capabilities, (nk_kernel_punned_t *)&shape_fn,
+                          &cap);
     if (!shape_fn || !cap) {
         PyErr_Format(PyExc_LookupError, "No packed_shape kernel for dtype '%s'",
                      nk_dtype_to_pybuffer_typestr(mm->dtype));
         return NULL;
     }
     nk_size_t vectors = 0, depth = 0;
-    shape_fn(mm->start, &vectors, &depth);
+    if (!check_status(shape_fn(mm->start, &vectors, &depth, NULL))) return NULL;
     return Py_BuildValue("(nn)", (Py_ssize_t)vectors, (Py_ssize_t)depth);
 }
 
@@ -128,14 +131,17 @@ static PyObject *MaxSimPackedMatrix_pack_size(PyObject *cls, PyObject *const *ar
 
     nk_dots_pack_size_punned_t size_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_maxsim_pack_size_k, dtype, (nk_kernel_punned_t *)&size_fn, &cap);
+    nk_find_kernel_punned(nk_kernel_maxsim_pack_size_k, dtype, default_capabilities, (nk_kernel_punned_t *)&size_fn,
+                          &cap);
     if (!size_fn || !cap) {
         PyErr_Format(PyExc_LookupError, "No maxsim pack_size kernel for dtype '%s'",
                      nk_dtype_to_pybuffer_typestr(dtype));
         return NULL;
     }
 
-    return PyLong_FromSize_t(size_fn(vectors, depth));
+    nk_size_t bytes = 0;
+    if (!check_status(size_fn(vectors, depth, &bytes))) return NULL;
+    return PyLong_FromSize_t(bytes);
 }
 
 static PyMethodDef MaxSimPackedMatrix_methods[] = {
@@ -173,11 +179,13 @@ PyObject *api_maxsim_pack(PyObject *self, PyObject *const *args, Py_ssize_t narg
 
     PyObject *b_obj = NULL;
     PyObject *dtype_obj = NULL;
+    nk_capability_t capabilities = default_capabilities;
+    void *stream = NULL;
 
     Py_ssize_t nkw = kwnames ? PyTuple_Size(kwnames) : 0;
     Py_ssize_t total = nargs + nkw;
 
-    if (nargs < 1 || total > 2) {
+    if (nargs < 1 || nargs > 2 || total > 4) {
         PyErr_SetString(PyExc_TypeError, "maxsim_pack() requires 1-2 arguments: b, dtype=None");
         return NULL;
     }
@@ -193,11 +201,7 @@ PyObject *api_maxsim_pack(PyObject *self, PyObject *const *args, Py_ssize_t narg
             }
             dtype_obj = args[nargs + i];
         }
-        else {
-            char const *name_str = PyUnicode_AsUTF8(name);
-            PyErr_Format(PyExc_TypeError, "maxsim_pack() got unexpected keyword argument '%s'", name_str);
-            return NULL;
-        }
+        else if (!parse_dispatch_keyword(name, args[nargs + i], &capabilities, &stream)) return NULL;
     }
     if (nargs >= 2) dtype_obj = args[1];
 
@@ -264,14 +268,19 @@ PyObject *api_maxsim_pack(PyObject *self, PyObject *const *args, Py_ssize_t narg
 
     nk_dots_pack_size_punned_t size_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_maxsim_pack_size_k, target_dtype, (nk_kernel_punned_t *)&size_fn, &cap);
+    nk_find_kernel_punned(nk_kernel_maxsim_pack_size_k, target_dtype, capabilities, (nk_kernel_punned_t *)&size_fn,
+                          &cap);
     if (!size_fn || !cap) {
         PyBuffer_Release(&b_buffer);
         PyErr_Format(PyExc_LookupError, "No maxsim pack_size kernel for dtype '%s'",
                      nk_dtype_to_pybuffer_typestr(target_dtype));
         return NULL;
     }
-    nk_size_t packed_size = size_fn(vectors, depth);
+    nk_size_t packed_size = 0;
+    if (!check_status(size_fn(vectors, depth, &packed_size))) {
+        PyBuffer_Release(&b_buffer);
+        return NULL;
+    }
 
     MaxSimPackedMatrix *packed = PyObject_NewVar(MaxSimPackedMatrix, &MaxSimPackedMatrixType, packed_size);
     if (!packed) {
@@ -283,10 +292,11 @@ PyObject *api_maxsim_pack(PyObject *self, PyObject *const *args, Py_ssize_t narg
     packed->dtype = target_dtype;
     packed->vectors = vectors;
     packed->depth = depth;
+    packed->capabilities = capabilities;
 
     nk_maxsim_pack_punned_t pack_fn = NULL;
     cap = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_maxsim_pack_k, target_dtype, (nk_kernel_punned_t *)&pack_fn, &cap);
+    nk_find_kernel_punned(nk_kernel_maxsim_pack_k, target_dtype, capabilities, (nk_kernel_punned_t *)&pack_fn, &cap);
     if (!pack_fn || !cap) {
         Py_DECREF(packed);
         PyBuffer_Release(&b_buffer);
@@ -295,13 +305,15 @@ PyObject *api_maxsim_pack(PyObject *self, PyObject *const *args, Py_ssize_t narg
         return NULL;
     }
 
-    {
-        PyThreadState *save = PyEval_SaveThread();
-        pack_fn(b_buffer.buf, vectors, depth, row_stride, packed->start);
-        PyEval_RestoreThread(save);
-    }
+    PyThreadState *save = PyEval_SaveThread();
+    nk_status_t const status = pack_fn(b_buffer.buf, vectors, depth, row_stride, packed->start, stream);
+    PyEval_RestoreThread(save);
 
     PyBuffer_Release(&b_buffer);
+    if (!check_status(status)) {
+        Py_DECREF(packed);
+        return NULL;
+    }
     return (PyObject *)packed;
 }
 
@@ -316,30 +328,23 @@ char const doc_maxsim_packed[] =                                             //
     "Signature:\n"                                                           //
     "    >>> def maxsim_packed(queries, documents, /) -> float: ...";
 
-static PyObject *maxsim_result_to_py_number(                  //
-    nk_maxsim_packed_punned_t kernel, nk_dtype_t input_dtype, //
-    void const *queries, void const *documents,               //
+static PyObject *maxsim_result_to_py_number(                                //
+    nk_maxsim_packed_punned_t kernel, void *stream, nk_dtype_t input_dtype, //
+    void const *queries, void const *documents,                             //
     nk_size_t query_count, nk_size_t document_count, nk_size_t depth) {
 
     nk_dtype_t out_dtype = nk_kernel_output_dtype(nk_kernel_maxsim_packed_k, input_dtype);
-    if (out_dtype == nk_dtype_unknown_k) {
-        PyErr_Format(PyExc_ValueError, "Cannot determine output dtype for maxsim_packed('%s')",
-                     nk_dtype_to_pybuffer_typestr(input_dtype));
+    if (out_dtype != nk_f64_k && out_dtype != nk_f32_k) {
+        PyErr_Format(PyExc_ValueError, "Unsupported maxsim_packed output dtype '%s' for '%s'",
+                     nk_dtype_to_pybuffer_typestr(out_dtype), nk_dtype_to_pybuffer_typestr(input_dtype));
         return NULL;
     }
 
     nk_scalar_buffer_t result = {0};
     PyThreadState *save = PyEval_SaveThread();
-    switch (out_dtype) {
-    case nk_f64_k: kernel(queries, documents, query_count, document_count, depth, &result.f64); break;
-    case nk_f32_k: kernel(queries, documents, query_count, document_count, depth, &result.f32); break;
-    default:
-        PyEval_RestoreThread(save);
-        PyErr_Format(PyExc_ValueError, "Unsupported maxsim_packed output dtype '%s'",
-                     nk_dtype_to_pybuffer_typestr(out_dtype));
-        return NULL;
-    }
+    nk_status_t const status = kernel(queries, documents, query_count, document_count, depth, &result, stream);
     PyEval_RestoreThread(save);
+    if (!check_status(status)) return NULL;
 
     return nk_scalar_buffer_to_py_number(&result, out_dtype);
 }
@@ -347,7 +352,7 @@ static PyObject *maxsim_result_to_py_number(                  //
 PyObject *api_maxsim_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
 
-    if (nargs != 2 || (kwnames && PyTuple_Size(kwnames) > 0)) {
+    if (nargs != 2) {
         PyErr_SetString(PyExc_TypeError, "maxsim_packed() requires exactly 2 positional arguments: queries, documents");
         return NULL;
     }
@@ -363,6 +368,11 @@ PyObject *api_maxsim_packed(PyObject *self, PyObject *const *args, Py_ssize_t na
 
     MaxSimPackedMatrix *queries = (MaxSimPackedMatrix *)args[0];
     MaxSimPackedMatrix *documents = (MaxSimPackedMatrix *)args[1];
+    nk_capability_t capabilities = queries->capabilities;
+    void *stream = NULL;
+    Py_ssize_t const kwnames_count = kwnames ? PyTuple_Size(kwnames) : 0;
+    for (Py_ssize_t i = 0; i < kwnames_count; ++i)
+        if (!parse_dispatch_keyword(PyTuple_GET_ITEM(kwnames, i), args[nargs + i], &capabilities, &stream)) return NULL;
 
     if (queries->dtype != documents->dtype) {
         PyErr_Format(PyExc_TypeError, "dtype mismatch: queries is '%s' but documents is '%s'",
@@ -377,15 +387,15 @@ PyObject *api_maxsim_packed(PyObject *self, PyObject *const *args, Py_ssize_t na
 
     nk_maxsim_packed_punned_t kernel = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_maxsim_packed_k, queries->dtype, (nk_kernel_punned_t *)&kernel, &cap);
+    nk_find_kernel_punned(nk_kernel_maxsim_packed_k, queries->dtype, capabilities, (nk_kernel_punned_t *)&kernel, &cap);
     if (!kernel || !cap) {
         PyErr_Format(PyExc_LookupError, "No maxsim_packed kernel for dtype '%s'",
                      nk_dtype_to_pybuffer_typestr(queries->dtype));
         return NULL;
     }
 
-    return maxsim_result_to_py_number(kernel, queries->dtype, queries->start, documents->start, queries->vectors,
-                                      documents->vectors, queries->depth);
+    return maxsim_result_to_py_number(kernel, stream, queries->dtype, queries->start, documents->start,
+                                      queries->vectors, documents->vectors, queries->depth);
 }
 
 char const doc_maxsim[] =                                                              //
@@ -406,11 +416,13 @@ PyObject *api_maxsim(PyObject *self, PyObject *const *args, Py_ssize_t nargs, Py
 
     PyObject *queries_obj = NULL, *documents_obj = NULL;
     PyObject *dtype_obj = NULL;
+    nk_capability_t capabilities = default_capabilities;
+    void *stream = NULL;
 
     Py_ssize_t nkw = kwnames ? PyTuple_Size(kwnames) : 0;
     Py_ssize_t total = nargs + nkw;
 
-    if (nargs < 2 || total > 3) {
+    if (nargs < 2 || nargs > 3 || total > 5) {
         PyErr_SetString(PyExc_TypeError, "maxsim() requires 2-3 arguments: queries, documents, dtype='bf16'");
         return NULL;
     }
@@ -427,11 +439,7 @@ PyObject *api_maxsim(PyObject *self, PyObject *const *args, Py_ssize_t nargs, Py
             }
             dtype_obj = args[nargs + i];
         }
-        else {
-            char const *name_str = PyUnicode_AsUTF8(name);
-            PyErr_Format(PyExc_TypeError, "maxsim() got unexpected keyword argument '%s'", name_str);
-            return NULL;
-        }
+        else if (!parse_dispatch_keyword(name, args[nargs + i], &capabilities, &stream)) return NULL;
     }
     if (nargs >= 3) dtype_obj = args[2];
 
@@ -520,7 +528,8 @@ PyObject *api_maxsim(PyObject *self, PyObject *const *args, Py_ssize_t nargs, Py
 
         nk_dots_pack_size_punned_t size_fn = NULL;
         nk_capability_t cap = nk_cap_serial_k;
-        nk_cpu_find_kernel_punned(nk_kernel_maxsim_pack_size_k, target_dtype, (nk_kernel_punned_t *)&size_fn, &cap);
+        nk_find_kernel_punned(nk_kernel_maxsim_pack_size_k, target_dtype, capabilities, (nk_kernel_punned_t *)&size_fn,
+                              &cap);
         if (!size_fn || !cap) {
             PyErr_Format(PyExc_LookupError, "No maxsim pack_size kernel for dtype '%s'",
                          nk_dtype_to_pybuffer_typestr(target_dtype));
@@ -529,7 +538,8 @@ PyObject *api_maxsim(PyObject *self, PyObject *const *args, Py_ssize_t nargs, Py
 
         nk_maxsim_pack_punned_t pack_fn = NULL;
         cap = nk_cap_serial_k;
-        nk_cpu_find_kernel_punned(nk_kernel_maxsim_pack_k, target_dtype, (nk_kernel_punned_t *)&pack_fn, &cap);
+        nk_find_kernel_punned(nk_kernel_maxsim_pack_k, target_dtype, capabilities, (nk_kernel_punned_t *)&pack_fn,
+                              &cap);
         if (!pack_fn || !cap) {
             PyErr_Format(PyExc_LookupError, "No maxsim pack kernel for dtype '%s'",
                          nk_dtype_to_pybuffer_typestr(target_dtype));
@@ -538,15 +548,18 @@ PyObject *api_maxsim(PyObject *self, PyObject *const *args, Py_ssize_t nargs, Py
 
         nk_maxsim_packed_punned_t kernel = NULL;
         cap = nk_cap_serial_k;
-        nk_cpu_find_kernel_punned(nk_kernel_maxsim_packed_k, target_dtype, (nk_kernel_punned_t *)&kernel, &cap);
+        nk_find_kernel_punned(nk_kernel_maxsim_packed_k, target_dtype, capabilities, (nk_kernel_punned_t *)&kernel,
+                              &cap);
         if (!kernel || !cap) {
             PyErr_Format(PyExc_LookupError, "No maxsim_packed kernel for dtype '%s'",
                          nk_dtype_to_pybuffer_typestr(target_dtype));
             goto cleanup;
         }
 
-        nk_size_t q_pack_size = size_fn(query_count, query_depth);
-        nk_size_t d_pack_size = size_fn(document_count, document_depth);
+        nk_size_t q_pack_size = 0, d_pack_size = 0;
+        if (!check_status(size_fn(query_count, query_depth, &q_pack_size)) ||
+            !check_status(size_fn(document_count, document_depth, &d_pack_size)))
+            goto cleanup;
 
         q_packed = PyObject_NewVar(MaxSimPackedMatrix, &MaxSimPackedMatrixType, q_pack_size);
         if (!q_packed) {
@@ -556,6 +569,7 @@ PyObject *api_maxsim(PyObject *self, PyObject *const *args, Py_ssize_t nargs, Py
         q_packed->dtype = target_dtype;
         q_packed->vectors = query_count;
         q_packed->depth = query_depth;
+        q_packed->capabilities = capabilities;
 
         d_packed = PyObject_NewVar(MaxSimPackedMatrix, &MaxSimPackedMatrixType, d_pack_size);
         if (!d_packed) {
@@ -565,16 +579,19 @@ PyObject *api_maxsim(PyObject *self, PyObject *const *args, Py_ssize_t nargs, Py
         d_packed->dtype = target_dtype;
         d_packed->vectors = document_count;
         d_packed->depth = document_depth;
+        d_packed->capabilities = capabilities;
 
-        {
-            PyThreadState *save = PyEval_SaveThread();
-            pack_fn(queries_buffer.buf, query_count, query_depth, query_stride, q_packed->start);
-            pack_fn(documents_buffer.buf, document_count, document_depth, document_stride, d_packed->start);
-            PyEval_RestoreThread(save);
-        }
+        PyThreadState *save = PyEval_SaveThread();
+        nk_status_t status = pack_fn(queries_buffer.buf, query_count, query_depth, query_stride, q_packed->start,
+                                     stream);
+        if (status == nk_success_k)
+            status = pack_fn(documents_buffer.buf, document_count, document_depth, document_stride, d_packed->start,
+                             stream);
+        PyEval_RestoreThread(save);
+        if (!check_status(status)) goto cleanup;
 
-        return_obj = maxsim_result_to_py_number(kernel, target_dtype, q_packed->start, d_packed->start, query_count,
-                                                document_count, query_depth);
+        return_obj = maxsim_result_to_py_number(kernel, stream, target_dtype, q_packed->start, d_packed->start,
+                                                query_count, document_count, query_depth);
     }
 
 cleanup:

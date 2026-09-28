@@ -30,11 +30,11 @@ error_stats_t test_reduce_moments(typename input_type_::reduce_moments_kernel_t 
         fill_random(generator, buffer);
         typename sum_t::raw_t sum;
         typename sumsq_t::raw_t sumsq;
-        kernel(buffer.raw_values_data(), n, stride_bytes, &sum, &sumsq);
+        stats.expect(kernel(buffer.raw_values_data(), n, stride_bytes, &sum, &sumsq, nullptr));
         sum_reference_t sum_reference;
         sumsq_reference_t sumsq_reference;
-        nk::reduce_moments<input_type_, sum_reference_t, sumsq_reference_t, nk::no_simd_k>(
-            buffer.values_data(), n, stride_bytes, &sum_reference, &sumsq_reference);
+        nk::reduce_moments<input_type_, sum_reference_t, sumsq_reference_t>(
+            buffer.values_data(), n, stride_bytes, &sum_reference, &sumsq_reference, no_tiers_k);
         stats.accumulate(sum_t::from_raw(sum), sum_reference);
         stats.accumulate(sumsq_t::from_raw(sumsq), sumsq_reference);
     }
@@ -53,11 +53,12 @@ error_stats_t test_reduce_minmax(typename input_type_::reduce_minmax_kernel_t ke
     auto compare = [&](std::size_t stride_bytes) {
         typename output_t::raw_t min_val, max_val;
         nk_size_t min_idx, max_idx;
-        kernel(buffer.raw_values_data(), n, stride_bytes, &min_val, &min_idx, &max_val, &max_idx);
+        stats.expect(
+            kernel(buffer.raw_values_data(), n, stride_bytes, &min_val, &min_idx, &max_val, &max_idx, nullptr));
         output_t ref_min, ref_max;
         std::size_t ref_min_idx, ref_max_idx;
-        nk::reduce_minmax<input_type_, output_t, nk::no_simd_k>(buffer.values_data(), n, stride_bytes, &ref_min,
-                                                                &ref_min_idx, &ref_max, &ref_max_idx);
+        nk::reduce_minmax<input_type_, output_t>(buffer.values_data(), n, stride_bytes, &ref_min, &ref_min_idx,
+                                                 &ref_max, &ref_max_idx, no_tiers_k);
         stats.accumulate(static_cast<nk_size_t>(min_idx), static_cast<nk_size_t>(ref_min_idx));
         stats.accumulate(static_cast<nk_size_t>(max_idx), static_cast<nk_size_t>(ref_max_idx));
         if (ref_min_idx == NUMKONG_SIZE_MAX) return; // No index, so the values are only sentinels
@@ -143,46 +144,46 @@ void test_reduce() {
     check("reduce_minmax_u4_serial", test_reduce_minmax<u4x2_t>, nk_reduce_minmax_u4_serial);
     check("reduce_minmax_u1_serial", test_reduce_minmax<u1x8_t>, nk_reduce_minmax_u1_serial);
 
-#if NUMKONG_RUNTIME_DISPATCH
+#if !NUMKONG_HEADER_ONLY
     check.section("Reductions Runtime Dispatch", nk_cap_serial_k);
-    check("reduce_moments_f32", test_reduce_moments<f32_t>, nk_reduce_moments_f32);
-    check("reduce_moments_f64", test_reduce_moments<f64_t>, nk_reduce_moments_f64);
-    check("reduce_moments_i8", test_reduce_moments<i8_t>, nk_reduce_moments_i8);
-    check("reduce_moments_u8", test_reduce_moments<u8_t>, nk_reduce_moments_u8);
-    check("reduce_moments_i16", test_reduce_moments<i16_t>, nk_reduce_moments_i16);
-    check("reduce_moments_u16", test_reduce_moments<u16_t>, nk_reduce_moments_u16);
-    check("reduce_moments_i32", test_reduce_moments<i32_t>, nk_reduce_moments_i32);
-    check("reduce_moments_u32", test_reduce_moments<u32_t>, nk_reduce_moments_u32);
-    check("reduce_moments_i64", test_reduce_moments<i64_t>, nk_reduce_moments_i64);
-    check("reduce_moments_u64", test_reduce_moments<u64_t>, nk_reduce_moments_u64);
-    check("reduce_moments_f16", test_reduce_moments<f16_t>, nk_reduce_moments_f16);
-    check("reduce_moments_bf16", test_reduce_moments<bf16_t>, nk_reduce_moments_bf16);
-    check("reduce_moments_e4m3", test_reduce_moments<e4m3_t>, nk_reduce_moments_e4m3);
-    check("reduce_moments_e5m2", test_reduce_moments<e5m2_t>, nk_reduce_moments_e5m2);
-    check("reduce_moments_e2m3", test_reduce_moments<e2m3_t>, nk_reduce_moments_e2m3);
-    check("reduce_moments_e3m2", test_reduce_moments<e3m2_t>, nk_reduce_moments_e3m2);
-    check("reduce_moments_i4", test_reduce_moments<i4x2_t>, nk_reduce_moments_i4);
-    check("reduce_moments_u4", test_reduce_moments<u4x2_t>, nk_reduce_moments_u4);
-    check("reduce_moments_u1", test_reduce_moments<u1x8_t>, nk_reduce_moments_u1);
-    check("reduce_minmax_f32", test_reduce_minmax<f32_t>, nk_reduce_minmax_f32);
-    check("reduce_minmax_f64", test_reduce_minmax<f64_t>, nk_reduce_minmax_f64);
-    check("reduce_minmax_i8", test_reduce_minmax<i8_t>, nk_reduce_minmax_i8);
-    check("reduce_minmax_u8", test_reduce_minmax<u8_t>, nk_reduce_minmax_u8);
-    check("reduce_minmax_i16", test_reduce_minmax<i16_t>, nk_reduce_minmax_i16);
-    check("reduce_minmax_u16", test_reduce_minmax<u16_t>, nk_reduce_minmax_u16);
-    check("reduce_minmax_i32", test_reduce_minmax<i32_t>, nk_reduce_minmax_i32);
-    check("reduce_minmax_u32", test_reduce_minmax<u32_t>, nk_reduce_minmax_u32);
-    check("reduce_minmax_i64", test_reduce_minmax<i64_t>, nk_reduce_minmax_i64);
-    check("reduce_minmax_u64", test_reduce_minmax<u64_t>, nk_reduce_minmax_u64);
-    check("reduce_minmax_f16", test_reduce_minmax<f16_t>, nk_reduce_minmax_f16);
-    check("reduce_minmax_bf16", test_reduce_minmax<bf16_t>, nk_reduce_minmax_bf16);
-    check("reduce_minmax_e4m3", test_reduce_minmax<e4m3_t>, nk_reduce_minmax_e4m3);
-    check("reduce_minmax_e5m2", test_reduce_minmax<e5m2_t>, nk_reduce_minmax_e5m2);
-    check("reduce_minmax_e2m3", test_reduce_minmax<e2m3_t>, nk_reduce_minmax_e2m3);
-    check("reduce_minmax_e3m2", test_reduce_minmax<e3m2_t>, nk_reduce_minmax_e3m2);
-    check("reduce_minmax_i4", test_reduce_minmax<i4x2_t>, nk_reduce_minmax_i4);
-    check("reduce_minmax_u4", test_reduce_minmax<u4x2_t>, nk_reduce_minmax_u4);
-    check("reduce_minmax_u1", test_reduce_minmax<u1x8_t>, nk_reduce_minmax_u1);
+    check("reduce_moments_f32", test_reduce_moments<f32_t>, cpu_best<nk_reduce_moments_f32_best>);
+    check("reduce_moments_f64", test_reduce_moments<f64_t>, cpu_best<nk_reduce_moments_f64_best>);
+    check("reduce_moments_i8", test_reduce_moments<i8_t>, cpu_best<nk_reduce_moments_i8_best>);
+    check("reduce_moments_u8", test_reduce_moments<u8_t>, cpu_best<nk_reduce_moments_u8_best>);
+    check("reduce_moments_i16", test_reduce_moments<i16_t>, cpu_best<nk_reduce_moments_i16_best>);
+    check("reduce_moments_u16", test_reduce_moments<u16_t>, cpu_best<nk_reduce_moments_u16_best>);
+    check("reduce_moments_i32", test_reduce_moments<i32_t>, cpu_best<nk_reduce_moments_i32_best>);
+    check("reduce_moments_u32", test_reduce_moments<u32_t>, cpu_best<nk_reduce_moments_u32_best>);
+    check("reduce_moments_i64", test_reduce_moments<i64_t>, cpu_best<nk_reduce_moments_i64_best>);
+    check("reduce_moments_u64", test_reduce_moments<u64_t>, cpu_best<nk_reduce_moments_u64_best>);
+    check("reduce_moments_f16", test_reduce_moments<f16_t>, cpu_best<nk_reduce_moments_f16_best>);
+    check("reduce_moments_bf16", test_reduce_moments<bf16_t>, cpu_best<nk_reduce_moments_bf16_best>);
+    check("reduce_moments_e4m3", test_reduce_moments<e4m3_t>, cpu_best<nk_reduce_moments_e4m3_best>);
+    check("reduce_moments_e5m2", test_reduce_moments<e5m2_t>, cpu_best<nk_reduce_moments_e5m2_best>);
+    check("reduce_moments_e2m3", test_reduce_moments<e2m3_t>, cpu_best<nk_reduce_moments_e2m3_best>);
+    check("reduce_moments_e3m2", test_reduce_moments<e3m2_t>, cpu_best<nk_reduce_moments_e3m2_best>);
+    check("reduce_moments_i4", test_reduce_moments<i4x2_t>, cpu_best<nk_reduce_moments_i4_best>);
+    check("reduce_moments_u4", test_reduce_moments<u4x2_t>, cpu_best<nk_reduce_moments_u4_best>);
+    check("reduce_moments_u1", test_reduce_moments<u1x8_t>, cpu_best<nk_reduce_moments_u1_best>);
+    check("reduce_minmax_f32", test_reduce_minmax<f32_t>, cpu_best<nk_reduce_minmax_f32_best>);
+    check("reduce_minmax_f64", test_reduce_minmax<f64_t>, cpu_best<nk_reduce_minmax_f64_best>);
+    check("reduce_minmax_i8", test_reduce_minmax<i8_t>, cpu_best<nk_reduce_minmax_i8_best>);
+    check("reduce_minmax_u8", test_reduce_minmax<u8_t>, cpu_best<nk_reduce_minmax_u8_best>);
+    check("reduce_minmax_i16", test_reduce_minmax<i16_t>, cpu_best<nk_reduce_minmax_i16_best>);
+    check("reduce_minmax_u16", test_reduce_minmax<u16_t>, cpu_best<nk_reduce_minmax_u16_best>);
+    check("reduce_minmax_i32", test_reduce_minmax<i32_t>, cpu_best<nk_reduce_minmax_i32_best>);
+    check("reduce_minmax_u32", test_reduce_minmax<u32_t>, cpu_best<nk_reduce_minmax_u32_best>);
+    check("reduce_minmax_i64", test_reduce_minmax<i64_t>, cpu_best<nk_reduce_minmax_i64_best>);
+    check("reduce_minmax_u64", test_reduce_minmax<u64_t>, cpu_best<nk_reduce_minmax_u64_best>);
+    check("reduce_minmax_f16", test_reduce_minmax<f16_t>, cpu_best<nk_reduce_minmax_f16_best>);
+    check("reduce_minmax_bf16", test_reduce_minmax<bf16_t>, cpu_best<nk_reduce_minmax_bf16_best>);
+    check("reduce_minmax_e4m3", test_reduce_minmax<e4m3_t>, cpu_best<nk_reduce_minmax_e4m3_best>);
+    check("reduce_minmax_e5m2", test_reduce_minmax<e5m2_t>, cpu_best<nk_reduce_minmax_e5m2_best>);
+    check("reduce_minmax_e2m3", test_reduce_minmax<e2m3_t>, cpu_best<nk_reduce_minmax_e2m3_best>);
+    check("reduce_minmax_e3m2", test_reduce_minmax<e3m2_t>, cpu_best<nk_reduce_minmax_e3m2_best>);
+    check("reduce_minmax_i4", test_reduce_minmax<i4x2_t>, cpu_best<nk_reduce_minmax_i4_best>);
+    check("reduce_minmax_u4", test_reduce_minmax<u4x2_t>, cpu_best<nk_reduce_minmax_u4_best>);
+    check("reduce_minmax_u1", test_reduce_minmax<u1x8_t>, cpu_best<nk_reduce_minmax_u1_best>);
 #endif
 
 #if NUMKONG_TARGET_NEON

@@ -26,8 +26,10 @@ void measure_maxsim_packed(                                                     
     using result_t = typename input_t::maxsim_result_t;
 
     nk_size_t stride = depth * sizeof(raw_input_t);
-    nk_size_t query_packed_bytes = packed_size_fn(query_count, depth);
-    nk_size_t document_packed_bytes = packed_size_fn(document_count, depth);
+    nk_size_t query_packed_bytes = 0, document_packed_bytes = 0;
+    if (!succeeded(state, packed_size_fn(query_count, depth, &query_packed_bytes)) ||
+        !succeeded(state, packed_size_fn(document_count, depth, &document_packed_bytes)))
+        return;
 
     std::size_t bytes_per_set = query_count * stride + document_count * stride + query_packed_bytes +
                                 document_packed_bytes;
@@ -46,15 +48,20 @@ void measure_maxsim_packed(                                                     
         s.document_packed.resize(document_packed_bytes);
         nk::fill_uniform(generator, s.queries.values_data(), s.queries.size_values());
         nk::fill_uniform(generator, s.documents.values_data(), s.documents.size_values());
-        pack_fn(s.queries.raw_values_data(), query_count, depth, stride, s.query_packed.data());
-        pack_fn(s.documents.raw_values_data(), document_count, depth, stride, s.document_packed.data());
+        if (!succeeded(state, pack_fn(s.queries.raw_values_data(), query_count, depth, stride, s.query_packed.data(),
+                                      nullptr)) ||
+            !succeeded(state, pack_fn(s.documents.raw_values_data(), document_count, depth, stride,
+                                      s.document_packed.data(), nullptr)))
+            return;
     }
 
     std::size_t iterations = 0;
     for (auto _ : state) {
         auto &s = sets[iterations & (sets_count - 1)];
         result_t result;
-        maxsim_fn(s.query_packed.data(), s.document_packed.data(), query_count, document_count, depth, &result.raw_);
+        if (!succeeded(state, maxsim_fn(s.query_packed.data(), s.document_packed.data(), query_count, document_count,
+                                        depth, &result.raw_, nullptr)))
+            break;
         bm::DoNotOptimize(result);
         ++iterations;
     }
@@ -137,21 +144,12 @@ void bench_maxsim() {
 #endif
 
 #if NUMKONG_TARGET_V128RELAXED
-    run_maxsim_packed<bf16_k>("maxsim_bf16_v128relaxed", nk_maxsim_pack_size_bf16_v128, nk_maxsim_pack_bf16_v128,
-                              nk_maxsim_packed_bf16_v128relaxed);
-    run_maxsim_packed<f32_k>("maxsim_f32_v128relaxed", nk_maxsim_pack_size_f32_v128, nk_maxsim_pack_f32_v128,
-                             nk_maxsim_packed_f32_v128relaxed);
-    run_maxsim_packed<f16_k>("maxsim_f16_v128relaxed", nk_maxsim_pack_size_f16_v128, nk_maxsim_pack_f16_v128,
-                             nk_maxsim_packed_f16_v128relaxed);
-#endif
-
-#if NUMKONG_TARGET_V128
-    run_maxsim_packed<bf16_k>("maxsim_bf16_v128", nk_maxsim_pack_size_bf16_v128, nk_maxsim_pack_bf16_v128,
-                              nk_maxsim_packed_bf16_serial);
-    run_maxsim_packed<f32_k>("maxsim_f32_v128", nk_maxsim_pack_size_f32_v128, nk_maxsim_pack_f32_v128,
-                             nk_maxsim_packed_f32_serial);
-    run_maxsim_packed<f16_k>("maxsim_f16_v128", nk_maxsim_pack_size_f16_v128, nk_maxsim_pack_f16_v128,
-                             nk_maxsim_packed_f16_serial);
+    run_maxsim_packed<bf16_k>("maxsim_bf16_v128relaxed", nk_maxsim_pack_size_bf16_v128relaxed,
+                              nk_maxsim_pack_bf16_v128relaxed, nk_maxsim_packed_bf16_v128relaxed);
+    run_maxsim_packed<f32_k>("maxsim_f32_v128relaxed", nk_maxsim_pack_size_f32_v128relaxed,
+                             nk_maxsim_pack_f32_v128relaxed, nk_maxsim_packed_f32_v128relaxed);
+    run_maxsim_packed<f16_k>("maxsim_f16_v128relaxed", nk_maxsim_pack_size_f16_v128relaxed,
+                             nk_maxsim_pack_f16_v128relaxed, nk_maxsim_packed_f16_v128relaxed);
 #endif
 
 #if NUMKONG_TARGET_SME

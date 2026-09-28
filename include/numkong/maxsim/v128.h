@@ -6,18 +6,18 @@
  *
  *  @sa include/numkong/maxsim.h
  *
- *  Packs vectors into the i8 coarse-screening layout shared with `maxsim/v128relaxed.h`, where the
- *  packed kernels themselves live: quantization keeps both operands within the i7 range [-63, 63].
+ *  Packs vectors into the i8 coarse-screening layout of `maxsim/v128relaxed.h`, the only capability
+ *  that runs these helpers, as only it multiplies: quantization keeps both operands within the i7
+ *  range [-63, 63].
  */
 #ifndef NUMKONG_MAXSIM_V128_H
 #define NUMKONG_MAXSIM_V128_H
 
-#if NUMKONG_TARGET_V128
+#if NUMKONG_ARCH_WASM_V128_
 
 #include "numkong/types.h"
 #include "numkong/maxsim/serial.h" // `nk_maxsim_packed_header_t`
-#include "numkong/cast/serial.h"   // `nk_bf16_to_f32_serial`
-#include "numkong/scalar/v128.h"   // `nk_f32_sqrt_v128`
+#include "numkong/cast/serial.h"   // `nk_bf16_to_f32_`, `nk_f16_to_f32_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -27,35 +27,13 @@ extern "C" {
 #pragma clang attribute push(__attribute__((target("simd128"))), apply_to = function)
 #endif
 
-NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_bf16_v128(nk_size_t vector_count, nk_size_t depth) {
-    return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_bf16_t), 16);
-}
-
-NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_bf16_v128(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
-    nk_maxsim_packed_shape_(packed, vectors, depth);
-}
-
-NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f32_v128(nk_size_t vector_count, nk_size_t depth) {
-    return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f32_t), 16);
-}
-
-NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f32_v128(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
-    nk_maxsim_packed_shape_(packed, vectors, depth);
-}
-
-NUMKONG_API_COMPTIME nk_size_t nk_maxsim_pack_size_f16_v128(nk_size_t vector_count, nk_size_t depth) {
-    return nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f16_t), 16);
-}
-
-NUMKONG_API_COMPTIME void nk_maxsim_packed_shape_f16_v128(void const *packed, nk_size_t *vectors, nk_size_t *depth) {
-    nk_maxsim_packed_shape_(packed, vectors, depth);
-}
-
-NUMKONG_API_COMPTIME void nk_maxsim_pack_bf16_v128( //
+/** Quantizes and copies @p vectors into the layout that @c v128relaxed multiplies, recording that
+ *  capability; its pack runs on SIMD128 alone. */
+NUMKONG_INLINE void nk_maxsim_pack_bf16_v128_( //
     nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
-
     nk_size_t const element_bytes = sizeof(nk_bf16_t);
-    nk_size_t depth_i8_padded = nk_maxsim_packed_header_setup_(packed, vector_count, depth, 16, element_bytes);
+    nk_size_t depth_i8_padded = nk_maxsim_packed_header_setup_(packed, vector_count, depth, 16, element_bytes,
+                                                               nk_cap_v128relaxed_k);
 
     nk_maxsim_packed_header_t const *header = (nk_maxsim_packed_header_t const *)packed;
     nk_i8_t *quantized_i8 = (nk_i8_t *)((char *)packed + header->offset_i8_data);
@@ -65,11 +43,9 @@ NUMKONG_API_COMPTIME void nk_maxsim_pack_bf16_v128( //
 
     for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
         char const *source_row = (char const *)vectors + vector_index * stride_in_bytes;
-        nk_f32_t norm_sq;
         nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 63.0f,
-                                   (nk_maxsim_to_f32_t)nk_bf16_to_f32_serial,
-                                   &quantized_i8[vector_index * depth_i8_padded], &metadata[vector_index], &norm_sq);
-        metadata[vector_index].inverse_norm_f32 = norm_sq > 0.0f ? (1.0f / nk_f32_sqrt_v128(norm_sq)) : 0.0f;
+                                   (nk_maxsim_to_f32_t)nk_bf16_to_f32_, &quantized_i8[vector_index * depth_i8_padded],
+                                   &metadata[vector_index]);
         char *destination_original = originals + vector_index * original_stride;
         nk_copy_bytes_(destination_original, source_row, depth * element_bytes);
         for (nk_size_t byte_index = depth * element_bytes; byte_index < original_stride; byte_index++)
@@ -77,11 +53,13 @@ NUMKONG_API_COMPTIME void nk_maxsim_pack_bf16_v128( //
     }
 }
 
-NUMKONG_API_COMPTIME void nk_maxsim_pack_f32_v128( //
+/** Quantizes and copies @p vectors into the layout that @c v128relaxed multiplies, recording that
+ *  capability; its pack runs on SIMD128 alone. */
+NUMKONG_INLINE void nk_maxsim_pack_f32_v128_( //
     nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
-
     nk_size_t const element_bytes = sizeof(nk_f32_t);
-    nk_size_t depth_i8_padded = nk_maxsim_packed_header_setup_(packed, vector_count, depth, 16, element_bytes);
+    nk_size_t depth_i8_padded = nk_maxsim_packed_header_setup_(packed, vector_count, depth, 16, element_bytes,
+                                                               nk_cap_v128relaxed_k);
 
     nk_maxsim_packed_header_t const *header = (nk_maxsim_packed_header_t const *)packed;
     nk_i8_t *quantized_i8 = (nk_i8_t *)((char *)packed + header->offset_i8_data);
@@ -91,10 +69,8 @@ NUMKONG_API_COMPTIME void nk_maxsim_pack_f32_v128( //
 
     for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
         char const *source_row = (char const *)vectors + vector_index * stride_in_bytes;
-        nk_f32_t norm_sq;
         nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 63.0f, nk_f32_to_f32_,
-                                   &quantized_i8[vector_index * depth_i8_padded], &metadata[vector_index], &norm_sq);
-        metadata[vector_index].inverse_norm_f32 = norm_sq > 0.0f ? (1.0f / nk_f32_sqrt_v128(norm_sq)) : 0.0f;
+                                   &quantized_i8[vector_index * depth_i8_padded], &metadata[vector_index]);
         char *destination_original = originals + vector_index * original_stride;
         nk_copy_bytes_(destination_original, source_row, depth * element_bytes);
         for (nk_size_t byte_index = depth * element_bytes; byte_index < original_stride; byte_index++)
@@ -102,11 +78,13 @@ NUMKONG_API_COMPTIME void nk_maxsim_pack_f32_v128( //
     }
 }
 
-NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_v128( //
+/** Quantizes and copies @p vectors into the layout that @c v128relaxed multiplies, recording that
+ *  capability; its pack runs on SIMD128 alone. */
+NUMKONG_INLINE void nk_maxsim_pack_f16_v128_( //
     nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed) {
-
     nk_size_t const element_bytes = sizeof(nk_f16_t);
-    nk_size_t depth_i8_padded = nk_maxsim_packed_header_setup_(packed, vector_count, depth, 16, element_bytes);
+    nk_size_t depth_i8_padded = nk_maxsim_packed_header_setup_(packed, vector_count, depth, 16, element_bytes,
+                                                               nk_cap_v128relaxed_k);
 
     nk_maxsim_packed_header_t const *header = (nk_maxsim_packed_header_t const *)packed;
     nk_i8_t *quantized_i8 = (nk_i8_t *)((char *)packed + header->offset_i8_data);
@@ -116,11 +94,9 @@ NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_v128( //
 
     for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
         char const *source_row = (char const *)vectors + vector_index * stride_in_bytes;
-        nk_f32_t norm_sq;
         nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 63.0f,
-                                   (nk_maxsim_to_f32_t)nk_f16_to_f32_serial,
-                                   &quantized_i8[vector_index * depth_i8_padded], &metadata[vector_index], &norm_sq);
-        metadata[vector_index].inverse_norm_f32 = norm_sq > 0.0f ? (1.0f / nk_f32_sqrt_v128(norm_sq)) : 0.0f;
+                                   (nk_maxsim_to_f32_t)nk_f16_to_f32_, &quantized_i8[vector_index * depth_i8_padded],
+                                   &metadata[vector_index]);
         char *destination_original = originals + vector_index * original_stride;
         nk_copy_bytes_(destination_original, source_row, depth * element_bytes);
         for (nk_size_t byte_index = depth * element_bytes; byte_index < original_stride; byte_index++)
@@ -136,5 +112,5 @@ NUMKONG_API_COMPTIME void nk_maxsim_pack_f16_v128( //
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_V128
+#endif // NUMKONG_ARCH_WASM_V128_
 #endif // NUMKONG_MAXSIM_V128_H

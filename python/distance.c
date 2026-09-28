@@ -19,7 +19,7 @@ static PyObject *implement_dense_metric( //
 
     PyObject *return_obj = NULL;
 
-    // This function accepts up to 5 arguments:
+    // This function accepts up to 7 arguments:
     PyObject *a_obj = NULL;         // Required object, positional-only
     PyObject *b_obj = NULL;         // Required object, positional-only
     PyObject *dtype_obj = NULL;     // Optional object, "dtype" keyword or positional
@@ -28,6 +28,8 @@ static PyObject *implement_dense_metric( //
 
     // Once parsed, the arguments will be stored in these variables:
     nk_dtype_t dtype = nk_dtype_unknown_k, out_dtype = nk_dtype_unknown_k;
+    nk_capability_t capabilities = default_capabilities;
+    void *stream = NULL;
     Py_buffer a_buffer, b_buffer, out_buffer;
     MatrixOrVectorView a_parsed, b_parsed, out_parsed;
     memset(&a_buffer, 0, sizeof(Py_buffer));
@@ -37,8 +39,8 @@ static PyObject *implement_dense_metric( //
     // Parse the arguments
     Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
     Py_ssize_t const args_count = positional_args_count + args_names_count;
-    if (args_count < 2 || args_count > 5) {
-        PyErr_Format(PyExc_TypeError, "Function expects 2-5 arguments, got %zd", args_count);
+    if (args_count < 2 || args_count > 7) {
+        PyErr_Format(PyExc_TypeError, "Function expects 2-7 arguments, got %zd", args_count);
         return NULL;
     }
     if (positional_args_count > 3) {
@@ -61,10 +63,7 @@ static PyObject *implement_dense_metric( //
         if (PyUnicode_CompareWithASCIIString(key, "dtype") == 0 && !dtype_obj) { dtype_obj = value; }
         else if (PyUnicode_CompareWithASCIIString(key, "out") == 0 && !out_obj) { out_obj = value; }
         else if (PyUnicode_CompareWithASCIIString(key, "out_dtype") == 0 && !out_dtype_obj) { out_dtype_obj = value; }
-        else {
-            PyErr_Format(PyExc_TypeError, "Got unexpected keyword argument: %S", key);
-            return NULL;
-        }
+        else if (!parse_dispatch_keyword(key, value, &capabilities, &stream)) return NULL;
     }
 
     // Convert `dtype_obj` to `dtype`
@@ -142,7 +141,7 @@ static PyObject *implement_dense_metric( //
     {
         nk_scalar_buffer_t probe;
         probe.f64c.real = 0, probe.f64c.imag = 0;
-        if (!nk_scalar_buffer_from_f64c(&probe.f64c, &probe, out_dtype)) {
+        if (!nk_scalar_buffer_from_f64c_(&probe.f64c, &probe, out_dtype)) {
             PyErr_SetString(PyExc_ValueError, "Exporting to the provided dtype is not supported");
             goto cleanup;
         }
@@ -151,7 +150,7 @@ static PyObject *implement_dense_metric( //
     // Look up the metric and the capability
     nk_metric_dense_punned_t metric = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(metric_kind, dtype, (nk_kernel_punned_t *)&metric, &capability);
+    nk_find_kernel_punned(metric_kind, dtype, capabilities, (nk_kernel_punned_t *)&metric, &capability);
     if (!metric || !capability) {
         PyErr_Format( //
             PyExc_LookupError,
@@ -168,8 +167,8 @@ static PyObject *implement_dense_metric( //
     nk_dtype_t const kernel_out_dtype = nk_kernel_output_dtype(metric_kind, dtype);
     if (a_parsed.rank == 1 && b_parsed.rank == 1) {
         nk_scalar_buffer_t distance;
-        metric(a_parsed.data, b_parsed.data, a_cols, &distance);
-        return_obj = nk_scalar_buffer_to_py_number(&distance, kernel_out_dtype);
+        if (check_status(metric(a_parsed.data, b_parsed.data, a_cols, &distance, stream)))
+            return_obj = nk_scalar_buffer_to_py_number(&distance, kernel_out_dtype);
         goto cleanup;
     }
 
@@ -220,19 +219,22 @@ static PyObject *implement_dense_metric( //
     PyThreadState *save = PyEval_SaveThread();
 
     // Compute the distances
+    nk_status_t status = nk_success_k;
     for (size_t i = 0; i < count_pairs; ++i) {
         nk_scalar_buffer_t result;
-        metric(                               //
+        status = metric(                      //
             a_parsed.data + i * a_row_stride, //
             b_parsed.data + i * b_row_stride, //
             a_cols,                           //
-            &result);
+            &result, stream);
+        if (status != nk_success_k) break;
 
         // Export out:
         nk_scalar_buffer_export(&result, kernel_out_dtype, distances_start + i * distances_stride_bytes, out_dtype);
     }
 
     PyEval_RestoreThread(save);
+    if (!check_status(status)) Py_CLEAR(return_obj);
 
 cleanup:
     PyBuffer_Release(&a_buffer);
@@ -255,6 +257,8 @@ static PyObject *implement_curved_metric( //
 
     // Once parsed, the arguments will be stored in these variables:
     nk_dtype_t dtype = nk_dtype_unknown_k;
+    nk_capability_t capabilities = default_capabilities;
+    void *stream = NULL;
     Py_buffer a_buffer, b_buffer, c_buffer;
     MatrixOrVectorView a_parsed, b_parsed, c_parsed;
     memset(&a_buffer, 0, sizeof(Py_buffer));
@@ -287,10 +291,7 @@ static PyObject *implement_curved_metric( //
         PyObject *const key = PyTuple_GetItem(args_names_tuple, args_names_tuple_progress);
         PyObject *const value = args[args_progress];
         if (PyUnicode_CompareWithASCIIString(key, "dtype") == 0 && !dtype_obj) { dtype_obj = value; }
-        else {
-            PyErr_Format(PyExc_TypeError, "Got unexpected keyword argument: %S", key);
-            return NULL;
-        }
+        else if (!parse_dispatch_keyword(key, value, &capabilities, &stream)) return NULL;
     }
 
     // Convert `dtype_obj` to `dtype`
@@ -335,7 +336,7 @@ static PyObject *implement_curved_metric( //
     // Look up the metric and the capability
     nk_metric_curved_punned_t metric = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(metric_kind, dtype, (nk_kernel_punned_t *)&metric, &capability);
+    nk_find_kernel_punned(metric_kind, dtype, capabilities, (nk_kernel_punned_t *)&metric, &capability);
     if (!metric || !capability) {
         PyErr_Format( //
             PyExc_LookupError,
@@ -352,8 +353,8 @@ static PyObject *implement_curved_metric( //
     // Return a scalar
     nk_dtype_t const kernel_out_dtype = nk_kernel_output_dtype(metric_kind, dtype);
     nk_scalar_buffer_t distance;
-    metric(a_parsed.data, b_parsed.data, c_parsed.data, a_parsed.cols, &distance);
-    return_obj = nk_scalar_buffer_to_py_number(&distance, kernel_out_dtype);
+    if (check_status(metric(a_parsed.data, b_parsed.data, c_parsed.data, a_parsed.cols, &distance, stream)))
+        return_obj = nk_scalar_buffer_to_py_number(&distance, kernel_out_dtype);
 
 cleanup:
     PyBuffer_Release(&a_buffer);
@@ -368,7 +369,7 @@ static PyObject *implement_geospatial_metric( //
 
     PyObject *return_obj = NULL;
 
-    // This function accepts up to 6 arguments:
+    // This function accepts up to 8 arguments:
     PyObject *a_lats_obj = NULL; // Required object, positional-only
     PyObject *a_lons_obj = NULL; // Required object, positional-only
     PyObject *b_lats_obj = NULL; // Required object, positional-only
@@ -378,6 +379,8 @@ static PyObject *implement_geospatial_metric( //
 
     // Once parsed, the arguments will be stored in these variables:
     nk_dtype_t dtype = nk_dtype_unknown_k;
+    nk_capability_t capabilities = default_capabilities;
+    void *stream = NULL;
     Py_buffer a_lats_buffer, a_lons_buffer, b_lats_buffer, b_lons_buffer, out_buffer;
     MatrixOrVectorView a_lats_parsed, a_lons_parsed, b_lats_parsed, b_lons_parsed, out_parsed;
     memset(&a_lats_buffer, 0, sizeof(Py_buffer));
@@ -389,8 +392,8 @@ static PyObject *implement_geospatial_metric( //
     // Parse the arguments
     Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
     Py_ssize_t const args_count = positional_args_count + args_names_count;
-    if (args_count < 4 || args_count > 6) {
-        PyErr_Format(PyExc_TypeError, "Function expects 4-6 arguments, got %zd", args_count);
+    if (args_count < 4 || args_count > 8) {
+        PyErr_Format(PyExc_TypeError, "Function expects 4-8 arguments, got %zd", args_count);
         return NULL;
     }
     if (positional_args_count > 5) {
@@ -414,10 +417,7 @@ static PyObject *implement_geospatial_metric( //
         PyObject *const value = args[args_progress];
         if (PyUnicode_CompareWithASCIIString(key, "dtype") == 0 && !dtype_obj) { dtype_obj = value; }
         else if (PyUnicode_CompareWithASCIIString(key, "out") == 0 && !out_obj) { out_obj = value; }
-        else {
-            PyErr_Format(PyExc_TypeError, "Got unexpected keyword argument: %S", key);
-            return NULL;
-        }
+        else if (!parse_dispatch_keyword(key, value, &capabilities, &stream)) return NULL;
     }
 
     // Convert `dtype_obj` to `dtype`
@@ -462,7 +462,7 @@ static PyObject *implement_geospatial_metric( //
     // Look up the metric kernel
     nk_metric_geospatial_punned_t metric = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(metric_kind, dtype, (nk_kernel_punned_t *)&metric, &capability);
+    nk_find_kernel_punned(metric_kind, dtype, capabilities, (nk_kernel_punned_t *)&metric, &capability);
     if (!metric || !capability) {
         PyErr_Format(PyExc_LookupError, "Unsupported metric '%c' and dtype '%s'", metric_kind,
                      nk_dtype_to_pybuffer_typestr(dtype));
@@ -491,7 +491,9 @@ static PyObject *implement_geospatial_metric( //
     }
 
     // Call the kernel
-    metric(a_lats_parsed.data, a_lons_parsed.data, b_lats_parsed.data, b_lons_parsed.data, n, distances_start);
+    if (!check_status(metric(a_lats_parsed.data, a_lons_parsed.data, b_lats_parsed.data, b_lons_parsed.data, n,
+                             distances_start, stream)))
+        Py_CLEAR(return_obj);
 
 cleanup:
     if (a_lats_buffer.buf) PyBuffer_Release(&a_lats_buffer);
@@ -504,11 +506,16 @@ cleanup:
 
 static PyObject *implement_sparse_metric( //
     nk_kernel_kind_t metric_kind,         //
-    PyObject *const *args, Py_ssize_t nargs) {
+    PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     if (nargs != 2) {
-        PyErr_SetString(PyExc_TypeError, "Function expects only 2 arguments");
+        PyErr_SetString(PyExc_TypeError, "Function expects only 2 positional arguments");
         return NULL;
     }
+    nk_capability_t capabilities = default_capabilities;
+    void *stream = NULL;
+    Py_ssize_t const kwnames_count = kwnames ? PyTuple_Size(kwnames) : 0;
+    for (Py_ssize_t i = 0; i < kwnames_count; ++i)
+        if (!parse_dispatch_keyword(PyTuple_GET_ITEM(kwnames, i), args[nargs + i], &capabilities, &stream)) return NULL;
 
     PyObject *return_obj = NULL;
     PyObject *a_obj = args[0];
@@ -539,7 +546,7 @@ static PyObject *implement_sparse_metric( //
     nk_dtype_t dtype = a_parsed.dtype;
     nk_sparse_intersect_punned_t metric = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(metric_kind, dtype, (nk_kernel_punned_t *)&metric, &capability);
+    nk_find_kernel_punned(metric_kind, dtype, capabilities, (nk_kernel_punned_t *)&metric, &capability);
     if (!metric || !capability) {
         PyErr_Format( //
             PyExc_LookupError, "Unsupported metric '%c' and dtype combination ('%s'/'%s' and '%s'/'%s')",
@@ -550,8 +557,8 @@ static PyObject *implement_sparse_metric( //
     }
 
     nk_size_t count = 0;
-    metric(a_parsed.data, b_parsed.data, a_parsed.cols, b_parsed.cols, NULL, &count);
-    return_obj = PyLong_FromSize_t(count);
+    if (check_status(metric(a_parsed.data, b_parsed.data, a_parsed.cols, b_parsed.cols, NULL, &count, stream)))
+        return_obj = PyLong_FromSize_t(count);
 
 cleanup:
     PyBuffer_Release(&a_buffer);
@@ -591,9 +598,9 @@ static int metric_to_batch_kinds( //
     }
 }
 
-/** Pairwise loop fallback: compute one pair at a time via a scalar metric kernel. */
-static void cdist_pairwise_loop(                                   //
-    nk_metric_dense_punned_t metric,                               //
+/** Pairwise loop fallback: one pair at a time through a scalar metric kernel, until one fails. */
+static nk_status_t cdist_pairwise_loop(                            //
+    nk_metric_dense_punned_t metric, void *stream,                 //
     char const *a_start, nk_size_t a_count, nk_size_t a_stride,    //
     char const *b_start, nk_size_t b_count, nk_size_t b_stride,    //
     nk_size_t dimensions,                                          //
@@ -604,7 +611,9 @@ static void cdist_pairwise_loop(                                   //
         for (nk_size_t j = 0; j < b_count; ++j) {
             if (is_symmetric && i > j) continue;
             nk_scalar_buffer_t result;
-            metric(a_start + i * a_stride, b_start + j * b_stride, dimensions, &result);
+            nk_status_t const status = metric(a_start + i * a_stride, b_start + j * b_stride, dimensions, &result,
+                                              stream);
+            if (status != nk_success_k) return status;
             char *ptr_ij = out + i * out_row_stride + j * out_col_stride;
             nk_scalar_buffer_export(&result, kernel_out_dtype, ptr_ij, out_dtype);
             if (is_symmetric) {
@@ -612,11 +621,13 @@ static void cdist_pairwise_loop(                                   //
                 nk_scalar_buffer_export(&result, kernel_out_dtype, ptr_ji, out_dtype);
             }
         }
+    return nk_success_k;
 }
 
 /** One tile of rows of C = A × Aᵀ. */
 typedef struct cdist_symmetric_task_t {
     nk_dots_symmetric_punned_t kernel;
+    void *stream;
     char const *vectors;
     char *result;
     nk_size_t vectors_count;
@@ -625,47 +636,45 @@ typedef struct cdist_symmetric_task_t {
     nk_size_t result_stride_bytes;
 } cdist_symmetric_task_t;
 
-static void cdist_symmetric_tile_(nk_size_t tile_index, void *context) {
+static nk_status_t cdist_symmetric_tile_(nk_size_t tile_index, void *context) {
     cdist_symmetric_task_t const *task = (cdist_symmetric_task_t const *)context;
     nk_size_t const tile_start = tile_index * NUMKONG_PARALLEL_SYMMETRIC_TILE;
     nk_size_t const tile_rows = (tile_start + NUMKONG_PARALLEL_SYMMETRIC_TILE <= task->vectors_count)
                                     ? NUMKONG_PARALLEL_SYMMETRIC_TILE
                                     : (task->vectors_count - tile_start);
-    task->kernel(task->vectors, task->vectors_count, task->depth, task->stride_bytes, task->result,
-                 task->result_stride_bytes, tile_start, tile_rows);
+    return task->kernel(task->vectors, task->vectors_count, task->depth, task->stride_bytes, task->result,
+                        task->result_stride_bytes, tile_start, tile_rows, task->stream);
 }
 
-/**
- *  @brief Batch symmetric path: compute C = A × Aᵀ via a SIMD-optimized symmetric kernel.
- *  @return 0 on success, -1 if the kernel was not found.
- */
-static int cdist_batch_symmetric(                                   //
+/** Batch symmetric path: compute C = A × Aᵀ via a SIMD-optimized symmetric kernel. */
+static nk_status_t cdist_batch_symmetric(                           //
     nk_kernel_kind_t symmetric_kind, nk_dtype_t dtype,              //
+    nk_capability_t capabilities, void *stream,                     //
     char const *vectors, nk_size_t n_vectors, nk_size_t dimensions, //
     nk_size_t stride, char *out, nk_size_t out_row_stride,          //
     nk_size_t threads) {
     nk_dots_symmetric_punned_t kernel = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(symmetric_kind, dtype, //
-                              (nk_kernel_punned_t *)&kernel, &cap);
-    if (!kernel || !cap) return -1;
+    nk_find_kernel_punned(symmetric_kind, dtype, capabilities, (nk_kernel_punned_t *)&kernel, &cap);
+    if (!kernel || !cap) return nk_missing_kernel_k;
 
     cdist_symmetric_task_t task;
     task.kernel = kernel;
+    task.stream = stream;
     task.vectors = vectors;
     task.result = out;
     task.vectors_count = n_vectors;
     task.depth = dimensions;
     task.stride_bytes = stride;
     task.result_stride_bytes = out_row_stride;
-    nk_parallel_for_tiles(nk_size_divide_round_up_(n_vectors, NUMKONG_PARALLEL_SYMMETRIC_TILE), threads,
-                          cdist_symmetric_tile_, &task);
-    return 0;
+    return nk_parallel_for_tiles(nk_size_divide_round_up_(n_vectors, NUMKONG_PARALLEL_SYMMETRIC_TILE), threads,
+                                 cdist_symmetric_tile_, &task);
 }
 
 /** One tile of rows of C = A × Bᵀ with B pre-packed. */
 typedef struct cdist_packed_task_t {
     nk_dots_packed_punned_t kernel;
+    void *stream;
     char const *a;
     void const *b_packed;
     char *c;
@@ -676,21 +685,19 @@ typedef struct cdist_packed_task_t {
     nk_size_t c_stride_bytes;
 } cdist_packed_task_t;
 
-static void cdist_packed_tile_(nk_size_t tile_index, void *context) {
+static nk_status_t cdist_packed_tile_(nk_size_t tile_index, void *context) {
     cdist_packed_task_t const *task = (cdist_packed_task_t const *)context;
     nk_size_t const row = tile_index * NUMKONG_PARALLEL_PACKED_TILE;
     nk_size_t const chunk = (row + NUMKONG_PARALLEL_PACKED_TILE <= task->rows) ? NUMKONG_PARALLEL_PACKED_TILE
                                                                                : (task->rows - row);
-    task->kernel(task->a + row * task->a_stride_bytes, task->b_packed, task->c + row * task->c_stride_bytes, chunk,
-                 task->columns, task->depth, task->a_stride_bytes, task->c_stride_bytes);
+    return task->kernel(task->a + row * task->a_stride_bytes, task->b_packed, task->c + row * task->c_stride_bytes,
+                        chunk, task->columns, task->depth, task->a_stride_bytes, task->c_stride_bytes, task->stream);
 }
 
-/**
- *  @brief Batch packed path: pack B, then compute C = A × Bᵀ via a SIMD-optimized kernel.
- *  @return 0 on success, -1 on allocation failure, -2 if a kernel was not found.
- */
-static int cdist_batch_packed(                                                        //
+/** Batch packed path: pack B, then compute C = A × Bᵀ via a SIMD-optimized kernel. */
+static nk_status_t cdist_batch_packed(                                                //
     nk_kernel_kind_t packed_kind, nk_dtype_t dtype,                                   //
+    nk_capability_t capabilities, void *stream,                                       //
     char const *a_start, nk_size_t a_count, nk_size_t a_stride,                       //
     char const *b_start, nk_size_t b_count, nk_size_t b_stride, nk_size_t dimensions, //
     char *out, nk_size_t out_row_stride, nk_size_t threads) {
@@ -701,26 +708,26 @@ static int cdist_batch_packed(                                                  
     nk_dots_packed_punned_t kernel = NULL;
     nk_capability_t cap = nk_cap_serial_k;
 
-    nk_cpu_find_kernel_punned(nk_kernel_dots_pack_size_k, dtype, (nk_kernel_punned_t *)&size_fn, &cap);
-    if (!size_fn || !cap) return -2;
+    nk_find_kernel_punned(nk_kernel_dots_pack_size_k, dtype, capabilities, (nk_kernel_punned_t *)&size_fn, &cap);
+    if (!size_fn || !cap) return nk_missing_kernel_k;
 
     cap = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_dots_pack_k, dtype, (nk_kernel_punned_t *)&pack_fn, &cap);
-    if (!pack_fn || !cap) return -2;
+    nk_find_kernel_punned(nk_kernel_dots_pack_k, dtype, capabilities, (nk_kernel_punned_t *)&pack_fn, &cap);
+    if (!pack_fn || !cap) return nk_missing_kernel_k;
 
     cap = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(packed_kind, dtype, //
-                              (nk_kernel_punned_t *)&kernel, &cap);
-    if (!kernel || !cap) return -2;
+    nk_find_kernel_punned(packed_kind, dtype, capabilities, (nk_kernel_punned_t *)&kernel, &cap);
+    if (!kernel || !cap) return nk_missing_kernel_k;
 
-    nk_size_t packed_size = size_fn(b_count, dimensions);
+    nk_size_t packed_size = 0;
+    nk_status_t status = size_fn(b_count, dimensions, &packed_size);
+    if (status != nk_success_k) return status;
     void *b_packed = malloc(packed_size);
-    if (!b_packed) return -1;
-
-    pack_fn(b_start, b_count, dimensions, b_stride, b_packed, 0, b_count);
+    if (!b_packed) return nk_bad_alloc_k;
 
     cdist_packed_task_t task;
     task.kernel = kernel;
+    task.stream = stream;
     task.a = a_start;
     task.b_packed = b_packed;
     task.c = out;
@@ -729,17 +736,20 @@ static int cdist_batch_packed(                                                  
     task.depth = dimensions;
     task.a_stride_bytes = a_stride;
     task.c_stride_bytes = out_row_stride;
-    nk_parallel_for_tiles(nk_size_divide_round_up_(a_count, NUMKONG_PARALLEL_PACKED_TILE), threads, cdist_packed_tile_,
-                          &task);
+    status = pack_fn(b_start, b_count, dimensions, b_stride, b_packed, 0, b_count, stream);
+    if (status == nk_success_k)
+        status = nk_parallel_for_tiles(nk_size_divide_round_up_(a_count, NUMKONG_PARALLEL_PACKED_TILE), threads,
+                                       cdist_packed_tile_, &task);
 
     free(b_packed);
-    return 0;
+    return status;
 }
 
 static PyObject *implement_cdist(                        //
     PyObject *a_obj, PyObject *b_obj, PyObject *out_obj, //
     nk_kernel_kind_t metric_kind,                        //
     nk_dtype_t dtype, nk_dtype_t out_dtype,              //
+    nk_capability_t capabilities, void *stream,          //
     nk_size_t threads) {
 
     PyObject *return_obj = NULL;
@@ -814,7 +824,7 @@ static PyObject *implement_cdist(                        //
     {
         nk_scalar_buffer_t probe;
         probe.f64c.real = 0, probe.f64c.imag = 0;
-        if (!nk_scalar_buffer_from_f64c(&probe.f64c, &probe, out_dtype)) {
+        if (!nk_scalar_buffer_from_f64c_(&probe.f64c, &probe, out_dtype)) {
             PyErr_SetString(PyExc_ValueError, "Exporting to the provided dtype is not supported");
             goto cleanup;
         }
@@ -823,7 +833,7 @@ static PyObject *implement_cdist(                        //
     // Look up the metric and the capability
     nk_metric_dense_punned_t metric = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(metric_kind, dtype, (nk_kernel_punned_t *)&metric, &capability);
+    nk_find_kernel_punned(metric_kind, dtype, capabilities, (nk_kernel_punned_t *)&metric, &capability);
     if (!metric || !capability) {
         PyErr_Format( //
             PyExc_LookupError, "Unsupported metric '%c' and dtype combination ('%s'/'%s' and '%s'/'%s')",
@@ -837,8 +847,8 @@ static PyObject *implement_cdist(                        //
     nk_dtype_t const kernel_out_dtype = nk_kernel_output_dtype(metric_kind, dtype);
     if (a_parsed.rank == 1 && b_parsed.rank == 1) {
         nk_scalar_buffer_t distance;
-        metric(a_parsed.data, b_parsed.data, a_cols, &distance);
-        return_obj = nk_scalar_buffer_to_py_number(&distance, kernel_out_dtype);
+        if (check_status(metric(a_parsed.data, b_parsed.data, a_cols, &distance, stream)))
+            return_obj = nk_scalar_buffer_to_py_number(&distance, kernel_out_dtype);
         goto cleanup;
     }
 
@@ -891,16 +901,16 @@ static PyObject *implement_cdist(                        //
     nk_kernel_kind_t packed_kind = nk_kernel_unknown_k, symmetric_kind = nk_kernel_unknown_k;
     int const has_batch = metric_to_batch_kinds(metric_kind, &packed_kind, &symmetric_kind);
     int const dtype_ok = (out_dtype == kernel_out_dtype);
-    int batch_result = -1;
+    nk_status_t status = nk_missing_kernel_k;
 
     // Try symmetric batch path first (A x A^T, no packing needed)
     if (has_batch && dtype_ok && is_symmetric)
-        batch_result = cdist_batch_symmetric(symmetric_kind, dtype, a_parsed.data, a_parsed.rows, a_cols,
-                                             a_parsed.row_stride, distances_start, distances_rows_stride_bytes,
-                                             threads);
+        status = cdist_batch_symmetric(symmetric_kind, dtype, capabilities, stream, a_parsed.data, a_parsed.rows,
+                                       a_cols, a_parsed.row_stride, distances_start, distances_rows_stride_bytes,
+                                       threads);
 
     // Symmetric kernel only writes upper triangle; mirror to lower.
-    if (batch_result == 0 && is_symmetric) {
+    if (status == nk_success_k && is_symmetric) {
         size_t const elem_size = nk_dtype_bytes_per_value(out_dtype);
         for (size_t i = 1; i < a_parsed.rows; ++i)
             for (size_t j = 0; j < i; ++j)
@@ -909,18 +919,20 @@ static PyObject *implement_cdist(                        //
     }
 
     // Try packed batch path (A x B_packed)
-    if (has_batch && dtype_ok && !is_symmetric && batch_result != 0)
-        batch_result = cdist_batch_packed(packed_kind, dtype, a_parsed.data, a_parsed.rows, a_parsed.row_stride,
-                                          b_parsed.data, b_parsed.rows, b_parsed.row_stride, a_cols, distances_start,
-                                          distances_rows_stride_bytes, threads);
+    if (has_batch && dtype_ok && !is_symmetric && status != nk_success_k)
+        status = cdist_batch_packed(packed_kind, dtype, capabilities, stream, a_parsed.data, a_parsed.rows,
+                                    a_parsed.row_stride, b_parsed.data, b_parsed.rows, b_parsed.row_stride, a_cols,
+                                    distances_start, distances_rows_stride_bytes, threads);
 
     // Fall back to scalar pairwise loop
-    if (batch_result != 0)
-        cdist_pairwise_loop(metric, a_parsed.data, a_parsed.rows, a_parsed.row_stride, b_parsed.data, b_parsed.rows,
-                            b_parsed.row_stride, a_cols, kernel_out_dtype, out_dtype, distances_start,
-                            distances_rows_stride_bytes, distances_cols_stride_bytes, is_symmetric);
+    if (status != nk_success_k)
+        status = cdist_pairwise_loop(metric, stream, a_parsed.data, a_parsed.rows, a_parsed.row_stride, b_parsed.data,
+                                     b_parsed.rows, b_parsed.row_stride, a_cols, kernel_out_dtype, out_dtype,
+                                     distances_start, distances_rows_stride_bytes, distances_cols_stride_bytes,
+                                     is_symmetric);
 
     PyEval_RestoreThread(save);
+    if (!check_status(status)) Py_CLEAR(return_obj);
 
 cleanup:
     PyBuffer_Release(&a_buffer);
@@ -935,7 +947,7 @@ static PyObject *implement_pointer_access(nk_kernel_kind_t metric_kind, PyObject
 
     nk_kernel_punned_t metric = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(metric_kind, dtype, &metric, &capability);
+    nk_find_kernel_punned(metric_kind, dtype, default_capabilities, &metric, &capability);
     if (!metric || !capability) {
         PyErr_SetString(PyExc_LookupError, "No such metric");
         return NULL;
@@ -965,7 +977,7 @@ char const doc_cdist[] =                                                        
 PyObject *api_cdist( //
     PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count, PyObject *args_names_tuple) {
 
-    // This function accepts up to six arguments, more than SciPy:
+    // This function accepts up to nine arguments, more than SciPy:
     // https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.cdist.html
     PyObject *a_obj = NULL;         // Required object, positional-only
     PyObject *b_obj = NULL;         // Required object, positional-only
@@ -977,6 +989,8 @@ PyObject *api_cdist( //
 
     // Once parsed, the arguments will be stored in these variables:
     nk_dtype_t dtype = nk_dtype_unknown_k, out_dtype = nk_dtype_unknown_k;
+    nk_capability_t capabilities = default_capabilities;
+    void *stream = NULL;
 
     /** Same default as in SciPy:
      *  https://docs.scipy.org/doc/scipy-1.11.4/reference/generated/scipy.spatial.distance.cdist.html */
@@ -986,8 +1000,8 @@ PyObject *api_cdist( //
     // Parse the arguments
     Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
     Py_ssize_t const args_count = positional_args_count + args_names_count;
-    if (args_count < 2 || args_count > 7) {
-        PyErr_Format(PyExc_TypeError, "Function expects 2-7 arguments, got %zd", args_count);
+    if (args_count < 2 || args_count > 9) {
+        PyErr_Format(PyExc_TypeError, "Function expects 2-9 arguments, got %zd", args_count);
         return NULL;
     }
     if (positional_args_count > 3) {
@@ -1016,10 +1030,7 @@ PyObject *api_cdist( //
             if (t == -1 && PyErr_Occurred()) return NULL;
             threads = (nk_size_t)(t >= 0 ? t : 0);
         }
-        else {
-            PyErr_Format(PyExc_TypeError, "Got unexpected keyword argument: %S", key);
-            return NULL;
-        }
+        else if (!parse_dispatch_keyword(key, value, &capabilities, &stream)) return NULL;
     }
 
     // Convert `metric_obj` to `metric_str` and to `metric_kind`
@@ -1049,7 +1060,7 @@ PyObject *api_cdist( //
         if (out_dtype == nk_dtype_unknown_k) return NULL;
     }
 
-    return implement_cdist(a_obj, b_obj, out_obj, metric_kind, dtype, out_dtype, threads);
+    return implement_cdist(a_obj, b_obj, out_obj, metric_kind, dtype, out_dtype, capabilities, stream, threads);
 }
 
 char const doc_euclidean_pointer[] = "Return an integer pointer to the `numkong.euclidean` kernel.";
@@ -1371,8 +1382,8 @@ char const doc_intersect[] =                                     //
     "Signature:\n"                                               //
     "    >>> def intersect(a, b, /) -> int: ...";
 
-PyObject *api_intersect(PyObject *self, PyObject *const *args, Py_ssize_t nargs) {
-    return implement_sparse_metric(nk_kernel_sparse_intersect_k, args, nargs);
+PyObject *api_intersect(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
+    return implement_sparse_metric(nk_kernel_sparse_intersect_k, args, nargs, kwnames);
 }
 
 char const doc_sparse_dot[] =                                                                       //
@@ -1387,13 +1398,18 @@ char const doc_sparse_dot[] =                                                   
     "Signature:\n"                                                                                  //
     "    >>> def sparse_dot(a_indices, a_values, b_indices, b_values, /) -> float: ...";
 
-PyObject *api_sparse_dot(PyObject *self, PyObject *const *args, Py_ssize_t nargs) {
+PyObject *api_sparse_dot(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
     if (nargs != 4) {
         PyErr_SetString(PyExc_TypeError,
                         "sparse_dot() expects exactly 4 arguments: a_indices, a_values, b_indices, b_values");
         return NULL;
     }
+    nk_capability_t capabilities = default_capabilities;
+    void *stream = NULL;
+    Py_ssize_t const kwnames_count = kwnames ? PyTuple_Size(kwnames) : 0;
+    for (Py_ssize_t i = 0; i < kwnames_count; ++i)
+        if (!parse_dispatch_keyword(PyTuple_GET_ITEM(kwnames, i), args[nargs + i], &capabilities, &stream)) return NULL;
 
     Py_buffer a_idx_buf, a_val_buf, b_idx_buf, b_val_buf;
     MatrixOrVectorView a_idx, a_val, b_idx, b_val;
@@ -1449,7 +1465,8 @@ PyObject *api_sparse_dot(PyObject *self, PyObject *const *args, Py_ssize_t nargs
 
     nk_sparse_dot_punned_t kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_cpu_find_kernel_punned(nk_kernel_sparse_dot_k, dispatch_dtype, (nk_kernel_punned_t *)&kernel, &capability);
+    nk_find_kernel_punned(nk_kernel_sparse_dot_k, dispatch_dtype, capabilities, (nk_kernel_punned_t *)&kernel,
+                          &capability);
     if (!kernel || !capability) {
         PyErr_SetString(PyExc_LookupError, "No sparse_dot kernel available for this dtype combination");
         goto cleanup;
@@ -1457,8 +1474,8 @@ PyObject *api_sparse_dot(PyObject *self, PyObject *const *args, Py_ssize_t nargs
 
     nk_scalar_buffer_t product = {0};
     nk_dtype_t product_dtype = nk_kernel_output_dtype(nk_kernel_sparse_dot_k, dispatch_dtype);
-    kernel(a_idx.data, b_idx.data, a_val.data, b_val.data, a_idx.cols, b_idx.cols, &product);
-    return_obj = nk_scalar_buffer_to_py_number(&product, product_dtype);
+    if (check_status(kernel(a_idx.data, b_idx.data, a_val.data, b_val.data, a_idx.cols, b_idx.cols, &product, stream)))
+        return_obj = nk_scalar_buffer_to_py_number(&product, product_dtype);
 
 cleanup:
     if (a_idx_buf.buf) PyBuffer_Release(&a_idx_buf);

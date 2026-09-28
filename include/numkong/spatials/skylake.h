@@ -9,17 +9,19 @@
 #ifndef NUMKONG_SPATIALS_SKYLAKE_H
 #define NUMKONG_SPATIALS_SKYLAKE_H
 
-#if NUMKONG_ARCH_X86_64_
-#if NUMKONG_TARGET_SKYLAKE
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_SKYLAKE_
 
 #include "numkong/spatial/skylake.h"
 #include "numkong/spatial/haswell.h"
 #include "numkong/dots/skylake.h"
+#include "numkong/dots/serial.h"
 
 #if defined(__cplusplus)
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_SKYLAKE
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("avx2,avx512f,avx512vl,avx512bw,avx512dq,f16c,fma,bmi,bmi2"))), \
                              apply_to = function)
@@ -193,11 +195,12 @@ nk_define_cross_normalized_symmetric_(euclidean, e3m2, skylake, e3m2, f32, /*nor
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_SKYLAKE
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_SKYLAKE
-#endif // NUMKONG_ARCH_X86_64_
+#endif // NUMKONG_ARCH_X8664_SKYLAKE_
+#endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_SPATIALS_SKYLAKE_H
