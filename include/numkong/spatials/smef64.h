@@ -31,19 +31,17 @@ NUMKONG_HELPER_AUTO nk_f64_t nk_dots_reduce_sumsq_f32_ssve_(nk_f32_t const *data
     svfloat64_t accumulator_even_f64x = svdup_f64(0.0);
     svfloat64_t accumulator_odd_f64x = svdup_f64(0.0);
     nk_size_t const vector_length = svcntw();
-    nk_size_t const half_vector_length = svcntd();
+    // Lanes past `count` load as zeros, so every widened lane may accumulate.
+    svbool_t const widened_b64x = svptrue_b64();
     for (nk_size_t i = 0; i < count; i += vector_length) {
         svbool_t predicate_b32x = svwhilelt_b32_u64(i, count);
         svfloat32_t values_f32x = svld1_f32(predicate_b32x, data + i);
 
-        svbool_t predicate_even_b64x = svwhilelt_b64_u64(i, count);
-        svfloat64_t values_even_f64x = svcvt_f64_f32_x(predicate_even_b64x, values_f32x);
-        accumulator_even_f64x = svmla_f64_m(predicate_even_b64x, accumulator_even_f64x, values_even_f64x,
-                                            values_even_f64x);
+        svfloat64_t values_even_f64x = svcvt_f64_f32_x(widened_b64x, values_f32x);
+        accumulator_even_f64x = svmla_f64_m(widened_b64x, accumulator_even_f64x, values_even_f64x, values_even_f64x);
 
-        svbool_t predicate_odd_b64x = svwhilelt_b64_u64(i + half_vector_length, count);
-        svfloat64_t values_odd_f64x = svcvtlt_f64_f32_x(predicate_odd_b64x, values_f32x);
-        accumulator_odd_f64x = svmla_f64_m(predicate_odd_b64x, accumulator_odd_f64x, values_odd_f64x, values_odd_f64x);
+        svfloat64_t values_odd_f64x = svcvtlt_f64_f32_x(widened_b64x, values_f32x);
+        accumulator_odd_f64x = svmla_f64_m(widened_b64x, accumulator_odd_f64x, values_odd_f64x, values_odd_f64x);
     }
     return nk_svaddv_f64_(svptrue_b64(), accumulator_even_f64x) + nk_svaddv_f64_(svptrue_b64(), accumulator_odd_f64x);
 }

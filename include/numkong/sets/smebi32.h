@@ -735,7 +735,7 @@ __arm_new("za") static void nk_jaccards_packed_u1_smebi32_streaming_( //
                     svbool_t nonzero_b32x = svcmpne_f32(predicate_all_b32x, union_val_f32x, zero_f32x);
                     svfloat32_t ratio_f32x = svdiv_f32_x(predicate_all_b32x, intersection_f32x, union_val_f32x);
                     svfloat32_t jaccard_f32x = svsel_f32(
-                        nonzero_b32x, svsub_f32_x(predicate_all_b32x, one_f32x, ratio_f32x), one_f32x);
+                        nonzero_b32x, svsub_f32_x(predicate_all_b32x, one_f32x, ratio_f32x), zero_f32x);
                     svst1_f32(predicate_all_b32x, c_row + (row_tile_b + 0) * tile_dim, jaccard_f32x);
                 }
                 // ZA2
@@ -752,7 +752,7 @@ __arm_new("za") static void nk_jaccards_packed_u1_smebi32_streaming_( //
                     svbool_t nonzero_b32x = svcmpne_f32(predicate_all_b32x, union_val_f32x, zero_f32x);
                     svfloat32_t ratio_f32x = svdiv_f32_x(predicate_all_b32x, intersection_f32x, union_val_f32x);
                     svfloat32_t jaccard_f32x = svsel_f32(
-                        nonzero_b32x, svsub_f32_x(predicate_all_b32x, one_f32x, ratio_f32x), one_f32x);
+                        nonzero_b32x, svsub_f32_x(predicate_all_b32x, one_f32x, ratio_f32x), zero_f32x);
                     svst1_f32(predicate_all_b32x, c_row + (row_tile_b + 1) * tile_dim, jaccard_f32x);
                 }
                 // ZA3
@@ -769,7 +769,7 @@ __arm_new("za") static void nk_jaccards_packed_u1_smebi32_streaming_( //
                     svbool_t nonzero_b32x = svcmpne_f32(predicate_all_b32x, union_val_f32x, zero_f32x);
                     svfloat32_t ratio_f32x = svdiv_f32_x(predicate_all_b32x, intersection_f32x, union_val_f32x);
                     svfloat32_t jaccard_f32x = svsel_f32(
-                        nonzero_b32x, svsub_f32_x(predicate_all_b32x, one_f32x, ratio_f32x), one_f32x);
+                        nonzero_b32x, svsub_f32_x(predicate_all_b32x, one_f32x, ratio_f32x), zero_f32x);
                     svst1_f32(third_bound_b32x, c_row + (row_tile_b + 2) * tile_dim, jaccard_f32x);
                 }
             }
@@ -1037,7 +1037,7 @@ __arm_new("za") static void nk_jaccards_symmetric_u1_smebi32_streaming_( //
                     svbool_t nonzero_b32x = svcmpne_f32(predicate_all_b32x, union_val_f32x, zero_f32x);
                     svfloat32_t ratio_f32x = svdiv_f32_x(predicate_all_b32x, intersection_f32x, union_val_f32x);
                     svfloat32_t jaccard_f32x = svsel_f32(
-                        nonzero_b32x, svsub_f32_x(predicate_all_b32x, one_f32x, ratio_f32x), one_f32x);
+                        nonzero_b32x, svsub_f32_x(predicate_all_b32x, one_f32x, ratio_f32x), zero_f32x);
                     svst1_f32(first_b32x, c_row + (column_tile_index + 0) * tile_dim, jaccard_f32x);
                 }
                 // ZA2
@@ -1054,7 +1054,7 @@ __arm_new("za") static void nk_jaccards_symmetric_u1_smebi32_streaming_( //
                     svbool_t nonzero_b32x = svcmpne_f32(predicate_all_b32x, union_val_f32x, zero_f32x);
                     svfloat32_t ratio_f32x = svdiv_f32_x(predicate_all_b32x, intersection_f32x, union_val_f32x);
                     svfloat32_t jaccard_f32x = svsel_f32(
-                        nonzero_b32x, svsub_f32_x(predicate_all_b32x, one_f32x, ratio_f32x), one_f32x);
+                        nonzero_b32x, svsub_f32_x(predicate_all_b32x, one_f32x, ratio_f32x), zero_f32x);
                     svst1_f32(second_b32x, c_row + (column_tile_index + 1) * tile_dim, jaccard_f32x);
                 }
                 // ZA3
@@ -1071,7 +1071,7 @@ __arm_new("za") static void nk_jaccards_symmetric_u1_smebi32_streaming_( //
                     svbool_t nonzero_b32x = svcmpne_f32(predicate_all_b32x, union_val_f32x, zero_f32x);
                     svfloat32_t ratio_f32x = svdiv_f32_x(predicate_all_b32x, intersection_f32x, union_val_f32x);
                     svfloat32_t jaccard_f32x = svsel_f32(
-                        nonzero_b32x, svsub_f32_x(predicate_all_b32x, one_f32x, ratio_f32x), one_f32x);
+                        nonzero_b32x, svsub_f32_x(predicate_all_b32x, one_f32x, ratio_f32x), zero_f32x);
                     svst1_f32(third_bound_b32x, c_row + (column_tile_index + 2) * tile_dim, jaccard_f32x);
                 }
             }

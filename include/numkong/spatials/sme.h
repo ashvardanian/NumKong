@@ -31,19 +31,17 @@ NUMKONG_HELPER_AUTO nk_f32_t nk_dots_reduce_sumsq_f16_ssve_(nk_f16_t const *data
     svfloat32_t accumulator_even_f32x = svdup_f32(0.0f);
     svfloat32_t accumulator_odd_f32x = svdup_f32(0.0f);
     nk_size_t const vector_length = svcnth();
-    nk_size_t const half_vector_length = svcntw();
+    // Lanes past `count` load as zeros, so every widened lane may accumulate.
+    svbool_t const widened_b32x = svptrue_b32();
     for (nk_size_t i = 0; i < count; i += vector_length) {
         svbool_t predicate_b16x = svwhilelt_b16_u64(i, count);
         svfloat16_t values_f16x = svld1_f16(predicate_b16x, (nk_f16_for_arm_simd_t const *)(data + i));
 
-        svbool_t predicate_even_b32x = svwhilelt_b32_u64(i, count);
-        svfloat32_t values_even_f32x = svcvt_f32_f16_x(predicate_even_b32x, values_f16x);
-        accumulator_even_f32x = svmla_f32_m(predicate_even_b32x, accumulator_even_f32x, values_even_f32x,
-                                            values_even_f32x);
+        svfloat32_t values_even_f32x = svcvt_f32_f16_x(widened_b32x, values_f16x);
+        accumulator_even_f32x = svmla_f32_m(widened_b32x, accumulator_even_f32x, values_even_f32x, values_even_f32x);
 
-        svbool_t predicate_odd_b32x = svwhilelt_b32_u64(i + half_vector_length, count);
-        svfloat32_t values_odd_f32x = svcvtlt_f32_f16_x(predicate_odd_b32x, values_f16x);
-        accumulator_odd_f32x = svmla_f32_m(predicate_odd_b32x, accumulator_odd_f32x, values_odd_f32x, values_odd_f32x);
+        svfloat32_t values_odd_f32x = svcvtlt_f32_f16_x(widened_b32x, values_f16x);
+        accumulator_odd_f32x = svmla_f32_m(widened_b32x, accumulator_odd_f32x, values_odd_f32x, values_odd_f32x);
     }
     return nk_svaddv_f32_(svptrue_b32(), accumulator_even_f32x) + nk_svaddv_f32_(svptrue_b32(), accumulator_odd_f32x);
 }
@@ -65,7 +63,8 @@ NUMKONG_HELPER_AUTO nk_f32_t nk_dots_reduce_sumsq_e4m3_ssve_(nk_e4m3_t const *da
     svfloat32_t accumulator_even_f32x = svdup_f32(0.0f);
     svfloat32_t accumulator_odd_f32x = svdup_f32(0.0f);
     nk_size_t const vector_length = svcnth();
-    nk_size_t const half_vector_length = svcntw();
+    // Lanes past `count` load as zeros, so every widened lane may accumulate.
+    svbool_t const widened_b32x = svptrue_b32();
     for (nk_size_t i = 0; i < count; i += vector_length) {
         nk_size_t const batch_size = (i + vector_length < count) ? vector_length : (count - i);
         svbool_t predicate_b8x = svwhilelt_b8_u64(0u, batch_size);
@@ -73,14 +72,11 @@ NUMKONG_HELPER_AUTO nk_f32_t nk_dots_reduce_sumsq_e4m3_ssve_(nk_e4m3_t const *da
         svuint8_t raw_u8x = svld1_u8(predicate_b8x, (nk_u8_t const *)data + i);
         svfloat16_t values_f16x = nk_e4m3x_to_f16x_ssve_(predicate_b16x, raw_u8x);
 
-        svbool_t predicate_even_b32x = svwhilelt_b32_u64(0u, batch_size);
-        svfloat32_t values_even_f32x = svcvt_f32_f16_x(predicate_even_b32x, values_f16x);
-        accumulator_even_f32x = svmla_f32_m(predicate_even_b32x, accumulator_even_f32x, values_even_f32x,
-                                            values_even_f32x);
+        svfloat32_t values_even_f32x = svcvt_f32_f16_x(widened_b32x, values_f16x);
+        accumulator_even_f32x = svmla_f32_m(widened_b32x, accumulator_even_f32x, values_even_f32x, values_even_f32x);
 
-        svbool_t predicate_odd_b32x = svwhilelt_b32_u64(half_vector_length, batch_size);
-        svfloat32_t values_odd_f32x = svcvtlt_f32_f16_x(predicate_odd_b32x, values_f16x);
-        accumulator_odd_f32x = svmla_f32_m(predicate_odd_b32x, accumulator_odd_f32x, values_odd_f32x, values_odd_f32x);
+        svfloat32_t values_odd_f32x = svcvtlt_f32_f16_x(widened_b32x, values_f16x);
+        accumulator_odd_f32x = svmla_f32_m(widened_b32x, accumulator_odd_f32x, values_odd_f32x, values_odd_f32x);
     }
     return nk_svaddv_f32_(svptrue_b32(), accumulator_even_f32x) + nk_svaddv_f32_(svptrue_b32(), accumulator_odd_f32x);
 }
@@ -90,7 +86,8 @@ NUMKONG_HELPER_AUTO nk_f32_t nk_dots_reduce_sumsq_e5m2_ssve_(nk_e5m2_t const *da
     svfloat32_t accumulator_even_f32x = svdup_f32(0.0f);
     svfloat32_t accumulator_odd_f32x = svdup_f32(0.0f);
     nk_size_t const vector_length = svcnth();
-    nk_size_t const half_vector_length = svcntw();
+    // Lanes past `count` load as zeros, so every widened lane may accumulate.
+    svbool_t const widened_b32x = svptrue_b32();
     for (nk_size_t i = 0; i < count; i += vector_length) {
         nk_size_t const batch_size = (i + vector_length < count) ? vector_length : (count - i);
         svbool_t predicate_b8x = svwhilelt_b8_u64(0u, batch_size);
@@ -98,14 +95,11 @@ NUMKONG_HELPER_AUTO nk_f32_t nk_dots_reduce_sumsq_e5m2_ssve_(nk_e5m2_t const *da
         svuint8_t raw_u8x = svld1_u8(predicate_b8x, (nk_u8_t const *)data + i);
         svfloat16_t values_f16x = nk_e5m2x_to_f16x_ssve_(predicate_b16x, raw_u8x);
 
-        svbool_t predicate_even_b32x = svwhilelt_b32_u64(0u, batch_size);
-        svfloat32_t values_even_f32x = svcvt_f32_f16_x(predicate_even_b32x, values_f16x);
-        accumulator_even_f32x = svmla_f32_m(predicate_even_b32x, accumulator_even_f32x, values_even_f32x,
-                                            values_even_f32x);
+        svfloat32_t values_even_f32x = svcvt_f32_f16_x(widened_b32x, values_f16x);
+        accumulator_even_f32x = svmla_f32_m(widened_b32x, accumulator_even_f32x, values_even_f32x, values_even_f32x);
 
-        svbool_t predicate_odd_b32x = svwhilelt_b32_u64(half_vector_length, batch_size);
-        svfloat32_t values_odd_f32x = svcvtlt_f32_f16_x(predicate_odd_b32x, values_f16x);
-        accumulator_odd_f32x = svmla_f32_m(predicate_odd_b32x, accumulator_odd_f32x, values_odd_f32x, values_odd_f32x);
+        svfloat32_t values_odd_f32x = svcvtlt_f32_f16_x(widened_b32x, values_f16x);
+        accumulator_odd_f32x = svmla_f32_m(widened_b32x, accumulator_odd_f32x, values_odd_f32x, values_odd_f32x);
     }
     return nk_svaddv_f32_(svptrue_b32(), accumulator_even_f32x) + nk_svaddv_f32_(svptrue_b32(), accumulator_odd_f32x);
 }
@@ -139,7 +133,8 @@ NUMKONG_HELPER_AUTO nk_f32_t nk_dots_reduce_sumsq_e3m2_ssve_(nk_e3m2_t const *da
     svfloat32_t accumulator_even_f32x = svdup_f32(0.0f);
     svfloat32_t accumulator_odd_f32x = svdup_f32(0.0f);
     nk_size_t const vector_length = svcnth();
-    nk_size_t const half_vector_length = svcntw();
+    // Lanes past `count` load as zeros, so every widened lane may accumulate.
+    svbool_t const widened_b32x = svptrue_b32();
     for (nk_size_t i = 0; i < count; i += vector_length) {
         nk_size_t const batch_size = (i + vector_length < count) ? vector_length : (count - i);
         svbool_t predicate_b8x = svwhilelt_b8_u64(0u, batch_size);
@@ -147,14 +142,11 @@ NUMKONG_HELPER_AUTO nk_f32_t nk_dots_reduce_sumsq_e3m2_ssve_(nk_e3m2_t const *da
         svuint8_t raw_u8x = svld1_u8(predicate_b8x, (nk_u8_t const *)data + i);
         svfloat16_t values_f16x = nk_e3m2x_to_f16x_ssve_(predicate_b16x, raw_u8x);
 
-        svbool_t predicate_even_b32x = svwhilelt_b32_u64(0u, batch_size);
-        svfloat32_t values_even_f32x = svcvt_f32_f16_x(predicate_even_b32x, values_f16x);
-        accumulator_even_f32x = svmla_f32_m(predicate_even_b32x, accumulator_even_f32x, values_even_f32x,
-                                            values_even_f32x);
+        svfloat32_t values_even_f32x = svcvt_f32_f16_x(widened_b32x, values_f16x);
+        accumulator_even_f32x = svmla_f32_m(widened_b32x, accumulator_even_f32x, values_even_f32x, values_even_f32x);
 
-        svbool_t predicate_odd_b32x = svwhilelt_b32_u64(half_vector_length, batch_size);
-        svfloat32_t values_odd_f32x = svcvtlt_f32_f16_x(predicate_odd_b32x, values_f16x);
-        accumulator_odd_f32x = svmla_f32_m(predicate_odd_b32x, accumulator_odd_f32x, values_odd_f32x, values_odd_f32x);
+        svfloat32_t values_odd_f32x = svcvtlt_f32_f16_x(widened_b32x, values_f16x);
+        accumulator_odd_f32x = svmla_f32_m(widened_b32x, accumulator_odd_f32x, values_odd_f32x, values_odd_f32x);
     }
     return nk_svaddv_f32_(svptrue_b32(), accumulator_even_f32x) + nk_svaddv_f32_(svptrue_b32(), accumulator_odd_f32x);
 }

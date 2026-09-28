@@ -646,21 +646,20 @@ NUMKONG_HELPER_AUTO nk_f64_t nk_maxsim_reduce_dot_f32_ssve_(                    
     svfloat64_t accumulator_even_f64x = svdup_f64(0.0);
     svfloat64_t accumulator_odd_f64x = svdup_f64(0.0);
     nk_size_t const vector_length = svcntw();
-    nk_size_t const half_vector_length = svcntd();
+    // Lanes past `count` load as zeros, so every widened lane may accumulate.
+    svbool_t const widened_b64x = svptrue_b64();
     for (nk_size_t i = 0; i < count; i += vector_length) {
         svbool_t predicate_b32x = svwhilelt_b32_u64(i, count);
         svfloat32_t a_f32x = svld1_f32(predicate_b32x, a + i);
         svfloat32_t b_f32x = svld1_f32(predicate_b32x, b + i);
 
-        svbool_t predicate_even_b64x = svwhilelt_b64_u64(i, count);
-        svfloat64_t a_even_f64x = svcvt_f64_f32_x(predicate_even_b64x, a_f32x);
-        svfloat64_t b_even_f64x = svcvt_f64_f32_x(predicate_even_b64x, b_f32x);
-        accumulator_even_f64x = svmla_f64_m(predicate_even_b64x, accumulator_even_f64x, a_even_f64x, b_even_f64x);
+        svfloat64_t a_even_f64x = svcvt_f64_f32_x(widened_b64x, a_f32x);
+        svfloat64_t b_even_f64x = svcvt_f64_f32_x(widened_b64x, b_f32x);
+        accumulator_even_f64x = svmla_f64_m(widened_b64x, accumulator_even_f64x, a_even_f64x, b_even_f64x);
 
-        svbool_t predicate_odd_b64x = svwhilelt_b64_u64(i + half_vector_length, count);
-        svfloat64_t a_odd_f64x = svcvtlt_f64_f32_x(predicate_odd_b64x, a_f32x);
-        svfloat64_t b_odd_f64x = svcvtlt_f64_f32_x(predicate_odd_b64x, b_f32x);
-        accumulator_odd_f64x = svmla_f64_m(predicate_odd_b64x, accumulator_odd_f64x, a_odd_f64x, b_odd_f64x);
+        svfloat64_t a_odd_f64x = svcvtlt_f64_f32_x(widened_b64x, a_f32x);
+        svfloat64_t b_odd_f64x = svcvtlt_f64_f32_x(widened_b64x, b_f32x);
+        accumulator_odd_f64x = svmla_f64_m(widened_b64x, accumulator_odd_f64x, a_odd_f64x, b_odd_f64x);
     }
     return nk_svaddv_f64_(svptrue_b64(), accumulator_even_f64x) + nk_svaddv_f64_(svptrue_b64(), accumulator_odd_f64x);
 }
@@ -913,56 +912,55 @@ __arm_new("za") static void nk_maxsim_packed_f32_streaming_( //
             svfloat64_t accumulator_2_f64x = svdup_f64(0.0);
             svfloat64_t accumulator_3_f64x = svdup_f64(0.0);
             nk_size_t const depth_vector_length = svcntw();
-            nk_size_t const depth_half_length = svcntd();
+            // Lanes past `depth` load as zeros, so every widened lane may accumulate.
+            svbool_t const widened_b64x = svptrue_b64();
 
             for (nk_size_t depth_index = 0; depth_index < depth; depth_index += depth_vector_length) {
                 svbool_t predicate_depth_b32x = svwhilelt_b32_u64(depth_index, depth);
-                svbool_t predicate_even_b64x = svwhilelt_b64_u64(depth_index, depth);
-                svbool_t predicate_odd_b64x = svwhilelt_b64_u64(depth_index + depth_half_length, depth);
 
                 svfloat32_t query_values_0_f32x = svld1_f32(predicate_depth_b32x,
                                                             query_original_ptrs[row_batch_start + 0] + depth_index);
                 svfloat32_t document_values_0_f32x = svld1_f32(
                     predicate_depth_b32x, document_original_ptrs[row_batch_start + 0] + depth_index);
-                accumulator_0_f64x = svmla_f64_m(predicate_even_b64x, accumulator_0_f64x,
-                                                 svcvt_f64_f32_x(predicate_even_b64x, query_values_0_f32x),
-                                                 svcvt_f64_f32_x(predicate_even_b64x, document_values_0_f32x));
-                accumulator_0_f64x = svmla_f64_m(predicate_odd_b64x, accumulator_0_f64x,
-                                                 svcvtlt_f64_f32_x(predicate_odd_b64x, query_values_0_f32x),
-                                                 svcvtlt_f64_f32_x(predicate_odd_b64x, document_values_0_f32x));
+                accumulator_0_f64x = svmla_f64_m(widened_b64x, accumulator_0_f64x,
+                                                 svcvt_f64_f32_x(widened_b64x, query_values_0_f32x),
+                                                 svcvt_f64_f32_x(widened_b64x, document_values_0_f32x));
+                accumulator_0_f64x = svmla_f64_m(widened_b64x, accumulator_0_f64x,
+                                                 svcvtlt_f64_f32_x(widened_b64x, query_values_0_f32x),
+                                                 svcvtlt_f64_f32_x(widened_b64x, document_values_0_f32x));
 
                 svfloat32_t query_values_1_f32x = svld1_f32(predicate_depth_b32x,
                                                             query_original_ptrs[row_batch_start + 1] + depth_index);
                 svfloat32_t document_values_1_f32x = svld1_f32(
                     predicate_depth_b32x, document_original_ptrs[row_batch_start + 1] + depth_index);
-                accumulator_1_f64x = svmla_f64_m(predicate_even_b64x, accumulator_1_f64x,
-                                                 svcvt_f64_f32_x(predicate_even_b64x, query_values_1_f32x),
-                                                 svcvt_f64_f32_x(predicate_even_b64x, document_values_1_f32x));
-                accumulator_1_f64x = svmla_f64_m(predicate_odd_b64x, accumulator_1_f64x,
-                                                 svcvtlt_f64_f32_x(predicate_odd_b64x, query_values_1_f32x),
-                                                 svcvtlt_f64_f32_x(predicate_odd_b64x, document_values_1_f32x));
+                accumulator_1_f64x = svmla_f64_m(widened_b64x, accumulator_1_f64x,
+                                                 svcvt_f64_f32_x(widened_b64x, query_values_1_f32x),
+                                                 svcvt_f64_f32_x(widened_b64x, document_values_1_f32x));
+                accumulator_1_f64x = svmla_f64_m(widened_b64x, accumulator_1_f64x,
+                                                 svcvtlt_f64_f32_x(widened_b64x, query_values_1_f32x),
+                                                 svcvtlt_f64_f32_x(widened_b64x, document_values_1_f32x));
 
                 svfloat32_t query_values_2_f32x = svld1_f32(predicate_depth_b32x,
                                                             query_original_ptrs[row_batch_start + 2] + depth_index);
                 svfloat32_t document_values_2_f32x = svld1_f32(
                     predicate_depth_b32x, document_original_ptrs[row_batch_start + 2] + depth_index);
-                accumulator_2_f64x = svmla_f64_m(predicate_even_b64x, accumulator_2_f64x,
-                                                 svcvt_f64_f32_x(predicate_even_b64x, query_values_2_f32x),
-                                                 svcvt_f64_f32_x(predicate_even_b64x, document_values_2_f32x));
-                accumulator_2_f64x = svmla_f64_m(predicate_odd_b64x, accumulator_2_f64x,
-                                                 svcvtlt_f64_f32_x(predicate_odd_b64x, query_values_2_f32x),
-                                                 svcvtlt_f64_f32_x(predicate_odd_b64x, document_values_2_f32x));
+                accumulator_2_f64x = svmla_f64_m(widened_b64x, accumulator_2_f64x,
+                                                 svcvt_f64_f32_x(widened_b64x, query_values_2_f32x),
+                                                 svcvt_f64_f32_x(widened_b64x, document_values_2_f32x));
+                accumulator_2_f64x = svmla_f64_m(widened_b64x, accumulator_2_f64x,
+                                                 svcvtlt_f64_f32_x(widened_b64x, query_values_2_f32x),
+                                                 svcvtlt_f64_f32_x(widened_b64x, document_values_2_f32x));
 
                 svfloat32_t query_values_3_f32x = svld1_f32(predicate_depth_b32x,
                                                             query_original_ptrs[row_batch_start + 3] + depth_index);
                 svfloat32_t document_values_3_f32x = svld1_f32(
                     predicate_depth_b32x, document_original_ptrs[row_batch_start + 3] + depth_index);
-                accumulator_3_f64x = svmla_f64_m(predicate_even_b64x, accumulator_3_f64x,
-                                                 svcvt_f64_f32_x(predicate_even_b64x, query_values_3_f32x),
-                                                 svcvt_f64_f32_x(predicate_even_b64x, document_values_3_f32x));
-                accumulator_3_f64x = svmla_f64_m(predicate_odd_b64x, accumulator_3_f64x,
-                                                 svcvtlt_f64_f32_x(predicate_odd_b64x, query_values_3_f32x),
-                                                 svcvtlt_f64_f32_x(predicate_odd_b64x, document_values_3_f32x));
+                accumulator_3_f64x = svmla_f64_m(widened_b64x, accumulator_3_f64x,
+                                                 svcvt_f64_f32_x(widened_b64x, query_values_3_f32x),
+                                                 svcvt_f64_f32_x(widened_b64x, document_values_3_f32x));
+                accumulator_3_f64x = svmla_f64_m(widened_b64x, accumulator_3_f64x,
+                                                 svcvtlt_f64_f32_x(widened_b64x, query_values_3_f32x),
+                                                 svcvtlt_f64_f32_x(widened_b64x, document_values_3_f32x));
             }
 
             // Reduce SVE accumulators to scalars and compute angular distances
