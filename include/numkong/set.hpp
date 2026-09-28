@@ -28,22 +28,22 @@ namespace ashvardanian::numkong {
  *  @tparam result_type_ Accumulator type, defaults to @c in_type_::hamming_result_t
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::hamming_result_t>
-nk_status_t hamming(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *r,
-                    nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+status_t hamming(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *r,
+                 nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::hamming_result_t>;
 
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, u1x8_t> && dispatch)
-            return nk_hamming_u1_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_hamming_u1_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, u8_t> && dispatch)
-            return nk_hamming_u8_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_hamming_u8_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
     }
     constexpr std::size_t dims_per_value = dimensions_per_value<in_type_>();
     std::size_t n = d / dims_per_value;
     typename result_type_::raw_t count = 0;
     for (std::size_t i = 0; i < n; i++) count += count_differences(a[i], b[i]);
     *r = result_type_::from_raw(count);
-    return nk_success_k;
+    return status_t::success_k;
 }
 
 /**
@@ -61,17 +61,17 @@ nk_status_t hamming(in_type_ const *a, in_type_ const *b, std::size_t d, result_
  *  @tparam result_type_ Accumulator type, defaults to @c in_type_::jaccard_result_t
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::jaccard_result_t>
-nk_status_t jaccard(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *r,
-                    nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+status_t jaccard(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *r,
+                 nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::jaccard_result_t>;
 
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, u1x8_t> && dispatch)
-            return nk_jaccard_u1_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_jaccard_u1_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, u16_t> && dispatch)
-            return nk_jaccard_u16_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_jaccard_u16_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, u32_t> && dispatch)
-            return nk_jaccard_u32_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_jaccard_u32_best(&a->raw_, &b->raw_, d, &r->raw_, capabilities, stream));
     }
     constexpr std::size_t dims_per_value = dimensions_per_value<in_type_>();
     std::size_t n = d / dims_per_value;
@@ -80,7 +80,7 @@ nk_status_t jaccard(in_type_ const *a, in_type_ const *b, std::size_t d, result_
         intersection_count += count_intersection(a[i], b[i]), union_count += count_union(a[i], b[i]);
     if (union_count == 0) *r = result_type_();
     else *r = result_type_(1) - result_type_(intersection_count) / result_type_(union_count);
-    return nk_success_k;
+    return status_t::success_k;
 }
 
 } // namespace ashvardanian::numkong
@@ -89,32 +89,18 @@ nk_status_t jaccard(in_type_ const *a, in_type_ const *b, std::size_t d, result_
 
 namespace ashvardanian::numkong {
 
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::hamming_result_t,
-          std::size_t max_rank_a_, std::size_t max_rank_b_>
-nk_status_t hamming(tensor_view<in_type_, max_rank_a_> a, tensor_view<in_type_, max_rank_b_> b, std::size_t d,
-                    result_type_ *r, nk_capability_t capabilities = cpu_capabilities(),
-                    void *stream = nullptr) noexcept {
-    return hamming<in_type_, result_type_>(a.data(), b.data(), d, r, capabilities, stream);
-}
-
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::hamming_result_t>
-nk_status_t hamming(vector_view<in_type_> a, vector_view<in_type_> b, std::size_t d, result_type_ *r,
-                    nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
-    return hamming<in_type_, result_type_>(a.data(), b.data(), d, r, capabilities, stream);
-}
-
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::jaccard_result_t,
-          std::size_t max_rank_a_, std::size_t max_rank_b_>
-nk_status_t jaccard(tensor_view<in_type_, max_rank_a_> a, tensor_view<in_type_, max_rank_b_> b, std::size_t d,
-                    result_type_ *r, nk_capability_t capabilities = cpu_capabilities(),
-                    void *stream = nullptr) noexcept {
-    return jaccard<in_type_, result_type_>(a.data(), b.data(), d, r, capabilities, stream);
+status_t hamming(vector_view<in_type_> a, vector_view<in_type_> b, result_type_ *r,
+                 nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+    if (a.size() != b.size()) return status_t::unexpected_dimensions_k;
+    return hamming<in_type_, result_type_>(a.data(), b.data(), a.size(), r, capabilities, stream);
 }
 
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::jaccard_result_t>
-nk_status_t jaccard(vector_view<in_type_> a, vector_view<in_type_> b, std::size_t d, result_type_ *r,
-                    nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
-    return jaccard<in_type_, result_type_>(a.data(), b.data(), d, r, capabilities, stream);
+status_t jaccard(vector_view<in_type_> a, vector_view<in_type_> b, result_type_ *r,
+                 nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+    if (a.size() != b.size()) return status_t::unexpected_dimensions_k;
+    return jaccard<in_type_, result_type_>(a.data(), b.data(), a.size(), r, capabilities, stream);
 }
 
 } // namespace ashvardanian::numkong

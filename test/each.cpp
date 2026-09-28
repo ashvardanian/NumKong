@@ -6,8 +6,8 @@
  */
 
 #include "harness.hpp"
-#include "numkong/each.hpp"         // `nk::sum`, `nk::scale`, `nk::blend`, `nk::fma`
-#include "numkong/trigonometry.hpp" // `nk::try_sin`, `nk::try_cos`, `nk::try_atan` wrappers
+#include "numkong/each.hpp"         // `nk::add`, `nk::scale`, `nk::blend`, `nk::fma`
+#include "numkong/trigonometry.hpp" // `nk::sin`, `nk::cos`, `nk::atan` wrappers
 
 using namespace ashvardanian::numkong::test;
 
@@ -46,8 +46,8 @@ error_stats_t test_sum(typename scalar_type_::sum_kernel_t kernel) {
 
         stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), global_config.dense_dimensions,
                             result.raw_values_data(), nullptr));
-        nk::sum<scalar_t>(a.values_data(), b.values_data(), global_config.dense_dimensions, reference.values_data(),
-                          no_tiers_k);
+        stats.expect(nk::add<scalar_t>(a.values_data(), b.values_data(), global_config.dense_dimensions,
+                                       reference.values_data(), no_tiers_k));
 
         for (std::size_t i = 0; i < global_config.dense_dimensions; i++) stats.accumulate(result[i], reference[i]);
     }
@@ -135,7 +135,7 @@ error_stats_t test_fma(typename scalar_type_::fma_kernel_t kernel) {
     return stats;
 }
 
-/** Smoke-test for the tensor-shaped trig wrappers @c nk::try_sin, @c cos and @c atan, running
+/** Smoke-test for the tensor-shaped trig wrappers @c nk::sin, @c cos and @c atan, running
  *  allocating and into-span variants on a small zero tensor, just exercising the dispatch paths,
  *  not the numerical accuracy, which the kernel tests above cover. */
 void test_each() {

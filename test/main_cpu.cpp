@@ -227,7 +227,7 @@ static error_stats_t test_best_dots_packed_bf16() {
                      "the dispatch point ran another capability's kernel");
     }
     nk_capability_t cuda = 0;
-    nk_cuda_capabilities_compiled(&cuda);
+    stats.expect(nk_cuda_capabilities_compiled(&cuda));
     if (!cuda)
         stats.expect(
             nk_dots_packed_bf16_best(a.raw_values_data(), b.raw_values_data(), expected.raw_values_data(), height,
@@ -539,31 +539,32 @@ int main(int argc, char **argv) {
                          argv[i]);
         }
         else if (std::strcmp(argv[i], "--help") == 0 || std::strcmp(argv[i], "-h") == 0) {
-            fmt::print(                                                                                              //
-                "Usage: numkong_cpu_test [--filter=<regex>] [--budget-secs=<seconds>] [--assert] [--verbose] [--help]\n" //
-                "\n"                                                                                                 //
-                "Arguments:\n"                                                                                       //
-                "  --filter=<regex>          Filter tests by name (regex or substring)\n"                            //
-                "  --budget-secs=<seconds>   Time budget per kernel in seconds (default: 1)\n"                       //
-                "  --assert                  Exit 1 when any kernel fails its accuracy check\n"                      //
-                "  --verbose                 Verbose output\n"                                                       //
-                "\n"                                                                                                 //
-                "Environment Variables:\n"                                                                           //
-                "  NUMKONG_FILTER=<regex>          Same as --filter\n"                                               //
-                "  NUMKONG_BUDGET_SECS=<seconds>   Same as --budget-secs\n"                                          //
-                "  NUMKONG_SEED=<int|random>       Random seed (default: 42)\n"                                      //
-                "  NUMKONG_IN_QEMU=1               Shrink dimensions for emulated runs\n"                            //
-                "  NUMKONG_ASSERT=1                Same as --assert\n"                                               //
-                "  NUMKONG_VERBOSE=1               Same as --verbose\n"                                              //
-                "  NUMKONG_ULP_THRESHOLD_F32=N     ULP tolerance for f32\n"                                          //
-                "  NUMKONG_SCALE_THRESHOLD=X       Max abs error over reference scale (attention)\n"                 //
-                "  NUMKONG_ULP_THRESHOLD_F16=N     ULP tolerance for f16\n"                                          //
-                "  NUMKONG_ULP_THRESHOLD_BF16=N    ULP tolerance for bf16\n"                                         //
-                "  NUMKONG_RANDOM_DISTRIBUTION=X   uniform_k, cauchy_k, lognormal_k\n"                               //
-                "  NUMKONG_DENSE_DIMENSIONS=N      Override dense vector dimensions\n"                               //
-                "  NUMKONG_CURVED_DIMENSIONS=N     Override curved vector dimensions\n"                              //
-                "  NUMKONG_SPARSE_DIMENSIONS=N     Override sparse vector dimensions\n"                              //
-                "  NUMKONG_MAX_COORD_ANGLE=N       Max angular separation in degrees (default: 180)\n");             //
+            fmt::print(                                                                                  //
+                "Usage: numkong_cpu_test [--filter=<regex>] [--budget-secs=<seconds>] "                  //
+                "[--assert] [--verbose] [--help]\n"                                                      //
+                "\n"                                                                                     //
+                "Arguments:\n"                                                                           //
+                "  --filter=<regex>          Filter tests by name (regex or substring)\n"                //
+                "  --budget-secs=<seconds>   Time budget per kernel in seconds (default: 1)\n"           //
+                "  --assert                  Exit 1 when any kernel fails its accuracy check\n"          //
+                "  --verbose                 Verbose output\n"                                           //
+                "\n"                                                                                     //
+                "Environment Variables:\n"                                                               //
+                "  NUMKONG_FILTER=<regex>          Same as --filter\n"                                   //
+                "  NUMKONG_BUDGET_SECS=<seconds>   Same as --budget-secs\n"                              //
+                "  NUMKONG_SEED=<int|random>       Random seed (default: 42)\n"                          //
+                "  NUMKONG_IN_QEMU=1               Shrink dimensions for emulated runs\n"                //
+                "  NUMKONG_ASSERT=1                Same as --assert\n"                                   //
+                "  NUMKONG_VERBOSE=1               Same as --verbose\n"                                  //
+                "  NUMKONG_ULP_THRESHOLD_F32=N     ULP tolerance for f32\n"                              //
+                "  NUMKONG_SCALE_THRESHOLD=X       Max abs error over reference scale (attention)\n"     //
+                "  NUMKONG_ULP_THRESHOLD_F16=N     ULP tolerance for f16\n"                              //
+                "  NUMKONG_ULP_THRESHOLD_BF16=N    ULP tolerance for bf16\n"                             //
+                "  NUMKONG_RANDOM_DISTRIBUTION=X   uniform_k, cauchy_k, lognormal_k\n"                   //
+                "  NUMKONG_DENSE_DIMENSIONS=N      Override dense vector dimensions\n"                   //
+                "  NUMKONG_CURVED_DIMENSIONS=N     Override curved vector dimensions\n"                  //
+                "  NUMKONG_SPARSE_DIMENSIONS=N     Override sparse vector dimensions\n"                  //
+                "  NUMKONG_MAX_COORD_ANGLE=N       Max angular separation in degrees (default: 180)\n"); //
             return 0;
         }
         else {
@@ -576,7 +577,7 @@ int main(int argc, char **argv) {
     nk_test_current_kernel_ = "nk_cpu_capabilities_detected()";
     nk_capability_t runtime_caps = cpu_capabilities_detected();
     nk_test_current_kernel_ = "nk_cpu_configure_thread()";
-    nk_cpu_configure_thread(runtime_caps); // Also enables AMX if available
+    [[maybe_unused]] nk_status_t const configured = nk_cpu_configure_thread(runtime_caps); // Also enables AMX
     nk_test_current_kernel_ = nullptr;
 
     log_environment();

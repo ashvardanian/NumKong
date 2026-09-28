@@ -28,19 +28,19 @@ namespace ashvardanian::numkong {
  *  @tparam result_type_ Result type, defaults to @c in_type_::probability_result_t
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::probability_result_t>
-nk_status_t kld(in_type_ const *p, in_type_ const *q, std::size_t d, result_type_ *r,
-                nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+status_t kld(in_type_ const *p, in_type_ const *q, std::size_t d, result_type_ *r,
+             nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::probability_result_t>;
 
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
-            return nk_kld_f64_best(&p->raw_, &q->raw_, d, &r->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_kld_f64_best(&p->raw_, &q->raw_, d, &r->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return nk_kld_f32_best(&p->raw_, &q->raw_, d, &r->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_kld_f32_best(&p->raw_, &q->raw_, d, &r->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
-            return nk_kld_f16_best(&p->raw_, &q->raw_, d, &r->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_kld_f16_best(&p->raw_, &q->raw_, d, &r->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
-            return nk_kld_bf16_best(&p->raw_, &q->raw_, d, &r->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_kld_bf16_best(&p->raw_, &q->raw_, d, &r->raw_, capabilities, stream));
     }
     result_type_ sum {};
     for (std::size_t i = 0; i < d; i++) {
@@ -48,7 +48,7 @@ nk_status_t kld(in_type_ const *p, in_type_ const *q, std::size_t d, result_type
         if (pi > result_type_(0)) sum = sum + pi * (pi / qi).log();
     }
     *r = sum;
-    return nk_success_k;
+    return status_t::success_k;
 }
 
 /**
@@ -63,19 +63,19 @@ nk_status_t kld(in_type_ const *p, in_type_ const *q, std::size_t d, result_type
  *  @tparam result_type_ Result type, defaults to @c in_type_::probability_result_t
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::probability_result_t>
-nk_status_t jsd(in_type_ const *p, in_type_ const *q, std::size_t d, result_type_ *r,
-                nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+status_t jsd(in_type_ const *p, in_type_ const *q, std::size_t d, result_type_ *r,
+             nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::probability_result_t>;
 
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
-            return nk_jsd_f64_best(&p->raw_, &q->raw_, d, &r->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_jsd_f64_best(&p->raw_, &q->raw_, d, &r->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return nk_jsd_f32_best(&p->raw_, &q->raw_, d, &r->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_jsd_f32_best(&p->raw_, &q->raw_, d, &r->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
-            return nk_jsd_f16_best(&p->raw_, &q->raw_, d, &r->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_jsd_f16_best(&p->raw_, &q->raw_, d, &r->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
-            return nk_jsd_bf16_best(&p->raw_, &q->raw_, d, &r->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_jsd_bf16_best(&p->raw_, &q->raw_, d, &r->raw_, capabilities, stream));
     }
     result_type_ sum {};
     result_type_ half(0.5);
@@ -88,7 +88,7 @@ nk_status_t jsd(in_type_ const *p, in_type_ const *q, std::size_t d, result_type
     // JSD distance = sqrt(divergence / 2), clamped to non-negative
     result_type_ divergence = half * sum;
     *r = divergence > result_type_(0) ? divergence.sqrt() : result_type_(0);
-    return nk_success_k;
+    return status_t::success_k;
 }
 
 } // namespace ashvardanian::numkong
@@ -97,30 +97,18 @@ nk_status_t jsd(in_type_ const *p, in_type_ const *q, std::size_t d, result_type
 
 namespace ashvardanian::numkong {
 
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::probability_result_t,
-          std::size_t max_rank_a_, std::size_t max_rank_b_>
-nk_status_t kld(tensor_view<in_type_, max_rank_a_> p, tensor_view<in_type_, max_rank_b_> q, std::size_t d,
-                result_type_ *r, nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
-    return kld<in_type_, result_type_>(p.data(), q.data(), d, r, capabilities, stream);
+template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::probability_result_t>
+status_t kld(vector_view<in_type_> p, vector_view<in_type_> q, result_type_ *r,
+             nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+    if (p.size() != q.size()) return status_t::unexpected_dimensions_k;
+    return kld<in_type_, result_type_>(p.data(), q.data(), p.size(), r, capabilities, stream);
 }
 
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::probability_result_t>
-nk_status_t kld(vector_view<in_type_> p, vector_view<in_type_> q, std::size_t d, result_type_ *r,
-                nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
-    return kld<in_type_, result_type_>(p.data(), q.data(), d, r, capabilities, stream);
-}
-
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::probability_result_t,
-          std::size_t max_rank_a_, std::size_t max_rank_b_>
-nk_status_t jsd(tensor_view<in_type_, max_rank_a_> p, tensor_view<in_type_, max_rank_b_> q, std::size_t d,
-                result_type_ *r, nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
-    return jsd<in_type_, result_type_>(p.data(), q.data(), d, r, capabilities, stream);
-}
-
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::probability_result_t>
-nk_status_t jsd(vector_view<in_type_> p, vector_view<in_type_> q, std::size_t d, result_type_ *r,
-                nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
-    return jsd<in_type_, result_type_>(p.data(), q.data(), d, r, capabilities, stream);
+status_t jsd(vector_view<in_type_> p, vector_view<in_type_> q, result_type_ *r,
+             nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+    if (p.size() != q.size()) return status_t::unexpected_dimensions_k;
+    return jsd<in_type_, result_type_>(p.data(), q.data(), p.size(), r, capabilities, stream);
 }
 
 } // namespace ashvardanian::numkong

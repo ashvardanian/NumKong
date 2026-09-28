@@ -166,7 +166,7 @@ typedef struct {
 /**
  *  @brief Opens a queue on one GPU.
  *  @param[out] queue The queue to open.
- *  @param[in] device The device's position in the system's list, like @c nk_metal_capabilities_detected takes.
+ *  @param[in] device The device's index, as @c nk_metal_capabilities_detected takes it.
  *  @return @c nk_success_k, or @c nk_missing_gpu_k when there is no such device.
  */
 NUMKONG_API nk_status_t nk_metal_queue_init(nk_metal_queue_t *queue, nk_size_t device);
@@ -218,7 +218,8 @@ NUMKONG_API nk_status_t nk_metal_synchronize(nk_metal_queue_t *queue) {
 
 NUMKONG_API void nk_metal_queue_free(nk_metal_queue_t *queue) {
     if (!queue->device) return;
-    nk_metal_synchronize(queue);
+    nk_status_t const drained = nk_metal_synchronize(queue);
+    nk_unused_(drained);
     for (nk_size_t index = 0; index != queue->pipelines_count; ++index)
         nk_metal_do_(queue->pipelines[index].pipeline, "release");
     for (nk_size_t index = 0; index != sizeof(queue->libraries) / sizeof(queue->libraries[0]); ++index)

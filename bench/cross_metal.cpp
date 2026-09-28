@@ -87,7 +87,7 @@ struct metal_backend_t {
 
     /** The queue, opened by the first call that needs it. */
     nk_metal_queue_t &opened() const noexcept {
-        if (!queue.device) nk_metal_queue_init(&queue, 0);
+        if (!queue.device && nk_metal_queue_init(&queue, 0) != nk_success_k) queue = {};
         return queue;
     }
 
@@ -180,13 +180,13 @@ using namespace ashvardanian::numkong::bench;
 void bench_cross_metal() {
 #if NUMKONG_WITH_METAL
     nk_capability_t detected = 0, enabled = 0;
-    nk_metal_capabilities_detected(0, &detected);
-    if (!detected) return fmt::println("- Metal: no device");
+    if (nk_metal_capabilities_detected(0, &detected) != nk_success_k || !detected)
+        return fmt::println("- Metal: no device");
     char families[NUMKONG_CAPABILITIES_NAME_CAPACITY];
     nk_name_capabilities(detected, families, sizeof(families));
     fmt::println("- Metal: {}", families);
 
-    nk_metal_capabilities_enabled(0, &enabled);
+    if (nk_metal_capabilities_enabled(0, &enabled) != nk_success_k) enabled = 0;
     metal_backend_t const backend;
     if (enabled & nk_cap_metal_k) {
         run_dots_packed<nk_bf16_k>("dots_packed_bf16_metal", nk_dots_pack_size_bf16_metal, nk_dots_pack_bf16_metal,

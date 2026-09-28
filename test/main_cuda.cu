@@ -65,9 +65,9 @@ static bool cuda_check_(cudaError_t error, char const *expression, char const *f
 /** 1D contiguous round-trip via cudaMemcpy; bit-exact compare. */
 static bool test_memcpy_1d_roundtrip_() {
     constexpr std::size_t count = 1 << 14;
-    auto host_source = nk::tensor<float>::try_zeros({count});
-    auto host_destination = nk::tensor<float>::try_zeros({count});
-    if (host_source.empty() || host_destination.empty()) return false;
+    auto [host_source, source_status] = nk::tensor<float>::zeros({count});
+    auto [host_destination, destination_status] = nk::tensor<float>::zeros({count});
+    if (nk::failed(source_status) || nk::failed(destination_status)) return false;
 
     std::mt19937 generator(42);
     std::uniform_real_distribution<float> distribution(-100.0f, 100.0f);
@@ -91,9 +91,9 @@ static bool test_memcpy_2d_padded_rows_() {
     constexpr std::size_t columns = 80;
     constexpr std::size_t row_elements_padded = 128;
 
-    auto host_source = nk::tensor<float>::try_zeros({rows, row_elements_padded});
-    auto host_destination = nk::tensor<float>::try_zeros({rows, row_elements_padded});
-    if (host_source.empty() || host_destination.empty()) return false;
+    auto [host_source, source_status] = nk::tensor<float>::zeros({rows, row_elements_padded});
+    auto [host_destination, destination_status] = nk::tensor<float>::zeros({rows, row_elements_padded});
+    if (nk::failed(source_status) || nk::failed(destination_status)) return false;
 
     std::mt19937 generator(7);
     std::uniform_real_distribution<float> distribution(-1.0f, 1.0f);
@@ -120,9 +120,9 @@ static bool test_memcpy_2d_padded_rows_() {
 /** 3D batched round-trip via cudaMemcpy3D + cudaPitchedPtr. */
 static bool test_memcpy_3d_batched_() {
     constexpr std::size_t batches = 4, rows = 8, columns = 16;
-    auto host_source = nk::tensor<float>::try_zeros({batches, rows, columns});
-    auto host_destination = nk::tensor<float>::try_zeros({batches, rows, columns});
-    if (host_source.empty() || host_destination.empty()) return false;
+    auto [host_source, source_status] = nk::tensor<float>::zeros({batches, rows, columns});
+    auto [host_destination, destination_status] = nk::tensor<float>::zeros({batches, rows, columns});
+    if (nk::failed(source_status) || nk::failed(destination_status)) return false;
 
     std::mt19937 generator(13);
     std::uniform_real_distribution<float> distribution(-5.0f, 5.0f);
@@ -165,8 +165,8 @@ static bool test_memcpy_2d_subview_() {
     constexpr std::size_t row_start = 4, column_start = 8;
     constexpr std::size_t sub_rows = 8, sub_columns = 16;
 
-    auto parent = nk::tensor<float>::try_zeros({parent_rows, parent_columns});
-    if (parent.empty()) return false;
+    auto [parent, parent_status] = nk::tensor<float>::zeros({parent_rows, parent_columns});
+    if (nk::failed(parent_status)) return false;
     for (std::size_t row = 0; row < parent_rows; ++row)
         for (std::size_t column = 0; column < parent_columns; ++column)
             parent(row, column) = static_cast<float>(row * parent_columns + column);
@@ -174,8 +174,8 @@ static bool test_memcpy_2d_subview_() {
     float const *sub_source_pointer = &parent(row_start, column_start);
     std::size_t const parent_row_pitch = static_cast<std::size_t>(parent.stride_bytes(0));
 
-    auto host_back = nk::tensor<float>::try_zeros({sub_rows, sub_columns});
-    if (host_back.empty()) return false;
+    auto [host_back, host_back_status] = nk::tensor<float>::zeros({sub_rows, sub_columns});
+    if (nk::failed(host_back_status)) return false;
 
     float *device_pointer = nullptr;
     std::size_t device_pitch = 0;
@@ -204,9 +204,9 @@ __global__ void add_one_kernel_(float *data, std::size_t rows, std::size_t colum
 /** Upload, add-one on device, download, verify every element incremented by 1. */
 static bool test_device_kernel_usability_() {
     constexpr std::size_t rows = 24, columns = 48;
-    auto host_source = nk::tensor<float>::try_zeros({rows, columns});
-    auto host_destination = nk::tensor<float>::try_zeros({rows, columns});
-    if (host_source.empty() || host_destination.empty()) return false;
+    auto [host_source, source_status] = nk::tensor<float>::zeros({rows, columns});
+    auto [host_destination, destination_status] = nk::tensor<float>::zeros({rows, columns});
+    if (nk::failed(source_status) || nk::failed(destination_status)) return false;
     for (std::size_t row = 0; row < rows; ++row)
         for (std::size_t column = 0; column < columns; ++column)
             host_source(row, column) = static_cast<float>((row * columns + column) % 17) * 0.25f;
@@ -218,7 +218,7 @@ static bool test_device_kernel_usability_() {
                                  columns * sizeof(float), rows, cudaMemcpyHostToDevice));
 
     dim3 block(16, 8);
-    dim3 grid((columns + block.x - 1) / block.x, (rows + block.y - 1) / block.y);
+    dim3 grid(nk::divide_round_up(columns, block.x), nk::divide_round_up(rows, block.y));
     add_one_kernel_<<<grid, block>>>(device_pointer, rows, columns, device_pitch);
     nk_cuda_assert_(cudaGetLastError());
     nk_cuda_assert_(cudaDeviceSynchronize());
@@ -262,8 +262,8 @@ __global__ void tensor_view_ops_kernel_(float const *data, std::size_t rows, std
  *  computation, confirming the @c constexpr surface compiles and runs on the GPU. */
 static bool test_device_tensor_view_ops_() {
     constexpr std::size_t rows = 8, columns = 16, count = rows * columns;
-    auto host = nk::tensor<float>::try_zeros({rows, columns});
-    if (host.empty()) return false;
+    auto [host, host_status] = nk::tensor<float>::zeros({rows, columns});
+    if (nk::failed(host_status)) return false;
     for (std::size_t row = 0; row < rows; ++row)
         for (std::size_t column = 0; column < columns; ++column)
             host(row, column) = static_cast<float>((row * columns + column) % 13) * 0.5f;
@@ -484,7 +484,7 @@ static bool run_kernel_batch_(source_type_ const *host_source, destination_type_
     nk_cuda_assert_(cudaMalloc(&device_destination, count * sizeof(destination_type_)));
     nk_cuda_assert_(cudaMemcpy(device_source, host_source, count * sizeof(source_type_), cudaMemcpyHostToDevice));
     dim3 block(256);
-    dim3 grid(static_cast<unsigned>((count + block.x - 1) / block.x));
+    dim3 grid(static_cast<unsigned>(nk::divide_round_up(count, block.x)));
     kernel(device_source, device_destination, count, grid, block);
     nk_cuda_assert_(cudaGetLastError());
     nk_cuda_assert_(cudaDeviceSynchronize());
@@ -522,7 +522,9 @@ static bool sweep_fp32_to_fp8_(char const *label, nk_dtype_t destination_dtype,
             launcher(device_source, device_destination, n, interpretation, saturate, grid, block);
         };
         if (!run_kernel_batch_(host_source.data(), host_cuda.data(), this_batch, kernel)) return false;
-        nk_cast_serial(host_source.data(), nk_f32_k, this_batch, host_numkong.data(), destination_dtype, nullptr);
+        if (nk_cast_serial(host_source.data(), nk_f32_k, this_batch, host_numkong.data(), destination_dtype, nullptr) !=
+            nk_success_k)
+            return false;
         for (std::size_t i = 0; i < this_batch; ++i) {
             std::uint32_t source_bits;
             std::memcpy(&source_bits, &host_source[i], sizeof(float));
@@ -555,7 +557,9 @@ static bool sweep_fp32_to_fp6_(char const *label, nk_dtype_t destination_dtype,
         auto kernel = [&](float const *device_source, unsigned char *device_destination, std::size_t n, dim3 grid,
                           dim3 block) { launcher(device_source, device_destination, n, interpretation, grid, block); };
         if (!run_kernel_batch_(host_source.data(), host_cuda.data(), this_batch, kernel)) return false;
-        nk_cast_serial(host_source.data(), nk_f32_k, this_batch, host_numkong.data(), destination_dtype, nullptr);
+        if (nk_cast_serial(host_source.data(), nk_f32_k, this_batch, host_numkong.data(), destination_dtype, nullptr) !=
+            nk_success_k)
+            return false;
         for (std::size_t i = 0; i < this_batch; ++i) {
             std::uint32_t source_bits;
             std::memcpy(&source_bits, &host_source[i], sizeof(float));
@@ -583,7 +587,9 @@ static bool sweep_16bit_to_8bit_(char const *label, nk_dtype_t source_dtype, nk_
         std::memcpy(&host_source[i], &bits, sizeof(source_type_));
     }
     if (!run_kernel_batch_(host_source.data(), host_cuda.data(), count, launcher)) return false;
-    nk_cast_serial(host_source.data(), source_dtype, count, host_numkong.data(), destination_dtype, nullptr);
+    if (nk_cast_serial(host_source.data(), source_dtype, count, host_numkong.data(), destination_dtype, nullptr) !=
+        nk_success_k)
+        return false;
     std::size_t mismatches = 0;
     for (std::size_t i = 0; i < count; ++i) {
         std::uint16_t source_bits;
@@ -608,7 +614,9 @@ static bool sweep_small_to_wide_(char const *label, nk_dtype_t source_dtype, nk_
     std::vector<destination_type_> host_numkong(domain_size);
     for (std::size_t i = 0; i < domain_size; ++i) host_source[i] = static_cast<unsigned char>(i);
     if (!run_kernel_batch_(host_source.data(), host_cuda.data(), domain_size, launcher)) return false;
-    nk_cast_serial(host_source.data(), source_dtype, domain_size, host_numkong.data(), destination_dtype, nullptr);
+    if (nk_cast_serial(host_source.data(), source_dtype, domain_size, host_numkong.data(), destination_dtype,
+                       nullptr) != nk_success_k)
+        return false;
     std::size_t mismatches = 0;
     for (std::size_t i = 0; i < domain_size; ++i) {
         if (!equals(host_cuda[i], host_numkong[i])) {

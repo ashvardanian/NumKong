@@ -285,8 +285,8 @@ error_stats_t test_dot_blas(typename scalar_type_::dot_kernel_t kernel, nk_f64_t
             kernel(a.raw_values_data(), b.raw_values_data(), global_config.dense_dimensions, &result.raw_, nullptr));
 
         reference_t reference;
-        nk::dot<scalar_t, reference_t>(a.values_data(), b.values_data(), global_config.dense_dimensions, &reference,
-                                       no_tiers_k);
+        stats.expect(nk::dot<scalar_t, reference_t>(a.values_data(), b.values_data(), global_config.dense_dimensions,
+                                                    &reference, no_tiers_k));
 
         stats.accumulate(result, reference);
     }
@@ -314,8 +314,8 @@ error_stats_t test_vdot_blas(typename scalar_type_::vdot_kernel_t kernel, nk_f64
             kernel(a.raw_values_data(), b.raw_values_data(), global_config.dense_dimensions, &result.raw_, nullptr));
 
         reference_t reference;
-        nk::vdot<scalar_t, reference_t>(a.values_data(), b.values_data(), global_config.dense_dimensions, &reference,
-                                        no_tiers_k);
+        stats.expect(nk::vdot<scalar_t, reference_t>(a.values_data(), b.values_data(), global_config.dense_dimensions,
+                                                     &reference, no_tiers_k));
 
         stats.accumulate(result, reference);
     }

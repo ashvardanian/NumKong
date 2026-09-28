@@ -2,7 +2,7 @@
  *  @file test/main_metal.cpp
  *  @author Ash Vardanian
  *  @date September 24, 2026
- *  @brief Metal test: the capability report, the Metal cross-kernel sections of `cross_metal.cpp`, and
+ *  @brief Metal test: the capability report, the cross-kernel sections of `cross_metal.cpp`, and
  *      the dispatching entry points.
  *
  *  Every section runs on the queue @c main opens. `NUMKONG_FILTER=<regex>` keeps only the matching

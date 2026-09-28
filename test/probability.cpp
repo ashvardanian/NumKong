@@ -33,8 +33,8 @@ error_stats_t test_kld(typename scalar_type_::probability_kernel_t kernel) {
             kernel(p.raw_values_data(), q.raw_values_data(), global_config.dense_dimensions, &result.raw_, nullptr));
 
         reference_t reference;
-        nk::kld<scalar_t, reference_t>(p.values_data(), q.values_data(), global_config.dense_dimensions, &reference,
-                                       no_tiers_k);
+        stats.expect(nk::kld<scalar_t, reference_t>(p.values_data(), q.values_data(), global_config.dense_dimensions,
+                                                    &reference, no_tiers_k));
 
         stats.accumulate(result, reference);
     }
@@ -65,8 +65,8 @@ error_stats_t test_jsd(typename scalar_type_::probability_kernel_t kernel) {
             kernel(p.raw_values_data(), q.raw_values_data(), global_config.dense_dimensions, &result.raw_, nullptr));
 
         reference_t reference;
-        nk::jsd<scalar_t, reference_t>(p.values_data(), q.values_data(), global_config.dense_dimensions, &reference,
-                                       no_tiers_k);
+        stats.expect(nk::jsd<scalar_t, reference_t>(p.values_data(), q.values_data(), global_config.dense_dimensions,
+                                                    &reference, no_tiers_k));
 
         stats.accumulate(result, reference);
     }

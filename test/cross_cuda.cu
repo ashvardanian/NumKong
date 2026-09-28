@@ -19,8 +19,8 @@ static error_stats_t test_angulars_packed_nan_e4m3() {
     cuda_backend_t backend;
     error_stats_t stats(comparison_family_t::exact_k);
     std::size_t const depth = 64;
-    auto a = bytes_t::try_zeros(depth), b = bytes_t::try_zeros(depth), distance = bytes_t::try_zeros(4);
-    auto packed = bytes_t::try_zeros(pack_size_bytes(stats, packed_size_fn_, 1, depth));
+    auto a = bytes_t::zeros(depth).value, b = bytes_t::zeros(depth).value, distance = bytes_t::zeros(4).value;
+    auto packed = bytes_t::zeros(pack_size_bytes(stats, packed_size_fn_, 1, depth)).value;
     auto serial_packed = make_vector<char>(pack_size_bytes(stats, nk_dots_pack_size_e4m3_serial, 1, depth));
     std::memset(a.raw_values_data(), 0x38, depth), std::memset(b.raw_values_data(), 0x38, depth); // 1.0
     b.raw_values_data()[depth / 2] = 0x7F;
@@ -31,9 +31,9 @@ static error_stats_t test_angulars_packed_nan_e4m3() {
     backend.call(angulars_fn_, a_codes, packed.raw_values_data(), gpu, 1, 1, depth, depth, sizeof(nk_f32_t));
     synchronize(backend, stats);
     nk_f32_t serial = 0;
-    nk_dots_pack_e4m3_serial(b_codes, 1, depth, depth, serial_packed.raw_values_data(), 0, 1, nullptr);
-    nk_angulars_packed_e4m3_serial(a_codes, serial_packed.raw_values_data(), &serial, 1, 1, depth, depth,
-                                   sizeof(nk_f32_t), nullptr);
+    stats.expect(nk_dots_pack_e4m3_serial(b_codes, 1, depth, depth, serial_packed.raw_values_data(), 0, 1, nullptr));
+    stats.expect(nk_angulars_packed_e4m3_serial(a_codes, serial_packed.raw_values_data(), &serial, 1, 1, depth, depth,
+                                                sizeof(nk_f32_t), nullptr));
     stats.expect(*gpu == serial, "a NaN code in B packed to a finite column norm");
     return stats;
 }

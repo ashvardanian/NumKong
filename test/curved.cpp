@@ -57,8 +57,8 @@ error_stats_t test_bilinear(typename scalar_type_::curved_kernel_t kernel) {
                             global_config.curved_dimensions, &result.raw_, nullptr));
 
         reference_t reference;
-        nk::bilinear<scalar_t, reference_t>(a.values_data(), b.values_data(), m.values_data(),
-                                            global_config.curved_dimensions, &reference, no_tiers_k);
+        stats.expect(nk::bilinear<scalar_t, reference_t>(a.values_data(), b.values_data(), m.values_data(),
+                                                         global_config.curved_dimensions, &reference, no_tiers_k));
 
         stats.accumulate(result, reference);
     }
@@ -92,8 +92,8 @@ error_stats_t test_mahalanobis(typename scalar_type_::curved_kernel_t kernel) {
                             global_config.curved_dimensions, &result.raw_, nullptr));
 
         reference_t reference;
-        nk::mahalanobis<scalar_t, reference_t>(a.values_data(), b.values_data(), m.values_data(),
-                                               global_config.curved_dimensions, &reference, no_tiers_k);
+        stats.expect(nk::mahalanobis<scalar_t, reference_t>(a.values_data(), b.values_data(), m.values_data(),
+                                                            global_config.curved_dimensions, &reference, no_tiers_k));
 
         stats.accumulate(result, reference);
     }

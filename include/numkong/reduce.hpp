@@ -35,73 +35,73 @@ namespace ashvardanian::numkong {
  */
 template <numeric_dtype in_type_, numeric_dtype sum_type_ = typename in_type_::reduce_moments_sum_t,
           numeric_dtype sumsq_type_ = typename in_type_::reduce_moments_sumsq_t>
-nk_status_t reduce_moments(in_type_ const *data, std::size_t count, std::size_t stride_bytes, sum_type_ *sum,
-                           sumsq_type_ *sumsq, nk_capability_t capabilities = cpu_capabilities(),
-                           void *stream = nullptr) noexcept {
+status_t reduce_moments(in_type_ const *data, std::size_t count, std::size_t stride_bytes, sum_type_ *sum,
+                        sumsq_type_ *sumsq, nk_capability_t capabilities = cpu_capabilities(),
+                        void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<sum_type_, typename in_type_::reduce_moments_sum_t> &&
                               std::is_same_v<sumsq_type_, typename in_type_::reduce_moments_sumsq_t>;
 
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
-            return nk_reduce_moments_f64_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
-                                              stream);
+            return static_cast<status_t>(nk_reduce_moments_f64_best(&data->raw_, count, stride_bytes, &sum->raw_,
+                                                                    &sumsq->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return nk_reduce_moments_f32_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
-                                              stream);
+            return static_cast<status_t>(nk_reduce_moments_f32_best(&data->raw_, count, stride_bytes, &sum->raw_,
+                                                                    &sumsq->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
-            return nk_reduce_moments_f16_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
-                                              stream);
+            return static_cast<status_t>(nk_reduce_moments_f16_best(&data->raw_, count, stride_bytes, &sum->raw_,
+                                                                    &sumsq->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
-            return nk_reduce_moments_bf16_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
-                                               stream);
+            return static_cast<status_t>(nk_reduce_moments_bf16_best(&data->raw_, count, stride_bytes, &sum->raw_,
+                                                                     &sumsq->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e4m3_t> && dispatch)
-            return nk_reduce_moments_e4m3_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
-                                               stream);
+            return static_cast<status_t>(nk_reduce_moments_e4m3_best(&data->raw_, count, stride_bytes, &sum->raw_,
+                                                                     &sumsq->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e5m2_t> && dispatch)
-            return nk_reduce_moments_e5m2_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
-                                               stream);
+            return static_cast<status_t>(nk_reduce_moments_e5m2_best(&data->raw_, count, stride_bytes, &sum->raw_,
+                                                                     &sumsq->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e2m3_t> && dispatch)
-            return nk_reduce_moments_e2m3_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
-                                               stream);
+            return static_cast<status_t>(nk_reduce_moments_e2m3_best(&data->raw_, count, stride_bytes, &sum->raw_,
+                                                                     &sumsq->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e2m1x2_t> && dispatch)
-            return nk_reduce_moments_e2m1_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
-                                               stream);
+            return static_cast<status_t>(nk_reduce_moments_e2m1_best(&data->raw_, count, stride_bytes, &sum->raw_,
+                                                                     &sumsq->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e3m2_t> && dispatch)
-            return nk_reduce_moments_e3m2_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
-                                               stream);
+            return static_cast<status_t>(nk_reduce_moments_e3m2_best(&data->raw_, count, stride_bytes, &sum->raw_,
+                                                                     &sumsq->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, i4x2_t> && dispatch)
-            return nk_reduce_moments_i4_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
-                                             stream);
+            return static_cast<status_t>(nk_reduce_moments_i4_best(&data->raw_, count, stride_bytes, &sum->raw_,
+                                                                   &sumsq->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, u4x2_t> && dispatch)
-            return nk_reduce_moments_u4_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
-                                             stream);
+            return static_cast<status_t>(nk_reduce_moments_u4_best(&data->raw_, count, stride_bytes, &sum->raw_,
+                                                                   &sumsq->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, u1x8_t> && dispatch)
-            return nk_reduce_moments_u1_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
-                                             stream);
+            return static_cast<status_t>(nk_reduce_moments_u1_best(&data->raw_, count, stride_bytes, &sum->raw_,
+                                                                   &sumsq->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, i8_t> && dispatch)
-            return nk_reduce_moments_i8_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
-                                             stream);
+            return static_cast<status_t>(nk_reduce_moments_i8_best(&data->raw_, count, stride_bytes, &sum->raw_,
+                                                                   &sumsq->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, u8_t> && dispatch)
-            return nk_reduce_moments_u8_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
-                                             stream);
+            return static_cast<status_t>(nk_reduce_moments_u8_best(&data->raw_, count, stride_bytes, &sum->raw_,
+                                                                   &sumsq->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, i16_t> && dispatch)
-            return nk_reduce_moments_i16_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
-                                              stream);
+            return static_cast<status_t>(nk_reduce_moments_i16_best(&data->raw_, count, stride_bytes, &sum->raw_,
+                                                                    &sumsq->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, u16_t> && dispatch)
-            return nk_reduce_moments_u16_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
-                                              stream);
+            return static_cast<status_t>(nk_reduce_moments_u16_best(&data->raw_, count, stride_bytes, &sum->raw_,
+                                                                    &sumsq->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, i32_t> && dispatch)
-            return nk_reduce_moments_i32_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
-                                              stream);
+            return static_cast<status_t>(nk_reduce_moments_i32_best(&data->raw_, count, stride_bytes, &sum->raw_,
+                                                                    &sumsq->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, u32_t> && dispatch)
-            return nk_reduce_moments_u32_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
-                                              stream);
+            return static_cast<status_t>(nk_reduce_moments_u32_best(&data->raw_, count, stride_bytes, &sum->raw_,
+                                                                    &sumsq->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, i64_t> && dispatch)
-            return nk_reduce_moments_i64_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
-                                              stream);
+            return static_cast<status_t>(nk_reduce_moments_i64_best(&data->raw_, count, stride_bytes, &sum->raw_,
+                                                                    &sumsq->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, u64_t> && dispatch)
-            return nk_reduce_moments_u64_best(&data->raw_, count, stride_bytes, &sum->raw_, &sumsq->raw_, capabilities,
-                                              stream);
+            return static_cast<status_t>(nk_reduce_moments_u64_best(&data->raw_, count, stride_bytes, &sum->raw_,
+                                                                    &sumsq->raw_, capabilities, stream));
     }
     // Sub-byte views yield raw FP4 codes, so pairs decode through their nibble accessors
     if constexpr (std::is_same_v<in_type_, e2m1x2_t>) {
@@ -130,7 +130,7 @@ nk_status_t reduce_moments(in_type_ const *data, std::size_t count, std::size_t 
         *sum = running_sum;
         *sumsq = running_sumsq;
     }
-    return nk_success_k;
+    return status_t::success_k;
 }
 
 /**
@@ -150,9 +150,9 @@ nk_status_t reduce_moments(in_type_ const *data, std::size_t count, std::size_t 
  *      @c in_type_::reduce_minmax_value_t
  */
 template <numeric_dtype in_type_, numeric_dtype minmax_type_ = typename in_type_::reduce_minmax_value_t>
-nk_status_t reduce_minmax(in_type_ const *data, std::size_t count, std::size_t stride_bytes, minmax_type_ *min_value,
-                          std::size_t *min_index, minmax_type_ *max_value, std::size_t *max_index,
-                          nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+status_t reduce_minmax(in_type_ const *data, std::size_t count, std::size_t stride_bytes, minmax_type_ *min_value,
+                       std::size_t *min_index, minmax_type_ *max_value, std::size_t *max_index,
+                       nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<minmax_type_, typename in_type_::reduce_minmax_value_t>;
     static_assert(sizeof(std::size_t) == sizeof(nk_size_t), "size_t and nk_size_t must have the same width");
     nk_size_t min_offset = NUMKONG_SIZE_MAX, max_offset = NUMKONG_SIZE_MAX;
@@ -236,10 +236,10 @@ nk_status_t reduce_minmax(in_type_ const *data, std::size_t count, std::size_t s
         }
         *min_value = best_min, *max_value = best_max;
     }
-    if (status != nk_success_k) return status;
+    if (status != nk_success_k) return static_cast<status_t>(status);
     if (min_index) *min_index = static_cast<std::size_t>(min_offset);
     if (max_index) *max_index = static_cast<std::size_t>(max_offset);
-    return nk_success_k;
+    return status_t::success_k;
 }
 
 /**
@@ -261,21 +261,24 @@ nk_status_t reduce_minmax(in_type_ const *data, std::size_t count, std::size_t s
  *  @tparam in_type_ Element type
  */
 template <numeric_dtype in_type_>
-nk_status_t rmsnorm(in_type_ const *x, f32_t const *gamma, in_type_ *y, std::size_t rows, std::size_t groups,
-                    std::size_t cols, std::size_t x_row_stride, std::size_t y_row_stride, float eps,
-                    float input_scale = 1.0f, nk_capability_t capabilities = cpu_capabilities(),
-                    void *stream = nullptr) noexcept {
+status_t rmsnorm(in_type_ const *x, f32_t const *gamma, in_type_ *y, std::size_t rows, std::size_t groups,
+                 std::size_t cols, std::size_t x_row_stride, std::size_t y_row_stride, float eps,
+                 float input_scale = 1.0f, nk_capability_t capabilities = cpu_capabilities(),
+                 void *stream = nullptr) noexcept {
     nk_f32_t const *gamma_raw = gamma ? &gamma->raw_ : nullptr;
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f32_t>)
-            return nk_reduce_rmsnorm_f32_best(&x->raw_, gamma_raw, &y->raw_, rows, groups, cols, x_row_stride,
-                                              y_row_stride, eps, input_scale, capabilities, stream);
+            return static_cast<status_t>(nk_reduce_rmsnorm_f32_best(&x->raw_, gamma_raw, &y->raw_, rows, groups, cols,
+                                                                    x_row_stride, y_row_stride, eps, input_scale,
+                                                                    capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, bf16_t>)
-            return nk_reduce_rmsnorm_bf16_best(&x->raw_, gamma_raw, &y->raw_, rows, groups, cols, x_row_stride,
-                                               y_row_stride, eps, input_scale, capabilities, stream);
+            return static_cast<status_t>(nk_reduce_rmsnorm_bf16_best(&x->raw_, gamma_raw, &y->raw_, rows, groups, cols,
+                                                                     x_row_stride, y_row_stride, eps, input_scale,
+                                                                     capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e4m3_t>)
-            return nk_reduce_rmsnorm_e4m3_best(&x->raw_, gamma_raw, &y->raw_, rows, groups, cols, x_row_stride,
-                                               y_row_stride, eps, input_scale, capabilities, stream);
+            return static_cast<status_t>(nk_reduce_rmsnorm_e4m3_best(&x->raw_, gamma_raw, &y->raw_, rows, groups, cols,
+                                                                     x_row_stride, y_row_stride, eps, input_scale,
+                                                                     capabilities, stream));
     }
     // Scalar fallback for other numeric dtypes or a mask of no capability.
     for (std::size_t row = 0; row < rows; ++row) {
@@ -299,23 +302,23 @@ nk_status_t rmsnorm(in_type_ const *x, f32_t const *gamma, in_type_ *y, std::siz
             }
         }
     }
-    return nk_success_k;
+    return status_t::success_k;
 }
 
 /** Compute sum and sum-of-squares over a vector view. */
 template <numeric_dtype in_type_, numeric_dtype sum_type_ = typename in_type_::reduce_moments_sum_t,
           numeric_dtype sumsq_type_ = typename in_type_::reduce_moments_sumsq_t>
-nk_status_t reduce_moments(vector_view<in_type_> input, sum_type_ *sum, sumsq_type_ *sumsq,
-                           nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+status_t reduce_moments(vector_view<in_type_> input, sum_type_ *sum, sumsq_type_ *sumsq,
+                        nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
     return reduce_moments<in_type_, sum_type_, sumsq_type_>(
         input.data(), input.size(), static_cast<std::size_t>(input.stride_bytes()), sum, sumsq, capabilities, stream);
 }
 
 /** Find minimum and maximum elements with their indices over a vector view. */
 template <numeric_dtype in_type_, numeric_dtype minmax_type_ = typename in_type_::reduce_minmax_value_t>
-nk_status_t reduce_minmax(vector_view<in_type_> input, minmax_type_ *min_value, std::size_t *min_index,
-                          minmax_type_ *max_value, std::size_t *max_index,
-                          nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+status_t reduce_minmax(vector_view<in_type_> input, minmax_type_ *min_value, std::size_t *min_index,
+                       minmax_type_ *max_value, std::size_t *max_index,
+                       nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
     return reduce_minmax<in_type_, minmax_type_>(input.data(), input.size(),
                                                  static_cast<std::size_t>(input.stride_bytes()), min_value, min_index,
                                                  max_value, max_index, capabilities, stream);
@@ -330,31 +333,36 @@ namespace ashvardanian::numkong {
 #pragma region Tensor Nonlinearities
 
 /** Grouped RMSNorm over a matrix of @c rows rows, @p groups groups and @c cols columns, into a
- *  matching output span. */
+ *  matching output span; @c unexpected_dimensions_k when the shapes, the groups or @p gamma
+ *  disagree with each other. */
 template <numeric_dtype value_type_>
-bool rmsnorm(matrix_view<value_type_> input, vector_view<f32_t> gamma, matrix_span<value_type_> output,
-             std::size_t groups, float eps, float input_scale = 1.0f) noexcept {
-    if (input.extent(0) != output.extent(0) || input.extent(1) != output.extent(1)) return false;
+status_t rmsnorm(matrix_view<value_type_> input, vector_view<f32_t> gamma, matrix_span<value_type_> output,
+                 std::size_t groups, float eps, float input_scale = 1.0f) noexcept {
+    if (input.extent(0) != output.extent(0) || input.extent(1) != output.extent(1))
+        return status_t::unexpected_dimensions_k;
     std::size_t const columns_total = input.extent(1);
-    if (groups == 0 || columns_total % groups != 0) return false;
-    if (!gamma.empty() && gamma.size() != columns_total / groups) return false;
+    if (groups == 0 || columns_total % groups != 0) return status_t::unexpected_dimensions_k;
+    if (!gamma.empty() && gamma.size() != columns_total / groups) return status_t::unexpected_dimensions_k;
     f32_t const *gamma_ptr = gamma.empty() ? nullptr : gamma.data();
     return numkong::rmsnorm<value_type_>(input.data(), gamma_ptr, output.data(), input.extent(0), groups,
                                          columns_total / groups, static_cast<std::size_t>(input.stride_bytes(0)),
-                                         static_cast<std::size_t>(output.stride_bytes(0)), eps,
-                                         input_scale) == nk_success_k;
+                                         static_cast<std::size_t>(output.stride_bytes(0)), eps, input_scale);
 }
 
-/** Allocating grouped RMSNorm returning a fresh matrix. */
+/** Allocating grouped RMSNorm returning a fresh matrix, empty for an empty @p input, or the
+ *  allocation's or the kernel's failure. */
 template <numeric_dtype value_type_, typename allocator_type_ = aligned_allocator<value_type_>>
-tensor<value_type_, allocator_type_, 2> try_rmsnorm(matrix_view<value_type_> input, vector_view<f32_t> gamma,
-                                                    std::size_t groups, float eps, float input_scale = 1.0f) noexcept {
+expected<tensor<value_type_, allocator_type_, 2>> rmsnorm(matrix_view<value_type_> input, vector_view<f32_t> gamma,
+                                                          std::size_t groups, float eps, float input_scale = 1.0f,
+                                                          allocator_type_ alloc = {}) noexcept {
     using out_tensor_t = tensor<value_type_, allocator_type_, 2>;
-    if (input.empty()) return out_tensor_t {};
+    if (input.empty()) return {out_tensor_t(alloc), status_t::success_k};
     auto &input_shape = input.shape();
-    auto result = out_tensor_t::try_empty(input_shape.extents, input_shape.rank);
-    if (result.empty()) return result;
-    if (!rmsnorm<value_type_>(input, gamma, result.span(), groups, eps, input_scale)) return out_tensor_t {};
+    auto result = out_tensor_t::uninitialized(input_shape.extents, input_shape.rank, alloc);
+    if (!result) return result;
+    if (status_t status = rmsnorm<value_type_>(input, gamma, result.value.span(), groups, eps, input_scale);
+        failed(status))
+        return {out_tensor_t(alloc), status};
     return result;
 }
 
@@ -431,15 +439,16 @@ normalized_rank1_lane_<value_type_, max_rank_> normalize_rank1_lane_from_tail_(
 }
 
 template <numeric_dtype value_type_, std::size_t max_rank_>
-bool reduce_rank1_moments_(tensor_view<value_type_, max_rank_> input, typename value_type_::reduce_moments_sum_t &sum,
-                           typename value_type_::reduce_moments_sumsq_t &sumsq) noexcept {
+status_t reduce_rank1_moments_(tensor_view<value_type_, max_rank_> input,
+                               typename value_type_::reduce_moments_sum_t &sum,
+                               typename value_type_::reduce_moments_sumsq_t &sumsq) noexcept {
     using sum_t = typename value_type_::reduce_moments_sum_t;
     using sumsq_t = typename value_type_::reduce_moments_sumsq_t;
-    if (input.rank() != 1 || !tensor_layout_supported_(input) || input.byte_data() == nullptr) return false;
+    if (input.rank() != 1 || input.byte_data() == nullptr) return status_t::unexpected_dimensions_k;
+    if (!tensor_layout_supported_(input)) return status_t::misaligned_k;
     if (can_reduce_rank1_with_kernel_(input)) {
         auto lane = normalize_rank1_lane_(input);
-        numkong::reduce_moments<value_type_>(lane.data, lane.count, lane.stride_bytes, &sum, &sumsq);
-        return true;
+        return numkong::reduce_moments<value_type_>(lane.data, lane.count, lane.stride_bytes, &sum, &sumsq);
     }
     auto values = input.as_vector();
     sum = sum_t {};
@@ -449,37 +458,40 @@ bool reduce_rank1_moments_(tensor_view<value_type_, max_rank_> input, typename v
         sum = saturating_add(sum, value);
         sumsq = saturating_fma(value, value, sumsq);
     }
-    return true;
+    return status_t::success_k;
 }
 
 template <numeric_dtype value_type_, std::size_t max_rank_>
-bool reduce_rank1_minmax_(tensor_view<value_type_, max_rank_> input,
-                          minmax_result<typename value_type_::reduce_minmax_value_t> &result) noexcept {
+status_t reduce_rank1_minmax_(tensor_view<value_type_, max_rank_> input,
+                              minmax_result<typename value_type_::reduce_minmax_value_t> &result) noexcept {
     using minmax_t = typename value_type_::reduce_minmax_value_t;
-    if (input.rank() != 1 || !tensor_layout_supported_(input) || input.byte_data() == nullptr) return false;
+    if (input.rank() != 1 || input.byte_data() == nullptr) return status_t::unexpected_dimensions_k;
+    if (!tensor_layout_supported_(input)) return status_t::misaligned_k;
     if (can_reduce_rank1_with_kernel_(input)) {
         auto lane = normalize_rank1_lane_(input);
-        numkong::reduce_minmax<value_type_>(lane.data, lane.count, lane.stride_bytes, &result.min_value,
-                                            &result.min_index, &result.max_value, &result.max_index);
+        if (status_t status = numkong::reduce_minmax<value_type_>(lane.data, lane.count, lane.stride_bytes,
+                                                                  &result.min_value, &result.min_index,
+                                                                  &result.max_value, &result.max_index);
+            failed(status))
+            return status;
         if (lane.reversed) {
             result.min_index = lane.count - 1 - result.min_index;
             result.max_index = lane.count - 1 - result.max_index;
         }
-        return true;
+        return status_t::success_k;
     }
-    numkong::reduce_minmax<value_type_, minmax_t>(input.as_vector(), &result.min_value, &result.min_index,
-                                                  &result.max_value, &result.max_index, 0);
-    return true;
+    return numkong::reduce_minmax<value_type_, minmax_t>(input.as_vector(), &result.min_value, &result.min_index,
+                                                         &result.max_value, &result.max_index, 0);
 }
 
 template <numeric_dtype value_type_, std::size_t max_rank_>
-bool accumulate_moments_tensor_(tensor_view<value_type_, max_rank_> input,
-                                tensor_span<typename value_type_::reduce_moments_sum_t, max_rank_> sums,
-                                tensor_span<typename value_type_::reduce_moments_sumsq_t, max_rank_> sumsqs) noexcept {
+status_t accumulate_moments_tensor_(
+    tensor_view<value_type_, max_rank_> input, tensor_span<typename value_type_::reduce_moments_sum_t, max_rank_> sums,
+    tensor_span<typename value_type_::reduce_moments_sumsq_t, max_rank_> sumsqs) noexcept {
     using sum_t = typename value_type_::reduce_moments_sum_t;
     using sumsq_t = typename value_type_::reduce_moments_sumsq_t;
-    if (!tensor_layout_supported_(input) || !shapes_match_out_(input, sums) || !shapes_match_out_(input, sumsqs))
-        return false;
+    if (!tensor_layout_supported_(input)) return status_t::misaligned_k;
+    if (!shapes_match_out_(input, sums) || !shapes_match_out_(input, sumsqs)) return status_t::unexpected_dimensions_k;
     if (input.rank() == 1) {
         auto src = input.as_vector();
         auto dst_sum = sums.as_vector();
@@ -489,22 +501,23 @@ bool accumulate_moments_tensor_(tensor_view<value_type_, max_rank_> input,
             dst_sum[i] = saturating_add(dst_sum[i], sum_t(value));
             dst_sumsq[i] = saturating_fma(value, value, sumsq_t(dst_sumsq[i]));
         }
-        return true;
+        return status_t::success_k;
     }
-    for (std::size_t i = 0; i < input.extent(0); ++i) {
-        if (!accumulate_moments_tensor_(input.slice_leading(i), sums.slice_leading(i), sumsqs.slice_leading(i)))
-            return false;
-    }
-    return true;
+    for (std::size_t i = 0; i < input.extent(0); ++i)
+        if (status_t status = accumulate_moments_tensor_(input.slice_leading(i), sums.slice_leading(i),
+                                                         sumsqs.slice_leading(i));
+            failed(status))
+            return status;
+    return status_t::success_k;
 }
 
 template <numeric_dtype value_type_, std::size_t max_rank_>
-bool update_minmax_tensor_(tensor_view<value_type_, max_rank_> input,
-                           tensor_span<typename value_type_::reduce_minmax_value_t, max_rank_> mins,
-                           tensor_span<typename value_type_::reduce_minmax_value_t, max_rank_> maxs) noexcept {
+status_t update_minmax_tensor_(tensor_view<value_type_, max_rank_> input,
+                               tensor_span<typename value_type_::reduce_minmax_value_t, max_rank_> mins,
+                               tensor_span<typename value_type_::reduce_minmax_value_t, max_rank_> maxs) noexcept {
     using minmax_t = typename value_type_::reduce_minmax_value_t;
-    if (!tensor_layout_supported_(input) || !shapes_match_out_(input, mins) || !shapes_match_out_(input, maxs))
-        return false;
+    if (!tensor_layout_supported_(input)) return status_t::misaligned_k;
+    if (!shapes_match_out_(input, mins) || !shapes_match_out_(input, maxs)) return status_t::unexpected_dimensions_k;
     if (input.rank() == 1) {
         auto src = input.as_vector();
         auto dst_min = mins.as_vector();
@@ -514,103 +527,114 @@ bool update_minmax_tensor_(tensor_view<value_type_, max_rank_> input,
             if (value < dst_min[i]) dst_min[i] = value;
             if (value > dst_max[i]) dst_max[i] = value;
         }
-        return true;
+        return status_t::success_k;
     }
-    for (std::size_t i = 0; i < input.extent(0); ++i) {
-        if (!update_minmax_tensor_(input.slice_leading(i), mins.slice_leading(i), maxs.slice_leading(i))) return false;
-    }
-    return true;
+    for (std::size_t i = 0; i < input.extent(0); ++i)
+        if (status_t status = update_minmax_tensor_(input.slice_leading(i), mins.slice_leading(i),
+                                                    maxs.slice_leading(i));
+            failed(status))
+            return status;
+    return status_t::success_k;
 }
 
 template <numeric_dtype value_type_, std::size_t max_rank_>
-bool reduce_moments_axis_(tensor_view<value_type_, max_rank_> input, std::size_t axis,
-                          typename value_type_::reduce_moments_sum_t *sums,
-                          typename value_type_::reduce_moments_sumsq_t *sumsqs) noexcept {
+status_t reduce_moments_axis_(tensor_view<value_type_, max_rank_> input, std::size_t axis,
+                              typename value_type_::reduce_moments_sum_t *sums,
+                              typename value_type_::reduce_moments_sumsq_t *sumsqs) noexcept {
     return for_each_axis_lane_(input, axis,
                                [&](tensor_view<value_type_, max_rank_> lane, std::size_t output_index) noexcept {
                                    typename value_type_::reduce_moments_sum_t sum {};
                                    typename value_type_::reduce_moments_sumsq_t sumsq {};
-                                   if (!reduce_rank1_moments_(lane, sum, sumsq)) return false;
+                                   if (status_t status = reduce_rank1_moments_(lane, sum, sumsq); failed(status))
+                                       return status;
                                    if (sums) sums[output_index] = sum;
                                    if (sumsqs) sumsqs[output_index] = sumsq;
-                                   return true;
+                                   return status_t::success_k;
                                });
 }
 
 template <numeric_dtype value_type_, std::size_t max_rank_>
-bool reduce_moments_axis_packed_(tensor_view<value_type_, max_rank_> input, std::size_t axis,
-                                 tensor_span<typename value_type_::reduce_moments_sum_t, max_rank_> sums,
-                                 tensor_span<typename value_type_::reduce_moments_sumsq_t, max_rank_> sumsqs,
-                                 keep_dims_t keep_dims) noexcept {
+status_t reduce_moments_axis_packed_(tensor_view<value_type_, max_rank_> input, std::size_t axis,
+                                     tensor_span<typename value_type_::reduce_moments_sum_t, max_rank_> sums,
+                                     tensor_span<typename value_type_::reduce_moments_sumsq_t, max_rank_> sumsqs,
+                                     keep_dims_t keep_dims) noexcept {
     using sum_t = typename value_type_::reduce_moments_sum_t;
     using sumsq_t = typename value_type_::reduce_moments_sumsq_t;
-    if (!tensor_layout_supported_(input) || axis >= input.rank()) return false;
+    if (!tensor_layout_supported_(input)) return status_t::misaligned_k;
+    if (axis >= input.rank()) return status_t::unexpected_dimensions_k;
     if (axis == 0) {
         auto sum_target = keep_dims ? sums.slice_leading(0) : sums;
         auto sumsq_target = keep_dims ? sumsqs.slice_leading(0) : sumsqs;
         if (input.rank() == 1) {
             sum_t sum {};
             sumsq_t sumsq {};
-            if (!reduce_rank1_moments_(input, sum, sumsq)) return false;
+            if (status_t status = reduce_rank1_moments_(input, sum, sumsq); failed(status)) return status;
             sum_target.scalar_ref() = sum;
             sumsq_target.scalar_ref() = sumsq;
-            return true;
+            return status_t::success_k;
         }
         for (std::size_t i = 0; i < input.extent(0); ++i)
-            if (!accumulate_moments_tensor_(input.slice_leading(i), sum_target, sumsq_target)) return false;
-        return true;
+            if (status_t status = accumulate_moments_tensor_(input.slice_leading(i), sum_target, sumsq_target);
+                failed(status))
+                return status;
+        return status_t::success_k;
     }
-    if (input.rank() == 1) return false;
+    if (input.rank() == 1) return status_t::unexpected_dimensions_k;
     for (std::size_t i = 0; i < input.extent(0); ++i)
-        if (!reduce_moments_axis_packed_(input.slice_leading(i), axis - 1, sums.slice_leading(i),
-                                         sumsqs.slice_leading(i), keep_dims))
-            return false;
-    return true;
+        if (status_t status = reduce_moments_axis_packed_(input.slice_leading(i), axis - 1, sums.slice_leading(i),
+                                                          sumsqs.slice_leading(i), keep_dims);
+            failed(status))
+            return status;
+    return status_t::success_k;
 }
 
 template <numeric_dtype value_type_, std::size_t max_rank_>
-bool reduce_minmax_axis_(tensor_view<value_type_, max_rank_> input, std::size_t axis,
-                         typename value_type_::reduce_minmax_value_t *mins, std::size_t *argmins,
-                         typename value_type_::reduce_minmax_value_t *maxs, std::size_t *argmaxs) noexcept {
+status_t reduce_minmax_axis_(tensor_view<value_type_, max_rank_> input, std::size_t axis,
+                             typename value_type_::reduce_minmax_value_t *mins, std::size_t *argmins,
+                             typename value_type_::reduce_minmax_value_t *maxs, std::size_t *argmaxs) noexcept {
     return for_each_axis_lane_(input, axis,
                                [&](tensor_view<value_type_, max_rank_> lane, std::size_t output_index) noexcept {
                                    minmax_result<typename value_type_::reduce_minmax_value_t> result {};
-                                   if (!reduce_rank1_minmax_(lane, result)) return false;
+                                   if (status_t status = reduce_rank1_minmax_(lane, result); failed(status))
+                                       return status;
                                    if (mins) mins[output_index] = result.min_value;
                                    if (argmins) argmins[output_index] = result.min_index;
                                    if (maxs) maxs[output_index] = result.max_value;
                                    if (argmaxs) argmaxs[output_index] = result.max_index;
-                                   return true;
+                                   return status_t::success_k;
                                });
 }
 
 template <numeric_dtype value_type_, std::size_t max_rank_>
-bool reduce_minmax_axis_packed_(tensor_view<value_type_, max_rank_> input, std::size_t axis,
-                                tensor_span<typename value_type_::reduce_minmax_value_t, max_rank_> mins,
-                                tensor_span<typename value_type_::reduce_minmax_value_t, max_rank_> maxs,
-                                keep_dims_t keep_dims) noexcept {
+status_t reduce_minmax_axis_packed_(tensor_view<value_type_, max_rank_> input, std::size_t axis,
+                                    tensor_span<typename value_type_::reduce_minmax_value_t, max_rank_> mins,
+                                    tensor_span<typename value_type_::reduce_minmax_value_t, max_rank_> maxs,
+                                    keep_dims_t keep_dims) noexcept {
     using minmax_t = typename value_type_::reduce_minmax_value_t;
-    if (!tensor_layout_supported_(input) || axis >= input.rank()) return false;
+    if (!tensor_layout_supported_(input)) return status_t::misaligned_k;
+    if (axis >= input.rank()) return status_t::unexpected_dimensions_k;
     if (axis == 0) {
         auto min_target = keep_dims ? mins.slice_leading(0) : mins;
         auto max_target = keep_dims ? maxs.slice_leading(0) : maxs;
         if (input.rank() == 1) {
             minmax_result<minmax_t> result {};
-            if (!reduce_rank1_minmax_(input, result)) return false;
+            if (status_t status = reduce_rank1_minmax_(input, result); failed(status)) return status;
             min_target.scalar_ref() = result.min_value;
             max_target.scalar_ref() = result.max_value;
-            return true;
+            return status_t::success_k;
         }
         for (std::size_t i = 0; i < input.extent(0); ++i)
-            if (!update_minmax_tensor_(input.slice_leading(i), min_target, max_target)) return false;
-        return true;
+            if (status_t status = update_minmax_tensor_(input.slice_leading(i), min_target, max_target); failed(status))
+                return status;
+        return status_t::success_k;
     }
-    if (input.rank() == 1) return false;
+    if (input.rank() == 1) return status_t::unexpected_dimensions_k;
     for (std::size_t i = 0; i < input.extent(0); ++i)
-        if (!reduce_minmax_axis_packed_(input.slice_leading(i), axis - 1, mins.slice_leading(i), maxs.slice_leading(i),
-                                        keep_dims))
-            return false;
-    return true;
+        if (status_t status = reduce_minmax_axis_packed_(input.slice_leading(i), axis - 1, mins.slice_leading(i),
+                                                         maxs.slice_leading(i), keep_dims);
+            failed(status))
+            return status;
+    return status_t::success_k;
 }
 
 #pragma endregion Tensor Reduction Helpers
@@ -628,20 +652,24 @@ moments_result<typename value_type_::reduce_moments_sum_t, typename value_type_:
     // A 0-D view is a single contiguous scalar: no axes to collapse and no innermost stride to read
     // (the rank>=1 path below would index `stride_bytes(rank() - 1)` == `stride_bytes(SIZE_MAX)`).
     if (input.rank() == 0) {
-        numkong::reduce_moments<value_type_>(input.data(), 1, sizeof(value_type_), &result.sum, &result.sumsq);
+        if (failed(
+                numkong::reduce_moments<value_type_>(input.data(), 1, sizeof(value_type_), &result.sum, &result.sumsq)))
+            return {};
         return result;
     }
     if (!tensor_layout_supported_(input)) return result;
     auto tail = uniform_stride_tail_(input);
     if (tail.tail_dims == input.rank()) {
         auto lane = normalize_rank1_lane_from_tail_<value_type_, max_rank_>(input, tail);
-        numkong::reduce_moments<value_type_>(lane.data, lane.count, lane.stride_bytes, &result.sum, &result.sumsq);
+        if (failed(numkong::reduce_moments<value_type_>(lane.data, lane.count, lane.stride_bytes, &result.sum,
+                                                        &result.sumsq)))
+            return {};
         return result;
     }
     if (tail.tail_dims >= 2) return moments<value_type_, max_rank_>(collapse_uniform_tail_(input, tail));
     // Sub-byte rank-1 fallback: uniform_stride_tail_ returns {0,0,0} for packed types.
     if (input.rank() == 1) {
-        reduce_rank1_moments_(input, result.sum, result.sumsq);
+        if (failed(reduce_rank1_moments_(input, result.sum, result.sumsq))) return {};
         return result;
     }
     for (std::size_t i = 0; i < input.extent(0); ++i) {
@@ -661,16 +689,18 @@ minmax_result<typename value_type_::reduce_minmax_value_t> minmax(tensor_view<va
     // A 0-D view is a single contiguous scalar (index 0); the rank>=1 path would read
     // `stride_bytes(rank() - 1)` == `stride_bytes(SIZE_MAX)`.
     if (input.rank() == 0) {
-        numkong::reduce_minmax<value_type_>(input.data(), 1, sizeof(value_type_), &result.min_value, &result.min_index,
-                                            &result.max_value, &result.max_index);
+        if (failed(numkong::reduce_minmax<value_type_>(input.data(), 1, sizeof(value_type_), &result.min_value,
+                                                       &result.min_index, &result.max_value, &result.max_index)))
+            return {{}, NUMKONG_SIZE_MAX, {}, NUMKONG_SIZE_MAX};
         return result;
     }
     if (!tensor_layout_supported_(input)) return result;
     auto tail = uniform_stride_tail_(input);
     if (tail.tail_dims == input.rank()) {
         auto lane = normalize_rank1_lane_from_tail_<value_type_, max_rank_>(input, tail);
-        numkong::reduce_minmax<value_type_>(lane.data, lane.count, lane.stride_bytes, &result.min_value,
-                                            &result.min_index, &result.max_value, &result.max_index);
+        if (failed(numkong::reduce_minmax<value_type_>(lane.data, lane.count, lane.stride_bytes, &result.min_value,
+                                                       &result.min_index, &result.max_value, &result.max_index)))
+            return {{}, NUMKONG_SIZE_MAX, {}, NUMKONG_SIZE_MAX};
         if (lane.reversed) {
             result.min_index = tail.element_count - 1 - result.min_index;
             result.max_index = tail.element_count - 1 - result.max_index;
@@ -680,7 +710,7 @@ minmax_result<typename value_type_::reduce_minmax_value_t> minmax(tensor_view<va
     if (tail.tail_dims >= 2) return minmax<value_type_, max_rank_>(collapse_uniform_tail_(input, tail));
     // Sub-byte rank-1 fallback.
     if (input.rank() == 1) {
-        reduce_rank1_minmax_(input, result);
+        if (failed(reduce_rank1_minmax_(input, result))) return {{}, NUMKONG_SIZE_MAX, {}, NUMKONG_SIZE_MAX};
         return result;
     }
     // Slices merge like the halves of a split kernel: an all-NaN slice has no index and never wins
@@ -737,7 +767,7 @@ moments_result<typename value_type_::reduce_moments_sum_t, typename value_type_:
     using sumsq_t = typename value_type_::reduce_moments_sumsq_t;
     moments_result<sum_t, sumsq_t> result {};
     if (input.size() == 0) return result;
-    reduce_moments<value_type_>(input, &result.sum, &result.sumsq);
+    if (failed(reduce_moments<value_type_>(input, &result.sum, &result.sumsq))) return {};
     return result;
 }
 
@@ -746,7 +776,9 @@ template <numeric_dtype value_type_>
 minmax_result<typename value_type_::reduce_minmax_value_t> minmax(vector_view<value_type_> input) noexcept {
     using minmax_t = typename value_type_::reduce_minmax_value_t;
     minmax_result<minmax_t> result {};
-    reduce_minmax<value_type_>(input, &result.min_value, &result.min_index, &result.max_value, &result.max_index);
+    if (failed(reduce_minmax<value_type_>(input, &result.min_value, &result.min_index, &result.max_value,
+                                          &result.max_index)))
+        return {{}, NUMKONG_SIZE_MAX, {}, NUMKONG_SIZE_MAX};
     return result;
 }
 
@@ -822,142 +854,172 @@ inline bool all_set(vector_view<u1x8_t> input) noexcept { return popcount(input)
 
 #pragma region Axis Reductions
 
-/** Σ along a single axis. Returns empty tensor on failure. */
+/** Σ along a single axis; empty for an empty @p input, @c unexpected_dimensions_k for an @p axis
+ *  past the rank, @c misaligned_k for an unsupported layout, or the allocation's failure. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<typename value_type_::reduce_moments_sum_t>>
-tensor<typename value_type_::reduce_moments_sum_t, allocator_type_, max_rank_> try_sum(
-    tensor_view<value_type_, max_rank_> input, std::size_t axis, keep_dims_t keep_dims = collapse_dims_k) noexcept {
+expected<tensor<typename value_type_::reduce_moments_sum_t, allocator_type_, max_rank_>> sum(
+    tensor_view<value_type_, max_rank_> input, std::size_t axis, keep_dims_t keep_dims = collapse_dims_k,
+    allocator_type_ alloc = {}) noexcept {
     using sum_t = typename value_type_::reduce_moments_sum_t;
     using sum_tensor_t = tensor<sum_t, allocator_type_, max_rank_>;
 
-    if (input.empty() || axis >= input.rank() || !tensor_layout_supported_(input)) return sum_tensor_t {};
+    if (input.empty()) return {sum_tensor_t(alloc), status_t::success_k};
+    if (axis >= input.rank()) return {sum_tensor_t(alloc), status_t::unexpected_dimensions_k};
+    if (!tensor_layout_supported_(input)) return {sum_tensor_t(alloc), status_t::misaligned_k};
 
     auto out_shape = reduced_shape_<sum_t>(input.shape(), axis, keep_dims);
-    auto sums = sum_tensor_t::try_zeros(out_shape.extents, out_shape.rank);
-    if (sums.empty() || !shape_matches_(out_shape, sums.span())) return sum_tensor_t {};
+    auto sums = sum_tensor_t::zeros(out_shape.extents, out_shape.rank, alloc);
+    if (!sums) return sums;
+    status_t status;
     if constexpr (dimensions_per_value<value_type_>() > 1) {
         using sumsq_t = typename value_type_::reduce_moments_sumsq_t;
         using sumsq_alloc_t = typename std::allocator_traits<allocator_type_>::template rebind_alloc<sumsq_t>;
         using sumsq_tensor_t = tensor<sumsq_t, sumsq_alloc_t, max_rank_>;
-        auto scratch = sumsq_tensor_t::try_zeros(out_shape.extents, out_shape.rank);
-        if (scratch.empty() || !shape_matches_(reduced_shape_<sumsq_t>(input.shape(), axis, keep_dims), scratch.span()))
-            return sum_tensor_t {};
-        if (!reduce_moments_axis_packed_(input, axis, sums.span(), scratch.span(), keep_dims)) return sum_tensor_t {};
+        auto scratch = sumsq_tensor_t::zeros(out_shape.extents, out_shape.rank, sumsq_alloc_t(alloc));
+        if (!scratch) return {sum_tensor_t(alloc), scratch.status};
+        status = reduce_moments_axis_packed_(input, axis, sums.value.span(), scratch.value.span(), keep_dims);
     }
-    else if (!reduce_moments_axis_(input, axis, sums.data(), nullptr)) return sum_tensor_t {};
+    else status = reduce_moments_axis_(input, axis, sums.value.data(), nullptr);
+    if (failed(status)) return {sum_tensor_t(alloc), status};
     return sums;
 }
 
-/** Moments along an axis, Σxᵢ and Σxᵢ² per slice. */
+/** Moments along an axis, Σxᵢ and Σxᵢ² per slice; fails like the axis @c sum. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<typename value_type_::reduce_moments_sum_t>>
-moments_result<tensor<typename value_type_::reduce_moments_sum_t, allocator_type_, max_rank_>,
-               tensor<typename value_type_::reduce_moments_sumsq_t,
-                      typename std::allocator_traits<allocator_type_>::template rebind_alloc<
-                          typename value_type_::reduce_moments_sumsq_t>,
-                      max_rank_>>
-try_moments(tensor_view<value_type_, max_rank_> input, std::size_t axis,
-            keep_dims_t keep_dims = collapse_dims_k) noexcept {
+expected<moments_result<tensor<typename value_type_::reduce_moments_sum_t, allocator_type_, max_rank_>,
+                        tensor<typename value_type_::reduce_moments_sumsq_t,
+                               typename std::allocator_traits<allocator_type_>::template rebind_alloc<
+                                   typename value_type_::reduce_moments_sumsq_t>,
+                               max_rank_>>>
+moments(tensor_view<value_type_, max_rank_> input, std::size_t axis, keep_dims_t keep_dims = collapse_dims_k,
+        allocator_type_ alloc = {}) noexcept {
     using sum_t = typename value_type_::reduce_moments_sum_t;
     using sumsq_t = typename value_type_::reduce_moments_sumsq_t;
     using sum_tensor_t = tensor<sum_t, allocator_type_, max_rank_>;
     using sumsq_alloc_t = typename std::allocator_traits<allocator_type_>::template rebind_alloc<sumsq_t>;
     using sumsq_tensor_t = tensor<sumsq_t, sumsq_alloc_t, max_rank_>;
+    using result_t = moments_result<sum_tensor_t, sumsq_tensor_t>;
+    auto empty_result = [&](status_t status) noexcept -> expected<result_t> {
+        return {result_t {sum_tensor_t(alloc), sumsq_tensor_t(sumsq_alloc_t(alloc))}, status};
+    };
 
-    if (input.empty() || axis >= input.rank() || !tensor_layout_supported_(input))
-        return {sum_tensor_t {}, sumsq_tensor_t {}};
+    if (input.empty()) return empty_result(status_t::success_k);
+    if (axis >= input.rank()) return empty_result(status_t::unexpected_dimensions_k);
+    if (!tensor_layout_supported_(input)) return empty_result(status_t::misaligned_k);
 
     auto out_shape_sum = reduced_shape_<sum_t>(input.shape(), axis, keep_dims);
     auto out_shape_sq = reduced_shape_<sumsq_t>(input.shape(), axis, keep_dims);
 
-    auto sums = sum_tensor_t::try_zeros(out_shape_sum.extents, out_shape_sum.rank);
-    auto sumsqs = sumsq_tensor_t::try_zeros(out_shape_sq.extents, out_shape_sq.rank);
-    if (sums.empty() || sumsqs.empty() || !shape_matches_(out_shape_sum, sums.span()) ||
-        !shape_matches_(out_shape_sq, sumsqs.span()))
-        return {sum_tensor_t {}, sumsq_tensor_t {}};
+    auto sums = sum_tensor_t::zeros(out_shape_sum.extents, out_shape_sum.rank, alloc);
+    if (!sums) return empty_result(sums.status);
+    auto sumsqs = sumsq_tensor_t::zeros(out_shape_sq.extents, out_shape_sq.rank, sumsq_alloc_t(alloc));
+    if (!sumsqs) return empty_result(sumsqs.status);
 
-    if constexpr (dimensions_per_value<value_type_>() > 1) {
-        if (!reduce_moments_axis_packed_(input, axis, sums.span(), sumsqs.span(), keep_dims))
-            return {sum_tensor_t {}, sumsq_tensor_t {}};
-    }
-    else if (!reduce_moments_axis_(input, axis, sums.data(), sumsqs.data()))
-        return {sum_tensor_t {}, sumsq_tensor_t {}};
+    status_t status;
+    if constexpr (dimensions_per_value<value_type_>() > 1)
+        status = reduce_moments_axis_packed_(input, axis, sums.value.span(), sumsqs.value.span(), keep_dims);
+    else status = reduce_moments_axis_(input, axis, sums.value.data(), sumsqs.value.data());
+    if (failed(status)) return empty_result(status);
 
-    return {std::move(sums), std::move(sumsqs)};
+    return {result_t {std::move(sums.value), std::move(sumsqs.value)}, status_t::success_k};
 }
 
-/** Min and max along an axis. */
+/** Min and max along an axis; fails like the axis @c sum. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<typename value_type_::reduce_minmax_value_t>>
-minmax_result<tensor<typename value_type_::reduce_minmax_value_t, allocator_type_, max_rank_>> try_minmax(
-    tensor_view<value_type_, max_rank_> input, std::size_t axis, keep_dims_t keep_dims = collapse_dims_k) noexcept {
+expected<minmax_result<tensor<typename value_type_::reduce_minmax_value_t, allocator_type_, max_rank_>>> minmax(
+    tensor_view<value_type_, max_rank_> input, std::size_t axis, keep_dims_t keep_dims = collapse_dims_k,
+    allocator_type_ alloc = {}) noexcept {
     using minmax_t = typename value_type_::reduce_minmax_value_t;
     using out_tensor_t = tensor<minmax_t, allocator_type_, max_rank_>;
-    if (input.empty() || axis >= input.rank() || !tensor_layout_supported_(input))
-        return {out_tensor_t {}, 0, out_tensor_t {}, 0};
+    using result_t = minmax_result<out_tensor_t>;
+    auto empty_result = [&](status_t status) noexcept -> expected<result_t> {
+        return {result_t {out_tensor_t(alloc), 0, out_tensor_t(alloc), 0}, status};
+    };
+
+    if (input.empty()) return empty_result(status_t::success_k);
+    if (axis >= input.rank()) return empty_result(status_t::unexpected_dimensions_k);
+    if (!tensor_layout_supported_(input)) return empty_result(status_t::misaligned_k);
 
     auto out_shape = reduced_shape_<minmax_t>(input.shape(), axis, keep_dims);
-    auto mins = out_tensor_t::try_full(out_shape.extents, out_shape.rank, finite_max<minmax_t>());
-    auto maxs = out_tensor_t::try_full(out_shape.extents, out_shape.rank, finite_min<minmax_t>());
-    if (mins.empty() || maxs.empty() || !shape_matches_(out_shape, mins.span()) ||
-        !shape_matches_(out_shape, maxs.span()))
-        return {out_tensor_t {}, 0, out_tensor_t {}, 0};
+    auto mins = out_tensor_t::full(out_shape.extents, out_shape.rank, finite_max<minmax_t>(), alloc);
+    if (!mins) return empty_result(mins.status);
+    auto maxs = out_tensor_t::full(out_shape.extents, out_shape.rank, finite_min<minmax_t>(), alloc);
+    if (!maxs) return empty_result(maxs.status);
 
-    if constexpr (dimensions_per_value<value_type_>() > 1) {
-        if (!reduce_minmax_axis_packed_(input, axis, mins.span(), maxs.span(), keep_dims))
-            return {out_tensor_t {}, 0, out_tensor_t {}, 0};
-    }
-    else if (!reduce_minmax_axis_(input, axis, mins.data(), nullptr, maxs.data(), nullptr))
-        return {out_tensor_t {}, 0, out_tensor_t {}, 0};
-    return {std::move(mins), 0, std::move(maxs), 0};
+    status_t status;
+    if constexpr (dimensions_per_value<value_type_>() > 1)
+        status = reduce_minmax_axis_packed_(input, axis, mins.value.span(), maxs.value.span(), keep_dims);
+    else status = reduce_minmax_axis_(input, axis, mins.value.data(), nullptr, maxs.value.data(), nullptr);
+    if (failed(status)) return empty_result(status);
+    return {result_t {std::move(mins.value), 0, std::move(maxs.value), 0}, status_t::success_k};
 }
 
-/** Argmin along an axis. */
+/** Argmin along an axis; fails like the axis @c sum, and with @c missing_kernel_k for sub-byte
+ *  inputs. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<std::size_t>>
-tensor<std::size_t, allocator_type_, max_rank_> try_argmin(tensor_view<value_type_, max_rank_> input, std::size_t axis,
-                                                           keep_dims_t keep_dims = collapse_dims_k) noexcept {
+expected<tensor<std::size_t, allocator_type_, max_rank_>> argmin(tensor_view<value_type_, max_rank_> input,
+                                                                 std::size_t axis,
+                                                                 keep_dims_t keep_dims = collapse_dims_k,
+                                                                 allocator_type_ alloc = {}) noexcept {
     using out_tensor_t = tensor<std::size_t, allocator_type_, max_rank_>;
-    if (input.empty() || axis >= input.rank() || !tensor_layout_supported_(input)) return out_tensor_t {};
-    if constexpr (dimensions_per_value<value_type_>() > 1) return out_tensor_t {};
+    if (input.empty()) return {out_tensor_t(alloc), status_t::success_k};
+    if (axis >= input.rank()) return {out_tensor_t(alloc), status_t::unexpected_dimensions_k};
+    if (!tensor_layout_supported_(input)) return {out_tensor_t(alloc), status_t::misaligned_k};
+    if constexpr (dimensions_per_value<value_type_>() > 1) return {out_tensor_t(alloc), status_t::missing_kernel_k};
 
     auto out_shape = reduced_shape_<std::size_t>(input.shape(), axis, keep_dims);
-    auto indices = out_tensor_t::try_zeros(out_shape.extents, out_shape.rank);
-    if (indices.empty() || !shape_matches_(out_shape, indices.span())) return out_tensor_t {};
-    if (!reduce_minmax_axis_(input, axis, nullptr, indices.data(), nullptr, nullptr)) return out_tensor_t {};
+    auto indices = out_tensor_t::zeros(out_shape.extents, out_shape.rank, alloc);
+    if (!indices) return indices;
+    if (status_t status = reduce_minmax_axis_(input, axis, nullptr, indices.value.data(), nullptr, nullptr);
+        failed(status))
+        return {out_tensor_t(alloc), status};
     return indices;
 }
 
-/** Argmax along an axis. */
+/** Argmax along an axis; fails like @c argmin. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<std::size_t>>
-tensor<std::size_t, allocator_type_, max_rank_> try_argmax(tensor_view<value_type_, max_rank_> input, std::size_t axis,
-                                                           keep_dims_t keep_dims = collapse_dims_k) noexcept {
+expected<tensor<std::size_t, allocator_type_, max_rank_>> argmax(tensor_view<value_type_, max_rank_> input,
+                                                                 std::size_t axis,
+                                                                 keep_dims_t keep_dims = collapse_dims_k,
+                                                                 allocator_type_ alloc = {}) noexcept {
     using out_tensor_t = tensor<std::size_t, allocator_type_, max_rank_>;
-    if (input.empty() || axis >= input.rank() || !tensor_layout_supported_(input)) return out_tensor_t {};
-    if constexpr (dimensions_per_value<value_type_>() > 1) return out_tensor_t {};
+    if (input.empty()) return {out_tensor_t(alloc), status_t::success_k};
+    if (axis >= input.rank()) return {out_tensor_t(alloc), status_t::unexpected_dimensions_k};
+    if (!tensor_layout_supported_(input)) return {out_tensor_t(alloc), status_t::misaligned_k};
+    if constexpr (dimensions_per_value<value_type_>() > 1) return {out_tensor_t(alloc), status_t::missing_kernel_k};
 
     auto out_shape = reduced_shape_<std::size_t>(input.shape(), axis, keep_dims);
-    auto indices = out_tensor_t::try_zeros(out_shape.extents, out_shape.rank);
-    if (indices.empty() || !shape_matches_(out_shape, indices.span())) return out_tensor_t {};
-    if (!reduce_minmax_axis_(input, axis, nullptr, nullptr, nullptr, indices.data())) return out_tensor_t {};
+    auto indices = out_tensor_t::zeros(out_shape.extents, out_shape.rank, alloc);
+    if (!indices) return indices;
+    if (status_t status = reduce_minmax_axis_(input, axis, nullptr, nullptr, nullptr, indices.value.data());
+        failed(status))
+        return {out_tensor_t(alloc), status};
     return indices;
 }
 
-/** Min along an axis. */
+/** Min along an axis; fails like the axis @c minmax. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<typename value_type_::reduce_minmax_value_t>>
-tensor<typename value_type_::reduce_minmax_value_t, allocator_type_, max_rank_> try_min(
-    tensor_view<value_type_, max_rank_> input, std::size_t axis, keep_dims_t keep_dims = collapse_dims_k) noexcept {
-    return try_minmax<value_type_, max_rank_, allocator_type_>(input, axis, keep_dims).min_value;
+expected<tensor<typename value_type_::reduce_minmax_value_t, allocator_type_, max_rank_>> min(
+    tensor_view<value_type_, max_rank_> input, std::size_t axis, keep_dims_t keep_dims = collapse_dims_k,
+    allocator_type_ alloc = {}) noexcept {
+    auto result = minmax<value_type_, max_rank_, allocator_type_>(input, axis, keep_dims, alloc);
+    return {std::move(result.value.min_value), result.status};
 }
 
-/** Max along an axis. */
+/** Max along an axis; fails like the axis @c minmax. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<typename value_type_::reduce_minmax_value_t>>
-tensor<typename value_type_::reduce_minmax_value_t, allocator_type_, max_rank_> try_max(
-    tensor_view<value_type_, max_rank_> input, std::size_t axis, keep_dims_t keep_dims = collapse_dims_k) noexcept {
-    return try_minmax<value_type_, max_rank_, allocator_type_>(input, axis, keep_dims).max_value;
+expected<tensor<typename value_type_::reduce_minmax_value_t, allocator_type_, max_rank_>> max(
+    tensor_view<value_type_, max_rank_> input, std::size_t axis, keep_dims_t keep_dims = collapse_dims_k,
+    allocator_type_ alloc = {}) noexcept {
+    auto result = minmax<value_type_, max_rank_, allocator_type_>(input, axis, keep_dims, alloc);
+    return {std::move(result.value.max_value), result.status};
 }
 
 #pragma endregion Axis Reductions

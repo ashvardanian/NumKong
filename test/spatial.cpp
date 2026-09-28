@@ -33,7 +33,8 @@ error_stats_t test_sqeuclidean(typename scalar_type_::sqeuclidean_kernel_t kerne
         stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), n, &result.raw_, nullptr));
 
         reference_t reference;
-        nk::sqeuclidean<scalar_t, reference_t>(a.values_data(), b.values_data(), n, &reference, no_tiers_k);
+        stats.expect(
+            nk::sqeuclidean<scalar_t, reference_t>(a.values_data(), b.values_data(), n, &reference, no_tiers_k));
 
         stats.accumulate(result, reference);
     }
@@ -63,7 +64,7 @@ error_stats_t test_angular(typename scalar_type_::angular_kernel_t kernel) {
         stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), n, &result.raw_, nullptr));
 
         reference_t reference;
-        nk::angular<scalar_t, reference_t>(a.values_data(), b.values_data(), n, &reference, no_tiers_k);
+        stats.expect(nk::angular<scalar_t, reference_t>(a.values_data(), b.values_data(), n, &reference, no_tiers_k));
 
         stats.accumulate(result, reference);
     }
@@ -93,7 +94,7 @@ error_stats_t test_euclidean(typename scalar_type_::euclidean_kernel_t kernel) {
         stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), n, &result.raw_, nullptr));
 
         reference_t reference;
-        nk::euclidean<scalar_t, reference_t>(a.values_data(), b.values_data(), n, &reference, no_tiers_k);
+        stats.expect(nk::euclidean<scalar_t, reference_t>(a.values_data(), b.values_data(), n, &reference, no_tiers_k));
 
         stats.accumulate(result, reference);
     }

@@ -34,18 +34,18 @@ namespace ashvardanian::numkong {
  *  @note Accuracy: 0.3-0.6% vs WGS-84, suitable for ranking/similarity
  */
 template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
-nk_status_t haversine(in_type_ const *a_lats, in_type_ const *a_lons, in_type_ const *b_lats, in_type_ const *b_lons,
-                      std::size_t d, in_type_ *results, nk_capability_t capabilities = cpu_capabilities(),
-                      void *stream = nullptr) noexcept {
+status_t haversine(in_type_ const *a_lats, in_type_ const *a_lons, in_type_ const *b_lats, in_type_ const *b_lons,
+                   std::size_t d, in_type_ *results, nk_capability_t capabilities = cpu_capabilities(),
+                   void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<in_type_, precision_type_>;
 
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
-            return nk_haversine_f64_best(&a_lats->raw_, &a_lons->raw_, &b_lats->raw_, &b_lons->raw_, d, &results->raw_,
-                                         capabilities, stream);
+            return static_cast<status_t>(nk_haversine_f64_best(&a_lats->raw_, &a_lons->raw_, &b_lats->raw_,
+                                                               &b_lons->raw_, d, &results->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return nk_haversine_f32_best(&a_lats->raw_, &a_lons->raw_, &b_lats->raw_, &b_lons->raw_, d, &results->raw_,
-                                         capabilities, stream);
+            return static_cast<status_t>(nk_haversine_f32_best(&a_lats->raw_, &a_lons->raw_, &b_lats->raw_,
+                                                               &b_lons->raw_, d, &results->raw_, capabilities, stream));
     }
     precision_type_ const earth_radius = precision_type_(6335439.0); // mediatorial radius in meters
 
@@ -75,7 +75,7 @@ nk_status_t haversine(in_type_ const *a_lats, in_type_ const *a_lons, in_type_ c
 
         results[i] = in_type_(static_cast<double>(earth_radius * central_angle));
     }
-    return nk_success_k;
+    return status_t::success_k;
 }
 
 /**
@@ -97,18 +97,18 @@ nk_status_t haversine(in_type_ const *a_lats, in_type_ const *a_lons, in_type_ c
  *  @note Iterative algorithm with max 100 iterations
  */
 template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
-nk_status_t vincenty(in_type_ const *a_lats, in_type_ const *a_lons, in_type_ const *b_lats, in_type_ const *b_lons,
-                     std::size_t d, in_type_ *results, nk_capability_t capabilities = cpu_capabilities(),
-                     void *stream = nullptr) noexcept {
+status_t vincenty(in_type_ const *a_lats, in_type_ const *a_lons, in_type_ const *b_lats, in_type_ const *b_lons,
+                  std::size_t d, in_type_ *results, nk_capability_t capabilities = cpu_capabilities(),
+                  void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<in_type_, precision_type_>;
 
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
-            return nk_vincenty_f64_best(&a_lats->raw_, &a_lons->raw_, &b_lats->raw_, &b_lons->raw_, d, &results->raw_,
-                                        capabilities, stream);
+            return static_cast<status_t>(nk_vincenty_f64_best(&a_lats->raw_, &a_lons->raw_, &b_lats->raw_,
+                                                              &b_lons->raw_, d, &results->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return nk_vincenty_f32_best(&a_lats->raw_, &a_lons->raw_, &b_lats->raw_, &b_lons->raw_, d, &results->raw_,
-                                        capabilities, stream);
+            return static_cast<status_t>(nk_vincenty_f32_best(&a_lats->raw_, &a_lons->raw_, &b_lats->raw_,
+                                                              &b_lons->raw_, d, &results->raw_, capabilities, stream));
     }
     precision_type_ const equatorial_radius = precision_type_(6378136.6);
     precision_type_ const polar_radius = precision_type_(6356751.9);
@@ -217,7 +217,7 @@ nk_status_t vincenty(in_type_ const *a_lats, in_type_ const *a_lons, in_type_ co
 
         results[i] = in_type_(static_cast<double>(polar_radius * series_a * (angular_distance - angular_correction)));
     }
-    return nk_success_k;
+    return status_t::success_k;
 }
 
 } // namespace ashvardanian::numkong
@@ -227,17 +227,21 @@ nk_status_t vincenty(in_type_ const *a_lats, in_type_ const *a_lons, in_type_ co
 namespace ashvardanian::numkong {
 
 template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
-nk_status_t haversine(vector_view<in_type_> a_lats, vector_view<in_type_> a_lons, vector_view<in_type_> b_lats,
-                      vector_view<in_type_> b_lons, in_type_ *results,
-                      nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+status_t haversine(vector_view<in_type_> a_lats, vector_view<in_type_> a_lons, vector_view<in_type_> b_lats,
+                   vector_view<in_type_> b_lons, in_type_ *results, nk_capability_t capabilities = cpu_capabilities(),
+                   void *stream = nullptr) noexcept {
+    if (a_lons.size() != a_lats.size() || b_lats.size() != a_lats.size() || b_lons.size() != a_lats.size())
+        return status_t::unexpected_dimensions_k;
     return haversine<in_type_, precision_type_>(a_lats.data(), a_lons.data(), b_lats.data(), b_lons.data(),
                                                 a_lats.size(), results, capabilities, stream);
 }
 
 template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
-nk_status_t vincenty(vector_view<in_type_> a_lats, vector_view<in_type_> a_lons, vector_view<in_type_> b_lats,
-                     vector_view<in_type_> b_lons, in_type_ *results, nk_capability_t capabilities = cpu_capabilities(),
-                     void *stream = nullptr) noexcept {
+status_t vincenty(vector_view<in_type_> a_lats, vector_view<in_type_> a_lons, vector_view<in_type_> b_lats,
+                  vector_view<in_type_> b_lons, in_type_ *results, nk_capability_t capabilities = cpu_capabilities(),
+                  void *stream = nullptr) noexcept {
+    if (a_lons.size() != a_lats.size() || b_lats.size() != a_lats.size() || b_lons.size() != a_lats.size())
+        return status_t::unexpected_dimensions_k;
     return vincenty<in_type_, precision_type_>(a_lats.data(), a_lons.data(), b_lats.data(), b_lons.data(),
                                                a_lats.size(), results, capabilities, stream);
 }

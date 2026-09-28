@@ -121,42 +121,114 @@
 
 namespace ashvardanian::numkong {
 
+#pragma region Status
+
 /**
- *  @brief The CPU capabilities every wrapper dispatches over by default: the ones this CPU runs and the library
- *      holds, or none in header-only builds, whose dispatch points are stubs.
+ *  @brief Why a call failed, in the vocabulary the C ABI and every binding share.
+ *
+ *  Every enumerator takes its value from @c nk_status_t in @c types.h, so the C++ mirror and the
+ *  ABI cannot drift, and the crossing is a cast rather than a table.
+ */
+enum class [[nodiscard]] status_t : int {
+
+    /** Scheduled, or finished, without error. */
+    success_k = nk_success_k,
+
+    /** An allocation failed, or the queue could not record another block. */
+    bad_alloc_k = nk_bad_alloc_k,
+
+    /** Operand shapes contradict each other, or exceed a rank or a capacity. */
+    unexpected_dimensions_k = nk_unexpected_dimensions_k,
+
+    /** No GPU of the vendor this build targets answers. */
+    missing_gpu_k = nk_missing_gpu_k,
+
+    /** The device code lacks the kernel, or it failed to build, launch or finish. */
+    device_code_mismatch_k = nk_device_code_mismatch_k,
+
+    /** An operand lies in memory the device cannot address. */
+    device_memory_mismatch_k = nk_device_memory_mismatch_k,
+
+    /** No capability in the capability mask has this kernel. */
+    missing_kernel_k = nk_missing_kernel_k,
+
+    /** An operand or stride breaks the alignment contract, like a strided sub-byte view. */
+    misaligned_k = nk_misaligned_k,
+
+    /** The buffer was packed by another capability or layout than the one reading it. */
+    pack_mismatch_k = nk_pack_mismatch_k,
+
+    /** A dispatch point or finder called from a header-only build, which links no library. */
+    missing_library_k = nk_missing_library_k,
+};
+
+/** Whether @p status reports success. */
+constexpr bool succeeded(status_t status) noexcept { return status == status_t::success_k; }
+
+/** Whether @p status reports failure. */
+constexpr bool failed(status_t status) noexcept { return status != status_t::success_k; }
+
+/** Static, English description of @p status. Never returns @c nullptr, never allocates. */
+inline char const *status_to_string(status_t status) noexcept {
+    return nk_status_to_string_(static_cast<nk_status_t>(status));
+}
+
+/** A result paired with the @c status_t explaining it; the value is only meaningful
+ *  on @c success_k. */
+template <typename value_type_>
+struct [[nodiscard]] expected {
+    value_type_ value;
+    status_t status;
+
+    explicit operator bool() const noexcept { return succeeded(status); }
+};
+
+/** The borrowing face of @ref expected for reference results: there is no null
+ *  reference, so the borrow is stored as an address and @c value() binds it only on
+ *  @c success_k. */
+template <typename value_type_>
+struct [[nodiscard]] expected<value_type_ &> {
+    value_type_ *borrowed;
+    status_t status;
+
+    value_type_ &value() const noexcept { return *borrowed; }
+    explicit operator bool() const noexcept { return succeeded(status); }
+};
+
+#pragma endregion Status
+
+/**
+ *  @brief The CPU capabilities every wrapper dispatches over by default: the ones this CPU runs and
+ *      the library holds, or none in header-only builds, whose dispatch points are stubs.
  *
  *  A zero mask names no capability, so the wrappers run their C++ templates instead, the references
- *  every capability is tested against. A binary mixing header-only and linked C++ units is not supported.
+ *  every capability is tested against. Header-only and linked C++ units must not share a binary.
  */
 inline nk_capability_t cpu_capabilities() noexcept {
 #if NUMKONG_HEADER_ONLY
     return 0;
 #else
-    nk_capability_t capabilities = nk_cap_serial_k;
-    nk_cpu_capabilities_enabled(&capabilities);
-    return capabilities;
+    nk_capability_t capabilities = 0;
+    return nk_cpu_capabilities_enabled(&capabilities) == nk_success_k ? capabilities : nk_cap_serial_k;
 #endif
 }
 
-/** The capabilities of CUDA device @p device, by the runtime's ordinal, that this binary holds kernels for. */
+/** The capabilities of CUDA device @p device, by runtime ordinal, this binary has kernels for. */
 inline nk_capability_t cuda_capabilities(std::size_t device = 0) noexcept {
     nk_capability_t capabilities = 0;
-    nk_cuda_capabilities_enabled(device, &capabilities);
-    return capabilities;
+    return nk_cuda_capabilities_enabled(device, &capabilities) == nk_success_k ? capabilities : 0;
 }
 
-/** The capabilities of ROCm device @p device, by the runtime's ordinal, that this binary holds kernels for. */
+/** The capabilities of ROCm device @p device, by runtime ordinal, this binary has kernels for. */
 inline nk_capability_t rocm_capabilities(std::size_t device = 0) noexcept {
     nk_capability_t capabilities = 0;
-    nk_rocm_capabilities_enabled(device, &capabilities);
-    return capabilities;
+    return nk_rocm_capabilities_enabled(device, &capabilities) == nk_success_k ? capabilities : 0;
 }
 
-/** The capabilities of Metal device @p device, in the system's order, that this binary holds kernels for. */
+/** The capabilities of Metal device @p device, in system order, this binary has kernels for. */
 inline nk_capability_t metal_capabilities(std::size_t device = 0) noexcept {
     nk_capability_t capabilities = 0;
-    nk_metal_capabilities_enabled(device, &capabilities);
-    return capabilities;
+    return nk_metal_capabilities_enabled(device, &capabilities) == nk_success_k ? capabilities : 0;
 }
 
 struct f118c_t;
@@ -1987,6 +2059,7 @@ struct f16c_t {
     inline bool operator==(f16c_t o) const noexcept { return raw_.real == o.raw_.real && raw_.imag == o.raw_.imag; }
     inline bool operator!=(f16c_t o) const noexcept { return !(*this == o); }
 
+    explicit operator f32c_t() const noexcept { return f32c_t {real().to_f32(), imag().to_f32()}; }
     inline f16c_t conj() const noexcept { return f16c_t {real(), -imag()}; }
     inline f16_t norm() const noexcept { return real() * real() + imag() * imag(); }
     inline f16_t abs() const noexcept { return norm().sqrt(); }
@@ -2082,6 +2155,7 @@ struct bf16c_t {
     inline bool operator==(bf16c_t o) const noexcept { return raw_.real == o.raw_.real && raw_.imag == o.raw_.imag; }
     inline bool operator!=(bf16c_t o) const noexcept { return !(*this == o); }
 
+    explicit operator f32c_t() const noexcept { return f32c_t {real().to_f32(), imag().to_f32()}; }
     inline bf16c_t conj() const noexcept { return bf16c_t {real(), -imag()}; }
     inline bf16_t norm() const noexcept { return real() * real() + imag() * imag(); }
     inline bf16_t abs() const noexcept { return norm().sqrt(); }

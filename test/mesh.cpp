@@ -72,8 +72,9 @@ error_stats_t test_rmsd(typename scalar_type_::mesh_kernel_t kernel) {
         stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), 0, &a_centroid[0].raw_, &b_centroid[0].raw_,
                             &rot[0].raw_, &scale.raw_, &result.raw_, nullptr));
         reference_t a_centroid_ref[3], b_centroid_ref[3], rot_ref[9], scale_ref, reference;
-        nk::rmsd<scalar_t, reference_t, reference_t>(a.values_data(), b.values_data(), 0, a_centroid_ref,
-                                                     b_centroid_ref, rot_ref, &scale_ref, &reference, no_tiers_k);
+        stats.expect(nk::rmsd<scalar_t, reference_t, reference_t>(a.values_data(), b.values_data(), 0, a_centroid_ref,
+                                                                  b_centroid_ref, rot_ref, &scale_ref, &reference,
+                                                                  no_tiers_k));
         stats.accumulate(result, reference);
     }
 
@@ -88,8 +89,9 @@ error_stats_t test_rmsd(typename scalar_type_::mesh_kernel_t kernel) {
         stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), n, &a_centroid[0].raw_, &b_centroid[0].raw_,
                             &rot[0].raw_, &scale.raw_, &result.raw_, nullptr));
         reference_t a_centroid_ref[3], b_centroid_ref[3], rot_ref[9], scale_ref, reference;
-        nk::rmsd<scalar_t, reference_t, reference_t>(a.values_data(), b.values_data(), n, a_centroid_ref,
-                                                     b_centroid_ref, rot_ref, &scale_ref, &reference, no_tiers_k);
+        stats.expect(nk::rmsd<scalar_t, reference_t, reference_t>(a.values_data(), b.values_data(), n, a_centroid_ref,
+                                                                  b_centroid_ref, rot_ref, &scale_ref, &reference,
+                                                                  no_tiers_k));
 
         nk_f64_t const rmsd = static_cast<nk_f64_t>(reference);
         if constexpr (mesh_bounded<scalar_t>)
@@ -121,8 +123,9 @@ error_stats_t test_kabsch(typename scalar_type_::mesh_kernel_t kernel) {
         stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), 0, &a_centroid[0].raw_, &b_centroid[0].raw_,
                             &rot[0].raw_, &scale.raw_, &result.raw_, nullptr));
         reference_t a_centroid_ref[3], b_centroid_ref[3], rot_ref[9], scale_ref, reference;
-        nk::kabsch<scalar_t, reference_t, reference_t>(a.values_data(), b.values_data(), 0, a_centroid_ref,
-                                                       b_centroid_ref, rot_ref, &scale_ref, &reference, no_tiers_k);
+        stats.expect(nk::kabsch<scalar_t, reference_t, reference_t>(a.values_data(), b.values_data(), 0, a_centroid_ref,
+                                                                    b_centroid_ref, rot_ref, &scale_ref, &reference,
+                                                                    no_tiers_k));
         stats.accumulate(result, reference);
     }
 
@@ -137,8 +140,9 @@ error_stats_t test_kabsch(typename scalar_type_::mesh_kernel_t kernel) {
         stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), n, &a_centroid[0].raw_, &b_centroid[0].raw_,
                             &rot[0].raw_, &scale.raw_, &result.raw_, nullptr));
         reference_t a_centroid_ref[3], b_centroid_ref[3], rot_ref[9], scale_ref, reference;
-        nk::kabsch<scalar_t, reference_t, reference_t>(a.values_data(), b.values_data(), n, a_centroid_ref,
-                                                       b_centroid_ref, rot_ref, &scale_ref, &reference, no_tiers_k);
+        stats.expect(nk::kabsch<scalar_t, reference_t, reference_t>(a.values_data(), b.values_data(), n, a_centroid_ref,
+                                                                    b_centroid_ref, rot_ref, &scale_ref, &reference,
+                                                                    no_tiers_k));
 
         if constexpr (mesh_bounded<scalar_t>) {
             nk_f64_t const spread = pivot_spread(a.values_data(), n) + pivot_spread(b.values_data(), n);
@@ -172,8 +176,9 @@ error_stats_t test_umeyama(typename scalar_type_::mesh_kernel_t kernel) {
         stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), 0, &a_centroid[0].raw_, &b_centroid[0].raw_,
                             &rot[0].raw_, &scale.raw_, &result.raw_, nullptr));
         reference_t a_centroid_ref[3], b_centroid_ref[3], rot_ref[9], scale_ref, reference;
-        nk::umeyama<scalar_t, reference_t, reference_t>(a.values_data(), b.values_data(), 0, a_centroid_ref,
-                                                        b_centroid_ref, rot_ref, &scale_ref, &reference, no_tiers_k);
+        stats.expect(nk::umeyama<scalar_t, reference_t, reference_t>(a.values_data(), b.values_data(), 0,
+                                                                     a_centroid_ref, b_centroid_ref, rot_ref,
+                                                                     &scale_ref, &reference, no_tiers_k));
         stats.accumulate(result, reference);
     }
 
@@ -188,8 +193,9 @@ error_stats_t test_umeyama(typename scalar_type_::mesh_kernel_t kernel) {
         stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), n, &a_centroid[0].raw_, &b_centroid[0].raw_,
                             &rot[0].raw_, &scale.raw_, &result.raw_, nullptr));
         reference_t a_centroid_ref[3], b_centroid_ref[3], rot_ref[9], scale_ref, reference;
-        nk::umeyama<scalar_t, reference_t, reference_t>(a.values_data(), b.values_data(), n, a_centroid_ref,
-                                                        b_centroid_ref, rot_ref, &scale_ref, &reference, no_tiers_k);
+        stats.expect(nk::umeyama<scalar_t, reference_t, reference_t>(a.values_data(), b.values_data(), n,
+                                                                     a_centroid_ref, b_centroid_ref, rot_ref,
+                                                                     &scale_ref, &reference, no_tiers_k));
 
         if constexpr (mesh_bounded<scalar_t>) {
             nk_f64_t const spread = static_cast<nk_f64_t>(scale_ref) * pivot_spread(a.values_data(), n) +

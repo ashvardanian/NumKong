@@ -28,20 +28,20 @@ namespace ashvardanian::numkong {
  *  @tparam precision_type_ Precision type for scalar fallback, defaults to @c in_type_
  */
 template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
-nk_status_t sin(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t capabilities = cpu_capabilities(),
-                void *stream = nullptr) noexcept {
+status_t sin(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t capabilities = cpu_capabilities(),
+             void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<in_type_, precision_type_>;
 
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
-            return nk_trig_sin_f64_best(&in->raw_, n, &out->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_trig_sin_f64_best(&in->raw_, n, &out->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return nk_trig_sin_f32_best(&in->raw_, n, &out->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_trig_sin_f32_best(&in->raw_, n, &out->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
-            return nk_trig_sin_f16_best(&in->raw_, n, &out->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_trig_sin_f16_best(&in->raw_, n, &out->raw_, capabilities, stream));
     }
     for (std::size_t i = 0; i < n; i++) out[i] = in_type_(precision_type_(in[i]).sin());
-    return nk_success_k;
+    return status_t::success_k;
 }
 
 /**
@@ -56,20 +56,20 @@ nk_status_t sin(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_
  *  @tparam precision_type_ Precision type for scalar fallback, defaults to @c in_type_
  */
 template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
-nk_status_t cos(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t capabilities = cpu_capabilities(),
-                void *stream = nullptr) noexcept {
+status_t cos(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t capabilities = cpu_capabilities(),
+             void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<in_type_, precision_type_>;
 
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
-            return nk_trig_cos_f64_best(&in->raw_, n, &out->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_trig_cos_f64_best(&in->raw_, n, &out->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return nk_trig_cos_f32_best(&in->raw_, n, &out->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_trig_cos_f32_best(&in->raw_, n, &out->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
-            return nk_trig_cos_f16_best(&in->raw_, n, &out->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_trig_cos_f16_best(&in->raw_, n, &out->raw_, capabilities, stream));
     }
     for (std::size_t i = 0; i < n; i++) out[i] = in_type_(precision_type_(in[i]).cos());
-    return nk_success_k;
+    return status_t::success_k;
 }
 
 /**
@@ -84,20 +84,20 @@ nk_status_t cos(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_
  *  @tparam precision_type_ Precision type for scalar fallback, defaults to @c in_type_
  */
 template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
-nk_status_t atan(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t capabilities = cpu_capabilities(),
-                 void *stream = nullptr) noexcept {
+status_t atan(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t capabilities = cpu_capabilities(),
+              void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<in_type_, precision_type_>;
 
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
-            return nk_trig_atan_f64_best(&in->raw_, n, &out->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_trig_atan_f64_best(&in->raw_, n, &out->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return nk_trig_atan_f32_best(&in->raw_, n, &out->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_trig_atan_f32_best(&in->raw_, n, &out->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
-            return nk_trig_atan_f16_best(&in->raw_, n, &out->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_trig_atan_f16_best(&in->raw_, n, &out->raw_, capabilities, stream));
     }
     for (std::size_t i = 0; i < n; i++) out[i] = in_type_(precision_type_(in[i]).atan());
-    return nk_success_k;
+    return status_t::success_k;
 }
 
 /**
@@ -119,20 +119,22 @@ nk_status_t atan(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability
  *  @tparam in_type_ Element type
  */
 template <numeric_dtype in_type_>
-nk_status_t rope(in_type_ const *x, in_type_ *y, f32_t const *cos, f32_t const *sin, std::size_t rows,
-                 std::size_t heads, std::size_t half_dim, std::size_t x_row_stride, std::size_t y_row_stride,
-                 float input_scale = 1.0f, nk_capability_t capabilities = cpu_capabilities(),
-                 void *stream = nullptr) noexcept {
+status_t rope(in_type_ const *x, in_type_ *y, f32_t const *cos, f32_t const *sin, std::size_t rows, std::size_t heads,
+              std::size_t half_dim, std::size_t x_row_stride, std::size_t y_row_stride, float input_scale = 1.0f,
+              nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f32_t>)
-            return nk_trig_rope_f32_best(&x->raw_, &y->raw_, &cos->raw_, &sin->raw_, rows, heads, half_dim,
-                                         x_row_stride, y_row_stride, input_scale, capabilities, stream);
+            return static_cast<status_t>(nk_trig_rope_f32_best(&x->raw_, &y->raw_, &cos->raw_, &sin->raw_, rows, heads,
+                                                               half_dim, x_row_stride, y_row_stride, input_scale,
+                                                               capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, bf16_t>)
-            return nk_trig_rope_bf16_best(&x->raw_, &y->raw_, &cos->raw_, &sin->raw_, rows, heads, half_dim,
-                                          x_row_stride, y_row_stride, input_scale, capabilities, stream);
+            return static_cast<status_t>(nk_trig_rope_bf16_best(&x->raw_, &y->raw_, &cos->raw_, &sin->raw_, rows, heads,
+                                                                half_dim, x_row_stride, y_row_stride, input_scale,
+                                                                capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e4m3_t>)
-            return nk_trig_rope_e4m3_best(&x->raw_, &y->raw_, &cos->raw_, &sin->raw_, rows, heads, half_dim,
-                                          x_row_stride, y_row_stride, input_scale, capabilities, stream);
+            return static_cast<status_t>(nk_trig_rope_e4m3_best(&x->raw_, &y->raw_, &cos->raw_, &sin->raw_, rows, heads,
+                                                                half_dim, x_row_stride, y_row_stride, input_scale,
+                                                                capabilities, stream));
     }
     // Scalar fallback for other numeric dtypes or a mask of no capability.
     for (std::size_t row = 0; row < rows; ++row) {
@@ -153,7 +155,7 @@ nk_status_t rope(in_type_ const *x, in_type_ *y, f32_t const *cos, f32_t const *
             }
         }
     }
-    return nk_success_k;
+    return status_t::success_k;
 }
 
 } // namespace ashvardanian::numkong
@@ -166,80 +168,87 @@ namespace ashvardanian::numkong {
 
 /** Elementwise sin into pre-allocated output. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
-bool sin(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_, max_rank_> output) noexcept {
+status_t sin(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_, max_rank_> output) noexcept {
     return elementwise_into_<value_type_, max_rank_>(
         input, output, [](tensor_view<value_type_, max_rank_> in, tensor_span<value_type_, max_rank_> out) {
-            numkong::sin<value_type_>(in.data(), in.extent(0), out.data());
+            return numkong::sin<value_type_>(in.data(), in.extent(0), out.data());
         });
 }
 
-/** Allocating sin. */
+/** Allocating sin; empty for an empty @p input, or the allocation's or the kernel's failure. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
-tensor<value_type_, allocator_type_, max_rank_> try_sin(tensor_view<value_type_, max_rank_> input) noexcept {
+expected<tensor<value_type_, allocator_type_, max_rank_>> sin(tensor_view<value_type_, max_rank_> input,
+                                                              allocator_type_ alloc = {}) noexcept {
     using out_tensor_t = tensor<value_type_, allocator_type_, max_rank_>;
-    if (input.empty()) return out_tensor_t {};
+    if (input.empty()) return {out_tensor_t(alloc), status_t::success_k};
     auto &input_shape = input.shape();
-    auto result = out_tensor_t::try_empty(input_shape.extents, input_shape.rank);
-    if (result.empty()) return result;
-    if (!sin<value_type_, max_rank_>(input, result.span())) return out_tensor_t {};
+    auto result = out_tensor_t::uninitialized(input_shape.extents, input_shape.rank, alloc);
+    if (!result) return result;
+    if (status_t status = sin<value_type_, max_rank_>(input, result.value.span()); failed(status))
+        return {out_tensor_t(alloc), status};
     return result;
 }
 
 /** Elementwise cos into pre-allocated output. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
-bool cos(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_, max_rank_> output) noexcept {
+status_t cos(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_, max_rank_> output) noexcept {
     return elementwise_into_<value_type_, max_rank_>(
         input, output, [](tensor_view<value_type_, max_rank_> in, tensor_span<value_type_, max_rank_> out) {
-            numkong::cos<value_type_>(in.data(), in.extent(0), out.data());
+            return numkong::cos<value_type_>(in.data(), in.extent(0), out.data());
         });
 }
 
-/** Allocating cos. */
+/** Allocating cos; empty for an empty @p input, or the allocation's or the kernel's failure. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
-tensor<value_type_, allocator_type_, max_rank_> try_cos(tensor_view<value_type_, max_rank_> input) noexcept {
+expected<tensor<value_type_, allocator_type_, max_rank_>> cos(tensor_view<value_type_, max_rank_> input,
+                                                              allocator_type_ alloc = {}) noexcept {
     using out_tensor_t = tensor<value_type_, allocator_type_, max_rank_>;
-    if (input.empty()) return out_tensor_t {};
+    if (input.empty()) return {out_tensor_t(alloc), status_t::success_k};
     auto &input_shape = input.shape();
-    auto result = out_tensor_t::try_empty(input_shape.extents, input_shape.rank);
-    if (result.empty()) return result;
-    if (!cos<value_type_, max_rank_>(input, result.span())) return out_tensor_t {};
+    auto result = out_tensor_t::uninitialized(input_shape.extents, input_shape.rank, alloc);
+    if (!result) return result;
+    if (status_t status = cos<value_type_, max_rank_>(input, result.value.span()); failed(status))
+        return {out_tensor_t(alloc), status};
     return result;
 }
 
 /** Elementwise atan into pre-allocated output. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
-bool atan(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_, max_rank_> output) noexcept {
+status_t atan(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_, max_rank_> output) noexcept {
     return elementwise_into_<value_type_, max_rank_>(
         input, output, [](tensor_view<value_type_, max_rank_> in, tensor_span<value_type_, max_rank_> out) {
-            numkong::atan<value_type_>(in.data(), in.extent(0), out.data());
+            return numkong::atan<value_type_>(in.data(), in.extent(0), out.data());
         });
 }
 
 /** In-place NeoX split-half RoPE over a @b [rows,channels] matrix span, channels being heads times
- *  2 · @p half_dim. */
+ *  2 · @p half_dim; @c unexpected_dimensions_k when the shapes or the tables are too small. */
 template <numeric_dtype value_type_>
-bool rope(matrix_view<value_type_> x, matrix_span<value_type_> y, vector_view<f32_t> cos, vector_view<f32_t> sin,
-          std::size_t heads, std::size_t half_dim, float input_scale = 1.0f) noexcept {
-    if (x.extent(0) != y.extent(0) || x.extent(1) != y.extent(1)) return false;
-    if (x.extent(1) < heads * 2 * half_dim) return false;
-    if (cos.size() < x.extent(0) * half_dim || sin.size() < x.extent(0) * half_dim) return false;
+status_t rope(matrix_view<value_type_> x, matrix_span<value_type_> y, vector_view<f32_t> cos, vector_view<f32_t> sin,
+              std::size_t heads, std::size_t half_dim, float input_scale = 1.0f) noexcept {
+    if (x.extent(0) != y.extent(0) || x.extent(1) != y.extent(1)) return status_t::unexpected_dimensions_k;
+    if (x.extent(1) < heads * 2 * half_dim) return status_t::unexpected_dimensions_k;
+    if (cos.size() < x.extent(0) * half_dim || sin.size() < x.extent(0) * half_dim)
+        return status_t::unexpected_dimensions_k;
     return numkong::rope<value_type_>(x.data(), y.data(), cos.data(), sin.data(), x.extent(0), heads, half_dim,
                                       static_cast<std::size_t>(x.stride_bytes(0)),
-                                      static_cast<std::size_t>(y.stride_bytes(0)), input_scale) == nk_success_k;
+                                      static_cast<std::size_t>(y.stride_bytes(0)), input_scale);
 }
 
-/** Allocating atan. */
+/** Allocating atan; empty for an empty @p input, or the allocation's or the kernel's failure. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<value_type_>>
-tensor<value_type_, allocator_type_, max_rank_> try_atan(tensor_view<value_type_, max_rank_> input) noexcept {
+expected<tensor<value_type_, allocator_type_, max_rank_>> atan(tensor_view<value_type_, max_rank_> input,
+                                                               allocator_type_ alloc = {}) noexcept {
     using out_tensor_t = tensor<value_type_, allocator_type_, max_rank_>;
-    if (input.empty()) return out_tensor_t {};
+    if (input.empty()) return {out_tensor_t(alloc), status_t::success_k};
     auto &input_shape = input.shape();
-    auto result = out_tensor_t::try_empty(input_shape.extents, input_shape.rank);
-    if (result.empty()) return result;
-    if (!atan<value_type_, max_rank_>(input, result.span())) return out_tensor_t {};
+    auto result = out_tensor_t::uninitialized(input_shape.extents, input_shape.rank, alloc);
+    if (!result) return result;
+    if (status_t status = atan<value_type_, max_rank_>(input, result.value.span()); failed(status))
+        return {out_tensor_t(alloc), status};
     return result;
 }
 

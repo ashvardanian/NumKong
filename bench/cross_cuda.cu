@@ -53,8 +53,8 @@
 
 namespace ashvardanian::numkong::bench {
 
-/** Device memory: only kernels dereference it, so build with @c try_empty and fill through
- *  @c cudaMemcpy. Returns @c nullptr on failure, which the `try_*` factories report. */
+/** Device memory: only kernels dereference it, so build with @c uninitialized and fill through
+ *  @c cudaMemcpy. Returns @c nullptr on failure, which the allocating factories report. */
 template <typename value_type_>
 struct cuda_device_allocator {
     using value_type = value_type_;
@@ -745,8 +745,9 @@ struct cublaslt_plan_t {
 
         // Unit scales - UE8M0 code 127 is 2⁰, UE4M3 code 0x38 is 1.0 - so the product is the unscaled one.
         if (std::size_t const block = cublaslt_scale_block(dtype)) {
-            scales = device_vector<char>::try_empty(nk::divide_round_up(std::max(height, width), std::size_t(128)) *
-                                                    128 * nk::divide_round_up(depth, block * 4) * 4);
+            scales = device_vector<char>::uninitialized(nk::divide_round_up(std::max(height, width), std::size_t(128)) *
+                                                        128 * nk::divide_round_up(depth, block * 4) * 4)
+                         .value;
             if (scales.empty()) return CUBLAS_STATUS_ALLOC_FAILED;
             cudaMemset(scales.raw_values_data(), block == 32 ? 127 : 0x38, scales.size_bytes());
             void const *scales_address = scales.raw_values_data();
@@ -770,7 +771,7 @@ struct cublaslt_plan_t {
                                                 output_layout, preference, 1, &heuristic, &found);
         cublasLtMatmulPreferenceDestroy(preference);
         if (status || !found) return status ? status : CUBLAS_STATUS_NOT_SUPPORTED;
-        workspace = device_vector<char>::try_empty(std::max<std::size_t>(heuristic.workspaceSize, 1));
+        workspace = device_vector<char>::uninitialized(std::max<std::size_t>(heuristic.workspaceSize, 1)).value;
         return workspace.empty() ? CUBLAS_STATUS_ALLOC_FAILED : CUBLAS_STATUS_SUCCESS;
     }
 
@@ -1001,7 +1002,7 @@ struct cudnn_attention_plan_t {
         float const unit = 1, probability_scale = 256, probability_descale = 1.0f / 256;
         float const scales[6] = {unit, unit, unit, probability_descale, probability_scale, unit};
         std::memcpy(&word(cudnn_uid_t::descale_queries_k), scales, sizeof(scales));
-        parameters = device_vector<std::uint32_t>::try_empty(words.size());
+        parameters = device_vector<std::uint32_t>::uninitialized(words.size()).value;
         if (parameters.empty()) return CUDNN_STATUS_ALLOC_FAILED;
         cudaMemcpy(parameters.raw_values_data(), words.data(), sizeof(words), cudaMemcpyHostToDevice);
         auto const device = [&](cudnn_uid_t uid) -> void * {
@@ -1116,7 +1117,7 @@ struct cudnn_attention_plan_t {
         if (!status)
             status = cudnnBackendGetAttribute(plan, CUDNN_ATTR_EXECUTION_PLAN_WORKSPACE_SIZE, CUDNN_TYPE_INT64, 1,
                                               nullptr, &workspace_bytes);
-        workspace = device_vector<char>::try_empty(std::size_t(std::max<std::int64_t>(workspace_bytes, 1)));
+        workspace = device_vector<char>::uninitialized(std::size_t(std::max<std::int64_t>(workspace_bytes, 1))).value;
         if (!status && workspace.empty()) status = CUDNN_STATUS_ALLOC_FAILED;
         return status;
     }
@@ -1273,7 +1274,7 @@ void bench_cross_cuda() {
 
     cuda_backend_t const backend {};
     nk_capability_t capabilities = 0;
-    nk_cuda_capabilities_enabled(0, &capabilities);
+    if (nk_cuda_capabilities_enabled(0, &capabilities) != nk_success_k) capabilities = 0;
     bench_cross_cuda(backend, capabilities);
     bench_cross_ampere(backend, capabilities);
     bench_cross_hopper(backend, capabilities);

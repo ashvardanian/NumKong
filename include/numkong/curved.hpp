@@ -31,27 +31,35 @@ namespace ashvardanian::numkong {
  *  @note For weighted inner products, Mahalanobis distance, etc.
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::curved_result_t>
-nk_status_t bilinear(in_type_ const *a, in_type_ const *b, in_type_ const *c, std::size_t d, result_type_ *r,
-                     nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+status_t bilinear(in_type_ const *a, in_type_ const *b, in_type_ const *c, std::size_t d, result_type_ *r,
+                  nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::curved_result_t>;
 
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
-            return nk_bilinear_f64_best(&a->raw_, &b->raw_, &c->raw_, d, &r->raw_, capabilities, stream);
+            return static_cast<status_t>(
+                nk_bilinear_f64_best(&a->raw_, &b->raw_, &c->raw_, d, &r->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return nk_bilinear_f32_best(&a->raw_, &b->raw_, &c->raw_, d, &r->raw_, capabilities, stream);
+            return static_cast<status_t>(
+                nk_bilinear_f32_best(&a->raw_, &b->raw_, &c->raw_, d, &r->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
-            return nk_bilinear_f16_best(&a->raw_, &b->raw_, &c->raw_, d, &r->raw_, capabilities, stream);
+            return static_cast<status_t>(
+                nk_bilinear_f16_best(&a->raw_, &b->raw_, &c->raw_, d, &r->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
-            return nk_bilinear_bf16_best(&a->raw_, &b->raw_, &c->raw_, d, &r->raw_, capabilities, stream);
+            return static_cast<status_t>(
+                nk_bilinear_bf16_best(&a->raw_, &b->raw_, &c->raw_, d, &r->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f64c_t> && dispatch)
-            return nk_bilinear_f64c_best(&a->raw_, &b->raw_, &c->raw_, d, &r->raw_, capabilities, stream);
+            return static_cast<status_t>(
+                nk_bilinear_f64c_best(&a->raw_, &b->raw_, &c->raw_, d, &r->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f32c_t> && dispatch)
-            return nk_bilinear_f32c_best(&a->raw_, &b->raw_, &c->raw_, d, &r->raw_, capabilities, stream);
+            return static_cast<status_t>(
+                nk_bilinear_f32c_best(&a->raw_, &b->raw_, &c->raw_, d, &r->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16c_t> && dispatch)
-            return nk_bilinear_f16c_best(&a->raw_, &b->raw_, &c->raw_, d, &r->raw_, capabilities, stream);
+            return static_cast<status_t>(
+                nk_bilinear_f16c_best(&a->raw_, &b->raw_, &c->raw_, d, &r->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, bf16c_t> && dispatch)
-            return nk_bilinear_bf16c_best(&a->raw_, &b->raw_, &c->raw_, d, &r->raw_, capabilities, stream);
+            return static_cast<status_t>(
+                nk_bilinear_bf16c_best(&a->raw_, &b->raw_, &c->raw_, d, &r->raw_, capabilities, stream));
     }
     result_type_ sum {};
     for (std::size_t i = 0; i < d; i++) {
@@ -60,7 +68,7 @@ nk_status_t bilinear(in_type_ const *a, in_type_ const *b, in_type_ const *c, st
         }
     }
     *r = sum;
-    return nk_success_k;
+    return status_t::success_k;
 }
 
 /**
@@ -76,19 +84,23 @@ nk_status_t bilinear(in_type_ const *a, in_type_ const *b, in_type_ const *c, st
  *  @tparam result_type_ Accumulator type, defaults to @c in_type_::curved_result_t
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::curved_result_t>
-nk_status_t mahalanobis(in_type_ const *a, in_type_ const *b, in_type_ const *c, std::size_t d, result_type_ *r,
-                        nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+status_t mahalanobis(in_type_ const *a, in_type_ const *b, in_type_ const *c, std::size_t d, result_type_ *r,
+                     nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::curved_result_t>;
 
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
-            return nk_mahalanobis_f64_best(&a->raw_, &b->raw_, &c->raw_, d, &r->raw_, capabilities, stream);
+            return static_cast<status_t>(
+                nk_mahalanobis_f64_best(&a->raw_, &b->raw_, &c->raw_, d, &r->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return nk_mahalanobis_f32_best(&a->raw_, &b->raw_, &c->raw_, d, &r->raw_, capabilities, stream);
+            return static_cast<status_t>(
+                nk_mahalanobis_f32_best(&a->raw_, &b->raw_, &c->raw_, d, &r->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
-            return nk_mahalanobis_f16_best(&a->raw_, &b->raw_, &c->raw_, d, &r->raw_, capabilities, stream);
+            return static_cast<status_t>(
+                nk_mahalanobis_f16_best(&a->raw_, &b->raw_, &c->raw_, d, &r->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
-            return nk_mahalanobis_bf16_best(&a->raw_, &b->raw_, &c->raw_, d, &r->raw_, capabilities, stream);
+            return static_cast<status_t>(
+                nk_mahalanobis_bf16_best(&a->raw_, &b->raw_, &c->raw_, d, &r->raw_, capabilities, stream));
     }
     result_type_ sum {};
     for (std::size_t i = 0; i < d; i++) {
@@ -99,7 +111,7 @@ nk_status_t mahalanobis(in_type_ const *a, in_type_ const *b, in_type_ const *c,
         }
     }
     *r = sum.sqrt();
-    return nk_success_k;
+    return status_t::success_k;
 }
 
 } // namespace ashvardanian::numkong
@@ -108,34 +120,18 @@ nk_status_t mahalanobis(in_type_ const *a, in_type_ const *b, in_type_ const *c,
 
 namespace ashvardanian::numkong {
 
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::curved_result_t,
-          std::size_t max_rank_a_, std::size_t max_rank_b_, std::size_t max_rank_c_>
-nk_status_t bilinear(tensor_view<in_type_, max_rank_a_> a, tensor_view<in_type_, max_rank_b_> b,
-                     tensor_view<in_type_, max_rank_c_> c, std::size_t d, result_type_ *r,
+template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::curved_result_t>
+status_t bilinear(vector_view<in_type_> a, vector_view<in_type_> b, vector_view<in_type_> c, result_type_ *r,
+                  nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+    if (a.size() != b.size() || c.size() != a.size() * a.size()) return status_t::unexpected_dimensions_k;
+    return bilinear<in_type_, result_type_>(a.data(), b.data(), c.data(), a.size(), r, capabilities, stream);
+}
+
+template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::curved_result_t>
+status_t mahalanobis(vector_view<in_type_> a, vector_view<in_type_> b, vector_view<in_type_> c, result_type_ *r,
                      nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
-    return bilinear<in_type_, result_type_>(a.data(), b.data(), c.data(), d, r, capabilities, stream);
-}
-
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::curved_result_t>
-nk_status_t bilinear(vector_view<in_type_> a, vector_view<in_type_> b, vector_view<in_type_> c, std::size_t d,
-                     result_type_ *r, nk_capability_t capabilities = cpu_capabilities(),
-                     void *stream = nullptr) noexcept {
-    return bilinear<in_type_, result_type_>(a.data(), b.data(), c.data(), d, r, capabilities, stream);
-}
-
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::curved_result_t,
-          std::size_t max_rank_a_, std::size_t max_rank_b_, std::size_t max_rank_c_>
-nk_status_t mahalanobis(tensor_view<in_type_, max_rank_a_> a, tensor_view<in_type_, max_rank_b_> b,
-                        tensor_view<in_type_, max_rank_c_> c, std::size_t d, result_type_ *r,
-                        nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
-    return mahalanobis<in_type_, result_type_>(a.data(), b.data(), c.data(), d, r, capabilities, stream);
-}
-
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::curved_result_t>
-nk_status_t mahalanobis(vector_view<in_type_> a, vector_view<in_type_> b, vector_view<in_type_> c, std::size_t d,
-                        result_type_ *r, nk_capability_t capabilities = cpu_capabilities(),
-                        void *stream = nullptr) noexcept {
-    return mahalanobis<in_type_, result_type_>(a.data(), b.data(), c.data(), d, r, capabilities, stream);
+    if (a.size() != b.size() || c.size() != a.size() * a.size()) return status_t::unexpected_dimensions_k;
+    return mahalanobis<in_type_, result_type_>(a.data(), b.data(), c.data(), a.size(), r, capabilities, stream);
 }
 
 } // namespace ashvardanian::numkong

@@ -89,16 +89,14 @@ template <typename value_type_>
 
 /** The capabilities this CPU runs, whether or not this binary holds them. */
 inline nk_capability_t cpu_capabilities_detected() noexcept {
-    nk_capability_t capabilities = nk_cap_serial_k;
-    nk_cpu_capabilities_detected(&capabilities);
-    return capabilities;
+    nk_capability_t capabilities = 0;
+    return nk_cpu_capabilities_detected(&capabilities) == nk_success_k ? capabilities : nk_cap_serial_k;
 }
 
 /** The CPU capabilities this binary holds, whether or not this CPU runs them. */
 inline nk_capability_t cpu_capabilities_compiled() noexcept {
-    nk_capability_t capabilities = nk_cap_serial_k;
-    nk_cpu_capabilities_compiled(&capabilities);
-    return capabilities;
+    nk_capability_t capabilities = 0;
+    return nk_cpu_capabilities_compiled(&capabilities) == nk_success_k ? capabilities : nk_cap_serial_k;
 }
 
 /** Whether a kernel's @p status is a success; otherwise skips @p state, naming the status. */
@@ -194,13 +192,13 @@ inline std::size_t bench_input_count(std::size_t bytes_per_set) {
 /** Factory function to allocate vectors, potentially raising bad-allocs. */
 template <typename type_>
 [[nodiscard]] nk::vector<type_> make_vector(std::size_t count) {
-    auto result = nk::vector<type_>::try_zeros(count);
+    auto result = nk::vector<type_>::zeros(count);
 #if defined(__cpp_exceptions) && __cpp_exceptions
-    if (result.empty() && count > 0) throw std::bad_alloc();
+    if (!result) throw std::bad_alloc();
 #else
-    if (result.empty() && count > 0) std::abort();
+    if (!result) std::abort();
 #endif
-    return result;
+    return std::move(result.value);
 }
 
 /**

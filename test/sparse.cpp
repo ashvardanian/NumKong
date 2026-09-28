@@ -36,8 +36,8 @@ error_stats_t test_intersect(typename index_type_::sparse_intersect_kernel_t ker
                             &stored_count, nullptr));
 
         nk_size_t ref;
-        nk::sparse_intersect<index_t>(a.values_data(), b.values_data(), a_length, b_length, expected.values_data(),
-                                      &ref, no_tiers_k);
+        stats.expect(nk::sparse_intersect<index_t>(a.values_data(), b.values_data(), a_length, b_length,
+                                                   expected.values_data(), &ref, no_tiers_k));
         stats.accumulate(count, ref);
         stats.accumulate(stored_count, ref);
         for (nk_size_t k = 0; k < ref; ++k) stats.accumulate(matched[k], expected[k]);
@@ -75,9 +75,9 @@ error_stats_t test_sparse_dot(typename weight_type_::sparse_dot_kernel_t kernel)
                             b_weights.raw_values_data(), dim, dim, &result.raw_, nullptr));
 
         reference_t ref;
-        nk::sparse_dot<index_t, weight_t, reference_t>(a_idx.values_data(), b_idx.values_data(),
-                                                       a_weights.values_data(), b_weights.values_data(), dim, dim, &ref,
-                                                       no_tiers_k);
+        stats.expect(nk::sparse_dot<index_t, weight_t, reference_t>(a_idx.values_data(), b_idx.values_data(),
+                                                                    a_weights.values_data(), b_weights.values_data(),
+                                                                    dim, dim, &ref, no_tiers_k));
         stats.accumulate(result, ref);
     }
     return stats;

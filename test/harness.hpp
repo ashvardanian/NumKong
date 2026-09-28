@@ -438,24 +438,22 @@ extern char const *volatile nk_test_current_kernel_;
 
 /** The capabilities this CPU runs, whether or not this binary holds them. */
 inline nk_capability_t cpu_capabilities_detected() noexcept {
-    nk_capability_t capabilities = nk_cap_serial_k;
-    nk_cpu_capabilities_detected(&capabilities);
-    return capabilities;
+    nk_capability_t capabilities = 0;
+    return nk_cpu_capabilities_detected(&capabilities) == nk_success_k ? capabilities : nk_cap_serial_k;
 }
 
 /** The CPU capabilities this binary holds, whether or not this CPU runs them. */
 inline nk_capability_t cpu_capabilities_compiled() noexcept {
-    nk_capability_t capabilities = nk_cap_serial_k;
-    nk_cpu_capabilities_compiled(&capabilities);
-    return capabilities;
+    nk_capability_t capabilities = 0;
+    return nk_cpu_capabilities_compiled(&capabilities) == nk_success_k ? capabilities : nk_cap_serial_k;
 }
 
-/** A mask of no capability, so the C++ wrappers run their templates: the references every capability is
- *  checked against. */
+/** A mask of no capability, so the C++ wrappers run their templates: the references every
+ *  capability is checked against. */
 inline constexpr nk_capability_t no_tiers_k = 0;
 
-/** Calls the dispatch point @p best_ over @p capabilities with the arguments of its capability kernels,
- *  whose last one, the stream or a pack size's output, follows the mask. */
+/** Calls the dispatch point @p best_ over @p capabilities with the arguments of its capability
+ *  kernels, whose last one, the stream or a pack size's output, follows the mask. */
 template <auto best_, typename... arguments_types_>
 nk_status_t call_best(nk_capability_t capabilities, arguments_types_... arguments) noexcept {
     std::tuple<arguments_types_...> const tuple {arguments...};
@@ -717,6 +715,9 @@ struct error_stats_t {
         if (status != nk_success_k) expect(false, nk_status_to_string(status));
     }
 
+    /** Record a C++ wrapper's @p status, like the C one. */
+    void expect(nk::status_t status) noexcept { expect(static_cast<nk_status_t>(status)); }
+
     /** Records one result against its reference, failing on NaN or when the error exceeds @p bound
      *  plus the rounding into @p actual_type_. Past that type's finite range, a saturated or
      *  overflowed result of the reference's sign is exact, and non-finite references are only
@@ -897,13 +898,13 @@ inline void print_stats_row(char const *kernel_name, error_stats_t const &stats)
 /** Factory function to allocate vectors, potentially raising bad-allocs. */
 template <typename type_>
 [[nodiscard]] nk::vector<type_> make_vector(std::size_t n) {
-    auto result = nk::vector<type_>::try_zeros(n);
+    auto result = nk::vector<type_>::zeros(n);
 #if defined(__cpp_exceptions) || defined(__EXCEPTIONS)
-    if (result.empty() && n > 0) throw std::bad_alloc();
+    if (!result) throw std::bad_alloc();
 #else
-    if (result.empty() && n > 0) std::abort();
+    if (!result) std::abort();
 #endif
-    return result;
+    return std::move(result.value);
 }
 
 /**

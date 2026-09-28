@@ -29,29 +29,32 @@ namespace ashvardanian::numkong {
  *  @param[in] document_count Number of document vectors.
  *  @param[in] depth Number of dimensions per vector.
  *  @param[out] result Sum of per-query minimum angular distances.
- *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template, which reads packs of
- *      the same zero mask.
+ *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template, which reads
+ *      packs of the same zero mask.
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
  *
  *  @tparam in_type_ Input element type: @c bf16_t, @c f32_t or @c f16_t.
  *  @tparam result_type_ Result type, defaults to @c in_type_::maxsim_result_t.
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::maxsim_result_t>
-nk_status_t maxsim_packed(void const *query_packed, void const *document_packed, std::size_t query_count,
-                          std::size_t document_count, std::size_t depth, result_type_ *result,
-                          nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) {
+status_t maxsim_packed(void const *query_packed, void const *document_packed, std::size_t query_count,
+                       std::size_t document_count, std::size_t depth, result_type_ *result,
+                       nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::maxsim_result_t>;
 
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
-            return nk_maxsim_packed_bf16_best(query_packed, document_packed, query_count, document_count, depth,
-                                              &result->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_maxsim_packed_bf16_best(query_packed, document_packed, query_count,
+                                                                    document_count, depth, &result->raw_, capabilities,
+                                                                    stream));
         else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return nk_maxsim_packed_f32_best(query_packed, document_packed, query_count, document_count, depth,
-                                             &result->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_maxsim_packed_f32_best(query_packed, document_packed, query_count,
+                                                                   document_count, depth, &result->raw_, capabilities,
+                                                                   stream));
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
-            return nk_maxsim_packed_f16_best(query_packed, document_packed, query_count, document_count, depth,
-                                             &result->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_maxsim_packed_f16_best(query_packed, document_packed, query_count,
+                                                                   document_count, depth, &result->raw_, capabilities,
+                                                                   stream));
     }
     typename in_type_::raw_t const *q_ptr;
     std::size_t q_stride;
@@ -83,16 +86,16 @@ nk_status_t maxsim_packed(void const *query_packed, void const *document_packed,
  *  @param[in] document_stride Row stride in bytes for document vectors.
  *  @param[in] depth Number of dimensions per vector.
  *  @param[out] result Pointer to store the sum of per-query minimum angular distances.
- *  @param[in] capabilities Capabilities the angular distances pick from, or zero for the C++ template.
+ *  @param[in] capabilities Capabilities the distances pick from, or zero for the C++ template.
  *
  *  @tparam in_type_ Input element type: @c bf16_t, @c f32_t or @c f16_t.
  *  @tparam result_type_ Result type, defaults to @c in_type_::angular_result_t.
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::angular_result_t>
-nk_status_t maxsim_reference(typename in_type_::raw_t const *queries, std::size_t query_count, std::size_t query_stride,
-                             typename in_type_::raw_t const *documents, std::size_t document_count,
-                             std::size_t document_stride, std::size_t depth, result_type_ *result,
-                             nk_capability_t capabilities = cpu_capabilities()) {
+status_t maxsim_reference(typename in_type_::raw_t const *queries, std::size_t query_count, std::size_t query_stride,
+                          typename in_type_::raw_t const *documents, std::size_t document_count,
+                          std::size_t document_stride, std::size_t depth, result_type_ *result,
+                          nk_capability_t capabilities = cpu_capabilities()) {
     result_type_ total_angular_distance {};
 
     for (std::size_t query_index = 0; query_index < query_count; query_index++) {
@@ -106,9 +109,9 @@ nk_status_t maxsim_reference(typename in_type_::raw_t const *queries, std::size_
                 reinterpret_cast<char const *>(documents) + document_index * document_stride);
 
             result_type_ angular_distance {};
-            nk_status_t const status = angular<in_type_, result_type_>(query_row, document_row, depth,
-                                                                       &angular_distance, capabilities);
-            if (status != nk_success_k) return status;
+            status_t const status = angular<in_type_, result_type_>(query_row, document_row, depth, &angular_distance,
+                                                                    capabilities);
+            if (failed(status)) return status;
 
             if (angular_distance < min_angular) min_angular = angular_distance;
         }
@@ -117,7 +120,7 @@ nk_status_t maxsim_reference(typename in_type_::raw_t const *queries, std::size_
     }
 
     *result = total_angular_distance;
-    return nk_success_k;
+    return status_t::success_k;
 }
 
 } // namespace ashvardanian::numkong
@@ -134,8 +137,9 @@ typename value_type_::maxsim_result_t maxsim(packed_maxsim<value_type_> const &q
     result_t result {};
     if (queries.empty() || documents.empty()) return result;
     if (queries.depth() != documents.depth()) return result;
-    maxsim_packed<value_type_>(queries.data(), documents.data(), queries.vector_count(), documents.vector_count(),
-                               queries.depth(), &result);
+    if (failed(maxsim_packed<value_type_>(queries.data(), documents.data(), queries.vector_count(),
+                                          documents.vector_count(), queries.depth(), &result)))
+        return result_t {};
     return result;
 }
 

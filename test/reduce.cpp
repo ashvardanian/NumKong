@@ -33,8 +33,8 @@ error_stats_t test_reduce_moments(typename input_type_::reduce_moments_kernel_t 
         stats.expect(kernel(buffer.raw_values_data(), n, stride_bytes, &sum, &sumsq, nullptr));
         sum_reference_t sum_reference;
         sumsq_reference_t sumsq_reference;
-        nk::reduce_moments<input_type_, sum_reference_t, sumsq_reference_t>(
-            buffer.values_data(), n, stride_bytes, &sum_reference, &sumsq_reference, no_tiers_k);
+        stats.expect(nk::reduce_moments<input_type_, sum_reference_t, sumsq_reference_t>(
+            buffer.values_data(), n, stride_bytes, &sum_reference, &sumsq_reference, no_tiers_k));
         stats.accumulate(sum_t::from_raw(sum), sum_reference);
         stats.accumulate(sumsq_t::from_raw(sumsq), sumsq_reference);
     }
@@ -57,8 +57,8 @@ error_stats_t test_reduce_minmax(typename input_type_::reduce_minmax_kernel_t ke
             kernel(buffer.raw_values_data(), n, stride_bytes, &min_val, &min_idx, &max_val, &max_idx, nullptr));
         output_t ref_min, ref_max;
         std::size_t ref_min_idx, ref_max_idx;
-        nk::reduce_minmax<input_type_, output_t>(buffer.values_data(), n, stride_bytes, &ref_min, &ref_min_idx,
-                                                 &ref_max, &ref_max_idx, no_tiers_k);
+        stats.expect(nk::reduce_minmax<input_type_, output_t>(buffer.values_data(), n, stride_bytes, &ref_min,
+                                                              &ref_min_idx, &ref_max, &ref_max_idx, no_tiers_k));
         stats.accumulate(static_cast<nk_size_t>(min_idx), static_cast<nk_size_t>(ref_min_idx));
         stats.accumulate(static_cast<nk_size_t>(max_idx), static_cast<nk_size_t>(ref_max_idx));
         if (ref_min_idx == NUMKONG_SIZE_MAX) return; // No index, so the values are only sentinels

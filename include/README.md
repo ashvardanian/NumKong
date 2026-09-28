@@ -139,12 +139,17 @@ namespace nk = ashvardanian::numkong;
 int main() {
     nk::f32_t a[3] = {1, 2, 3}, b[3] = {4, 5, 6};
     nk::f64_t dot {};
-    nk::dot(a, b, 3, &dot); // default result type is nk::f32_t::dot_result_t == nk::f64_t
-    nk::dot(a, b, 3, &dot, nk_cap_serial_k); // pin the serial kernel
+    nk::status_t status = nk::dot(a, b, 3, &dot); // default result type is nk::f32_t::dot_result_t == nk::f64_t
+    if (nk::failed(status)) return 1;
+    status = nk::dot(a, b, 3, &dot, nk_cap_serial_k); // pin the serial kernel
+    return nk::succeeded(status) ? 0 : 1;
 }
 ```
 
-Every wrapper ends in the two arguments of its dispatch point, defaulted to `nk::cpu_capabilities()` and a null stream, and returns the `nk_status_t`.
+Every wrapper ends in the two arguments of its dispatch point, defaulted to `nk::cpu_capabilities()` and a null stream, and returns an `nk::status_t`.
+That scoped enum mirrors `nk_status_t` value for value, converts to it with `static_cast`, and is tested with `nk::succeeded` and `nk::failed` rather than as a `bool`.
+Factories, like `nk::tensor<T>::zeros`, and the allocating overloads return an `nk::expected<T>` holding the `value` and its `status`, which converts to `true` on success and unpacks with structured bindings.
+A failed factory leaves its `value` empty, while a zero-volume request succeeds with an empty one.
 `nk::cpu_capabilities()` is the `nk_cpu_capabilities_enabled` mask, and a zero mask runs the C++ reference template instead of any capability's kernel.
 In header-only builds the dispatch points report `nk_missing_library_k`, so wrappers there take a zero mask or call a capability's kernel.
 
@@ -352,14 +357,15 @@ And heterogenous index types for `operator[]` enable more interesting access pat
 namespace nk = ashvardanian::numkong;
 using nk::slice, nk::all, nk::f32_t, nk::tensor, nk::tensor_view;
 
-auto t = tensor<f32_t>::try_from({
+auto [t, status] = tensor<f32_t>::from({
     {1, 2, 3},
     {4, 5, 6},
     {7, 8, 9},
 });
+assert(nk::succeeded(status) && "allocated");
 
 f32_t scalar_at_2d_coordinate = t[1, -1];
-f32_t scalar_at_global_offset = t[4];
+f32_t scalar_at_global_offset = t[5];
 assert(scalar_at_2d_coordinate == scalar_at_global_offset && "same value");
 
 tensor_view<f32_t> scalar_as_tensor = t[1, 1, slice]; 
@@ -372,7 +378,7 @@ You can also use a more traditional syntax with member functions, also leveragin
 Similar to NumPy, but statically typed:
 
 ```cpp
-auto second_column = t[all, 1, slice];            // strided column view → {2, 5, 8}
+tensor_view<f32_t> second_column = t[all, 1, slice]; // strided column view → {2, 5, 8}
 auto minimum_index = nk::argmin(second_column);   // index of the minimum in the second column
 ```
 
@@ -397,7 +403,7 @@ auto view = nk::matrix_view<nk::f32_t>(
 
 // Now use any NumKong kernel on it
 nk::f64_t dot {};
-nk::dot(view.row(0), view.row(1), md.extent(1), &dot);
+nk::status_t status = nk::dot(view.row(0).as_vector(), view.row(1).as_vector(), &dot);
 ```
 
 ## Iterators and Enumeration
@@ -415,7 +421,8 @@ NumKong containers expose random-access iterators for element and row traversal.
 
 namespace nk = ashvardanian::numkong;
 
-nk::vector<nk::f16_t> v(128);
+auto [v, v_status] = nk::vector<nk::f16_t>::zeros(128);
+if (nk::failed(v_status)) return v_status;
 for (auto [i, val] : nk::enumerate(v))
     std::printf("[%zu] = %f\n", i, val.to_f32());
 
@@ -445,14 +452,16 @@ It is the right tool when the right-hand side is reused many times.
 
 namespace nk = ashvardanian::numkong;
 
-auto a = nk::tensor<nk::f32_t>::try_full({2, 4}, nk::f32_t {1});
-auto b = nk::tensor<nk::f32_t>::try_full({3, 4}, nk::f32_t {2});
-auto packed = nk::packed_matrix<nk::f32_t>::try_pack(b.as_matrix_view());
+auto [a, a_status] = nk::tensor<nk::f32_t>::full({2, 4}, nk::f32_t {1});
+auto [b, b_status] = nk::tensor<nk::f32_t>::full({3, 4}, nk::f32_t {2});
+if (nk::failed(a_status) || nk::failed(b_status)) return nk::failed(a_status) ? a_status : b_status;
+auto [packed, packed_status] = nk::packed_matrix<nk::f32_t>::make(b.as_matrix_view());
+if (nk::failed(packed_status)) return packed_status;
 
 // Dot products, angular distances, and Euclidean distances all reuse the same packed B
-auto dots = nk::try_dots_packed(a.as_matrix_view(), packed);
-auto angulars = nk::try_angulars_packed(a.as_matrix_view(), packed);
-auto euclideans = nk::try_euclideans_packed(a.as_matrix_view(), packed);
+auto [dots, dots_status] = nk::dots_packed<nk::f32_t>(a.as_matrix_view(), packed); // nk::matrix<nk::f64_t>
+auto [angulars, angulars_status] = nk::angulars_packed<nk::f32_t>(a.as_matrix_view(), packed);
+auto [euclideans, euclideans_status] = nk::euclideans_packed<nk::f32_t>(a.as_matrix_view(), packed);
 ```
 
 This is GEMM-like in the workload shape, not in the strict BLAS API.
@@ -475,10 +484,11 @@ The symmetric kernels solve a different problem.
 They compute self-similarity or self-distance without paying for both triangles independently.
 
 ```cpp
-auto vectors = nk::tensor<nk::f32_t>::try_full({100, 768}, nk::f32_t {1});
-auto gram = nk::try_dots_symmetric(vectors.as_matrix_view());
-auto angular_dists = nk::try_angulars_symmetric(vectors.as_matrix_view());
-auto euclidean_dists = nk::try_euclideans_symmetric(vectors.as_matrix_view());
+auto [vectors, vectors_status] = nk::tensor<nk::f32_t>::full({100, 768}, nk::f32_t {1});
+if (nk::failed(vectors_status)) return vectors_status;
+auto [gram, gram_status] = nk::dots_symmetric<nk::f32_t>(vectors.as_matrix_view()); // nk::matrix<nk::f64_t>
+auto [angular_dists, angular_status] = nk::angulars_symmetric<nk::f32_t>(vectors.as_matrix_view());
+auto [euclidean_dists, euclidean_status] = nk::euclideans_symmetric<nk::f32_t>(vectors.as_matrix_view());
 ```
 
 This is SYRK-like in the sense that the output is square and symmetric.
@@ -537,16 +547,45 @@ It is not generic matrix multiplication.
 It packs query and document token vectors into a scoring-specific layout and computes a late-interaction score.
 
 ```cpp
-auto queries = nk::tensor<nk::bf16_t>::try_full({32, 128}, nk::bf16_t::one());
-auto docs = nk::tensor<nk::bf16_t>::try_full({192, 128}, nk::bf16_t::one());
+auto [queries, queries_status] = nk::tensor<nk::bf16_t>::full({32, 128}, nk::bf16_t::one());
+auto [docs, docs_status] = nk::tensor<nk::bf16_t>::full({192, 128}, nk::bf16_t::one());
+if (nk::failed(queries_status) || nk::failed(docs_status)) return nk::failed(queries_status) ? queries_status : docs_status;
 
-auto q = nk::packed_maxsim<nk::bf16_t>::try_pack(queries.as_matrix_view());
-auto d = nk::packed_maxsim<nk::bf16_t>::try_pack(docs.as_matrix_view());
+auto [q, q_status] = nk::packed_maxsim<nk::bf16_t>::make(queries.as_matrix_view());
+auto [d, d_status] = nk::packed_maxsim<nk::bf16_t>::make(docs.as_matrix_view());
+if (nk::failed(q_status) || nk::failed(d_status)) return nk::failed(q_status) ? q_status : d_status;
 auto score = nk::maxsim(q, d);
 ```
 
 `packed_maxsim` is allocator-aware in the same way as `packed_matrix`.
 Its footprint is exposed through `size_bytes()`.
+
+## Attention over Packed Key-Value Caches
+
+Attention packs a ragged batch of keys and values once, then attends to it with any number of query batches.
+`packed_attention` keeps the segment offsets it was packed with, so the view overloads run self-attention over `[tokens, heads, depth]` queries without restating the batch, with query heads shared across fewer key-value heads.
+
+```cpp
+#include <numkong/attention.hpp>
+
+// Two sequences of 32 and 64 tokens, 8 query heads over 2 key-value heads of depth 64
+auto [keys, keys_status] = nk::tensor<nk::bf16_t>::full({96, 2, 64}, nk::bf16_t::one());
+auto [values, values_status] = nk::tensor<nk::bf16_t>::full({96, 2, 64}, nk::bf16_t::one());
+auto [queries, queries_status] = nk::tensor<nk::bf16_t>::full({96, 8, 64}, nk::bf16_t::one());
+auto [output, output_status] = nk::tensor<nk::f32_t>::zeros({96, 8, 64});
+for (nk::status_t made : {keys_status, values_status, queries_status, output_status})
+    if (nk::failed(made)) return made;
+nk_u32_t const offsets[] = {0, 32, 96}, lengths[] = {32, 64};
+
+auto [packed, packed_status] = nk::packed_attention<nk::bf16_t>::make(
+    keys.view(), values.view(), nk::vector_view<nk_u32_t>(offsets, 3u), nk::vector_view<nk_u32_t>(lengths, 2u));
+if (nk::failed(packed_status)) return packed_status;
+nk::status_t status = nk::attention_causal_packed<nk::bf16_t>(queries.view(), packed, output.span(), 0.125f);
+auto [fresh, fresh_status] = nk::attention_bidirectional_packed<nk::bf16_t>(queries.view(), packed, 0.125f); // nk::tensor<nk::f32_t>
+```
+
+The causal overloads also take a diagonal offset, aligning queries to the end of a longer cache, and a sliding window.
+The raw-pointer overloads take the query offsets separately, for cross-attention, and a window over the segments × heads task grid, for sharding one launch across workers.
 
 ## Capabilities and Devices
 
@@ -604,9 +643,9 @@ using nk::range, nk::all, nk::slice;
 fork_union.parallel_for(0, worker_count, [&](std::size_t t) {
     auto start = t * rows_per_worker;
     auto stop = std::min(start + rows_per_worker, total_rows);
-    auto a_slice = a[range(start, stop), all, slice].as_matrix_view();
-    auto c_slice = c[range(start, stop), all, slice].as_matrix_span();
-    nk::dots_packed<value_type_>(a_slice, packed, c_slice);
+    auto a_slice = a[range(start, stop), all, slice].as_matrix();
+    auto c_slice = c[range(start, stop), all, slice].as_matrix();
+    statuses[t] = nk::dots_packed<value_type_>(a_slice, packed, c_slice);
 });
 ```
 
@@ -616,8 +655,9 @@ SYRK-like symmetric work is partitioned by output row windows on one matrix:
 fork_union.parallel_for(0, worker_count, [&](std::size_t t) {
     auto start = t * rows_per_worker;
     auto count = std::min(rows_per_worker, total_rows - start);
-    nk::dots_symmetric<value_type_>(vectors.as_matrix_view(), gram.as_matrix_span(), start, count);
-    nk::angulars_symmetric<value_type_>(vectors.as_matrix_view(), angular_dists.as_matrix_span(), start, count);
+    statuses[t] = nk::dots_symmetric<value_type_>(vectors.as_matrix_view(), gram.as_matrix_span(), start, count);
+    if (nk::succeeded(statuses[t]))
+        statuses[t] = nk::angulars_symmetric<value_type_>(vectors.as_matrix_view(), angular_dists.as_matrix_span(), start, count);
 });
 ```
 
@@ -667,5 +707,5 @@ struct cuda_allocator {
 
 nk_dot_f32_best(cuda_managed_ptr, cuda_managed_ptr, 1024, &dot, capabilities, NULL); // C ABI, any pointer
 auto view = nk::tensor_view<nk::f32_t>(mmap_ptr, rows, cols);                         // non-owning view
-auto v = nk::vector<float, cuda_allocator<float>>::try_zeros(1024);                   // allocator-aware owning
+auto v = nk::vector<float, cuda_allocator<float>>::zeros(1024);                       // allocator-aware owning
 ```

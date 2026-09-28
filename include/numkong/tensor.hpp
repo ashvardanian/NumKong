@@ -13,8 +13,8 @@
  *
  *  Tensor-level free functions:
  *  - Non-allocating scalar results: `sum(view)`, `min(view)`, `max(view)`, etc.
- *  - Allocating ops: `try_add(a, b)`, `try_sum(view, axis)`, etc.
- *  - In-place into pre-allocated output: `add_into(a, b, out)`, etc.
+ *  - Allocating ops, returning an @c expected tensor: `add(a, b)`, `sum(view, axis)`, etc.
+ *  - In-place into pre-allocated output, returning a @c status_t: `add(a, b, out)`, etc.
  *
  *  Features:
  *  - Signed strides (ptrdiff_t) for reversed/transposed views
@@ -772,13 +772,13 @@ struct tensor_span {
     }
 
     /** Zero-fill every element; declared here, defined after the free @c fill_zeros. */
-    bool fill_zeros() noexcept;
+    status_t fill_zeros() noexcept;
 
     /** Fill every element with @p value; declared here, defined after the free @c fill. */
-    bool fill(value_type value) noexcept;
+    status_t fill(value_type value) noexcept;
 
     /** Copy from a same-shape view; declared here, defined after the free @c copy. */
-    bool copy_from(tensor_view<value_type_, max_rank_> input) noexcept;
+    status_t copy_from(tensor_view<value_type_, max_rank_> input) noexcept;
 
     /** Remove dimensions of size 1. */
     constexpr tensor_span squeeze() const noexcept {
@@ -978,8 +978,7 @@ constexpr tensor_type_ tensor_slice_suffix_(tensor_type_ input, range r, rest_ty
     auto step = r.step;
     if (start >= stop || step <= 0) return {};
 
-    auto range_extent = static_cast<size_type>((stop - start + static_cast<size_type>(step) - 1) /
-                                               static_cast<size_type>(step));
+    auto range_extent = divide_round_up(stop - start, static_cast<size_type>(step));
     auto range_stride = leading_stride * static_cast<difference_type>(step);
     auto data_offset = static_cast<difference_type>(start) * leading_stride;
 
@@ -1328,10 +1327,10 @@ struct tensor_dims_view_ {
  *  @tparam allocator_type_ Allocator.
  *  @tparam max_rank_ Maximum number of dimensions.
  *
- *  `try_resize()` adjusts the *shape* within the allocated `capacity()` and fails beyond it, so
+ *  `resize()` adjusts the *shape* within the allocated `capacity()` and fails beyond it, so
  *  `data()` is stable across resizes — the contract capture-replaying GPU code depends on.
  *  `reserve()` is the explicit opt-in that may reallocate to grow `capacity()`, and thus move
- *  `data()`. Allocate at the worst-case extents, or `reserve()` up front, then `try_resize()` to
+ *  `data()`. Allocate at the worst-case extents, or `reserve()` up front, then `resize()` to
  *  each step's live extents; `clear()` drops back to an empty shape while keeping the buffer.
  */
 template <typename value_type_, typename allocator_type_ = aligned_allocator<value_type_>, std::size_t max_rank_ = 8>
@@ -1379,7 +1378,7 @@ struct tensor {
     tensor(tensor const &) = delete;
     tensor &operator=(tensor const &) = delete;
 
-    /** Allocated values — the ceiling `try_resize()` honors; at least `numel()`. */
+    /** Allocated values — the ceiling `resize()` honors; at least `numel()`. */
     constexpr size_type capacity() const noexcept { return capacity_; }
 
     /**
@@ -1387,33 +1386,33 @@ struct tensor {
      *      volume fits `capacity()`, the rank fits @c max_rank_ and the last extent is a whole
      *      number of storage values, so `data()` never moves — resizing to a step's live extents is
      *      safe under captured GPU graphs.
-     *  @return @c true on success; @c false leaves the shape untouched.
+     *  @return @c success_k, or @c unexpected_dimensions_k leaving the shape untouched.
      */
-    [[nodiscard]] constexpr bool try_resize(std::initializer_list<size_type> extents) noexcept {
-        return try_resize(extents.begin(), extents.size());
+    constexpr status_t resize(std::initializer_list<size_type> extents) noexcept {
+        return resize(extents.begin(), extents.size());
     }
 
     /** Reshape in place from an @p extents array of @p rank dims, mirroring the list overload. */
-    [[nodiscard]] constexpr bool try_resize(size_type const *extents, size_type rank) noexcept {
-        if (rank > max_rank_) return false;
+    constexpr status_t resize(size_type const *extents, size_type rank) noexcept {
+        if (rank > max_rank_) return status_t::unexpected_dimensions_k;
         shape_storage_<max_rank_> const resized = make_contiguous_shape_<value_type_, max_rank_>(extents, rank);
         if (!shape_fills_whole_values_<value_type_>(resized) ||
             storage_values_for_shape_<value_type_>(resized) > capacity_)
-            return false;
+            return status_t::unexpected_dimensions_k;
         shape_ = resized;
-        return true;
+        return status_t::success_k;
     }
 
     /**
      *  @brief Grow the allocated `capacity()` to at least @p values elements. Unlike
-     *      `try_resize()`, this may reallocate and move `data()`; the live `numel()`-storage
+     *      `resize()`, this may reallocate and move `data()`; the live `numel()`-storage
      *      elements are preserved. No-op when `capacity() >= values`.
-     *  @return `true` on success or no-op; @c false if allocation failed, state unchanged.
+     *  @return @c success_k, or @c bad_alloc_k leaving the state unchanged.
      */
-    [[nodiscard]] bool reserve(size_type values) noexcept {
-        if (values <= capacity_) return true;
+    status_t reserve(size_type values) noexcept {
+        if (values <= capacity_) return status_t::success_k;
         pointer fresh = alloc_traits::allocate(alloc_, values);
-        if (!fresh) return false;
+        if (!fresh) return status_t::bad_alloc_k;
         if (data_) {
             size_type const live = storage_values_for_shape_<value_type_>(shape_);
             if (live)
@@ -1422,11 +1421,11 @@ struct tensor {
         }
         data_ = fresh;
         capacity_ = values;
-        return true;
+        return status_t::success_k;
     }
 
     /** Reset to a logically empty shape, `empty()` becomes true, while keeping `capacity()`, so the
-     *  buffer can be refilled via `try_resize()` without reallocating. Storage only frees when the
+     *  buffer can be refilled via `resize()` without reallocating. Storage only frees when the
      *  tensor is destroyed. */
     constexpr void clear() noexcept {
         size_type const zero = 0;
@@ -1443,39 +1442,69 @@ struct tensor {
     }
 
     /**
+     *  @brief Factory: allocate an uninitialized tensor from an @p extents array of @p rank dims.
+     *  @return The tensor, empty for a zero volume; @c unexpected_dimensions_k when @p rank exceeds
+     *      @c max_rank_ or the last extent is not a whole number of storage values, @c bad_alloc_k
+     *      when the allocation fails.
+     *  @warning Contents are uninitialized. Caller must fill before reading.
+     */
+    static expected<tensor> uninitialized(size_type const *extents, size_type rank,
+                                          allocator_type_ alloc = {}) noexcept {
+        tensor t(alloc);
+        if (rank > max_rank_) return {std::move(t), status_t::unexpected_dimensions_k};
+        t.shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents, rank);
+        if (!shape_fills_whole_values_<value_type_>(t.shape_))
+            return {tensor(alloc), status_t::unexpected_dimensions_k};
+        auto storage_values = storage_values_for_shape_<value_type_>(t.shape_);
+        if (storage_values == 0) return {std::move(t), status_t::success_k};
+        pointer ptr = alloc_traits::allocate(t.alloc_, storage_values);
+        if (!ptr) return {tensor(alloc), status_t::bad_alloc_k};
+        t.data_ = ptr;
+        t.capacity_ = storage_values;
+        return {std::move(t), status_t::success_k};
+    }
+
+    /** Factory: zero-initialized tensor from an @p extents array; fails like @c uninitialized. */
+    static expected<tensor> zeros(size_type const *extents, size_type rank, allocator_type_ alloc = {}) noexcept {
+        auto result = uninitialized(extents, rank, alloc);
+        if (!result) return result;
+        pointer ptr = result.value.data_;
+        size_type storage_values = result.value.capacity_;
+        if constexpr (is_memset_zero_safe_v<value_type_>) {
+            if (storage_values) std::memset(static_cast<void *>(ptr), 0, storage_values * sizeof(value_type_));
+        }
+        else
+            for (size_type i = 0; i < storage_values; ++i) ptr[i] = value_type_ {};
+        return result;
+    }
+
+    /** Factory: tensor filled with @p val from an @p extents array; fails like @c uninitialized. */
+    static expected<tensor> full(size_type const *extents, size_type rank, value_type_ val,
+                                 allocator_type_ alloc = {}) noexcept {
+        auto result = uninitialized(extents, rank, alloc);
+        if (!result) return result;
+        for (size_type i = 0; i < result.value.capacity_; ++i) result.value.data_[i] = val;
+        return result;
+    }
+
+    /**
      *  @brief Factory: allocate a zero-initialized tensor with the given extents.
      *  @param[in] extents Extents, one per dimension, e.g. `{3, 4}`.
      *  @param[in] alloc Allocator instance.
-     *  @return Non-empty tensor on success, empty on failure.
+     *  @return The tensor, or the failure @c uninitialized reports.
      */
-    [[nodiscard]] static tensor try_zeros(std::initializer_list<size_type> extents,
-                                          allocator_type_ alloc = {}) noexcept {
-        tensor t(alloc);
-        auto rank = extents.size();
-        if (rank > max_rank_) return t;
-        t.shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents.begin(), rank);
-        auto storage_values = storage_values_for_shape_<value_type_>(t.shape_);
-        if (storage_values == 0 || !shape_fills_whole_values_<value_type_>(t.shape_)) return t;
-        pointer ptr = alloc_traits::allocate(t.alloc_, storage_values);
-        if (!ptr) return t;
-        if constexpr (is_memset_zero_safe_v<value_type_>)
-            std::memset(static_cast<void *>(ptr), 0, storage_values * sizeof(value_type_));
-        else
-            for (size_type i = 0; i < storage_values; ++i) ptr[i] = value_type_ {};
-        t.data_ = ptr;
-        t.capacity_ = storage_values;
-        return t;
+    static expected<tensor> zeros(std::initializer_list<size_type> extents, allocator_type_ alloc = {}) noexcept {
+        return zeros(extents.begin(), extents.size(), alloc);
     }
 
     /**
      *  @brief Factory: allocate a tensor filled with ones.
      *  @param[in] extents Extents, one per dimension, e.g. `{3, 4}`.
      *  @param[in] alloc Allocator instance.
-     *  @return Non-empty tensor on success, empty on failure.
+     *  @return The tensor, or the failure @c uninitialized reports.
      */
-    [[nodiscard]] static tensor try_ones(std::initializer_list<size_type> extents,
-                                         allocator_type_ alloc = {}) noexcept {
-        return try_full(extents, value_type_ {1}, alloc);
+    static expected<tensor> ones(std::initializer_list<size_type> extents, allocator_type_ alloc = {}) noexcept {
+        return full(extents, value_type_ {1}, alloc);
     }
 
     /**
@@ -1483,131 +1512,60 @@ struct tensor {
      *  @param[in] extents Extents, one per dimension, e.g. `{3, 4}`.
      *  @param[in] val Fill value.
      *  @param[in] alloc Allocator instance.
-     *  @return Non-empty tensor on success, empty on failure.
+     *  @return The tensor, or the failure @c uninitialized reports.
      */
-    [[nodiscard]] static tensor try_full(std::initializer_list<size_type> extents, value_type_ val,
-                                         allocator_type_ alloc = {}) noexcept {
-        tensor t(alloc);
-        auto rank = extents.size();
-        if (rank > max_rank_) return t;
-        t.shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents.begin(), rank);
-        auto storage_values = storage_values_for_shape_<value_type_>(t.shape_);
-        if (storage_values == 0 || !shape_fills_whole_values_<value_type_>(t.shape_)) return t;
-        pointer ptr = alloc_traits::allocate(t.alloc_, storage_values);
-        if (!ptr) return t;
-        for (size_type i = 0; i < storage_values; ++i) ptr[i] = val;
-        t.data_ = ptr;
-        t.capacity_ = storage_values;
-        return t;
+    static expected<tensor> full(std::initializer_list<size_type> extents, value_type_ val,
+                                 allocator_type_ alloc = {}) noexcept {
+        return full(extents.begin(), extents.size(), val, alloc);
     }
 
     /**
      *  @brief Factory: allocate an uninitialized tensor.
      *  @param[in] extents Extents, one per dimension, e.g. `{3, 4}`.
      *  @param[in] alloc Allocator instance.
-     *  @return Non-empty tensor on success, empty on failure.
+     *  @return The tensor, or the failure the pointer overload reports.
      */
-    [[nodiscard]] static tensor try_empty(std::initializer_list<size_type> extents,
+    static expected<tensor> uninitialized(std::initializer_list<size_type> extents,
                                           allocator_type_ alloc = {}) noexcept {
-        tensor t(alloc);
-        auto rank = extents.size();
-        if (rank > max_rank_) return t;
-        t.shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents.begin(), rank);
-        auto storage_values = storage_values_for_shape_<value_type_>(t.shape_);
-        if (storage_values == 0 || !shape_fills_whole_values_<value_type_>(t.shape_)) return t;
-        pointer ptr = alloc_traits::allocate(t.alloc_, storage_values);
-        if (!ptr) return t;
-        t.data_ = ptr;
-        t.capacity_ = storage_values;
-        return t;
-    }
-
-    /** Factory: zero-initialized tensor from pointer + rank. */
-    [[nodiscard]] static tensor try_zeros(size_type const *extents, size_type rank,
-                                          allocator_type_ alloc = {}) noexcept {
-        tensor t(alloc);
-        if (rank > max_rank_) return t;
-        t.shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents, rank);
-        auto storage_values = storage_values_for_shape_<value_type_>(t.shape_);
-        if (storage_values == 0 || !shape_fills_whole_values_<value_type_>(t.shape_)) return t;
-        pointer ptr = alloc_traits::allocate(t.alloc_, storage_values);
-        if (!ptr) return t;
-        if constexpr (is_memset_zero_safe_v<value_type_>)
-            std::memset(static_cast<void *>(ptr), 0, storage_values * sizeof(value_type_));
-        else
-            for (size_type i = 0; i < storage_values; ++i) ptr[i] = value_type_ {};
-        t.data_ = ptr;
-        t.capacity_ = storage_values;
-        return t;
-    }
-
-    /** Factory: uninitialized tensor from pointer + rank. */
-    [[nodiscard]] static tensor try_empty(size_type const *extents, size_type rank,
-                                          allocator_type_ alloc = {}) noexcept {
-        tensor t(alloc);
-        if (rank > max_rank_) return t;
-        t.shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents, rank);
-        auto storage_values = storage_values_for_shape_<value_type_>(t.shape_);
-        if (storage_values == 0 || !shape_fills_whole_values_<value_type_>(t.shape_)) return t;
-        pointer ptr = alloc_traits::allocate(t.alloc_, storage_values);
-        if (!ptr) return t;
-        t.data_ = ptr;
-        t.capacity_ = storage_values;
-        return t;
-    }
-
-    /** Factory: filled tensor from pointer + rank. */
-    [[nodiscard]] static tensor try_full(size_type const *extents, size_type rank, value_type_ val,
-                                         allocator_type_ alloc = {}) noexcept {
-        tensor t(alloc);
-        if (rank > max_rank_) return t;
-        t.shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents, rank);
-        auto storage_values = storage_values_for_shape_<value_type_>(t.shape_);
-        if (storage_values == 0 || !shape_fills_whole_values_<value_type_>(t.shape_)) return t;
-        pointer ptr = alloc_traits::allocate(t.alloc_, storage_values);
-        if (!ptr) return t;
-        for (size_type i = 0; i < storage_values; ++i) ptr[i] = val;
-        t.data_ = ptr;
-        t.capacity_ = storage_values;
-        return t;
+        return uninitialized(extents.begin(), extents.size(), alloc);
     }
 
     /**
      *  @brief Factory: create a rank-1 tensor from an initializer list of values.
      *  @param[in] values Values to fill the tensor with.
      *  @param[in] alloc Allocator instance.
-     *  @return Non-empty tensor on success, empty on failure.
+     *  @return The tensor, or the failure @c uninitialized reports.
      */
-    [[nodiscard]] static tensor try_from(std::initializer_list<value_type_> values,
-                                         allocator_type_ alloc = {}) noexcept {
-        tensor t = try_empty({values.size()}, alloc);
-        if (t.empty()) return t;
+    static expected<tensor> from(std::initializer_list<value_type_> values, allocator_type_ alloc = {}) noexcept {
+        auto result = uninitialized({values.size()}, alloc);
+        if (!result) return result;
         size_type index = 0;
-        for (auto const &value : values) t.data_[index++] = value;
-        return t;
+        for (auto const &value : values) result.value.data_[index++] = value;
+        return result;
     }
 
     /**
      *  @brief Factory: create a rank-2 tensor from a nested initializer list.
      *  @param[in] rows Each inner list is a row. All rows must have the same length.
      *  @param[in] alloc Allocator instance.
-     *  @return Non-empty tensor on success, empty on ragged input or allocation failure.
+     *  @return The tensor, empty for no rows; @c unexpected_dimensions_k for ragged rows, or the
+     *      failure @c uninitialized reports.
      */
-    [[nodiscard]] static tensor try_from(std::initializer_list<std::initializer_list<value_type_>> rows,
-                                         allocator_type_ alloc = {}) noexcept
+    static expected<tensor> from(std::initializer_list<std::initializer_list<value_type_>> rows,
+                                 allocator_type_ alloc = {}) noexcept
         requires(max_rank_ >= 2)
     {
         auto num_rows = rows.size();
-        if (num_rows == 0) return tensor(alloc);
+        if (num_rows == 0) return {tensor(alloc), status_t::success_k};
         auto num_cols = rows.begin()->size();
         for (auto const &row : rows)
-            if (row.size() != num_cols) return tensor(alloc);
-        tensor t = try_empty({num_rows, num_cols}, alloc);
-        if (t.empty()) return t;
+            if (row.size() != num_cols) return {tensor(alloc), status_t::unexpected_dimensions_k};
+        auto result = uninitialized({num_rows, num_cols}, alloc);
+        if (!result) return result;
         size_type index = 0;
         for (auto const &row : rows)
-            for (auto const &value : row) t.data_[index++] = value;
-        return t;
+            for (auto const &value : row) result.value.data_[index++] = value;
+        return result;
     }
 
     /** Factory: adopt raw memory, whose @p shape must end in a whole number of storage values. */
@@ -1861,13 +1819,13 @@ struct tensor {
     constexpr span_type squeeze() noexcept { return span().squeeze(); }
 
     /** Zero-fill every element. */
-    bool fill_zeros() noexcept { return span().fill_zeros(); }
+    status_t fill_zeros() noexcept { return span().fill_zeros(); }
 
     /** Fill every element with @p value. */
-    bool fill(value_type value) noexcept { return span().fill(value); }
+    status_t fill(value_type value) noexcept { return span().fill(value); }
 
     /** Copy from a same-shape view. */
-    bool copy_from(view_type input) noexcept { return span().copy_from(input); }
+    status_t copy_from(view_type input) noexcept { return span().copy_from(input); }
 };
 
 /** Non-member swap. */
@@ -2126,6 +2084,9 @@ struct scaled_tensor {
     scale_tensor_type block_scales_;
     float tensor_scale_ = 1.0f;
 
+    scaled_tensor(element_tensor_type elements, scale_tensor_type block_scales, float tensor_scale) noexcept
+        : elements_(std::move(elements)), block_scales_(std::move(block_scales)), tensor_scale_(tensor_scale) {}
+
   public:
     scaled_tensor() noexcept = default;
     scaled_tensor(scaled_tensor &&) noexcept = default;
@@ -2136,35 +2097,49 @@ struct scaled_tensor {
     /**
      *  @brief Factory: allocate an uninitialized block-scaled tensor with the given extents.
      *  @param[in] extents Logical extents; the last one must be a multiple of @c block_size.
-     *  @return Non-empty tensor on success, empty on bad shape or allocation failure.
+     *  @return The tensor; @c unexpected_dimensions_k for a bad rank or an unaligned last extent,
+     *      or the failure either component's allocation reports.
      */
-    [[nodiscard]] static scaled_tensor try_empty(size_type const *extents, size_type rank) noexcept {
-        scaled_tensor result;
-        if (rank == 0 || rank > max_rank_) return result;
+    static expected<scaled_tensor> uninitialized(size_type const *extents, size_type rank,
+                                                 element_allocator_ element_alloc = {},
+                                                 scale_allocator_ scale_alloc = {}) noexcept {
+        scaled_tensor failure(element_tensor_type(element_alloc), scale_tensor_type(scale_alloc), 1.0f);
+        if (rank == 0 || rank > max_rank_ || extents[rank - 1] % block_size != 0)
+            return {std::move(failure), status_t::unexpected_dimensions_k};
         size_type scale_extents[max_rank_];
         for (size_type d = 0; d < rank; ++d) scale_extents[d] = extents[d];
-        if (extents[rank - 1] % block_size != 0) return result;
         scale_extents[rank - 1] = extents[rank - 1] / block_size;
 
-        result.elements_ = element_tensor_type::try_empty(extents, rank);
-        result.block_scales_ = scale_tensor_type::try_empty(scale_extents, rank);
-        if (result.elements_.empty() || result.block_scales_.empty()) return scaled_tensor {};
-        return result;
+        auto elements = element_tensor_type::uninitialized(extents, rank, element_alloc);
+        if (!elements) return {std::move(failure), elements.status};
+        auto block_scales = scale_tensor_type::uninitialized(scale_extents, rank, scale_alloc);
+        if (!block_scales) return {std::move(failure), block_scales.status};
+        return {scaled_tensor(std::move(elements.value), std::move(block_scales.value), 1.0f), status_t::success_k};
     }
 
-    /** @copydoc try_empty(size_type const *, size_type) */
-    [[nodiscard]] static scaled_tensor try_empty(std::initializer_list<size_type> extents) noexcept {
-        return try_empty(extents.begin(), extents.size());
+    /** Allocate from an @p extents list; see the pointer overload for the failure statuses. */
+    static expected<scaled_tensor> uninitialized(std::initializer_list<size_type> extents,
+                                                 element_allocator_ element_alloc = {},
+                                                 scale_allocator_ scale_alloc = {}) noexcept {
+        return uninitialized(extents.begin(), extents.size(), element_alloc, scale_alloc);
     }
 
-    /** Adopt already-built component tensors and a per-tensor scale. */
-    [[nodiscard]] static scaled_tensor from_components(element_tensor_type elements, scale_tensor_type block_scales,
-                                                       float tensor_scale = 1.0f) noexcept {
-        scaled_tensor result;
-        result.elements_ = std::move(elements);
-        result.block_scales_ = std::move(block_scales);
-        result.tensor_scale_ = tensor_scale;
-        return result;
+    /**
+     *  @brief Adopt already-built component tensors and a per-tensor scale.
+     *  @return The tensor, or @c unexpected_dimensions_k when @p block_scales isn't shaped like
+     *      @p elements with the last extent divided by @c block_size.
+     */
+    static expected<scaled_tensor> from_components(element_tensor_type elements, scale_tensor_type block_scales,
+                                                   float tensor_scale = 1.0f) noexcept {
+        size_type const rank = elements.rank();
+        bool shaped = rank != 0 && block_scales.rank() == rank &&
+                      elements.extent(rank - 1) == block_scales.extent(rank - 1) * block_size;
+        for (size_type d = 0; shaped && d + 1 < rank; ++d) shaped = elements.extent(d) == block_scales.extent(d);
+        if (!shaped)
+            return {scaled_tensor(element_tensor_type(elements.get_allocator()),
+                                  scale_tensor_type(block_scales.get_allocator()), 1.0f),
+                    status_t::unexpected_dimensions_k};
+        return {scaled_tensor(std::move(elements), std::move(block_scales), tensor_scale), status_t::success_k};
     }
 
     constexpr size_type rank() const noexcept { return elements_.rank(); }
@@ -2176,42 +2151,46 @@ struct scaled_tensor {
      *  idiom. */
     constexpr explicit operator bool() const noexcept { return !empty(); }
 
-    /** Allocated logical-element capacity — the ceiling coordinated `try_resize()` honors. */
+    /** Allocated logical-element capacity — the ceiling coordinated `resize()` honors. */
     constexpr size_type capacity() const noexcept { return elements_.capacity(); }
 
     /**
      *  @brief Reshape in place to @p extents whose last dimension is a multiple of @c block_size,
      *      resizing both tensors without reallocating.
-     *
-     *  Fails, leaving both untouched, if the last extent is not block-aligned or either component's
-     *  `capacity()` is exceeded.
+     *  @return @c success_k, or @c unexpected_dimensions_k leaving both untouched, if the rank is
+     *      bad, the last extent is not block-aligned, or either component's capacity is exceeded.
      */
-    [[nodiscard]] constexpr bool try_resize(size_type const *extents, size_type rank) noexcept {
-        if (rank == 0 || rank > max_rank_) return false;
-        if (extents[rank - 1] % block_size != 0) return false;
+    constexpr status_t resize(size_type const *extents, size_type rank) noexcept {
+        if (rank == 0 || rank > max_rank_) return status_t::unexpected_dimensions_k;
+        if (extents[rank - 1] % block_size != 0) return status_t::unexpected_dimensions_k;
         size_type scale_extents[max_rank_];
         for (size_type d = 0; d < rank; ++d) scale_extents[d] = extents[d];
         scale_extents[rank - 1] = extents[rank - 1] / block_size;
         // Pre-check both fit so we never apply a half-resize that would desync elements/scales.
         auto const elem_shape = make_contiguous_shape_<element_type, max_rank_>(extents, rank);
         auto const scale_shape = make_contiguous_shape_<scale_type, max_rank_>(scale_extents, rank);
-        if (storage_values_for_shape_<element_type>(elem_shape) > elements_.capacity()) return false;
-        if (storage_values_for_shape_<scale_type>(scale_shape) > block_scales_.capacity()) return false;
-        (void)elements_.try_resize(extents, rank); // both pre-verified — cannot fail now
-        (void)block_scales_.try_resize(scale_extents, rank);
-        return true;
+        if (storage_values_for_shape_<element_type>(elem_shape) > elements_.capacity())
+            return status_t::unexpected_dimensions_k;
+        if (storage_values_for_shape_<scale_type>(scale_shape) > block_scales_.capacity())
+            return status_t::unexpected_dimensions_k;
+        [[maybe_unused]] status_t const elements_resized = elements_.resize(extents, rank);
+        [[maybe_unused]] status_t const scales_resized = block_scales_.resize(scale_extents, rank);
+        return status_t::success_k;
     }
 
-    /** @copydoc try_resize(size_type const *, size_type) */
-    [[nodiscard]] constexpr bool try_resize(std::initializer_list<size_type> extents) noexcept {
-        return try_resize(extents.begin(), extents.size());
+    /** @copydoc resize(size_type const *, size_type) */
+    constexpr status_t resize(std::initializer_list<size_type> extents) noexcept {
+        return resize(extents.begin(), extents.size());
     }
 
-    /** Grow capacity to at least @p values logical elements, plus the matching per-block scales;
-     *  may reallocate/move the component buffers. No-op when already large enough. */
-    [[nodiscard]] bool reserve(size_type values) noexcept {
-        size_type const scale_values = (values + block_size - 1) / block_size;
-        return elements_.reserve(values) && block_scales_.reserve(scale_values);
+    /**
+     *  @brief Grow capacity to at least @p values logical elements, plus the matching per-block
+     *      scales; may reallocate/move the component buffers. No-op when already large enough.
+     *  @return @c success_k, or @c bad_alloc_k from whichever component failed to grow.
+     */
+    status_t reserve(size_type values) noexcept {
+        if (status_t status = elements_.reserve(values); failed(status)) return status;
+        return block_scales_.reserve(divide_round_up<block_size>(values));
     }
 
     /** Drop to an empty shape while keeping both component capacities. */
@@ -2334,14 +2313,6 @@ bool tensor_layout_supported_(tensor_span<value_type_, max_rank_> input) noexcep
 }
 
 template <typename value_type_, std::size_t max_rank_>
-bool shape_matches_(shape_storage_<max_rank_> const &expected, tensor_span<value_type_, max_rank_> actual) noexcept {
-    if (expected.rank != actual.rank()) return false;
-    for (std::size_t i = 0; i < expected.rank; ++i)
-        if (expected.extents[i] != actual.extent(i)) return false;
-    return true;
-}
-
-template <typename value_type_, std::size_t max_rank_>
 struct normalized_rank1_lane_ {
     value_type_ const *data = nullptr;
     std::size_t count = 0;
@@ -2397,8 +2368,9 @@ normalized_rank1_lane_<value_type_, max_rank_> normalize_rank1_lane_(
 }
 
 template <typename value_type_, std::size_t max_rank_, typename lane_fn_>
-bool for_each_axis_lane_(tensor_view<value_type_, max_rank_> input, std::size_t axis, lane_fn_ &&lane_fn) noexcept {
-    if (axis >= input.rank() || !tensor_layout_supported_(input) || input.byte_data() == nullptr) return false;
+status_t for_each_axis_lane_(tensor_view<value_type_, max_rank_> input, std::size_t axis, lane_fn_ &&lane_fn) noexcept {
+    if (axis >= input.rank() || input.byte_data() == nullptr) return status_t::unexpected_dimensions_k;
+    if (!tensor_layout_supported_(input)) return status_t::misaligned_k;
 
     shape_storage_<max_rank_> lane_shape;
     lane_shape.rank = 1;
@@ -2436,9 +2408,11 @@ bool for_each_axis_lane_(tensor_view<value_type_, max_rank_> input, std::size_t 
             auto lane_byte_increment = other_strides[remaining_count - 1];
             auto *ptr = input.byte_data();
             for (std::size_t lane_index = 0; lane_index < total_lanes; ++lane_index, ptr += lane_byte_increment) {
-                if (!lane_fn(tensor_view<value_type_, max_rank_> {ptr, lane_shape}, lane_index)) return false;
+                if (status_t status = lane_fn(tensor_view<value_type_, max_rank_> {ptr, lane_shape}, lane_index);
+                    failed(status))
+                    return status;
             }
-            return true;
+            return status_t::success_k;
         }
     }
 
@@ -2447,8 +2421,10 @@ bool for_each_axis_lane_(tensor_view<value_type_, max_rank_> input, std::size_t 
         auto offset = std::ptrdiff_t {};
         for (std::size_t i = 0; i < remaining_count; ++i)
             offset += static_cast<std::ptrdiff_t>(coords[i]) * input.stride_bytes(remaining_dims[i]);
-        if (!lane_fn(tensor_view<value_type_, max_rank_> {input.byte_data() + offset, lane_shape}, lane_index))
-            return false;
+        if (status_t status = lane_fn(tensor_view<value_type_, max_rank_> {input.byte_data() + offset, lane_shape},
+                                      lane_index);
+            failed(status))
+            return status;
 
         for (std::size_t i = remaining_count; i > 0; --i) {
             auto coord_index = i - 1;
@@ -2457,7 +2433,7 @@ bool for_each_axis_lane_(tensor_view<value_type_, max_rank_> input, std::size_t 
             coords[coord_index] = 0;
         }
     }
-    return true;
+    return status_t::success_k;
 }
 
 /** Count trailing dimensions that are contiguous across all stride arrays. Returns how many
@@ -2523,11 +2499,11 @@ tensor_span<value_type_, max_rank_> collapse_contiguous_tail_(tensor_span<value_
 /** Unary elementwise traversal: validates shapes, then recurses on rank ≥ 2 or invokes leaf on a
  *  rank-1 slice. */
 template <typename value_type_, std::size_t max_rank_, typename leaf_fn_>
-bool elementwise_into_(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_, max_rank_> output,
-                       leaf_fn_ &&leaf) noexcept {
-    if (!shapes_match_out_(input, output) || !tensor_layout_supported_(input) || !tensor_layout_supported_(output))
-        return false;
-    if (input.empty()) return true;
+status_t elementwise_into_(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_, max_rank_> output,
+                           leaf_fn_ &&leaf) noexcept {
+    if (!shapes_match_out_(input, output)) return status_t::unexpected_dimensions_k;
+    if (!tensor_layout_supported_(input) || !tensor_layout_supported_(output)) return status_t::misaligned_k;
+    if (input.empty()) return status_t::success_k;
     if (input.rank() >= 2) {
         auto tail = shared_contiguous_tail_dims_<value_type_, max_rank_>(
             input.rank(), input.shape().extents, {input.shape().strides, output.shape().strides});
@@ -2537,25 +2513,26 @@ bool elementwise_into_(tensor_view<value_type_, max_rank_> input, tensor_span<va
                                                              std::forward<leaf_fn_>(leaf));
         for (std::size_t i = 0; i < input.extent(0); ++i) {
             auto idx = static_cast<std::ptrdiff_t>(i);
-            if (!elementwise_into_<value_type_, max_rank_>(input.slice_leading(idx), output.slice_leading(idx), leaf))
-                return false;
+            if (status_t status = elementwise_into_<value_type_, max_rank_>(input.slice_leading(idx),
+                                                                            output.slice_leading(idx), leaf);
+                failed(status))
+                return status;
         }
-        return true;
+        return status_t::success_k;
     }
-    if (!can_apply_rank1_data_kernel_(input) || !can_apply_rank1_data_kernel_(output)) return false;
-    leaf(input, output);
-    return true;
+    if (!can_apply_rank1_data_kernel_(input) || !can_apply_rank1_data_kernel_(output)) return status_t::misaligned_k;
+    return leaf(input, output);
 }
 
 /** Binary elementwise traversal: validates shapes, then recurses on rank ≥ 2 or invokes leaf on a
  *  rank-1 slice. */
 template <typename value_type_, std::size_t max_rank_, typename leaf_fn_>
-bool elementwise_into_(tensor_view<value_type_, max_rank_> lhs, tensor_view<value_type_, max_rank_> rhs,
-                       tensor_span<value_type_, max_rank_> output, leaf_fn_ &&leaf) noexcept {
-    if (!shapes_match_(lhs, rhs) || !shapes_match_out_(lhs, output) || !tensor_layout_supported_(lhs) ||
-        !tensor_layout_supported_(rhs) || !tensor_layout_supported_(output))
-        return false;
-    if (lhs.empty()) return true;
+status_t elementwise_into_(tensor_view<value_type_, max_rank_> lhs, tensor_view<value_type_, max_rank_> rhs,
+                           tensor_span<value_type_, max_rank_> output, leaf_fn_ &&leaf) noexcept {
+    if (!shapes_match_(lhs, rhs) || !shapes_match_out_(lhs, output)) return status_t::unexpected_dimensions_k;
+    if (!tensor_layout_supported_(lhs) || !tensor_layout_supported_(rhs) || !tensor_layout_supported_(output))
+        return status_t::misaligned_k;
+    if (lhs.empty()) return status_t::success_k;
     if (lhs.rank() >= 2) {
         auto tail = shared_contiguous_tail_dims_<value_type_, max_rank_>(
             lhs.rank(), lhs.shape().extents, {lhs.shape().strides, rhs.shape().strides, output.shape().strides});
@@ -2565,29 +2542,31 @@ bool elementwise_into_(tensor_view<value_type_, max_rank_> lhs, tensor_view<valu
                 collapse_contiguous_tail_(output, tail), std::forward<leaf_fn_>(leaf));
         for (std::size_t i = 0; i < lhs.extent(0); ++i) {
             auto idx = static_cast<std::ptrdiff_t>(i);
-            if (!elementwise_into_<value_type_, max_rank_>(lhs.slice_leading(idx), rhs.slice_leading(idx),
-                                                           output.slice_leading(idx), leaf))
-                return false;
+            if (status_t status = elementwise_into_<value_type_, max_rank_>(
+                    lhs.slice_leading(idx), rhs.slice_leading(idx), output.slice_leading(idx), leaf);
+                failed(status))
+                return status;
         }
-        return true;
+        return status_t::success_k;
     }
     if (!can_apply_rank1_data_kernel_(lhs) || !can_apply_rank1_data_kernel_(rhs) ||
         !can_apply_rank1_data_kernel_(output))
-        return false;
-    leaf(lhs, rhs, output);
-    return true;
+        return status_t::misaligned_k;
+    return leaf(lhs, rhs, output);
 }
 
 /** Ternary elementwise traversal: validates shapes, then recurses on rank ≥ 2 or invokes leaf on a
  *  rank-1 slice. */
 template <typename value_type_, std::size_t max_rank_, typename leaf_fn_>
-bool elementwise_into_(tensor_view<value_type_, max_rank_> a, tensor_view<value_type_, max_rank_> b,
-                       tensor_view<value_type_, max_rank_> c, tensor_span<value_type_, max_rank_> output,
-                       leaf_fn_ &&leaf) noexcept {
-    if (!shapes_match_(a, b) || !shapes_match_(a, c) || !shapes_match_out_(a, output) || !tensor_layout_supported_(a) ||
-        !tensor_layout_supported_(b) || !tensor_layout_supported_(c) || !tensor_layout_supported_(output))
-        return false;
-    if (a.empty()) return true;
+status_t elementwise_into_(tensor_view<value_type_, max_rank_> a, tensor_view<value_type_, max_rank_> b,
+                           tensor_view<value_type_, max_rank_> c, tensor_span<value_type_, max_rank_> output,
+                           leaf_fn_ &&leaf) noexcept {
+    if (!shapes_match_(a, b) || !shapes_match_(a, c) || !shapes_match_out_(a, output))
+        return status_t::unexpected_dimensions_k;
+    if (!tensor_layout_supported_(a) || !tensor_layout_supported_(b) || !tensor_layout_supported_(c) ||
+        !tensor_layout_supported_(output))
+        return status_t::misaligned_k;
+    if (a.empty()) return status_t::success_k;
     if (a.rank() >= 2) {
         auto tail = shared_contiguous_tail_dims_<value_type_, max_rank_>(
             a.rank(), a.shape().extents,
@@ -2599,26 +2578,26 @@ bool elementwise_into_(tensor_view<value_type_, max_rank_> a, tensor_view<value_
                 std::forward<leaf_fn_>(leaf));
         for (std::size_t i = 0; i < a.extent(0); ++i) {
             auto idx = static_cast<std::ptrdiff_t>(i);
-            if (!elementwise_into_<value_type_, max_rank_>(a.slice_leading(idx), b.slice_leading(idx),
-                                                           c.slice_leading(idx), output.slice_leading(idx), leaf))
-                return false;
+            if (status_t status = elementwise_into_<value_type_, max_rank_>(
+                    a.slice_leading(idx), b.slice_leading(idx), c.slice_leading(idx), output.slice_leading(idx), leaf);
+                failed(status))
+                return status;
         }
-        return true;
+        return status_t::success_k;
     }
     if (!can_apply_rank1_data_kernel_(a) || !can_apply_rank1_data_kernel_(b) || !can_apply_rank1_data_kernel_(c) ||
         !can_apply_rank1_data_kernel_(output))
-        return false;
-    leaf(a, b, c, output);
-    return true;
+        return status_t::misaligned_k;
+    return leaf(a, b, c, output);
 }
 
 /** Output-only traversal: walks a span, collapses contiguous tail dims, and invokes
  *  `leaf(byte_data, byte_count)` on each maximal contiguous byte run. Strided rank-1 leaves invoke
  *  @p leaf once per element. Sub-byte dtypes require a fully contiguous span. */
 template <typename value_type_, std::size_t max_rank_, typename leaf_function_>
-bool span_for_each_contiguous_run_(tensor_span<value_type_, max_rank_> output, leaf_function_ &&leaf) noexcept {
-    if (!tensor_layout_supported_(output)) return false;
-    if (output.empty()) return true;
+status_t span_for_each_contiguous_run_(tensor_span<value_type_, max_rank_> output, leaf_function_ &&leaf) noexcept {
+    if (!tensor_layout_supported_(output)) return status_t::misaligned_k;
+    if (output.empty()) return status_t::success_k;
     if (output.rank() >= 2) {
         auto tail_dims = shared_contiguous_tail_dims_<value_type_, max_rank_>(output.rank(), output.shape().extents,
                                                                               {output.shape().strides});
@@ -2627,31 +2606,33 @@ bool span_for_each_contiguous_run_(tensor_span<value_type_, max_rank_> output, l
                                                                          std::forward<leaf_function_>(leaf));
         for (std::size_t row_index = 0; row_index < output.extent(0); ++row_index) {
             auto signed_index = static_cast<std::ptrdiff_t>(row_index);
-            if (!span_for_each_contiguous_run_<value_type_, max_rank_>(output.slice_leading(signed_index), leaf))
-                return false;
+            if (status_t status = span_for_each_contiguous_run_<value_type_, max_rank_>(
+                    output.slice_leading(signed_index), leaf);
+                failed(status))
+                return status;
         }
-        return true;
+        return status_t::success_k;
     }
-    if (output.byte_data() == nullptr) return false;
+    if (output.byte_data() == nullptr) return status_t::unexpected_dimensions_k;
     auto element_count = output.extent(0);
-    if (element_count == 0) return true;
+    if (element_count == 0) return status_t::success_k;
     if constexpr (dimensions_per_value<value_type_>() > 1) {
-        if (!output.is_contiguous()) return false;
+        if (!output.is_contiguous()) return status_t::misaligned_k;
         auto byte_count = dimensions_to_values_<value_type_>(element_count) * sizeof(value_type_);
         leaf(output.byte_data(), byte_count);
-        return true;
+        return status_t::success_k;
     }
     else {
         auto element_stride_bytes = output.stride_bytes(0);
         if (element_stride_bytes == static_cast<std::ptrdiff_t>(sizeof(value_type_))) {
             leaf(output.byte_data(), element_count * sizeof(value_type_));
-            return true;
+            return status_t::success_k;
         }
         auto *base_byte_data = output.byte_data();
         for (std::size_t element_index = 0; element_index < element_count; ++element_index)
             leaf(base_byte_data + static_cast<std::ptrdiff_t>(element_index) * element_stride_bytes,
                  sizeof(value_type_));
-        return true;
+        return status_t::success_k;
     }
 }
 
@@ -2660,9 +2641,10 @@ bool span_for_each_contiguous_run_(tensor_span<value_type_, max_rank_> output, l
 #pragma region Tensor Fill and Copy
 
 /** Zero-fill every element of @p output with one memset per maximal contiguous run, valid for every
- *  dtype as @c is_memset_zero_safe_v holds for all of them. Returns false on unsupported layout. */
+ *  dtype as @c is_memset_zero_safe_v holds for all of them; returns @c misaligned_k on a layout
+ *  that no contiguous run can cover. */
 template <typename value_type_, std::size_t max_rank_>
-bool fill_zeros(tensor_span<value_type_, max_rank_> output) noexcept {
+status_t fill_zeros(tensor_span<value_type_, max_rank_> output) noexcept {
     static_assert(is_memset_zero_safe_v<value_type_>,
                   "fill_zeros requires a dtype whose binary-zero is the value-zero");
     return span_for_each_contiguous_run_<value_type_, max_rank_>(
@@ -2673,15 +2655,15 @@ bool fill_zeros(tensor_span<value_type_, max_rank_> output) noexcept {
 
 /** Fill every element of @p output with @p value. Two-step strategy: first memsets the buffer to
  *  binary zero, avoiding NaN/inf propagation from uninitialised memory, then overlays the value via
- *  memset for 1-byte storage or a typed scalar broadcast loop for multi-byte storage. Returns false
- *  on unsupported layout. */
+ *  memset for 1-byte storage or a typed scalar broadcast loop for multi-byte storage. Returns
+ *  @c misaligned_k on an unsupported layout. */
 template <typename value_type_, std::size_t max_rank_>
-bool fill(tensor_span<value_type_, max_rank_> output, value_type_ value) noexcept {
-    if (!fill_zeros<value_type_, max_rank_>(output)) return false;
+status_t fill(tensor_span<value_type_, max_rank_> output, value_type_ value) noexcept {
+    if (status_t status = fill_zeros<value_type_, max_rank_>(output); failed(status)) return status;
     // Skip the overlay when `value` is bitwise-equal to a default-constructed `value_type_`,
     // since the memset above has already produced exactly that pattern.
     value_type_ const default_value {};
-    if (std::memcmp(&value, &default_value, sizeof(value_type_)) == 0) return true;
+    if (std::memcmp(&value, &default_value, sizeof(value_type_)) == 0) return status_t::success_k;
     if constexpr (sizeof(value_type_) == 1) {
         unsigned char byte_pattern;
         std::memcpy(&byte_pattern, &value, 1);
@@ -2702,30 +2684,32 @@ bool fill(tensor_span<value_type_, max_rank_> output, value_type_ value) noexcep
 }
 
 /** Copy @p input element-by-element into @p output. Recursive traversal collapses contiguous tail
- *  dims into one memcpy per leaf; strided outer dims still recurse. Returns false on shape mismatch
- *  or unsupported layout. */
+ *  dims into one memcpy per leaf; strided outer dims still recurse. Returns
+ *  @c unexpected_dimensions_k on a shape mismatch and @c misaligned_k on an unsupported layout. */
 template <typename value_type_, std::size_t max_rank_>
-bool copy(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_, max_rank_> output) noexcept {
+status_t copy(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_, max_rank_> output) noexcept {
     return elementwise_into_<value_type_, max_rank_>(
         input, output,
         [](tensor_view<value_type_, max_rank_> input_leaf, tensor_span<value_type_, max_rank_> output_leaf) {
             auto byte_count = dimensions_to_values_<value_type_>(input_leaf.extent(0)) * sizeof(value_type_);
             std::memcpy(static_cast<void *>(output_leaf.byte_data()), static_cast<void const *>(input_leaf.byte_data()),
                         byte_count);
+            return status_t::success_k;
         });
 }
 
-/** Allocating copy: returns a fresh contiguous tensor with the same shape and contents as @p input.
- *  Returns an empty tensor on allocation failure or empty input. */
+/** Allocating copy: returns a fresh contiguous tensor with the same shape and contents as @p input,
+ *  empty for an empty @p input, or the allocation's or the copy's failure. */
 template <typename value_type_, std::size_t max_rank_ = 8, typename allocator_type_ = aligned_allocator<value_type_>>
-[[nodiscard]] tensor<value_type_, allocator_type_, max_rank_> try_copy(
-    tensor_view<value_type_, max_rank_> input) noexcept {
+expected<tensor<value_type_, allocator_type_, max_rank_>> copy(tensor_view<value_type_, max_rank_> input,
+                                                               allocator_type_ alloc = {}) noexcept {
     using out_tensor_t = tensor<value_type_, allocator_type_, max_rank_>;
-    if (input.empty()) return out_tensor_t {};
+    if (input.empty()) return {out_tensor_t(alloc), status_t::success_k};
     auto const &input_shape = input.shape();
-    auto result = out_tensor_t::try_empty(input_shape.extents, input_shape.rank);
-    if (result.empty()) return result;
-    if (!copy<value_type_, max_rank_>(input, result.span())) return out_tensor_t {};
+    auto result = out_tensor_t::uninitialized(input_shape.extents, input_shape.rank, alloc);
+    if (!result) return result;
+    if (status_t status = copy<value_type_, max_rank_>(input, result.value.span()); failed(status))
+        return {out_tensor_t(alloc), status};
     return result;
 }
 
@@ -2734,17 +2718,17 @@ template <typename value_type_, std::size_t max_rank_ = 8, typename allocator_ty
 #pragma region Tensor Span Member Sugar
 
 template <typename value_type_, std::size_t max_rank_>
-bool tensor_span<value_type_, max_rank_>::fill_zeros() noexcept {
+status_t tensor_span<value_type_, max_rank_>::fill_zeros() noexcept {
     return ashvardanian::numkong::fill_zeros<value_type_, max_rank_>(*this);
 }
 
 template <typename value_type_, std::size_t max_rank_>
-bool tensor_span<value_type_, max_rank_>::fill(value_type value) noexcept {
+status_t tensor_span<value_type_, max_rank_>::fill(value_type value) noexcept {
     return ashvardanian::numkong::fill<value_type_, max_rank_>(*this, value);
 }
 
 template <typename value_type_, std::size_t max_rank_>
-bool tensor_span<value_type_, max_rank_>::copy_from(tensor_view<value_type_, max_rank_> input) noexcept {
+status_t tensor_span<value_type_, max_rank_>::copy_from(tensor_view<value_type_, max_rank_> input) noexcept {
     return ashvardanian::numkong::copy<value_type_, max_rank_>(input, *this);
 }
 

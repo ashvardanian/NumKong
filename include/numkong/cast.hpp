@@ -29,15 +29,18 @@ namespace ashvardanian::numkong {
  *  @tparam to_type_ Destination element type.
  */
 template <numeric_dtype from_type_, numeric_dtype to_type_>
-nk_status_t cast(from_type_ const *from, std::size_t n, to_type_ *to, nk_capability_t capabilities = cpu_capabilities(),
-                 void *stream = nullptr) noexcept {
-    return nk_cast_best(from, from_type_::dtype(), n, to, to_type_::dtype(), capabilities, stream);
+status_t cast(from_type_ const *from, std::size_t n, to_type_ *to, nk_capability_t capabilities = cpu_capabilities(),
+              void *stream = nullptr) noexcept {
+    if (!capabilities)
+        return static_cast<status_t>(nk_cast_serial(from, from_type_::dtype(), n, to, to_type_::dtype(), stream));
+    return static_cast<status_t>(
+        nk_cast_best(from, from_type_::dtype(), n, to, to_type_::dtype(), capabilities, stream));
 }
 
 /** Elementwise type-cast between vector views. Sizes must match. */
 template <numeric_dtype from_type_, numeric_dtype to_type_>
-nk_status_t cast(vector_view<from_type_> from, vector_span<to_type_> to,
-                 nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+status_t cast(vector_view<from_type_> from, vector_span<to_type_> to, nk_capability_t capabilities = cpu_capabilities(),
+              void *stream = nullptr) noexcept {
     std::size_t n = from.size() < to.size() ? from.size() : to.size();
     return cast<from_type_, to_type_>(from.data(), n, to.data(), capabilities, stream);
 }
@@ -80,18 +83,18 @@ block_scaled_operand_ scaled_operand_(void const *elements, void const *scales, 
     return operand;
 }
 
-/** The single place the block-scaled C kernel is invoked; no capability runs the serial one, the reference. */
-inline nk_status_t block_scaled_cast_(block_scaled_operand_ const &source, block_scaled_operand_ &destination,
-                                      std::size_t count, nk_capability_t capabilities, void *stream) noexcept {
+/** The one place the block-scaled C kernel is invoked; no capability runs the serial reference. */
+inline status_t block_scaled_cast_(block_scaled_operand_ const &source, block_scaled_operand_ &destination,
+                                   std::size_t count, nk_capability_t capabilities, void *stream) noexcept {
     nk_scalar_buffer_t const *source_scale = source.has_tensor_scale ? &source.tensor_scale : nullptr;
     nk_scalar_buffer_t *destination_scale = destination.has_tensor_scale ? &destination.tensor_scale : nullptr;
     if (!capabilities)
-        return nk_cast_block_scaled_serial(source.elements, source.scales, source_scale, &source.format,
-                                           destination.elements, destination.scales, destination_scale,
-                                           &destination.format, count, stream);
-    return nk_cast_block_scaled_best(source.elements, source.scales, source_scale, &source.format, destination.elements,
-                                     destination.scales, destination_scale, &destination.format, count, capabilities,
-                                     stream);
+        return static_cast<status_t>(nk_cast_block_scaled_serial(
+            source.elements, source.scales, source_scale, &source.format, destination.elements, destination.scales,
+            destination_scale, &destination.format, count, stream));
+    return static_cast<status_t>(nk_cast_block_scaled_best(source.elements, source.scales, source_scale, &source.format,
+                                                           destination.elements, destination.scales, destination_scale,
+                                                           &destination.format, count, capabilities, stream));
 }
 
 /** Writes a destination span's per-tensor scale slot from the derived value, NVFP4 only. */
@@ -107,35 +110,36 @@ void store_derived_tensor_scale_(scaled_tensor_span<format_> const &destination,
  *
  *  Derives the per-tensor scale (NVFP4) over the whole tensor in one contiguous pass and writes it
  *  back through the destination's scale slot. The source must be contiguous (the scale is a
- *  whole-tensor reduction). Allocate the destination with `scaled_tensor<format_>::try_empty(...)`.
+ *  whole-tensor reduction). Allocate the destination with
+ *  `scaled_tensor<format_>::uninitialized(...)`, which reports the allocation's own status.
  */
 template <typename format_, std::size_t max_rank_>
-nk_status_t cast(tensor_view<f32_t, max_rank_> from, scaled_tensor_span<format_, max_rank_> to,
-                 nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+status_t cast(tensor_view<f32_t, max_rank_> from, scaled_tensor_span<format_, max_rank_> to,
+              nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
     auto source = plain_f32_operand_(from.byte_data());
     auto destination = scaled_operand_<format_>(to.elements().byte_data(), to.block_scales().byte_data(),
                                                 /*derive*/ 0.0f);
-    nk_status_t const status = block_scaled_cast_(source, destination, from.numel(), capabilities, stream);
-    if (status == nk_success_k) store_derived_tensor_scale_(to, destination);
+    status_t const status = block_scaled_cast_(source, destination, from.numel(), capabilities, stream);
+    if (succeeded(status)) store_derived_tensor_scale_(to, destination);
     return status;
 }
 
 /** Encode, or quantize, a dense f32 vector into a preallocated single-row block-scaled tensor. */
 template <typename format_>
-nk_status_t cast(vector_view<f32_t> from, scaled_tensor_span<format_> to,
-                 nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+status_t cast(vector_view<f32_t> from, scaled_tensor_span<format_> to,
+              nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
     auto source = plain_f32_operand_(from.byte_data());
     auto destination = scaled_operand_<format_>(to.elements().byte_data(), to.block_scales().byte_data(),
                                                 /*derive*/ 0.0f);
-    nk_status_t const status = block_scaled_cast_(source, destination, from.size(), capabilities, stream);
-    if (status == nk_success_k) store_derived_tensor_scale_(to, destination);
+    status_t const status = block_scaled_cast_(source, destination, from.size(), capabilities, stream);
+    if (succeeded(status)) store_derived_tensor_scale_(to, destination);
     return status;
 }
 
 /** Decode, or dequantize, one block-scaled row into a dense f32 vector. */
 template <typename format_, std::size_t max_rank_>
-nk_status_t cast(scaled_tensor_view<format_, max_rank_> from, vector_span<f32_t> to,
-                 nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+status_t cast(scaled_tensor_view<format_, max_rank_> from, vector_span<f32_t> to,
+              nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
     float tensor_scale = 0.0f;
     if constexpr (format_::has_tensor_scale()) tensor_scale = from.tensor_scale();
     auto source = scaled_operand_<format_>(from.elements().byte_data(), from.block_scales().byte_data(), tensor_scale);
@@ -151,8 +155,8 @@ nk_status_t cast(scaled_tensor_view<format_, max_rank_> from, vector_span<f32_t>
  *  tile) decodes row by row, since each row is a contiguous run even when the tile is not.
  */
 template <typename format_, std::size_t max_rank_>
-nk_status_t cast(scaled_tensor_view<format_, max_rank_> from, tensor_span<f32_t, max_rank_> to,
-                 nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+status_t cast(scaled_tensor_view<format_, max_rank_> from, tensor_span<f32_t, max_rank_> to,
+              nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
     bool const contiguous = from.elements().is_contiguous() && from.block_scales().is_contiguous() &&
                             to.is_contiguous();
     if (from.rank() <= 1 || contiguous) {
@@ -166,10 +170,10 @@ nk_status_t cast(scaled_tensor_view<format_, max_rank_> from, tensor_span<f32_t,
     }
     std::size_t rows = from.extent(0) < to.extent(0) ? from.extent(0) : to.extent(0);
     for (std::size_t i = 0; i < rows; ++i)
-        if (nk_status_t const status = cast<format_, max_rank_>(from.row(i), to.slice_leading(i), capabilities, stream);
-            status != nk_success_k)
+        if (status_t const status = cast<format_, max_rank_>(from.row(i), to.slice_leading(i), capabilities, stream);
+            failed(status))
             return status;
-    return nk_success_k;
+    return status_t::success_k;
 }
 
 /**
@@ -179,16 +183,16 @@ nk_status_t cast(scaled_tensor_view<format_, max_rank_> from, tensor_span<f32_t,
  *  tensor and written back through its scale slot. Both operands must be contiguous.
  */
 template <typename from_format_, typename to_format_, std::size_t max_rank_>
-nk_status_t cast(scaled_tensor_view<from_format_, max_rank_> from, scaled_tensor_span<to_format_, max_rank_> to,
-                 nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+status_t cast(scaled_tensor_view<from_format_, max_rank_> from, scaled_tensor_span<to_format_, max_rank_> to,
+              nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
     float from_tensor_scale = 0.0f;
     if constexpr (from_format_::has_tensor_scale()) from_tensor_scale = from.tensor_scale();
     auto source = scaled_operand_<from_format_>(from.elements().byte_data(), from.block_scales().byte_data(),
                                                 from_tensor_scale);
     auto destination = scaled_operand_<to_format_>(to.elements().byte_data(), to.block_scales().byte_data(),
                                                    /*derive*/ 0.0f);
-    nk_status_t const status = block_scaled_cast_(source, destination, from.numel(), capabilities, stream);
-    if (status == nk_success_k) store_derived_tensor_scale_(to, destination);
+    status_t const status = block_scaled_cast_(source, destination, from.numel(), capabilities, stream);
+    if (succeeded(status)) store_derived_tensor_scale_(to, destination);
     return status;
 }
 

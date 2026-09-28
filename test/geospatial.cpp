@@ -36,12 +36,12 @@ error_stats_t test_haversine(typename scalar_type_::geospatial_kernel_t kernel) 
         ulp_stats.expect(kernel(a_lats.raw_values_data(), a_lons.raw_values_data(), b_lats.raw_values_data(),
                                 b_lons.raw_values_data(), global_config.dense_dimensions, results.raw_values_data(),
                                 nullptr));
-        nk::haversine<scalar_t, reference_t>(a_lats.values_data(), a_lons.values_data(), b_lats.values_data(),
-                                             b_lons.values_data(), global_config.dense_dimensions,
-                                             haversine_ref.values_data(), no_tiers_k);
-        nk::vincenty<scalar_t, reference_t>(a_lats.values_data(), a_lons.values_data(), b_lats.values_data(),
-                                            b_lons.values_data(), global_config.dense_dimensions,
-                                            vincenty_ref.values_data(), no_tiers_k);
+        ulp_stats.expect(nk::haversine<scalar_t, reference_t>(
+            a_lats.values_data(), a_lons.values_data(), b_lats.values_data(), b_lons.values_data(),
+            global_config.dense_dimensions, haversine_ref.values_data(), no_tiers_k));
+        ulp_stats.expect(nk::vincenty<scalar_t, reference_t>(
+            a_lats.values_data(), a_lons.values_data(), b_lats.values_data(), b_lons.values_data(),
+            global_config.dense_dimensions, vincenty_ref.values_data(), no_tiers_k));
 
         for (std::size_t i = 0; i < global_config.dense_dimensions; i++) {
             ulp_stats.accumulate(results[i], haversine_ref[i]);
@@ -93,9 +93,9 @@ error_stats_t test_vincenty(typename scalar_type_::geospatial_kernel_t kernel) {
         stats.expect(kernel(a_lats.raw_values_data(), a_lons.raw_values_data(), b_lats.raw_values_data(),
                             b_lons.raw_values_data(), global_config.dense_dimensions, results.raw_values_data(),
                             nullptr));
-        nk::vincenty<scalar_t, reference_t>(a_lats.values_data(), a_lons.values_data(), b_lats.values_data(),
-                                            b_lons.values_data(), global_config.dense_dimensions,
-                                            reference.values_data(), no_tiers_k);
+        stats.expect(nk::vincenty<scalar_t, reference_t>(
+            a_lats.values_data(), a_lons.values_data(), b_lats.values_data(), b_lons.values_data(),
+            global_config.dense_dimensions, reference.values_data(), no_tiers_k));
 
         for (std::size_t i = 0; i < global_config.dense_dimensions; i++) stats.accumulate(results[i], reference[i]);
     }

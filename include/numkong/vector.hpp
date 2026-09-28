@@ -22,7 +22,8 @@
  *    `vector<i4x2_t>` with 100 dimensions, you have 50 values, at 2 dimensions per value.
  *
  *  @code{.cpp}
- *  auto v = nk::vector<float>::try_zeros(5);
+ *  auto [v, status] = nk::vector<float>::zeros(5);
+ *  if (nk::failed(status)) return status;
  *  v.size();          // 5
  *  v[-1];             // last element (signed indexing)
  *  v[nk::range(0,3)]; // view of first 3 elements
@@ -78,9 +79,8 @@ struct aligned_allocator {
 
     [[nodiscard]] value_type *allocate(std::size_t n) noexcept {
         if (n == 0) return nullptr;
-        std::size_t bytes = n * sizeof(value_type);
-        // Round up to alignment boundary (required by aligned_alloc)
-        std::size_t aligned_bytes = ((bytes + alignment_ - 1) / alignment_) * alignment_;
+        // `aligned_alloc` requires the size to be a multiple of the alignment
+        std::size_t aligned_bytes = round_up_to_multiple<alignment_>(n * sizeof(value_type));
 #if defined(_MSC_VER)
         return static_cast<value_type *>(::_aligned_malloc(aligned_bytes, alignment_));
 #else
@@ -158,12 +158,8 @@ constexpr void resolve_range_(range const &r, std::size_t extent, //
 /** Number of elements in a resolved range with the given step. */
 constexpr std::size_t range_extent_(std::size_t start, std::size_t stop, std::ptrdiff_t step) noexcept {
     nk_assert_(step != 0);
-    if (step > 0)
-        return start < stop ? (stop - start + static_cast<std::size_t>(step) - 1) / static_cast<std::size_t>(step) : 0;
-    else {
-        auto abs_step = static_cast<std::size_t>(-step);
-        return start > stop ? (start - stop + abs_step - 1) / abs_step : 0;
-    }
+    if (step > 0) return start < stop ? divide_round_up(stop - start, static_cast<std::size_t>(step)) : 0;
+    else return start > stop ? divide_round_up(start - stop, static_cast<std::size_t>(-step)) : 0;
 }
 
 #pragma endregion Slicing Infrastructure
@@ -517,55 +513,60 @@ struct vector_span {
     constexpr iterator end() const noexcept { return {const_cast<vector_span &>(*this), dimensions_}; }
     constexpr const_iterator cend() const noexcept { return {*this, dimensions_}; }
 
-    /** Zero-fill every element. memset on the contiguous fast path, one memset per element on the
-     *  strided slow path. */
-    bool fill_zeros() noexcept {
+    /**
+     *  @brief Zero-fill every element. memset on the contiguous fast path, one memset per element
+     *      on the strided slow path.
+     *  @return @c misaligned_k for a strided sub-byte span, @c success_k otherwise.
+     */
+    status_t fill_zeros() noexcept {
         static_assert(is_memset_zero_safe_v<value_type>,
                       "fill_zeros requires a dtype whose binary-zero is the value-zero");
-        if (data_ == nullptr || dimensions_ == 0) return true;
+        if (data_ == nullptr || dimensions_ == 0) return status_t::success_k;
         if constexpr (dimensions_per_value<value_type>() > 1) {
-            if (!is_contiguous()) return false;
+            if (!is_contiguous()) return status_t::misaligned_k;
             auto byte_count = dimensions_ / dimensions_per_value<value_type>() * sizeof(value_type);
             std::memset(static_cast<void *>(data_), 0, byte_count);
-            return true;
+            return status_t::success_k;
         }
         else {
             if (is_contiguous()) {
                 std::memset(static_cast<void *>(data_), 0, dimensions_ * sizeof(value_type));
-                return true;
+                return status_t::success_k;
             }
             for (size_type element_index = 0; element_index < dimensions_; ++element_index)
                 std::memset(static_cast<void *>(data_ + static_cast<difference_type>(element_index) * stride_bytes_), 0,
                             sizeof(value_type));
-            return true;
+            return status_t::success_k;
         }
     }
 
-    /** Fill every element with @p value. memset-then-overlay strategy mirroring the free @c fill on
-     *  tensor_span: 1-byte storage uses a single byte_pattern memset, multi-byte storage uses a
-     *  typed scalar broadcast loop. */
-    bool fill(value_type value) noexcept {
-        if (!fill_zeros()) return false;
+    /**
+     *  @brief Fill every element with @p value, mirroring the free @c fill on tensor_span: 1-byte
+     *      storage uses a single byte_pattern memset, multi-byte storage a typed broadcast loop.
+     *  @return @c misaligned_k for a strided sub-byte span, @c success_k otherwise.
+     */
+    status_t fill(value_type value) noexcept {
+        if (status_t status = fill_zeros(); failed(status)) return status;
         value_type const default_value {};
-        if (std::memcmp(&value, &default_value, sizeof(value_type)) == 0) return true;
+        if (std::memcmp(&value, &default_value, sizeof(value_type)) == 0) return status_t::success_k;
         if constexpr (sizeof(value_type) == 1) {
             unsigned char byte_pattern;
             std::memcpy(&byte_pattern, &value, 1);
             if constexpr (dimensions_per_value<value_type>() > 1) {
                 auto byte_count = dimensions_ / dimensions_per_value<value_type>() * sizeof(value_type);
                 std::memset(static_cast<void *>(data_), byte_pattern, byte_count);
-                return true;
+                return status_t::success_k;
             }
             else {
                 if (is_contiguous()) {
                     std::memset(static_cast<void *>(data_), byte_pattern, dimensions_ * sizeof(value_type));
-                    return true;
+                    return status_t::success_k;
                 }
                 for (size_type element_index = 0; element_index < dimensions_; ++element_index)
                     std::memset(
                         static_cast<void *>(data_ + static_cast<difference_type>(element_index) * stride_bytes_),
                         byte_pattern, sizeof(value_type));
-                return true;
+                return status_t::success_k;
             }
         }
         else {
@@ -573,33 +574,37 @@ struct vector_span {
                 auto *typed_data = reinterpret_cast<value_type *>(data_);
                 for (size_type element_index = 0; element_index < dimensions_; ++element_index)
                     typed_data[element_index] = value;
-                return true;
+                return status_t::success_k;
             }
             for (size_type element_index = 0; element_index < dimensions_; ++element_index) {
                 auto *target = reinterpret_cast<value_type *>(data_ + static_cast<difference_type>(element_index) *
                                                                           stride_bytes_);
                 *target = value;
             }
-            return true;
+            return status_t::success_k;
         }
     }
 
-    /** Copy from a same-size view. memcpy on the contiguous fast path, per-element copy on the
-     *  strided slow path. Returns false on size mismatch. */
-    bool copy_from(vector_view<value_type> input) noexcept {
-        if (input.size() != dimensions_) return false;
-        if (dimensions_ == 0) return true;
+    /**
+     *  @brief Copy from a same-size view. memcpy on the contiguous fast path, per-element copy on
+     *      the strided slow path.
+     *  @return @c unexpected_dimensions_k on a size mismatch, @c misaligned_k for strided sub-byte
+     *      operands, @c success_k otherwise.
+     */
+    status_t copy_from(vector_view<value_type> input) noexcept {
+        if (input.size() != dimensions_) return status_t::unexpected_dimensions_k;
+        if (dimensions_ == 0) return status_t::success_k;
         if constexpr (dimensions_per_value<value_type>() > 1) {
-            if (!is_contiguous() || !input.is_contiguous()) return false;
+            if (!is_contiguous() || !input.is_contiguous()) return status_t::misaligned_k;
             auto byte_count = dimensions_ / dimensions_per_value<value_type>() * sizeof(value_type);
             std::memcpy(static_cast<void *>(data_), static_cast<void const *>(input.byte_data()), byte_count);
-            return true;
+            return status_t::success_k;
         }
         else {
             if (is_contiguous() && input.is_contiguous()) {
                 std::memcpy(static_cast<void *>(data_), static_cast<void const *>(input.byte_data()),
                             dimensions_ * sizeof(value_type));
-                return true;
+                return status_t::success_k;
             }
             auto input_stride_bytes = input.stride_bytes();
             for (size_type element_index = 0; element_index < dimensions_; ++element_index) {
@@ -609,7 +614,7 @@ struct vector_span {
                     input.byte_data() + static_cast<difference_type>(element_index) * input_stride_bytes);
                 *target = *source;
             }
-            return true;
+            return status_t::success_k;
         }
     }
 };
@@ -621,9 +626,10 @@ struct vector_span {
 /**
  *  @brief Owning, resizable-within-capacity, SIMD-aligned vector.
  *
- *  Use the `try_zeros()`/`try_empty()` factories for non-throwing construction, or `from_raw()` to
- *  adopt existing memory. `try_resize()` changes the size within the allocated `capacity()` without
- *  moving `values_data()`; `reserve()` is the explicit opt-in that may reallocate to grow capacity.
+ *  Use the `zeros()`/`uninitialized()` factories for non-throwing construction, which return the
+ *  vector with the @c status_t explaining a failure, or `from_raw()` to adopt existing memory.
+ *  `resize()` changes the size within the allocated `capacity()` without moving `values_data()`;
+ *  `reserve()` is the explicit opt-in that may reallocate to grow capacity.
  *
  *  Supports signed indexing (`v[-1]`), sub-byte types via proxy references, and slicing via
  *  `operator[](range)`.
@@ -691,66 +697,59 @@ struct vector {
 
     /**
      *  @brief Factory: allocate a zero-initialized vector with @p dims dimensions.
-     *  @return Non-empty vector on success, empty vector on allocation failure or when @p dims is
-     *      not a whole number of storage values.
+     *  @return The vector, empty for zero @p dims; @c unexpected_dimensions_k when @p dims is not a
+     *      whole number of storage values, @c bad_alloc_k when the allocation fails.
      */
-    [[nodiscard]] static vector try_zeros(size_type dims, allocator_type_ alloc = {}) noexcept {
-        vector v(alloc);
-        size_type values = dimensions_to_values(dims);
-        if (values == 0 || dims % dimensions_per_value<value_type>()) return v;
-        pointer ptr = alloc_traits::allocate(v.alloc_, values);
-        if (!ptr) return v;
-        if constexpr (is_memset_zero_safe_v<value_type_>) std::memset(ptr, 0, values * sizeof(value_type_));
+    static expected<vector> zeros(size_type dims, allocator_type_ alloc = {}) noexcept {
+        auto result = uninitialized(dims, alloc);
+        if (!result) return result;
+        pointer ptr = result.value.data_;
+        size_type values = result.value.capacity_values_;
+        if constexpr (is_memset_zero_safe_v<value_type_>) {
+            if (values) std::memset(static_cast<void *>(ptr), 0, values * sizeof(value_type_));
+        }
         else
             for (size_type i = 0; i < values; ++i) ptr[i] = value_type_ {};
-        v.data_ = ptr;
-        v.dimensions_ = dims;
-        v.capacity_values_ = values;
-        return v;
+        return result;
     }
 
     /**
      *  @brief Factory: allocate a vector filled with ones.
-     *  @return Non-empty vector on success, empty vector on allocation failure.
+     *  @return The vector, or the failure @c full reports.
      */
-    [[nodiscard]] static vector try_ones(size_type dims, allocator_type_ alloc = {}) noexcept {
-        return try_full(dims, value_type_ {1}, alloc);
+    static expected<vector> ones(size_type dims, allocator_type_ alloc = {}) noexcept {
+        return full(dims, value_type_ {1}, alloc);
     }
 
     /**
      *  @brief Factory: allocate a vector filled with @p val.
-     *  @return Non-empty vector on success, empty vector on allocation failure or when @p dims is
-     *      not a whole number of storage values.
+     *  @return The vector, empty for zero @p dims; @c unexpected_dimensions_k when @p dims is not a
+     *      whole number of storage values, @c bad_alloc_k when the allocation fails.
      */
-    [[nodiscard]] static vector try_full(size_type dims, value_type_ val, allocator_type_ alloc = {}) noexcept {
-        vector v(alloc);
-        size_type values = dimensions_to_values(dims);
-        if (values == 0 || dims % dimensions_per_value<value_type>()) return v;
-        pointer ptr = alloc_traits::allocate(v.alloc_, values);
-        if (!ptr) return v;
-        for (size_type i = 0; i < values; ++i) ptr[i] = val;
-        v.data_ = ptr;
-        v.dimensions_ = dims;
-        v.capacity_values_ = values;
-        return v;
+    static expected<vector> full(size_type dims, value_type_ val, allocator_type_ alloc = {}) noexcept {
+        auto result = uninitialized(dims, alloc);
+        if (!result) return result;
+        for (size_type i = 0; i < result.value.capacity_values_; ++i) result.value.data_[i] = val;
+        return result;
     }
 
     /**
      *  @brief Factory: allocate an uninitialized vector.
-     *  @return Non-empty vector on success, empty vector on allocation failure or when @p dims is
-     *      not a whole number of storage values.
+     *  @return The vector, empty for zero @p dims; @c unexpected_dimensions_k when @p dims is not a
+     *      whole number of storage values, @c bad_alloc_k when the allocation fails.
      *  @warning Contents are uninitialized. Caller must fill before reading.
      */
-    [[nodiscard]] static vector try_empty(size_type dims, allocator_type_ alloc = {}) noexcept {
+    static expected<vector> uninitialized(size_type dims, allocator_type_ alloc = {}) noexcept {
         vector v(alloc);
+        if (dims % dimensions_per_value<value_type>()) return {std::move(v), status_t::unexpected_dimensions_k};
         size_type values = dimensions_to_values(dims);
-        if (values == 0 || dims % dimensions_per_value<value_type>()) return v;
+        if (values == 0) return {std::move(v), status_t::success_k};
         pointer ptr = alloc_traits::allocate(v.alloc_, values);
-        if (!ptr) return v;
+        if (!ptr) return {std::move(v), status_t::bad_alloc_k};
         v.data_ = ptr;
         v.dimensions_ = dims;
         v.capacity_values_ = values;
-        return v;
+        return {std::move(v), status_t::success_k};
     }
 
     /**
@@ -777,30 +776,31 @@ struct vector {
         if constexpr (alloc_traits::propagate_on_container_swap::value) swap(alloc_, other.alloc_);
     }
 
-    /** Allocated storage-value capacity — the ceiling `try_resize()` honors. */
+    /** Allocated storage-value capacity — the ceiling `resize()` honors. */
     constexpr size_type capacity() const noexcept { return capacity_values_; }
 
     /**
      *  @brief Resize in place to @p dims dimensions without reallocating: succeeds iff @p dims is a
      *      whole number of storage values that fits `capacity()`, so `values_data()` never moves.
-     *  @return `true` on success; @c false leaves the size untouched.
+     *  @return @c success_k, or @c unexpected_dimensions_k leaving the size untouched.
      */
-    [[nodiscard]] constexpr bool try_resize(size_type dims) noexcept {
-        if (dims % dimensions_per_value<value_type>() || dimensions_to_values(dims) > capacity_values_) return false;
+    constexpr status_t resize(size_type dims) noexcept {
+        if (dims % dimensions_per_value<value_type>() || dimensions_to_values(dims) > capacity_values_)
+            return status_t::unexpected_dimensions_k;
         dimensions_ = dims;
-        return true;
+        return status_t::success_k;
     }
 
     /**
      *  @brief Grow the allocated `capacity()` to at least @p values storage values. Unlike
-     *      `try_resize()`, this may reallocate and move `values_data()`; the live elements are
+     *      `resize()`, this may reallocate and move `values_data()`; the live elements are
      *      preserved. No-op when already large enough.
-     *  @return `true` on success/no-op; @c false on allocation failure (state unchanged).
+     *  @return @c success_k, or @c bad_alloc_k leaving the state unchanged.
      */
-    [[nodiscard]] bool reserve(size_type values) noexcept {
-        if (values <= capacity_values_) return true;
+    status_t reserve(size_type values) noexcept {
+        if (values <= capacity_values_) return status_t::success_k;
         pointer fresh = alloc_traits::allocate(alloc_, values);
-        if (!fresh) return false;
+        if (!fresh) return status_t::bad_alloc_k;
         if (data_) {
             size_type const live = dimensions_to_values(dimensions_);
             if (live)
@@ -809,7 +809,7 @@ struct vector {
         }
         data_ = fresh;
         capacity_values_ = values;
-        return true;
+        return status_t::success_k;
     }
 
     /** Reset to an empty size while keeping `capacity()`; storage frees on destruction. */
@@ -912,13 +912,13 @@ struct vector {
     constexpr const_iterator cend() const noexcept { return {*this, dimensions_}; }
 
     /** Zero-fill every element. */
-    bool fill_zeros() noexcept { return span().fill_zeros(); }
+    status_t fill_zeros() noexcept { return span().fill_zeros(); }
 
     /** Fill every element with @p value. */
-    bool fill(value_type value) noexcept { return span().fill(value); }
+    status_t fill(value_type value) noexcept { return span().fill(value); }
 
     /** Copy from a same-size view. */
-    bool copy_from(vector_view<value_type> input) noexcept { return span().copy_from(input); }
+    status_t copy_from(vector_view<value_type> input) noexcept { return span().copy_from(input); }
 };
 
 /** Non-member swap. */

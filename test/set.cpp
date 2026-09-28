@@ -31,8 +31,8 @@ error_stats_t test_hamming(typename scalar_type_::hamming_kernel_t kernel) {
             kernel(a.raw_values_data(), b.raw_values_data(), global_config.dense_dimensions, &result.raw_, nullptr));
 
         result_t reference;
-        nk::hamming<scalar_t, result_t>(a.values_data(), b.values_data(), global_config.dense_dimensions, &reference,
-                                        no_tiers_k);
+        stats.expect(nk::hamming<scalar_t, result_t>(a.values_data(), b.values_data(), global_config.dense_dimensions,
+                                                     &reference, no_tiers_k));
 
         stats.accumulate(result, reference);
     }
@@ -61,8 +61,8 @@ error_stats_t test_jaccard(typename scalar_type_::jaccard_kernel_t kernel) {
             kernel(a.raw_values_data(), b.raw_values_data(), global_config.dense_dimensions, &result.raw_, nullptr));
 
         result_t reference;
-        nk::jaccard<scalar_t, result_t>(a.values_data(), b.values_data(), global_config.dense_dimensions, &reference,
-                                        no_tiers_k);
+        stats.expect(nk::jaccard<scalar_t, result_t>(a.values_data(), b.values_data(), global_config.dense_dimensions,
+                                                     &reference, no_tiers_k));
 
         stats.accumulate(result, reference);
     }

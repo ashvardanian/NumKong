@@ -29,21 +29,21 @@ namespace ashvardanian::numkong {
  *  @tparam index_type_ Index type (u16_t, u32_t, u64_t)
  */
 template <numeric_dtype index_type_>
-nk_status_t sparse_intersect(index_type_ const *a, index_type_ const *b, std::size_t a_length, std::size_t b_length,
-                             index_type_ *result, nk_size_t *count, nk_capability_t capabilities = cpu_capabilities(),
-                             void *stream = nullptr) noexcept {
+status_t sparse_intersect(index_type_ const *a, index_type_ const *b, std::size_t a_length, std::size_t b_length,
+                          index_type_ *result, nk_size_t *count, nk_capability_t capabilities = cpu_capabilities(),
+                          void *stream = nullptr) noexcept {
     typename index_type_::raw_t *result_raw = result ? &result->raw_ : nullptr;
 
     if (capabilities) {
         if constexpr (std::is_same_v<index_type_, u16_t>)
-            return nk_sparse_intersect_u16_best(&a->raw_, &b->raw_, a_length, b_length, result_raw, count, capabilities,
-                                                stream);
+            return static_cast<status_t>(nk_sparse_intersect_u16_best(&a->raw_, &b->raw_, a_length, b_length,
+                                                                      result_raw, count, capabilities, stream));
         else if constexpr (std::is_same_v<index_type_, u32_t>)
-            return nk_sparse_intersect_u32_best(&a->raw_, &b->raw_, a_length, b_length, result_raw, count, capabilities,
-                                                stream);
+            return static_cast<status_t>(nk_sparse_intersect_u32_best(&a->raw_, &b->raw_, a_length, b_length,
+                                                                      result_raw, count, capabilities, stream));
         else if constexpr (std::is_same_v<index_type_, u64_t>)
-            return nk_sparse_intersect_u64_best(&a->raw_, &b->raw_, a_length, b_length, result_raw, count, capabilities,
-                                                stream);
+            return static_cast<status_t>(nk_sparse_intersect_u64_best(&a->raw_, &b->raw_, a_length, b_length,
+                                                                      result_raw, count, capabilities, stream));
     }
     nk_size_t c = 0;
     std::size_t i = 0, j = 0;
@@ -56,7 +56,7 @@ nk_status_t sparse_intersect(index_type_ const *a, index_type_ const *b, std::si
         }
     }
     *count = c;
-    return nk_success_k;
+    return status_t::success_k;
 }
 
 /**
@@ -78,19 +78,21 @@ nk_status_t sparse_intersect(index_type_ const *a, index_type_ const *b, std::si
  */
 template <numeric_dtype index_type_, numeric_dtype weight_t,
           numeric_dtype result_type_ = typename weight_t::dot_result_t>
-nk_status_t sparse_dot(index_type_ const *a, index_type_ const *b, weight_t const *a_weights, weight_t const *b_weights,
-                       std::size_t a_length, std::size_t b_length, result_type_ *product,
-                       nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+status_t sparse_dot(index_type_ const *a, index_type_ const *b, weight_t const *a_weights, weight_t const *b_weights,
+                    std::size_t a_length, std::size_t b_length, result_type_ *product,
+                    nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename weight_t::dot_result_t>;
 
     if (capabilities) {
         // u16 indices + bf16 weights → f32 product
         if constexpr (std::is_same_v<index_type_, u16_t> && std::is_same_v<weight_t, bf16_t> && dispatch)
-            return nk_sparse_dot_u16bf16_best(&a->raw_, &b->raw_, &a_weights->raw_, &b_weights->raw_, a_length,
-                                              b_length, &product->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_sparse_dot_u16bf16_best(&a->raw_, &b->raw_, &a_weights->raw_,
+                                                                    &b_weights->raw_, a_length, b_length,
+                                                                    &product->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<index_type_, u32_t> && std::is_same_v<weight_t, f32_t> && dispatch)
-            return nk_sparse_dot_u32f32_best(&a->raw_, &b->raw_, &a_weights->raw_, &b_weights->raw_, a_length, b_length,
-                                             &product->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_sparse_dot_u32f32_best(&a->raw_, &b->raw_, &a_weights->raw_,
+                                                                   &b_weights->raw_, a_length, b_length, &product->raw_,
+                                                                   capabilities, stream));
     }
     result_type_ sum {};
     std::size_t i = 0, j = 0;
@@ -100,7 +102,7 @@ nk_status_t sparse_dot(index_type_ const *a, index_type_ const *b, weight_t cons
         else sum = fma<weight_t, result_type_>(a_weights[i], b_weights[j], sum), i++, j++;
     }
     *product = sum;
-    return nk_success_k;
+    return status_t::success_k;
 }
 
 } // namespace ashvardanian::numkong
@@ -110,16 +112,17 @@ nk_status_t sparse_dot(index_type_ const *a, index_type_ const *b, weight_t cons
 namespace ashvardanian::numkong {
 
 template <numeric_dtype index_type_>
-nk_status_t sparse_intersect(vector_view<index_type_> a, vector_view<index_type_> b, nk_size_t *count,
-                             nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+status_t sparse_intersect(vector_view<index_type_> a, vector_view<index_type_> b, nk_size_t *count,
+                          nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
     return sparse_intersect<index_type_>(a.data(), b.data(), a.size(), b.size(), nullptr, count, capabilities, stream);
 }
 
 template <numeric_dtype index_type_, numeric_dtype weight_t,
           numeric_dtype result_type_ = typename weight_t::dot_result_t>
-nk_status_t sparse_dot(vector_view<index_type_> a, vector_view<index_type_> b, vector_view<weight_t> a_weights,
-                       vector_view<weight_t> b_weights, result_type_ *product,
-                       nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+status_t sparse_dot(vector_view<index_type_> a, vector_view<index_type_> b, vector_view<weight_t> a_weights,
+                    vector_view<weight_t> b_weights, result_type_ *product,
+                    nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+    if (a_weights.size() != a.size() || b_weights.size() != b.size()) return status_t::unexpected_dimensions_k;
     return sparse_dot<index_type_, weight_t, result_type_>(a.data(), b.data(), a_weights.data(), b_weights.data(),
                                                            a.size(), b.size(), product, capabilities, stream);
 }

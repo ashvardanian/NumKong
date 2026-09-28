@@ -95,8 +95,9 @@ std::vector<double> decode_rows(nk::vector<scalar_type_, allocator_type_> const 
                                 std::size_t depth, std::size_t row_stride_values) {
     std::vector<double> decoded(rows * depth);
     for (std::size_t row = 0; row < rows; row++)
-        nk_cast_serial(matrix.raw_values_data() + row * row_stride_values, scalar_type_::dtype(), depth,
-                       decoded.data() + row * depth, nk_f64_k, nullptr);
+        if (nk_cast_serial(matrix.raw_values_data() + row * row_stride_values, scalar_type_::dtype(), depth,
+                           decoded.data() + row * depth, nk_f64_k, nullptr) != nk_success_k)
+            std::fill_n(decoded.data() + row * depth, depth, std::numeric_limits<double>::quiet_NaN());
     return decoded;
 }
 
@@ -240,9 +241,9 @@ template <typename backend_type_>
 attention_segments<backend_type_> make_attention_segments(std::initializer_list<nk_u32_t> lengths,
                                                           std::initializer_list<nk_u32_t> query_counts) {
     using counts_t = typename attention_segments<backend_type_>::counts_t;
-    attention_segments<backend_type_> segments {counts_t::try_zeros(lengths.size()),
-                                                counts_t::try_zeros(lengths.size() + 1),
-                                                counts_t::try_zeros(lengths.size() + 1)};
+    attention_segments<backend_type_> segments {counts_t::zeros(lengths.size()).value,
+                                                counts_t::zeros(lengths.size() + 1).value,
+                                                counts_t::zeros(lengths.size() + 1).value};
     std::size_t segment = 0;
     for (auto length = lengths.begin(), queries = query_counts.begin(); length != lengths.end();
          ++length, ++queries, ++segment) {
@@ -366,9 +367,10 @@ void pack_attention_in_two_windows(backend_type_ &backend, pack_kernel_type_ pac
  *  that row may see, with zeros for rows that see none. */
 template <typename scalar_type_, typename allocator_type_, typename backend_type_>
 nk::vector<typename scalar_type_::attention_result_t> reference_by_rows(
-    nk::vector<scalar_type_, allocator_type_> const &queries, nk::vector<scalar_type_, allocator_type_> const &keys,
-    nk::vector<scalar_type_, allocator_type_> const &values, attention_segments<backend_type_> const &segments,
-    attention_layout_t const &layout, std::int64_t diagonal_offset, std::size_t window) {
+    error_stats_t &stats, nk::vector<scalar_type_, allocator_type_> const &queries,
+    nk::vector<scalar_type_, allocator_type_> const &keys, nk::vector<scalar_type_, allocator_type_> const &values,
+    attention_segments<backend_type_> const &segments, attention_layout_t const &layout, std::int64_t diagonal_offset,
+    std::size_t window) {
     using result_t = typename scalar_type_::attention_result_t;
     std::size_t const query_stride_bytes = layout.query_width() * sizeof(scalar_type_),
                       key_value_stride_bytes = layout.key_value_width() * sizeof(scalar_type_),
@@ -389,18 +391,20 @@ nk::vector<typename scalar_type_::attention_result_t> reference_by_rows(
             nk_u32_t const visible_offsets[2] = {static_cast<nk_u32_t>(first_key + key_begin),
                                                  static_cast<nk_u32_t>(first_key + key_end)};
             nk_u32_t const visible_length = static_cast<nk_u32_t>(key_end - key_begin);
-            auto key_value_reference = make_vector<char>(nk::attention_pack_size<scalar_type_>(
-                layout.key_value_head_count, layout.depth, &visible_length, 1, 0));
-            nk::attention_pack<scalar_type_>(keys.values_data(), values.values_data(), layout.key_value_head_count,
-                                             layout.depth, visible_offsets, &visible_length, 1, key_value_stride_bytes,
-                                             key_value_stride_bytes, key_value_reference.raw_values_data(), 0,
-                                             static_cast<std::size_t>(-1), 0);
+            auto const reference_size = nk::attention_pack_size<scalar_type_>(layout.key_value_head_count, layout.depth,
+                                                                              &visible_length, 1, 0);
+            stats.expect(reference_size.status);
+            auto key_value_reference = make_vector<char>(reference_size.value);
+            stats.expect(nk::attention_pack<scalar_type_>(
+                keys.values_data(), values.values_data(), layout.key_value_head_count, layout.depth, visible_offsets,
+                &visible_length, 1, key_value_stride_bytes, key_value_stride_bytes,
+                key_value_reference.raw_values_data(), 0, static_cast<std::size_t>(-1), 0));
             std::size_t const query_row = segments.query_offsets.values_data()[segment] + row;
-            nk::attention_bidirectional_packed<scalar_type_, result_t>(
+            stats.expect(nk::attention_bidirectional_packed<scalar_type_, result_t>(
                 queries.values_data() + query_row * layout.query_width(), key_value_reference.raw_values_data(),
                 reference.values_data() + query_row * layout.query_width(), layout.head_count,
                 layout.key_value_head_count, layout.depth, single_query_offsets, query_stride_bytes,
-                output_stride_bytes, layout.scale, 0, static_cast<std::size_t>(-1), 0);
+                output_stride_bytes, layout.scale, 0, static_cast<std::size_t>(-1), 0));
         }
     }
     return reference;
@@ -541,13 +545,13 @@ error_stats_t test_dots_packed(backend_type_ backend, pack_size_kernel_type_ pac
             std::size_t const a_stride_values = a_stride / sizeof(scalar_t),
                               b_stride_values = b_stride / sizeof(scalar_t);
 
-            auto a = scalars_t::try_zeros(height * a_stride_values * dimensions_per_value,
-                                          allocator_of<scalar_t>(backend)),
-                 b = scalars_t::try_zeros(width * b_stride_values * dimensions_per_value,
-                                          allocator_of<scalar_t>(backend));
-            auto c = results_t::try_zeros(height * c_stride / sizeof(result_t), allocator_of<result_t>(backend));
-            auto b_packed = bytes_t::try_zeros(pack_size_bytes(stats, packed_size_fn, width, depth),
-                                               allocator_of<char>(backend));
+            auto a = scalars_t::zeros(height * a_stride_values * dimensions_per_value, allocator_of<scalar_t>(backend))
+                         .value,
+                 b = scalars_t::zeros(width * b_stride_values * dimensions_per_value, allocator_of<scalar_t>(backend))
+                         .value;
+            auto c = results_t::zeros(height * c_stride / sizeof(result_t), allocator_of<result_t>(backend)).value;
+            auto b_packed =
+                bytes_t::zeros(pack_size_bytes(stats, packed_size_fn, width, depth), allocator_of<char>(backend)).value;
             std::vector<reference_t> c_reference(height * width);
             auto b_packed_reference = make_vector<char>(nk::dots_pack_size<scalar_t>(width, depth, no_tiers_k));
 
@@ -567,11 +571,11 @@ error_stats_t test_dots_packed(backend_type_ backend, pack_size_kernel_type_ pac
             synchronize(backend, stats);
 
             // Compute reference using nk:: template
-            nk::dots_pack<scalar_t>(b.values_data(), width, depth, b_stride, b_packed_reference.raw_values_data(),
-                                    no_tiers_k);
-            nk::dots_packed<scalar_t, reference_t>(a.values_data(), b_packed_reference.raw_values_data(),
-                                                   c_reference.data(), height, width, depth, a_stride,
-                                                   width * sizeof(reference_t), no_tiers_k);
+            stats.expect(nk::dots_pack<scalar_t>(b.values_data(), width, depth, b_stride,
+                                                 b_packed_reference.raw_values_data(), no_tiers_k));
+            stats.expect(nk::dots_packed<scalar_t, reference_t>(a.values_data(), b_packed_reference.raw_values_data(),
+                                                                c_reference.data(), height, width, depth, a_stride,
+                                                                width * sizeof(reference_t), no_tiers_k));
 
             for (std::size_t row = 0; row < height; row++)
                 for (std::size_t column = 0; column < width; column++)
@@ -629,10 +633,10 @@ error_stats_t test_dots_pack_layout(backend_type_ backend) {
             std::size_t const width = test_case.width;
             std::size_t const depth = nk::divide_round_up(test_case.depth, dimensions_per_value) * dimensions_per_value;
             std::size_t const row_bytes = depth / dimensions_per_value * sizeof(scalar_t);
-            auto b = scalars_t::try_zeros(width * depth, allocator_of<scalar_t>(backend));
+            auto b = scalars_t::zeros(width * depth, allocator_of<scalar_t>(backend)).value;
             std::size_t const packed_size = pack_size_bytes(stats, packed_size_fn_, width, depth);
-            auto whole = bytes_t::try_zeros(packed_size, allocator_of<char>(backend)),
-                 windows = bytes_t::try_zeros(packed_size, allocator_of<char>(backend));
+            auto whole = bytes_t::zeros(packed_size, allocator_of<char>(backend)).value,
+                 windows = bytes_t::zeros(packed_size, allocator_of<char>(backend)).value;
             fill_random(generator, b);
             fill_canary(whole), fill_canary(windows);
 
@@ -723,9 +727,9 @@ error_stats_t test_dots_symmetric(backend_type_ backend, symmetric_kernel_type_ 
             std::size_t const c_stride = (count + (padded ? 3 : 0)) * sizeof(result_t);
             std::size_t const stride_values = stride / sizeof(scalar_t);
 
-            auto a = scalars_t::try_zeros(count * stride_values * dimensions_per_value,
-                                          allocator_of<scalar_t>(backend));
-            auto c = results_t::try_zeros(count * c_stride / sizeof(result_t), allocator_of<result_t>(backend));
+            auto a =
+                scalars_t::zeros(count * stride_values * dimensions_per_value, allocator_of<scalar_t>(backend)).value;
+            auto c = results_t::zeros(count * c_stride / sizeof(result_t), allocator_of<result_t>(backend)).value;
             std::vector<reference_t> c_reference(count * count);
             fill_random(generator, a);
             fill_padding_canary(a, count, row_bytes, stride), fill_canary(c);
@@ -736,9 +740,9 @@ error_stats_t test_dots_symmetric(backend_type_ backend, symmetric_kernel_type_ 
             synchronize(backend, stats);
 
             // Compute reference using nk:: template
-            nk::dots_symmetric<scalar_t, reference_t>(a.values_data(), count, depth, stride, c_reference.data(),
-                                                      count * sizeof(reference_t), row_start, row_end - row_start,
-                                                      no_tiers_k);
+            stats.expect(nk::dots_symmetric<scalar_t, reference_t>(a.values_data(), count, depth, stride,
+                                                                   c_reference.data(), count * sizeof(reference_t),
+                                                                   row_start, row_end - row_start, no_tiers_k));
 
             for (std::size_t row = row_start; row < row_end; row++)
                 for (std::size_t column = row; column < count; column++)
@@ -796,10 +800,10 @@ error_stats_t test_dots_launch_contract(backend_type_ backend) {
     std::size_t const count = 4, depth = 16 * dimensions_per_value, row_bytes = 16 * sizeof(scalar_t);
     std::size_t const aligned_stride = backend.row_stride(row_bytes), output_stride = count * sizeof(result_t);
     std::size_t const odd_stride = row_bytes % 16 == 15 ? row_bytes + 2 : row_bytes + 1;
-    auto rows = bytes_t::try_zeros(count * (aligned_stride + odd_stride) + 16, allocator_of<char>(backend));
-    auto packed = bytes_t::try_zeros(pack_size_bytes(stats, packed_size_fn_, count, depth),
-                                     allocator_of<char>(backend));
-    auto output = results_t::try_zeros(count * 2 * count, allocator_of<result_t>(backend));
+    auto rows = bytes_t::zeros(count * (aligned_stride + odd_stride) + 16, allocator_of<char>(backend)).value;
+    auto packed =
+        bytes_t::zeros(pack_size_bytes(stats, packed_size_fn_, count, depth), allocator_of<char>(backend)).value;
+    auto output = results_t::zeros(count * 2 * count, allocator_of<result_t>(backend)).value;
     fill_canary(output);
 
     auto const *aligned = reinterpret_cast<raw_t const *>(rows.raw_values_data());
@@ -900,17 +904,19 @@ error_stats_t test_hammings_packed(typename scalar_type_::hammings_pack_size_ker
             stats.expect(hammings_fn(a.raw_values_data(), b_packed.raw_values_data(), c.raw_values_data(), m, n, k,
                                      stride, c_stride, nullptr));
 
-            nk::dots_pack<scalar_t>(b.values_data(), n, k, stride, b_packed_ref.raw_values_data(), no_tiers_k);
-            nk::hammings_packed<scalar_t, result_t>(a.values_data(), b_packed_ref.raw_values_data(),
-                                                    c_ref.values_data(), m, n, k, stride, c_stride, no_tiers_k);
+            stats.expect(
+                nk::dots_pack<scalar_t>(b.values_data(), n, k, stride, b_packed_ref.raw_values_data(), no_tiers_k));
+            stats.expect(nk::hammings_packed<scalar_t, result_t>(a.values_data(), b_packed_ref.raw_values_data(),
+                                                                 c_ref.values_data(), m, n, k, stride, c_stride,
+                                                                 no_tiers_k));
 
             for (std::size_t i = 0; i < m * n; i++) stats.accumulate(c[i], c_ref[i]);
         }
     return stats;
 }
 
-/** Symmetric Hamming distances over @c matrix_shapes, exact against the serial `nk::` reference over
- *  the upper triangle, and untouched below it. */
+/** Symmetric Hamming distances over @c matrix_shapes, exact against the serial `nk::` reference
+ *  over the upper triangle, and untouched below it. */
 template <typename scalar_type_>
 error_stats_t test_hammings_symmetric(typename scalar_type_::hammings_symmetric_kernel_t symmetric_fn) {
     using scalar_t = scalar_type_;
@@ -935,8 +941,8 @@ error_stats_t test_hammings_symmetric(typename scalar_type_::hammings_symmetric_
             fill_canary(c);
 
             stats.expect(symmetric_fn(a.raw_values_data(), n, k, stride, c.raw_values_data(), c_stride, 0, n, nullptr));
-            nk::hammings_symmetric<scalar_t, result_t>(a.values_data(), n, k, stride, c_ref.values_data(),
-                                                       n * sizeof(result_t), 0, n, no_tiers_k);
+            stats.expect(nk::hammings_symmetric<scalar_t, result_t>(a.values_data(), n, k, stride, c_ref.values_data(),
+                                                                    n * sizeof(result_t), 0, n, no_tiers_k));
 
             for (std::size_t i = 0; i < n; i++)
                 for (std::size_t j = i; j < n; j++) stats.accumulate(c[i * n + j], c_ref[i * n + j]);
@@ -980,18 +986,20 @@ error_stats_t test_jaccards_packed(typename scalar_type_::jaccards_pack_size_ker
             stats.expect(jaccards_fn(a.raw_values_data(), b_packed.raw_values_data(), c.raw_values_data(), m, n, k,
                                      stride, c_stride, nullptr));
 
-            nk::dots_pack<scalar_t>(b.values_data(), n, k, stride, b_packed_ref.raw_values_data(), no_tiers_k);
-            nk::jaccards_packed<scalar_t, result_t>(a.values_data(), b_packed_ref.raw_values_data(),
-                                                    c_ref.values_data(), m, n, k, stride, c_stride, no_tiers_k);
+            stats.expect(
+                nk::dots_pack<scalar_t>(b.values_data(), n, k, stride, b_packed_ref.raw_values_data(), no_tiers_k));
+            stats.expect(nk::jaccards_packed<scalar_t, result_t>(a.values_data(), b_packed_ref.raw_values_data(),
+                                                                 c_ref.values_data(), m, n, k, stride, c_stride,
+                                                                 no_tiers_k));
 
             for (std::size_t i = 0; i < m * n; i++) stats.accumulate(c[i], c_ref[i]);
         }
     return stats;
 }
 
-/** Symmetric Jaccard distances over @c matrix_shapes, exact against the serial `nk::` reference over
- *  the upper triangle, and untouched below it. Row 0 is empty, so the first diagonal cell has an
- *  empty union. */
+/** Symmetric Jaccard distances over @c matrix_shapes, exact against the serial `nk::` reference
+ *  over the upper triangle, and untouched below it. Row 0 is empty, so the first diagonal cell has
+ *  an empty union. */
 template <typename scalar_type_>
 error_stats_t test_jaccards_symmetric(typename scalar_type_::jaccards_symmetric_kernel_t symmetric_fn) {
     using scalar_t = scalar_type_;
@@ -1017,8 +1025,8 @@ error_stats_t test_jaccards_symmetric(typename scalar_type_::jaccards_symmetric_
             fill_canary(c);
 
             stats.expect(symmetric_fn(a.raw_values_data(), n, k, stride, c.raw_values_data(), c_stride, 0, n, nullptr));
-            nk::jaccards_symmetric<scalar_t, result_t>(a.values_data(), n, k, stride, c_ref.values_data(),
-                                                       n * sizeof(result_t), 0, n, no_tiers_k);
+            stats.expect(nk::jaccards_symmetric<scalar_t, result_t>(a.values_data(), n, k, stride, c_ref.values_data(),
+                                                                    n * sizeof(result_t), 0, n, no_tiers_k));
 
             for (std::size_t i = 0; i < n; i++)
                 for (std::size_t j = i; j < n; j++) stats.accumulate(c[i * n + j], c_ref[i * n + j]);
@@ -1056,30 +1064,32 @@ error_stats_t test_angulars_packed(pack_size_kernel_type_ packed_size_fn, pack_k
             std::size_t const stride = backend.row_stride(nk::divide_round_up(k, dims_per_value) * sizeof(scalar_t));
             std::size_t const stride_values = stride / sizeof(scalar_t);
 
-            auto a = scalars_t::try_zeros(m * stride_values * dims_per_value),
-                 b = scalars_t::try_zeros(n * stride_values * dims_per_value);
-            auto c = results_t::try_zeros(m * n);
+            auto a = scalars_t::zeros(m * stride_values * dims_per_value).value,
+                 b = scalars_t::zeros(n * stride_values * dims_per_value).value;
+            auto c = results_t::zeros(m * n).value;
             auto c_ref = make_vector<reference_t>(m * n);
-            auto b_packed = bytes_t::try_zeros(pack_size_bytes(stats, packed_size_fn, n, k));
+            auto b_packed = bytes_t::zeros(pack_size_bytes(stats, packed_size_fn, n, k)).value;
             auto b_packed_ref = make_vector<char>(nk::dots_pack_size<scalar_t>(n, k, no_tiers_k));
             auto a_sumsqs = make_vector<reference_t>(m);
             auto b_sumsqs = make_vector<reference_t>(n);
             fill_random(generator, a);
             fill_random(generator, b);
 
-            nk::dots_pack<scalar_t>(b.values_data(), n, k, stride, b_packed_ref.raw_values_data(), no_tiers_k);
-            nk::dots_packed<scalar_t, reference_t>(a.values_data(), b_packed_ref.raw_values_data(), c_ref.values_data(),
-                                                   m, n, k, stride, n * sizeof(reference_t), no_tiers_k);
+            stats.expect(
+                nk::dots_pack<scalar_t>(b.values_data(), n, k, stride, b_packed_ref.raw_values_data(), no_tiers_k));
+            stats.expect(nk::dots_packed<scalar_t, reference_t>(a.values_data(), b_packed_ref.raw_values_data(),
+                                                                c_ref.values_data(), m, n, k, stride,
+                                                                n * sizeof(reference_t), no_tiers_k));
 
             reference_t sum_unused;
             for (std::size_t i = 0; i < m; ++i)
-                nk::reduce_moments<scalar_t, reference_t, reference_t>(a.values_data() + i * stride_values, k,
-                                                                       sizeof(scalar_t), &sum_unused,
-                                                                       a_sumsqs.values_data() + i, no_tiers_k);
+                stats.expect(nk::reduce_moments<scalar_t, reference_t, reference_t>(
+                    a.values_data() + i * stride_values, k, sizeof(scalar_t), &sum_unused, a_sumsqs.values_data() + i,
+                    no_tiers_k));
             for (std::size_t j = 0; j < n; ++j)
-                nk::reduce_moments<scalar_t, reference_t, reference_t>(b.values_data() + j * stride_values, k,
-                                                                       sizeof(scalar_t), &sum_unused,
-                                                                       b_sumsqs.values_data() + j, no_tiers_k);
+                stats.expect(nk::reduce_moments<scalar_t, reference_t, reference_t>(
+                    b.values_data() + j * stride_values, k, sizeof(scalar_t), &sum_unused, b_sumsqs.values_data() + j,
+                    no_tiers_k));
 
             for (std::size_t i = 0; i < m; ++i)
                 for (std::size_t j = 0; j < n; ++j) {
@@ -1126,11 +1136,11 @@ error_stats_t test_euclideans_packed(pack_size_kernel_type_ packed_size_fn, pack
             std::size_t const stride = backend.row_stride(nk::divide_round_up(k, dims_per_value) * sizeof(scalar_t));
             std::size_t const stride_values = stride / sizeof(scalar_t);
 
-            auto a = scalars_t::try_zeros(m * stride_values * dims_per_value),
-                 b = scalars_t::try_zeros(n * stride_values * dims_per_value);
-            auto c = results_t::try_zeros(m * n);
+            auto a = scalars_t::zeros(m * stride_values * dims_per_value).value,
+                 b = scalars_t::zeros(n * stride_values * dims_per_value).value;
+            auto c = results_t::zeros(m * n).value;
             auto c_ref = make_vector<reference_t>(m * n);
-            auto b_packed = bytes_t::try_zeros(pack_size_bytes(stats, packed_size_fn, n, k));
+            auto b_packed = bytes_t::zeros(pack_size_bytes(stats, packed_size_fn, n, k)).value;
             auto b_packed_ref = make_vector<char>(nk::dots_pack_size<scalar_t>(n, k, no_tiers_k));
             auto a_sumsqs = make_vector<reference_t>(m);
             auto b_sumsqs = make_vector<reference_t>(n);
@@ -1138,19 +1148,21 @@ error_stats_t test_euclideans_packed(pack_size_kernel_type_ packed_size_fn, pack
             fill_random(generator, b);
             std::memset(a.raw_values_data(), 0, stride);
 
-            nk::dots_pack<scalar_t>(b.values_data(), n, k, stride, b_packed_ref.raw_values_data(), no_tiers_k);
-            nk::dots_packed<scalar_t, reference_t>(a.values_data(), b_packed_ref.raw_values_data(), c_ref.values_data(),
-                                                   m, n, k, stride, n * sizeof(reference_t), no_tiers_k);
+            stats.expect(
+                nk::dots_pack<scalar_t>(b.values_data(), n, k, stride, b_packed_ref.raw_values_data(), no_tiers_k));
+            stats.expect(nk::dots_packed<scalar_t, reference_t>(a.values_data(), b_packed_ref.raw_values_data(),
+                                                                c_ref.values_data(), m, n, k, stride,
+                                                                n * sizeof(reference_t), no_tiers_k));
 
             reference_t sum_unused;
             for (std::size_t i = 0; i < m; ++i)
-                nk::reduce_moments<scalar_t, reference_t, reference_t>(a.values_data() + i * stride_values, k,
-                                                                       sizeof(scalar_t), &sum_unused,
-                                                                       a_sumsqs.values_data() + i, no_tiers_k);
+                stats.expect(nk::reduce_moments<scalar_t, reference_t, reference_t>(
+                    a.values_data() + i * stride_values, k, sizeof(scalar_t), &sum_unused, a_sumsqs.values_data() + i,
+                    no_tiers_k));
             for (std::size_t j = 0; j < n; ++j)
-                nk::reduce_moments<scalar_t, reference_t, reference_t>(b.values_data() + j * stride_values, k,
-                                                                       sizeof(scalar_t), &sum_unused,
-                                                                       b_sumsqs.values_data() + j, no_tiers_k);
+                stats.expect(nk::reduce_moments<scalar_t, reference_t, reference_t>(
+                    b.values_data() + j * stride_values, k, sizeof(scalar_t), &sum_unused, b_sumsqs.values_data() + j,
+                    no_tiers_k));
 
             for (std::size_t i = 0; i < m; ++i)
                 for (std::size_t j = 0; j < n; ++j) {
@@ -1197,21 +1209,21 @@ error_stats_t test_angulars_symmetric(symmetric_kernel_type_ symmetric_fn) {
             std::size_t const stride = backend.row_stride(nk::divide_round_up(k, dims_per_value) * sizeof(scalar_t));
             std::size_t const stride_values = stride / sizeof(scalar_t);
 
-            auto a = scalars_t::try_zeros(n * stride_values * dims_per_value);
-            auto c = results_t::try_zeros(n * n);
+            auto a = scalars_t::zeros(n * stride_values * dims_per_value).value;
+            auto c = results_t::zeros(n * n).value;
             auto c_ref = make_vector<reference_t>(n * n);
             auto sumsqs = make_vector<reference_t>(n);
             fill_random(generator, a);
             fill_canary(c);
 
-            nk::dots_symmetric<scalar_t, reference_t>(a.values_data(), n, k, stride, c_ref.values_data(),
-                                                      n * sizeof(reference_t), 0, n, no_tiers_k);
+            stats.expect(nk::dots_symmetric<scalar_t, reference_t>(a.values_data(), n, k, stride, c_ref.values_data(),
+                                                                   n * sizeof(reference_t), 0, n, no_tiers_k));
 
             reference_t sum_unused;
             for (std::size_t i = 0; i < n; ++i)
-                nk::reduce_moments<scalar_t, reference_t, reference_t>(a.values_data() + i * stride_values, k,
-                                                                       sizeof(scalar_t), &sum_unused,
-                                                                       sumsqs.values_data() + i, no_tiers_k);
+                stats.expect(nk::reduce_moments<scalar_t, reference_t, reference_t>(
+                    a.values_data() + i * stride_values, k, sizeof(scalar_t), &sum_unused, sumsqs.values_data() + i,
+                    no_tiers_k));
 
             for (std::size_t i = 0; i < n; ++i) {
                 c_ref[i * n + i] = reference_t(0);
@@ -1255,21 +1267,21 @@ error_stats_t test_euclideans_symmetric(symmetric_kernel_type_ symmetric_fn) {
             std::size_t const stride = backend.row_stride(nk::divide_round_up(k, dims_per_value) * sizeof(scalar_t));
             std::size_t const stride_values = stride / sizeof(scalar_t);
 
-            auto a = scalars_t::try_zeros(n * stride_values * dims_per_value);
-            auto c = results_t::try_zeros(n * n);
+            auto a = scalars_t::zeros(n * stride_values * dims_per_value).value;
+            auto c = results_t::zeros(n * n).value;
             auto c_ref = make_vector<reference_t>(n * n);
             auto sumsqs = make_vector<reference_t>(n);
             fill_random(generator, a);
             fill_canary(c);
 
-            nk::dots_symmetric<scalar_t, reference_t>(a.values_data(), n, k, stride, c_ref.values_data(),
-                                                      n * sizeof(reference_t), 0, n, no_tiers_k);
+            stats.expect(nk::dots_symmetric<scalar_t, reference_t>(a.values_data(), n, k, stride, c_ref.values_data(),
+                                                                   n * sizeof(reference_t), 0, n, no_tiers_k));
 
             reference_t sum_unused;
             for (std::size_t i = 0; i < n; ++i)
-                nk::reduce_moments<scalar_t, reference_t, reference_t>(a.values_data() + i * stride_values, k,
-                                                                       sizeof(scalar_t), &sum_unused,
-                                                                       sumsqs.values_data() + i, no_tiers_k);
+                stats.expect(nk::reduce_moments<scalar_t, reference_t, reference_t>(
+                    a.values_data() + i * stride_values, k, sizeof(scalar_t), &sum_unused, sumsqs.values_data() + i,
+                    no_tiers_k));
 
             for (std::size_t i = 0; i < n; ++i) {
                 c_ref[i * n + i] = reference_t(0);
@@ -1325,36 +1337,39 @@ error_stats_t test_attention_bidirectional_packed(pack_size_kernel_type_ packed_
                               key_value_stride_bytes = layout.key_value_width() * sizeof(scalar_t),
                               output_stride_bytes = layout.query_width() * sizeof(result_t);
             std::size_t const total_tasks = segments.count() * layout.head_count;
-            auto queries = scalars_t::try_zeros(segments.query_tokens() * layout.query_width());
-            auto keys = scalars_t::try_zeros(segments.key_tokens() * layout.key_value_width()),
-                 values = scalars_t::try_zeros(segments.key_tokens() * layout.key_value_width());
+            auto queries = scalars_t::zeros(segments.query_tokens() * layout.query_width()).value;
+            auto keys = scalars_t::zeros(segments.key_tokens() * layout.key_value_width()).value,
+                 values = scalars_t::zeros(segments.key_tokens() * layout.key_value_width()).value;
             fill_random(generator, queries), fill_random(generator, keys), fill_random(generator, values);
 
-            auto key_value_packed = bytes_t::try_zeros(
-                pack_size_bytes(stats, packed_size_fn, layout.key_value_head_count, layout.depth,
-                                segments.lengths.values_data(), segments.count()));
+            auto key_value_packed = bytes_t::zeros(pack_size_bytes(stats, packed_size_fn, layout.key_value_head_count,
+                                                                   layout.depth, segments.lengths.values_data(),
+                                                                   segments.count()))
+                                        .value;
             // Run kernel being tested: pack in two windows, then attention over the whole task grid
             pack_attention_in_two_windows(backend, pack_fn, keys, values, segments, layout, key_value_packed);
-            auto output = results_t::try_zeros(segments.query_tokens() * layout.query_width());
+            auto output = results_t::zeros(segments.query_tokens() * layout.query_width()).value;
             backend.call(attention_fn, queries.raw_values_data(), key_value_packed.raw_values_data(),
                          output.raw_values_data(), layout.head_count, layout.key_value_head_count, layout.depth,
                          segments.query_offsets.values_data(), query_stride_bytes, output_stride_bytes, layout.scale, 0,
                          total_tasks);
             synchronize(backend, stats);
 
-            auto key_value_reference = make_vector<char>(nk::attention_pack_size<scalar_t>(
-                layout.key_value_head_count, layout.depth, segments.lengths.values_data(), segments.count(), 0));
+            auto const reference_size = nk::attention_pack_size<scalar_t>(
+                layout.key_value_head_count, layout.depth, segments.lengths.values_data(), segments.count(), 0);
+            stats.expect(reference_size.status);
+            auto key_value_reference = make_vector<char>(reference_size.value);
             // Compute reference through the serial backend via the C++ wrappers
-            nk::attention_pack<scalar_t>(keys.values_data(), values.values_data(), layout.key_value_head_count,
-                                         layout.depth, segments.key_offsets.values_data(),
-                                         segments.lengths.values_data(), segments.count(), key_value_stride_bytes,
-                                         key_value_stride_bytes, key_value_reference.raw_values_data(), 0,
-                                         static_cast<std::size_t>(-1), 0);
+            stats.expect(nk::attention_pack<scalar_t>(
+                keys.values_data(), values.values_data(), layout.key_value_head_count, layout.depth,
+                segments.key_offsets.values_data(), segments.lengths.values_data(), segments.count(),
+                key_value_stride_bytes, key_value_stride_bytes, key_value_reference.raw_values_data(), 0,
+                static_cast<std::size_t>(-1), 0));
             auto reference = make_vector<result_t>(segments.query_tokens() * layout.query_width());
-            nk::attention_bidirectional_packed<scalar_t, result_t>(
+            stats.expect(nk::attention_bidirectional_packed<scalar_t, result_t>(
                 queries.values_data(), key_value_reference.raw_values_data(), reference.values_data(),
                 layout.head_count, layout.key_value_head_count, layout.depth, segments.query_offsets.values_data(),
-                query_stride_bytes, output_stride_bytes, layout.scale, 0, static_cast<std::size_t>(-1), 0);
+                query_stride_bytes, output_stride_bytes, layout.scale, 0, static_cast<std::size_t>(-1), 0));
 
             accumulate_attention<weights_>(stats, output, reference, values);
         }
@@ -1393,15 +1408,16 @@ error_stats_t test_attention_causal_packed(pack_size_kernel_type_ packed_size_fn
                               output_stride_bytes = layout.query_width() * sizeof(result_t);
             std::size_t const first_window_tasks = segments.count() * layout.head_count / 2;
 
-            auto queries = scalars_t::try_zeros(segments.query_tokens() * layout.query_width());
-            auto keys = scalars_t::try_zeros(segments.key_tokens() * layout.key_value_width()),
-                 values = scalars_t::try_zeros(segments.key_tokens() * layout.key_value_width());
+            auto queries = scalars_t::zeros(segments.query_tokens() * layout.query_width()).value;
+            auto keys = scalars_t::zeros(segments.key_tokens() * layout.key_value_width()).value,
+                 values = scalars_t::zeros(segments.key_tokens() * layout.key_value_width()).value;
             fill_random(generator, queries), fill_random(generator, keys), fill_random(generator, values);
 
-            auto key_value_packed = bytes_t::try_zeros(
-                pack_size_bytes(stats, packed_size_fn, layout.key_value_head_count, layout.depth,
-                                segments.lengths.values_data(), segments.count()));
-            auto output = results_t::try_zeros(segments.query_tokens() * layout.query_width());
+            auto key_value_packed = bytes_t::zeros(pack_size_bytes(stats, packed_size_fn, layout.key_value_head_count,
+                                                                   layout.depth, segments.lengths.values_data(),
+                                                                   segments.count()))
+                                        .value;
+            auto output = results_t::zeros(segments.query_tokens() * layout.query_width()).value;
             pack_attention_in_two_windows(backend, pack_fn, keys, values, segments, layout, key_value_packed);
             backend.call(attention_fn, queries.raw_values_data(), key_value_packed.raw_values_data(),
                          output.raw_values_data(), layout.head_count, layout.key_value_head_count, layout.depth,
@@ -1413,8 +1429,8 @@ error_stats_t test_attention_causal_packed(pack_size_kernel_type_ packed_size_fn
                          test_case.diagonal_offset, test_case.window, first_window_tasks, unbounded_window);
             synchronize(backend, stats);
 
-            auto const reference = reference_by_rows(queries, keys, values, segments, layout, test_case.diagonal_offset,
-                                                     test_case.window);
+            auto const reference = reference_by_rows(stats, queries, keys, values, segments, layout,
+                                                     test_case.diagonal_offset, test_case.window);
             accumulate_attention<weights_>(stats, output, reference, values);
         }
     }

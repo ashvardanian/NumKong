@@ -3,6 +3,17 @@
  *  @author Ash Vardanian
  *  @date July 7, 2026
  *  @brief C++ bindings for multi-target ragged scaled-dot-product attention kernels.
+ *
+ *  Three layers, like the dots and maxsim bindings: raw-pointer wrappers that keep the task windows
+ *  for sharded launches, the owning @c packed_attention from `matrix.hpp` with @c attention_pack,
+ *  and view overloads that derive heads, depth and strides from @b [tokens,heads,depth] views.
+ *
+ *  @code{.cpp}
+ *  auto [packed, packed_status] = nk::packed_attention<nk::bf16_t>::make(keys, values, offsets, lengths);
+ *  if (nk::failed(packed_status)) return packed_status;
+ *  nk::status_t status = nk::attention_causal_packed<nk::bf16_t>(queries, packed, output, scale);
+ *  auto [fresh, fresh_status] = nk::attention_bidirectional_packed<nk::bf16_t>(queries, packed, scale);
+ *  @endcode
  */
 #ifndef NUMKONG_ATTENTION_HPP
 #define NUMKONG_ATTENTION_HPP
@@ -15,167 +26,220 @@
 namespace ashvardanian::numkong {
 
 /**
- *  @brief Returns the packed KV-cache size in bytes for a ragged batch of segments, or zero when no
- *      capability in @p capabilities packs @p in_type_. No capability runs the serial kernel, the reference.
- *  @tparam in_type_ Input element type (bf16_t, e4m3_t, i8_t).
- */
-template <numeric_dtype in_type_>
-std::size_t attention_pack_size(std::size_t key_value_head_count, std::size_t depth, nk_u32_t const *segment_lengths,
-                                std::size_t segment_count, nk_capability_t capabilities = cpu_capabilities()) {
-    nk_size_t bytes = 0;
-    if constexpr (std::is_same_v<in_type_, bf16_t>)
-        (capabilities
-             ? nk_attention_pack_size_bf16_best(key_value_head_count, depth, segment_lengths, segment_count,
-                                                capabilities, &bytes)
-             : nk_attention_pack_size_bf16_serial(key_value_head_count, depth, segment_lengths, segment_count, &bytes));
-    else if constexpr (std::is_same_v<in_type_, e4m3_t>)
-        (capabilities
-             ? nk_attention_pack_size_e4m3_best(key_value_head_count, depth, segment_lengths, segment_count,
-                                                capabilities, &bytes)
-             : nk_attention_pack_size_e4m3_serial(key_value_head_count, depth, segment_lengths, segment_count, &bytes));
-    else if constexpr (std::is_same_v<in_type_, i8_t>)
-        (capabilities
-             ? nk_attention_pack_size_i8_best(key_value_head_count, depth, segment_lengths, segment_count, capabilities,
-                                              &bytes)
-             : nk_attention_pack_size_i8_serial(key_value_head_count, depth, segment_lengths, segment_count, &bytes));
-    return bytes;
-}
-
-/**
- *  @brief Packs ragged K/V token matrices into a backend-opaque KV-cache blob.
- *  @tparam in_type_ Input element type (bf16_t, e4m3_t, i8_t).
- */
-template <numeric_dtype in_type_>
-nk_status_t attention_pack(in_type_ const *keys, in_type_ const *values, std::size_t key_value_head_count,
-                           std::size_t depth, nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
-                           std::size_t segment_count, std::size_t key_stride_bytes, std::size_t value_stride_bytes,
-                           void *key_value_packed, std::size_t task_begin = 0,
-                           std::size_t task_end = static_cast<std::size_t>(-1),
-                           nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) {
-    using raw_t = typename in_type_::raw_t;
-    raw_t const *keys_raw = reinterpret_cast<raw_t const *>(keys);
-    raw_t const *values_raw = reinterpret_cast<raw_t const *>(values);
-    if constexpr (std::is_same_v<in_type_, bf16_t>)
-        return (capabilities
-                    ? nk_attention_pack_bf16_best(keys_raw, values_raw, key_value_head_count, depth, segment_offsets,
-                                                  segment_lengths, segment_count, key_stride_bytes, value_stride_bytes,
-                                                  key_value_packed, task_begin, task_end, capabilities, stream)
-                    : nk_attention_pack_bf16_serial(keys_raw, values_raw, key_value_head_count, depth, segment_offsets,
-                                                    segment_lengths, segment_count, key_stride_bytes,
-                                                    value_stride_bytes, key_value_packed, task_begin, task_end,
-                                                    stream));
-    else if constexpr (std::is_same_v<in_type_, e4m3_t>)
-        return (capabilities
-                    ? nk_attention_pack_e4m3_best(keys_raw, values_raw, key_value_head_count, depth, segment_offsets,
-                                                  segment_lengths, segment_count, key_stride_bytes, value_stride_bytes,
-                                                  key_value_packed, task_begin, task_end, capabilities, stream)
-                    : nk_attention_pack_e4m3_serial(keys_raw, values_raw, key_value_head_count, depth, segment_offsets,
-                                                    segment_lengths, segment_count, key_stride_bytes,
-                                                    value_stride_bytes, key_value_packed, task_begin, task_end,
-                                                    stream));
-    else if constexpr (std::is_same_v<in_type_, i8_t>)
-        return (capabilities
-                    ? nk_attention_pack_i8_best(keys_raw, values_raw, key_value_head_count, depth, segment_offsets,
-                                                segment_lengths, segment_count, key_stride_bytes, value_stride_bytes,
-                                                key_value_packed, task_begin, task_end, capabilities, stream)
-                    : nk_attention_pack_i8_serial(keys_raw, values_raw, key_value_head_count, depth, segment_offsets,
-                                                  segment_lengths, segment_count, key_stride_bytes, value_stride_bytes,
-                                                  key_value_packed, task_begin, task_end, stream));
-    else return nk_missing_kernel_k;
-}
-
-/**
  *  @brief Ragged bidirectional scaled-dot-product attention against a pre-packed KV-cache.
+ *  @param[in] queries Token-major matrix, one row of @p head_count × @p depth elements per token.
+ *  @param[in] key_value_packed A buffer @c attention_pack filled with the same @p capabilities.
+ *  @param[out] output Token-major matrix, one row of @p head_count × @p depth results per token.
+ *  @param[in] query_offsets First query row of each segment, as segment count + 1 prefix sums.
+ *  @param[in] queries_stride_in_bytes Row (token) stride of @p queries in bytes.
+ *  @param[in] output_stride_in_bytes Row (token) stride of @p output in bytes.
+ *  @param[in] scale Score multiplier, typically 1 / √depth.
+ *  @param[in] task_start First task of a window over the segments × heads grid.
+ *  @param[in] task_count Tasks in that window, clipped to the grid, for sharded launches.
+ *  @param[in] capabilities Capabilities to pick from, or zero for the serial reference.
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
+ *
  *  @tparam in_type_ Input element type (bf16_t, e4m3_t, i8_t).
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::attention_result_t>
-nk_status_t attention_bidirectional_packed(in_type_ const *queries, void const *key_value_packed, result_type_ *output,
-                                           std::size_t head_count, std::size_t key_value_head_count, std::size_t depth,
-                                           nk_u32_t const *query_offsets, std::size_t query_stride_bytes,
-                                           std::size_t output_stride_bytes, nk_f32_t scale, std::size_t task_start = 0,
-                                           std::size_t task_count = static_cast<std::size_t>(-1),
-                                           nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) {
+status_t attention_bidirectional_packed(in_type_ const *queries, void const *key_value_packed, result_type_ *output,
+                                        std::size_t head_count, std::size_t key_value_head_count, std::size_t depth,
+                                        nk_u32_t const *query_offsets, std::size_t queries_stride_in_bytes,
+                                        std::size_t output_stride_in_bytes, nk_f32_t scale, std::size_t task_start = 0,
+                                        std::size_t task_count = static_cast<std::size_t>(-1),
+                                        nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) {
     using raw_t = typename in_type_::raw_t;
     static_assert(std::is_same_v<result_type_, typename in_type_::attention_result_t>,
                   "Attention accumulates and normalizes in F32");
     raw_t const *queries_raw = reinterpret_cast<raw_t const *>(queries);
     nk_f32_t *output_raw = reinterpret_cast<nk_f32_t *>(output);
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, bf16_t>)
+            return static_cast<status_t>(nk_attention_bidirectional_packed_bf16_best(
+                queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
+                queries_stride_in_bytes, output_stride_in_bytes, scale, task_start, task_count, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, e4m3_t>)
+            return static_cast<status_t>(nk_attention_bidirectional_packed_e4m3_best(
+                queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
+                queries_stride_in_bytes, output_stride_in_bytes, scale, task_start, task_count, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, i8_t>)
+            return static_cast<status_t>(nk_attention_bidirectional_packed_i8_best(
+                queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
+                queries_stride_in_bytes, output_stride_in_bytes, scale, task_start, task_count, capabilities, stream));
+    }
     if constexpr (std::is_same_v<in_type_, bf16_t>)
-        return (
-            capabilities
-                ? nk_attention_bidirectional_packed_bf16_best(
-                      queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
-                      query_stride_bytes, output_stride_bytes, scale, task_start, task_count, capabilities, stream)
-                : nk_attention_bidirectional_packed_bf16_serial(
-                      queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
-                      query_stride_bytes, output_stride_bytes, scale, task_start, task_count, stream));
+        return static_cast<status_t>(nk_attention_bidirectional_packed_bf16_serial(
+            queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
+            queries_stride_in_bytes, output_stride_in_bytes, scale, task_start, task_count, stream));
     else if constexpr (std::is_same_v<in_type_, e4m3_t>)
-        return (
-            capabilities
-                ? nk_attention_bidirectional_packed_e4m3_best(
-                      queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
-                      query_stride_bytes, output_stride_bytes, scale, task_start, task_count, capabilities, stream)
-                : nk_attention_bidirectional_packed_e4m3_serial(
-                      queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
-                      query_stride_bytes, output_stride_bytes, scale, task_start, task_count, stream));
+        return static_cast<status_t>(nk_attention_bidirectional_packed_e4m3_serial(
+            queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
+            queries_stride_in_bytes, output_stride_in_bytes, scale, task_start, task_count, stream));
     else if constexpr (std::is_same_v<in_type_, i8_t>)
-        return (
-            capabilities
-                ? nk_attention_bidirectional_packed_i8_best(
-                      queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
-                      query_stride_bytes, output_stride_bytes, scale, task_start, task_count, capabilities, stream)
-                : nk_attention_bidirectional_packed_i8_serial(
-                      queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
-                      query_stride_bytes, output_stride_bytes, scale, task_start, task_count, stream));
-    else return nk_missing_kernel_k;
+        return static_cast<status_t>(nk_attention_bidirectional_packed_i8_serial(
+            queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
+            queries_stride_in_bytes, output_stride_in_bytes, scale, task_start, task_count, stream));
+    else return status_t::missing_kernel_k;
 }
 
 /**
  *  @brief Ragged causal, optionally sliding-window, attention against a pre-packed KV-cache.
+ *  @param[in] diagonal_offset Position of query row 0: `0` for prefill, `length − query_count`
+ *      against a cache.
+ *  @param[in] window Keys each row sees, ending at its own position; unbounded by default.
+ *
+ *  Every other parameter follows the bidirectional @c attention_bidirectional_packed.
+ *
  *  @tparam in_type_ Input element type (bf16_t, e4m3_t, i8_t).
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::attention_result_t>
-nk_status_t attention_causal_packed(in_type_ const *queries, void const *key_value_packed, result_type_ *output,
-                                    std::size_t head_count, std::size_t key_value_head_count, std::size_t depth,
-                                    nk_u32_t const *query_offsets, std::size_t query_stride_bytes,
-                                    std::size_t output_stride_bytes, nk_f32_t scale, nk_i64_t diagonal_offset = 0,
-                                    std::size_t window = static_cast<std::size_t>(-1), std::size_t task_start = 0,
-                                    std::size_t task_count = static_cast<std::size_t>(-1),
-                                    nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) {
+status_t attention_causal_packed(in_type_ const *queries, void const *key_value_packed, result_type_ *output,
+                                 std::size_t head_count, std::size_t key_value_head_count, std::size_t depth,
+                                 nk_u32_t const *query_offsets, std::size_t queries_stride_in_bytes,
+                                 std::size_t output_stride_in_bytes, nk_f32_t scale, nk_i64_t diagonal_offset = 0,
+                                 std::size_t window = static_cast<std::size_t>(-1), std::size_t task_start = 0,
+                                 std::size_t task_count = static_cast<std::size_t>(-1),
+                                 nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) {
     using raw_t = typename in_type_::raw_t;
     static_assert(std::is_same_v<result_type_, typename in_type_::attention_result_t>,
                   "Attention accumulates and normalizes in F32");
     raw_t const *queries_raw = reinterpret_cast<raw_t const *>(queries);
     nk_f32_t *output_raw = reinterpret_cast<nk_f32_t *>(output);
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, bf16_t>)
+            return static_cast<status_t>(nk_attention_causal_packed_bf16_best(
+                queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
+                queries_stride_in_bytes, output_stride_in_bytes, scale, diagonal_offset, window, task_start, task_count,
+                capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, e4m3_t>)
+            return static_cast<status_t>(nk_attention_causal_packed_e4m3_best(
+                queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
+                queries_stride_in_bytes, output_stride_in_bytes, scale, diagonal_offset, window, task_start, task_count,
+                capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, i8_t>)
+            return static_cast<status_t>(nk_attention_causal_packed_i8_best(
+                queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
+                queries_stride_in_bytes, output_stride_in_bytes, scale, diagonal_offset, window, task_start, task_count,
+                capabilities, stream));
+    }
     if constexpr (std::is_same_v<in_type_, bf16_t>)
-        return (capabilities ? nk_attention_causal_packed_bf16_best(
-                                   queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth,
-                                   query_offsets, query_stride_bytes, output_stride_bytes, scale, diagonal_offset,
-                                   window, task_start, task_count, capabilities, stream)
-                             : nk_attention_causal_packed_bf16_serial(
-                                   queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth,
-                                   query_offsets, query_stride_bytes, output_stride_bytes, scale, diagonal_offset,
-                                   window, task_start, task_count, stream));
+        return static_cast<status_t>(nk_attention_causal_packed_bf16_serial(
+            queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
+            queries_stride_in_bytes, output_stride_in_bytes, scale, diagonal_offset, window, task_start, task_count,
+            stream));
     else if constexpr (std::is_same_v<in_type_, e4m3_t>)
-        return (capabilities ? nk_attention_causal_packed_e4m3_best(
-                                   queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth,
-                                   query_offsets, query_stride_bytes, output_stride_bytes, scale, diagonal_offset,
-                                   window, task_start, task_count, capabilities, stream)
-                             : nk_attention_causal_packed_e4m3_serial(
-                                   queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth,
-                                   query_offsets, query_stride_bytes, output_stride_bytes, scale, diagonal_offset,
-                                   window, task_start, task_count, stream));
+        return static_cast<status_t>(nk_attention_causal_packed_e4m3_serial(
+            queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
+            queries_stride_in_bytes, output_stride_in_bytes, scale, diagonal_offset, window, task_start, task_count,
+            stream));
     else if constexpr (std::is_same_v<in_type_, i8_t>)
-        return (capabilities ? nk_attention_causal_packed_i8_best(
-                                   queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth,
-                                   query_offsets, query_stride_bytes, output_stride_bytes, scale, diagonal_offset,
-                                   window, task_start, task_count, capabilities, stream)
-                             : nk_attention_causal_packed_i8_serial(
-                                   queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth,
-                                   query_offsets, query_stride_bytes, output_stride_bytes, scale, diagonal_offset,
-                                   window, task_start, task_count, stream));
-    else return nk_missing_kernel_k;
+        return static_cast<status_t>(nk_attention_causal_packed_i8_serial(
+            queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
+            queries_stride_in_bytes, output_stride_in_bytes, scale, diagonal_offset, window, task_start, task_count,
+            stream));
+    else return status_t::missing_kernel_k;
 }
+
+} // namespace ashvardanian::numkong
+
+#include "numkong/matrix.hpp"
+
+namespace ashvardanian::numkong {
+
+#pragma region Attention Views
+
+/** Checks that @p queries and @p output are matching @b [tokens,heads,depth] layouts over the
+ *  @p key_value_packed depth, whose head count divides theirs, covering every packed segment. */
+template <numeric_dtype value_type_, std::size_t max_rank_, typename allocator_type_, typename output_type_>
+status_t attention_shapes_(tensor_view<value_type_, max_rank_> queries,
+                           packed_attention<value_type_, allocator_type_> const &key_value_packed,
+                           output_type_ const &output) noexcept {
+    if (key_value_packed.empty() || !attention_rows_supported_(queries) || !attention_rows_supported_(output))
+        return status_t::unexpected_dimensions_k;
+    for (std::size_t axis = 0; axis < 3; ++axis)
+        if (output.extent(axis) != queries.extent(axis)) return status_t::unexpected_dimensions_k;
+    if (queries.extent(2) != key_value_packed.depth() ||
+        queries.extent(1) % key_value_packed.key_value_head_count() != 0)
+        return status_t::unexpected_dimensions_k;
+    if (key_value_packed.segment_offsets()[key_value_packed.segment_count()] > queries.extent(0))
+        return status_t::unexpected_dimensions_k;
+    return status_t::success_k;
+}
+
+/** Self-attention of @b [tokens,heads,depth] @p queries against @p key_value_packed, whose
+ *  pack-time segment offsets split the query tokens too; @c unexpected_dimensions_k when the
+ *  shapes disagree. The raw-pointer overload covers cross-attention and pooling. */
+template <numeric_dtype value_type_, std::size_t max_rank_, typename allocator_type_>
+status_t attention_bidirectional_packed(tensor_view<value_type_, max_rank_> queries,
+                                        packed_attention<value_type_, allocator_type_> const &key_value_packed,
+                                        tensor_span<typename value_type_::attention_result_t, max_rank_> output,
+                                        nk_f32_t scale, nk_capability_t capabilities = cpu_capabilities(),
+                                        void *stream = nullptr) noexcept {
+    if (status_t status = attention_shapes_(queries, key_value_packed, output); failed(status)) return status;
+    return attention_bidirectional_packed<value_type_>(
+        queries.data(), key_value_packed.data(), output.data(), queries.extent(1),
+        key_value_packed.key_value_head_count(), key_value_packed.depth(), key_value_packed.segment_offsets().data(),
+        static_cast<std::size_t>(queries.stride_bytes(0)), static_cast<std::size_t>(output.stride_bytes(0)), scale, 0,
+        static_cast<std::size_t>(-1), capabilities, stream);
+}
+
+/** Causal self-attention, the view counterpart of the raw @c attention_causal_packed; fails like
+ *  the bidirectional view overload. */
+template <numeric_dtype value_type_, std::size_t max_rank_, typename allocator_type_>
+status_t attention_causal_packed(tensor_view<value_type_, max_rank_> queries,
+                                 packed_attention<value_type_, allocator_type_> const &key_value_packed,
+                                 tensor_span<typename value_type_::attention_result_t, max_rank_> output,
+                                 nk_f32_t scale, nk_i64_t diagonal_offset = 0,
+                                 std::size_t window = static_cast<std::size_t>(-1),
+                                 nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+    if (status_t status = attention_shapes_(queries, key_value_packed, output); failed(status)) return status;
+    return attention_causal_packed<value_type_>(
+        queries.data(), key_value_packed.data(), output.data(), queries.extent(1),
+        key_value_packed.key_value_head_count(), key_value_packed.depth(), key_value_packed.segment_offsets().data(),
+        static_cast<std::size_t>(queries.stride_bytes(0)), static_cast<std::size_t>(output.stride_bytes(0)), scale,
+        diagonal_offset, window, 0, static_cast<std::size_t>(-1), capabilities, stream);
+}
+
+/** Allocating bidirectional self-attention returning a fresh @b [tokens,heads,depth] tensor;
+ *  @c unexpected_dimensions_k when the shapes disagree, or else the failure of the allocation or
+ *  of the kernel itself. */
+template <numeric_dtype value_type_, std::size_t max_rank_, typename packed_allocator_type_,
+          typename allocator_type_ = aligned_allocator<typename value_type_::attention_result_t>>
+expected<tensor<typename value_type_::attention_result_t, allocator_type_, max_rank_>> attention_bidirectional_packed(
+    tensor_view<value_type_, max_rank_> queries,
+    packed_attention<value_type_, packed_allocator_type_> const &key_value_packed, nk_f32_t scale,
+    allocator_type_ alloc = {}) noexcept {
+    using out_tensor_t = tensor<typename value_type_::attention_result_t, allocator_type_, max_rank_>;
+    if (!attention_rows_supported_(queries)) return {out_tensor_t(alloc), status_t::unexpected_dimensions_k};
+    auto result = out_tensor_t::uninitialized({queries.extent(0), queries.extent(1), queries.extent(2)}, alloc);
+    if (!result) return result;
+    if (status_t status = attention_bidirectional_packed<value_type_>(queries, key_value_packed, result.value.span(),
+                                                                      scale);
+        failed(status))
+        return {out_tensor_t(alloc), status};
+    return result;
+}
+
+/** Allocating causal self-attention; fails like the allocating bidirectional overload. */
+template <numeric_dtype value_type_, std::size_t max_rank_, typename packed_allocator_type_,
+          typename allocator_type_ = aligned_allocator<typename value_type_::attention_result_t>>
+expected<tensor<typename value_type_::attention_result_t, allocator_type_, max_rank_>> attention_causal_packed(
+    tensor_view<value_type_, max_rank_> queries,
+    packed_attention<value_type_, packed_allocator_type_> const &key_value_packed, nk_f32_t scale,
+    nk_i64_t diagonal_offset = 0, std::size_t window = static_cast<std::size_t>(-1),
+    allocator_type_ alloc = {}) noexcept {
+    using out_tensor_t = tensor<typename value_type_::attention_result_t, allocator_type_, max_rank_>;
+    if (!attention_rows_supported_(queries)) return {out_tensor_t(alloc), status_t::unexpected_dimensions_k};
+    auto result = out_tensor_t::uninitialized({queries.extent(0), queries.extent(1), queries.extent(2)}, alloc);
+    if (!result) return result;
+    if (status_t status = attention_causal_packed<value_type_>(queries, key_value_packed, result.value.span(), scale,
+                                                               diagonal_offset, window);
+        failed(status))
+        return {out_tensor_t(alloc), status};
+    return result;
+}
+
+#pragma endregion Attention Views
 
 } // namespace ashvardanian::numkong
 

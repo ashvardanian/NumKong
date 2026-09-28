@@ -52,9 +52,9 @@ error_stats_t test_maxsim_packed(typename scalar_type_::dots_pack_size_kernel_t 
 
         // Exhaustive scalar reference
         reference_t reference;
-        nk::maxsim_reference<scalar_t, reference_t>(queries.raw_values_data(), query_count, stride,
-                                                    documents.raw_values_data(), document_count, stride, depth,
-                                                    &reference, no_tiers_k);
+        stats.expect(nk::maxsim_reference<scalar_t, reference_t>(queries.raw_values_data(), query_count, stride,
+                                                                 documents.raw_values_data(), document_count, stride,
+                                                                 depth, &reference, no_tiers_k));
 
         stats.accumulate(result, reference);
     }

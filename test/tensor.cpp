@@ -11,6 +11,7 @@
 
 #include "harness.hpp"
 
+#include "numkong/attention.hpp"
 #include "numkong/cast.hpp"
 #include "numkong/dot.hpp"
 #include "numkong/spatial.hpp"
@@ -35,19 +36,19 @@ error_stats_t test_format_scalars();
 #endif
 
 /*  Explicit instantiations for tensor types, forcing full compilation of all APIs. */
-template class nk::tensor<nk::f32_t>;
-template class nk::tensor<nk::f64_t>;
-template class nk::tensor<nk::f16_t>;
-template class nk::tensor<nk::bf16_t>;
-template class nk::tensor<nk::i8_t>;
+template struct nk::tensor<nk::f32_t>;
+template struct nk::tensor<nk::f64_t>;
+template struct nk::tensor<nk::f16_t>;
+template struct nk::tensor<nk::bf16_t>;
+template struct nk::tensor<nk::i8_t>;
 
 /*  Views and spans for rank-2 matrices and the default rank. */
-template class nk::tensor_view<nk::f32_t, 2>;
-template class nk::tensor_view<nk::f32_t, 8>;
-template class nk::tensor_span<nk::f32_t, 2>;
-template class nk::tensor_span<nk::f32_t, 8>;
-template class nk::tensor_view<nk::bf16_t, 2>;
-template class nk::tensor_span<nk::bf16_t, 2>;
+template struct nk::tensor_view<nk::f32_t, 2>;
+template struct nk::tensor_view<nk::f32_t, 8>;
+template struct nk::tensor_span<nk::f32_t, 2>;
+template struct nk::tensor_span<nk::f32_t, 8>;
+template struct nk::tensor_view<nk::bf16_t, 2>;
+template struct nk::tensor_span<nk::bf16_t, 2>;
 
 template <typename value_type_>
 error_stats_t test_vector_basics() {
@@ -101,8 +102,8 @@ error_stats_t test_integral_indexing_api() {
 
 error_stats_t test_tensor_operator_indexing() {
     error_stats_t stats(comparison_family_t::exact_k);
-    auto t = nk::tensor<float>::try_zeros({2, 3});
-    stats.expect(!t.empty(), "tensor allocation failed");
+    auto [t, t_status] = nk::tensor<float>::zeros({2, 3});
+    stats.expect(nk::succeeded(t_status), "tensor allocation failed");
 
     for (int i = 0; i < 6; ++i) t[i] = static_cast<float>(i + 1);
 
@@ -151,8 +152,8 @@ error_stats_t test_tensor_operator_indexing() {
     stats.expect(last_row_subscript.rank() == 1, "operator[] const row slice mismatch");
 #endif
 
-    auto cube = nk::tensor<float>::try_zeros({2, 3, 4});
-    stats.expect(!cube.empty(), "cube allocation failed");
+    auto [cube, cube_status] = nk::tensor<float>::zeros({2, 3, 4});
+    stats.expect(nk::succeeded(cube_status), "cube allocation failed");
     for (int i = 0; i < 24; ++i) cube[i] = static_cast<float>(i);
 
     auto plane = cube(1, nk::slice);
@@ -207,8 +208,8 @@ error_stats_t test_tensor_operator_indexing() {
 
 error_stats_t test_packed_tensor_operator_indexing() {
     error_stats_t stats(comparison_family_t::exact_k);
-    auto t4 = nk::tensor<nk::u4x2_t>::try_zeros({2, 4});
-    stats.expect(!t4.empty(), "packed u4 tensor allocation failed");
+    auto [t4, t4_status] = nk::tensor<nk::u4x2_t>::zeros({2, 4});
+    stats.expect(nk::succeeded(t4_status), "packed u4 tensor allocation failed");
 
     for (int i = 0; i < 8; ++i) t4[i] = i + 1;
 
@@ -232,8 +233,8 @@ error_stats_t test_packed_tensor_operator_indexing() {
     stats.expect((int(t4[1, 1]) == 14), "packed operator[] row slice write-through failed");
 #endif
 
-    auto t1 = nk::tensor<nk::u1x8_t>::try_zeros({2, 8});
-    stats.expect(!t1.empty(), "packed u1 tensor allocation failed");
+    auto [t1, t1_status] = nk::tensor<nk::u1x8_t>::zeros({2, 8});
+    stats.expect(nk::succeeded(t1_status), "packed u1 tensor allocation failed");
     t1[0] = true;
     t1[7] = true;
     t1[11] = true;
@@ -341,8 +342,10 @@ error_stats_t test_sub_byte_i4x2() {
     stats.expect(v[0] == 5, "i4x2_t dim 0 mismatch");
     stats.expect(v[1] == -3, "i4x2_t dim 1 mismatch");
 
-    stats.expect(nk::vector<nk::i4x2_t>::try_zeros(7).empty(), "i4x2_t allocated half a byte");
-    stats.expect(!v.try_resize(99) && v.size() == 100, "i4x2_t resized to half a byte");
+    stats.expect(nk::vector<nk::i4x2_t>::zeros(7).status == nk::status_t::unexpected_dimensions_k,
+                 "i4x2_t allocated half a byte");
+    stats.expect(v.resize(99) == nk::status_t::unexpected_dimensions_k && v.size() == 100,
+                 "i4x2_t resized to half a byte");
     return stats;
 }
 
@@ -410,23 +413,22 @@ error_stats_t test_scaled_tensor() {
     error_stats_t stats(comparison_family_t::exact_k);
     using nk::f32_t;
     using nk::u8_t;
-    auto abs_diff = [](float a, float b) { return a > b ? a - b : b - a; };
 
     // 4 rows × 64 cols. 64 is a multiple of both the NVFP4 (16) and MX (32) block sizes.
     constexpr std::size_t rows = 4, cols = 64;
-    auto weights = nk::tensor<f32_t>::try_empty({rows, cols});
-    stats.expect(!weights.empty(), "weights allocation failed");
+    auto [weights, weights_status] = nk::tensor<f32_t>::uninitialized({rows, cols});
+    stats.expect(nk::succeeded(weights_status), "weights allocation failed");
     {
         auto writable = weights.span();
         for (std::size_t r = 0; r < rows; ++r)
             for (std::size_t c = 0; c < cols; ++c)
                 writable(r, c) = f32_t(static_cast<float>(static_cast<int>((r * 7 + c * 3) % 17) - 8) * 0.6f);
     }
-    auto const *weights_raw = reinterpret_cast<float const *>(weights.data());
 
     // Encode (quantize) to NVFP4 into a preallocated scaled_tensor.
-    auto quantized = nk::scaled_tensor<nk::nvfp4_t>::try_empty({rows, cols});
-    nk::cast(weights.view(), quantized.span());
+    auto [quantized, quantized_status] = nk::scaled_tensor<nk::nvfp4_t>::uninitialized({rows, cols});
+    stats.expect(nk::succeeded(quantized_status), "quantized allocation failed");
+    stats.expect(nk::cast(weights.view(), quantized.span()));
     stats.expect(!quantized.empty(), "encode produced an empty scaled_tensor");
     stats.expect(quantized.rank() == 2 && quantized.extent(0) == rows && quantized.extent(1) == cols,
                  "encoded shape mismatch");
@@ -442,10 +444,10 @@ error_stats_t test_scaled_tensor() {
     auto reference_elements = make_vector<u8_t>(nk_block_scaled_elements_size(rows * cols, nvfp4_format));
     auto reference_scales = make_vector<u8_t>(nk_block_scaled_scales_size(rows * cols, nvfp4_format));
     nk_scalar_buffer_t reference_tensor_scale = {};    // zero → derive, matching the C++ factory
-    nk_cast_block_scaled_serial(                       //
+    stats.expect(nk_cast_block_scaled_serial(          //
         weights.data(), nullptr, nullptr, &f32_format, //
         reference_elements.raw_values_data(), reference_scales.raw_values_data(), //
-        &reference_tensor_scale, &nvfp4_format, rows * cols, nullptr);
+        &reference_tensor_scale, &nvfp4_format, rows * cols, nullptr));
 
     auto const *encoded_elements = reinterpret_cast<unsigned char const *>(quantized.elements().byte_data());
     for (std::size_t i = 0; i < reference_elements.size_values(); ++i)
@@ -461,16 +463,16 @@ error_stats_t test_scaled_tensor() {
 
     // Slice one row and materialize it to a dense f32 vector.
     auto restored_row = make_vector<f32_t>(cols);
-    nk::cast<nk::nvfp4_t>(quantized.row(1), restored_row.span());
+    stats.expect(nk::cast<nk::nvfp4_t>(quantized.row(1), restored_row.span()));
     {
         auto reference_row = make_vector<f32_t>(cols);
         nk_scalar_buffer_t tensor_scale;
         tensor_scale.f32 = quantized.tensor_scale();
-        nk_cast_block_scaled_serial(                                      //
+        stats.expect(nk_cast_block_scaled_serial(                         //
             reference_elements.raw_values_data() + 1 * row_element_bytes, //
             reference_scales.raw_values_data() + 1 * row_scale_bytes,     //
             &tensor_scale, &nvfp4_format,                                 //
-            reference_row.raw_values_data(), nullptr, nullptr, &f32_format, cols, nullptr);
+            reference_row.raw_values_data(), nullptr, nullptr, &f32_format, cols, nullptr));
         for (std::size_t c = 0; c < cols; ++c)
             stats.expect(restored_row.raw_values_data()[c] == reference_row.raw_values_data()[c],
                          "row materialization differs from reference");
@@ -482,19 +484,20 @@ error_stats_t test_scaled_tensor() {
     stats.expect(column_tile.block_scales().extent(1) == 32 / 16, "column tile block_scales extent mismatch");
     // A sub-block (non-aligned) range is rejected, not silently truncated.
     stats.expect(quantized.columns(0, 24).empty(), "sub-block column ranges must be rejected");
-    auto restored_tile = nk::tensor<f32_t>::try_empty({rows, std::size_t {32}});
-    nk::cast<nk::nvfp4_t>(column_tile, restored_tile.span());
+    auto [restored_tile, restored_tile_status] = nk::tensor<f32_t>::uninitialized({rows, std::size_t {32}});
+    stats.expect(nk::succeeded(restored_tile_status), "restored tile allocation failed");
+    stats.expect(nk::cast<nk::nvfp4_t>(column_tile, restored_tile.span()));
     {
         auto const *tile_raw = reinterpret_cast<float const *>(restored_tile.data());
         auto reference_tile_row = make_vector<f32_t>(32);
         for (std::size_t r = 0; r < rows; ++r) {
             nk_scalar_buffer_t tensor_scale;
             tensor_scale.f32 = quantized.tensor_scale();
-            nk_cast_block_scaled_serial(                                      //
+            stats.expect(nk_cast_block_scaled_serial(                         //
                 reference_elements.raw_values_data() + r * row_element_bytes, //
                 reference_scales.raw_values_data() + r * row_scale_bytes,     //
                 &tensor_scale, &nvfp4_format,                                 //
-                reference_tile_row.raw_values_data(), nullptr, nullptr, &f32_format, 32, nullptr);
+                reference_tile_row.raw_values_data(), nullptr, nullptr, &f32_format, 32, nullptr));
             for (std::size_t c = 0; c < 32; ++c)
                 stats.expect(tile_raw[r * 32 + c] == reference_tile_row.raw_values_data()[c],
                              "column-tile materialization differs from reference");
@@ -520,18 +523,19 @@ error_stats_t test_scaled_tensor() {
         auto mid_tile = quantized.columns(16, 48); // two NVFP4 blocks starting at column 16
         stats.expect(mid_tile.extent(1) == 32 && mid_tile.block_scales().extent(1) == 32 / 16,
                      "mid tile shape mismatch");
-        auto restored_mid = nk::tensor<f32_t>::try_empty({rows, std::size_t {32}});
-        nk::cast<nk::nvfp4_t>(mid_tile, restored_mid.span());
+        auto [restored_mid, restored_mid_status] = nk::tensor<f32_t>::uninitialized({rows, std::size_t {32}});
+        stats.expect(nk::succeeded(restored_mid_status), "restored mid allocation failed");
+        stats.expect(nk::cast<nk::nvfp4_t>(mid_tile, restored_mid.span()));
         auto const *mid_raw = reinterpret_cast<float const *>(restored_mid.data());
         auto reference_mid = make_vector<f32_t>(32);
         for (std::size_t r = 0; r < rows; ++r) {
             nk_scalar_buffer_t tensor_scale;
             tensor_scale.f32 = quantized.tensor_scale();
-            nk_cast_block_scaled_serial(                                               //
+            stats.expect(nk_cast_block_scaled_serial(                                  //
                 reference_elements.raw_values_data() + r * row_element_bytes + 16 / 2, // column 16 → byte 8
                 reference_scales.raw_values_data() + r * row_scale_bytes + 16 / 16,    // block 1
                 &tensor_scale, &nvfp4_format,                                          //
-                reference_mid.raw_values_data(), nullptr, nullptr, &f32_format, 32, nullptr);
+                reference_mid.raw_values_data(), nullptr, nullptr, &f32_format, 32, nullptr));
             for (std::size_t c = 0; c < 32; ++c)
                 stats.expect(mid_raw[r * 32 + c] == reference_mid.raw_values_data()[c],
                              "non-zero-start column tile differs from reference");
@@ -539,19 +543,21 @@ error_stats_t test_scaled_tensor() {
     }
 
     // MXFP8 whole-tensor decode equals the serial reference byte-for-byte.
-    auto mx = nk::scaled_tensor<nk::mxfp8_e4m3_t>::try_empty({rows, cols});
-    nk::cast(weights.view(), mx.span());
+    auto [mx, mx_status] = nk::scaled_tensor<nk::mxfp8_e4m3_t>::uninitialized({rows, cols});
+    stats.expect(nk::succeeded(mx_status), "MXFP8 allocation failed");
+    stats.expect(nk::cast(weights.view(), mx.span()));
     stats.expect(!mx.empty() && mx.block_scales().extent(0) == rows && mx.block_scales().extent(1) == cols / 32,
                  "MXFP8 encode shape mismatch");
     {
-        auto mx_restored = nk::tensor<f32_t>::try_empty({rows, cols});
-        nk::cast<nk::mxfp8_e4m3_t>(mx.view(), mx_restored.span());
+        auto [mx_restored, mx_restored_status] = nk::tensor<f32_t>::uninitialized({rows, cols});
+        stats.expect(nk::succeeded(mx_restored_status), "MXFP8 restore allocation failed");
+        stats.expect(nk::cast<nk::mxfp8_e4m3_t>(mx.view(), mx_restored.span()));
         // Reference: decode the same bytes through the serial kernel and require bit-identical output.
         nk_block_scaled_format_t const mx_format = nk_mxfp8_e4m3();
         auto reference_restored = make_vector<f32_t>(rows * cols);
-        nk_cast_block_scaled_serial( //
+        stats.expect(nk_cast_block_scaled_serial( //
             mx.elements().byte_data(), mx.block_scales().byte_data(), nullptr, &mx_format,
-            reference_restored.raw_values_data(), nullptr, nullptr, &f32_format, rows * cols, nullptr);
+            reference_restored.raw_values_data(), nullptr, nullptr, &f32_format, rows * cols, nullptr));
         auto const *restored_raw = reinterpret_cast<float const *>(mx_restored.data());
         for (std::size_t i = 0; i < rows * cols; ++i)
             stats.expect(restored_raw[i] == reference_restored.raw_values_data()[i],
@@ -560,15 +566,17 @@ error_stats_t test_scaled_tensor() {
 
     // Transcode MXFP8 E4M3 to NVFP4 (block-scaled to block-scaled).
     {
-        auto transcoded = nk::scaled_tensor<nk::nvfp4_t>::try_empty({rows, cols});
-        stats.expect(!transcoded.empty(), "transcode allocation failed");
+        auto [transcoded, transcoded_status] = nk::scaled_tensor<nk::nvfp4_t>::uninitialized({rows, cols});
+        stats.expect(nk::succeeded(transcoded_status), "transcode allocation failed");
         auto destination = transcoded.span();
-        nk::cast(mx.view(), destination);
+        stats.expect(nk::cast(mx.view(), destination));
         // The transcode result must match decoding MXFP8→dense then re-encoding to NVFP4.
-        auto dense = nk::tensor<f32_t>::try_empty({rows, cols});
-        nk::cast<nk::mxfp8_e4m3_t>(mx.view(), dense.span());
-        auto reference_nvfp4 = nk::scaled_tensor<nk::nvfp4_t>::try_empty({rows, cols});
-        nk::cast(dense.view(), reference_nvfp4.span());
+        auto [dense, dense_status] = nk::tensor<f32_t>::uninitialized({rows, cols});
+        stats.expect(nk::succeeded(dense_status), "dense allocation failed");
+        stats.expect(nk::cast<nk::mxfp8_e4m3_t>(mx.view(), dense.span()));
+        auto [reference_nvfp4, reference_nvfp4_status] = nk::scaled_tensor<nk::nvfp4_t>::uninitialized({rows, cols});
+        stats.expect(nk::succeeded(reference_nvfp4_status), "reference allocation failed");
+        stats.expect(nk::cast(dense.view(), reference_nvfp4.span()));
         auto const *transcoded_elements = reinterpret_cast<unsigned char const *>(transcoded.elements().byte_data());
         auto const *reference_nvfp4_elements = reinterpret_cast<unsigned char const *>(
             reference_nvfp4.elements().byte_data());
@@ -598,14 +606,16 @@ error_stats_t test_scaled_roundtrip(float narrow_relative_bound) {
     constexpr std::size_t block = format_::elements();
     auto abs_diff = [](float a, float b) { return a > b ? a - b : b - a; };
 
-    auto encode_decode = [](float const *input_values) {
-        auto input = nk::tensor<f32_t>::try_empty({std::size_t {1}, block});
+    auto encode_decode = [&stats](float const *input_values) {
+        auto [input, input_status] = nk::tensor<f32_t>::uninitialized({std::size_t {1}, block});
+        stats.expect(nk::succeeded(input_status), "input allocation failed");
         auto writable = input.span();
         for (std::size_t i = 0; i < block; ++i) writable(0, i) = f32_t(input_values[i]);
-        auto quantized = nk::scaled_tensor<format_>::try_empty({std::size_t {1}, block});
-        nk::cast(input.view(), quantized.span());
+        auto [quantized, quantized_status] = nk::scaled_tensor<format_>::uninitialized({std::size_t {1}, block});
+        stats.expect(nk::succeeded(quantized_status), "quantized allocation failed");
+        stats.expect(nk::cast(input.view(), quantized.span()));
         auto restored = make_vector<f32_t>(block);
-        nk::cast<format_>(quantized.row(0), restored.span());
+        stats.expect(nk::cast<format_>(quantized.row(0), restored.span()));
         return restored;
     };
 
@@ -656,27 +666,33 @@ error_stats_t test_scaled_tensor_degenerate() {
     constexpr std::size_t block = 32; // MXFP8 block size
     // All-zero block → zero scale → all-zero decode (no division-by-zero, no NaN).
     {
-        auto input = nk::tensor<f32_t>::try_zeros({std::size_t {1}, block});
-        auto quantized = nk::scaled_tensor<nk::mxfp8_e4m3_t>::try_empty({std::size_t {1}, block});
-        nk::cast(input.view(), quantized.span());
+        auto [input, input_status] = nk::tensor<f32_t>::zeros({std::size_t {1}, block});
+        auto [quantized,
+              quantized_status] = nk::scaled_tensor<nk::mxfp8_e4m3_t>::uninitialized({std::size_t {1}, block});
+        stats.expect(nk::succeeded(input_status) && nk::succeeded(quantized_status), "allocation failed");
+        stats.expect(nk::cast(input.view(), quantized.span()));
         auto restored = make_vector<f32_t>(block);
-        nk::cast<nk::mxfp8_e4m3_t>(quantized.row(0), restored.span());
+        stats.expect(nk::cast<nk::mxfp8_e4m3_t>(quantized.row(0), restored.span()));
         for (std::size_t i = 0; i < block; ++i)
             stats.expect(restored.raw_values_data()[i] == 0.0f, "all-zero block did not decode to zero");
     }
     // A NaN in one block sets that block's scale to the NaN sentinel; a clean block is unaffected.
     {
-        auto input = nk::tensor<f32_t>::try_empty({std::size_t {2}, block});
+        auto [input, input_status] = nk::tensor<f32_t>::uninitialized({std::size_t {2}, block});
+        stats.expect(nk::succeeded(input_status), "input allocation failed");
         auto writable = input.span();
         float const quiet_nan = std::numeric_limits<float>::quiet_NaN();
         for (std::size_t i = 0; i < block; ++i) {
             writable(0, i) = f32_t(i == 3 ? quiet_nan : 1.5f); // row 0 poisoned
             writable(1, i) = f32_t(1.5f);                      // row 1 clean
         }
-        auto quantized = nk::scaled_tensor<nk::mxfp8_e4m3_t>::try_empty({std::size_t {2}, block});
-        nk::cast(input.view(), quantized.span());
-        auto restored = nk::tensor<f32_t>::try_empty({std::size_t {2}, block});
-        nk::cast<nk::mxfp8_e4m3_t>(quantized.view(), restored.span());
+        auto [quantized,
+              quantized_status] = nk::scaled_tensor<nk::mxfp8_e4m3_t>::uninitialized({std::size_t {2}, block});
+        stats.expect(nk::succeeded(quantized_status), "quantized allocation failed");
+        stats.expect(nk::cast(input.view(), quantized.span()));
+        auto [restored, restored_status] = nk::tensor<f32_t>::uninitialized({std::size_t {2}, block});
+        stats.expect(nk::succeeded(restored_status), "restored allocation failed");
+        stats.expect(nk::cast<nk::mxfp8_e4m3_t>(quantized.view(), restored.span()));
         auto const *clean_row = reinterpret_cast<float const *>(restored.data()) + block;
         for (std::size_t i = 0; i < block; ++i)
             stats.expect(abs_diff(clean_row[i], 1.5f) <= 0.1f, "clean block corrupted by a NaN in another block");
@@ -687,7 +703,8 @@ error_stats_t test_scaled_tensor_degenerate() {
 error_stats_t test_custom_allocator() {
     error_stats_t stats(comparison_family_t::exact_k);
     using custom_alloc_t = nk::aligned_allocator<nk::f32_t, 128>;
-    auto v = nk::vector<nk::f32_t, custom_alloc_t>::try_zeros(256);
+    auto [v, v_status] = nk::vector<nk::f32_t, custom_alloc_t>::zeros(256);
+    stats.expect(nk::succeeded(v_status), "custom allocator allocation failed");
     stats.expect(v.size() == 256, "custom allocator size mismatch");
     v[128] = nk::f32_t(99.0f);
     stats.expect(v[128] == nk::f32_t(99.0f), "custom allocator value mismatch");
@@ -704,8 +721,8 @@ void test_sub_byte_tensor_axis_reduction_case(error_stats_t &stats, std::array<i
     using sum_t = typename value_type_::reduce_moments_sum_t;
     using minmax_t = typename value_type_::reduce_minmax_value_t;
 
-    auto t = tensor_t::try_zeros({2, cols_});
-    stats.expect(!t.empty(), "tensor allocation failed");
+    auto [t, t_status] = tensor_t::zeros({2, cols_});
+    stats.expect(nk::succeeded(t_status), "tensor allocation failed");
 
     auto span = t.span();
     auto row0 = span.slice_leading(0).as_vector();
@@ -715,13 +732,14 @@ void test_sub_byte_tensor_axis_reduction_case(error_stats_t &stats, std::array<i
         row1[i] = second_row[i];
     }
 
-    auto sums = nk::try_sum<value_type_>(t.view(), 0);
-    stats.expect(!sums.empty(), "axis-0 sum failed");
+    auto [sums, sums_status] = nk::sum<value_type_>(t.view(), 0);
+    stats.expect(nk::succeeded(sums_status) && !sums.empty(), "axis-0 sum failed");
     auto sum_view = sums.as_vector_view();
     for (std::size_t i = 0; i < cols_; ++i) stats.expect(sum_view[i] == sum_t(expected_sums[i]), "axis-0 sum mismatch");
 
-    auto minmax = nk::try_minmax<value_type_>(t.view(), 0);
-    stats.expect(!minmax.min_value.empty() && !minmax.max_value.empty(), "axis-0 minmax failed");
+    auto [minmax, minmax_status] = nk::minmax<value_type_>(t.view(), 0);
+    stats.expect(nk::succeeded(minmax_status) && !minmax.min_value.empty() && !minmax.max_value.empty(),
+                 "axis-0 minmax failed");
     auto min_view = minmax.min_value.as_vector_view();
     auto max_view = minmax.max_value.as_vector_view();
     for (std::size_t i = 0; i < cols_; ++i) {
@@ -752,6 +770,11 @@ void assert_scalar_tensor_equals(error_stats_t &stats, tensor_type_ const &tenso
     stats.expect(vec[0u] == actual_t(expected), "scalar tensor value mismatch");
 }
 
+template <typename value_type_>
+void expect_nonempty(error_stats_t &stats, nk::expected<value_type_> const &result, char const *what) {
+    stats.expect(nk::succeeded(result.status) && !result.value.empty(), what);
+}
+
 template <typename value_type_, std::size_t cols_>
 void test_sub_byte_tensor_rank3_axis_case(
     error_stats_t &stats, std::array<int, cols_> const &a00, std::array<int, cols_> const &a01,
@@ -762,11 +785,9 @@ void test_sub_byte_tensor_rank3_axis_case(
     std::array<int, cols_ * 2> const &expected_max_axis1, std::array<int, 4> const &expected_min_axis2,
     std::array<int, 4> const &expected_max_axis2) {
     using tensor_t = nk::tensor<value_type_>;
-    using sum_t = typename value_type_::reduce_moments_sum_t;
-    using minmax_t = typename value_type_::reduce_minmax_value_t;
 
-    auto t = tensor_t::try_zeros({2, 2, cols_});
-    stats.expect(!t.empty(), "rank-3 tensor allocation failed");
+    auto [t, t_status] = tensor_t::zeros({2, 2, cols_});
+    stats.expect(nk::succeeded(t_status), "rank-3 tensor allocation failed");
 
     auto span = t.span();
     auto row00 = span.slice_leading(0).slice_leading(0).as_vector();
@@ -780,23 +801,29 @@ void test_sub_byte_tensor_rank3_axis_case(
         row11[i] = a11[i];
     }
 
-    auto sums0 = nk::try_sum<value_type_>(t.view(), 0);
-    auto sums1 = nk::try_sum<value_type_>(t.view(), 1);
-    auto sums2 = nk::try_sum<value_type_>(t.view(), 2);
+    auto [sums0, sums0_status] = nk::sum<value_type_>(t.view(), 0);
+    auto [sums1, sums1_status] = nk::sum<value_type_>(t.view(), 1);
+    auto [sums2, sums2_status] = nk::sum<value_type_>(t.view(), 2);
+    stats.expect(nk::succeeded(sums0_status) && nk::succeeded(sums1_status) && nk::succeeded(sums2_status),
+                 "rank-3 axis sum failed");
     assert_flat_tensor_equals(stats, sums0, expected_sum_axis0);
     assert_flat_tensor_equals(stats, sums1, expected_sum_axis1);
     assert_flat_tensor_equals(stats, sums2, expected_sum_axis2);
 
-    auto moments0 = nk::try_moments<value_type_>(t.view(), 0);
-    auto moments1 = nk::try_moments<value_type_>(t.view(), 1);
-    auto moments2 = nk::try_moments<value_type_>(t.view(), 2);
+    auto [moments0, moments0_status] = nk::moments<value_type_>(t.view(), 0);
+    auto [moments1, moments1_status] = nk::moments<value_type_>(t.view(), 1);
+    auto [moments2, moments2_status] = nk::moments<value_type_>(t.view(), 2);
+    stats.expect(nk::succeeded(moments0_status) && nk::succeeded(moments1_status) && nk::succeeded(moments2_status),
+                 "rank-3 axis moments failed");
     assert_flat_tensor_equals(stats, moments0.sum, expected_sum_axis0);
     assert_flat_tensor_equals(stats, moments1.sum, expected_sum_axis1);
     assert_flat_tensor_equals(stats, moments2.sum, expected_sum_axis2);
 
-    auto minmax0 = nk::try_minmax<value_type_>(t.view(), 0);
-    auto minmax1 = nk::try_minmax<value_type_>(t.view(), 1);
-    auto minmax2 = nk::try_minmax<value_type_>(t.view(), 2);
+    auto [minmax0, minmax0_status] = nk::minmax<value_type_>(t.view(), 0);
+    auto [minmax1, minmax1_status] = nk::minmax<value_type_>(t.view(), 1);
+    auto [minmax2, minmax2_status] = nk::minmax<value_type_>(t.view(), 2);
+    stats.expect(nk::succeeded(minmax0_status) && nk::succeeded(minmax1_status) && nk::succeeded(minmax2_status),
+                 "rank-3 axis minmax failed");
     assert_flat_tensor_equals(stats, minmax0.min_value, expected_min_axis0);
     assert_flat_tensor_equals(stats, minmax0.max_value, expected_max_axis0);
     assert_flat_tensor_equals(stats, minmax1.min_value, expected_min_axis1);
@@ -862,23 +889,27 @@ error_stats_t test_rank1_negative_stride_reductions() {
 
 error_stats_t test_rank1_axis_reductions() {
     error_stats_t stats(comparison_family_t::exact_k);
-    auto v = nk::tensor<nk::i8_t>::try_zeros({4});
-    stats.expect(!v.empty(), "rank-1 tensor allocation failed");
+    auto [v, v_status] = nk::tensor<nk::i8_t>::zeros({4});
+    stats.expect(nk::succeeded(v_status), "rank-1 tensor allocation failed");
     auto values = v.as_vector_span();
     values[0u] = 4;
     values[1u] = -2;
     values[2u] = 7;
     values[3u] = -5;
 
-    auto sums = nk::try_sum<nk::i8_t>(v.view(), 0);
-    auto moments = nk::try_moments<nk::i8_t>(v.view(), 0);
-    auto mins = nk::try_min<nk::i8_t>(v.view(), 0);
-    auto maxs = nk::try_max<nk::i8_t>(v.view(), 0);
-    auto argmins = nk::try_argmin<nk::i8_t>(v.view(), 0);
-    auto argmaxs = nk::try_argmax<nk::i8_t>(v.view(), 0);
+    auto [sums, sums_status] = nk::sum<nk::i8_t>(v.view(), 0);
+    auto [moments, moments_status] = nk::moments<nk::i8_t>(v.view(), 0);
+    auto [mins, mins_status] = nk::min<nk::i8_t>(v.view(), 0);
+    auto [maxs, maxs_status] = nk::max<nk::i8_t>(v.view(), 0);
+    auto [argmins, argmins_status] = nk::argmin<nk::i8_t>(v.view(), 0);
+    auto [argmaxs, argmaxs_status] = nk::argmax<nk::i8_t>(v.view(), 0);
 
-    stats.expect(!sums.empty() && !moments.sum.empty(), "rank-1 axis moments failed");
-    stats.expect(!mins.empty() && !maxs.empty() && !argmins.empty() && !argmaxs.empty(), "rank-1 axis minmax failed");
+    stats.expect(nk::succeeded(sums_status) && nk::succeeded(moments_status) && !sums.empty() && !moments.sum.empty(),
+                 "rank-1 axis moments failed");
+    stats.expect(nk::succeeded(mins_status) && nk::succeeded(maxs_status) && nk::succeeded(argmins_status) &&
+                     nk::succeeded(argmaxs_status) && !mins.empty() && !maxs.empty() && !argmins.empty() &&
+                     !argmaxs.empty(),
+                 "rank-1 axis minmax failed");
     stats.expect(sums.rank() == 0 && moments.sum.rank() == 0,
                  "collapsed rank-1 reductions should produce rank-0 tensors");
     assert_scalar_tensor_equals(stats, sums, 4);
@@ -892,8 +923,8 @@ error_stats_t test_rank1_axis_reductions() {
 
 error_stats_t test_packed_tensor_fail_closed_views() {
     error_stats_t stats(comparison_family_t::exact_k);
-    auto packed = nk::tensor<nk::i4x2_t>::try_zeros({2, 4});
-    stats.expect(!packed.empty(), "packed tensor allocation failed");
+    auto [packed, packed_status] = nk::tensor<nk::i4x2_t>::zeros({2, 4});
+    stats.expect(nk::succeeded(packed_status), "packed tensor allocation failed");
     stats.expect(packed.view().transpose().empty(), "packed transpose should fail closed");
     stats.expect((!packed(1, nk::slice).empty()), "packed row slice should remain supported");
     stats.expect((packed(1, 2, nk::slice).empty()), "packed scalar trailing slice should fail closed");
@@ -989,9 +1020,9 @@ error_stats_t test_tensor_ops_for_type() {
     using tensor_t = nk::tensor<value_type_>;
 
     // Create small test tensors
-    auto a = tensor_t::try_zeros({4, 8});
-    auto b = tensor_t::try_zeros({4, 8});
-    stats.expect(!a.empty() && !b.empty(), "tensor allocation");
+    auto [a, a_status] = tensor_t::zeros({4, 8});
+    auto [b, b_status] = tensor_t::zeros({4, 8});
+    stats.expect(nk::succeeded(a_status) && nk::succeeded(b_status), "tensor allocation");
 
     auto av = a.view();
     auto bv = b.view();
@@ -1006,61 +1037,62 @@ error_stats_t test_tensor_ops_for_type() {
     { [[maybe_unused]] auto r = nk::minmax<value_type_>(av); }
 
     // Axis reductions
-    stats.expect(!(nk::try_sum<value_type_>(av, 0)).empty(), "try_sum returned empty");
-    stats.expect(!(nk::try_sum<value_type_>(av, 1, nk::keep_dims_k)).empty(), "try_sum returned empty");
-    { [[maybe_unused]] auto r = nk::try_moments<value_type_>(av, 1); }
-    { [[maybe_unused]] auto r = nk::try_minmax<value_type_>(av, 0); }
-    { [[maybe_unused]] auto r = nk::try_minmax<value_type_>(av, 1, nk::keep_dims_k); }
-    stats.expect(!(nk::try_min<value_type_>(av, 0)).empty(), "try_min returned empty");
-    stats.expect(!(nk::try_min<value_type_>(av, 1, nk::keep_dims_k)).empty(), "try_min returned empty");
-    stats.expect(!(nk::try_max<value_type_>(av, 0)).empty(), "try_max returned empty");
-    stats.expect(!(nk::try_max<value_type_>(av, 1, nk::keep_dims_k)).empty(), "try_max returned empty");
-    stats.expect(!(nk::try_argmin<value_type_>(av, 0)).empty(), "try_argmin returned empty");
-    stats.expect(!(nk::try_argmax<value_type_>(av, 1, nk::keep_dims_k)).empty(), "try_argmax returned empty");
+    expect_nonempty(stats, nk::sum<value_type_>(av, 0), "sum returned empty");
+    expect_nonempty(stats, nk::sum<value_type_>(av, 1, nk::keep_dims_k), "sum returned empty");
+    { [[maybe_unused]] auto r = nk::moments<value_type_>(av, 1); }
+    { [[maybe_unused]] auto r = nk::minmax<value_type_>(av, 0); }
+    { [[maybe_unused]] auto r = nk::minmax<value_type_>(av, 1, nk::keep_dims_k); }
+    expect_nonempty(stats, nk::min<value_type_>(av, 0), "min returned empty");
+    expect_nonempty(stats, nk::min<value_type_>(av, 1, nk::keep_dims_k), "min returned empty");
+    expect_nonempty(stats, nk::max<value_type_>(av, 0), "max returned empty");
+    expect_nonempty(stats, nk::max<value_type_>(av, 1, nk::keep_dims_k), "max returned empty");
+    expect_nonempty(stats, nk::argmin<value_type_>(av, 0), "argmin returned empty");
+    expect_nonempty(stats, nk::argmax<value_type_>(av, 1, nk::keep_dims_k), "argmax returned empty");
 
     // Elementwise binary
-    stats.expect(!(nk::try_add<value_type_>(av, bv)).empty(), "try_add returned empty");
-    stats.expect(!(nk::try_sub<value_type_>(av, bv)).empty(), "try_sub returned empty");
-    stats.expect(!(nk::try_mul<value_type_>(av, bv)).empty(), "try_mul returned empty");
+    expect_nonempty(stats, nk::add<value_type_>(av, bv), "add returned empty");
+    expect_nonempty(stats, nk::sub<value_type_>(av, bv), "sub returned empty");
+    expect_nonempty(stats, nk::mul<value_type_>(av, bv), "mul returned empty");
 
     // Elementwise binary with scalar
     using scale_t = typename value_type_::scale_t;
     scale_t scalar {1};
-    stats.expect(!(nk::try_add<value_type_>(av, scalar)).empty(), "try_add returned empty");
-    stats.expect(!(nk::try_sub<value_type_>(av, scalar)).empty(), "try_sub returned empty");
-    stats.expect(!(nk::try_mul<value_type_>(av, scalar)).empty(), "try_mul returned empty");
+    expect_nonempty(stats, nk::add<value_type_>(av, scalar), "add returned empty");
+    expect_nonempty(stats, nk::sub<value_type_>(av, scalar), "sub returned empty");
+    expect_nonempty(stats, nk::mul<value_type_>(av, scalar), "mul returned empty");
 
     // Elementwise into
-    auto out = tensor_t::try_zeros({4, 8});
-    stats.expect(nk::add<value_type_>(av, bv, out.span()), "add into span failed");
-    stats.expect(nk::sub<value_type_>(av, bv, out.span()), "sub into span failed");
-    stats.expect(nk::mul<value_type_>(av, bv, out.span()), "mul into span failed");
-    stats.expect(nk::add<value_type_>(av, scalar, out.span()), "add into span failed");
-    stats.expect(nk::sub<value_type_>(av, scalar, out.span()), "sub into span failed");
-    stats.expect(nk::mul<value_type_>(av, scalar, out.span()), "mul into span failed");
+    auto [out, out_status] = tensor_t::zeros({4, 8});
+    stats.expect(nk::succeeded(out_status), "output allocation");
+    stats.expect(nk::succeeded(nk::add<value_type_>(av, bv, out.span())), "add into span failed");
+    stats.expect(nk::succeeded(nk::sub<value_type_>(av, bv, out.span())), "sub into span failed");
+    stats.expect(nk::succeeded(nk::mul<value_type_>(av, bv, out.span())), "mul into span failed");
+    stats.expect(nk::succeeded(nk::add<value_type_>(av, scalar, out.span())), "add into span failed");
+    stats.expect(nk::succeeded(nk::sub<value_type_>(av, scalar, out.span())), "sub into span failed");
+    stats.expect(nk::succeeded(nk::mul<value_type_>(av, scalar, out.span())), "mul into span failed");
 
     // Affine
     scale_t alpha {1}, beta {0};
-    stats.expect(!(nk::try_scale<value_type_>(av, alpha, beta)).empty(), "try_scale returned empty");
-    stats.expect(!(nk::try_blend<value_type_>(av, bv, alpha, beta)).empty(), "try_blend returned empty");
-    stats.expect(!(nk::try_fma<value_type_>(av, bv, av, alpha, beta)).empty(), "try_fma returned empty");
-    stats.expect(nk::scale<value_type_>(av, alpha, beta, out.span()), "scale into span failed");
-    stats.expect(nk::blend<value_type_>(av, bv, alpha, beta, out.span()), "blend into span failed");
-    stats.expect(nk::fma<value_type_>(av, bv, av, alpha, beta, out.span()), "fma into span failed");
+    expect_nonempty(stats, nk::scale<value_type_>(av, alpha, beta), "scale returned empty");
+    expect_nonempty(stats, nk::blend<value_type_>(av, bv, alpha, beta), "blend returned empty");
+    expect_nonempty(stats, nk::fma<value_type_>(av, bv, av, alpha, beta), "fma returned empty");
+    stats.expect(nk::succeeded(nk::scale<value_type_>(av, alpha, beta, out.span())), "scale into span failed");
+    stats.expect(nk::succeeded(nk::blend<value_type_>(av, bv, alpha, beta, out.span())), "blend into span failed");
+    stats.expect(nk::succeeded(nk::fma<value_type_>(av, bv, av, alpha, beta, out.span())), "fma into span failed");
 
-    // try_from 1D
+    // from 1D
     {
-        auto from1d = tensor_t::try_from({value_type_ {}, value_type_ {}, value_type_ {}});
-        stats.expect(!from1d.empty(), "try_from 1D failed");
-        stats.expect(from1d.rank() == 1 && from1d.numel() == 3, "try_from 1D shape mismatch");
+        auto [from1d, from1d_status] = tensor_t::from({value_type_ {}, value_type_ {}, value_type_ {}});
+        stats.expect(nk::succeeded(from1d_status), "from 1D failed");
+        stats.expect(from1d.rank() == 1 && from1d.numel() == 3, "from 1D shape mismatch");
     }
 
-    // try_from 2D
+    // from 2D
     {
-        auto from2d = tensor_t::try_from({{value_type_ {}, value_type_ {}}, {value_type_ {}, value_type_ {}}});
-        stats.expect(!from2d.empty(), "try_from 2D failed");
-        stats.expect(from2d.rank() == 2 && from2d.extent(0) == 2 && from2d.extent(1) == 2,
-                     "try_from 2D shape mismatch");
+        auto [from2d,
+              from2d_status] = tensor_t::from({{value_type_ {}, value_type_ {}}, {value_type_ {}, value_type_ {}}});
+        stats.expect(nk::succeeded(from2d_status), "from 2D failed");
+        stats.expect(from2d.rank() == 2 && from2d.extent(0) == 2 && from2d.extent(1) == 2, "from 2D shape mismatch");
     }
 
     // row() access
@@ -1081,12 +1113,13 @@ template <typename value_type_>
 error_stats_t test_tensor_symmetric_for_type() {
     error_stats_t stats(comparison_family_t::exact_k);
     using tensor_t = nk::tensor<value_type_>;
-    auto a = tensor_t::try_zeros({4, 8});
+    auto [a, a_status] = tensor_t::zeros({4, 8});
+    stats.expect(nk::succeeded(a_status), "tensor allocation");
     auto am = a.as_matrix_view();
 
-    stats.expect(!(nk::try_dots_symmetric<value_type_>(am)).empty(), "try_dots_symmetric returned empty");
-    stats.expect(!(nk::try_angulars_symmetric<value_type_>(am)).empty(), "try_angulars_symmetric returned empty");
-    stats.expect(!(nk::try_euclideans_symmetric<value_type_>(am)).empty(), "try_euclideans_symmetric returned empty");
+    expect_nonempty(stats, nk::dots_symmetric<value_type_>(am), "dots_symmetric returned empty");
+    expect_nonempty(stats, nk::angulars_symmetric<value_type_>(am), "angulars_symmetric returned empty");
+    expect_nonempty(stats, nk::euclideans_symmetric<value_type_>(am), "euclideans_symmetric returned empty");
     return stats;
 }
 
@@ -1094,17 +1127,18 @@ template <typename value_type_>
 error_stats_t test_tensor_packed_for_type() {
     error_stats_t stats(comparison_family_t::exact_k);
     using tensor_t = nk::tensor<value_type_>;
-    auto a = tensor_t::try_zeros({4, 8});
-    auto b = tensor_t::try_zeros({6, 8});
+    auto [a, a_status] = tensor_t::zeros({4, 8});
+    auto [b, b_status] = tensor_t::zeros({6, 8});
+    stats.expect(nk::succeeded(a_status) && nk::succeeded(b_status), "tensor allocation");
 
     // packed_matrix
     auto bm = b.as_matrix_view();
-    auto packed = nk::packed_matrix<value_type_, nk::aligned_allocator<char>>::try_pack(bm);
+    auto [packed, packed_status] = nk::packed_matrix<value_type_, nk::aligned_allocator<char>>::make(bm);
     auto am = a.as_matrix_view();
-    auto result = nk::matrix<typename value_type_::dot_result_t>::try_zeros({4, 6});
-    stats.expect(!packed.empty(), "packed matrix empty");
-    stats.expect(!result.empty(), "packed result empty");
-    nk::dots_packed<value_type_>(am, packed, result.span());
+    auto [result, result_status] = nk::matrix<typename value_type_::dot_result_t>::zeros({4, 6});
+    stats.expect(nk::succeeded(packed_status) && !packed.empty(), "packed matrix empty");
+    stats.expect(nk::succeeded(result_status) && !result.empty(), "packed result empty");
+    stats.expect(nk::succeeded(nk::dots_packed<value_type_>(am, packed, result.span())), "dots_packed failed");
     return stats;
 }
 
@@ -1112,16 +1146,17 @@ template <typename value_type_>
 error_stats_t test_tensor_maxsim_for_type() {
     error_stats_t stats(comparison_family_t::exact_k);
     using tensor_t = nk::tensor<value_type_>;
-    auto q = tensor_t::try_zeros({3, 16});
-    auto d = tensor_t::try_zeros({5, 16});
+    auto [q, q_status] = tensor_t::zeros({3, 16});
+    auto [d, d_status] = tensor_t::zeros({5, 16});
+    stats.expect(nk::succeeded(q_status) && nk::succeeded(d_status), "tensor allocation");
 
     auto qm = q.as_matrix_view();
     auto dm = d.as_matrix_view();
 
-    auto pq = nk::packed_maxsim<value_type_>::try_pack(qm);
-    auto pd = nk::packed_maxsim<value_type_>::try_pack(dm);
-    stats.expect(!pq.empty(), "packed query empty");
-    stats.expect(!pd.empty(), "packed document empty");
+    auto [pq, pq_status] = nk::packed_maxsim<value_type_>::make(qm);
+    auto [pd, pd_status] = nk::packed_maxsim<value_type_>::make(dm);
+    stats.expect(nk::succeeded(pq_status) && !pq.empty(), "packed query empty");
+    stats.expect(nk::succeeded(pd_status) && !pd.empty(), "packed document empty");
     { [[maybe_unused]] auto r = nk::maxsim(pq, pd); }
     return stats;
 }
@@ -1134,31 +1169,83 @@ error_stats_t test_view_overloads() {
     auto b_view = nk::vector_view<nk::f32_t>(b_data, 8u);
 
     // Inputs are all zero, so the metrics that are defined there must come back zero.
-    nk::dot(a_view, b_view, 8, &result);
+    stats.expect(nk::dot(a_view, b_view, &result));
     stats.expect(result == nk::f32_t(0), "dot of zero vectors");
-    nk::euclidean(a_view, b_view, 8, &result);
+    stats.expect(nk::euclidean(a_view, b_view, &result));
     stats.expect(result == nk::f32_t(0), "euclidean of zero vectors");
-    nk::sqeuclidean(a_view, b_view, 8, &result);
+    stats.expect(nk::sqeuclidean(a_view, b_view, &result));
     stats.expect(result == nk::f32_t(0), "sqeuclidean of zero vectors");
-    nk::angular(a_view, b_view, 8, &result);
+    stats.expect(nk::angular(a_view, b_view, &result));
 
     auto c_view = nk::vector_view<nk::f32_t>(c_data, 64u);
-    nk::bilinear(a_view, b_view, c_view, 8, &result);
-    nk::mahalanobis(a_view, b_view, c_view, 8, &result);
+    stats.expect(nk::bilinear(a_view, b_view, c_view, &result));
+    stats.expect(nk::mahalanobis(a_view, b_view, c_view, &result));
+
+    auto short_view = nk::vector_view<nk::f32_t>(b_data, 7u);
+    stats.expect(nk::dot(a_view, short_view, &result) == nk::status_t::unexpected_dimensions_k,
+                 "dot of mismatched lengths");
+    stats.expect(nk::bilinear(a_view, b_view, short_view, &result) == nk::status_t::unexpected_dimensions_k,
+                 "bilinear with a non-square metric");
     return stats;
 }
 
-error_stats_t test_custom_allocator_try_fns() {
+/** Stateful allocator counting its allocations through a shared counter, which proves the
+ *  factories use the instance they were given. */
+template <typename value_type_>
+struct counting_allocator {
+    using value_type = value_type_;
+    std::size_t *allocations = nullptr;
+
+    counting_allocator() noexcept = default;
+    explicit counting_allocator(std::size_t *counter) noexcept : allocations(counter) {}
+    template <typename other_type_>
+    counting_allocator(counting_allocator<other_type_> const &other) noexcept : allocations(other.allocations) {}
+
+    value_type_ *allocate(std::size_t n) noexcept {
+        if (allocations) ++*allocations;
+        return nk::aligned_allocator<value_type_>().allocate(n);
+    }
+    void deallocate(value_type_ *p, std::size_t n) noexcept { nk::aligned_allocator<value_type_>().deallocate(p, n); }
+
+    template <typename other_type_>
+    bool operator==(counting_allocator<other_type_> const &other) const noexcept {
+        return allocations == other.allocations;
+    }
+};
+
+error_stats_t test_custom_allocator_factories() {
     error_stats_t stats(comparison_family_t::exact_k);
     using custom_alloc_t = nk::aligned_allocator<nk::f32_t, 128>;
-    auto a = nk::tensor<nk::f32_t>::try_zeros({4, 8});
+    auto [a, a_status] = nk::tensor<nk::f32_t>::zeros({4, 8});
+    stats.expect(nk::succeeded(a_status), "tensor allocation");
     auto av = a.view();
 
-    stats.expect(!nk::try_scale<nk::f32_t, 8, custom_alloc_t>(av, 1.0, 0.0).empty(), "try_scale returned empty");
-    stats.expect(!nk::try_sin<nk::f32_t, 8, custom_alloc_t>(av).empty(), "try_sin returned empty");
+    expect_nonempty(stats, nk::scale<nk::f32_t, 8, custom_alloc_t>(av, 1.0, 0.0), "scale returned empty");
+    expect_nonempty(stats, nk::sin<nk::f32_t, 8, custom_alloc_t>(av), "sin returned empty");
 
     using sum_alloc_t = nk::aligned_allocator<nk::f64_t, 128>;
-    stats.expect(!nk::try_sum<nk::f32_t, 8, sum_alloc_t>(av, 0).empty(), "try_sum returned empty");
+    expect_nonempty(stats, nk::sum<nk::f32_t, 8, sum_alloc_t>(av, 0), "sum returned empty");
+
+    std::size_t allocations = 0;
+    counting_allocator<nk::f32_t> counting(&allocations);
+    auto expect_counted = [&](auto const &result, std::size_t expected, char const *what) {
+        expect_nonempty(stats, result, what);
+        stats.expect(allocations == expected, what);
+    };
+    expect_counted(nk::scale(av, 1.0, 0.0, counting), 1, "scale ignored the allocator instance");
+    expect_counted(nk::sin(av, counting), 2, "sin ignored the allocator instance");
+    expect_counted(nk::copy(av, counting), 3, "copy ignored the allocator instance");
+    expect_counted(nk::sum(av, 0, nk::collapse_dims_k, counting_allocator<nk::f64_t>(counting)), 4,
+                   "sum ignored the allocator instance");
+    auto rows = a.as_matrix_view();
+    expect_counted(nk::dots_symmetric<nk::f32_t>(rows, counting_allocator<nk::f64_t>(counting)), 5,
+                   "dots_symmetric ignored the allocator instance");
+
+    using mx_t = nk::mxfp8_e4m3_t;
+    using mx_tensor_t = nk::scaled_tensor<mx_t, counting_allocator<mx_t::element_t>, counting_allocator<mx_t::scale_t>>;
+    expect_counted(mx_tensor_t::uninitialized({4, 64}, counting_allocator<mx_t::element_t>(counting),
+                                              counting_allocator<mx_t::scale_t>(counting)),
+                   7, "scaled_tensor ignored the allocator instances");
     return stats;
 }
 
@@ -1177,8 +1264,8 @@ error_stats_t test_cast_for_types() {
     auto dst_via_views = make_vector<to_type_>(64);
     auto dst_via_views_span = nk::vector_span<to_type_>(dst_via_views.values_data(),
                                                         static_cast<std::size_t>(dst_via_views.size()));
-    nk::cast<from_type_, to_type_>(src.values_data(), src.size(), dst.values_data());
-    nk::cast<from_type_, to_type_>(src_view, dst_via_views_span);
+    stats.expect(nk::cast<from_type_, to_type_>(src.values_data(), src.size(), dst.values_data()));
+    stats.expect(nk::cast<from_type_, to_type_>(src_view, dst_via_views_span));
     for (std::size_t i = 0; i < dst.size(); ++i) stats.accumulate(dst[i], dst_via_views[i]);
     return stats;
 }
@@ -1259,9 +1346,9 @@ error_stats_t test_typed_pointer_ctors() {
 /** `explicit operator bool` on every owning + non-owning handle type. */
 error_stats_t test_operator_bool() {
     error_stats_t stats(comparison_family_t::exact_k);
-    auto t = nk::tensor<nk::f32_t>::try_empty({2, 3});
+    auto [t, t_status] = nk::tensor<nk::f32_t>::uninitialized({2, 3});
     nk::tensor<nk::f32_t> te {};
-    stats.expect(static_cast<bool>(t) && !te, "tensor bool");
+    stats.expect(nk::succeeded(t_status) && static_cast<bool>(t) && !te, "tensor bool");
     stats.expect(static_cast<bool>(t.view()) && !te.view(), "tensor_view bool");
     stats.expect(static_cast<bool>(t.span()), "tensor_span bool");
 
@@ -1270,9 +1357,9 @@ error_stats_t test_operator_bool() {
     stats.expect(static_cast<bool>(v) && !ve, "vector bool");
     stats.expect(static_cast<bool>(v.view()) && static_cast<bool>(v.span()), "vector view/span bool");
 
-    auto q = nk::scaled_tensor<nk::nvfp4_t>::try_empty({2, 32});
+    auto [q, q_status] = nk::scaled_tensor<nk::nvfp4_t>::uninitialized({2, 32});
     nk::scaled_tensor<nk::nvfp4_t> qe {};
-    stats.expect(static_cast<bool>(q) && !qe, "scaled_tensor bool");
+    stats.expect(nk::succeeded(q_status) && static_cast<bool>(q) && !qe, "scaled_tensor bool");
     stats.expect(static_cast<bool>(q.view()) && static_cast<bool>(q.span()), "scaled view/span bool");
     return stats;
 }
@@ -1280,7 +1367,8 @@ error_stats_t test_operator_bool() {
 /** Templated `flatten<out_rank_>()` with an explicit non-default output rank. */
 error_stats_t test_flatten_out_rank() {
     error_stats_t stats(comparison_family_t::exact_k);
-    auto t = nk::tensor<nk::f32_t>::try_empty({2, 3, 4});
+    auto [t, t_status] = nk::tensor<nk::f32_t>::uninitialized({2, 3, 4});
+    stats.expect(nk::succeeded(t_status), "tensor allocation");
     auto f1 = t.flatten<1>();
     stats.expect(f1.rank() == 1 && f1.numel() == 24, "tensor flatten<1>");
     auto fv = t.view().flatten<1>();
@@ -1293,57 +1381,140 @@ error_stats_t test_flatten_out_rank() {
 /** Fixed-capacity resize contract: data()-stability, beyond-capacity fail, reserve/clear/move. */
 error_stats_t test_resize_capacity() {
     error_stats_t stats(comparison_family_t::exact_k);
-    auto t = nk::tensor<nk::f32_t>::try_empty({8, 4}); // capacity 32
-    stats.expect(t.capacity() == 32, "capacity from initial shape");
+    auto [t, t_status] = nk::tensor<nk::f32_t>::uninitialized({8, 4}); // capacity 32
+    stats.expect(nk::succeeded(t_status) && t.capacity() == 32, "capacity from initial shape");
     auto *p0 = t.data();
-    stats.expect(t.try_resize({2, 4}) && t.numel() == 8 && t.data() == p0, "resize within capacity keeps data()");
-    stats.expect(!t.try_resize({100, 100}) && t.numel() == 8, "resize beyond capacity fails, shape kept");
+    stats.expect(nk::succeeded(t.resize({2, 4})) && t.numel() == 8 && t.data() == p0,
+                 "resize within capacity keeps data()");
+    stats.expect(t.resize({100, 100}) == nk::status_t::unexpected_dimensions_k && t.numel() == 8,
+                 "resize beyond capacity fails, shape kept");
     std::size_t ext[2] = {4, 4};
-    stats.expect(t.try_resize(ext, 2) && t.numel() == 16, "resize (ptr,rank) overload");
-    stats.expect(t.reserve(64) && t.capacity() >= 64, "reserve grows capacity");
-    stats.expect(t.try_resize({8, 8}), "resize into grown capacity");
+    stats.expect(nk::succeeded(t.resize(ext, 2)) && t.numel() == 16, "resize (ptr,rank) overload");
+    stats.expect(nk::succeeded(t.reserve(64)) && t.capacity() >= 64, "reserve grows capacity");
+    stats.expect(nk::succeeded(t.resize({8, 8})), "resize into grown capacity");
     t.clear();
     stats.expect(t.empty() && t.capacity() >= 64, "clear -> empty, capacity kept");
 
-    auto t2 = nk::tensor<nk::f32_t>::try_empty({4, 4});
+    auto [t2, t2_status] = nk::tensor<nk::f32_t>::uninitialized({4, 4});
+    stats.expect(nk::succeeded(t2_status), "tensor allocation");
     auto cap = t2.capacity();
     nk::tensor<nk::f32_t> t3 = std::move(t2);
     stats.expect(t3.capacity() == cap, "move preserves capacity");
 
-    auto q = nk::scaled_tensor<nk::nvfp4_t>::try_empty({2, 32}); // block_size 16
-    stats.expect(q.try_resize({2, 16}) && q.extent(1) == 16, "scaled coordinated resize");
-    stats.expect(!q.try_resize({2, 20}), "scaled resize rejects non-block-aligned last extent");
-    stats.expect(!q.try_resize({8, 64}), "scaled resize beyond capacity fails");
-    stats.expect(q.reserve(256) && q.try_resize({4, 64}), "scaled reserve then resize");
+    auto [q, q_status] = nk::scaled_tensor<nk::nvfp4_t>::uninitialized({2, 32}); // block_size 16
+    stats.expect(nk::succeeded(q_status), "scaled tensor allocation");
+    stats.expect(nk::succeeded(q.resize({2, 16})) && q.extent(1) == 16, "scaled coordinated resize");
+    stats.expect(q.resize({2, 20}) == nk::status_t::unexpected_dimensions_k,
+                 "scaled resize rejects non-block-aligned last extent");
+    stats.expect(q.resize({8, 64}) == nk::status_t::unexpected_dimensions_k, "scaled resize beyond capacity fails");
+    stats.expect(nk::succeeded(q.reserve(256)) && nk::succeeded(q.resize({4, 64})), "scaled reserve then resize");
 
-    auto v = nk::vector<nk::f32_t>::try_empty(16);
-    stats.expect(v.capacity() == 16, "vector capacity");
+    auto [v, v_status] = nk::vector<nk::f32_t>::uninitialized(16);
+    stats.expect(nk::succeeded(v_status) && v.capacity() == 16, "vector capacity");
     auto *vp0 = v.values_data();
-    stats.expect(v.try_resize(8) && v.size() == 8 && v.values_data() == vp0, "vector resize keeps data()");
-    stats.expect(!v.try_resize(100), "vector resize beyond capacity fails");
-    stats.expect(v.reserve(64) && v.try_resize(50), "vector reserve then resize");
+    stats.expect(nk::succeeded(v.resize(8)) && v.size() == 8 && v.values_data() == vp0, "vector resize keeps data()");
+    stats.expect(v.resize(100) == nk::status_t::unexpected_dimensions_k, "vector resize beyond capacity fails");
+    stats.expect(nk::succeeded(v.reserve(64)) && nk::succeeded(v.resize(50)), "vector reserve then resize");
     v.clear();
     stats.expect(v.empty() && v.capacity() >= 64, "vector clear");
     return stats;
 }
 
-/** Smoke-test for the tensor-shaped trig wrappers @c nk::try_sin, @c cos and @c atan, running
+/** Smoke-test for the tensor-shaped trig wrappers @c nk::sin, @c cos and @c atan, running
  *  allocating and into-span variants on a small zero tensor, just exercising the dispatch paths,
  *  not the numerical accuracy, which the kernel tests above cover. */
 template <typename value_type_>
 error_stats_t test_tensor_trig_for_type() {
     error_stats_t stats(comparison_family_t::exact_k);
     using tensor_t = nk::tensor<value_type_>;
-    auto a = tensor_t::try_zeros({4, 8});
-    auto out = tensor_t::try_zeros({4, 8});
+    auto [a, a_status] = tensor_t::zeros({4, 8});
+    auto [out, out_status] = tensor_t::zeros({4, 8});
+    stats.expect(nk::succeeded(a_status) && nk::succeeded(out_status), "tensor allocation");
     auto av = a.view();
 
-    stats.expect(!(nk::try_sin<value_type_>(av)).empty(), "try_sin returned empty");
-    stats.expect(!(nk::try_cos<value_type_>(av)).empty(), "try_cos returned empty");
-    stats.expect(!(nk::try_atan<value_type_>(av)).empty(), "try_atan returned empty");
-    stats.expect(nk::sin<value_type_>(av, out.span()), "sin into span failed");
-    stats.expect(nk::cos<value_type_>(av, out.span()), "cos into span failed");
-    stats.expect(nk::atan<value_type_>(av, out.span()), "atan into span failed");
+    expect_nonempty(stats, nk::sin<value_type_>(av), "sin returned empty");
+    expect_nonempty(stats, nk::cos<value_type_>(av), "cos returned empty");
+    expect_nonempty(stats, nk::atan<value_type_>(av), "atan returned empty");
+    stats.expect(nk::succeeded(nk::sin<value_type_>(av, out.span())), "sin into span failed");
+    stats.expect(nk::succeeded(nk::cos<value_type_>(av, out.span())), "cos into span failed");
+    stats.expect(nk::succeeded(nk::atan<value_type_>(av, out.span())), "atan into span failed");
+    return stats;
+}
+
+/** Packs through @c packed_attention and runs the view overloads, which must match the raw-pointer
+ *  layer bit for bit on the same capabilities, in place and allocating. */
+template <typename value_type_>
+error_stats_t test_tensor_attention_for_type() {
+    using result_t = typename value_type_::attention_result_t;
+    error_stats_t stats(comparison_family_t::exact_k);
+    std::mt19937 generator(global_config.seed);
+    constexpr std::size_t tokens = 10, heads = 4, key_value_heads = 2, depth = 32;
+    constexpr nk_f32_t scale = 0.125f;
+    nk_u32_t const offsets[] = {0, 4, 10}, lengths[] = {4, 6};
+    nk::vector_view<nk_u32_t> const segment_offsets(offsets, 3u), segment_lengths(lengths, 2u);
+
+    auto keys = nk::tensor<value_type_>::zeros({tokens, key_value_heads, depth});
+    auto values = nk::tensor<value_type_>::zeros({tokens, key_value_heads, depth});
+    auto queries = nk::tensor<value_type_>::zeros({tokens, heads, depth});
+    auto output = nk::tensor<result_t>::zeros({tokens, heads, depth});
+    auto reference = nk::tensor<result_t>::zeros({tokens, heads, depth});
+    stats.expect(keys && values && queries && output && reference, "attention operands allocation failed");
+    if (stats.failed_expectations) return stats;
+    nk::fill_uniform(generator, keys.value.data(), keys.value.numel());
+    nk::fill_uniform(generator, values.value.data(), values.value.numel());
+    nk::fill_uniform(generator, queries.value.data(), queries.value.numel());
+
+    auto packed = nk::packed_attention<value_type_>::make(keys.value.view(), values.value.view(), segment_offsets,
+                                                          segment_lengths);
+    stats.expect(packed.status);
+    if (!packed) return stats;
+    stats.expect(packed.value.key_value_head_count() == key_value_heads && packed.value.depth() == depth &&
+                     packed.value.segment_count() == 2,
+                 "packed attention shape mismatch");
+
+    auto packed_bytes = nk::attention_pack_size<value_type_>(key_value_heads, depth, lengths, 2);
+    stats.expect(packed_bytes.status);
+    if (!packed_bytes) return stats;
+    auto raw_packed = make_vector<char>(packed_bytes.value);
+    std::size_t const key_value_stride = key_value_heads * depth * sizeof(value_type_),
+                      query_stride = heads * depth * sizeof(value_type_),
+                      output_stride = heads * depth * sizeof(result_t);
+    stats.expect(nk::attention_pack<value_type_>(keys.value.data(), values.value.data(), key_value_heads, depth,
+                                                 offsets, lengths, 2, key_value_stride, key_value_stride,
+                                                 raw_packed.values_data()));
+    auto expect_equal = [&](nk::tensor_view<result_t> actual) {
+        for (std::size_t i = 0; i < actual.numel(); ++i) stats.accumulate(actual[i], reference.value[i]);
+    };
+
+    stats.expect(nk::attention_bidirectional_packed<value_type_>(queries.value.data(), raw_packed.values_data(),
+                                                                 reference.value.data(), heads, key_value_heads, depth,
+                                                                 offsets, query_stride, output_stride, scale));
+    stats.expect(nk::attention_bidirectional_packed<value_type_>(queries.value.view(), packed.value,
+                                                                 output.value.span(), scale));
+    expect_equal(output.value.view());
+    auto bidirectional = nk::attention_bidirectional_packed<value_type_>(queries.value.view(), packed.value, scale);
+    stats.expect(bidirectional.status);
+    if (bidirectional) expect_equal(bidirectional.value.view());
+
+    stats.expect(nk::attention_causal_packed<value_type_>(queries.value.data(), raw_packed.values_data(),
+                                                          reference.value.data(), heads, key_value_heads, depth,
+                                                          offsets, query_stride, output_stride, scale, 1, 3));
+    stats.expect(
+        nk::attention_causal_packed<value_type_>(queries.value.view(), packed.value, output.value.span(), scale, 1, 3));
+    expect_equal(output.value.view());
+    auto causal = nk::attention_causal_packed<value_type_>(queries.value.view(), packed.value, scale, 1, 3);
+    stats.expect(causal.status);
+    if (causal) expect_equal(causal.value.view());
+
+    auto narrow = nk::tensor<result_t>::zeros({tokens, heads, depth / 2});
+    stats.expect(narrow && nk::attention_bidirectional_packed<value_type_>(queries.value.view(), packed.value,
+                                                                           narrow.value.span(), scale) ==
+                               nk::status_t::unexpected_dimensions_k,
+                 "mismatched output shape must be rejected");
+    stats.expect(nk::packed_attention<value_type_>::make(keys.value.view(), values.value.view(), segment_lengths,
+                                                         segment_lengths)
+                         .status == nk::status_t::unexpected_dimensions_k,
+                 "segment offsets must hold one more entry than lengths");
     return stats;
 }
 
@@ -1388,7 +1559,7 @@ void test_tensor_ops() {
     check("tensor_maxsim_f16", test_tensor_maxsim_for_type<nk::f16_t>);
 
     check("tensor_view_overloads", test_view_overloads);
-    check("tensor_custom_allocator_try", test_custom_allocator_try_fns);
+    check("tensor_custom_allocator_factories", test_custom_allocator_factories);
 
     check("tensor_cast_f32_to_f16", test_cast_for_types<nk::f32_t, nk::f16_t>);
     check("tensor_cast_f16_to_f32", test_cast_for_types<nk::f16_t, nk::f32_t>);
@@ -1403,4 +1574,8 @@ void test_tensor_ops() {
     check("tensor_operator_bool", test_operator_bool);
     check("tensor_flatten_out_rank", test_flatten_out_rank);
     check("tensor_resize_capacity", test_resize_capacity);
+
+    check("tensor_attention_bf16", test_tensor_attention_for_type<nk::bf16_t>);
+    check("tensor_attention_e4m3", test_tensor_attention_for_type<nk::e4m3_t>);
+    check("tensor_attention_i8", test_tensor_attention_for_type<nk::i8_t>);
 }

@@ -126,10 +126,11 @@ template <typename backend_type_, typename value_type_>
 nk::vector<value_type_, typename backend_type_::template allocator<value_type_>> upload(backend_type_ &backend,
                                                                                         value_type_ const *source,
                                                                                         std::size_t count) {
-    auto destination = nk::vector<value_type_, typename backend_type_::template allocator<value_type_>>::try_empty(
+    auto destination = nk::vector<value_type_, typename backend_type_::template allocator<value_type_>>::uninitialized(
         count, allocator_of<value_type_>(backend));
-    if (!destination.empty()) backend.copy(destination.raw_values_data(), source, destination.size_bytes());
-    return destination;
+    if (!destination.value.empty())
+        backend.copy(destination.value.raw_values_data(), source, destination.value.size_bytes());
+    return std::move(destination.value);
 }
 
 /** Launches set 0 once, then times @p launch over rotating sets; returns the call count, or zero
@@ -217,8 +218,8 @@ random_matrices(std::size_t height, std::size_t width, std::size_t depth) {
     std::size_t const dimensions_per_value = nk::dimensions_per_value<input_t>();
     std::size_t const row_values = nk::divide_round_up(depth, dimensions_per_value);
     std::size_t const a_stride_values = backend_type_::row_stride(row_values * sizeof(input_t)) / sizeof(input_t);
-    std::array<matrix_t, 2> matrices {matrix_t::try_zeros({height, a_stride_values * dimensions_per_value}),
-                                      matrix_t::try_zeros({width, row_values * dimensions_per_value})};
+    std::array<matrix_t, 2> matrices {matrix_t::zeros({height, a_stride_values * dimensions_per_value}).value,
+                                      matrix_t::zeros({width, row_values * dimensions_per_value}).value};
     auto generator = make_random_engine();
     for (matrix_t &matrix : matrices) {
         if (matrix.empty()) continue;
@@ -251,10 +252,11 @@ double sampled_accuracy(backend_type_ &backend,
         std::size_t const row = entry / second.extent(0), column = entry % second.extent(0);
         if (written == written_entries_t::upper_triangle_k && column < row) continue;
         if (written == written_entries_t::strict_upper_triangle_k && column <= row) continue;
-        nk_cast_serial(first.byte_data() + row * first.stride_bytes(0), input_dtype_, depth, first_decoded.data(),
-                       nk_f64_k, nullptr);
-        nk_cast_serial(second.byte_data() + column * second.stride_bytes(0), input_dtype_, depth, second_decoded.data(),
-                       nk_f64_k, nullptr);
+        if (nk_cast_serial(first.byte_data() + row * first.stride_bytes(0), input_dtype_, depth, first_decoded.data(),
+                           nk_f64_k, nullptr) != nk_success_k ||
+            nk_cast_serial(second.byte_data() + column * second.stride_bytes(0), input_dtype_, depth,
+                           second_decoded.data(), nk_f64_k, nullptr) != nk_success_k)
+            continue;
         double const expected = reference_distance(metric, first_decoded.data(), second_decoded.data(), depth);
         if constexpr (std::is_integral_v<output_raw_t>) score_sum += double(double(result[entry]) == expected);
         else if constexpr (sizeof(output_raw_t) == 8) score_sum += double(ulp_distance_f64(result[entry], expected));
@@ -312,9 +314,9 @@ void measure_packed(bm::State &state, backend_type_ backend, reference_metric_t 
     // One B upload, packed into every set, since the sets differ only in where they live.
     std::vector<set_t> sets(backend.input_sets(a_bytes + packed_bytes + height * width * sizeof(output_type_)));
     for (set_t &set : sets) {
-        set = {set_t::bytes_t::try_empty(a_bytes, allocator_of<char>(backend)),
-               set_t::bytes_t::try_empty(packed_bytes, allocator_of<char>(backend)),
-               set_t::outputs_t::try_empty(height * width, allocator_of<output_type_>(backend))};
+        set = {set_t::bytes_t::uninitialized(a_bytes, allocator_of<char>(backend)).value,
+               set_t::bytes_t::uninitialized(packed_bytes, allocator_of<char>(backend)).value,
+               set_t::outputs_t::uninitialized(height * width, allocator_of<output_type_>(backend)).value};
         if (set.a.empty() || set.b.empty() || set.c.empty()) return state.SkipWithError("set allocation failed");
         backend.copy(set.a.raw_values_data(), a.data(), a_bytes);
         backend.zero(set.b.raw_values_data(), packed_bytes), backend.zero(set.c.raw_values_data(), set.c.size_bytes());
@@ -346,8 +348,8 @@ void measure_symmetric(bm::State &state, backend_type_ backend, reference_metric
     std::size_t const a_stride = a.stride_bytes(0), a_bytes = height * a_stride;
     std::vector<set_t> sets(backend.input_sets(a_bytes + height * height * sizeof(output_type_)));
     for (set_t &set : sets) {
-        set.a = set_t::bytes_t::try_empty(a_bytes, allocator_of<char>(backend));
-        set.c = set_t::outputs_t::try_empty(height * height, allocator_of<output_type_>(backend));
+        set.a = set_t::bytes_t::uninitialized(a_bytes, allocator_of<char>(backend)).value;
+        set.c = set_t::outputs_t::uninitialized(height * height, allocator_of<output_type_>(backend)).value;
         if (set.a.empty() || set.c.empty()) return state.SkipWithError("set allocation failed");
         backend.copy(set.a.raw_values_data(), a.data(), a_bytes);
         backend.zero(set.c.raw_values_data(), set.c.size_bytes());
@@ -571,8 +573,8 @@ void measure_attention(bm::State &state, backend_type_ backend, pack_size_kernel
     std::vector<set_t> sets(backend.input_sets(queries.size_bytes() + packed_bytes + output_count * sizeof(nk_f32_t)));
     for (set_t &set : sets) {
         set = {upload(backend, queries.values_data(), queries.size()),
-               set_t::bytes_t::try_empty(packed_bytes, allocator_of<char>(backend)),
-               set_t::outputs_t::try_empty(output_count, allocator_of<nk::f32_t>(backend))};
+               set_t::bytes_t::uninitialized(packed_bytes, allocator_of<char>(backend)).value,
+               set_t::outputs_t::uninitialized(output_count, allocator_of<nk::f32_t>(backend)).value};
         if (set.queries.empty() || set.packed.empty() || set.output.empty())
             return state.SkipWithError("set allocation failed");
         backend.zero(set.packed.raw_values_data(), packed_bytes);

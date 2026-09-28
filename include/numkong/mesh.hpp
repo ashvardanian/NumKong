@@ -335,7 +335,7 @@ void svd3x3_(scalar_type_ const *a, scalar_type_ *svd_u, scalar_type_ *svd_s, sc
  */
 template <typename in_type_, typename transform_type_ = typename in_type_::mesh_transform_t,
           typename metric_type_ = typename in_type_::mesh_metric_t>
-nk_status_t rmsd(                                        //
+status_t rmsd(                                           //
     in_type_ const *a, in_type_ const *b, std::size_t n, //
     transform_type_ *a_centroid, transform_type_ *b_centroid, transform_type_ *rotation, transform_type_ *scale,
     metric_type_ *metric, nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
@@ -344,17 +344,21 @@ nk_status_t rmsd(                                        //
 
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
-            return nk_rmsd_f64_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_,
-                                    &scale->raw_, &metric->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_rmsd_f64_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_,
+                                                          &rotation->raw_, &scale->raw_, &metric->raw_, capabilities,
+                                                          stream));
         else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return nk_rmsd_f32_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_,
-                                    &scale->raw_, &metric->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_rmsd_f32_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_,
+                                                          &rotation->raw_, &scale->raw_, &metric->raw_, capabilities,
+                                                          stream));
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
-            return nk_rmsd_f16_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_,
-                                    &scale->raw_, &metric->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_rmsd_f16_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_,
+                                                          &rotation->raw_, &scale->raw_, &metric->raw_, capabilities,
+                                                          stream));
         else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
-            return nk_rmsd_bf16_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_,
-                                     scale ? &scale->raw_ : nullptr, &metric->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_rmsd_bf16_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_,
+                                                           &rotation->raw_, scale ? &scale->raw_ : nullptr,
+                                                           &metric->raw_, capabilities, stream));
     }
     // Scalar fallback: raw √(Σ‖aᵢ − bᵢ‖² / n), no centering
     if (a_centroid)
@@ -379,7 +383,7 @@ nk_status_t rmsd(                                        //
     }
 
     *metric = n == 0 ? metric_type_(0.0) : (sum_squared / metric_type_(static_cast<double>(n))).sqrt();
-    return nk_success_k;
+    return status_t::success_k;
 }
 
 /**
@@ -399,7 +403,7 @@ nk_status_t rmsd(                                        //
  */
 template <typename in_type_, typename transform_type_ = typename in_type_::mesh_transform_t,
           typename metric_type_ = typename in_type_::mesh_metric_t>
-nk_status_t kabsch(                                      //
+status_t kabsch(                                         //
     in_type_ const *a, in_type_ const *b, std::size_t n, //
     transform_type_ *a_centroid, transform_type_ *b_centroid, transform_type_ *rotation, transform_type_ *scale,
     metric_type_ *metric, nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
@@ -408,18 +412,21 @@ nk_status_t kabsch(                                      //
 
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
-            return nk_kabsch_f64_best(&a->raw_, &b->raw_, n, a_centroid ? &a_centroid->raw_ : nullptr,
-                                      &b_centroid->raw_, &rotation->raw_, &scale->raw_, &metric->raw_, capabilities,
-                                      stream);
+            return static_cast<status_t>(
+                nk_kabsch_f64_best(&a->raw_, &b->raw_, n, a_centroid ? &a_centroid->raw_ : nullptr, &b_centroid->raw_,
+                                   &rotation->raw_, &scale->raw_, &metric->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return nk_kabsch_f32_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_,
-                                      &scale->raw_, &metric->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_kabsch_f32_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_,
+                                                            &rotation->raw_, &scale->raw_, &metric->raw_, capabilities,
+                                                            stream));
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
-            return nk_kabsch_f16_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_,
-                                      &scale->raw_, &metric->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_kabsch_f16_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_,
+                                                            &rotation->raw_, &scale->raw_, &metric->raw_, capabilities,
+                                                            stream));
         else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
-            return nk_kabsch_bf16_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_,
-                                       &scale->raw_, &metric->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_kabsch_bf16_best(&a->raw_, &b->raw_, n, &a_centroid->raw_,
+                                                             &b_centroid->raw_, &rotation->raw_, &scale->raw_,
+                                                             &metric->raw_, capabilities, stream));
     }
     // Degenerate empty cloud: the neutral identity, no 1/n division.
     if (n == 0) {
@@ -436,7 +443,7 @@ nk_status_t kabsch(                                      //
         }
         if (scale) *scale = transform_type_(1.0);
         *metric = metric_type_(0.0);
-        return nk_success_k;
+        return status_t::success_k;
     }
     // Compute centroids
     metric_type_ sum_a_x {}, sum_a_y {}, sum_a_z {};
@@ -546,7 +553,7 @@ nk_status_t kabsch(                                      //
     }
 
     *metric = (sum_squared * inv_n).sqrt();
-    return nk_success_k;
+    return status_t::success_k;
 }
 
 /**
@@ -567,26 +574,29 @@ nk_status_t kabsch(                                      //
  */
 template <typename in_type_, typename transform_type_ = typename in_type_::mesh_transform_t,
           typename metric_type_ = typename in_type_::mesh_metric_t>
-nk_status_t umeyama(in_type_ const *a, in_type_ const *b, std::size_t n, transform_type_ *a_centroid,
-                    transform_type_ *b_centroid, transform_type_ *rotation, transform_type_ *scale,
-                    metric_type_ *metric, nk_capability_t capabilities = cpu_capabilities(),
-                    void *stream = nullptr) noexcept {
+status_t umeyama(in_type_ const *a, in_type_ const *b, std::size_t n, transform_type_ *a_centroid,
+                 transform_type_ *b_centroid, transform_type_ *rotation, transform_type_ *scale, metric_type_ *metric,
+                 nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<transform_type_, typename in_type_::mesh_transform_t> &&
                               std::is_same_v<metric_type_, typename in_type_::mesh_metric_t>;
 
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
-            return nk_umeyama_f64_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_,
-                                       &scale->raw_, &metric->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_umeyama_f64_best(&a->raw_, &b->raw_, n, &a_centroid->raw_,
+                                                             &b_centroid->raw_, &rotation->raw_, &scale->raw_,
+                                                             &metric->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return nk_umeyama_f32_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_,
-                                       &scale->raw_, &metric->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_umeyama_f32_best(&a->raw_, &b->raw_, n, &a_centroid->raw_,
+                                                             &b_centroid->raw_, &rotation->raw_, &scale->raw_,
+                                                             &metric->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
-            return nk_umeyama_f16_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_,
-                                       &scale->raw_, &metric->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_umeyama_f16_best(&a->raw_, &b->raw_, n, &a_centroid->raw_,
+                                                             &b_centroid->raw_, &rotation->raw_, &scale->raw_,
+                                                             &metric->raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
-            return nk_umeyama_bf16_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_, &rotation->raw_,
-                                        &scale->raw_, &metric->raw_, capabilities, stream);
+            return static_cast<status_t>(nk_umeyama_bf16_best(&a->raw_, &b->raw_, n, &a_centroid->raw_,
+                                                              &b_centroid->raw_, &rotation->raw_, &scale->raw_,
+                                                              &metric->raw_, capabilities, stream));
     }
     // Degenerate empty cloud: the neutral identity, no 1/n division.
     if (n == 0) {
@@ -603,7 +613,7 @@ nk_status_t umeyama(in_type_ const *a, in_type_ const *b, std::size_t n, transfo
         }
         if (scale) *scale = transform_type_(1.0);
         *metric = metric_type_(0.0);
-        return nk_success_k;
+        return status_t::success_k;
     }
     // Compute centroids
     metric_type_ sum_a_x {}, sum_a_y {}, sum_a_z {};
@@ -724,7 +734,7 @@ nk_status_t umeyama(in_type_ const *a, in_type_ const *b, std::size_t n, transfo
     }
 
     *metric = (sum_squared * inv_n).sqrt();
-    return nk_success_k;
+    return status_t::success_k;
 }
 
 #pragma endregion Mesh Alignment Kernels

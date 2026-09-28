@@ -47,8 +47,8 @@ error_stats_t test_cast(cast_t kernel) {
     for (auto start = test_start_time(); within_time_budget(start);) {
         fill_random_bits(generator, source_vec);
 
-        nk_cast_serial(source_vec.raw_values_data(), from_type_::dtype(), dimensions, reference_vec.raw_values_data(),
-                       to_type_::dtype(), nullptr);
+        stats.expect(nk_cast_serial(source_vec.raw_values_data(), from_type_::dtype(), dimensions,
+                                    reference_vec.raw_values_data(), to_type_::dtype(), nullptr));
         stats.expect(kernel(source_vec.raw_values_data(), from_type_::dtype(), dimensions, target_vec.raw_values_data(),
                             to_type_::dtype(), nullptr));
 
@@ -90,10 +90,10 @@ error_stats_t test_cast_block_scaled(block_scaled_cast_t kernel, block_scaled_fo
         tensor_scale_target.f32 = 1.0f;
         tensor_scale_reference.f32 = 1.0f;
 
-        nk_cast_block_scaled_serial(                                                          //
+        stats.expect(nk_cast_block_scaled_serial(                                             //
             source_vec.raw_values_data(), nullptr, nullptr, &plain_f32_format,                //
             reference_elements_vec.raw_values_data(), reference_scales_vec.raw_values_data(), //
-            has_tensor_scale ? &tensor_scale_reference : nullptr, &target_format, dimensions, nullptr);
+            has_tensor_scale ? &tensor_scale_reference : nullptr, &target_format, dimensions, nullptr));
         stats.expect(kernel(                                                            //
             source_vec.raw_values_data(), nullptr, nullptr, &plain_f32_format,          //
             target_elements_vec.raw_values_data(), target_scales_vec.raw_values_data(), //

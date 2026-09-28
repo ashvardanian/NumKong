@@ -1245,7 +1245,11 @@ typedef enum {
 
 /** Outcome of every NumKong call that can fail: zero on success, negative when nothing was
  *  written. Positive values are reserved for results written with a caveat. */
+#if (defined(__cplusplus) && __cplusplus >= 201703L) || (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L)
+typedef enum [[nodiscard]] {
+#else
 typedef enum {
+#endif
 
     /** Scheduled, or finished, without error. */
     nk_success_k = 0,
