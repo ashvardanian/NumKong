@@ -9,9 +9,9 @@
  *
  *  FlashAttention-2 on warp-level `mma.sync`: four warps own 64 rows folding the GQA group, stream
  *  K and V panels through `cp.async`, and keep a base-2 online softmax per row; items of at most 16
- *  rows split every panel across the warps instead. BF16 and widened E4M3 multiply on F16-class
- *  MMA, I8 on exact integer MMA with U8 probabilities, and depths above 256 fall back to the
- *  @c cuda kernel. The pack layout and the work scheduler are the @c cuda capability's.
+ *  rows split every panel across the warps instead. BF16 multiplies on BF16 MMA, E4M3 converts to
+ *  F16 for F16 MMA, I8 runs exact integer MMA with U8 probabilities, and depths above 256 fall back
+ *  to the @c cuda kernel. The pack layout and the work scheduler are the @c cuda capability's.
  */
 #ifndef NUMKONG_ATTENTION_AMPERE_CUH
 #define NUMKONG_ATTENTION_AMPERE_CUH
@@ -94,7 +94,7 @@ NUMKONG_DEVICE void nk_attention_scores_bf16_ampere_(nk_fui32_t scores[2][4], nk
     nk_mma_bf16_ampere_(scores[1], query, keys[2], keys[3]);
 }
 
-/** Widens K as the E4M3 dots do, in the depth order @c nk_attention_query_ampere_ widened Q in. */
+/** Converts K to F16 as the E4M3 dots do, in the order @c nk_attention_query_ampere_ gives Q. */
 NUMKONG_DEVICE void nk_attention_scores_e4m3_ampere_(nk_fui32_t scores[2][4], nk_u32_t const query[8],
                                                      nk_u32_t const keys[4]) {
 #pragma unroll
@@ -113,11 +113,11 @@ NUMKONG_DEVICE void nk_attention_scores_i8_ampere_(nk_fui32_t scores[2][4], nk_u
     nk_mma_i8_ampere_(scores[1], query, keys[2], keys[3]);
 }
 
-/** Q's A fragment for one 32-byte depth step, E4M3 codes widened once into two F16 fragments of
- *  16 depths each. */
-NUMKONG_DEVICE void nk_attention_query_ampere_(nk_attention_kind_t kind, nk_u32_t const fragment[4],
+/** Q's A fragment for one 32-byte depth step: as loaded when the MMAs take @p dtype, else E4M3
+ *  codes converted once into two F16 fragments of 16 depths each. */
+NUMKONG_DEVICE void nk_attention_query_ampere_(nk_dtype_t dtype, nk_dtype_t mma_dtype, nk_u32_t const fragment[4],
                                                nk_u32_t query[8]) {
-    if (kind != nk_attention_kind_widened_k) {
+    if (mma_dtype == dtype) {
 #pragma unroll
         for (unsigned index = 0; index < 4; ++index) query[index] = fragment[index];
         return;
@@ -193,7 +193,9 @@ NUMKONG_DEVICE void nk_attention_stage_columns_ampere_(unsigned char *shared, un
 /**
  *  @brief One work item on one block: scores, online softmax and P · V over every panel its rows
  *      see, then the output.
- *  @param[in] kind How fragments are formed, see @c nk_attention_kind_t.
+ *  @param[in] dtype The input dtype: @c nk_bf16_k, @c nk_e4m3_k or @c nk_i8_k.
+ *  @param[in] mma_dtype The dtype the MMAs consume: @c nk_f16_k for E4M3 converted first, else
+ *      @p dtype.
  *  @param[in] width Panel width and where Q fragments live, see @c nk_attention_width_t.
  *  @param[in] split Whether warps own rows or positions, see @c nk_attention_split_t.
  *  @param[in] epilogue F32 scores and P · V sums, or exact I32 ones converted per panel.
@@ -201,7 +203,7 @@ NUMKONG_DEVICE void nk_attention_stage_columns_ampere_(unsigned char *shared, un
  *  @param[in] values_mma One 16 × 8 step of P · V on the packed P and V fragments.
  *  @param[in] weights P from probabilities, see @c nk_attention_weights_ampere_t.
  */
-NUMKONG_DEVICE void nk_attention_block_ampere_(nk_attention_kind_t kind, nk_attention_width_t width,
+NUMKONG_DEVICE void nk_attention_block_ampere_(nk_dtype_t dtype, nk_dtype_t mma_dtype, nk_attention_width_t width,
                                                nk_attention_split_t split, nk_cross_epilogue_t epilogue,
                                                nk_attention_scores_ampere_t scores, nk_cross_mma_ampere_t values_mma,
                                                nk_attention_weights_ampere_t weights,
@@ -211,13 +213,13 @@ NUMKONG_DEVICE void nk_attention_block_ampere_(nk_attention_kind_t kind, nk_atte
 
     nk_f32_t const negative_infinity = nk_attention_negative_infinity_();
     unsigned const lane = threadIdx.x & 31, warp = threadIdx.x >> 5, group = lane >> 2, quad = lane & 3;
-    unsigned const element_bytes = kind == nk_attention_kind_bf16_k ? 2 : 1;
-    unsigned const panel = split == nk_attention_split_positions_k || width == nk_attention_width_narrow_k
+    unsigned const element_bytes = dtype == nk_bf16_k ? 2 : 1;
+    unsigned const panel = split == nk_attention_split_positions_k || width == nk_attention_width_128_k
                                ? nk_attention_panel_k
                                : nk_attention_wide_panel_ampere_k;
     unsigned const groups = split == nk_attention_split_positions_k ? 1 : panel / nk_attention_group_ampere_k;
-    unsigned const max_tiles = width == nk_attention_width_narrow_k ? nk_attention_narrow_depth_ampere_k / 8
-                                                                    : nk_attention_wide_depth_ampere_k / 8;
+    unsigned const max_tiles = width == nk_attention_width_128_k ? nk_attention_narrow_depth_ampere_k / 8
+                                                                 : nk_attention_wide_depth_ampere_k / 8;
     unsigned const warp_row_base = split == nk_attention_split_rows_k ? warp * nk_attention_warp_rows_ampere_k : 0;
     unsigned const chunk_offset = split == nk_attention_split_positions_k ? warp * nk_attention_group_ampere_k : 0;
     unsigned const block_rows = split == nk_attention_split_rows_k ? nk_attention_block_rows_k
@@ -229,8 +231,7 @@ NUMKONG_DEVICE void nk_attention_block_ampere_(nk_attention_kind_t kind, nk_atte
     unsigned const row_stride = row_bytes + nk_attention_row_padding_ampere_k;
     unsigned const depth_steps = row_bytes / nk_attention_step_bytes_k;
     unsigned const depth_padded = row_bytes / element_bytes, depth_tiles = depth_padded / 8;
-    unsigned const value_stride = kind == nk_attention_kind_bf16_k ? row_stride
-                                                                   : panel + nk_attention_row_padding_ampere_k;
+    unsigned const value_stride = dtype == nk_bf16_k ? row_stride : panel + nk_attention_row_padding_ampere_k;
     unsigned char *keys_shared = shared + arguments->key_offset[split];
     unsigned char *values_shared = shared + arguments->value_offset[split];
     unsigned char *queries_shared = shared + arguments->query_offset[split];
@@ -286,7 +287,7 @@ NUMKONG_DEVICE void nk_attention_block_ampere_(nk_attention_kind_t kind, nk_atte
             nk_size_t const head = work->head_first + row % work->heads_selected;
             source += (work->query_first + query) * arguments->query_stride + head * depth * element_bytes;
         }
-        if (kind == nk_attention_kind_bf16_k)
+        if (dtype == nk_bf16_k)
             for (unsigned element = lane; element < depth_padded; element += 32)
                 ((unsigned short *)destination)[element] = valid && element < depth
                                                                ? ((unsigned short const *)source)[element]
@@ -299,8 +300,8 @@ NUMKONG_DEVICE void nk_attention_block_ampere_(nk_attention_kind_t kind, nk_atte
 
     nk_u32_t query_registers[nk_attention_query_steps_ampere_k][8];
     unsigned const query_row = warp_row_base + (lane & 7) + ((lane >> 3) & 1) * 8;
-    int const queries_in_registers = width == nk_attention_width_narrow_k && kind != nk_attention_kind_widened_k;
-    // Widened F16 fragments are twice the size, so E4M3 rereads its codes, as wide heads do.
+    int const queries_in_registers = width == nk_attention_width_128_k && mma_dtype == dtype;
+    // E4M3 codes convert to F16 pairs, twice the size, so they are reread, as wide heads do.
     if (queries_in_registers) {
 #pragma unroll
         for (unsigned step = 0; step < nk_attention_query_steps_ampere_k; ++step)
@@ -309,7 +310,7 @@ NUMKONG_DEVICE void nk_attention_block_ampere_(nk_attention_kind_t kind, nk_atte
                 nk_load_matrices_x4_ampere_(
                     nk_shared_address_ampere_(queries_shared + query_row * row_stride + step * 32 + (lane >> 4) * 16),
                     fragment);
-                nk_attention_query_ampere_(kind, fragment, query_registers[step]);
+                nk_attention_query_ampere_(dtype, mma_dtype, fragment, query_registers[step]);
             }
     }
 
@@ -326,7 +327,7 @@ NUMKONG_DEVICE void nk_attention_block_ampere_(nk_attention_kind_t kind, nk_atte
         // K has landed, and every warp is done with the V buffer this refills.
         __syncthreads();
         nk_size_t const panel_position = (nk_size_t)panel_index * panel;
-        if (kind == nk_attention_kind_bf16_k)
+        if (dtype == nk_bf16_k)
             nk_attention_stage_rows_ampere_(values_shared, values_plane, panel_position, panel, row_bytes);
         else
             nk_attention_stage_columns_ampere_(values_shared, values_plane, positions_padded, panel_position, panel,
@@ -367,7 +368,7 @@ NUMKONG_DEVICE void nk_attention_block_ampere_(nk_attention_kind_t kind, nk_atte
                     nk_load_matrices_x4_ampere_(nk_shared_address_ampere_(queries_shared + query_row * row_stride +
                                                                           step * 32 + (lane >> 4) * 16),
                                                 fragment);
-                    nk_attention_query_ampere_(kind, fragment, query);
+                    nk_attention_query_ampere_(dtype, mma_dtype, fragment, query);
 #pragma unroll
                     for (unsigned position_group = 0; position_group < groups; ++position_group) {
                         nk_u32_t keys[4];
@@ -433,13 +434,13 @@ NUMKONG_DEVICE void nk_attention_block_ampere_(nk_attention_kind_t kind, nk_atte
                                               tile_scores[position_group * 2 + 1][half * 2 + 1].f};
                     nk_u32_t packed[2];
                     weights(four, packed, &row_sum[half]);
-                    if (kind == nk_attention_kind_bytes_k)
+                    if (dtype != nk_bf16_k && mma_dtype == dtype)
                         probabilities[position_group >> 1][(position_group & 1) * 2 + half] = packed[0];
                     else
                         probabilities[position_group][half] = packed[0],
                         probabilities[position_group][half + 2] = packed[1];
                 }
-            if (kind == nk_attention_kind_bytes_k && groups == 1) probabilities[0][2] = probabilities[0][3] = 0;
+            if (dtype != nk_bf16_k && mma_dtype == dtype && groups == 1) probabilities[0][2] = probabilities[0][3] = 0;
             if (epilogue == nk_cross_epilogue_f32_k) {
 #pragma unroll
                 for (unsigned tile = 0; tile < max_tiles; ++tile)
@@ -458,7 +459,7 @@ NUMKONG_DEVICE void nk_attention_block_ampere_(nk_attention_kind_t kind, nk_atte
         nk_commit_async_ampere_();
         if (!active) continue;
 
-        if (kind == nk_attention_kind_bf16_k) {
+        if (dtype == nk_bf16_k) {
 #pragma unroll
             for (unsigned pair = 0; pair < max_tiles / 2; ++pair) {
                 if (pair * 2 >= depth_tiles) continue;
@@ -475,8 +476,8 @@ NUMKONG_DEVICE void nk_attention_block_ampere_(nk_attention_kind_t kind, nk_atte
                 }
             }
         }
-        else if (kind == nk_attention_kind_widened_k || groups == 1) {
-            // One 16-byte chunk per depth row: widened into both halves of a k16 step, or half of a k32 one.
+        else if (mma_dtype != dtype || groups == 1) {
+            // A 16-byte chunk per depth row: both halves of a k16 step in F16, or half a k32 one.
 #pragma unroll
             for (unsigned quartet = 0; quartet < max_tiles / 4; ++quartet) {
                 if (quartet * 4 >= depth_tiles) continue;
@@ -490,7 +491,7 @@ NUMKONG_DEVICE void nk_attention_block_ampere_(nk_attention_kind_t kind, nk_atte
 #pragma unroll
                     for (unsigned index = 0; index < 4; ++index) {
                         unsigned const tile = quartet * 4 + index;
-                        if (kind == nk_attention_kind_widened_k) {
+                        if (mma_dtype != dtype) {
                             nk_u32_t low, high;
                             nk_e4m3x4_to_f16x4_ampere_(values[index], &low, &high);
                             values_mma(output[tile], probabilities[position_group], low, high);
@@ -634,7 +635,7 @@ NUMKONG_DEVICE void nk_attention_block_ampere_(nk_attention_kind_t kind, nk_atte
  *      count calls for.
  *  @sa nk_attention_block_ampere_ for the parameters.
  */
-NUMKONG_DEVICE void nk_attention_tile_ampere_(nk_attention_kind_t kind, nk_attention_width_t width,
+NUMKONG_DEVICE void nk_attention_tile_ampere_(nk_dtype_t dtype, nk_dtype_t mma_dtype, nk_attention_width_t width,
                                               nk_cross_epilogue_t epilogue, nk_attention_scores_ampere_t scores,
                                               nk_cross_mma_ampere_t values_mma, nk_attention_weights_ampere_t weights,
                                               nk_attention_arguments_t const *arguments) {
@@ -648,11 +649,11 @@ NUMKONG_DEVICE void nk_attention_tile_ampere_(nk_attention_kind_t kind, nk_atten
     for (nk_size_t item = blockIdx.x; nk_attention_schedule_next_(&schedule, prefix, warp_totals, item, &work);
          item += gridDim.x) {
         if (work.row_count <= nk_attention_warp_rows_ampere_k)
-            nk_attention_block_ampere_(kind, width, nk_attention_split_positions_k, epilogue, scores, values_mma,
-                                       weights, arguments, &work, nk_attention_shared_ampere_, unions);
+            nk_attention_block_ampere_(dtype, mma_dtype, width, nk_attention_split_positions_k, epilogue, scores,
+                                       values_mma, weights, arguments, &work, nk_attention_shared_ampere_, unions);
         else
-            nk_attention_block_ampere_(kind, width, nk_attention_split_rows_k, epilogue, scores, values_mma, weights,
-                                       arguments, &work, nk_attention_shared_ampere_, unions);
+            nk_attention_block_ampere_(dtype, mma_dtype, width, nk_attention_split_rows_k, epilogue, scores, values_mma,
+                                       weights, arguments, &work, nk_attention_shared_ampere_, unions);
     }
 }
 
@@ -662,26 +663,26 @@ NUMKONG_DEVICE void nk_attention_tile_ampere_(nk_attention_kind_t kind, nk_atten
 
 /** Places the panel buffers of a width in dynamic shared memory, returning the bytes
  *  a block needs. */
-NUMKONG_INLINE nk_size_t nk_attention_shared_layout_ampere_(nk_attention_kind_t kind, nk_attention_width_t width,
-                                                            nk_size_t depth, nk_attention_arguments_t *arguments) {
-    nk_size_t const element_bytes = kind == nk_attention_kind_bf16_k ? 2 : 1;
+NUMKONG_INLINE nk_size_t nk_attention_shared_layout_ampere_(nk_dtype_t dtype, nk_dtype_t mma_dtype,
+                                                            nk_attention_width_t width, nk_size_t depth,
+                                                            nk_attention_arguments_t *arguments) {
+    nk_size_t const element_bytes = dtype == nk_bf16_k ? 2 : 1;
     nk_size_t const row_bytes = nk_size_round_up_to_multiple_(depth * element_bytes, nk_attention_step_bytes_k);
     nk_size_t const row_stride = row_bytes + nk_attention_row_padding_ampere_k,
                     depth_padded = row_bytes / element_bytes;
     nk_size_t const keys_narrow = nk_attention_panel_k * row_stride;
     nk_size_t const keys_wide = nk_attention_wide_panel_ampere_k * row_stride;
-    nk_size_t const values_narrow = kind == nk_attention_kind_bf16_k
-                                        ? keys_narrow
-                                        : depth_padded * nk_attention_padded_panel_ampere_k;
-    nk_size_t const values_wide = kind == nk_attention_kind_bf16_k ? keys_wide
-                                                                   : depth_padded * (nk_attention_wide_panel_ampere_k +
-                                                                                     nk_attention_row_padding_ampere_k);
+    nk_size_t const values_narrow = dtype == nk_bf16_k ? keys_narrow
+                                                       : depth_padded * nk_attention_padded_panel_ampere_k;
+    nk_size_t const values_wide = dtype == nk_bf16_k ? keys_wide
+                                                     : depth_padded * (nk_attention_wide_panel_ampere_k +
+                                                                       nk_attention_row_padding_ampere_k);
     nk_size_t const queries_block = nk_attention_block_rows_k * row_stride;
     nk_size_t const queries_warp = nk_attention_warp_rows_ampere_k * row_stride;
     nk_size_t const combine = 3 * (depth_padded / 8) * 4 * 32 * sizeof(nk_f32_t) + 3 * 2 * 2 * 32 * sizeof(nk_f32_t);
     nk_size_t pipeline;
     arguments->key_offset[nk_attention_split_rows_k] = arguments->key_offset[nk_attention_split_positions_k] = 0;
-    if (width == nk_attention_width_narrow_k && kind != nk_attention_kind_widened_k) {
+    if (width == nk_attention_width_128_k && mma_dtype == dtype) {
         // Q is staged in the V buffer, read into registers before the first V lands.
         arguments->value_offset[nk_attention_split_rows_k] = (nk_u32_t)keys_narrow;
         arguments->value_offset[nk_attention_split_positions_k] = (nk_u32_t)keys_narrow;
@@ -689,7 +690,7 @@ NUMKONG_INLINE nk_size_t nk_attention_shared_layout_ampere_(nk_attention_kind_t 
         arguments->query_offset[nk_attention_split_positions_k] = (nk_u32_t)keys_narrow;
         pipeline = keys_narrow + (values_narrow > queries_block ? values_narrow : queries_block);
     }
-    else if (width == nk_attention_width_narrow_k) {
+    else if (width == nk_attention_width_128_k) {
         arguments->value_offset[nk_attention_split_rows_k] = (nk_u32_t)keys_narrow;
         arguments->value_offset[nk_attention_split_positions_k] = (nk_u32_t)keys_narrow;
         arguments->query_offset[nk_attention_split_rows_k] = (nk_u32_t)(keys_narrow + values_narrow);
@@ -710,25 +711,26 @@ NUMKONG_INLINE nk_size_t nk_attention_shared_layout_ampere_(nk_attention_kind_t 
 
 /** Dynamic shared memory of a block at the deepest head @p width takes, which each of its kernels
  *  sets as its limit. */
-NUMKONG_INLINE nk_size_t nk_attention_shared_ceiling_ampere_(nk_attention_kind_t kind, nk_attention_width_t width) {
+NUMKONG_INLINE nk_size_t nk_attention_shared_ceiling_ampere_(nk_dtype_t dtype, nk_dtype_t mma_dtype,
+                                                             nk_attention_width_t width) {
     nk_attention_arguments_t deepest;
-    nk_size_t const depth = width == nk_attention_width_narrow_k ? nk_attention_narrow_depth_ampere_k
-                                                                 : nk_attention_wide_depth_ampere_k;
-    return nk_attention_shared_layout_ampere_(kind, width, depth, &deepest);
+    nk_size_t const depth = width == nk_attention_width_128_k ? nk_attention_narrow_depth_ampere_k
+                                                              : nk_attention_wide_depth_ampere_k;
+    return nk_attention_shared_layout_ampere_(dtype, mma_dtype, width, depth, &deepest);
 }
 
 /**
  *  @brief Validates the contract and launches the kernel for the depth's width with as many blocks
  *      as stay resident.
- *  @param[in] score_scale Undoes the Q and K widenings in the tile, or 1.
- *  @param[in] output_scale Undoes the V widening in the tile, or 1.
+ *  @param[in] score_scale Undoes the power of two that converting Q and K puts on scores, or 1.
+ *  @param[in] output_scale Undoes the power of two that converting V puts on the output, or 1.
  */
 NUMKONG_INLINE nk_status_t nk_attention_launch_ampere_(
-    void const *narrow_kernel, void const *wide_kernel, void const *fallback_kernel, nk_attention_kind_t kind,
-    void const *queries, void const *packed, nk_f32_t *output, nk_size_t head_count, nk_size_t key_value_head_count,
-    nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale,
-    nk_f32_t score_scale, nk_f32_t output_scale, nk_attention_mask_t mask, nk_i64_t diagonal_offset, nk_size_t window,
-    nk_size_t task_start, nk_size_t task_count, void *stream) {
+    void const *narrow_kernel, void const *wide_kernel, void const *fallback_kernel, nk_dtype_t dtype,
+    nk_dtype_t mma_dtype, void const *queries, void const *packed, nk_f32_t *output, nk_size_t head_count,
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
+    nk_size_t output_stride, nk_f32_t scale, nk_f32_t score_scale, nk_f32_t output_scale, nk_attention_mask_t mask,
+    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count, void *stream) {
     if (((nk_size_t)packed & 15) || (((nk_size_t)output | output_stride) & 3)) return nk_misaligned_k;
     if (key_value_head_count == 0 || head_count % key_value_head_count != 0) return nk_unexpected_dimensions_k;
     if (task_count == 0 || depth == 0) return nk_success_k;
@@ -737,11 +739,11 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_ampere_(
         scale, score_scale, output_scale, mask, diagonal_offset, window, task_start, task_count);
     if (depth > nk_attention_wide_depth_ampere_k)
         return nk_launch_resident_(fallback_kernel, nk_attention_threads_k, 0, 0, NUMKONG_SIZE_MAX, &arguments, stream);
-    nk_attention_width_t const width = depth <= nk_attention_narrow_depth_ampere_k ? nk_attention_width_narrow_k
-                                                                                   : nk_attention_width_wide_k;
-    nk_size_t const shared_bytes = nk_attention_shared_layout_ampere_(kind, width, depth, &arguments);
-    return nk_launch_resident_(width == nk_attention_width_narrow_k ? narrow_kernel : wide_kernel,
-                               nk_attention_threads_k, shared_bytes, nk_attention_shared_ceiling_ampere_(kind, width),
+    nk_attention_width_t const width = depth <= nk_attention_narrow_depth_ampere_k ? nk_attention_width_128_k
+                                                                                   : nk_attention_width_256_k;
+    nk_size_t const shared_bytes = nk_attention_shared_layout_ampere_(dtype, mma_dtype, width, depth, &arguments);
+    return nk_launch_resident_(width == nk_attention_width_128_k ? narrow_kernel : wide_kernel, nk_attention_threads_k,
+                               shared_bytes, nk_attention_shared_ceiling_ampere_(dtype, mma_dtype, width),
                                NUMKONG_SIZE_MAX, &arguments, stream);
 }
 
@@ -754,24 +756,24 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_ampere_(
 
 nk_define_device_attention_pack_size_(bf16, ampere, 2)
 nk_define_device_attention_packed_shape_(bf16, ampere)
-nk_define_device_attention_pack_(bf16, ampere, bf16, nk_attention_kind_bf16_k)
-nk_define_device_attention_packed_(bf16, ampere, ampere, nk_attention_launch_ampere_, bf16, nk_attention_kind_bf16_k,
+nk_define_device_attention_pack_(bf16, ampere, bf16)
+nk_define_device_attention_packed_(bf16, ampere, ampere, nk_attention_launch_ampere_, bf16, nk_bf16_k,
                                    nk_cross_epilogue_f32_k, nk_attention_scores_bf16_ampere_, nk_mma_bf16_ampere_,
-                                   nk_attention_weights_bf16_ampere_, 1.0f, 1.0f, nk_bf16_k)
+                                   nk_attention_weights_bf16_ampere_, 1.0f, 1.0f)
 
 nk_define_device_attention_pack_size_(e4m3, ampere, 1)
 nk_define_device_attention_packed_shape_(e4m3, ampere)
-nk_define_device_attention_pack_(e4m3, ampere, e4m3, nk_attention_kind_widened_k)
-nk_define_device_attention_packed_(e4m3, ampere, ampere, nk_attention_launch_ampere_, e4m3, nk_attention_kind_widened_k,
+nk_define_device_attention_pack_(e4m3, ampere, e4m3)
+nk_define_device_attention_packed_(e4m3, ampere, ampere, nk_attention_launch_ampere_, e4m3, nk_f16_k,
                                    nk_cross_epilogue_f32_k, nk_attention_scores_e4m3_ampere_, nk_mma_f16_ampere_,
-                                   nk_attention_weights_f16_ampere_, 65536.0f, 256.0f, nk_e4m3_k)
+                                   nk_attention_weights_f16_ampere_, 65536.0f, 256.0f)
 
 nk_define_device_attention_pack_size_(i8, ampere, 1)
 nk_define_device_attention_packed_shape_(i8, ampere)
-nk_define_device_attention_pack_(i8, ampere, i8, nk_attention_kind_bytes_k)
-nk_define_device_attention_packed_(i8, ampere, ampere, nk_attention_launch_ampere_, i8, nk_attention_kind_bytes_k,
+nk_define_device_attention_pack_(i8, ampere, i8)
+nk_define_device_attention_packed_(i8, ampere, ampere, nk_attention_launch_ampere_, i8, nk_i8_k,
                                    nk_cross_epilogue_i32_to_f32_k, nk_attention_scores_i8_ampere_, nk_mma_u8i8_ampere_,
-                                   nk_attention_weights_u8_ampere_, 1.0f, 1.0f, nk_i8_k)
+                                   nk_attention_weights_u8_ampere_, 1.0f, 1.0f)
 
 #pragma endregion Instantiations
 

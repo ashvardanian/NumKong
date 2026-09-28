@@ -10,7 +10,7 @@
  *  The CDNA4 kernel's staging, transposed scores and online softmax on 32-lane wavefronts: four of
  *  them own 16 rows each of a work item, and each lane holds 8 positions of one query row per 16 ×
  *  16 WMMA of Sᵀ. BF16 multiplies BF16, E4M3 scores take the native Float8 WMMA and its P · V runs
- *  on F16 with V widened exactly, and I8 scores run exact integer WMMA with U8 probabilities
+ *  on F16 with V converted exactly, and I8 scores run exact integer WMMA with U8 probabilities
  *  against I8 values, which the integer WMMA takes without an offset. Depths above 256 fall back to
  *  the @c rocm kernel. The pack layout and the work scheduler are the @c rocm capability's.
  */
@@ -44,8 +44,8 @@ typedef void (*nk_attention_weights_cdna5_t)(nk_f32_t const probabilities[32], n
 /** Slot of a panel's Vᵀ that row @p row of Sᵀ tile @p tile covers, so each lane's scores are the
  *  probabilities in the order its V operand reads them: 32 slots per P · V step in 16 per lane
  *  group for 16-bit weights, and 64 in 32 per lane group for 8-bit ones. */
-NUMKONG_DEVICE unsigned nk_attention_tile_slot_cdna5_(nk_attention_kind_t kind, unsigned tile, unsigned row) {
-    if (kind == nk_attention_kind_bytes_k) return (row >> 3) * 32 + tile * 8 + (row & 7);
+NUMKONG_DEVICE unsigned nk_attention_tile_slot_cdna5_(nk_dtype_t dtype, unsigned tile, unsigned row) {
+    if (dtype == nk_i8_k) return (row >> 3) * 32 + tile * 8 + (row & 7);
     return (tile >> 1) * 32 + (row >> 3) * 16 + (tile & 1) * 8 + (row & 7);
 }
 
@@ -69,15 +69,15 @@ NUMKONG_DEVICE void nk_attention_values_bf16_cdna5_(nk_fui32_t output[8], nk_u32
     nk_wmma_bf16_cdna5_(output, probabilities, values);
 }
 
-/** F16 weights against 16 E4M3 codes of V widened into F16 over 256, which the output scale
+/** F16 weights against 16 E4M3 codes of V converted to F16 over 256, which the output scale
  *  undoes. */
 NUMKONG_DEVICE void nk_attention_values_e4m3_cdna5_(nk_fui32_t output[8], nk_u32_t const probabilities[8],
                                                     nk_u32_t const values[8]) {
-    nk_u32_t widened[8];
+    nk_u32_t halves[8];
 #pragma unroll
     for (unsigned word = 0; word < 4; ++word)
-        nk_e4m3x4_to_f16x4_cdna4_(values[word], &widened[word * 2], &widened[word * 2 + 1]);
-    nk_wmma_f16_cdna5_(output, probabilities, widened);
+        nk_e4m3x4_to_f16x4_cdna4_(values[word], &halves[word * 2], &halves[word * 2 + 1]);
+    nk_wmma_f16_cdna5_(output, probabilities, halves);
 }
 
 NUMKONG_DEVICE void nk_attention_values_i8_cdna5_(nk_fui32_t output[8], nk_u32_t const probabilities[8],
@@ -138,7 +138,7 @@ NUMKONG_DEVICE void nk_attention_weights_u8_cdna5_(nk_f32_t const probabilities[
  *  of P · V, and rows 8 × (l / 16) + e of P · V's output, whose softmax corrections and sums it
  *  reads from the lanes holding those rows.
  */
-NUMKONG_DEVICE void nk_attention_block_cdna5_(nk_attention_kind_t kind, nk_attention_width_t width,
+NUMKONG_DEVICE void nk_attention_block_cdna5_(nk_dtype_t dtype, nk_attention_width_t width,
                                               nk_cross_epilogue_t epilogue, nk_attention_scores_cdna5_t scores,
                                               nk_attention_values_cdna5_t values_mma,
                                               nk_attention_weights_cdna5_t weights,
@@ -148,15 +148,15 @@ NUMKONG_DEVICE void nk_attention_block_cdna5_(nk_attention_kind_t kind, nk_atten
 
     nk_f32_t const negative_infinity = nk_attention_negative_infinity_();
     unsigned const lane = threadIdx.x & 31, wave = threadIdx.x >> 5, group = lane >> 4, column = lane & 15;
-    unsigned const element_bytes = kind == nk_attention_kind_bf16_k ? 2 : 1;
+    unsigned const element_bytes = dtype == nk_bf16_k ? 2 : 1;
     // Sᵀ reads 64 bytes of depth a step for BF16 and I8 and 128 for E4M3, half per lane group.
-    unsigned const step_bytes = kind == nk_attention_kind_widened_k ? 128 : 64, step_words = step_bytes / 8;
-    unsigned const width_depth = width == nk_attention_width_narrow_k ? nk_attention_narrow_depth_cdna4_k
-                                                                      : nk_attention_wide_depth_cdna4_k;
+    unsigned const step_bytes = dtype == nk_e4m3_k ? 128 : 64, step_words = step_bytes / 8;
+    unsigned const width_depth = width == nk_attention_width_128_k ? nk_attention_narrow_depth_cdna4_k
+                                                                   : nk_attention_wide_depth_cdna4_k;
     unsigned const width_steps = (unsigned)nk_size_divide_round_up_(width_depth * element_bytes, step_bytes),
                    width_tiles = width_depth / 16;
     // P · V takes 32 positions a step for 16-bit weights and 64 for 8-bit ones.
-    unsigned const value_steps = kind == nk_attention_kind_bytes_k ? 1 : 2;
+    unsigned const value_steps = dtype == nk_i8_k ? 1 : 2;
 
     nk_size_t const depth = arguments->depth;
     unsigned const row_bytes = (unsigned)nk_size_round_up_to_multiple_(depth * element_bytes,
@@ -207,7 +207,7 @@ NUMKONG_DEVICE void nk_attention_block_cdna5_(nk_attention_kind_t kind, nk_atten
             nk_size_t const head = work->head_first + row % work->heads_selected;
             source += (work->query_first + query) * arguments->query_stride + head * depth * element_bytes;
         }
-        if (kind == nk_attention_kind_bf16_k)
+        if (dtype == nk_bf16_k)
             for (unsigned element = lane; element < row_bytes / 2; element += 32)
                 ((unsigned short *)destination)[element] = valid && element < depth
                                                                ? ((unsigned short const *)source)[element]
@@ -249,8 +249,8 @@ NUMKONG_DEVICE void nk_attention_block_cdna5_(nk_attention_kind_t kind, nk_atten
         nk_size_t const panel_position = (nk_size_t)panel_index * nk_attention_panel_k;
         nk_attention_stage_rows_cdna4_(keys_shared, keys_plane, panel_position, nk_attention_panel_k, row_bytes,
                                        row_stride);
-        nk_attention_stage_values_cdna4_(kind, values_shared, values_plane, positions_padded, panel_position, row_bytes,
-                                         value_stride);
+        nk_attention_stage_values_cdna4_(dtype, values_shared, values_plane, positions_padded, panel_position,
+                                         row_bytes, value_stride);
         __syncthreads();
 
         nk_fui32_t tile_scores[4][8];
@@ -265,7 +265,7 @@ NUMKONG_DEVICE void nk_attention_block_cdna5_(nk_attention_kind_t kind, nk_atten
 #pragma unroll
                 for (unsigned position_tile = 0; position_tile < 4; ++position_tile) {
                     unsigned const position = (unsigned)nk_attention_slot_position_(
-                        nk_attention_tile_slot_cdna5_(kind, position_tile, column));
+                        nk_attention_tile_slot_cdna5_(dtype, position_tile, column));
                     nk_u32_t keys[16];
                     nk_attention_load_fragment_cdna4_(keys_shared + position * row_stride,
                                                       step * step_bytes + group * step_words * 4, row_bytes, step_words,
@@ -282,7 +282,7 @@ NUMKONG_DEVICE void nk_attention_block_cdna5_(nk_attention_kind_t kind, nk_atten
                 nk_fui32_t *score = &tile_scores[position_tile][element];
                 score->f = (epilogue == nk_cross_epilogue_i32_to_f32_k ? (nk_f32_t)score->i : score->f) * scale2;
                 nk_size_t const position = panel_position + nk_attention_slot_position_(nk_attention_tile_slot_cdna5_(
-                                                                kind, position_tile, group * 8 + element));
+                                                                dtype, position_tile, group * 8 + element));
                 if (position < key_begin || position >= key_end) score->f = negative_infinity;
                 chunk_max = fmaxf(chunk_max, score->f);
             }
@@ -301,8 +301,7 @@ NUMKONG_DEVICE void nk_attention_block_cdna5_(nk_attention_kind_t kind, nk_atten
             nk_f32_t step_probabilities[32];
 #pragma unroll
             for (unsigned index = 0; index < 32; ++index) {
-                unsigned const position_tile = kind == nk_attention_kind_bytes_k ? index / 8
-                                                                                 : value_step * 2 + (index / 8 & 1);
+                unsigned const position_tile = dtype == nk_i8_k ? index / 8 : value_step * 2 + (index / 8 & 1);
                 step_probabilities[index] = nk_f32_exp2_(tile_scores[position_tile][index % 8].f - subtrahend);
             }
             weights(step_probabilities, probabilities[value_step], &row_sum);
@@ -319,7 +318,7 @@ NUMKONG_DEVICE void nk_attention_block_cdna5_(nk_attention_kind_t kind, nk_atten
             for (unsigned depth_tile = 0; depth_tile < nk_attention_tiles_cdna4_k; ++depth_tile) {
                 if (!((tile_mask >> depth_tile) & 1)) continue;
                 unsigned char const *values_row = values_shared + (depth_tile * 16 + column) * value_stride;
-                if (kind == nk_attention_kind_bytes_k) {
+                if (dtype == nk_i8_k) {
                     nk_u32_t values[8];
 #pragma unroll
                     for (unsigned chunk = 0; chunk < 2; ++chunk) {
@@ -342,7 +341,7 @@ NUMKONG_DEVICE void nk_attention_block_cdna5_(nk_attention_kind_t kind, nk_atten
                 for (unsigned value_step = 0; value_step < 2; ++value_step) {
                     unsigned const slot = value_step * 32 + group * 16;
                     nk_u32_t values[8];
-                    if (kind == nk_attention_kind_bf16_k)
+                    if (dtype == nk_bf16_k)
 #pragma unroll
                         for (unsigned chunk = 0; chunk < 2; ++chunk) {
                             uint4 const halves = *(uint4 const *)(values_row + slot * 2 + chunk * 16);
@@ -389,11 +388,12 @@ NUMKONG_DEVICE void nk_attention_block_cdna5_(nk_attention_kind_t kind, nk_atten
  *  @brief Every work item of a launch, walked with a stride of the grid.
  *  @sa nk_attention_block_cdna4_ for the parameters.
  */
-NUMKONG_DEVICE void nk_attention_tile_cdna5_(nk_attention_kind_t kind, nk_attention_width_t width,
+NUMKONG_DEVICE void nk_attention_tile_cdna5_(nk_dtype_t dtype, nk_dtype_t mma_dtype, nk_attention_width_t width,
                                              nk_cross_epilogue_t epilogue, nk_attention_scores_cdna5_t scores,
                                              nk_attention_values_cdna5_t values_mma,
                                              nk_attention_weights_cdna5_t weights,
                                              nk_attention_arguments_t const *arguments) {
+    nk_unused_(mma_dtype);
     extern __shared__ __attribute__((aligned(16))) unsigned char nk_attention_shared_cdna5_[];
     __shared__ nk_u64_t prefix[nk_attention_threads_k + 1];
     __shared__ nk_u64_t warp_totals[nk_attention_threads_k / 32];
@@ -403,7 +403,7 @@ NUMKONG_DEVICE void nk_attention_tile_cdna5_(nk_attention_kind_t kind, nk_attent
     nk_attention_work_t work;
     for (nk_size_t item = blockIdx.x; nk_attention_schedule_next_(&schedule, prefix, warp_totals, item, &work);
          item += gridDim.x)
-        nk_attention_block_cdna5_(kind, width, epilogue, scores, values_mma, weights, arguments, &work,
+        nk_attention_block_cdna5_(dtype, width, epilogue, scores, values_mma, weights, arguments, &work,
                                   nk_attention_shared_cdna5_, unions);
 }
 
@@ -413,26 +413,24 @@ NUMKONG_DEVICE void nk_attention_tile_cdna5_(nk_attention_kind_t kind, nk_attent
 
 nk_define_device_attention_pack_size_(bf16, cdna5, 2)
 nk_define_device_attention_packed_shape_(bf16, cdna5)
-nk_define_device_attention_pack_(bf16, cdna5, bf16, nk_attention_kind_bf16_k)
-nk_define_device_attention_packed_(bf16, cdna5, cdna5, nk_attention_launch_cdna4_, bf16, nk_attention_kind_bf16_k,
+nk_define_device_attention_pack_(bf16, cdna5, bf16)
+nk_define_device_attention_packed_(bf16, cdna5, cdna5, nk_attention_launch_cdna4_, bf16, nk_bf16_k,
                                    nk_cross_epilogue_f32_k, nk_attention_scores_bf16_cdna5_,
-                                   nk_attention_values_bf16_cdna5_, nk_attention_weights_bf16_cdna5_, 1.0f, 1.0f,
-                                   nk_bf16_k)
+                                   nk_attention_values_bf16_cdna5_, nk_attention_weights_bf16_cdna5_, 1.0f, 1.0f)
 
 nk_define_device_attention_pack_size_(e4m3, cdna5, 1)
 nk_define_device_attention_packed_shape_(e4m3, cdna5)
-nk_define_device_attention_pack_(e4m3, cdna5, e4m3, nk_attention_kind_widened_k)
-nk_define_device_attention_packed_(e4m3, cdna5, cdna5, nk_attention_launch_cdna4_, e4m3, nk_attention_kind_widened_k,
+nk_define_device_attention_pack_(e4m3, cdna5, e4m3)
+nk_define_device_attention_packed_(e4m3, cdna5, cdna5, nk_attention_launch_cdna4_, e4m3, nk_f16_k,
                                    nk_cross_epilogue_f32_k, nk_attention_scores_e4m3_cdna5_,
-                                   nk_attention_values_e4m3_cdna5_, nk_attention_weights_f16_cdna5_, 1.0f, 256.0f,
-                                   nk_e4m3_k)
+                                   nk_attention_values_e4m3_cdna5_, nk_attention_weights_f16_cdna5_, 1.0f, 256.0f)
 
 nk_define_device_attention_pack_size_(i8, cdna5, 1)
 nk_define_device_attention_packed_shape_(i8, cdna5)
-nk_define_device_attention_pack_(i8, cdna5, i8, nk_attention_kind_bytes_k)
-nk_define_device_attention_packed_(i8, cdna5, cdna5, nk_attention_launch_cdna4_, i8, nk_attention_kind_bytes_k,
+nk_define_device_attention_pack_(i8, cdna5, i8)
+nk_define_device_attention_packed_(i8, cdna5, cdna5, nk_attention_launch_cdna4_, i8, nk_i8_k,
                                    nk_cross_epilogue_i32_to_f32_k, nk_attention_scores_i8_cdna5_,
-                                   nk_attention_values_i8_cdna5_, nk_attention_weights_u8_cdna5_, 1.0f, 1.0f, nk_i8_k)
+                                   nk_attention_values_i8_cdna5_, nk_attention_weights_u8_cdna5_, 1.0f, 1.0f)
 
 #pragma endregion Instantiations
 

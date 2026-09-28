@@ -40,11 +40,10 @@ NUMKONG_DEVICE void nk_attention_scores_e4m3_blackwellrtx_(nk_fui32_t scores[2][
 
 nk_define_device_attention_pack_size_(e4m3, blackwellrtx, 1)
 nk_define_device_attention_packed_shape_(e4m3, blackwellrtx)
-nk_define_device_attention_pack_(e4m3, blackwellrtx, e4m3, nk_attention_kind_bytes_k)
-nk_define_device_attention_packed_(e4m3, blackwellrtx, ampere, nk_attention_launch_ampere_, e4m3,
-                                   nk_attention_kind_bytes_k, nk_cross_epilogue_f32_k,
-                                   nk_attention_scores_e4m3_blackwellrtx_, nk_mma_e4m3_blackwellrtx_,
-                                   nk_attention_weights_e4m3_ada_, 1.0f, 1.0f, nk_e4m3_k)
+nk_define_device_attention_pack_(e4m3, blackwellrtx, e4m3)
+nk_define_device_attention_packed_(e4m3, blackwellrtx, ampere, nk_attention_launch_ampere_, e4m3, nk_e4m3_k,
+                                   nk_cross_epilogue_f32_k, nk_attention_scores_e4m3_blackwellrtx_,
+                                   nk_mma_e4m3_blackwellrtx_, nk_attention_weights_e4m3_ada_, 1.0f, 1.0f)
 
 #pragma endregion Instantiations
 

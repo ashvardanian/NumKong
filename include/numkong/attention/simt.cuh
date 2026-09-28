@@ -37,70 +37,132 @@ enum {
     nk_attention_pack_threads_k = 256,
 };
 
-/** Which keys each query row sees. */
+/** Which keys each query row sees: its whole segment, or, when causal, the @c window keys ending at
+ *  the row's position `r + diagonal_offset`. */
 typedef enum {
-    nk_attention_mask_bidirectional_k, // every key of the row's segment
-    nk_attention_mask_causal_k,        // the `window` keys ending at the row's position `r + diagonal_offset`
+    nk_attention_mask_bidirectional_k,
+    nk_attention_mask_causal_k,
 } nk_attention_mask_t;
 
-/** How the pack lays out V, and how the tensor-core kernels form fragments from the operands. */
+/** The largest head depth a tensor capability's tile takes. */
 typedef enum {
-    nk_attention_kind_bf16_k,    // 2-byte elements into m16n8k16, V rows read through `ldmatrix.trans`
-    nk_attention_kind_widened_k, // 1-byte E4M3 codes widened into F16 pairs for m16n8k16, V transposed
-    nk_attention_kind_bytes_k,   // 1-byte codes straight into m16n8k32, V transposed
-} nk_attention_kind_t;
-
-/** Which of a tensor capability's two tiles a head's depth takes. */
-typedef enum {
-    nk_attention_width_narrow_k, // depth ≤ 128
-    nk_attention_width_wide_k,   // depth ≤ 256
+    nk_attention_width_128_k,
+    nk_attention_width_256_k,
 } nk_attention_width_t;
 
 /** Everything one attention launch shares, passed by value as the kernels' only argument. */
 typedef struct {
-    unsigned char const *queries;   // `[query tokens, heads × depth]` rows
-    unsigned char const *packed;    // the packed buffer, header first
-    nk_f32_t *output;               // `[query tokens, heads × depth]` F32 rows
-    nk_u32_t const *query_offsets;  // first query row of each segment, `[segments + 1]`
-    nk_size_t head_count;           // query heads
-    nk_size_t key_value_head_count; // K and V heads
-    nk_size_t depth;                // elements per head
-    nk_size_t query_stride;         // bytes between query rows
-    nk_size_t output_stride;        // bytes between output rows
-    nk_i64_t diagonal_offset;       // position of query row 0 in its segment
-    nk_size_t window;               // visible keys including the query's own
-    nk_size_t task_start;           // first task of the window over `segments × heads`
-    nk_size_t task_count;           // tasks in the window, clipped on the device
-    nk_f32_t scale2;                // score multiplier in base 2, `scale · log₂e`
-    nk_f32_t score_scale;           // undoes the Q and K widenings in the tile, or 1
-    nk_f32_t output_scale;          // undoes the V widening in the tile, or 1
-    nk_u32_t key_offset[2];         // K panel in shared memory, per `nk_attention_split_t`
-    nk_u32_t value_offset[2];       // V panel in shared memory, per `nk_attention_split_t`
-    nk_u32_t query_offset[2];       // staged Q rows in shared memory, per `nk_attention_split_t`
+
+    /** Query rows, [query tokens, heads × depth]. */
+    unsigned char const *queries;
+
+    /** The packed buffer, header first. */
+    unsigned char const *packed;
+
+    /** F32 output rows, [query tokens, heads × depth]. */
+    nk_f32_t *output;
+
+    /** First query row of each segment, with segments + 1 entries. */
+    nk_u32_t const *query_offsets;
+
+    /** Query heads. */
+    nk_size_t head_count;
+
+    /** K and V heads. */
+    nk_size_t key_value_head_count;
+
+    /** Elements per head. */
+    nk_size_t depth;
+
+    /** Bytes between query rows. */
+    nk_size_t query_stride;
+
+    /** Bytes between output rows. */
+    nk_size_t output_stride;
+
+    /** Position of query row 0 in its segment. */
+    nk_i64_t diagonal_offset;
+
+    /** Visible keys, including the query's own. */
+    nk_size_t window;
+
+    /** First task of the window over segments × heads. */
+    nk_size_t task_start;
+
+    /** Tasks in the window, clipped on the device. */
+    nk_size_t task_count;
+
+    /** Score multiplier in base 2, scale · log₂e. */
+    nk_f32_t scale2;
+
+    /** Undoes the power of two that converting Q and K puts on scores, or 1. */
+    nk_f32_t score_scale;
+
+    /** Undoes the power of two that converting V puts on the output, or 1. */
+    nk_f32_t output_scale;
+
+    /** K panel in shared memory, per @c nk_attention_split_t. */
+    nk_u32_t key_offset[2];
+
+    /** V panel in shared memory, per @c nk_attention_split_t. */
+    nk_u32_t value_offset[2];
+
+    /** Staged Q rows in shared memory, per @c nk_attention_split_t. */
+    nk_u32_t query_offset[2];
 } nk_attention_arguments_t;
 
 /** Walks the work items of a task window, one chunk of segments' item counts at a time. */
 typedef struct {
-    nk_u32_t const *query_offsets; // first query row of each segment
-    nk_size_t head_count;          // query heads per segment
-    nk_size_t group_heads;         // query heads per K and V head
-    nk_size_t task_start;          // first task of the window
-    nk_size_t task_end;            // one past the last task, clipped to the grid
-    nk_size_t segment_end;         // one past the last segment the window touches
-    nk_size_t chunk_first;         // first segment of the chunk whose prefix sits in shared memory
-    nk_size_t items_before;        // items in the segments before the chunk
+
+    /** First query row of each segment. */
+    nk_u32_t const *query_offsets;
+
+    /** Query heads per segment. */
+    nk_size_t head_count;
+
+    /** Query heads per K and V head. */
+    nk_size_t group_heads;
+
+    /** First task of the window. */
+    nk_size_t task_start;
+
+    /** One past the last task, clipped to the grid. */
+    nk_size_t task_end;
+
+    /** One past the last segment the window touches. */
+    nk_size_t segment_end;
+
+    /** First segment of the chunk whose prefix sits in shared memory. */
+    nk_size_t chunk_first;
+
+    /** Items in the segments before the chunk. */
+    nk_size_t items_before;
 } nk_attention_schedule_t;
 
 /** One work item: up to 64 rows, each row being query × heads_selected + head, of one segment
  *  against one K and V head. */
 typedef struct {
-    nk_size_t segment;        // segment index
-    nk_size_t key_value_head; // K and V head
-    nk_size_t head_first;     // first query head, counted within the segment
-    nk_size_t heads_selected; // query heads the rows cycle through
-    nk_size_t row_first;      // first row of the item
-    nk_size_t row_count;      // rows of the item
-    nk_size_t query_first;    // query token of the segment's first query
+
+    /** Segment index. */
+    nk_size_t segment;
+
+    /** K and V head. */
+    nk_size_t key_value_head;
+
+    /** First query head, counted within the segment. */
+    nk_size_t head_first;
+
+    /** Query heads the rows cycle through. */
+    nk_size_t heads_selected;
+
+    /** First row of the item. */
+    nk_size_t row_first;
+
+    /** Rows of the item. */
+    nk_size_t row_count;
+
+    /** Query token of the segment's first query. */
+    nk_size_t query_first;
 } nk_attention_work_t;
 
 #pragma endregion Configuration
@@ -435,13 +497,12 @@ static __global__ void nk_attention_pack_directory_kernel_(unsigned char *packed
 
 /** Copies the K and V planes of each @b (segment,kv_head) task, one block per task, zeroing
  *  every padded element. */
-NUMKONG_DEVICE void nk_attention_pack_payload_(nk_attention_kind_t kind, unsigned char const *keys,
-                                               unsigned char const *values, nk_size_t key_value_head_count,
-                                               nk_size_t depth, nk_u32_t const *segment_offsets,
-                                               nk_u32_t const *segment_lengths, nk_size_t segment_count,
-                                               nk_size_t key_stride, nk_size_t value_stride, unsigned char *packed,
-                                               nk_size_t task_begin, nk_size_t task_end) {
-    nk_size_t const element_bytes = kind == nk_attention_kind_bf16_k ? 2 : 1;
+NUMKONG_DEVICE void nk_attention_pack_payload_(nk_dtype_t dtype, unsigned char const *keys, unsigned char const *values,
+                                               nk_size_t key_value_head_count, nk_size_t depth,
+                                               nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
+                                               nk_size_t segment_count, nk_size_t key_stride, nk_size_t value_stride,
+                                               unsigned char *packed, nk_size_t task_begin, nk_size_t task_end) {
+    nk_size_t const element_bytes = dtype == nk_bf16_k ? 2 : 1;
     nk_size_t const row_bytes = nk_size_round_up_to_multiple_(depth * element_bytes, nk_attention_step_bytes_k);
     nk_size_t const row_elements = row_bytes / element_bytes;
     nk_u64_t const *payload_offsets = (nk_u64_t const *)(packed + sizeof(nk_attention_packed_header_t));
@@ -602,17 +663,18 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_(void const *kernel, nk_capabilit
 /**
  *  @brief Generates a device pack: the directory, recording the packing @p isa_suffix, when
  *      the window starts at task 0, then one block per task.
- *  @param[in] kind Selects the V layout: position rows for BF16, σ-ordered depth rows
- *      for 1-byte codes.
+ *
+ *  V keeps position rows for BF16 and takes σ-ordered depth rows for 1-byte dtypes.
  */
-#define nk_define_device_attention_pack_(input_type_name, isa_suffix, input_value_type, kind)                          \
+#define nk_define_device_attention_pack_(input_type_name, isa_suffix, input_value_type)                                \
     static __global__ void nk_attention_pack_##input_type_name##_##isa_suffix##_kernel_(                               \
         unsigned char const *keys, unsigned char const *values, nk_size_t key_value_head_count, nk_size_t depth,       \
         nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,                     \
         nk_size_t key_stride, nk_size_t value_stride, unsigned char *packed, nk_size_t task_begin,                     \
         nk_size_t task_end) {                                                                                          \
-        nk_attention_pack_payload_(kind, keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,  \
-                                   segment_count, key_stride, value_stride, packed, task_begin, task_end);             \
+        nk_attention_pack_payload_(nk_##input_value_type##_k, keys, values, key_value_head_count, depth,               \
+                                   segment_offsets, segment_lengths, segment_count, key_stride, value_stride, packed,  \
+                                   task_begin, task_end);                                                              \
     }                                                                                                                  \
     NUMKONG_API nk_status_t nk_attention_pack_##input_type_name##_##isa_suffix(                                        \
         nk_##input_value_type##_t const *keys, nk_##input_value_type##_t const *values,                                \
@@ -633,13 +695,11 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_(void const *kernel, nk_capabilit
  *
  *  The pack must come from the same capability's pack kernel: the host can't read its device header
  *  without waiting on the stream, so the entry points trust it.
- *
- *  @param[in] dtype How the kernel decodes the pack.
  */
-#define nk_define_device_attention_baseline_packed_(input_type_name, isa_suffix, input_value_type, dtype)            \
+#define nk_define_device_attention_baseline_packed_(input_type_name, isa_suffix, input_value_type)                   \
     static __global__ void __launch_bounds__(nk_attention_threads_k)                                                 \
         nk_attention_packed_##input_type_name##_##isa_suffix##_kernel_(nk_attention_arguments_t arguments) {         \
-        nk_attention_fallback_(dtype, &arguments);                                                                   \
+        nk_attention_fallback_(nk_##input_value_type##_k, &arguments);                                               \
     }                                                                                                                \
     NUMKONG_API nk_status_t nk_attention_bidirectional_packed_##input_type_name##_##isa_suffix(                      \
         nk_##input_value_type##_t const *queries, void const *key_value_packed, nk_f32_t *output,                    \
@@ -665,12 +725,11 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_(void const *kernel, nk_capabilit
     }
 
 /** Every attention entry of one dtype on the vendor baseline @p isa_suffix, with its own pack. */
-#define nk_define_device_attention_baseline_(input_type_name, isa_suffix, input_value_type, element_bytes, kind, \
-                                             dtype)                                                              \
-    nk_define_device_attention_pack_size_(input_type_name, isa_suffix, element_bytes)                            \
-    nk_define_device_attention_packed_shape_(input_type_name, isa_suffix)                                        \
-    nk_define_device_attention_pack_(input_type_name, isa_suffix, input_value_type, kind)                        \
-    nk_define_device_attention_baseline_packed_(input_type_name, isa_suffix, input_value_type, dtype)
+#define nk_define_device_attention_baseline_(input_type_name, isa_suffix, input_value_type, element_bytes) \
+    nk_define_device_attention_pack_size_(input_type_name, isa_suffix, element_bytes)                      \
+    nk_define_device_attention_packed_shape_(input_type_name, isa_suffix)                                  \
+    nk_define_device_attention_pack_(input_type_name, isa_suffix, input_value_type)                        \
+    nk_define_device_attention_baseline_packed_(input_type_name, isa_suffix, input_value_type)
 
 /**
  *  @brief Generates the narrow, wide and fallback kernels of one dtype and both public attention
@@ -681,52 +740,53 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_(void const *kernel, nk_capabilit
  *
  *  @param[in] tile The tiling kernel family, like @c ampere, whose tile function the narrow and
  *      wide kernels run.
- *  @param[in] launch_fn The capability's launch, taking the narrow, wide and fallback kernels in
- *      that order.
- *  @param[in] score_scale Undoes the power of two the tile's score widening introduces, or 1.
- *  @param[in] output_scale Undoes the power of two the tile's value widening introduces, or 1.
- *  @param[in] fallback_dtype How the CUDA-core kernel decodes the pack past depth 256.
+ *  @param[in] launch_fn The launch, taking the narrow, wide and fallback kernels in that order.
+ *  @param[in] mma_dtype The dtype the tile's MMAs consume: @c nk_f16_k where E4M3 converts to F16
+ *      first, else the input dtype.
+ *  @param[in] score_scale Undoes the power of two that converting Q and K puts on scores, or 1.
+ *  @param[in] output_scale Undoes the power of two that converting V puts on the output, or 1.
  */
-#define nk_define_device_attention_packed_(input_type_name, isa_suffix, tile, launch_fn, input_value_type, kind,       \
-                                           epilogue, scores_fn, values_mma_fn, weights_fn, score_scale, output_scale,  \
-                                           fallback_dtype)                                                             \
-    static __global__ void __launch_bounds__(nk_attention_threads_k)                                                   \
-        nk_attention_packed_##input_type_name##_##isa_suffix##_narrow_kernel_(nk_attention_arguments_t arguments) {    \
-        nk_attention_tile_##tile##_(kind, nk_attention_width_narrow_k, epilogue, scores_fn, values_mma_fn, weights_fn, \
-                                    &arguments);                                                                       \
-    }                                                                                                                  \
-    static __global__ void __launch_bounds__(nk_attention_threads_k)                                                   \
-        nk_attention_packed_##input_type_name##_##isa_suffix##_wide_kernel_(nk_attention_arguments_t arguments) {      \
-        nk_attention_tile_##tile##_(kind, nk_attention_width_wide_k, epilogue, scores_fn, values_mma_fn, weights_fn,   \
-                                    &arguments);                                                                       \
-    }                                                                                                                  \
-    static __global__ void __launch_bounds__(nk_attention_threads_k)                                                   \
-        nk_attention_packed_##input_type_name##_##isa_suffix##_fallback_kernel_(nk_attention_arguments_t arguments) {  \
-        nk_attention_fallback_(fallback_dtype, &arguments);                                                            \
-    }                                                                                                                  \
-    NUMKONG_API nk_status_t nk_attention_bidirectional_packed_##input_type_name##_##isa_suffix(                        \
-        nk_##input_value_type##_t const *queries, void const *key_value_packed, nk_f32_t *output,                      \
-        nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,          \
-        nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, nk_size_t task_start,             \
-        nk_size_t task_count, void *stream) {                                                                          \
-        return launch_fn((void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_narrow_kernel_,          \
-                         (void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_wide_kernel_,            \
-                         (void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_fallback_kernel_, kind,  \
-                         queries, key_value_packed, output, head_count, key_value_head_count, depth, query_offsets,    \
-                         query_stride_bytes, output_stride_bytes, scale, score_scale, output_scale,                    \
-                         nk_attention_mask_bidirectional_k, 0, 0, task_start, task_count, stream);                     \
-    }                                                                                                                  \
-    NUMKONG_API nk_status_t nk_attention_causal_packed_##input_type_name##_##isa_suffix(                               \
-        nk_##input_value_type##_t const *queries, void const *key_value_packed, nk_f32_t *output,                      \
-        nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,          \
-        nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, nk_i64_t diagonal_offset,         \
-        nk_size_t window, nk_size_t task_start, nk_size_t task_count, void *stream) {                                  \
-        return launch_fn((void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_narrow_kernel_,          \
-                         (void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_wide_kernel_,            \
-                         (void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_fallback_kernel_, kind,  \
-                         queries, key_value_packed, output, head_count, key_value_head_count, depth, query_offsets,    \
-                         query_stride_bytes, output_stride_bytes, scale, score_scale, output_scale,                    \
-                         nk_attention_mask_causal_k, diagonal_offset, window, task_start, task_count, stream);         \
+#define nk_define_device_attention_packed_(input_type_name, isa_suffix, tile, launch_fn, input_value_type, mma_dtype, \
+                                           epilogue, scores_fn, values_mma_fn, weights_fn, score_scale, output_scale) \
+    static __global__ void __launch_bounds__(nk_attention_threads_k)                                                  \
+        nk_attention_packed_##input_type_name##_##isa_suffix##_narrow_kernel_(nk_attention_arguments_t arguments) {   \
+        nk_attention_tile_##tile##_(nk_##input_value_type##_k, mma_dtype, nk_attention_width_128_k, epilogue,         \
+                                    scores_fn, values_mma_fn, weights_fn, &arguments);                                \
+    }                                                                                                                 \
+    static __global__ void __launch_bounds__(nk_attention_threads_k)                                                  \
+        nk_attention_packed_##input_type_name##_##isa_suffix##_wide_kernel_(nk_attention_arguments_t arguments) {     \
+        nk_attention_tile_##tile##_(nk_##input_value_type##_k, mma_dtype, nk_attention_width_256_k, epilogue,         \
+                                    scores_fn, values_mma_fn, weights_fn, &arguments);                                \
+    }                                                                                                                 \
+    static __global__ void __launch_bounds__(nk_attention_threads_k)                                                  \
+        nk_attention_packed_##input_type_name##_##isa_suffix##_fallback_kernel_(nk_attention_arguments_t arguments) { \
+        nk_attention_fallback_(nk_##input_value_type##_k, &arguments);                                                \
+    }                                                                                                                 \
+    NUMKONG_API nk_status_t nk_attention_bidirectional_packed_##input_type_name##_##isa_suffix(                       \
+        nk_##input_value_type##_t const *queries, void const *key_value_packed, nk_f32_t *output,                     \
+        nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,         \
+        nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, nk_size_t task_start,            \
+        nk_size_t task_count, void *stream) {                                                                         \
+        return launch_fn((void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_narrow_kernel_,         \
+                         (void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_wide_kernel_,           \
+                         (void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_fallback_kernel_,       \
+                         nk_##input_value_type##_k, mma_dtype, queries, key_value_packed, output, head_count,         \
+                         key_value_head_count, depth, query_offsets, query_stride_bytes, output_stride_bytes, scale,  \
+                         score_scale, output_scale, nk_attention_mask_bidirectional_k, 0, 0, task_start, task_count,  \
+                         stream);                                                                                     \
+    }                                                                                                                 \
+    NUMKONG_API nk_status_t nk_attention_causal_packed_##input_type_name##_##isa_suffix(                              \
+        nk_##input_value_type##_t const *queries, void const *key_value_packed, nk_f32_t *output,                     \
+        nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,         \
+        nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, nk_i64_t diagonal_offset,        \
+        nk_size_t window, nk_size_t task_start, nk_size_t task_count, void *stream) {                                 \
+        return launch_fn((void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_narrow_kernel_,         \
+                         (void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_wide_kernel_,           \
+                         (void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_fallback_kernel_,       \
+                         nk_##input_value_type##_k, mma_dtype, queries, key_value_packed, output, head_count,         \
+                         key_value_head_count, depth, query_offsets, query_stride_bytes, output_stride_bytes, scale,  \
+                         score_scale, output_scale, nk_attention_mask_causal_k, diagonal_offset, window, task_start,  \
+                         task_count, stream);                                                                         \
     }
 
 #pragma endregion Attention Macros
@@ -734,13 +794,13 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_(void const *kernel, nk_capabilit
 #pragma region Instantiations
 
 #if NUMKONG_TARGET_CUDA
-nk_define_device_attention_baseline_(bf16, cuda, bf16, 2, nk_attention_kind_bf16_k, nk_bf16_k)
-nk_define_device_attention_baseline_(e4m3, cuda, e4m3, 1, nk_attention_kind_bytes_k, nk_e4m3_k)
-nk_define_device_attention_baseline_(i8, cuda, i8, 1, nk_attention_kind_bytes_k, nk_i8_k)
+nk_define_device_attention_baseline_(bf16, cuda, bf16, 2)
+nk_define_device_attention_baseline_(e4m3, cuda, e4m3, 1)
+nk_define_device_attention_baseline_(i8, cuda, i8, 1)
 #elif NUMKONG_TARGET_ROCM
-nk_define_device_attention_baseline_(bf16, rocm, bf16, 2, nk_attention_kind_bf16_k, nk_bf16_k)
-nk_define_device_attention_baseline_(e4m3, rocm, e4m3, 1, nk_attention_kind_bytes_k, nk_e4m3_k)
-nk_define_device_attention_baseline_(i8, rocm, i8, 1, nk_attention_kind_bytes_k, nk_i8_k)
+nk_define_device_attention_baseline_(bf16, rocm, bf16, 2)
+nk_define_device_attention_baseline_(e4m3, rocm, e4m3, 1)
+nk_define_device_attention_baseline_(i8, rocm, i8, 1)
 #endif
 
 #pragma endregion Instantiations

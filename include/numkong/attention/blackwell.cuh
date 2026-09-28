@@ -181,8 +181,8 @@ NUMKONG_DEVICE void nk_attention_block_blackwell_(
 
     nk_f32_t const negative_infinity = nk_attention_negative_infinity_();
     unsigned const lane = threadIdx.x & 31, warp = threadIdx.x >> 5, group = lane >> 2, quad = lane & 3;
-    unsigned const max_tiles = width == nk_attention_width_narrow_k ? nk_attention_narrow_depth_blackwell_k / 8
-                                                                    : nk_attention_wide_depth_blackwell_k / 8;
+    unsigned const max_tiles = width == nk_attention_width_128_k ? nk_attention_narrow_depth_blackwell_k / 8
+                                                                 : nk_attention_wide_depth_blackwell_k / 8;
     nk_size_t const depth = arguments->depth;
     unsigned const row_bytes = (unsigned)nk_size_round_up_to_multiple_(depth, nk_attention_step_bytes_k);
     unsigned const depth_steps = row_bytes / nk_attention_step_bytes_k, depth_tiles = row_bytes / 8;
@@ -412,11 +412,12 @@ NUMKONG_DEVICE void nk_attention_block_blackwell_(
  *      tensor-memory columns both products share.
  *  @sa nk_attention_block_blackwell_ for the parameters.
  */
-NUMKONG_DEVICE void nk_attention_tile_blackwell_(nk_attention_kind_t kind, nk_attention_width_t width,
+NUMKONG_DEVICE void nk_attention_tile_blackwell_(nk_dtype_t dtype, nk_dtype_t mma_dtype, nk_attention_width_t width,
                                                  nk_cross_epilogue_t epilogue, nk_attention_mma_blackwell_t scores,
                                                  nk_attention_mma_blackwell_t values_mma,
                                                  nk_attention_weights_ampere_t weights,
                                                  nk_attention_arguments_t const *arguments) {
+    nk_unused_(dtype), nk_unused_(mma_dtype);
     extern __shared__ unsigned char nk_attention_shared_blackwell_[];
     __shared__ nk_u64_t prefix[nk_attention_threads_k + 1];
     __shared__ nk_u64_t warp_totals[nk_attention_threads_k / 32];
@@ -429,10 +430,9 @@ NUMKONG_DEVICE void nk_attention_tile_blackwell_(nk_attention_kind_t kind, nk_at
     nk_u32_t const padding = (1024 - (shared_origin & 1023)) & 1023;
     unsigned char *const shared = nk_attention_shared_blackwell_ + padding;
     nk_u32_t const shared_address = shared_origin + padding;
-    nk_u32_t const columns = width == nk_attention_width_narrow_k ? nk_attention_narrow_depth_blackwell_k
-                                                                  : nk_attention_wide_depth_blackwell_k;
+    nk_u32_t const columns = width == nk_attention_width_128_k ? nk_attention_narrow_depth_blackwell_k
+                                                               : nk_attention_wide_depth_blackwell_k;
     // Both barriers sit past the operands, wherever the depth puts them.
-    nk_unused_(kind);
     nk_size_t const row_bytes = nk_size_round_up_to_multiple_(arguments->depth, nk_attention_step_bytes_k);
     nk_size_t const chunk_bytes = nk_size_divide_round_up_(row_bytes, 128) * nk_attention_chunk_bytes_blackwell_k;
     nk_size_t const value_bytes = row_bytes * nk_attention_panel_k;
@@ -478,16 +478,16 @@ NUMKONG_INLINE nk_size_t nk_attention_shared_bytes_blackwell_(nk_size_t depth) {
 /**
  *  @brief Validates the contract and launches the kernel for the depth's width, capping the blocks
  *      per multiprocessor at what tensor memory holds.
- *  @param[in] score_scale Undoes the Q and K widenings in the tile, or 1.
- *  @param[in] output_scale Undoes the V widening in the tile, or 1.
+ *  @param[in] score_scale Undoes the power of two that converting Q and K puts on scores, or 1.
+ *  @param[in] output_scale Undoes the power of two that converting V puts on the output, or 1.
  */
 NUMKONG_INLINE nk_status_t nk_attention_launch_blackwell_(
-    void const *narrow_kernel, void const *wide_kernel, void const *fallback_kernel, nk_attention_kind_t kind,
-    void const *queries, void const *packed, nk_f32_t *output, nk_size_t head_count, nk_size_t key_value_head_count,
-    nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale,
-    nk_f32_t score_scale, nk_f32_t output_scale, nk_attention_mask_t mask, nk_i64_t diagonal_offset, nk_size_t window,
-    nk_size_t task_start, nk_size_t task_count, void *stream) {
-    nk_unused_(kind);
+    void const *narrow_kernel, void const *wide_kernel, void const *fallback_kernel, nk_dtype_t dtype,
+    nk_dtype_t mma_dtype, void const *queries, void const *packed, nk_f32_t *output, nk_size_t head_count,
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
+    nk_size_t output_stride, nk_f32_t scale, nk_f32_t score_scale, nk_f32_t output_scale, nk_attention_mask_t mask,
+    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count, void *stream) {
+    nk_unused_(dtype), nk_unused_(mma_dtype);
     if (((nk_size_t)packed & 15) || (((nk_size_t)output | output_stride) & 3)) return nk_misaligned_k;
     if (key_value_head_count == 0 || head_count % key_value_head_count != 0) return nk_unexpected_dimensions_k;
     if (task_count == 0 || depth == 0) return nk_success_k;
@@ -496,16 +496,16 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_blackwell_(
         scale, score_scale, output_scale, mask, diagonal_offset, window, task_start, task_count);
     if (depth > nk_attention_wide_depth_blackwell_k)
         return nk_launch_resident_(fallback_kernel, nk_attention_threads_k, 0, 0, NUMKONG_SIZE_MAX, &arguments, stream);
-    nk_attention_width_t const width = depth <= nk_attention_narrow_depth_blackwell_k ? nk_attention_width_narrow_k
-                                                                                      : nk_attention_width_wide_k;
+    nk_attention_width_t const width = depth <= nk_attention_narrow_depth_blackwell_k ? nk_attention_width_128_k
+                                                                                      : nk_attention_width_256_k;
     // Blocks take one tensor-memory column per depth of their width, and a multiprocessor has 512.
-    nk_size_t const columns = width == nk_attention_width_narrow_k ? nk_attention_narrow_depth_blackwell_k
-                                                                   : nk_attention_wide_depth_blackwell_k;
+    nk_size_t const columns = width == nk_attention_width_128_k ? nk_attention_narrow_depth_blackwell_k
+                                                                : nk_attention_wide_depth_blackwell_k;
     int multiprocessors = 0;
     nk_status_t const status = nk_device_attribute_(cudaDevAttrMultiProcessorCount, &multiprocessors);
     if (status != nk_success_k) return status;
-    return nk_launch_resident_(width == nk_attention_width_narrow_k ? narrow_kernel : wide_kernel,
-                               nk_attention_threads_k, nk_attention_shared_bytes_blackwell_(depth),
+    return nk_launch_resident_(width == nk_attention_width_128_k ? narrow_kernel : wide_kernel, nk_attention_threads_k,
+                               nk_attention_shared_bytes_blackwell_(depth),
                                nk_attention_shared_bytes_blackwell_(columns),
                                (nk_size_t)multiprocessors * (512 / columns), &arguments, stream);
 }
@@ -516,11 +516,10 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_blackwell_(
 
 nk_define_device_attention_pack_size_(e4m3, blackwell, 1)
 nk_define_device_attention_packed_shape_(e4m3, blackwell)
-nk_define_device_attention_pack_(e4m3, blackwell, e4m3, nk_attention_kind_bytes_k)
-nk_define_device_attention_packed_(e4m3, blackwell, blackwell, nk_attention_launch_blackwell_, e4m3,
-                                   nk_attention_kind_bytes_k, nk_cross_epilogue_f32_k, nk_attention_mma_e4m3_blackwell_,
-                                   nk_attention_mma_e4m3_blackwell_, nk_attention_weights_e4m3_ada_, 1.0f, 1.0f,
-                                   nk_e4m3_k)
+nk_define_device_attention_pack_(e4m3, blackwell, e4m3)
+nk_define_device_attention_packed_(e4m3, blackwell, blackwell, nk_attention_launch_blackwell_, e4m3, nk_e4m3_k,
+                                   nk_cross_epilogue_f32_k, nk_attention_mma_e4m3_blackwell_,
+                                   nk_attention_mma_e4m3_blackwell_, nk_attention_weights_e4m3_ada_, 1.0f, 1.0f)
 
 #pragma endregion E4M3
 
