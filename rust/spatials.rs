@@ -2174,12 +2174,12 @@ impl Euclideans for i4x2 {
 
 impl<Scalar: Angulars, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK> {
     /// Computes angular distances between rows of self and packed B matrix.
-    pub fn try_angulars_packed<PackedAlloc: Allocator>(
+    pub fn angulars_packed<PackedAlloc: Allocator>(
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
     ) -> Result<Tensor<Scalar::SpatialResult, Alloc, MAX_RANK>, TensorError> {
         let (height, width, depth) = validate_packed_input(self, packed_right)?;
-        let mut output = Tensor::try_full_in(&[height, width], Scalar::SpatialResult::default(), self.alloc.clone())?;
+        let mut output = Tensor::full_in(&[height, width], Scalar::SpatialResult::default(), self.alloc.clone())?;
         unsafe {
             Scalar::angulars_packed(
                 self.as_ptr(),
@@ -2194,24 +2194,16 @@ impl<Scalar: Angulars, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<S
         }
         Ok(output)
     }
-
-    /// Convenience method that panics on error.
-    pub fn angulars_packed<PackedAlloc: Allocator>(
-        &self,
-        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
-    ) -> Tensor<Scalar::SpatialResult, Alloc, MAX_RANK> {
-        self.try_angulars_packed(packed_right).expect("angulars_packed failed")
-    }
 }
 
 impl<Scalar: Euclideans, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK> {
     /// Computes euclidean distances between rows of self and packed B matrix.
-    pub fn try_euclideans_packed<PackedAlloc: Allocator>(
+    pub fn euclideans_packed<PackedAlloc: Allocator>(
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
     ) -> Result<Tensor<Scalar::SpatialResult, Alloc, MAX_RANK>, TensorError> {
         let (height, width, depth) = validate_packed_input(self, packed_right)?;
-        let mut output = Tensor::try_full_in(&[height, width], Scalar::SpatialResult::default(), self.alloc.clone())?;
+        let mut output = Tensor::full_in(&[height, width], Scalar::SpatialResult::default(), self.alloc.clone())?;
         unsafe {
             Scalar::euclideans_packed(
                 self.as_ptr(),
@@ -2226,15 +2218,6 @@ impl<Scalar: Euclideans, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor
         }
         Ok(output)
     }
-
-    /// Convenience method that panics on error.
-    pub fn euclideans_packed<PackedAlloc: Allocator>(
-        &self,
-        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
-    ) -> Tensor<Scalar::SpatialResult, Alloc, MAX_RANK> {
-        self.try_euclideans_packed(packed_right)
-            .expect("euclideans_packed failed")
-    }
 }
 
 // Parallel spatial distance implementations
@@ -2246,22 +2229,22 @@ where
     Scalar::SpatialResult: Send + Sync,
 {
     /// Parallel symmetric angular distance matrix.
-    pub fn try_angulars_symmetric_parallel(
+    pub fn angulars_symmetric_parallel(
         &self,
         pool: &mut fu::ThreadPool,
     ) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
         let (vector_count, _) = validate_symmetric_input(self)?;
-        let mut result = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::try_full(
+        let mut result = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::full(
             &[vector_count, vector_count],
             Scalar::SpatialResult::default(),
         )?;
-        self.try_angulars_symmetric_parallel_into(&mut result, pool)?;
+        self.angulars_symmetric_parallel_into(&mut result, pool)?;
         Ok(result)
     }
 
     /// Parallel symmetric angular distances into pre-allocated output.
     /// Only the upper triangle is written.
-    pub fn try_angulars_symmetric_parallel_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
+    pub fn angulars_symmetric_parallel_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         output: &mut OutputTensor,
         pool: &mut fu::ThreadPool,
@@ -2280,7 +2263,10 @@ where
         let failure = WorkerStatus::default();
         let failure = &failure;
         pool.broadcast(move |thread_index, _colocation_index| {
-            crate::capabilities::configure_thread(crate::Capabilities::enabled());
+            if let Err(error) = crate::capabilities::configure_thread(crate::Capabilities::enabled()) {
+                failure.record(Err(error));
+                return;
+            }
             let (row_start, row_count) = compute_thread_rows(thread_index, num_threads, vector_count);
             unsafe {
                 failure.record(Scalar::angulars_symmetric(
@@ -2297,15 +2283,6 @@ where
         });
         failure.check()
     }
-
-    /// Convenience method that panics on error.
-    pub fn angulars_symmetric_parallel(
-        &self,
-        pool: &mut fu::ThreadPool,
-    ) -> Tensor<Scalar::SpatialResult, Global, MAX_RANK> {
-        self.try_angulars_symmetric_parallel(pool)
-            .expect("parallel angulars_symmetric failed")
-    }
 }
 
 #[cfg(feature = "parallel")]
@@ -2316,22 +2293,22 @@ where
     Scalar::SpatialResult: Send + Sync,
 {
     /// Parallel symmetric euclidean distance matrix.
-    pub fn try_euclideans_symmetric_parallel(
+    pub fn euclideans_symmetric_parallel(
         &self,
         pool: &mut fu::ThreadPool,
     ) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
         let (vector_count, _) = validate_symmetric_input(self)?;
-        let mut result = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::try_full(
+        let mut result = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::full(
             &[vector_count, vector_count],
             Scalar::SpatialResult::default(),
         )?;
-        self.try_euclideans_symmetric_parallel_into(&mut result, pool)?;
+        self.euclideans_symmetric_parallel_into(&mut result, pool)?;
         Ok(result)
     }
 
     /// Parallel symmetric euclidean distances into pre-allocated output.
     /// Only the upper triangle is written.
-    pub fn try_euclideans_symmetric_parallel_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
+    pub fn euclideans_symmetric_parallel_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         output: &mut OutputTensor,
         pool: &mut fu::ThreadPool,
@@ -2350,7 +2327,10 @@ where
         let failure = WorkerStatus::default();
         let failure = &failure;
         pool.broadcast(move |thread_index, _colocation_index| {
-            crate::capabilities::configure_thread(crate::Capabilities::enabled());
+            if let Err(error) = crate::capabilities::configure_thread(crate::Capabilities::enabled()) {
+                failure.record(Err(error));
+                return;
+            }
             let (row_start, row_count) = compute_thread_rows(thread_index, num_threads, vector_count);
             unsafe {
                 failure.record(Scalar::euclideans_symmetric(
@@ -2366,15 +2346,6 @@ where
             }
         });
         failure.check()
-    }
-
-    /// Convenience method that panics on error.
-    pub fn euclideans_symmetric_parallel(
-        &self,
-        pool: &mut fu::ThreadPool,
-    ) -> Tensor<Scalar::SpatialResult, Global, MAX_RANK> {
-        self.try_euclideans_symmetric_parallel(pool)
-            .expect("parallel euclideans_symmetric failed")
     }
 }
 
@@ -2401,12 +2372,12 @@ pub trait AngularsPackedOps<Scalar: Angulars, const MAX_RANK: usize>: TensorRef<
     /// - inner dimensions don't match
     /// - output allocation fails
     /// - the kernel refuses `packed_right`, like one packed under other capabilities
-    fn try_angulars_packed<PackedAlloc: Allocator>(
+    fn angulars_packed<PackedAlloc: Allocator>(
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
     ) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
         let (height, width, depth) = validate_packed_input(self, packed_right)?;
-        let mut output = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::try_full(
+        let mut output = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::full(
             &[height, width],
             Scalar::SpatialResult::default(),
         )?;
@@ -2425,20 +2396,12 @@ pub trait AngularsPackedOps<Scalar: Angulars, const MAX_RANK: usize>: TensorRef<
         Ok(output)
     }
 
-    /// Convenience method that panics on error.
-    fn angulars_packed<PackedAlloc: Allocator>(
-        &self,
-        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
-    ) -> Tensor<Scalar::SpatialResult, Global, MAX_RANK> {
-        self.try_angulars_packed(packed_right).expect("angulars_packed failed")
-    }
-
     /// Angular distances into an existing output, avoiding allocation.
     ///
     /// The output may be a `&mut Tensor<...>` or `&mut TensorSpan<...>`; any writable tensor
     /// container that implements [`TensorMut`] works. The kernel overwrites `c` entirely, so it
     /// need not arrive pre-initialized.
-    fn try_angulars_packed_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
+    fn angulars_packed_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
         output: &mut OutputTensor,
@@ -2486,7 +2449,7 @@ where
     /// Distributes rows of A across threads; each computes its portion of C.
     ///
     /// # Arguments
-    /// - `packed_right` - Pre-packed B matrix from `DotsPackedMatrix::try_pack[_transposed]`
+    /// - `packed_right` - Pre-packed B matrix from `DotsPackedMatrix::new[_transposed]`
     /// - `c` - Pre-allocated output tensor of shape [m, n]
     /// - `pool` - Pre-constructed thread pool
     ///
@@ -2501,13 +2464,13 @@ where
     ///
     /// let topology = forkunion::Topology::new().unwrap();
     /// let mut pool = ThreadPool::try_spawn(&topology, 4).unwrap();
-    /// let a = Tensor::<f32>::try_full(&[1024, 512], 1.0).unwrap();
-    /// let b = Tensor::<f32>::try_full(&[256, 512], 1.0).unwrap();
-    /// let b_packed = DotsPackedMatrix::try_pack(&b).unwrap();
-    /// let mut output = Tensor::<f32>::try_full(&[1024, 256], 0.0).unwrap();
-    /// a.try_angulars_packed_parallel_into(&b_packed, &mut output, &mut pool).unwrap();
+    /// let a = Tensor::<f32>::full(&[1024, 512], 1.0).unwrap();
+    /// let b = Tensor::<f32>::full(&[256, 512], 1.0).unwrap();
+    /// let b_packed = DotsPackedMatrix::new(&b).unwrap();
+    /// let mut output = Tensor::<f32>::full(&[1024, 256], 0.0).unwrap();
+    /// a.angulars_packed_parallel_into(&b_packed, &mut output, &mut pool).unwrap();
     /// ```
-    fn try_angulars_packed_parallel_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
+    fn angulars_packed_parallel_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
         output: &mut OutputTensor,
@@ -2531,7 +2494,10 @@ where
         let failure = WorkerStatus::default();
         let failure = &failure;
         pool.broadcast(move |thread_index, _colocation_index| {
-            crate::capabilities::configure_thread(crate::Capabilities::enabled());
+            if let Err(error) = crate::capabilities::configure_thread(crate::Capabilities::enabled()) {
+                failure.record(Err(error));
+                return;
+            }
             let row_start = thread_index * rows_per_thread;
             if row_start >= height {
                 return;
@@ -2557,29 +2523,18 @@ where
     }
 
     /// Parallel angular distances with allocation.
-    fn try_angulars_packed_parallel<PackedAlloc: Allocator>(
-        &self,
-        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
-        pool: &mut fu::ThreadPool,
-    ) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
-        let height = self.shape()[0];
-        let (width, _) = packed_right.shape();
-        let mut output = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::try_full(
-            &[height, width],
-            Scalar::SpatialResult::default(),
-        )?;
-        self.try_angulars_packed_parallel_into(packed_right, &mut output, pool)?;
-        Ok(output)
-    }
-
-    /// Convenience method that panics on error.
     fn angulars_packed_parallel<PackedAlloc: Allocator>(
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
         pool: &mut fu::ThreadPool,
-    ) -> Tensor<Scalar::SpatialResult, Global, MAX_RANK> {
-        self.try_angulars_packed_parallel(packed_right, pool)
-            .expect("parallel angulars_packed failed")
+    ) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
+        let (height, width, _) = validate_packed_input(self, packed_right)?;
+        let mut output = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::full(
+            &[height, width],
+            Scalar::SpatialResult::default(),
+        )?;
+        self.angulars_packed_parallel_into(packed_right, &mut output, pool)?;
+        Ok(output)
     }
 }
 
@@ -2616,12 +2571,12 @@ pub trait EuclideansPackedOps<Scalar: Euclideans, const MAX_RANK: usize>: Tensor
     /// - inner dimensions don't match
     /// - output allocation fails
     /// - the kernel refuses `packed_right`, like one packed under other capabilities
-    fn try_euclideans_packed<PackedAlloc: Allocator>(
+    fn euclideans_packed<PackedAlloc: Allocator>(
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
     ) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
         let (height, width, depth) = validate_packed_input(self, packed_right)?;
-        let mut output = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::try_full(
+        let mut output = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::full(
             &[height, width],
             Scalar::SpatialResult::default(),
         )?;
@@ -2640,21 +2595,12 @@ pub trait EuclideansPackedOps<Scalar: Euclideans, const MAX_RANK: usize>: Tensor
         Ok(output)
     }
 
-    /// Convenience method that panics on error.
-    fn euclideans_packed<PackedAlloc: Allocator>(
-        &self,
-        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
-    ) -> Tensor<Scalar::SpatialResult, Global, MAX_RANK> {
-        self.try_euclideans_packed(packed_right)
-            .expect("euclideans_packed failed")
-    }
-
     /// Euclidean distances into an existing output, avoiding allocation.
     ///
     /// The output may be a `&mut Tensor<...>` or `&mut TensorSpan<...>`; any writable tensor
     /// container that implements [`TensorMut`] works. The kernel overwrites `c` entirely, so it
     /// need not arrive pre-initialized.
-    fn try_euclideans_packed_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
+    fn euclideans_packed_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
         output: &mut OutputTensor,
@@ -2702,7 +2648,7 @@ where
     /// Distributes rows of A across threads; each computes its portion of C.
     ///
     /// # Arguments
-    /// - `packed_right` - Pre-packed B matrix from `DotsPackedMatrix::try_pack[_transposed]`
+    /// - `packed_right` - Pre-packed B matrix from `DotsPackedMatrix::new[_transposed]`
     /// - `c` - Pre-allocated output tensor of shape [m, n]
     /// - `pool` - Pre-constructed thread pool
     ///
@@ -2717,13 +2663,13 @@ where
     ///
     /// let topology = forkunion::Topology::new().unwrap();
     /// let mut pool = ThreadPool::try_spawn(&topology, 4).unwrap();
-    /// let a = Tensor::<f32>::try_full(&[1024, 512], 1.0).unwrap();
-    /// let b = Tensor::<f32>::try_full(&[256, 512], 1.0).unwrap();
-    /// let b_packed = DotsPackedMatrix::try_pack(&b).unwrap();
-    /// let mut output = Tensor::<f32>::try_full(&[1024, 256], 0.0).unwrap();
-    /// a.try_euclideans_packed_parallel_into(&b_packed, &mut output, &mut pool).unwrap();
+    /// let a = Tensor::<f32>::full(&[1024, 512], 1.0).unwrap();
+    /// let b = Tensor::<f32>::full(&[256, 512], 1.0).unwrap();
+    /// let b_packed = DotsPackedMatrix::new(&b).unwrap();
+    /// let mut output = Tensor::<f32>::full(&[1024, 256], 0.0).unwrap();
+    /// a.euclideans_packed_parallel_into(&b_packed, &mut output, &mut pool).unwrap();
     /// ```
-    fn try_euclideans_packed_parallel_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
+    fn euclideans_packed_parallel_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
         output: &mut OutputTensor,
@@ -2747,7 +2693,10 @@ where
         let failure = WorkerStatus::default();
         let failure = &failure;
         pool.broadcast(move |thread_index, _colocation_index| {
-            crate::capabilities::configure_thread(crate::Capabilities::enabled());
+            if let Err(error) = crate::capabilities::configure_thread(crate::Capabilities::enabled()) {
+                failure.record(Err(error));
+                return;
+            }
             let row_start = thread_index * rows_per_thread;
             if row_start >= height {
                 return;
@@ -2773,29 +2722,18 @@ where
     }
 
     /// Parallel euclidean distances with allocation.
-    fn try_euclideans_packed_parallel<PackedAlloc: Allocator>(
-        &self,
-        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
-        pool: &mut fu::ThreadPool,
-    ) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
-        let height = self.shape()[0];
-        let (width, _) = packed_right.shape();
-        let mut output = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::try_full(
-            &[height, width],
-            Scalar::SpatialResult::default(),
-        )?;
-        self.try_euclideans_packed_parallel_into(packed_right, &mut output, pool)?;
-        Ok(output)
-    }
-
-    /// Convenience method that panics on error.
     fn euclideans_packed_parallel<PackedAlloc: Allocator>(
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
         pool: &mut fu::ThreadPool,
-    ) -> Tensor<Scalar::SpatialResult, Global, MAX_RANK> {
-        self.try_euclideans_packed_parallel(packed_right, pool)
-            .expect("parallel euclideans_packed failed")
+    ) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
+        let (height, width, _) = validate_packed_input(self, packed_right)?;
+        let mut output = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::full(
+            &[height, width],
+            Scalar::SpatialResult::default(),
+        )?;
+        self.euclideans_packed_parallel_into(packed_right, &mut output, pool)?;
+        Ok(output)
     }
 }
 
@@ -2814,19 +2752,19 @@ where
 // region: TensorView
 impl<'queries, Scalar: Angulars, const MAX_RANK: usize> TensorView<'queries, Scalar, MAX_RANK> {
     /// Computes symmetric angular distance matrix for a set of vectors.
-    pub fn try_angulars_symmetric(&self) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
+    pub fn angulars_symmetric(&self) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
         let (vector_count, _) = validate_symmetric_input(self)?;
-        let mut result = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::try_full(
+        let mut result = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::full(
             &[vector_count, vector_count],
             Scalar::SpatialResult::default(),
         )?;
-        self.try_angulars_symmetric_into(&mut result)?;
+        self.angulars_symmetric_into(&mut result)?;
         Ok(result)
     }
 
     /// Computes symmetric angular distances into pre-allocated output, touching only the upper
     /// triangle of it.
-    pub fn try_angulars_symmetric_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
+    pub fn angulars_symmetric_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         output: &mut OutputTensor,
     ) -> Result<(), TensorError>
@@ -2853,19 +2791,19 @@ impl<'queries, Scalar: Angulars, const MAX_RANK: usize> TensorView<'queries, Sca
 
 impl<'queries, Scalar: Euclideans, const MAX_RANK: usize> TensorView<'queries, Scalar, MAX_RANK> {
     /// Computes symmetric euclidean distance matrix for a set of vectors.
-    pub fn try_euclideans_symmetric(&self) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
+    pub fn euclideans_symmetric(&self) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
         let (vector_count, _) = validate_symmetric_input(self)?;
-        let mut result = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::try_full(
+        let mut result = Tensor::<Scalar::SpatialResult, Global, MAX_RANK>::full(
             &[vector_count, vector_count],
             Scalar::SpatialResult::default(),
         )?;
-        self.try_euclideans_symmetric_into(&mut result)?;
+        self.euclideans_symmetric_into(&mut result)?;
         Ok(result)
     }
 
     /// Computes symmetric euclidean distances into pre-allocated output, touching only the upper
     /// triangle of it.
-    pub fn try_euclideans_symmetric_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
+    pub fn euclideans_symmetric_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         output: &mut OutputTensor,
     ) -> Result<(), TensorError>
@@ -2894,20 +2832,17 @@ impl<'queries, Scalar: Euclideans, const MAX_RANK: usize> TensorView<'queries, S
 
 // region: Symmetric Extension Traits
 pub trait SymmetricAngularsOps<Scalar: Angulars, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
-    fn try_angulars_symmetric(&self) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
-        self.view().try_angulars_symmetric()
+    fn angulars_symmetric(&self) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
+        self.view().angulars_symmetric()
     }
 
     /// Writes the symmetric angular-distance matrix into pre-allocated output, touching only the
     /// upper triangle of it.
-    fn try_angulars_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(
-        &self,
-        output: &mut Out,
-    ) -> Result<(), TensorError>
+    fn angulars_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(&self, output: &mut Out) -> Result<(), TensorError>
     where
         Out: TensorMut<Scalar::SpatialResult, OUTPUT_MAX_RANK>,
     {
-        self.view().try_angulars_symmetric_into(output)
+        self.view().angulars_symmetric_into(output)
     }
 }
 
@@ -2919,27 +2854,24 @@ impl<Scalar: Angulars, const R: usize, OutputTensor: TensorRef<Scalar, R>> Symme
 /// Extension trait: symmetric euclidean distance matrix for any [`TensorRef`] implementor.
 ///
 /// Blanket-implemented for every `TensorRef<Scalar, R>`, which means
-/// `vectors.try_euclideans_symmetric()` compiles whether `vectors` is an owned [`Tensor`] or a
+/// `vectors.euclideans_symmetric()` compiles whether `vectors` is an owned [`Tensor`] or a
 /// borrowed view. The kernel only writes the upper triangle, including the diagonal — the lower
 /// triangle is queries alone and callers should mirror it themselves if required.
 ///
 /// Prefer this trait when working through a generic `TensorRef`; reach for the inherent
-/// [`TensorView::try_euclideans_symmetric`] method when you already hold a view.
+/// [`TensorView::euclideans_symmetric`] method when you already hold a view.
 pub trait SymmetricEuclideansOps<Scalar: Euclideans, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
-    fn try_euclideans_symmetric(&self) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
-        self.view().try_euclideans_symmetric()
+    fn euclideans_symmetric(&self) -> Result<Tensor<Scalar::SpatialResult, Global, MAX_RANK>, TensorError> {
+        self.view().euclideans_symmetric()
     }
 
     /// Writes the symmetric euclidean-distance matrix into pre-allocated output, touching only the
     /// upper triangle of it.
-    fn try_euclideans_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(
-        &self,
-        output: &mut Out,
-    ) -> Result<(), TensorError>
+    fn euclideans_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(&self, output: &mut Out) -> Result<(), TensorError>
     where
         Out: TensorMut<Scalar::SpatialResult, OUTPUT_MAX_RANK>,
     {
-        self.view().try_euclideans_symmetric_into(output)
+        self.view().euclideans_symmetric_into(output)
     }
 }
 
@@ -2962,10 +2894,10 @@ mod tests {
         let tol = Scalar::atol();
         for &(height, width, depth) in DIMS {
             let depth = align_depth::<Scalar>(depth);
-            let a = Tensor::<Scalar>::try_full(&[height, depth], Scalar::one()).unwrap();
-            let b = Tensor::<Scalar>::try_full(&[width, depth], Scalar::one()).unwrap();
-            let b_packed = DotsPackedMatrix::try_pack(&b).unwrap();
-            let output = a.angulars_packed(&b_packed);
+            let a = Tensor::<Scalar>::full(&[height, depth], Scalar::one()).unwrap();
+            let b = Tensor::<Scalar>::full(&[width, depth], Scalar::one()).unwrap();
+            let b_packed = DotsPackedMatrix::new(&b).unwrap();
+            let output = a.angulars_packed(&b_packed).unwrap();
             assert_eq!(output.shape(), &[height, width], "shape @ ({height},{width},{depth})");
             for (i, &v) in output.as_slice().iter().enumerate() {
                 assert!(
@@ -2975,17 +2907,16 @@ mod tests {
                 );
             }
             let mut into_tensor =
-                Tensor::<Scalar::SpatialResult>::try_full(&[height, width], Scalar::SpatialResult::default()).unwrap();
-            a.try_angulars_packed_into(&b_packed, &mut into_tensor).unwrap();
+                Tensor::<Scalar::SpatialResult>::full(&[height, width], Scalar::SpatialResult::default()).unwrap();
+            a.angulars_packed_into(&b_packed, &mut into_tensor).unwrap();
             assert_eq!(
                 output.as_slice(),
                 into_tensor.as_slice(),
                 "_into(Tensor) @ ({height},{width},{depth})"
             );
             let mut into_span_buf =
-                Tensor::<Scalar::SpatialResult>::try_full(&[height, width], Scalar::SpatialResult::default()).unwrap();
-            a.try_angulars_packed_into(&b_packed, &mut into_span_buf.span())
-                .unwrap();
+                Tensor::<Scalar::SpatialResult>::full(&[height, width], Scalar::SpatialResult::default()).unwrap();
+            a.angulars_packed_into(&b_packed, &mut into_span_buf.span()).unwrap();
             assert_eq!(
                 output.as_slice(),
                 into_span_buf.as_slice(),
@@ -3002,10 +2933,10 @@ mod tests {
         let tol = Scalar::atol();
         for &(height, width, depth) in DIMS {
             let depth = align_depth::<Scalar>(depth);
-            let a = Tensor::<Scalar>::try_full(&[height, depth], Scalar::one()).unwrap();
-            let b = Tensor::<Scalar>::try_full(&[width, depth], Scalar::one()).unwrap();
-            let b_packed = DotsPackedMatrix::try_pack(&b).unwrap();
-            let output = a.euclideans_packed(&b_packed);
+            let a = Tensor::<Scalar>::full(&[height, depth], Scalar::one()).unwrap();
+            let b = Tensor::<Scalar>::full(&[width, depth], Scalar::one()).unwrap();
+            let b_packed = DotsPackedMatrix::new(&b).unwrap();
+            let output = a.euclideans_packed(&b_packed).unwrap();
             assert_eq!(output.shape(), &[height, width], "shape @ ({height},{width},{depth})");
             for (i, &v) in output.as_slice().iter().enumerate() {
                 assert!(
@@ -3015,17 +2946,16 @@ mod tests {
                 );
             }
             let mut into_tensor =
-                Tensor::<Scalar::SpatialResult>::try_full(&[height, width], Scalar::SpatialResult::default()).unwrap();
-            a.try_euclideans_packed_into(&b_packed, &mut into_tensor).unwrap();
+                Tensor::<Scalar::SpatialResult>::full(&[height, width], Scalar::SpatialResult::default()).unwrap();
+            a.euclideans_packed_into(&b_packed, &mut into_tensor).unwrap();
             assert_eq!(
                 output.as_slice(),
                 into_tensor.as_slice(),
                 "_into(Tensor) @ ({height},{width},{depth})"
             );
             let mut into_span_buf =
-                Tensor::<Scalar::SpatialResult>::try_full(&[height, width], Scalar::SpatialResult::default()).unwrap();
-            a.try_euclideans_packed_into(&b_packed, &mut into_span_buf.span())
-                .unwrap();
+                Tensor::<Scalar::SpatialResult>::full(&[height, width], Scalar::SpatialResult::default()).unwrap();
+            a.euclideans_packed_into(&b_packed, &mut into_span_buf.span()).unwrap();
             assert_eq!(
                 output.as_slice(),
                 into_span_buf.as_slice(),
@@ -3044,11 +2974,11 @@ mod tests {
         let topology = fu::Topology::new().unwrap();
         let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
         for &(height, width, depth) in DIMS {
-            let a = Tensor::<Scalar>::try_full(&[height, depth], Scalar::one()).unwrap();
-            let b = Tensor::<Scalar>::try_full(&[width, depth], Scalar::one()).unwrap();
-            let b_packed = DotsPackedMatrix::try_pack(&b).unwrap();
-            let serial = a.angulars_packed(&b_packed);
-            let parallel = a.angulars_packed_parallel(&b_packed, &mut pool);
+            let a = Tensor::<Scalar>::full(&[height, depth], Scalar::one()).unwrap();
+            let b = Tensor::<Scalar>::full(&[width, depth], Scalar::one()).unwrap();
+            let b_packed = DotsPackedMatrix::new(&b).unwrap();
+            let serial = a.angulars_packed(&b_packed).unwrap();
+            let parallel = a.angulars_packed_parallel(&b_packed, &mut pool).unwrap();
             assert_eq!(
                 serial.as_slice(),
                 parallel.as_slice(),
@@ -3067,11 +2997,11 @@ mod tests {
         let topology = fu::Topology::new().unwrap();
         let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
         for &(height, width, depth) in DIMS {
-            let a = Tensor::<Scalar>::try_full(&[height, depth], Scalar::one()).unwrap();
-            let b = Tensor::<Scalar>::try_full(&[width, depth], Scalar::one()).unwrap();
-            let b_packed = DotsPackedMatrix::try_pack(&b).unwrap();
-            let serial = a.euclideans_packed(&b_packed);
-            let parallel = a.euclideans_packed_parallel(&b_packed, &mut pool);
+            let a = Tensor::<Scalar>::full(&[height, depth], Scalar::one()).unwrap();
+            let b = Tensor::<Scalar>::full(&[width, depth], Scalar::one()).unwrap();
+            let b_packed = DotsPackedMatrix::new(&b).unwrap();
+            let serial = a.euclideans_packed(&b_packed).unwrap();
+            let parallel = a.euclideans_packed_parallel(&b_packed, &mut pool).unwrap();
             assert_eq!(
                 serial.as_slice(),
                 parallel.as_slice(),
@@ -3079,8 +3009,8 @@ mod tests {
             );
             // Exercise _parallel_into on a span.
             let mut into_span =
-                Tensor::<Scalar::SpatialResult>::try_full(&[height, width], Scalar::SpatialResult::default()).unwrap();
-            a.try_euclideans_packed_parallel_into(&b_packed, &mut into_span.span(), &mut pool)
+                Tensor::<Scalar::SpatialResult>::full(&[height, width], Scalar::SpatialResult::default()).unwrap();
+            a.euclideans_packed_parallel_into(&b_packed, &mut into_span.span(), &mut pool)
                 .unwrap();
             assert_eq!(serial.as_slice(), into_span.as_slice(), "_parallel_into(span)");
         }
@@ -3098,24 +3028,24 @@ mod tests {
         let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
         for &(num_vectors, _, depth) in DIMS {
             let depth = align_depth::<Scalar>(depth);
-            let vectors = Tensor::<Scalar>::try_full(&[num_vectors, depth], Scalar::one()).unwrap();
+            let vectors = Tensor::<Scalar>::full(&[num_vectors, depth], Scalar::one()).unwrap();
 
             // angulars
-            let serial_a = vectors.view().try_angulars_symmetric().unwrap();
-            let parallel_a = vectors.angulars_symmetric_parallel(&mut pool);
+            let serial_a = vectors.view().angulars_symmetric().unwrap();
+            let parallel_a = vectors.angulars_symmetric_parallel(&mut pool).unwrap();
             assert_upper_triangle_eq(
                 serial_a.as_slice(),
                 parallel_a.as_slice(),
                 num_vectors,
                 "angulars_symmetric_parallel",
             );
-            let mut into_span_a = Tensor::<<Scalar as Angulars>::SpatialResult>::try_full(
+            let mut into_span_a = Tensor::<<Scalar as Angulars>::SpatialResult>::full(
                 &[num_vectors, num_vectors],
                 <Scalar as Angulars>::SpatialResult::default(),
             )
             .unwrap();
             vectors
-                .try_angulars_symmetric_parallel_into(&mut into_span_a.span(), &mut pool)
+                .angulars_symmetric_parallel_into(&mut into_span_a.span(), &mut pool)
                 .unwrap();
             assert_upper_triangle_eq(
                 serial_a.as_slice(),
@@ -3125,21 +3055,21 @@ mod tests {
             );
 
             // euclideans
-            let serial_e = vectors.view().try_euclideans_symmetric().unwrap();
-            let parallel_e = vectors.euclideans_symmetric_parallel(&mut pool);
+            let serial_e = vectors.view().euclideans_symmetric().unwrap();
+            let parallel_e = vectors.euclideans_symmetric_parallel(&mut pool).unwrap();
             assert_upper_triangle_eq(
                 serial_e.as_slice(),
                 parallel_e.as_slice(),
                 num_vectors,
                 "euclideans_symmetric_parallel",
             );
-            let mut into_span_e = Tensor::<<Scalar as Euclideans>::SpatialResult>::try_full(
+            let mut into_span_e = Tensor::<<Scalar as Euclideans>::SpatialResult>::full(
                 &[num_vectors, num_vectors],
                 <Scalar as Euclideans>::SpatialResult::default(),
             )
             .unwrap();
             vectors
-                .try_euclideans_symmetric_parallel_into(&mut into_span_e.span(), &mut pool)
+                .euclideans_symmetric_parallel_into(&mut into_span_e.span(), &mut pool)
                 .unwrap();
             assert_upper_triangle_eq(
                 serial_e.as_slice(),
@@ -3158,8 +3088,8 @@ mod tests {
         let tolerance = Scalar::atol();
         for &(num_vectors, _num_targets, depth) in DIMS {
             let depth = align_depth::<Scalar>(depth);
-            let vectors = Tensor::<Scalar>::try_full(&[num_vectors, depth], Scalar::one()).unwrap();
-            let gram_matrix = vectors.view().try_angulars_symmetric().unwrap();
+            let vectors = Tensor::<Scalar>::full(&[num_vectors, depth], Scalar::one()).unwrap();
+            let gram_matrix = vectors.view().angulars_symmetric().unwrap();
             assert_eq!(gram_matrix.shape(), &[num_vectors, num_vectors]);
             for i in 0..num_vectors {
                 for j in i..num_vectors {
@@ -3171,26 +3101,22 @@ mod tests {
                     );
                 }
             }
-            let mut into_tensor = Tensor::<Scalar::SpatialResult>::try_full(
-                &[num_vectors, num_vectors],
-                Scalar::SpatialResult::default(),
-            )
-            .unwrap();
-            vectors.try_angulars_symmetric_into(&mut into_tensor).unwrap();
+            let mut into_tensor =
+                Tensor::<Scalar::SpatialResult>::full(&[num_vectors, num_vectors], Scalar::SpatialResult::default())
+                    .unwrap();
+            vectors.angulars_symmetric_into(&mut into_tensor).unwrap();
             assert_upper_triangle_eq(
                 gram_matrix.as_slice(),
                 into_tensor.as_slice(),
                 num_vectors,
                 "angulars_symmetric_into(Tensor)",
             );
-            let mut into_span_buf = Tensor::<Scalar::SpatialResult>::try_full(
-                &[num_vectors, num_vectors],
-                Scalar::SpatialResult::default(),
-            )
-            .unwrap();
+            let mut into_span_buf =
+                Tensor::<Scalar::SpatialResult>::full(&[num_vectors, num_vectors], Scalar::SpatialResult::default())
+                    .unwrap();
             vectors
                 .view()
-                .try_angulars_symmetric_into(&mut into_span_buf.span())
+                .angulars_symmetric_into(&mut into_span_buf.span())
                 .unwrap();
             assert_upper_triangle_eq(
                 gram_matrix.as_slice(),
@@ -3209,8 +3135,8 @@ mod tests {
         let tolerance = Scalar::atol();
         for &(num_vectors, _num_targets, depth) in DIMS {
             let depth = align_depth::<Scalar>(depth);
-            let vectors = Tensor::<Scalar>::try_full(&[num_vectors, depth], Scalar::one()).unwrap();
-            let gram_matrix = vectors.view().try_euclideans_symmetric().unwrap();
+            let vectors = Tensor::<Scalar>::full(&[num_vectors, depth], Scalar::one()).unwrap();
+            let gram_matrix = vectors.view().euclideans_symmetric().unwrap();
             assert_eq!(gram_matrix.shape(), &[num_vectors, num_vectors]);
             for i in 0..num_vectors {
                 for j in i..num_vectors {
@@ -3222,26 +3148,22 @@ mod tests {
                     );
                 }
             }
-            let mut into_tensor = Tensor::<Scalar::SpatialResult>::try_full(
-                &[num_vectors, num_vectors],
-                Scalar::SpatialResult::default(),
-            )
-            .unwrap();
-            vectors.try_euclideans_symmetric_into(&mut into_tensor).unwrap();
+            let mut into_tensor =
+                Tensor::<Scalar::SpatialResult>::full(&[num_vectors, num_vectors], Scalar::SpatialResult::default())
+                    .unwrap();
+            vectors.euclideans_symmetric_into(&mut into_tensor).unwrap();
             assert_upper_triangle_eq(
                 gram_matrix.as_slice(),
                 into_tensor.as_slice(),
                 num_vectors,
                 "euclideans_symmetric_into(Tensor)",
             );
-            let mut into_span_buf = Tensor::<Scalar::SpatialResult>::try_full(
-                &[num_vectors, num_vectors],
-                Scalar::SpatialResult::default(),
-            )
-            .unwrap();
+            let mut into_span_buf =
+                Tensor::<Scalar::SpatialResult>::full(&[num_vectors, num_vectors], Scalar::SpatialResult::default())
+                    .unwrap();
             vectors
                 .view()
-                .try_euclideans_symmetric_into(&mut into_span_buf.span())
+                .euclideans_symmetric_into(&mut into_span_buf.span())
                 .unwrap();
             assert_upper_triangle_eq(
                 gram_matrix.as_slice(),
@@ -3293,28 +3215,23 @@ mod tests {
         let (height, width, depth) = (3usize, 4usize, 5usize);
         let a_data: Vec<f32> = (0..height * depth).map(|i| i as f32 * 0.5 - 1.0).collect();
         let b_data: Vec<f32> = (0..width * depth).map(|i| i as f32 * 0.25 + 0.3).collect();
-        let mut a = Tensor::<f32>::from_slice(&a_data, &[height, depth]);
-        let b = Tensor::<f32>::from_slice(&b_data, &[width, depth]);
-        let packed = DotsPackedMatrix::try_pack(&b).unwrap();
+        let mut a = Tensor::<f32>::from_slice(&a_data, &[height, depth]).unwrap();
+        let b = Tensor::<f32>::from_slice(&b_data, &[width, depth]).unwrap();
+        let packed = DotsPackedMatrix::new(&b).unwrap();
 
-        let expected = a.angulars_packed(&packed);
+        let expected = a.angulars_packed(&packed).unwrap();
         assert_eq!(
-            a.view().angulars_packed(&packed).as_slice(),
+            a.view().angulars_packed(&packed).unwrap().as_slice(),
             expected.as_slice(),
             "view A"
         );
         assert_eq!(
-            a.span().angulars_packed(&packed).as_slice(),
+            a.span().angulars_packed(&packed).unwrap().as_slice(),
             expected.as_slice(),
             "span A"
         );
-        assert_eq!(
-            a.view().try_angulars_packed(&packed).unwrap().as_slice(),
-            expected.as_slice(),
-            "view A try"
-        );
-        let mut into = Tensor::<f64>::try_full(&[height, width], 0.0).unwrap();
-        a.view().try_angulars_packed_into(&packed, &mut into.span()).unwrap();
+        let mut into = Tensor::<f64>::full(&[height, width], 0.0).unwrap();
+        a.view().angulars_packed_into(&packed, &mut into.span()).unwrap();
         assert_eq!(into.as_slice(), expected.as_slice(), "view A into span");
     }
 
@@ -3326,28 +3243,23 @@ mod tests {
         let (height, width, depth) = (3usize, 4usize, 5usize);
         let a_data: Vec<f32> = (0..height * depth).map(|i| i as f32 * 0.5 - 1.0).collect();
         let b_data: Vec<f32> = (0..width * depth).map(|i| i as f32 * 0.25 + 0.3).collect();
-        let mut a = Tensor::<f32>::from_slice(&a_data, &[height, depth]);
-        let b = Tensor::<f32>::from_slice(&b_data, &[width, depth]);
-        let packed = DotsPackedMatrix::try_pack(&b).unwrap();
+        let mut a = Tensor::<f32>::from_slice(&a_data, &[height, depth]).unwrap();
+        let b = Tensor::<f32>::from_slice(&b_data, &[width, depth]).unwrap();
+        let packed = DotsPackedMatrix::new(&b).unwrap();
 
-        let expected = a.euclideans_packed(&packed);
+        let expected = a.euclideans_packed(&packed).unwrap();
         assert_eq!(
-            a.view().euclideans_packed(&packed).as_slice(),
+            a.view().euclideans_packed(&packed).unwrap().as_slice(),
             expected.as_slice(),
             "view A"
         );
         assert_eq!(
-            a.span().euclideans_packed(&packed).as_slice(),
+            a.span().euclideans_packed(&packed).unwrap().as_slice(),
             expected.as_slice(),
             "span A"
         );
-        assert_eq!(
-            a.view().try_euclideans_packed(&packed).unwrap().as_slice(),
-            expected.as_slice(),
-            "view A try"
-        );
-        let mut into = Tensor::<f64>::try_full(&[height, width], 0.0).unwrap();
-        a.view().try_euclideans_packed_into(&packed, &mut into.span()).unwrap();
+        let mut into = Tensor::<f64>::full(&[height, width], 0.0).unwrap();
+        a.view().euclideans_packed_into(&packed, &mut into.span()).unwrap();
         assert_eq!(into.as_slice(), expected.as_slice(), "view A into span");
     }
 

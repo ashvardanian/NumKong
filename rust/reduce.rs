@@ -1068,33 +1068,29 @@ impl<Scalar: ReduceMoments + ReduceMinMax> Reductions for Scalar {}
 /// matrices and higher-rank tensors of bits work without flattening first. Non-contiguous outer
 /// strides fall out of the recursion naturally — only the leaf storage slice has to be dense, and
 /// sub-byte storage always is.
-fn popcount_via_tensor_ref<View, const MAX_RANK: usize>(view: &View) -> u64
+fn popcount_via_tensor_ref<View, const MAX_RANK: usize>(view: &View) -> Result<u64, TensorError>
 where
     View: TensorRef<u1x8, MAX_RANK> + ?Sized,
 {
     let dims_per_value = u1x8::dimensions_per_value();
     let logical_count: usize = view.shape().iter().product();
     if logical_count == 0 {
-        return 0;
+        return Ok(0);
     }
     if view.ndim() <= 1 {
         let storage_count = logical_count / dims_per_value;
         if storage_count == 0 {
-            return 0;
+            return Ok(0);
         }
         let storage_slice = unsafe { core::slice::from_raw_parts(view.as_ptr(), storage_count) };
-        let (sum, _sum_of_squares) = u1x8::reduce_moments(storage_slice, core::mem::size_of::<u1x8>())
-            .expect("u1 moments have a serial capability under every mask");
-        return sum;
+        let (sum, _sum_of_squares) = u1x8::reduce_moments(storage_slice, core::mem::size_of::<u1x8>())?;
+        return Ok(sum);
     }
     let mut total: u64 = 0;
-    let inner_view = view.view();
-    if let Ok(axis_iter) = inner_view.axis_views(0usize) {
-        for sub_view in axis_iter {
-            total += popcount_via_tensor_ref::<_, MAX_RANK>(&sub_view);
-        }
+    for sub_view in view.view().axis_views(0usize)? {
+        total += popcount_via_tensor_ref::<_, MAX_RANK>(&sub_view)?;
     }
-    total
+    Ok(total)
 }
 
 /// Population count, any/none/all reductions over packed-bit (`u1x8`) tensors.
@@ -1108,16 +1104,16 @@ where
 /// from [`crate::vector`].
 pub trait BitwiseReductionsOps<const MAX_RANK: usize>: TensorRef<u1x8, MAX_RANK> {
     /// Number of set bits across the entire tensor.
-    fn popcount(&self) -> u64 { popcount_via_tensor_ref::<_, MAX_RANK>(self) }
+    fn popcount(&self) -> Result<u64, TensorError> { popcount_via_tensor_ref::<_, MAX_RANK>(self) }
 
     /// `true` if at least one bit in the tensor is set.
-    fn any_set(&self) -> bool { self.popcount() != 0 }
+    fn any_set(&self) -> Result<bool, TensorError> { Ok(self.popcount()? != 0) }
 
     /// `true` if no bit in the tensor is set.
-    fn none_set(&self) -> bool { !self.any_set() }
+    fn none_set(&self) -> Result<bool, TensorError> { Ok(self.popcount()? == 0) }
 
     /// `true` if every bit in the tensor is set.
-    fn all_set(&self) -> bool { self.popcount() == self.numel() as u64 }
+    fn all_set(&self) -> Result<bool, TensorError> { Ok(self.popcount()? == self.numel() as u64) }
 }
 
 impl<Container, const MAX_RANK: usize> BitwiseReductionsOps<MAX_RANK> for Container where
@@ -1155,19 +1151,17 @@ where
     Scalar::SumOutput: Clone + Default + core::ops::AddAssign,
     Scalar::SumSqOutput: Clone + Default + core::ops::AddAssign + SumSqToF64,
 {
-    fn try_moments_all(&self) -> Result<(Scalar::SumOutput, Scalar::SumSqOutput), TensorError> {
-        self.view().try_moments_all()
-    }
+    fn moments_all(&self) -> Result<(Scalar::SumOutput, Scalar::SumSqOutput), TensorError> { self.view().moments_all() }
 
-    fn try_moments_axis<AnyIndex: VectorIndex>(
+    fn moments_axis<AnyIndex: VectorIndex>(
         &self,
         axis: AnyIndex,
         keep_dims: bool,
     ) -> MomentsAxisResult<Scalar, MAX_RANK> {
-        self.view().try_moments_axis(axis, keep_dims)
+        self.view().moments_axis(axis, keep_dims)
     }
 
-    fn try_moments_axis_into<AnyIndex, SumTensor, SumSqTensor>(
+    fn moments_axis_into<AnyIndex, SumTensor, SumSqTensor>(
         &self,
         axis: AnyIndex,
         keep_dims: bool,
@@ -1179,20 +1173,20 @@ where
         SumTensor: TensorMut<Scalar::SumOutput, MAX_RANK> + ?Sized,
         SumSqTensor: TensorMut<Scalar::SumSqOutput, MAX_RANK> + ?Sized,
     {
-        self.view().try_moments_axis_into(axis, keep_dims, sum_out, sumsq_out)
+        self.view().moments_axis_into(axis, keep_dims, sum_out, sumsq_out)
     }
 
-    fn try_sum_all(&self) -> Result<Scalar::SumOutput, TensorError> { self.view().try_sum_all() }
+    fn sum_all(&self) -> Result<Scalar::SumOutput, TensorError> { self.view().sum_all() }
 
-    fn try_sum_axis<AnyIndex: VectorIndex>(
+    fn sum_axis<AnyIndex: VectorIndex>(
         &self,
         axis: AnyIndex,
         keep_dims: bool,
     ) -> Result<Tensor<Scalar::SumOutput, Global, MAX_RANK>, TensorError> {
-        self.view().try_sum_axis(axis, keep_dims)
+        self.view().sum_axis(axis, keep_dims)
     }
 
-    fn try_sum_axis_into<AnyIndex, SumTensor>(
+    fn sum_axis_into<AnyIndex, SumTensor>(
         &self,
         axis: AnyIndex,
         keep_dims: bool,
@@ -1202,20 +1196,20 @@ where
         AnyIndex: VectorIndex,
         SumTensor: TensorMut<Scalar::SumOutput, MAX_RANK> + ?Sized,
     {
-        self.view().try_sum_axis_into(axis, keep_dims, out)
+        self.view().sum_axis_into(axis, keep_dims, out)
     }
 
-    fn try_norm_all(&self) -> Result<f64, TensorError> { self.view().try_norm_all() }
+    fn norm_all(&self) -> Result<f64, TensorError> { self.view().norm_all() }
 
-    fn try_norm_axis<AnyIndex: VectorIndex>(
+    fn norm_axis<AnyIndex: VectorIndex>(
         &self,
         axis: AnyIndex,
         keep_dims: bool,
     ) -> Result<Tensor<f64, Global, MAX_RANK>, TensorError> {
-        self.view().try_norm_axis(axis, keep_dims)
+        self.view().norm_axis(axis, keep_dims)
     }
 
-    fn try_norm_axis_into<AnyIndex, NormTensor>(
+    fn norm_axis_into<AnyIndex, NormTensor>(
         &self,
         axis: AnyIndex,
         keep_dims: bool,
@@ -1225,7 +1219,7 @@ where
         AnyIndex: VectorIndex,
         NormTensor: TensorMut<f64, MAX_RANK> + ?Sized,
     {
-        self.view().try_norm_axis_into(axis, keep_dims, out)
+        self.view().norm_axis_into(axis, keep_dims, out)
     }
 }
 
@@ -1241,17 +1235,17 @@ pub trait MinMaxOps<Scalar: Clone + ReduceMinMax, const MAX_RANK: usize>: Tensor
 where
     Scalar::Output: Clone + Default + PartialOrd,
 {
-    fn try_minmax_all(&self) -> Result<MinMaxResult<Scalar::Output>, TensorError> { self.view().try_minmax_all() }
+    fn minmax_all(&self) -> Result<MinMaxResult<Scalar::Output>, TensorError> { self.view().minmax_all() }
 
-    fn try_minmax_axis<AnyIndex: VectorIndex>(
+    fn minmax_axis<AnyIndex: VectorIndex>(
         &self,
         axis: AnyIndex,
         keep_dims: bool,
     ) -> MinMaxAxisResult<Scalar, MAX_RANK> {
-        self.view().try_minmax_axis(axis, keep_dims)
+        self.view().minmax_axis(axis, keep_dims)
     }
 
-    fn try_minmax_axis_into<AnyIndex, ValueTensor, IndexTensor>(
+    fn minmax_axis_into<AnyIndex, ValueTensor, IndexTensor>(
         &self,
         axis: AnyIndex,
         keep_dims: bool,
@@ -1266,47 +1260,47 @@ where
         IndexTensor: TensorMut<usize, MAX_RANK> + ?Sized,
     {
         self.view()
-            .try_minmax_axis_into(axis, keep_dims, min_out, argmin_out, max_out, argmax_out)
+            .minmax_axis_into(axis, keep_dims, min_out, argmin_out, max_out, argmax_out)
     }
 
-    fn try_min_all(&self) -> Result<Scalar::Output, TensorError> { self.view().try_min_all() }
+    fn min_all(&self) -> Result<Scalar::Output, TensorError> { self.view().min_all() }
 
-    fn try_argmin_all(&self) -> Result<usize, TensorError> { self.view().try_argmin_all() }
+    fn argmin_all(&self) -> Result<usize, TensorError> { self.view().argmin_all() }
 
-    fn try_max_all(&self) -> Result<Scalar::Output, TensorError> { self.view().try_max_all() }
+    fn max_all(&self) -> Result<Scalar::Output, TensorError> { self.view().max_all() }
 
-    fn try_argmax_all(&self) -> Result<usize, TensorError> { self.view().try_argmax_all() }
+    fn argmax_all(&self) -> Result<usize, TensorError> { self.view().argmax_all() }
 
-    fn try_min_axis<AnyIndex: VectorIndex>(
+    fn min_axis<AnyIndex: VectorIndex>(
         &self,
         axis: AnyIndex,
         keep_dims: bool,
     ) -> Result<Tensor<Scalar::Output, Global, MAX_RANK>, TensorError> {
-        self.view().try_min_axis(axis, keep_dims)
+        self.view().min_axis(axis, keep_dims)
     }
 
-    fn try_argmin_axis<AnyIndex: VectorIndex>(
+    fn argmin_axis<AnyIndex: VectorIndex>(
         &self,
         axis: AnyIndex,
         keep_dims: bool,
     ) -> Result<Tensor<usize, Global, MAX_RANK>, TensorError> {
-        self.view().try_argmin_axis(axis, keep_dims)
+        self.view().argmin_axis(axis, keep_dims)
     }
 
-    fn try_max_axis<AnyIndex: VectorIndex>(
+    fn max_axis<AnyIndex: VectorIndex>(
         &self,
         axis: AnyIndex,
         keep_dims: bool,
     ) -> Result<Tensor<Scalar::Output, Global, MAX_RANK>, TensorError> {
-        self.view().try_max_axis(axis, keep_dims)
+        self.view().max_axis(axis, keep_dims)
     }
 
-    fn try_argmax_axis<AnyIndex: VectorIndex>(
+    fn argmax_axis<AnyIndex: VectorIndex>(
         &self,
         axis: AnyIndex,
         keep_dims: bool,
     ) -> Result<Tensor<usize, Global, MAX_RANK>, TensorError> {
-        self.view().try_argmax_axis(axis, keep_dims)
+        self.view().argmax_axis(axis, keep_dims)
     }
 }
 
@@ -1513,40 +1507,40 @@ mod tests {
                 }
             })
             .collect();
-        let mut tensor = Tensor::<u1x8>::try_zeros(&[4, 32]).unwrap();
+        let mut tensor = Tensor::<u1x8>::zeros(&[4, 32]).unwrap();
         for (slot, value) in tensor.as_mut_slice().iter_mut().zip(bits_storage.iter()) {
             *slot = *value;
         }
 
         // Same `.popcount()` spelling on Tensor and TensorView.
-        assert_eq!(tensor.popcount(), 64);
-        assert_eq!(tensor.view().popcount(), 64);
+        assert_eq!(tensor.popcount().unwrap(), 64);
+        assert_eq!(tensor.view().popcount().unwrap(), 64);
 
-        assert!(tensor.any_set());
-        assert!(tensor.view().any_set());
+        assert!(tensor.any_set().unwrap());
+        assert!(tensor.view().any_set().unwrap());
 
-        assert!(!tensor.none_set());
-        assert!(!tensor.view().none_set());
+        assert!(!tensor.none_set().unwrap());
+        assert!(!tensor.view().none_set().unwrap());
 
-        assert!(!tensor.all_set());
-        assert!(!tensor.view().all_set());
+        assert!(!tensor.all_set().unwrap());
+        assert!(!tensor.view().all_set().unwrap());
 
         // All-zeros tensor → none_set, !any_set, !all_set.
-        let zero_tensor = Tensor::<u1x8>::try_zeros(&[4, 32]).unwrap();
-        assert_eq!(zero_tensor.popcount(), 0);
-        assert!(!zero_tensor.any_set());
-        assert!(zero_tensor.none_set());
-        assert!(!zero_tensor.all_set());
+        let zero_tensor = Tensor::<u1x8>::zeros(&[4, 32]).unwrap();
+        assert_eq!(zero_tensor.popcount().unwrap(), 0);
+        assert!(!zero_tensor.any_set().unwrap());
+        assert!(zero_tensor.none_set().unwrap());
+        assert!(!zero_tensor.all_set().unwrap());
 
         // All-ones tensor → all_set.
-        let mut ones_tensor = Tensor::<u1x8>::try_zeros(&[4, 32]).unwrap();
+        let mut ones_tensor = Tensor::<u1x8>::zeros(&[4, 32]).unwrap();
         for slot in ones_tensor.as_mut_slice().iter_mut() {
             *slot = u1x8(0xFFu8);
         }
-        assert_eq!(ones_tensor.popcount(), 128);
-        assert!(ones_tensor.any_set());
-        assert!(!ones_tensor.none_set());
-        assert!(ones_tensor.all_set());
+        assert_eq!(ones_tensor.popcount().unwrap(), 128);
+        assert!(ones_tensor.any_set().unwrap());
+        assert!(!ones_tensor.none_set().unwrap());
+        assert!(ones_tensor.all_set().unwrap());
     }
 
     #[test]
@@ -1554,25 +1548,25 @@ mod tests {
         use crate::vector::{Vector, VectorSpan, VectorView};
         // Three set bytes — 24 bits — one zero byte → popcount = 24.
         let mut storage = [u1x8(0xFFu8), u1x8(0xFFu8), u1x8(0x00u8), u1x8(0xFFu8)];
-        let mut vector = Vector::<u1x8>::try_zeros(32).unwrap();
+        let mut vector = Vector::<u1x8>::zeros(32).unwrap();
         for (slot, value) in vector.as_mut_slice().iter_mut().zip(storage.iter()) {
             *slot = *value;
         }
-        assert_eq!(vector.popcount(), 24);
-        assert!(vector.any_set());
-        assert!(!vector.none_set());
-        assert!(!vector.all_set());
+        assert_eq!(vector.popcount().unwrap(), 24);
+        assert!(vector.any_set().unwrap());
+        assert!(!vector.none_set().unwrap());
+        assert!(!vector.all_set().unwrap());
 
         let view =
             unsafe { VectorView::<u1x8>::from_raw_parts(storage.as_ptr(), 32, core::mem::size_of::<u1x8>() as isize) };
-        assert_eq!(view.popcount(), 24);
-        assert!(view.any_set());
+        assert_eq!(view.popcount().unwrap(), 24);
+        assert!(view.any_set().unwrap());
 
         let span = unsafe {
             VectorSpan::<u1x8>::from_raw_parts(storage.as_mut_ptr(), 32, core::mem::size_of::<u1x8>() as isize)
         };
-        assert_eq!(span.popcount(), 24);
-        assert!(span.any_set());
+        assert_eq!(span.popcount().unwrap(), 24);
+        assert!(span.any_set().unwrap());
     }
 
     // endregion: BitwiseReductionsOps across containers
@@ -1583,25 +1577,23 @@ mod tests {
     fn reductions_axis_and_strided_views() {
         use crate::tensor::{MinMaxResult, SliceRange, Tensor};
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
-        let a = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
-        let a_even = a
-            .try_slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
-            .unwrap();
+        let a = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
+        let a_even = a.slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)]).unwrap();
 
-        let sum_all = a_even.try_sum_all().unwrap();
+        let sum_all = a_even.sum_all().unwrap();
         assert!((sum_all - 30.0).abs() < 1e-6);
 
-        let norm_all = a_even.try_norm_all().unwrap();
+        let norm_all = a_even.norm_all().unwrap();
         assert!((norm_all - 14.832396974191326).abs() < 1e-9);
 
-        let (sum_axis0, sumsq_axis0) = a_even.try_moments_axis(0, false).unwrap();
+        let (sum_axis0, sumsq_axis0) = a_even.moments_axis(0, false).unwrap();
         assert_eq!(sum_axis0.shape(), &[2]);
         assert!((sum_axis0.as_slice()[0] - 12.0).abs() < 1e-6);
         assert!((sum_axis0.as_slice()[1] - 18.0).abs() < 1e-6);
         assert!((sumsq_axis0.as_slice()[0] - 80.0).abs() < 1e-6);
         assert!((sumsq_axis0.as_slice()[1] - 140.0).abs() < 1e-6);
 
-        let sum_axis1_keep = a_even.try_sum_axis(-1_i32, true).unwrap();
+        let sum_axis1_keep = a_even.sum_axis(-1_i32, true).unwrap();
         assert_eq!(sum_axis1_keep.shape(), &[3, 1]);
         assert!((sum_axis1_keep.as_slice()[0] - 2.0).abs() < 1e-6);
         assert!((sum_axis1_keep.as_slice()[1] - 10.0).abs() < 1e-6);
@@ -1612,21 +1604,21 @@ mod tests {
             min_index: argmin_axis0,
             max_value: max_axis0,
             max_index: argmax_axis0,
-        } = a_even.try_minmax_axis(0, false).unwrap();
+        } = a_even.minmax_axis(0, false).unwrap();
         assert_eq!(min_axis0.as_slice(), &[0.0, 2.0]);
         assert_eq!(max_axis0.as_slice(), &[8.0, 10.0]);
         assert_eq!(argmin_axis0.as_slice(), &[0, 0]);
         assert_eq!(argmax_axis0.as_slice(), &[2, 2]);
 
         let reversed = a
-            .try_slice(&[SliceRange::full(), SliceRange::range_step(3, 0, -1)])
+            .slice(&[SliceRange::full(), SliceRange::range_step(3, 0, -1)])
             .unwrap();
-        let reversed_sum = reversed.try_sum_axis(-1_i32, false).unwrap();
+        let reversed_sum = reversed.sum_axis(-1_i32, false).unwrap();
         assert_eq!(reversed_sum.shape(), &[3]);
         assert_eq!(reversed_sum.as_slice(), &[6.0, 18.0, 30.0]);
 
-        let reversed_argmin = reversed.try_argmin_axis(-1_i32, false).unwrap();
-        let reversed_argmax = reversed.try_argmax_axis(-1_i32, false).unwrap();
+        let reversed_argmin = reversed.argmin_axis(-1_i32, false).unwrap();
+        let reversed_argmax = reversed.argmax_axis(-1_i32, false).unwrap();
         assert_eq!(reversed_argmin.as_slice(), &[2, 2, 2]);
         assert_eq!(reversed_argmax.as_slice(), &[0, 0, 0]);
     }
@@ -1641,8 +1633,8 @@ mod tests {
         let cols = x.len() / rows / groups;
         let width = x.len() / rows;
         let gamma: Vec<f32> = (0..cols).map(|i| 1.0 + 0.01 * i as f32).collect();
-        let x_t = Tensor::<Scalar>::try_from_slice(&x, &[rows, width]).unwrap();
-        let mut y_t = Tensor::<Scalar>::try_full(&[rows, width], Scalar::zero()).unwrap();
+        let x_t = Tensor::<Scalar>::from_slice(&x, &[rows, width]).unwrap();
+        let mut y_t = Tensor::<Scalar>::full(&[rows, width], Scalar::zero()).unwrap();
         Scalar::rmsnorm_into(&x_t, Some(&gamma), &mut y_t, groups, 1e-6, 1.0).unwrap();
         let y = y_t.as_slice().to_vec();
         for r in 0..rows {

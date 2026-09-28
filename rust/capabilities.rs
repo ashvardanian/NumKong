@@ -53,10 +53,6 @@ impl Status {
             status => Err(TensorError::KernelFailed { status }),
         }
     }
-
-    /// Panics on failure, in methods whose signatures have no failure path.
-    #[track_caller]
-    pub(crate) fn unwrap(self) { assert!(self.0 == 0, "NumKong kernel failed with status {}", self.0) }
 }
 
 /// A failure the workers of a parallel loop report, checked once the loop joins.
@@ -230,8 +226,10 @@ impl Capabilities {
 /// Reads one of the `nk_cpu_capabilities_*` masks.
 fn query(read: unsafe extern "C" fn(*mut u64) -> Status) -> Capabilities {
     let mut mask = Capability::Serial as u64;
-    unsafe { read(&mut mask) }.unwrap();
-    Capabilities(mask)
+    match unsafe { read(&mut mask) }.check() {
+        Ok(()) => Capabilities(mask),
+        Err(_) => Capabilities(Capability::Serial as u64),
+    }
 }
 
 /// The mask every kernel call passes, [`Capabilities::enabled`] as C's `nk_capability_t`.
@@ -239,9 +237,9 @@ pub(crate) fn cpu_capabilities() -> u64 { Capabilities::enabled().0 }
 
 /// Sets up the calling thread for the kernels in `capabilities`, usually [`Capabilities::enabled`]:
 /// AMX tile permission on x86 Linux, fused BF16 dots on Arm. Call it once per thread before using
-/// those kernels; it is idempotent. Returns `true` on success.
-pub fn configure_thread(capabilities: Capabilities) -> bool {
-    unsafe { nk_cpu_configure_thread(capabilities.0) }.ok().is_some()
+/// those kernels; it is idempotent.
+pub fn configure_thread(capabilities: Capabilities) -> Result<(), TensorError> {
+    unsafe { nk_cpu_configure_thread(capabilities.0) }.check()
 }
 
 impl From<Capability> for Capabilities {

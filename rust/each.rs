@@ -4089,49 +4089,49 @@ pub trait ScaleOps<Scalar: Clone + EachScale, const MAX_RANK: usize>: TensorRef<
 where
     Scalar::Scalar: From<f32> + core::ops::Mul<Output = Scalar::Scalar> + Copy,
 {
-    fn try_add_scalar(&self, scalar: Scalar::Scalar) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
-        self.view().try_add_scalar(scalar)
+    fn add_scalar(&self, scalar: Scalar::Scalar) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
+        self.view().add_scalar(scalar)
     }
 
-    fn try_sub_scalar(&self, scalar: Scalar::Scalar) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
-        self.view().try_sub_scalar(scalar)
+    fn sub_scalar(&self, scalar: Scalar::Scalar) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
+        self.view().sub_scalar(scalar)
     }
 
-    fn try_mul_scalar(&self, scalar: Scalar::Scalar) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
-        self.view().try_mul_scalar(scalar)
+    fn mul_scalar(&self, scalar: Scalar::Scalar) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
+        self.view().mul_scalar(scalar)
     }
 
-    fn try_scale_tensor_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
+    fn scale_tensor_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         alpha: Scalar::Scalar,
         beta: Scalar::Scalar,
         out: &mut OutputTensor,
     ) -> Result<(), TensorError> {
-        self.view().try_scale_tensor_into(alpha, beta, out)
+        self.view().scale_tensor_into(alpha, beta, out)
     }
 
-    fn try_add_scalar_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
+    fn add_scalar_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         scalar: Scalar::Scalar,
         out: &mut OutputTensor,
     ) -> Result<(), TensorError> {
-        self.view().try_add_scalar_into(scalar, out)
+        self.view().add_scalar_into(scalar, out)
     }
 
-    fn try_sub_scalar_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
+    fn sub_scalar_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         scalar: Scalar::Scalar,
         out: &mut OutputTensor,
     ) -> Result<(), TensorError> {
-        self.view().try_sub_scalar_into(scalar, out)
+        self.view().sub_scalar_into(scalar, out)
     }
 
-    fn try_mul_scalar_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
+    fn mul_scalar_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         scalar: Scalar::Scalar,
         out: &mut OutputTensor,
     ) -> Result<(), TensorError> {
-        self.view().try_mul_scalar_into(scalar, out)
+        self.view().mul_scalar_into(scalar, out)
     }
 }
 
@@ -4144,50 +4144,32 @@ impl<Scalar: Clone + EachScale, const MAX_RANK: usize> Tensor<Scalar, Global, MA
 where
     Scalar::Scalar: From<f32> + core::ops::Mul<Output = Scalar::Scalar> + Copy,
 {
-    /// Element-wise add scalar in-place — infallible, self vs self always matches.
-    pub fn add_scalar_inplace(&mut self, scalar: Scalar::Scalar) { self.span().add_scalar_inplace(scalar); }
+    /// Element-wise add scalar in-place.
+    pub fn add_scalar_inplace(&mut self, scalar: Scalar::Scalar) -> Result<(), TensorError> {
+        self.span().add_scalar_inplace(scalar)
+    }
 
-    /// Element-wise subtract scalar in-place — infallible, self vs self always matches.
-    pub fn sub_scalar_inplace(&mut self, scalar: Scalar::Scalar) { self.span().sub_scalar_inplace(scalar); }
+    /// Element-wise subtract scalar in-place.
+    pub fn sub_scalar_inplace(&mut self, scalar: Scalar::Scalar) -> Result<(), TensorError> {
+        self.span().sub_scalar_inplace(scalar)
+    }
 
-    /// Element-wise multiply scalar in-place — infallible, self vs self always matches.
-    pub fn mul_scalar_inplace(&mut self, scalar: Scalar::Scalar) { self.span().mul_scalar_inplace(scalar); }
-}
-
-impl<Scalar: Clone + EachScale, const MAX_RANK: usize> core::ops::AddAssign<Scalar::Scalar>
-    for Tensor<Scalar, Global, MAX_RANK>
-where
-    Scalar::Scalar: From<f32> + core::ops::Mul<Output = Scalar::Scalar> + Copy,
-{
-    fn add_assign(&mut self, scalar: Scalar::Scalar) { self.add_scalar_inplace(scalar); }
-}
-
-impl<Scalar: Clone + EachScale, const MAX_RANK: usize> core::ops::SubAssign<Scalar::Scalar>
-    for Tensor<Scalar, Global, MAX_RANK>
-where
-    Scalar::Scalar: From<f32> + core::ops::Mul<Output = Scalar::Scalar> + Copy,
-{
-    fn sub_assign(&mut self, scalar: Scalar::Scalar) { self.sub_scalar_inplace(scalar); }
-}
-
-impl<Scalar: Clone + EachScale, const MAX_RANK: usize> core::ops::MulAssign<Scalar::Scalar>
-    for Tensor<Scalar, Global, MAX_RANK>
-where
-    Scalar::Scalar: From<f32> + core::ops::Mul<Output = Scalar::Scalar> + Copy,
-{
-    fn mul_assign(&mut self, scalar: Scalar::Scalar) { self.mul_scalar_inplace(scalar); }
+    /// Element-wise multiply scalar in-place.
+    pub fn mul_scalar_inplace(&mut self, scalar: Scalar::Scalar) -> Result<(), TensorError> {
+        self.span().mul_scalar_inplace(scalar)
+    }
 }
 
 /// Extension trait: element-wise addition for any [`TensorRef`] implementor.
 pub trait SumOps<Scalar: Clone + EachSum, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
-    fn try_add_tensor(
+    fn add_tensor(
         &self,
         other: &(impl TensorRef<Scalar, MAX_RANK> + ?Sized),
     ) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
-        self.view().try_add_tensor(&other.view())
+        self.view().add_tensor(&other.view())
     }
 
-    fn try_add_tensor_into<OtherTensor, OutputTensor>(
+    fn add_tensor_into<OtherTensor, OutputTensor>(
         &self,
         other: &OtherTensor,
         out: &mut OutputTensor,
@@ -4196,14 +4178,14 @@ pub trait SumOps<Scalar: Clone + EachSum, const MAX_RANK: usize>: TensorRef<Scal
         OtherTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
         OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized,
     {
-        self.view().try_add_tensor_into(&other.view(), out)
+        self.view().add_tensor_into(&other.view(), out)
     }
 }
 
 impl<Scalar: Clone + EachSum, const R: usize, C: TensorRef<Scalar, R> + ?Sized> SumOps<Scalar, R> for C {}
 
 impl<Scalar: Clone + EachSum, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
-    pub fn try_add_tensor_inplace(&mut self, other: &Tensor<Scalar, Global, MAX_RANK>) -> Result<(), TensorError> {
+    pub fn add_tensor_inplace(&mut self, other: &Tensor<Scalar, Global, MAX_RANK>) -> Result<(), TensorError> {
         let other_view = other.view();
         self.span().add_inplace(&other_view)
     }
@@ -4214,14 +4196,14 @@ pub trait BlendOps<Scalar: Clone + EachBlend, const MAX_RANK: usize>: TensorRef<
 where
     Scalar::Scalar: From<f32> + Copy,
 {
-    fn try_sub_tensor(
+    fn sub_tensor(
         &self,
         other: &(impl TensorRef<Scalar, MAX_RANK> + ?Sized),
     ) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
-        self.view().try_sub_tensor(&other.view())
+        self.view().sub_tensor(&other.view())
     }
 
-    fn try_blend_tensor_into<OtherTensor, OutputTensor>(
+    fn blend_tensor_into<OtherTensor, OutputTensor>(
         &self,
         other: &OtherTensor,
         alpha: Scalar::Scalar,
@@ -4232,10 +4214,10 @@ where
         OtherTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
         OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized,
     {
-        self.view().try_blend_tensor_into(&other.view(), alpha, beta, out)
+        self.view().blend_tensor_into(&other.view(), alpha, beta, out)
     }
 
-    fn try_sub_tensor_into<OtherTensor, OutputTensor>(
+    fn sub_tensor_into<OtherTensor, OutputTensor>(
         &self,
         other: &OtherTensor,
         out: &mut OutputTensor,
@@ -4244,7 +4226,7 @@ where
         OtherTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
         OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized,
     {
-        self.view().try_sub_tensor_into(&other.view(), out)
+        self.view().sub_tensor_into(&other.view(), out)
     }
 }
 
@@ -4257,7 +4239,7 @@ impl<Scalar: Clone + EachBlend, const MAX_RANK: usize> Tensor<Scalar, Global, MA
 where
     Scalar::Scalar: From<f32> + Copy,
 {
-    pub fn try_sub_tensor_inplace(&mut self, other: &Tensor<Scalar, Global, MAX_RANK>) -> Result<(), TensorError> {
+    pub fn sub_tensor_inplace(&mut self, other: &Tensor<Scalar, Global, MAX_RANK>) -> Result<(), TensorError> {
         let other_view = other.view();
         self.span().sub_inplace(&other_view)
     }
@@ -4268,14 +4250,14 @@ pub trait FmaOps<Scalar: Clone + EachFMA, const MAX_RANK: usize>: TensorRef<Scal
 where
     Scalar::Scalar: From<f32> + Copy,
 {
-    fn try_mul_tensor(
+    fn mul_tensor(
         &self,
         other: &(impl TensorRef<Scalar, MAX_RANK> + ?Sized),
     ) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
-        self.view().try_mul_tensor(&other.view())
+        self.view().mul_tensor(&other.view())
     }
 
-    fn try_fma_tensors_into<BTensor, CTensor, OutputTensor>(
+    fn fma_tensors_into<BTensor, CTensor, OutputTensor>(
         &self,
         b: &BTensor,
         c: &CTensor,
@@ -4288,10 +4270,10 @@ where
         CTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
         OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized,
     {
-        self.view().try_fma_tensors_into(&b.view(), &c.view(), alpha, beta, out)
+        self.view().fma_tensors_into(&b.view(), &c.view(), alpha, beta, out)
     }
 
-    fn try_mul_tensor_into<OtherTensor, OutputTensor>(
+    fn mul_tensor_into<OtherTensor, OutputTensor>(
         &self,
         other: &OtherTensor,
         out: &mut OutputTensor,
@@ -4300,7 +4282,7 @@ where
         OtherTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
         OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized,
     {
-        self.view().try_mul_tensor_into(&other.view(), out)
+        self.view().mul_tensor_into(&other.view(), out)
     }
 }
 
@@ -4313,7 +4295,7 @@ impl<Scalar: Clone + EachFMA, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_
 where
     Scalar::Scalar: From<f32> + Copy,
 {
-    pub fn try_mul_tensor_inplace(&mut self, other: &Tensor<Scalar, Global, MAX_RANK>) -> Result<(), TensorError> {
+    pub fn mul_tensor_inplace(&mut self, other: &Tensor<Scalar, Global, MAX_RANK>) -> Result<(), TensorError> {
         let other_view = other.view();
         self.span().mul_inplace(&other_view)
     }
@@ -4775,17 +4757,17 @@ mod tests {
     fn tensor_add_tensor_via_sum_ops() {
         use crate::tensor::{SliceRange, Tensor};
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
-        let left = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
-        let right = Tensor::<f32>::try_full(&[3, 4], 2.0).unwrap();
+        let left = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
+        let right = Tensor::<f32>::full(&[3, 4], 2.0).unwrap();
 
         let left_even = left
-            .try_slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
+            .slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
             .unwrap();
         let right_even = right
-            .try_slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
+            .slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
             .unwrap();
 
-        let added = left_even.try_add_tensor(&right_even).unwrap();
+        let added = left_even.add_tensor(&right_even).unwrap();
         assert_eq!(added.shape(), &[3, 2]);
         assert_eq!(added.as_slice(), &[2.0, 4.0, 6.0, 8.0, 10.0, 12.0]);
     }
@@ -4795,11 +4777,11 @@ mod tests {
         use crate::tensor::Tensor;
         use crate::SumOps;
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
-        let left = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
-        let right = Tensor::<f32>::try_full(&[3, 4], 2.0).unwrap();
+        let left = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
+        let right = Tensor::<f32>::full(&[3, 4], 2.0).unwrap();
 
-        let mut out = Tensor::<f32>::try_full(&[3, 4], 0.0).unwrap();
-        left.try_add_tensor_into(&right, &mut out).unwrap();
+        let mut out = Tensor::<f32>::full(&[3, 4], 0.0).unwrap();
+        left.add_tensor_into(&right, &mut out).unwrap();
         assert_eq!(out.as_slice()[0], 2.0);
         assert_eq!(out.as_slice()[11], 13.0);
     }
@@ -4808,11 +4790,11 @@ mod tests {
     fn tensor_mul_scalar_via_scale_ops() {
         use crate::tensor::{SliceRange, Tensor};
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
-        let source = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
+        let source = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
         let even = source
-            .try_slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
+            .slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
             .unwrap();
-        let scaled = even.try_mul_scalar(0.5).unwrap();
+        let scaled = even.mul_scalar(0.5).unwrap();
         assert_eq!(scaled.as_slice(), &[0.0, 1.0, 2.0, 3.0, 4.0, 5.0]);
     }
 
@@ -4820,8 +4802,8 @@ mod tests {
     fn tensor_add_scalar_inplace_via_scale_ops() {
         use crate::tensor::Tensor;
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
-        let mut tensor = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
-        tensor.add_scalar_inplace(1.0);
+        let mut tensor = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
+        tensor.add_scalar_inplace(1.0).unwrap();
         assert_eq!(tensor.as_slice()[0], 1.0);
         assert_eq!(tensor.as_slice()[11], 12.0);
     }
@@ -4830,14 +4812,14 @@ mod tests {
     fn tensor_sin_into_via_trig_sin_ops() {
         use crate::tensor::{SliceRange, Tensor};
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
-        let source = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
+        let source = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
         let even = source
-            .try_slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
+            .slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
             .unwrap();
-        let mut sin_out = Tensor::<f32>::try_full(&[3, 2], 0.0).unwrap();
+        let mut sin_out = Tensor::<f32>::full(&[3, 2], 0.0).unwrap();
         {
             let mut span = sin_out.span();
-            even.try_sin_into(&mut span).unwrap();
+            even.sin_into(&mut span).unwrap();
         }
         assert_eq!(sin_out.shape(), &[3, 2]);
         // First element is sin(0) which is exactly 0.
@@ -4852,10 +4834,10 @@ mod tests {
     fn inplace_scale_matches_out_of_place() {
         use crate::tensor::Tensor;
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
-        let mut inplace = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
-        let source = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
-        inplace.scale_inplace(2.0, 1.0);
-        let expected = source.view().try_scale_tensor(2.0, 1.0).unwrap();
+        let mut inplace = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
+        let source = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
+        inplace.scale_inplace(2.0, 1.0).unwrap();
+        let expected = source.view().scale_tensor(2.0, 1.0).unwrap();
         assert_eq!(inplace.as_slice(), expected.as_slice());
     }
 
@@ -4863,10 +4845,10 @@ mod tests {
     fn inplace_scale_matches_out_of_place_f64() {
         use crate::tensor::Tensor;
         let data: Vec<f64> = (0..12).map(|i| i as f64).collect();
-        let mut inplace = Tensor::<f64>::try_from_slice(&data, &[3, 4]).unwrap();
-        let source = Tensor::<f64>::try_from_slice(&data, &[3, 4]).unwrap();
-        inplace.scale_inplace(-0.5, 3.0);
-        let expected = source.view().try_scale_tensor(-0.5, 3.0).unwrap();
+        let mut inplace = Tensor::<f64>::from_slice(&data, &[3, 4]).unwrap();
+        let source = Tensor::<f64>::from_slice(&data, &[3, 4]).unwrap();
+        inplace.scale_inplace(-0.5, 3.0).unwrap();
+        let expected = source.view().scale_tensor(-0.5, 3.0).unwrap();
         assert_eq!(inplace.as_slice(), expected.as_slice());
     }
 
@@ -4874,10 +4856,10 @@ mod tests {
     fn inplace_add_scalar_matches_out_of_place() {
         use crate::tensor::Tensor;
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
-        let mut inplace = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
-        let source = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
-        inplace.add_scalar_inplace(2.5);
-        let expected = source.view().try_add_scalar(2.5).unwrap();
+        let mut inplace = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
+        let source = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
+        inplace.add_scalar_inplace(2.5).unwrap();
+        let expected = source.view().add_scalar(2.5).unwrap();
         assert_eq!(inplace.as_slice(), expected.as_slice());
     }
 
@@ -4885,10 +4867,10 @@ mod tests {
     fn inplace_sin_matches_out_of_place() {
         use crate::tensor::Tensor;
         let data: Vec<f32> = (0..12).map(|i| i as f32 * 0.25).collect();
-        let mut inplace = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
-        let source = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
-        inplace.sin_inplace();
-        let expected = source.view().try_sin().unwrap();
+        let mut inplace = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
+        let source = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
+        inplace.sin_inplace().unwrap();
+        let expected = source.view().sin().unwrap();
         assert_eq!(inplace.as_slice(), expected.as_slice());
     }
 
@@ -4896,11 +4878,11 @@ mod tests {
     fn inplace_add_tensor_matches_out_of_place() {
         use crate::tensor::Tensor;
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
-        let other = Tensor::<f32>::try_full(&[3, 4], 2.0).unwrap();
-        let mut inplace = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
-        let source = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
-        inplace.try_add_tensor_inplace(&other).unwrap();
-        let expected = source.view().try_add_tensor(&other.view()).unwrap();
+        let other = Tensor::<f32>::full(&[3, 4], 2.0).unwrap();
+        let mut inplace = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
+        let source = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
+        inplace.add_tensor_inplace(&other).unwrap();
+        let expected = source.view().add_tensor(&other.view()).unwrap();
         assert_eq!(inplace.as_slice(), expected.as_slice());
     }
 
@@ -4908,11 +4890,11 @@ mod tests {
     fn inplace_sub_tensor_matches_out_of_place() {
         use crate::tensor::Tensor;
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
-        let other = Tensor::<f32>::try_full(&[3, 4], 3.0).unwrap();
-        let mut inplace = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
-        let source = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
-        inplace.try_sub_tensor_inplace(&other).unwrap();
-        let expected = source.view().try_sub_tensor(&other.view()).unwrap();
+        let other = Tensor::<f32>::full(&[3, 4], 3.0).unwrap();
+        let mut inplace = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
+        let source = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
+        inplace.sub_tensor_inplace(&other).unwrap();
+        let expected = source.view().sub_tensor(&other.view()).unwrap();
         assert_eq!(inplace.as_slice(), expected.as_slice());
     }
 
@@ -4921,11 +4903,11 @@ mod tests {
         use crate::tensor::Tensor;
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let other_data: Vec<f32> = (0..12).map(|i| (i as f32) * 0.5 + 1.0).collect();
-        let other = Tensor::<f32>::try_from_slice(&other_data, &[3, 4]).unwrap();
-        let mut inplace = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
-        let source = Tensor::<f32>::try_from_slice(&data, &[3, 4]).unwrap();
-        inplace.try_mul_tensor_inplace(&other).unwrap();
-        let expected = source.view().try_mul_tensor(&other.view()).unwrap();
+        let other = Tensor::<f32>::from_slice(&other_data, &[3, 4]).unwrap();
+        let mut inplace = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
+        let source = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
+        inplace.mul_tensor_inplace(&other).unwrap();
+        let expected = source.view().mul_tensor(&other.view()).unwrap();
         assert_eq!(inplace.as_slice(), expected.as_slice());
     }
 
@@ -4941,9 +4923,9 @@ mod tests {
         let gate: Vec<Scalar> = values.iter().map(|&v| Scalar::from_f32(v)).collect();
         let up: Vec<Scalar> = values.iter().map(|&v| Scalar::from_f32(0.5 - v)).collect();
         let cols = gate.len() / rows;
-        let gate_t = crate::tensor::Tensor::<Scalar>::try_from_slice(&gate, &[rows, cols]).unwrap();
-        let up_t = crate::tensor::Tensor::<Scalar>::try_from_slice(&up, &[rows, cols]).unwrap();
-        let mut y_t = crate::tensor::Tensor::<Scalar>::try_full(&[rows, cols], Scalar::zero()).unwrap();
+        let gate_t = crate::tensor::Tensor::<Scalar>::from_slice(&gate, &[rows, cols]).unwrap();
+        let up_t = crate::tensor::Tensor::<Scalar>::from_slice(&up, &[rows, cols]).unwrap();
+        let mut y_t = crate::tensor::Tensor::<Scalar>::full(&[rows, cols], Scalar::zero()).unwrap();
         let up_ref = if with_up { Some(&up_t) } else { None };
         Scalar::swiglu_into(&gate_t, up_ref, &mut y_t, 1.0).unwrap();
         let y = y_t.as_slice().to_vec();
@@ -4980,16 +4962,16 @@ mod tests {
         let rows = 3;
         let cols = 8;
         let buf: Vec<f32> = (0..rows * 2 * cols).map(|i| ((i % 11) as f32 - 5.0) * 0.3).collect();
-        let wide = Tensor::<f32>::try_from_slice(&buf, &[rows, 2 * cols]).unwrap();
+        let wide = Tensor::<f32>::from_slice(&buf, &[rows, 2 * cols]).unwrap();
         let gate = wide
             .view()
-            .try_slice(&[SliceRange::Full, SliceRange::range(0, cols)][..])
+            .slice(&[SliceRange::Full, SliceRange::range(0, cols)][..])
             .unwrap();
         let up = wide
             .view()
-            .try_slice(&[SliceRange::Full, SliceRange::range(cols, 2 * cols)][..])
+            .slice(&[SliceRange::Full, SliceRange::range(cols, 2 * cols)][..])
             .unwrap();
-        let mut y = Tensor::<f32>::try_full(&[rows, cols], 0.0f32).unwrap();
+        let mut y = Tensor::<f32>::full(&[rows, cols], 0.0f32).unwrap();
         f32::swiglu_into(&gate, Some(&up), &mut y, 1.0).unwrap();
 
         // Contiguous reference over dense copies of the same two halves.
@@ -5001,9 +4983,9 @@ mod tests {
                 up_c[r * cols + c] = buf[r * 2 * cols + cols + c];
             }
         }
-        let gate_ct = Tensor::<f32>::try_from_slice(&gate_c, &[rows, cols]).unwrap();
-        let up_ct = Tensor::<f32>::try_from_slice(&up_c, &[rows, cols]).unwrap();
-        let mut y_ref = Tensor::<f32>::try_full(&[rows, cols], 0.0f32).unwrap();
+        let gate_ct = Tensor::<f32>::from_slice(&gate_c, &[rows, cols]).unwrap();
+        let up_ct = Tensor::<f32>::from_slice(&up_c, &[rows, cols]).unwrap();
+        let mut y_ref = Tensor::<f32>::full(&[rows, cols], 0.0f32).unwrap();
         f32::swiglu_into(&gate_ct, Some(&up_ct), &mut y_ref, 1.0).unwrap();
 
         for i in 0..rows * cols {

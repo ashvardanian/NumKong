@@ -232,8 +232,8 @@ pub use attention::{Attention, AttentionPackedMatrix};
 pub use maxsim::{MaxSim, MaxSimPackedMatrix};
 
 /// Prelude: `use numkong::prelude::*;` brings the core containers and every extension trait into
-/// scope, so the `.try_*` / `.dots_packed` / `.mean` methods light up without importing each trait
-/// by name.
+/// scope, so the `.sum_all` / `.dots_packed` / `.sin` methods light up without importing each
+/// trait by name.
 pub mod prelude {
     pub use crate::{
         AllCloseOps, AngularsPackedOps, BitwiseReductionsOps, BlendOps, CastOps, DenseToScaledOps, DotsPackedMatrix,
@@ -283,35 +283,35 @@ mod tests {
 
     #[test]
     fn maxsim_smoke() {
-        capabilities::configure_thread(Capabilities::enabled());
-        let queries = Tensor::<f32>::try_full(&[4, 16], 1.0).unwrap();
-        let documents = Tensor::<f32>::try_full(&[8, 16], 1.0).unwrap();
+        capabilities::configure_thread(Capabilities::enabled()).unwrap();
+        let queries = Tensor::<f32>::full(&[4, 16], 1.0).unwrap();
+        let documents = Tensor::<f32>::full(&[8, 16], 1.0).unwrap();
         let queries_view = queries.view();
         let docs_view = documents.view();
-        let queries_packed = MaxSimPackedMatrix::try_pack(&queries_view).unwrap();
-        let docs_packed = MaxSimPackedMatrix::try_pack(&docs_view).unwrap();
+        let queries_packed = MaxSimPackedMatrix::new(&queries_view).unwrap();
+        let docs_packed = MaxSimPackedMatrix::new(&docs_view).unwrap();
         assert_eq!(queries_packed.shape(), (4, 16));
         assert_eq!(docs_packed.shape(), (8, 16));
-        let score = queries_packed.try_score(&docs_packed).unwrap();
+        let score = queries_packed.score(&docs_packed).unwrap();
         assert!(score.is_finite(), "MaxSim score must be finite, got {score}");
     }
 
     #[test]
     fn attention_smoke() {
-        capabilities::configure_thread(Capabilities::enabled());
+        capabilities::configure_thread(Capabilities::enabled()).unwrap();
         let (tokens, heads, head_dim) = (24usize, 2usize, 32usize);
-        let keys = Tensor::<bf16>::try_full(&[tokens, heads * head_dim], bf16::from_f32(0.25)).unwrap();
-        let values = Tensor::<bf16>::try_full(&[tokens, heads * head_dim], bf16::from_f32(0.5)).unwrap();
+        let keys = Tensor::<bf16>::full(&[tokens, heads * head_dim], bf16::from_f32(0.25)).unwrap();
+        let values = Tensor::<bf16>::full(&[tokens, heads * head_dim], bf16::from_f32(0.5)).unwrap();
         let offsets = [0u32, 10, 24];
 
-        let kv = AttentionPackedMatrix::try_pack(&keys.view(), &values.view(), head_dim, &offsets).unwrap();
+        let kv = AttentionPackedMatrix::new(&keys.view(), &values.view(), head_dim, &offsets).unwrap();
         assert_eq!(kv.segments(), 2);
         assert_eq!(kv.heads(), heads);
         assert_eq!(kv.depth(), head_dim);
         assert_eq!(kv.tokens(), tokens);
 
         // With constant V, softmax weights sum to 1 → every output equals V's value.
-        let outputs = kv.try_attention(&keys.view(), &offsets, None).unwrap();
+        let outputs = kv.attention(&keys.view(), &offsets, None).unwrap();
         assert_eq!(outputs.shape(), [tokens, heads * head_dim]);
         for &x in outputs.as_slice() {
             assert!((x - 0.5).abs() < 1e-2, "expected 0.5, got {x}");
@@ -320,25 +320,25 @@ mod tests {
 
     #[test]
     fn attention_kv_cache_reuse() {
-        capabilities::configure_thread(Capabilities::enabled());
+        capabilities::configure_thread(Capabilities::enabled()).unwrap();
         let (heads, head_dim) = (2usize, 32usize);
-        let small = Tensor::<bf16>::try_full(&[10, heads * head_dim], bf16::from_f32(0.25)).unwrap();
-        let big = Tensor::<bf16>::try_full(&[24, heads * head_dim], bf16::from_f32(0.25)).unwrap();
+        let small = Tensor::<bf16>::full(&[10, heads * head_dim], bf16::from_f32(0.25)).unwrap();
+        let big = Tensor::<bf16>::full(&[24, heads * head_dim], bf16::from_f32(0.25)).unwrap();
         let small_off = [0u32, 4, 10];
         let big_off = [0u32, 10, 24];
 
-        let mut kv = AttentionPackedMatrix::try_pack(&small.view(), &small.view(), head_dim, &small_off).unwrap();
+        let mut kv = AttentionPackedMatrix::new(&small.view(), &small.view(), head_dim, &small_off).unwrap();
         let cap0 = kv.capacity();
         assert!(cap0 > 0);
 
         // Same geometry repacked in place → allocation reused, capacity unchanged.
-        kv.try_pack_into(&small.view(), &small.view(), head_dim, &small_off)
+        kv.pack_into(&small.view(), &small.view(), head_dim, &small_off)
             .unwrap();
         assert_eq!(kv.capacity(), cap0, "same-size repack must reuse the buffer");
         assert_eq!(kv.tokens(), 10);
 
         // Larger geometry → capacity grows, never shrinks.
-        kv.try_pack_into(&big.view(), &big.view(), head_dim, &big_off).unwrap();
+        kv.pack_into(&big.view(), &big.view(), head_dim, &big_off).unwrap();
         assert!(kv.capacity() >= cap0, "grow must not shrink capacity");
         assert_eq!(kv.tokens(), 24);
         assert_eq!(kv.segments(), 2);
@@ -349,9 +349,9 @@ mod tests {
         assert_eq!(kv.tokens(), 0);
         assert_eq!(kv.capacity(), cap_big, "clear keeps the allocation");
 
-        kv.try_pack_into(&small.view(), &small.view(), head_dim, &small_off)
+        kv.pack_into(&small.view(), &small.view(), head_dim, &small_off)
             .unwrap();
-        let outputs = kv.try_attention(&small.view(), &small_off, None).unwrap();
+        let outputs = kv.attention(&small.view(), &small_off, None).unwrap();
         assert_eq!(outputs.shape(), [10, heads * head_dim]);
     }
 
@@ -359,7 +359,7 @@ mod tests {
     #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
     #[test]
     fn attention_parallel_matches_serial() {
-        capabilities::configure_thread(Capabilities::enabled());
+        capabilities::configure_thread(Capabilities::enabled()).unwrap();
         let (heads, head_dim) = (4usize, 64usize);
         let lengths = [7u32, 250, 0, 33, 129]; // ragged mix: tiny, sub-panel, pad, odd
         let mut offsets = vec![0u32];
@@ -368,15 +368,15 @@ mod tests {
         }
         let tokens = *offsets.last().unwrap() as usize;
 
-        let keys = Tensor::<bf16>::try_full(&[tokens, heads * head_dim], bf16::from_f32(0.125)).unwrap();
-        let values = Tensor::<bf16>::try_full(&[tokens, heads * head_dim], bf16::from_f32(0.75)).unwrap();
-        let kv = AttentionPackedMatrix::try_pack(&keys.view(), &values.view(), head_dim, &offsets).unwrap();
+        let keys = Tensor::<bf16>::full(&[tokens, heads * head_dim], bf16::from_f32(0.125)).unwrap();
+        let values = Tensor::<bf16>::full(&[tokens, heads * head_dim], bf16::from_f32(0.75)).unwrap();
+        let kv = AttentionPackedMatrix::new(&keys.view(), &values.view(), head_dim, &offsets).unwrap();
 
-        let sequential = kv.try_attention(&keys.view(), &offsets, None).unwrap();
+        let sequential = kv.attention(&keys.view(), &offsets, None).unwrap();
         let topology = fu::Topology::new().unwrap();
         let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
-        let mut parallel = Tensor::<f32>::try_full(&[tokens, heads * head_dim], 0.0).unwrap();
-        kv.try_attention_parallel_into(&keys.view(), &offsets, None, &mut parallel, &mut pool)
+        let mut parallel = Tensor::<f32>::full(&[tokens, heads * head_dim], 0.0).unwrap();
+        kv.attention_parallel_into(&keys.view(), &offsets, None, &mut parallel, &mut pool)
             .unwrap();
 
         // Per-task dynamic scheduling must be bit-identical to the single-window run:
@@ -386,15 +386,15 @@ mod tests {
         }
     }
 
-    /// Exercises the Wave 2 attention surface: the `pack_size` query, the `pack` / `attention` /
-    /// `attention_parallel` panic wrappers, and the allocating `try_pack_parallel` /
-    /// `try_attention_parallel`. Parallel packing must reproduce the serial blob byte-for-byte,
-    /// and every compute path must agree bit-for-bit.
+    /// Exercises the Wave 2 attention surface: the `pack_size` query, the `new` / `attention` /
+    /// `attention_parallel` entry points, and the allocating `new_parallel` / `attention_parallel`.
+    /// Parallel packing must reproduce the serial blob byte-for-byte, and every compute path must
+    /// agree bit-for-bit.
     #[cfg(feature = "parallel")]
     #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
     #[test]
     fn attention_capabilities_symmetry() {
-        capabilities::configure_thread(Capabilities::enabled());
+        capabilities::configure_thread(Capabilities::enabled()).unwrap();
         let (heads, head_dim) = (4usize, 64usize);
         let lengths = [7u32, 250, 0, 33, 129]; // ragged mix incl. a pad segment
         let mut offsets = vec![0u32];
@@ -403,15 +403,15 @@ mod tests {
         }
         let tokens = *offsets.last().unwrap() as usize;
 
-        let keys = Tensor::<bf16>::try_full(&[tokens, heads * head_dim], bf16::from_f32(0.125)).unwrap();
-        let values = Tensor::<bf16>::try_full(&[tokens, heads * head_dim], bf16::from_f32(0.75)).unwrap();
+        let keys = Tensor::<bf16>::full(&[tokens, heads * head_dim], bf16::from_f32(0.125)).unwrap();
+        let values = Tensor::<bf16>::full(&[tokens, heads * head_dim], bf16::from_f32(0.75)).unwrap();
 
         // The `pack_size` query must predict the produced blob size exactly.
         let seg_lengths: Vec<u32> = offsets.windows(2).map(|p| p[1] - p[0]).collect();
         let predicted = AttentionPackedMatrix::<bf16>::pack_size(heads, head_dim, &seg_lengths).unwrap();
 
         // Serial pack via the typed constructor.
-        let kv_serial = AttentionPackedMatrix::try_pack(&keys.view(), &values.view(), head_dim, &offsets).unwrap();
+        let kv_serial = AttentionPackedMatrix::new(&keys.view(), &values.view(), head_dim, &offsets).unwrap();
         assert_eq!(
             kv_serial.as_bytes().len(),
             predicted,
@@ -422,8 +422,7 @@ mod tests {
         let topology = fu::Topology::new().unwrap();
         let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
         let kv_parallel =
-            AttentionPackedMatrix::try_pack_parallel(&keys.view(), &values.view(), head_dim, &offsets, &mut pool)
-                .unwrap();
+            AttentionPackedMatrix::new_parallel(&keys.view(), &values.view(), head_dim, &offsets, &mut pool).unwrap();
         assert_eq!(
             kv_serial.as_bytes(),
             kv_parallel.as_bytes(),
@@ -431,25 +430,25 @@ mod tests {
         );
 
         // Serial and parallel attention must agree bit-for-bit.
-        let serial = kv_serial.try_attention(&keys.view(), &offsets, None).unwrap();
+        let serial = kv_serial.attention(&keys.view(), &offsets, None).unwrap();
         let par_alloc = kv_parallel
-            .try_attention_parallel(&keys.view(), &offsets, None, &mut pool)
+            .attention_parallel(&keys.view(), &offsets, None, &mut pool)
             .unwrap();
         for (index, (a, b)) in serial.as_slice().iter().zip(par_alloc.as_slice()).enumerate() {
             assert!(
                 a.to_bits() == b.to_bits(),
-                "try_attention_parallel mismatch at {index}: {a} vs {b}"
+                "attention_parallel mismatch at {index}: {a} vs {b}"
             );
         }
     }
 
     #[test]
     fn tensor_dots_smoke() {
-        capabilities::configure_thread(Capabilities::enabled());
-        let queries = Tensor::<f32>::try_full(&[2, 4], 1.0).unwrap();
-        let targets = Tensor::<f32>::try_full(&[3, 4], 1.0).unwrap();
-        let packed_targets = DotsPackedMatrix::try_pack(&targets).unwrap();
-        let products = queries.dots_packed(&packed_targets);
+        capabilities::configure_thread(Capabilities::enabled()).unwrap();
+        let queries = Tensor::<f32>::full(&[2, 4], 1.0).unwrap();
+        let targets = Tensor::<f32>::full(&[3, 4], 1.0).unwrap();
+        let packed_targets = DotsPackedMatrix::new(&targets).unwrap();
+        let products = queries.dots_packed(&packed_targets).unwrap();
         assert_eq!(products.shape(), &[2, 3]);
         assert!((products.as_slice()[0] - 4.0).abs() < 0.01);
     }

@@ -2698,7 +2698,7 @@ static PACKED_TEST_INIT: std::sync::Once = std::sync::Once::new();
 #[cfg(test)]
 pub(crate) fn init_thread() {
     PACKED_TEST_INIT.call_once(|| {
-        crate::capabilities::configure_thread(crate::Capabilities::enabled());
+        crate::capabilities::configure_thread(crate::Capabilities::enabled()).unwrap();
     });
 }
 

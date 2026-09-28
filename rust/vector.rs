@@ -14,7 +14,7 @@
 //! [`crate::reduce::BitwiseReductionsOps`] trait used on tensor containers.
 //!
 //! All types use [`StorageElement`] as their element bound, with sub-byte types such as i4x2, u4x2,
-//! and u1x8 supported via `try_get`/`try_set` and iterators.
+//! and u1x8 supported via `get`/`set` and iterators.
 //!
 //! # Python-style signed indexing
 //!
@@ -22,13 +22,13 @@
 //!
 //! ```ignore
 //! use numkong::vector::Vector;
-//! let v = Vector::<f32>::try_from_dims(&[10.0, 20.0, 30.0, 40.0, 50.0]).unwrap();
+//! let v = Vector::<f32>::from_dims(&[10.0, 20.0, 30.0, 40.0, 50.0]).unwrap();
 //! // Last element via negative index.
-//! assert_eq!(v.try_get(-1_i32).unwrap(), 50.0);
+//! assert_eq!(v.get(-1_i32).unwrap(), 50.0);
 //! // Second-to-last.
-//! assert_eq!(v.try_get(-2_i32).unwrap(), 40.0);
+//! assert_eq!(v.get(-2_i32).unwrap(), 40.0);
 //! // Out-of-range negatives return an error rather than panic.
-//! assert!(v.try_get(-6_i32).is_err());
+//! assert!(v.get(-6_i32).is_err());
 //! ```
 //!
 //! # Sub-byte element iteration
@@ -39,12 +39,12 @@
 //! ```ignore
 //! use numkong::vector::Vector;
 //! use numkong::types::u1x8;
-//! let mut v = Vector::<u1x8>::try_zeros(8).unwrap();
+//! let mut v = Vector::<u1x8>::zeros(8).unwrap();
 //! for (i, mut bit) in v.iter_mut().enumerate() {
 //!     *bit = if i % 2 == 0 { 1 } else { 0 };
 //! }
-//! assert_eq!(v.try_get(0_usize).unwrap(), 1);
-//! assert_eq!(v.try_get(1_usize).unwrap(), 0);
+//! assert_eq!(v.get(0_usize).unwrap(), 1);
+//! assert_eq!(v.get(1_usize).unwrap(), 0);
 //! ```
 //!
 //! File: rust/vector.rs
@@ -254,8 +254,8 @@ impl VectorIndex for i64 {
 /// ```ignore
 /// use numkong::vector::Vector;
 /// use numkong::types::u1x8;
-/// let mut v = Vector::<u1x8>::try_zeros(8).unwrap();
-/// v.try_set(3_usize, 1).unwrap();
+/// let mut v = Vector::<u1x8>::zeros(8).unwrap();
+/// v.set(3_usize, 1).unwrap();
 /// // Immutable iteration yields BitRef-like proxies that deref to the bit value.
 /// let bits: Vec<u8> = v.iter().map(|b| *b).collect();
 /// assert_eq!(bits, vec![0, 0, 0, 1, 0, 0, 0, 0]);
@@ -285,12 +285,12 @@ impl<'a> BitRef<'a> {
 /// ```ignore
 /// use numkong::vector::Vector;
 /// use numkong::types::u1x8;
-/// let mut v = Vector::<u1x8>::try_zeros(8).unwrap();
+/// let mut v = Vector::<u1x8>::zeros(8).unwrap();
 /// for (i, mut bit) in v.iter_mut().enumerate() {
 ///     *bit = (i % 2 == 0) as u8;
 /// }
-/// assert_eq!(v.try_get(0_usize).unwrap(), 1);
-/// assert_eq!(v.try_get(1_usize).unwrap(), 0);
+/// assert_eq!(v.get(0_usize).unwrap(), 1);
+/// assert_eq!(v.get(1_usize).unwrap(), 0);
 /// ```
 pub struct BitRefMut<'a> {
     byte: *mut u8,
@@ -329,15 +329,14 @@ impl<'a> BitRefMut<'a> {
 /// Size is fixed at construction. Uses [`StorageElement`] for element types, including sub-byte
 /// packed types via `Scalar::dimensions_per_value()`.
 ///
-/// For normal types (`dimensions_per_value() == 1`), supports `Index`/`IndexMut`.
-/// For sub-byte types, use `try_get`/`try_set` or iterators.
+/// Read and write dimensions with `get`/`set`, which return errors rather than panic, or iterators.
 pub struct Vector<Scalar: StorageElement, Alloc: Allocator = Global> {
     /// Pointer to the allocated buffer, typed as `Scalar` for alignment.
     data: NonNull<Scalar>,
     /// Number of logical dimensions. Storage size is derived as
     /// `Scalar::dimensions_to_values(self.dims)`.
     dims: usize,
-    /// Allocated storage-value capacity (`Scalar` slots) — the ceiling `try_resize` honors and the
+    /// Allocated storage-value capacity (`Scalar` slots) — the ceiling `resize` honors and the
     /// count `Drop` frees. Always `>= Scalar::dimensions_to_values(self.dims)`.
     capacity: usize,
     /// Allocator instance.
@@ -354,8 +353,9 @@ impl<Scalar: StorageElement, Alloc: Allocator> Drop for Vector<Scalar, Alloc> {
         }
         // `capacity` came from a layout that succeeded, so rebuilding it cannot fail; a non-zero
         // capacity guarantees the pointer is a live allocation rather than the dangling sentinel.
-        let layout = layout_for::<Scalar>(self.capacity).expect("capacity was sized by a successful layout");
-        unsafe { self.alloc.deallocate(self.data.cast(), layout) };
+        if let Ok(layout) = layout_for::<Scalar>(self.capacity) {
+            unsafe { self.alloc.deallocate(self.data.cast(), layout) };
+        }
     }
 }
 
@@ -390,8 +390,8 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
 
     /// An empty vector that owns no allocation, holding only the given allocator.
     ///
-    /// Cannot fail, because nothing is allocated until the first [`try_reserve`](Self::try_reserve)
-    /// or [`try_resize`](Self::try_resize).
+    /// Cannot fail, because nothing is allocated until the first [`reserve`](Self::reserve)
+    /// or [`resize`](Self::resize).
     pub fn empty_in(alloc: Alloc) -> Self {
         Self {
             data: NonNull::dangling(),
@@ -401,8 +401,8 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
         }
     }
 
-    /// Try to create a zero-initialized vector with the given number of dimensions.
-    pub fn try_zeros_in(dims: usize, alloc: Alloc) -> Result<Self, TensorError> {
+    /// Create a zero-initialized vector with the given number of dimensions.
+    pub fn zeros_in(dims: usize, alloc: Alloc) -> Result<Self, TensorError> {
         ensure_whole_values::<Scalar>(dims)?;
         let storage_count = Scalar::dimensions_to_values(dims);
         if storage_count == 0 {
@@ -422,9 +422,9 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
         })
     }
 
-    /// Try to create a vector filled with `value`.
-    pub fn try_full_in(dims: usize, value: Scalar, alloc: Alloc) -> Result<Self, TensorError> {
-        let v = Self::try_zeros_in(dims, alloc)?;
+    /// Create a vector filled with `value`.
+    pub fn full_in(dims: usize, value: Scalar, alloc: Alloc) -> Result<Self, TensorError> {
+        let v = Self::zeros_in(dims, alloc)?;
         let storage_count = Scalar::dimensions_to_values(v.dims);
         if storage_count > 0 {
             let ptr = v.data.as_ptr();
@@ -435,20 +435,20 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
         Ok(v)
     }
 
-    /// Try to create a vector filled with ones.
-    pub fn try_ones_in(dims: usize, alloc: Alloc) -> Result<Self, TensorError>
+    /// Create a vector filled with ones.
+    pub fn ones_in(dims: usize, alloc: Alloc) -> Result<Self, TensorError>
     where
         Scalar: NumberLike,
     {
-        Self::try_full_in(dims, Scalar::one(), alloc)
+        Self::full_in(dims, Scalar::one(), alloc)
     }
 
-    /// Try to create an uninitialized vector.
+    /// Create an uninitialized vector.
     ///
     /// # Safety
     /// The returned vector's contents are uninitialized. Reading from it before writing is
     /// undefined behavior.
-    pub unsafe fn try_empty_in(dims: usize, alloc: Alloc) -> Result<Self, TensorError> {
+    pub unsafe fn uninitialized_in(dims: usize, alloc: Alloc) -> Result<Self, TensorError> {
         ensure_whole_values::<Scalar>(dims)?;
         let storage_count = Scalar::dimensions_to_values(dims);
         if storage_count == 0 {
@@ -470,32 +470,32 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
         })
     }
 
-    /// Try to create a vector from a slice of scalars — f32 values.
+    /// Create a vector from a slice of scalars — f32 values.
     ///
     /// Each f32 value is converted through `DimScalar::from_f32()` before storage.
-    pub fn try_from_scalars_in(scalars: &[f32], alloc: Alloc) -> Result<Self, TensorError>
+    pub fn from_scalars_in(scalars: &[f32], alloc: Alloc) -> Result<Self, TensorError>
     where
         Scalar: FloatConvertible,
     {
         let element_count = scalars.len();
-        let mut v = Self::try_zeros_in(element_count, alloc)?;
+        let mut v = Self::zeros_in(element_count, alloc)?;
         for (i, &s) in scalars.iter().enumerate() {
-            v.try_set(i, Scalar::DimScalar::from_f32(s))?;
+            v.set(i, Scalar::DimScalar::from_f32(s))?;
         }
         Ok(v)
     }
 
-    /// Try to create a vector from a slice of per-dimension scalars.
+    /// Create a vector from a slice of per-dimension scalars.
     ///
     /// Each element in `dim_values` corresponds to one logical dimension.
-    pub fn try_from_dims_in(dim_values: &[Scalar::DimScalar], alloc: Alloc) -> Result<Self, TensorError>
+    pub fn from_dims_in(dim_values: &[Scalar::DimScalar], alloc: Alloc) -> Result<Self, TensorError>
     where
         Scalar: FloatConvertible,
     {
         let element_count = dim_values.len();
-        let mut v = Self::try_zeros_in(element_count, alloc)?;
+        let mut v = Self::zeros_in(element_count, alloc)?;
         for (i, &d) in dim_values.iter().enumerate() {
-            v.try_set(i, d)?;
+            v.set(i, d)?;
         }
         Ok(v)
     }
@@ -517,24 +517,24 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
     pub fn is_empty(&self) -> bool { self.dims == 0 }
 
     /// Allocated storage-value capacity (`Scalar` slots) — the ceiling
-    /// [`try_resize`](Self::try_resize) honors. Always `>= size_values()`.
+    /// [`resize`](Self::resize) honors. Always `>= size_values()`.
     #[inline]
     pub fn capacity(&self) -> usize { self.capacity }
 
     /// Resize in place to `new_dims` dimensions without moving storage.
     ///
     /// Succeeds only when the packed storage fits `capacity()`, so `as_ptr()` stays stable — call
-    /// [`try_reserve`](Self::try_reserve) first to grow. Returns [`TensorError::CapacityExceeded`]
+    /// [`reserve`](Self::reserve) first to grow. Returns [`TensorError::CapacityExceeded`]
     /// otherwise, leaving the vector unchanged.
     ///
     /// # Example
     /// ```rust,ignore
-    /// let mut v = Vector::<f32>::try_zeros(8)?; // capacity 8
-    /// v.try_resize(3)?;                         // shrink within capacity; as_ptr() unchanged
-    /// assert!(v.try_resize(9).is_err());        // beyond capacity
+    /// let mut v = Vector::<f32>::zeros(8)?; // capacity 8
+    /// v.resize(3)?;                         // shrink within capacity; as_ptr() unchanged
+    /// assert!(v.resize(9).is_err());        // beyond capacity
     /// ```
     #[inline]
-    pub fn try_resize(&mut self, new_dims: usize) -> Result<(), TensorError> {
+    pub fn resize(&mut self, new_dims: usize) -> Result<(), TensorError> {
         ensure_whole_values::<Scalar>(new_dims)?;
         let needed = Scalar::dimensions_to_values(new_dims);
         if needed > self.capacity {
@@ -549,9 +549,9 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
 
     /// Grow the allocated `capacity()` to hold at least `new_dims` dimensions, reallocating and
     /// copying the live elements if needed. A no-op when already large enough. Unlike
-    /// [`try_resize`](Self::try_resize) it may move storage, invalidating any raw pointer captured
-    /// outside the borrow system. Returns [`TensorError::AllocationFailed`] on failure, unchanged.
-    pub fn try_reserve(&mut self, new_dims: usize) -> Result<(), TensorError> {
+    /// [`resize`](Self::resize) it may move storage, invalidating any raw pointer captured outside
+    /// the borrow system. Returns [`TensorError::AllocationFailed`] on failure, unchanged.
+    pub fn reserve(&mut self, new_dims: usize) -> Result<(), TensorError> {
         let needed = Scalar::dimensions_to_values(new_dims);
         if needed <= self.capacity {
             return Ok(());
@@ -624,16 +624,16 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
     ///
     /// ```ignore
     /// use numkong::vector::Vector;
-    /// let v = Vector::<f32>::try_from_dims(&[10.0, 20.0, 30.0, 40.0, 50.0]).unwrap();
-    /// assert_eq!(v.try_get(0_usize).unwrap(), 10.0);
-    /// assert_eq!(v.try_get(-1_i32).unwrap(), 50.0);
-    /// assert_eq!(v.try_get(-5_i32).unwrap(), 10.0);
+    /// let v = Vector::<f32>::from_dims(&[10.0, 20.0, 30.0, 40.0, 50.0]).unwrap();
+    /// assert_eq!(v.get(0_usize).unwrap(), 10.0);
+    /// assert_eq!(v.get(-1_i32).unwrap(), 50.0);
+    /// assert_eq!(v.get(-5_i32).unwrap(), 10.0);
     /// // Out-of-range indices return an error instead of panicking.
-    /// assert!(v.try_get(5_usize).is_err());
-    /// assert!(v.try_get(-6_i32).is_err());
+    /// assert!(v.get(5_usize).is_err());
+    /// assert!(v.get(-6_i32).is_err());
     /// ```
     #[inline]
-    pub fn try_get<AnyIndex: VectorIndex>(&self, index: AnyIndex) -> Result<Scalar::DimScalar, TensorError>
+    pub fn get<AnyIndex: VectorIndex>(&self, index: AnyIndex) -> Result<Scalar::DimScalar, TensorError>
     where
         Scalar: FloatConvertible,
     {
@@ -655,19 +655,15 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
     ///
     /// ```ignore
     /// use numkong::vector::Vector;
-    /// let mut v = Vector::<f32>::try_zeros(4).unwrap();
-    /// v.try_set(0_usize, 1.0).unwrap();
+    /// let mut v = Vector::<f32>::zeros(4).unwrap();
+    /// v.set(0_usize, 1.0).unwrap();
     /// // Signed indices let you write to the tail without computing the length.
-    /// v.try_set(-1_i32, 4.0).unwrap();
-    /// assert_eq!(v.try_get(0_usize).unwrap(), 1.0);
-    /// assert_eq!(v.try_get(3_usize).unwrap(), 4.0);
+    /// v.set(-1_i32, 4.0).unwrap();
+    /// assert_eq!(v.get(0_usize).unwrap(), 1.0);
+    /// assert_eq!(v.get(3_usize).unwrap(), 4.0);
     /// ```
     #[inline]
-    pub fn try_set<AnyIndex: VectorIndex>(
-        &mut self,
-        index: AnyIndex,
-        value: Scalar::DimScalar,
-    ) -> Result<(), TensorError>
+    pub fn set<AnyIndex: VectorIndex>(&mut self, index: AnyIndex, value: Scalar::DimScalar) -> Result<(), TensorError>
     where
         Scalar: FloatConvertible,
     {
@@ -721,7 +717,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
 
 impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
     /// Convert this vector into a 1D tensor, transferring ownership without copying.
-    pub fn try_into_tensor<const MAX_RANK: usize>(self) -> Result<Tensor<Scalar, Alloc, MAX_RANK>, TensorError> {
+    pub fn into_tensor<const MAX_RANK: usize>(self) -> Result<Tensor<Scalar, Alloc, MAX_RANK>, TensorError> {
         if MAX_RANK == 0 {
             return Err(TensorError::TooManyRanks { got: 1 });
         }
@@ -741,17 +737,17 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
 
 impl<Scalar: StorageElement> Vector<Scalar, Global> {
     /// Create a zero-initialized vector with the global allocator.
-    pub fn try_zeros(dims: usize) -> Result<Self, TensorError> { Self::try_zeros_in(dims, Global) }
+    pub fn zeros(dims: usize) -> Result<Self, TensorError> { Self::zeros_in(dims, Global) }
 
     /// Create a vector filled with `value`.
-    pub fn try_full(dims: usize, value: Scalar) -> Result<Self, TensorError> { Self::try_full_in(dims, value, Global) }
+    pub fn full(dims: usize, value: Scalar) -> Result<Self, TensorError> { Self::full_in(dims, value, Global) }
 
     /// Create a vector filled with ones.
-    pub fn try_ones(dims: usize) -> Result<Self, TensorError>
+    pub fn ones(dims: usize) -> Result<Self, TensorError>
     where
         Scalar: NumberLike,
     {
-        Self::try_full(dims, Scalar::one())
+        Self::full(dims, Scalar::one())
     }
 
     /// Create an uninitialized vector.
@@ -759,61 +755,31 @@ impl<Scalar: StorageElement> Vector<Scalar, Global> {
     /// # Safety
     /// The returned vector's contents are uninitialized. Reading from it before writing is
     /// undefined behavior.
-    pub unsafe fn try_empty(dims: usize) -> Result<Self, TensorError> { unsafe { Self::try_empty_in(dims, Global) } }
+    pub unsafe fn uninitialized(dims: usize) -> Result<Self, TensorError> {
+        unsafe { Self::uninitialized_in(dims, Global) }
+    }
 
     /// Create a vector from scalar f32 values.
-    pub fn try_from_scalars(scalars: &[f32]) -> Result<Self, TensorError>
+    pub fn from_scalars(scalars: &[f32]) -> Result<Self, TensorError>
     where
         Scalar: FloatConvertible,
     {
-        Self::try_from_scalars_in(scalars, Global)
+        Self::from_scalars_in(scalars, Global)
     }
 
     /// Create a vector from per-dimension scalars.
-    pub fn try_from_dims(dims: &[Scalar::DimScalar]) -> Result<Self, TensorError>
+    pub fn from_dims(dims: &[Scalar::DimScalar]) -> Result<Self, TensorError>
     where
         Scalar: FloatConvertible,
     {
-        Self::try_from_dims_in(dims, Global)
-    }
-}
-
-// Index for normal types (dimensions_per_value == 1)
-impl<AnyIndex: VectorIndex, Scalar: StorageElement, Alloc: Allocator> core::ops::Index<AnyIndex>
-    for Vector<Scalar, Alloc>
-{
-    type Output = Scalar;
-
-    #[inline]
-    fn index(&self, index: AnyIndex) -> &Scalar {
-        let i = index.resolve(self.dims).expect("vector index out of bounds");
-        debug_assert_eq!(
-            Scalar::dimensions_per_value(),
-            1,
-            "Index trait not supported for sub-byte types"
-        );
-        unsafe { &*self.data.as_ptr().add(i) }
-    }
-}
-
-impl<AnyIndex: VectorIndex, Scalar: StorageElement, Alloc: Allocator> core::ops::IndexMut<AnyIndex>
-    for Vector<Scalar, Alloc>
-{
-    #[inline]
-    fn index_mut(&mut self, index: AnyIndex) -> &mut Scalar {
-        let i = index.resolve(self.dims).expect("vector index out of bounds");
-        debug_assert_eq!(
-            Scalar::dimensions_per_value(),
-            1,
-            "IndexMut trait not supported for sub-byte types"
-        );
-        unsafe { &mut *self.data.as_ptr().add(i) }
+        Self::from_dims_in(dims, Global)
     }
 }
 
 impl<Scalar: StorageElement + Clone, Alloc: Allocator + Clone> Vector<Scalar, Alloc> {
-    /// Try to clone this vector, returning an error on allocation failure.
-    pub fn try_clone(&self) -> Result<Self, TensorError> {
+    /// Clone this vector, returning an error on allocation failure.
+    #[allow(clippy::should_implement_trait)]
+    pub fn clone(&self) -> Result<Self, TensorError> {
         let storage_count = Scalar::dimensions_to_values(self.dims);
         if storage_count == 0 {
             return Ok(Self {
@@ -836,10 +802,6 @@ impl<Scalar: StorageElement + Clone, Alloc: Allocator + Clone> Vector<Scalar, Al
             alloc: self.alloc.clone(),
         })
     }
-}
-
-impl<Scalar: StorageElement + Clone, Alloc: Allocator + Clone> Clone for Vector<Scalar, Alloc> {
-    fn clone(&self) -> Self { self.try_clone().expect("vector clone allocation failed") }
 }
 
 impl<Scalar: StorageElement> Default for Vector<Scalar, Global> {
@@ -865,13 +827,13 @@ impl<Scalar: StorageElement> Default for Vector<Scalar, Global> {
 /// column of a tensor.
 ///
 /// Because the stride is stored in bytes and may be negative, views can walk memory in either
-/// direction, skip entries via [`VectorView::try_strided`], or expose a reversed iteration order
+/// direction, skip entries via [`VectorView::strided`], or expose a reversed iteration order
 /// via [`VectorView::rev`].
 ///
 /// Use [`VectorView`] when only read access is needed. Its mutable counterpart is [`VectorSpan`],
 /// which offers the same striding semantics plus element writes. Both types support the
-/// [`VectorIndex`] trait, so `view[0_usize]`, `view[-1_i32]`, and friends all resolve via the same
-/// Python-style rules.
+/// [`VectorIndex`] trait, so `view.get(0_usize)`, `view.get(-1_i32)`, and friends all resolve via
+/// the same Python-style rules.
 pub struct VectorView<'a, Scalar: StorageElement> {
     data: *const Scalar,
     dims: usize,
@@ -938,12 +900,12 @@ impl<'a, Scalar: StorageElement> VectorView<'a, Scalar> {
         }
     }
 
-    /// Try to get element at index; supports signed indexing.
+    /// Get element at index; supports signed indexing.
     ///
     /// Returns the native `DimScalar` type. For sub-byte types, uses value_index for stride-based
     /// pointer walks to avoid buffer overread.
     #[inline]
-    pub fn try_get<AnyIndex: VectorIndex>(&self, index: AnyIndex) -> Result<Scalar::DimScalar, TensorError>
+    pub fn get<AnyIndex: VectorIndex>(&self, index: AnyIndex) -> Result<Scalar::DimScalar, TensorError>
     where
         Scalar: FloatConvertible,
     {
@@ -980,7 +942,7 @@ impl<'a, Scalar: StorageElement> VectorView<'a, Scalar> {
     ///
     /// Supports negative steps for reverse iteration. `step` must be non-zero.
     /// Returns an error if `start` or `end` exceed `dims()`, or if `step == 0`.
-    pub fn try_strided(&self, start: usize, end: usize, step: isize) -> Result<Self, TensorError> {
+    pub fn strided(&self, start: usize, end: usize, step: isize) -> Result<Self, TensorError> {
         if start > self.dims || end > self.dims || step == 0 {
             return Err(TensorError::IndexOutOfBounds {
                 index: start.max(end),
@@ -1023,21 +985,6 @@ impl<'a, Scalar: StorageElement> VectorView<'a, Scalar> {
     }
 }
 
-impl<'a, AnyIndex: VectorIndex, Scalar: StorageElement> core::ops::Index<AnyIndex> for VectorView<'a, Scalar> {
-    type Output = Scalar;
-
-    #[inline]
-    fn index(&self, index: AnyIndex) -> &Scalar {
-        let i = index.resolve(self.dims).expect("view index out of bounds");
-        debug_assert_eq!(
-            Scalar::dimensions_per_value(),
-            1,
-            "Index trait not supported for sub-byte types"
-        );
-        unsafe { &*((self.data as *const u8).offset(self.stride_bytes * i as isize) as *const Scalar) }
-    }
-}
-
 // endregion: VectorView
 
 // region: VectorSpan
@@ -1046,7 +993,7 @@ impl<'a, AnyIndex: VectorIndex, Scalar: StorageElement> core::ops::Index<AnyInde
 ///
 /// `VectorSpan` is the read-write counterpart of [`VectorView`]: it still performs zero-copy
 /// borrowing via a raw pointer, dimension count, and byte stride, but additionally allows element
-/// writes through `try_set`, `fill`, `iter_mut`, and `IndexMut`. Spans are typically obtained via
+/// writes through `set`, `fill`, and `iter_mut`. Spans are typically obtained via
 /// [`Vector::span`] or a mutable slice of a tensor row.
 ///
 /// Like views, spans support signed [`VectorIndex`] indexing, negative strides via
@@ -1119,25 +1066,21 @@ impl<'a, Scalar: StorageElement> VectorSpan<'a, Scalar> {
         }
     }
 
-    /// Try to get element at index.
+    /// Get element at index.
     #[inline]
-    pub fn try_get<AnyIndex: VectorIndex>(&self, index: AnyIndex) -> Result<Scalar::DimScalar, TensorError>
+    pub fn get<AnyIndex: VectorIndex>(&self, index: AnyIndex) -> Result<Scalar::DimScalar, TensorError>
     where
         Scalar: FloatConvertible,
     {
-        self.as_view().try_get(index)
+        self.as_view().get(index)
     }
 
-    /// Try to set the element at `index`.
+    /// Set the element at `index`.
     ///
     /// Accepts the native `DimScalar` type. For sub-byte types, uses value_index for stride-based
     /// pointer walks to avoid buffer overwrite.
     #[inline]
-    pub fn try_set<AnyIndex: VectorIndex>(
-        &mut self,
-        index: AnyIndex,
-        value: Scalar::DimScalar,
-    ) -> Result<(), TensorError>
+    pub fn set<AnyIndex: VectorIndex>(&mut self, index: AnyIndex, value: Scalar::DimScalar) -> Result<(), TensorError>
     where
         Scalar: FloatConvertible,
     {
@@ -1202,34 +1145,6 @@ impl<'a, Scalar: StorageElement> VectorSpan<'a, Scalar> {
     }
 }
 
-impl<'a, AnyIndex: VectorIndex, Scalar: StorageElement> core::ops::Index<AnyIndex> for VectorSpan<'a, Scalar> {
-    type Output = Scalar;
-
-    #[inline]
-    fn index(&self, index: AnyIndex) -> &Scalar {
-        let i = index.resolve(self.dims).expect("span index out of bounds");
-        debug_assert_eq!(
-            Scalar::dimensions_per_value(),
-            1,
-            "Index trait not supported for sub-byte types"
-        );
-        unsafe { &*((self.data as *const u8).offset(self.stride_bytes * i as isize) as *const Scalar) }
-    }
-}
-
-impl<'a, AnyIndex: VectorIndex, Scalar: StorageElement> core::ops::IndexMut<AnyIndex> for VectorSpan<'a, Scalar> {
-    #[inline]
-    fn index_mut(&mut self, index: AnyIndex) -> &mut Scalar {
-        let i = index.resolve(self.dims).expect("span index out of bounds");
-        debug_assert_eq!(
-            Scalar::dimensions_per_value(),
-            1,
-            "IndexMut trait not supported for sub-byte types"
-        );
-        unsafe { &mut *((self.data as *mut u8).offset(self.stride_bytes * i as isize) as *mut Scalar) }
-    }
-}
-
 // endregion: VectorSpan
 
 // region: Bit Reductions on u1x8 vectors
@@ -1242,67 +1157,66 @@ use crate::types::u1x8;
 /// Shared body for the inherent `popcount` methods on `Vector<u1x8>`, `VectorView<u1x8>`, and
 /// `VectorSpan<u1x8>`. Sub-byte vector views always have a one-byte stride — you cannot stride by
 /// less than a byte — so contiguous storage is implied — the slice form is always valid.
-fn popcount_u1x8_storage(storage: &[u1x8]) -> u64 {
+fn popcount_u1x8_storage(storage: &[u1x8]) -> Result<u64, TensorError> {
     if storage.is_empty() {
-        return 0;
+        return Ok(0);
     }
-    let (sum, _sum_of_squares) = u1x8::reduce_moments(storage, core::mem::size_of::<u1x8>())
-        .expect("u1 moments have a serial capability under every mask");
-    sum
+    let (sum, _sum_of_squares) = u1x8::reduce_moments(storage, core::mem::size_of::<u1x8>())?;
+    Ok(sum)
 }
 
 impl<Alloc: Allocator> Vector<u1x8, Alloc> {
     /// Number of set bits across the entire vector.
-    pub fn popcount(&self) -> u64 {
+    pub fn popcount(&self) -> Result<u64, TensorError> {
         let storage_count = u1x8::dimensions_to_values(self.dims);
         let storage = unsafe { core::slice::from_raw_parts(self.data.as_ptr(), storage_count) };
         popcount_u1x8_storage(storage)
     }
 
     /// `true` if at least one bit in the vector is set.
-    pub fn any_set(&self) -> bool { self.popcount() != 0 }
+    pub fn any_set(&self) -> Result<bool, TensorError> { Ok(self.popcount()? != 0) }
 
     /// `true` if no bit in the vector is set.
-    pub fn none_set(&self) -> bool { !self.any_set() }
+    pub fn none_set(&self) -> Result<bool, TensorError> { Ok(self.popcount()? == 0) }
 
     /// `true` if every bit in the vector is set.
-    pub fn all_set(&self) -> bool { self.popcount() == self.dims as u64 }
+    pub fn all_set(&self) -> Result<bool, TensorError> { Ok(self.popcount()? == self.dims as u64) }
 }
 
 impl<'a> VectorView<'a, u1x8> {
     /// Number of set bits across the entire vector view.
-    pub fn popcount(&self) -> u64 {
+    pub fn popcount(&self) -> Result<u64, TensorError> {
         let storage_count = u1x8::dimensions_to_values(self.dims);
         let storage = unsafe { core::slice::from_raw_parts(self.data, storage_count) };
         popcount_u1x8_storage(storage)
     }
 
     /// `true` if at least one bit in the vector view is set.
-    pub fn any_set(&self) -> bool { self.popcount() != 0 }
+    pub fn any_set(&self) -> Result<bool, TensorError> { Ok(self.popcount()? != 0) }
 
     /// `true` if no bit in the vector view is set.
-    pub fn none_set(&self) -> bool { !self.any_set() }
+    pub fn none_set(&self) -> Result<bool, TensorError> { Ok(self.popcount()? == 0) }
 
     /// `true` if every bit in the vector view is set.
-    pub fn all_set(&self) -> bool { self.popcount() == self.dims as u64 }
+    pub fn all_set(&self) -> Result<bool, TensorError> { Ok(self.popcount()? == self.dims as u64) }
 }
 
 impl<'a> VectorSpan<'a, u1x8> {
     /// Number of set bits across the entire vector span.
-    pub fn popcount(&self) -> u64 {
+    pub fn popcount(&self) -> Result<u64, TensorError> {
         let storage_count = u1x8::dimensions_to_values(self.dims);
         let storage = unsafe { core::slice::from_raw_parts(self.data as *const u1x8, storage_count) };
         popcount_u1x8_storage(storage)
     }
 
     /// `true` if at least one bit in the vector span is set.
-    pub fn any_set(&self) -> bool { self.popcount() != 0 }
+    pub fn any_set(&self) -> Result<bool, TensorError> { Ok(self.popcount()? != 0) }
 
     /// `true` if no bit in the vector span is set.
-    pub fn none_set(&self) -> bool { !self.any_set() }
+    pub fn none_set(&self) -> Result<bool, TensorError> { Ok(self.popcount()? == 0) }
 
     /// `true` if every bit in the vector span is set.
-    pub fn all_set(&self) -> bool { self.popcount() == self.dims as u64 }
+    pub fn all_set(&self) -> Result<bool, TensorError> { Ok(self.popcount()? == self.dims as u64) }
 }
 
 // endregion: Bit Reductions on u1x8 vectors
@@ -1822,7 +1736,7 @@ mod tests {
     fn check_vector_roundtrip<Scalar: FloatConvertible>() {
         let dims_per_value = Scalar::dimensions_per_value();
         let test_dims = 16 * dims_per_value;
-        let v = Vector::<Scalar>::try_zeros(test_dims).unwrap();
+        let v = Vector::<Scalar>::zeros(test_dims).unwrap();
         assert_eq!(v.dims(), test_dims);
         assert_eq!(v.size_values(), test_dims / dims_per_value);
         let count = v.iter().count();
@@ -1835,12 +1749,12 @@ mod tests {
     {
         let dims_per_value = Scalar::dimensions_per_value();
         let test_dims = 4 * dims_per_value;
-        let mut v = Vector::<Scalar>::try_zeros(test_dims).unwrap();
+        let mut v = Vector::<Scalar>::zeros(test_dims).unwrap();
         let one = Scalar::DimScalar::from_f32(1.0);
-        v.try_set(0_usize, one).unwrap();
-        v.try_set((test_dims - 1) as i32, one).unwrap();
-        let first = v.try_get(0_usize).unwrap();
-        let last = v.try_get(-1_i32).unwrap();
+        v.set(0_usize, one).unwrap();
+        v.set((test_dims - 1) as i32, one).unwrap();
+        let first = v.get(0_usize).unwrap();
+        let last = v.get(-1_i32).unwrap();
         assert!(first.to_f32() >= 0.5, "first dim should be ~1.0, got {:?}", first);
         assert!(last.to_f32() >= 0.5, "last dim should be ~1.0, got {:?}", last);
     }
@@ -1868,41 +1782,38 @@ mod tests {
     #[test]
     fn vector_rejects_partial_packed_values() {
         assert!(matches!(
-            Vector::<i4x2>::try_zeros(3),
+            Vector::<i4x2>::zeros(3),
             Err(TensorError::InvalidShape { .. })
         ));
         assert!(matches!(
-            Vector::<u1x8>::try_zeros(9),
+            Vector::<u1x8>::zeros(9),
             Err(TensorError::InvalidShape { .. })
         ));
-        let mut nibbles = Vector::<u4x2>::try_zeros(4).unwrap();
-        assert!(matches!(nibbles.try_resize(3), Err(TensorError::InvalidShape { .. })));
+        let mut nibbles = Vector::<u4x2>::zeros(4).unwrap();
+        assert!(matches!(nibbles.resize(3), Err(TensorError::InvalidShape { .. })));
     }
 
     fn check_vector_resize<Scalar: FloatConvertible>() {
         let dpv = Scalar::dimensions_per_value();
-        let mut v = Vector::<Scalar>::try_zeros(8 * dpv).unwrap();
+        let mut v = Vector::<Scalar>::zeros(8 * dpv).unwrap();
         let cap = v.capacity();
         assert_eq!(cap, 8);
         let ptr = v.as_ptr();
         // Shrink within capacity: storage does not move.
-        v.try_resize(4 * dpv).unwrap();
+        v.resize(4 * dpv).unwrap();
         assert_eq!(v.dims(), 4 * dpv);
         assert_eq!(v.capacity(), cap);
-        assert_eq!(v.as_ptr(), ptr, "try_resize must not move storage");
+        assert_eq!(v.as_ptr(), ptr, "resize must not move storage");
         // Grow back, still within capacity.
-        v.try_resize(8 * dpv).unwrap();
+        v.resize(8 * dpv).unwrap();
         assert_eq!(v.as_ptr(), ptr);
         // Beyond capacity fails, leaving the vector unchanged.
-        assert!(matches!(
-            v.try_resize(9 * dpv),
-            Err(TensorError::CapacityExceeded { .. })
-        ));
+        assert!(matches!(v.resize(9 * dpv), Err(TensorError::CapacityExceeded { .. })));
         assert_eq!(v.dims(), 8 * dpv);
         // Reserve grows capacity and may move; resize into the grown envelope then succeeds.
-        v.try_reserve(32 * dpv).unwrap();
+        v.reserve(32 * dpv).unwrap();
         assert!(v.capacity() >= 32);
-        v.try_resize(32 * dpv).unwrap();
+        v.resize(32 * dpv).unwrap();
         assert_eq!(v.dims(), 32 * dpv);
         // Clear keeps capacity.
         v.clear();
@@ -1924,8 +1835,8 @@ mod tests {
 
     #[test]
     fn vector_reserve_preserves_contents() {
-        let mut v = Vector::<f32>::try_from_scalars(&[1.0, 2.0, 3.0, 4.0]).unwrap();
-        v.try_reserve(64).unwrap();
+        let mut v = Vector::<f32>::from_scalars(&[1.0, 2.0, 3.0, 4.0]).unwrap();
+        v.reserve(64).unwrap();
         assert!(v.capacity() >= 64);
         assert_eq!(v.dims(), 4);
         assert_eq!(v.as_slice().to_vec(), vec![1.0, 2.0, 3.0, 4.0]);
@@ -1933,43 +1844,43 @@ mod tests {
 
     #[test]
     fn vec_index_signed() {
-        let v = Vector::<f32>::try_from_dims(&[10.0, 20.0, 30.0, 40.0, 50.0]).unwrap();
+        let v = Vector::<f32>::from_dims(&[10.0, 20.0, 30.0, 40.0, 50.0]).unwrap();
         // Positive indexing
-        assert_eq!(v[0], 10.0);
-        assert_eq!(v[4], 50.0);
+        assert_eq!(v.get(0).unwrap(), 10.0);
+        assert_eq!(v.get(4).unwrap(), 50.0);
         // Negative indexing — i32 default for integer literals
-        assert_eq!(v[-1_i32], 50.0);
-        assert_eq!(v[-2_i32], 40.0);
-        assert_eq!(v[-5_i32], 10.0);
+        assert_eq!(v.get(-1_i32).unwrap(), 50.0);
+        assert_eq!(v.get(-2_i32).unwrap(), 40.0);
+        assert_eq!(v.get(-5_i32).unwrap(), 10.0);
     }
 
     #[test]
     fn vector_view_stride() {
-        let v = Vector::<f32>::try_from_scalars(&[1.0, 2.0, 3.0, 4.0, 5.0]).unwrap();
+        let v = Vector::<f32>::from_scalars(&[1.0, 2.0, 3.0, 4.0, 5.0]).unwrap();
         let view = v.view();
         assert!(view.is_contiguous());
         assert_eq!(view.size(), 5);
 
         // Reversed view
         let rev = view.rev();
-        assert_eq!(rev.try_get(0_usize).unwrap(), 5.0);
-        assert_eq!(rev.try_get(4_usize).unwrap(), 1.0);
+        assert_eq!(rev.get(0_usize).unwrap(), 5.0);
+        assert_eq!(rev.get(4_usize).unwrap(), 1.0);
     }
 
     #[test]
     fn vector_span_fill() {
-        let mut v = Vector::<f32>::try_zeros(4).unwrap();
+        let mut v = Vector::<f32>::zeros(4).unwrap();
         {
             let mut span = v.span();
             span.fill(42.0);
         }
-        assert_eq!(v[0], 42.0);
-        assert_eq!(v[3], 42.0);
+        assert_eq!(v.get(0).unwrap(), 42.0);
+        assert_eq!(v.get(3).unwrap(), 42.0);
     }
 
     #[test]
     fn vector_iter() {
-        let v = Vector::<f32>::try_from_scalars(&[1.0, 2.0, 3.0]).unwrap();
+        let v = Vector::<f32>::from_scalars(&[1.0, 2.0, 3.0]).unwrap();
         let values: Vec<f32> = v.iter().map(|x| *x).collect();
         assert_eq!(values, vec![1.0, 2.0, 3.0]);
 
@@ -1980,11 +1891,11 @@ mod tests {
 
     #[test]
     fn view_strided_iteration() {
-        let v = Vector::<f32>::try_from_scalars(&[1.0, 2.0, 3.0, 4.0, 5.0]).unwrap();
+        let v = Vector::<f32>::from_scalars(&[1.0, 2.0, 3.0, 4.0, 5.0]).unwrap();
         let view = v.view();
 
         // Every other element
-        let strided = view.try_strided(0, 5, 2).unwrap();
+        let strided = view.strided(0, 5, 2).unwrap();
         assert_eq!(strided.size(), 3);
         let values: Vec<f32> = strided.iter().map(|x| *x).collect();
         assert_eq!(values, vec![1.0, 3.0, 5.0]);
@@ -1992,50 +1903,50 @@ mod tests {
 
     #[test]
     fn vector_filled() {
-        let v = Vector::<f32>::try_full(3, 7.5).unwrap();
-        assert_eq!(v[0], 7.5);
-        assert_eq!(v[1], 7.5);
-        assert_eq!(v[2], 7.5);
+        let v = Vector::<f32>::full(3, 7.5).unwrap();
+        assert_eq!(v.get(0).unwrap(), 7.5);
+        assert_eq!(v.get(1).unwrap(), 7.5);
+        assert_eq!(v.get(2).unwrap(), 7.5);
     }
 
     #[test]
     fn empty_vector() {
-        let v = Vector::<f32>::try_zeros(0).unwrap();
+        let v = Vector::<f32>::zeros(0).unwrap();
         assert!(v.is_empty());
         assert_eq!(v.size(), 0);
     }
 
     #[test]
-    #[should_panic]
     fn index_out_of_bounds() {
-        let v = Vector::<f32>::try_zeros(3).unwrap();
-        let _ = v[3_usize];
+        let v = Vector::<f32>::zeros(3).unwrap();
+        assert!(v.get(3_usize).is_err());
+        assert!(v.get(-4_i32).is_err());
     }
 
     #[test]
     fn vector_allclose_matching() {
-        let a = Vector::<f32>::try_full(4, 1.0).unwrap();
-        let b = Vector::<f32>::try_full(4, 1.0 + 1e-7).unwrap();
+        let a = Vector::<f32>::full(4, 1.0).unwrap();
+        let b = Vector::<f32>::full(4, 1.0 + 1e-7).unwrap();
         assert!(a.allclose(&b, 1e-6, 0.0));
     }
 
     #[test]
     fn vector_allclose_mismatching() {
-        let a = Vector::<f32>::try_full(4, 1.0).unwrap();
-        let b = Vector::<f32>::try_full(4, 2.0).unwrap();
+        let a = Vector::<f32>::full(4, 1.0).unwrap();
+        let b = Vector::<f32>::full(4, 2.0).unwrap();
         assert!(!a.allclose(&b, 1e-6, 0.0));
     }
 
     #[test]
     fn vector_allclose_different_dims() {
-        let a = Vector::<f32>::try_full(3, 1.0).unwrap();
-        let b = Vector::<f32>::try_full(4, 1.0).unwrap();
+        let a = Vector::<f32>::full(3, 1.0).unwrap();
+        let b = Vector::<f32>::full(4, 1.0).unwrap();
         assert!(!a.allclose(&b, 1e-6, 1e-6));
     }
 
     #[test]
     fn display_precision_forwarding() {
-        let v = Vector::<f32>::try_full(3, 1.0).unwrap();
+        let v = Vector::<f32>::full(3, 1.0).unwrap();
         let s = format!("{:.2}", v);
         assert_eq!(s, "[1.00, 1.00, 1.00]");
     }
@@ -2046,12 +1957,12 @@ mod tests {
     where
         Scalar::DimScalar: core::fmt::Debug,
     {
-        let mut v = Vector::<Scalar>::try_zeros(values.len()).unwrap();
+        let mut v = Vector::<Scalar>::zeros(values.len()).unwrap();
         for (i, mut slot) in v.iter_mut().enumerate() {
             *slot = Scalar::DimScalar::from_f32(values[i]);
         }
         for (i, &expected) in values.iter().enumerate() {
-            let got = v.try_get(i).unwrap().to_f32();
+            let got = v.get(i).unwrap().to_f32();
             assert!(
                 (got - expected).abs() < 0.5,
                 "iter_mut[{i}] = {got}, expected {expected}"
@@ -2068,7 +1979,7 @@ mod tests {
 
     #[test]
     fn vector_span_iter_double_ended() {
-        let mut v = Vector::<f32>::try_from_scalars(&[1.0, 2.0, 3.0]).unwrap();
+        let mut v = Vector::<f32>::from_scalars(&[1.0, 2.0, 3.0]).unwrap();
         let mut span = v.span();
         let mut it = span.iter_mut();
         // Take from front
@@ -2081,15 +1992,15 @@ mod tests {
         drop(last);
         drop(it);
         drop(span);
-        assert_eq!(v.try_get(0_usize).unwrap(), 10.0);
-        assert_eq!(v.try_get(1_usize).unwrap(), 2.0);
-        assert_eq!(v.try_get(2_usize).unwrap(), 30.0);
+        assert_eq!(v.get(0_usize).unwrap(), 10.0);
+        assert_eq!(v.get(1_usize).unwrap(), 2.0);
+        assert_eq!(v.get(2_usize).unwrap(), 30.0);
     }
 
     #[test]
     fn vector_iterator_alias_compat() {
         // VectorIterator type alias should still work
-        let v = Vector::<f32>::try_from_scalars(&[1.0]).unwrap();
+        let v = Vector::<f32>::from_scalars(&[1.0]).unwrap();
         let _it: VectorIterator<'_, f32> = v.iter();
     }
 
@@ -2115,7 +2026,7 @@ mod tests {
     fn fill_zeros_and_fill_on_vector_and_span() {
         // Vector: Fill trait gives fill_zeros + fill methods.
         use crate::tensor::Fill;
-        let mut v = Vector::<f32>::try_full(8, 3.5).unwrap();
+        let mut v = Vector::<f32>::full(8, 3.5).unwrap();
         v.fill_zeros();
         assert!(v.as_slice().iter().all(|&value| value == 0.0));
         v.fill(2.5);
@@ -2133,13 +2044,13 @@ mod tests {
     fn copy_from_round_trips_vector_and_span() {
         use crate::tensor::CopyFrom;
         // Vector: CopyFrom<&[Scalar]>.
-        let mut destination = Vector::<f32>::try_zeros(4).unwrap();
+        let mut destination = Vector::<f32>::zeros(4).unwrap();
         let source = [1.0f32, 2.0, 3.0, 4.0];
         destination.copy_from(source.as_slice()).unwrap();
         assert_eq!(destination.as_slice(), &source[..]);
 
         // VectorSpan: CopyFrom<&VectorView>.
-        let source_vec = Vector::<f32>::try_from_scalars(&[5.0, 6.0, 7.0, 8.0]).unwrap();
+        let source_vec = Vector::<f32>::from_scalars(&[5.0, 6.0, 7.0, 8.0]).unwrap();
         let mut destination_buffer = [0.0f32; 4];
         {
             let mut destination_span = unsafe {
@@ -2158,20 +2069,20 @@ mod tests {
     #[test]
     fn bit_reductions_on_u1x8_vector_match_method_names() {
         use crate::types::u1x8;
-        let mut bits_vector = Vector::<u1x8>::try_zeros(32).unwrap();
+        let mut bits_vector = Vector::<u1x8>::zeros(32).unwrap();
         // Set all 32 bits.
         for slot in bits_vector.as_mut_slice().iter_mut() {
             *slot = u1x8(0xFFu8);
         }
-        assert_eq!(bits_vector.popcount(), 32);
-        assert!(bits_vector.any_set());
-        assert!(!bits_vector.none_set());
-        assert!(bits_vector.all_set());
+        assert_eq!(bits_vector.popcount().unwrap(), 32);
+        assert!(bits_vector.any_set().unwrap());
+        assert!(!bits_vector.none_set().unwrap());
+        assert!(bits_vector.all_set().unwrap());
 
         bits_vector.fill_zeros();
-        assert_eq!(bits_vector.popcount(), 0);
-        assert!(!bits_vector.any_set());
-        assert!(bits_vector.none_set());
+        assert_eq!(bits_vector.popcount().unwrap(), 0);
+        assert!(!bits_vector.any_set().unwrap());
+        assert!(bits_vector.none_set().unwrap());
     }
 }
 

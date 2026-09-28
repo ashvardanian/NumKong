@@ -14,7 +14,7 @@ That matters for fp16, bf16, fp8, packed bits, and strided reductions.
 use numkong::{capabilities, Capabilities, Dot};
 
 fn main() {
-    capabilities::configure_thread(Capabilities::enabled());
+    capabilities::configure_thread(Capabilities::enabled()).unwrap();
     let a = [1.0_f32, 2.0, 3.0];
     let b = [4.0_f32, 5.0, 6.0];
     let dot = f32::dot(&a, &b).unwrap();
@@ -30,7 +30,7 @@ It is a good fit if you want most of the native breadth without dropping into a 
 __Trait-first scalar API.__
 `Type::operation(&a, &b)` stays compact and predictable.
 __Allocator-aware tensors.__
-`Tensor`, `PackedMatrix`, and `MaxSimPackedMatrix` can use custom allocators.
+`Tensor`, `DotsPackedMatrix`, and `MaxSimPackedMatrix` can use custom allocators.
 __Storage-first low precision.__
 `f16`, `bf16`, fp8, fp6, and packed integer wrappers are first-class types.
 __Matrix kernels with explicit contracts.__
@@ -49,7 +49,7 @@ The `parallel` feature is the intended native orchestration layer.
 | Runtime SIMD dispatch        | per call, the highest capability the CPU runs and the build holds, across x86, Arm, RISC-V                                | none                                                 | none                                                 |
 | Packed matrix, GEMM-like     | pack once, reuse across query batches                                                                               | standard matmul; no persistent packing               | `dot` for matmul; no persistent packing              |
 | Symmetric kernels, SYRK-like | skip duplicate pairs, up to 2x speedup for self-distance                                                            | no duplicate-pair skipping                           | no duplicate-pair skipping                           |
-| Memory model                 | Caller-owned; `Tensor`/`PackedMatrix` support custom allocators                                                     | Heap-allocated matrices; custom storage trait        | Heap-allocated; no custom allocator support          |
+| Memory model                 | Caller-owned; `Tensor`/`DotsPackedMatrix` support custom allocators                                                 | Heap-allocated matrices; custom storage trait        | Heap-allocated; no custom allocator support          |
 | Host-side parallelism        | row-range partitioning via reusable `ThreadPool`; no hidden threads                                                 | Rayon-based parallelism possible                     | Rayon-based parallelism possible                     |
 
 [nalgebra]: https://github.com/dimforge/nalgebra
@@ -79,7 +79,17 @@ numkong = { version = "7", features = ["parallel", "std"] }
 The crate uses the `cc` build system to compile the C library automatically.
 All supported backends for the target architecture are compiled into a single binary and selected at runtime.
 
-The two Cargo features are `std`, which enables standard library support, and `parallel`, which adds host-side orchestration via ForkUnion and implies `std`.
+The two CPU features are `std`, which enables standard library support, and `parallel`, which adds host-side orchestration via ForkUnion and implies `std`.
+
+The `cuda` and `rocm` features add the NVIDIA and AMD GPU kernels, and may be combined.
+They build the library through CMake instead of `cc`, so the build machine needs CMake 3.21 or newer and `nvcc` or `hipcc`.
+The binary then links `libcudart` or `libamdhip64` from the toolkit CMake found.
+The `NUMKONG_TARGET_*` variables below steer only the `cc` build.
+
+```toml
+[dependencies]
+numkong = { version = "7", features = ["cuda"] }
+```
 
 Backend selection follows the target architecture.
 ARM gets NEON, SVE, and SME, with SME available on Linux, FreeBSD, and macOS.
@@ -108,7 +118,7 @@ It must be called once per thread before using AMX operations.
 use numkong::{capabilities, Capabilities, Capability};
 
 let enabled = Capabilities::enabled();
-capabilities::configure_thread(enabled);
+capabilities::configure_thread(enabled).unwrap();
 
 println!("dispatching to {enabled}"); // like "serial,neon,neonhalf"
 if enabled.contains(Capability::SapphireAmx) {
@@ -323,30 +333,30 @@ The container model is unusual enough that it needs direct documentation.
 - `Matrix<T>` is a rank-2 alias over `Tensor<T, _, 2>`.
 
 The allocator story is explicit.
-`Tensor` and `PackedMatrix` are generic over `core::alloc::Allocator` and default to `numkong::Global`, which forwards to the system heap.
+`Tensor` and `DotsPackedMatrix` are generic over `core::alloc::Allocator` and default to `numkong::Global`, which forwards to the system heap.
 The underlying layout uses `SIMD_ALIGNMENT == 64` for owned allocations.
 That does _not_ mean callers must align their source buffers manually.
 It means owned outputs and packed payloads are allocated in a SIMD-friendly way when the crate owns them.
 
 Owned containers are fixed-capacity resizable.
 `capacity()` reports the allocated storage-value ceiling.
-`try_resize()` reshapes within that ceiling without moving storage, so an outstanding `as_slice`/`view`/`span` is never invalidated — the borrow checker rejects a `&mut self` resize while any borrow is alive, so this is enforced at compile time.
-`try_reserve()` is the explicit opt-in that may reallocate and move storage to grow, and `clear()` empties the logical shape while keeping capacity.
+`resize()` reshapes within that ceiling without moving storage, so an outstanding `as_slice`/`view`/`span` is never invalidated — the borrow checker rejects a `&mut self` resize while any borrow is alive, so this is enforced at compile time.
+`reserve()` is the explicit opt-in that may reallocate and move storage to grow, and `clear()` empties the logical shape while keeping capacity.
 `ScaledTensor` resizes its packed elements and per-block scales in lockstep.
 
 ```rust
 use numkong::{RangeStep, SliceRange, Tensor};
 
-let t = Tensor::<f32>::try_from_slice(&[0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0], &[3, 3]).unwrap();
+let t = Tensor::<f32>::from_slice(&[0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0], &[3, 3]).unwrap();
 
-let col = t.try_slice((.., 1_usize)).unwrap();                  // t[:, 1]  — column 1
-let rows = t.try_slice((0..2_usize, ..)).unwrap();              // t[0:2, :] — first two rows
-let tail = t.try_slice((-2_isize.., ..)).unwrap();              // t[-2:, :] — last two rows
-let neg = t.try_slice((.., -2..-1_isize)).unwrap();             // t[:, -2:-1]
-let step = t.try_slice((.., RangeStep::new(0, 3, 2))).unwrap(); // t[:, ::2]
+let col = t.slice((.., 1_usize)).unwrap();                  // t[:, 1]  — column 1
+let rows = t.slice((0..2_usize, ..)).unwrap();              // t[0:2, :] — first two rows
+let tail = t.slice((-2_isize.., ..)).unwrap();              // t[-2:, :] — last two rows
+let neg = t.slice((.., -2..-1_isize)).unwrap();             // t[:, -2:-1]
+let step = t.slice((.., RangeStep::new(0, 3, 2))).unwrap(); // t[:, ::2]
 
 // Explicit &[SliceRange] syntax also works
-let col = t.try_slice(&[SliceRange::full(), SliceRange::index(1)]).unwrap();
+let col = t.slice(&[SliceRange::full(), SliceRange::index(1)]).unwrap();
 ```
 
 Tuple elements implement `SliceArg` — each monomorphized with zero runtime dispatch:
@@ -372,12 +382,12 @@ Mutable iterators (`iter_mut()`) yield `DimMut<T>`, which writes back on drop �
 ```rust
 use numkong::{Vector, i4x2};
 
-let mut nibbles = Vector::<i4x2>::try_zeros(4).unwrap();
+let mut nibbles = Vector::<i4x2>::zeros(4).unwrap();
 for (i, mut dim) in nibbles.iter_mut().enumerate() {
     *dim = i as i8;
 }
-assert_eq!(nibbles.try_get(0_usize).unwrap(), 0);
-assert_eq!(nibbles.try_get(3_usize).unwrap(), 3);
+assert_eq!(nibbles.get(0_usize).unwrap(), 0);
+assert_eq!(nibbles.get(3_usize).unwrap(), 3);
 ```
 
 Vectors and tensors can be converted between each other without copying:
@@ -385,10 +395,10 @@ Vectors and tensors can be converted between each other without copying:
 ```rust
 use numkong::{Vector, Tensor};
 
-let v = Vector::<f32>::try_from_scalars(&[1.0, 2.0, 3.0]).unwrap();
-let t: Tensor<f32, _, 8> = v.try_into_tensor().unwrap();
+let v = Vector::<f32>::from_scalars(&[1.0, 2.0, 3.0]).unwrap();
+let t: Tensor<f32, _, 8> = v.into_tensor().unwrap();
 assert_eq!(t.shape(), &[3]);
-let v2 = t.try_into_vector().unwrap();
+let v2 = t.into_vector().unwrap();
 assert_eq!(v2.dims(), 3);
 ```
 
@@ -414,24 +424,24 @@ They are not a promise that every arbitrary strided view gets the same SIMD path
 ```rust
 use numkong::Tensor;
 
-let a = Tensor::<f32>::try_from_slice(&[1.0, 2.0, 3.0, 4.0], &[2, 2]).unwrap();
-let b = Tensor::<f32>::try_full(&[2, 2], 2.0).unwrap();
+let a = Tensor::<f32>::from_slice(&[1.0, 2.0, 3.0, 4.0], &[2, 2]).unwrap();
+let b = Tensor::<f32>::full(&[2, 2], 2.0).unwrap();
 
-let blended = a.view().try_blend_tensor(&b.view(), 0.25, 0.75).unwrap();
-let sines = blended.try_sin().unwrap();
+let blended = a.view().blend_tensor(&b.view(), 0.25, 0.75).unwrap();
+let sines = blended.sin().unwrap();
 
 assert_eq!(sines.shape(), &[2, 2]);
 ```
 
-Compound assignment operators work in-place:
+The `_inplace` methods update a tensor in its own storage and report a kernel failure:
 
 ```rust
 use numkong::Tensor;
 
-let mut t = Tensor::<f32>::try_full(&[4], 1.0).unwrap();
-t += 10.0;
-t -= 0.5;
-t *= 2.0;
+let mut t = Tensor::<f32>::full(&[4], 1.0).unwrap();
+t.add_scalar_inplace(10.0).unwrap();
+t.sub_scalar_inplace(0.5).unwrap();
+t.mul_scalar_inplace(2.0).unwrap();
 ```
 
 ## Trigonometry
@@ -442,9 +452,9 @@ They are useful both directly and as a sanity check that the container path is n
 ```rust
 use numkong::Tensor;
 
-let a = Tensor::<f32>::try_from_slice(&[0.0, 1.0, 2.0, 3.0], &[2, 2]).unwrap();
-let c = a.try_cos().unwrap();
-let s = a.try_sin().unwrap();
+let a = Tensor::<f32>::from_slice(&[0.0, 1.0, 2.0, 3.0], &[2, 2]).unwrap();
+let c = a.cos().unwrap();
+let s = a.sin().unwrap();
 
 assert_eq!(c.shape(), &[2, 2]);
 assert_eq!(s.shape(), &[2, 2]);
@@ -458,8 +468,8 @@ That is the right building block for norms and variance-like workflows.
 ```rust
 use numkong::{ReduceMoments, Tensor};
 
-let narrow = Tensor::<u8>::try_full(&[1024], 255).unwrap();
-let (sum, sumsq) = narrow.try_moments_all().unwrap();
+let narrow = Tensor::<u8>::full(&[1024], 255).unwrap();
+let (sum, sumsq) = narrow.moments_all().unwrap();
 
 assert!(sum > 255);      // a naive u8 accumulation would overflow immediately
 assert!(sumsq > 255u64); // same for sum-of-squares
@@ -475,14 +485,14 @@ Min/max reductions return a `MinMaxResult` with both the value and its flat inde
 ```rust
 use numkong::Tensor;
 
-let t = Tensor::<f32>::try_from_slice(&[
+let t = Tensor::<f32>::from_slice(&[
     3.0, 0.0, 7.0,
     1.0, 2.0, 5.0,
     4.0, -1.0, 6.0,
 ], &[3, 3]).unwrap();
 
-let second_column = t.try_slice((.., 1_usize)).unwrap();  // t[:, 1]
-let idx = second_column.try_argmin_all().unwrap();
+let second_column = t.slice((.., 1_usize)).unwrap();  // t[:, 1]
+let idx = second_column.argmin_all().unwrap();
 
 assert_eq!(idx, 2);
 ```
@@ -513,13 +523,13 @@ They are `GEMM`-like in workload shape.
 They are not a thin BLAS clone.
 
 ```rust
-use numkong::{PackedMatrix, Tensor};
+use numkong::{DotsPackedMatrix, Tensor};
 
-let a = Tensor::<f32>::try_full(&[1024, 512], 1.0).unwrap();
-let b = Tensor::<f32>::try_full(&[256, 512], 1.0).unwrap();
+let a = Tensor::<f32>::full(&[1024, 512], 1.0).unwrap();
+let b = Tensor::<f32>::full(&[256, 512], 1.0).unwrap();
 
-let b_packed = PackedMatrix::try_pack(&b).unwrap();
-let c = a.dots_packed(&b_packed);
+let b_packed = DotsPackedMatrix::new(&b).unwrap();
+let c = a.dots_packed(&b_packed).unwrap();
 
 assert_eq!(c.shape(), &[1024, 256]);
 ```
@@ -544,8 +554,8 @@ They avoid duplicate `(i, j)` and `(j, i)` work.
 ```rust
 use numkong::Tensor;
 
-let vectors = Tensor::<f32>::try_full(&[100, 768], 1.0).unwrap();
-let gram = vectors.view().try_dots_symmetric().unwrap();
+let vectors = Tensor::<f32>::full(&[100, 768], 1.0).unwrap();
+let gram = vectors.view().dots_symmetric().unwrap();
 
 assert_eq!(gram.shape(), &[100, 100]);
 ```
@@ -561,12 +571,12 @@ It is not "just another matrix multiply".
 ```rust
 use numkong::{MaxSimPackedMatrix, Tensor};
 
-let queries = Tensor::<f32>::try_full(&[4, 16], 1.0).unwrap();
-let docs = Tensor::<f32>::try_full(&[8, 16], 1.0).unwrap();
+let queries = Tensor::<f32>::full(&[4, 16], 1.0).unwrap();
+let docs = Tensor::<f32>::full(&[8, 16], 1.0).unwrap();
 
-let queries_packed = queries.view().try_maxsim_pack().unwrap();
-let docs_packed = docs.view().try_maxsim_pack().unwrap();
-let score = queries_packed.score(&docs_packed);
+let queries_packed = MaxSimPackedMatrix::new(&queries).unwrap();
+let docs_packed = MaxSimPackedMatrix::new(&docs).unwrap();
+let score = queries_packed.score(&docs_packed).unwrap();
 
 assert!(score.is_finite());
 ```
@@ -614,13 +624,13 @@ use numkong::{is_close, Vector, Tensor};
 assert!(is_close(1.0, 1.0 + 1e-8, 1e-6, 0.0));
 
 // Vector tolerance check
-let a = Vector::<f32>::try_full(3, 1.0).unwrap();
-let b = Vector::<f32>::try_full(3, 1.0 + 1e-7).unwrap();
+let a = Vector::<f32>::full(3, 1.0).unwrap();
+let b = Vector::<f32>::full(3, 1.0 + 1e-7).unwrap();
 assert!(a.allclose(&b, 1e-6, 0.0));
 
 // Tensor tolerance check
-let ta = Tensor::<f32>::try_full(&[2, 3], 1.0).unwrap();
-let tb = Tensor::<f32>::try_full(&[2, 3], 1.0 + 1e-7).unwrap();
+let ta = Tensor::<f32>::full(&[2, 3], 1.0).unwrap();
+let tb = Tensor::<f32>::full(&[2, 3], 1.0 + 1e-7).unwrap();
 assert!(ta.allclose(&tb, 1e-6, 0.0));
 ```
 
@@ -639,15 +649,15 @@ assert!((dst[0].to_f32() - 1.0).abs() < 0.01);
 ```
 
 `Tensor`, `TensorView`, and `TensorSpan` expose casting via the `CastOps` trait.
-`try_cast_dtype()` allocates a new tensor; `try_cast_dtype_into()` writes into a pre-allocated `TensorSpan`.
+`cast()` allocates a new tensor; `cast_into()` writes into a pre-allocated `TensorSpan`.
 Strided and non-contiguous views are supported: the implementation scans strides from the innermost dimension outward to find the longest contiguous tail, then walks the outer dimensions and casts each contiguous block in a single kernel call.
 
 ```rust
 use numkong::{Tensor, f16};
 
-let src = Tensor::<f32>::try_full(&[4, 4], 1.0).unwrap();
-let mut dst = Tensor::<f16>::try_zeros(&[4, 4]).unwrap();
-src.view().try_cast_dtype_into(&mut dst.span()).unwrap();
+let src = Tensor::<f32>::full(&[4, 4], 1.0).unwrap();
+let mut dst = Tensor::<f16>::zeros(&[4, 4]).unwrap();
+src.view().cast_into(&mut dst.span()).unwrap();
 ```
 
 ## Parallelism and ForkUnion
@@ -656,21 +666,21 @@ NumKong does not own a thread pool.
 The `parallel` feature adds host-side orchestration helpers via [ForkUnion](https://github.com/ashvardanian/ForkUnion), not a hidden scheduler.
 
 ```rust
-use numkong::{PackedMatrix, Tensor};
+use numkong::{DotsPackedMatrix, Tensor};
 use forkunion::{ThreadPool, Topology};
 
-let a = Tensor::<f32>::try_full(&[4096, 768], 1.0).unwrap();
-let b = Tensor::<f32>::try_full(&[8192, 768], 1.0).unwrap();
+let a = Tensor::<f32>::full(&[4096, 768], 1.0).unwrap();
+let b = Tensor::<f32>::full(&[8192, 768], 1.0).unwrap();
 let topology = Topology::new().unwrap();
 let mut pool = ThreadPool::try_spawn(&topology, 4).unwrap();
 
 // GEMM-like: rows of A partitioned across threads, one shared packed B
-let b_packed = PackedMatrix::try_pack(&b).unwrap();
-let c = a.dots_packed_parallel(&b_packed, &mut pool);
+let b_packed = DotsPackedMatrix::new(&b).unwrap();
+let c = a.dots_packed_parallel(&b_packed, &mut pool).unwrap();
 assert_eq!(c.shape(), &[4096, 8192]);
 
 // SYRK-like: row windows of one square output partitioned across threads
-let gram = a.dots_symmetric_parallel(&mut pool);
+let gram = a.dots_symmetric_parallel(&mut pool).unwrap();
 assert_eq!(gram.shape(), &[4096, 4096]);
 ```
 
@@ -693,7 +703,7 @@ let embeddings = unsafe {
 
 let shape = [32, 64];
 let strides = [64 * 4, 4]; // row-major f32
-let matrix = unsafe { TensorView::<f32>::from_raw_parts(embeddings_ptr, &shape, &strides) };
+let matrix = unsafe { TensorView::<f32>::from_raw_parts(embeddings_ptr, &shape, &strides) }.unwrap();
 ```
 
 Owned containers accept any [`core::alloc::Allocator`](https://doc.rust-lang.org/core/alloc/trait.Allocator.html).
@@ -717,15 +727,15 @@ unsafe impl Allocator for CudaAllocator {
     }
 }
 
-let queries = Vector::<f32, CudaAllocator>::try_zeros_in(1024, CudaAllocator).unwrap();
+let queries = Vector::<f32, CudaAllocator>::zeros_in(1024, CudaAllocator).unwrap();
 ```
 
 `core` also implements the trait for `&A`, so an allocator that is not `Clone` — a bump arena holding a cursor, say — goes in by reference and the container borrows it:
 
 ```rust
 let arena = BumpArena::new();
-let queries = Vector::<f32, _>::try_zeros_in(1024, &arena).unwrap();
-let keys = Vector::<f32, _>::try_zeros_in(1024, &arena).unwrap();
+let queries = Vector::<f32, _>::zeros_in(1024, &arena).unwrap();
+let keys = Vector::<f32, _>::zeros_in(1024, &arena).unwrap();
 ```
 
 The trait-based scalar API works on any `&[T]` — `Vec`, mmap, arena, or pinned buffer:

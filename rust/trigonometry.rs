@@ -613,13 +613,13 @@ impl<Scalar: TrigSin + TrigCos + TrigAtan> Trigonometry for Scalar {}
 
 /// Extension trait: element-wise sine for any [`TensorRef`] implementor.
 pub trait TrigSinOps<Scalar: Clone + TrigSin, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
-    fn try_sin(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_sin() }
+    fn sin(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().sin() }
 
-    fn try_sin_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
+    fn sin_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         out: &mut OutputTensor,
     ) -> Result<(), TensorError> {
-        self.view().try_sin_into(out)
+        self.view().sin_into(out)
     }
 }
 
@@ -627,13 +627,13 @@ impl<Scalar: Clone + TrigSin, const R: usize, C: TensorRef<Scalar, R> + ?Sized> 
 
 /// Extension trait: element-wise cosine for any [`TensorRef`] implementor.
 pub trait TrigCosOps<Scalar: Clone + TrigCos, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
-    fn try_cos(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_cos() }
+    fn cos(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().cos() }
 
-    fn try_cos_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
+    fn cos_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         out: &mut OutputTensor,
     ) -> Result<(), TensorError> {
-        self.view().try_cos_into(out)
+        self.view().cos_into(out)
     }
 }
 
@@ -641,31 +641,31 @@ impl<Scalar: Clone + TrigCos, const R: usize, C: TensorRef<Scalar, R> + ?Sized> 
 
 /// Extension trait: element-wise arctangent for any [`TensorRef`] implementor.
 pub trait TrigAtanOps<Scalar: Clone + TrigAtan, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
-    fn try_atan(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().try_atan() }
+    fn atan(&self) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> { self.view().atan() }
 
-    fn try_atan_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
+    fn atan_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         out: &mut OutputTensor,
     ) -> Result<(), TensorError> {
-        self.view().try_atan_into(out)
+        self.view().atan_into(out)
     }
 }
 
 impl<Scalar: Clone + TrigAtan, const R: usize, C: TensorRef<Scalar, R> + ?Sized> TrigAtanOps<Scalar, R> for C {}
 
 impl<Scalar: Clone + TrigSin, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
-    /// Element-wise sine in-place — infallible, self vs self always matches.
-    pub fn sin_inplace(&mut self) { self.span().sin_inplace(); }
+    /// Element-wise sine in-place.
+    pub fn sin_inplace(&mut self) -> Result<(), TensorError> { self.span().sin_inplace() }
 }
 
 impl<Scalar: Clone + TrigCos, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
-    /// Element-wise cosine in-place — infallible, self vs self always matches.
-    pub fn cos_inplace(&mut self) { self.span().cos_inplace(); }
+    /// Element-wise cosine in-place.
+    pub fn cos_inplace(&mut self) -> Result<(), TensorError> { self.span().cos_inplace() }
 }
 
 impl<Scalar: Clone + TrigAtan, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
-    /// Element-wise arctangent in-place — infallible, self vs self always matches.
-    pub fn atan_inplace(&mut self) { self.span().atan_inplace(); }
+    /// Element-wise arctangent in-place.
+    pub fn atan_inplace(&mut self) -> Result<(), TensorError> { self.span().atan_inplace() }
 }
 
 // endregion: Tensor-shaped trigonometry
@@ -687,7 +687,7 @@ mod tests {
         let cos: Vec<f32> = (0..rows * half_dim).map(|k| (0.1 * k as f32).cos()).collect();
         let sin: Vec<f32> = (0..rows * half_dim).map(|k| (0.1 * k as f32).sin()).collect();
         let reference = x.clone();
-        let mut x_t = crate::tensor::Tensor::<Scalar>::try_from_slice(&x, &[rows, width]).unwrap();
+        let mut x_t = crate::tensor::Tensor::<Scalar>::from_slice(&x, &[rows, width]).unwrap();
         Scalar::rope_into(&mut x_t, &cos, &sin, heads, half_dim, 1.0).unwrap();
         let x = x_t.as_slice().to_vec();
         for r in 0..rows {
@@ -745,7 +745,7 @@ mod tests {
         let cos: Vec<f32> = (0..rows * half_dim).map(|k| (0.1 * k as f32).cos()).collect();
         let sin: Vec<f32> = (0..rows * half_dim).map(|k| (0.1 * k as f32).sin()).collect();
 
-        let mut wide = Tensor::<f32>::try_from_slice(&wide_vec, &[rows, full]).unwrap();
+        let mut wide = Tensor::<f32>::from_slice(&wide_vec, &[rows, full]).unwrap();
         {
             let mut span = wide.span();
             let mut sec = span
@@ -754,7 +754,7 @@ mod tests {
             f32::rope_into(&mut sec, &cos, &sin, heads, half_dim, 1.0).unwrap();
         }
 
-        let mut contig = Tensor::<f32>::try_from_slice(&section, &[rows, width]).unwrap();
+        let mut contig = Tensor::<f32>::from_slice(&section, &[rows, width]).unwrap();
         f32::rope_into(&mut contig, &cos, &sin, heads, half_dim, 1.0).unwrap();
 
         let wide_after = wide.as_slice();

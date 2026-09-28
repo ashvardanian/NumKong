@@ -682,7 +682,7 @@ mod private {
 ///
 /// # When to use
 ///
-/// Reach for this trait, or the matching `Tensor::try_dots_packed*` wrappers, whenever you multiply
+/// Reach for this trait, or the matching `Tensor::dots_packed*` wrappers, whenever you multiply
 /// many query rows against the __same__ matrix of database rows: pre-packing B once amortises
 /// layout-conversion cost across every subsequent query. The accumulator type is intentionally
 /// widened to avoid precision loss — `f32 × f32 → f64`, `f16 × f16 → f32`, `i8 × i8 → i32`, `u8 ×
@@ -2007,15 +2007,15 @@ impl Dots for u1x8 {
 /// For C = A × Bᵀ where B is __[n,k]__:
 /// ```rust,ignore
 /// // Requires linking against libnumkong C library
-/// let b_packed = DotsPackedMatrix::try_pack(&b_array).unwrap();
-/// let c = a_array.dots_packed(&b_packed);
+/// let b_packed = DotsPackedMatrix::new(&b_array).unwrap();
+/// let c = a_array.dots_packed(&b_packed).unwrap();
 /// ```
 ///
 /// For C = A × B where B is __[k,n]__ in standard GEMM layout:
 /// ```rust,ignore
 /// // Requires linking against libnumkong C library
-/// let b_packed = DotsPackedMatrix::try_pack_transposed(&b_array).unwrap();
-/// let c = a_array.dots_packed(&b_packed);
+/// let b_packed = DotsPackedMatrix::new_transposed(&b_array).unwrap();
+/// let c = a_array.dots_packed(&b_packed).unwrap();
 /// ```
 #[derive(Debug)]
 pub struct DotsPackedMatrix<Scalar: Dots, Alloc: Allocator = Global> {
@@ -2032,10 +2032,11 @@ unsafe impl<Scalar: Dots + Send, Alloc: Allocator + Send> Send for DotsPackedMat
 unsafe impl<Scalar: Dots + Sync, Alloc: Allocator + Sync> Sync for DotsPackedMatrix<Scalar, Alloc> {}
 
 impl<Scalar: Dots, Alloc: Allocator + Clone> DotsPackedMatrix<Scalar, Alloc> {
-    /// Try to clone this packed matrix, returning an error on allocation failure.
-    pub fn try_clone(&self) -> Result<Self, TensorError> {
+    /// Clone this packed matrix, returning an error on allocation failure.
+    #[allow(clippy::should_implement_trait)]
+    pub fn clone(&self) -> Result<Self, TensorError> {
         Ok(Self {
-            buffer: self.buffer.try_clone()?,
+            buffer: self.buffer.clone()?,
             width: self.width,
             depth: self.depth,
             _marker: PhantomData,
@@ -2043,15 +2044,11 @@ impl<Scalar: Dots, Alloc: Allocator + Clone> DotsPackedMatrix<Scalar, Alloc> {
     }
 }
 
-impl<Scalar: Dots, Alloc: Allocator + Clone> Clone for DotsPackedMatrix<Scalar, Alloc> {
-    fn clone(&self) -> Self { self.try_clone().expect("DotsPackedMatrix clone allocation failed") }
-}
-
 // Generic allocator-aware methods
 impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
     /// An empty packed matrix owning no allocation, using a custom allocator.
     ///
-    /// Fill it with [`try_pack_into`](Self::try_pack_into).
+    /// Fill it with [`pack_into`](Self::pack_into).
     pub fn empty_in(alloc: Alloc) -> Self {
         Self {
             buffer: PackedBuffer::empty_in(alloc),
@@ -2061,12 +2058,12 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
         }
     }
 
-    pub fn try_pack_in<Matrix, const MAX_RANK: usize>(matrix: &Matrix, alloc: Alloc) -> Result<Self, TensorError>
+    pub fn new_in<Matrix, const MAX_RANK: usize>(matrix: &Matrix, alloc: Alloc) -> Result<Self, TensorError>
     where
         Matrix: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
         let mut packed = Self::empty_in(alloc);
-        packed.try_pack_into(matrix)?;
+        packed.pack_into(matrix)?;
         Ok(packed)
     }
 
@@ -2074,7 +2071,7 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
     /// fits `capacity` and reallocating through the stored allocator only when it must grow. A
     /// steady-state loop over same-shaped operands then allocates at most once. `b` must be 2D with
     /// contiguous rows.
-    pub fn try_pack_into<Matrix, const MAX_RANK: usize>(&mut self, matrix: &Matrix) -> Result<(), TensorError>
+    pub fn pack_into<Matrix, const MAX_RANK: usize>(&mut self, matrix: &Matrix) -> Result<(), TensorError>
     where
         Matrix: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
@@ -2113,20 +2110,20 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
         Ok(())
     }
 
-    /// Pre-grow the buffer to hold a width-by-depth B matrix, so a later `try_pack_into` that fits
+    /// Pre-grow the buffer to hold a width-by-depth B matrix, so a later `pack_into` that fits
     /// stays allocation-free with a stable pointer — hoist this out of a repeated-pack loop.
-    pub fn try_reserve(&mut self, width: usize, depth: usize) -> Result<(), TensorError> {
-        self.buffer.try_reserve(Scalar::dots_pack_size(width, depth)?)
+    pub fn reserve(&mut self, width: usize, depth: usize) -> Result<(), TensorError> {
+        self.buffer.reserve(Scalar::dots_pack_size(width, depth)?)
     }
 
     /// Repack `b` into this matrix's buffer in parallel, splitting the columns across a ForkUnion
     /// thread pool. Column ranges partition `[0, width)` contiguously, so every packed tile is
     /// written exactly once and the range covering column 0 writes the shared header. Like
-    /// [`try_pack_into`](Self::try_pack_into), packing overwrites, so growing the buffer discards
-    /// its old contents.
+    /// [`pack_into`](Self::pack_into), packing overwrites, so growing the buffer discards its old
+    /// contents.
     #[cfg(feature = "parallel")]
     #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
-    pub fn try_pack_parallel_into<Matrix, const MAX_RANK: usize>(
+    pub fn pack_parallel_into<Matrix, const MAX_RANK: usize>(
         &mut self,
         matrix: &Matrix,
         pool: &mut fu::ThreadPool,
@@ -2159,7 +2156,10 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
         let failure = WorkerStatus::default();
         let failure = &failure;
         pool.for_slices(width, move |prong, count| {
-            crate::capabilities::configure_thread(crate::Capabilities::enabled());
+            if let Err(error) = crate::capabilities::configure_thread(crate::Capabilities::enabled()) {
+                failure.record(Err(error));
+                return;
+            }
             let columns_begin = prong.task_index;
             failure.record(unsafe {
                 Scalar::dots_pack(
@@ -2185,10 +2185,7 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
     /// - b is not 2D
     /// - b is a sub-byte type — transpose unsupported
     /// - allocation fails
-    pub fn try_pack_transposed_in<Matrix, const MAX_RANK: usize>(
-        matrix: &Matrix,
-        alloc: Alloc,
-    ) -> Result<Self, TensorError>
+    pub fn new_transposed_in<Matrix, const MAX_RANK: usize>(matrix: &Matrix, alloc: Alloc) -> Result<Self, TensorError>
     where
         Matrix: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
@@ -2203,8 +2200,8 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
         // `nk_dots_pack_*` in `numkong/dots.h`), so the transposed view's
         // non-unit inner stride must be materialized into a contiguous buffer
         // first. For sub-byte types, transpose() returns SubByteUnsupported.
-        let transposed = matrix.view().try_transpose()?.try_to_owned()?;
-        Self::try_pack_in(&transposed, alloc)
+        let transposed = matrix.view().transpose()?.to_owned()?;
+        Self::new_in(&transposed, alloc)
     }
 
     /// Returns a reference to the allocator.
@@ -2243,7 +2240,7 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
     /// Bytes currently allocated (>= the live packed size).
     pub fn capacity(&self) -> usize { self.buffer.capacity() }
 
-    /// Reset to logically empty, keeping the allocation so the next `try_pack_into` reuses it.
+    /// Reset to logically empty, keeping the allocation so the next `pack_into` reuses it.
     pub fn clear(&mut self) { self.buffer.clear(); }
 
     /// Returns the packed data buffer.
@@ -2258,28 +2255,28 @@ impl<Scalar: Dots> DotsPackedMatrix<Scalar, Global> {
     /// Pack B matrix where B is __[n,k]__ row-major using the global allocator.
     ///
     /// Result computes: C = A × Bᵀ
-    pub fn try_pack<Matrix, const MAX_RANK: usize>(matrix: &Matrix) -> Result<Self, TensorError>
+    pub fn new<Matrix, const MAX_RANK: usize>(matrix: &Matrix) -> Result<Self, TensorError>
     where
         Matrix: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
-        Self::try_pack_in(matrix, Global)
+        Self::new_in(matrix, Global)
     }
 
     /// Pack Bᵀ where B is __[k,n]__ row-major, standard GEMM layout, using the global allocator.
     ///
     /// Result computes: C = A × B
-    pub fn try_pack_transposed<Matrix, const MAX_RANK: usize>(matrix: &Matrix) -> Result<Self, TensorError>
+    pub fn new_transposed<Matrix, const MAX_RANK: usize>(matrix: &Matrix) -> Result<Self, TensorError>
     where
         Matrix: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
-        Self::try_pack_transposed_in(matrix, Global)
+        Self::new_transposed_in(matrix, Global)
     }
 
     /// Pack `b` in parallel using the global allocator. The allocating twin of
-    /// [`try_pack_parallel_into`](Self::try_pack_parallel_into).
+    /// [`pack_parallel_into`](Self::pack_parallel_into).
     #[cfg(feature = "parallel")]
     #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
-    pub fn try_pack_parallel<Matrix, const MAX_RANK: usize>(
+    pub fn new_parallel<Matrix, const MAX_RANK: usize>(
         matrix: &Matrix,
         pool: &mut fu::ThreadPool,
     ) -> Result<Self, TensorError>
@@ -2287,7 +2284,7 @@ impl<Scalar: Dots> DotsPackedMatrix<Scalar, Global> {
         Matrix: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
         let mut packed = Self::empty_in(Global);
-        packed.try_pack_parallel_into(matrix, pool)?;
+        packed.pack_parallel_into(matrix, pool)?;
         Ok(packed)
     }
 }
@@ -2414,12 +2411,12 @@ impl<Scalar: Dots, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<Scala
     /// - inner dimensions don't match
     /// - output allocation fails
     /// - the kernel refuses `packed_right`, like one packed under other capabilities
-    pub fn try_dots_packed<PackedAlloc: Allocator>(
+    pub fn dots_packed<PackedAlloc: Allocator>(
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
     ) -> Result<Tensor<Scalar::Accumulator, Alloc, MAX_RANK>, TensorError> {
         let (height, width, depth) = validate_packed_input(self, packed_right)?;
-        let mut output = Tensor::try_full_in(&[height, width], Scalar::Accumulator::default(), self.alloc.clone())?;
+        let mut output = Tensor::full_in(&[height, width], Scalar::Accumulator::default(), self.alloc.clone())?;
         unsafe {
             Scalar::dots_packed(
                 self.as_ptr(),
@@ -2433,14 +2430,6 @@ impl<Scalar: Dots, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<Scala
             )?;
         }
         Ok(output)
-    }
-
-    /// Convenience method that panics on error.
-    pub fn dots_packed<PackedAlloc: Allocator>(
-        &self,
-        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
-    ) -> Tensor<Scalar::Accumulator, Alloc, MAX_RANK> {
-        self.try_dots_packed(packed_right).expect("dots_packed failed")
     }
 }
 
@@ -2463,15 +2452,13 @@ pub trait DotsPackedOps<Scalar: Dots, const MAX_RANK: usize>: TensorRef<Scalar, 
     /// - inner dimensions don't match
     /// - output allocation fails
     /// - the kernel refuses `packed_right`, like one packed under other capabilities
-    fn try_dots_packed<PackedAlloc: Allocator>(
+    fn dots_packed<PackedAlloc: Allocator>(
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
     ) -> Result<Tensor<Scalar::Accumulator, Global, MAX_RANK>, TensorError> {
         let (height, width, depth) = validate_packed_input(self, packed_right)?;
-        let mut output = Tensor::<Scalar::Accumulator, Global, MAX_RANK>::try_full(
-            &[height, width],
-            Scalar::Accumulator::default(),
-        )?;
+        let mut output =
+            Tensor::<Scalar::Accumulator, Global, MAX_RANK>::full(&[height, width], Scalar::Accumulator::default())?;
         unsafe {
             Scalar::dots_packed(
                 self.as_ptr(),
@@ -2487,20 +2474,12 @@ pub trait DotsPackedOps<Scalar: Dots, const MAX_RANK: usize>: TensorRef<Scalar, 
         Ok(output)
     }
 
-    /// Convenience method that panics on error.
-    fn dots_packed<PackedAlloc: Allocator>(
-        &self,
-        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
-    ) -> Tensor<Scalar::Accumulator, Global, MAX_RANK> {
-        self.try_dots_packed(packed_right).expect("dots_packed failed")
-    }
-
     /// Dot-product multiply into an existing output, avoiding allocation.
     ///
     /// The output may be a `&mut Tensor<...>` or `&mut TensorSpan<...>`; any writable tensor
     /// container that implements [`TensorMut`] works. The kernel overwrites `c` entirely, so it
     /// need not arrive pre-initialized.
-    fn try_dots_packed_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
+    fn dots_packed_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
         output: &mut OutputTensor,
@@ -2550,7 +2529,7 @@ where
     /// This is a non-allocating interface - you provide the output tensor.
     ///
     /// # Arguments
-    /// - `packed_right` - Pre-packed B matrix from `DotsPackedMatrix::try_pack[_transposed]`
+    /// - `packed_right` - Pre-packed B matrix from `DotsPackedMatrix::new[_transposed]`
     /// - `c` - Pre-allocated output tensor of shape [m, n]
     /// - `pool` - Pre-constructed thread pool
     ///
@@ -2565,19 +2544,19 @@ where
     ///
     /// let topology = forkunion::Topology::new().unwrap();
     /// let mut pool = ThreadPool::try_spawn(&topology, 4).unwrap();
-    /// let a = Tensor::<f32>::try_full(&[1024, 512], 1.0).unwrap();
-    /// let b = Tensor::<f32>::try_full(&[256, 512], 1.0).unwrap();
-    /// let b_packed = DotsPackedMatrix::try_pack(&b).unwrap();
+    /// let a = Tensor::<f32>::full(&[1024, 512], 1.0).unwrap();
+    /// let b = Tensor::<f32>::full(&[256, 512], 1.0).unwrap();
+    /// let b_packed = DotsPackedMatrix::new(&b).unwrap();
     ///
     /// // Writing into a full tensor:
-    /// let mut output = Tensor::<f32>::try_full(&[1024, 256], 0.0).unwrap();
-    /// a.try_dots_packed_parallel_into(&b_packed, &mut output, &mut pool).unwrap();
+    /// let mut output = Tensor::<f32>::full(&[1024, 256], 0.0).unwrap();
+    /// a.dots_packed_parallel_into(&b_packed, &mut output, &mut pool).unwrap();
     ///
     /// // Or into a span over a sub-region of a larger buffer:
-    /// let mut c_buf = Tensor::<f32>::try_full(&[1024, 256], 0.0).unwrap();
-    /// a.try_dots_packed_parallel_into(&b_packed, &mut c_buf.span(), &mut pool).unwrap();
+    /// let mut c_buf = Tensor::<f32>::full(&[1024, 256], 0.0).unwrap();
+    /// a.dots_packed_parallel_into(&b_packed, &mut c_buf.span(), &mut pool).unwrap();
     /// ```
-    fn try_dots_packed_parallel_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
+    fn dots_packed_parallel_into<PackedAlloc, OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
         output: &mut OutputTensor,
@@ -2607,7 +2586,10 @@ where
         pool.broadcast(move |thread_index, _colocation_index| {
             // Configure each worker thread for optimal SIMD, including AMX
             // This is idempotent and safe to call multiple times
-            crate::capabilities::configure_thread(crate::Capabilities::enabled());
+            if let Err(error) = crate::capabilities::configure_thread(crate::Capabilities::enabled()) {
+                failure.record(Err(error));
+                return;
+            }
 
             let row_start = thread_index * rows_per_thread;
             if row_start >= height {
@@ -2636,30 +2618,17 @@ where
     /// Parallel dot-product multiply with allocation.
     ///
     /// Convenience wrapper that allocates the output tensor.
-    /// Prefer `try_dots_packed_parallel_into` for performance-critical code.
-    fn try_dots_packed_parallel<PackedAlloc: Allocator>(
-        &self,
-        packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
-        pool: &mut fu::ThreadPool,
-    ) -> Result<Tensor<Scalar::Accumulator, Global, MAX_RANK>, TensorError> {
-        let height = self.shape()[0];
-        let (width, _) = packed_right.shape();
-        let mut output = Tensor::<Scalar::Accumulator, Global, MAX_RANK>::try_full(
-            &[height, width],
-            Scalar::Accumulator::default(),
-        )?;
-        self.try_dots_packed_parallel_into(packed_right, &mut output, pool)?;
-        Ok(output)
-    }
-
-    /// Convenience method that panics on error.
+    /// Prefer `dots_packed_parallel_into` for performance-critical code.
     fn dots_packed_parallel<PackedAlloc: Allocator>(
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
         pool: &mut fu::ThreadPool,
-    ) -> Tensor<Scalar::Accumulator, Global, MAX_RANK> {
-        self.try_dots_packed_parallel(packed_right, pool)
-            .expect("parallel dots_packed failed")
+    ) -> Result<Tensor<Scalar::Accumulator, Global, MAX_RANK>, TensorError> {
+        let (height, width, _) = validate_packed_input(self, packed_right)?;
+        let mut output =
+            Tensor::<Scalar::Accumulator, Global, MAX_RANK>::full(&[height, width], Scalar::Accumulator::default())?;
+        self.dots_packed_parallel_into(packed_right, &mut output, pool)?;
+        Ok(output)
     }
 }
 
@@ -2736,27 +2705,27 @@ where
     ///
     /// let topology = forkunion::Topology::new().unwrap();
     /// let mut pool = ThreadPool::try_spawn(&topology, 4).unwrap();
-    /// let vectors = Tensor::<f32>::try_full(&[100, 768], 1.0).unwrap();
-    /// let gram = vectors.try_dots_symmetric_parallel(&mut pool).unwrap();
+    /// let vectors = Tensor::<f32>::full(&[100, 768], 1.0).unwrap();
+    /// let gram = vectors.dots_symmetric_parallel(&mut pool).unwrap();
     /// assert_eq!(gram.shape(), &[100, 100]);
     /// ```
-    pub fn try_dots_symmetric_parallel(
+    pub fn dots_symmetric_parallel(
         &self,
         pool: &mut fu::ThreadPool,
     ) -> Result<Tensor<Scalar::Accumulator, Global, MAX_RANK>, TensorError> {
         let (vector_count, _) = validate_symmetric_input(self)?;
-        let mut result = Tensor::<Scalar::Accumulator, Global, MAX_RANK>::try_full(
+        let mut result = Tensor::<Scalar::Accumulator, Global, MAX_RANK>::full(
             &[vector_count, vector_count],
             Scalar::Accumulator::default(),
         )?;
-        self.try_dots_symmetric_parallel_into(&mut result, pool)?;
+        self.dots_symmetric_parallel_into(&mut result, pool)?;
         Ok(result)
     }
 
     /// Parallel symmetric dot-product matrix into pre-allocated output.
     ///
     /// Only the upper triangle of `c` is written.
-    pub fn try_dots_symmetric_parallel_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
+    pub fn dots_symmetric_parallel_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         output: &mut OutputTensor,
         pool: &mut fu::ThreadPool,
@@ -2776,7 +2745,10 @@ where
         let failure = WorkerStatus::default();
         let failure = &failure;
         pool.broadcast(move |thread_index, _colocation_index| {
-            crate::capabilities::configure_thread(crate::Capabilities::enabled());
+            if let Err(error) = crate::capabilities::configure_thread(crate::Capabilities::enabled()) {
+                failure.record(Err(error));
+                return;
+            }
             let (row_start, row_count) = compute_thread_rows(thread_index, num_threads, vector_count);
             unsafe {
                 failure.record(Scalar::dots_symmetric(
@@ -2792,15 +2764,6 @@ where
             }
         });
         failure.check()
-    }
-
-    /// Parallel computation of symmetric dot-product matrix, the unwrapping version.
-    ///
-    /// # Panics
-    /// Panics if the operation fails, for example on a wrong tensor rank.
-    pub fn dots_symmetric_parallel(&self, pool: &mut fu::ThreadPool) -> Tensor<Scalar::Accumulator, Global, MAX_RANK> {
-        self.try_dots_symmetric_parallel(pool)
-            .expect("parallel dots_symmetric failed")
     }
 }
 
@@ -2821,19 +2784,19 @@ where
     /// use numkong::{Tensor, TensorView};
     ///
     /// // 100 vectors of dimension 768
-    /// let vectors = Tensor::<f32>::try_full(&[100, 768], 0.0)?;
+    /// let vectors = Tensor::<f32>::full(&[100, 768], 0.0)?;
     ///
     /// // Compute 100×100 symmetric matrix
-    /// let gram = vectors.view().try_dots_symmetric()?;
+    /// let gram = vectors.view().dots_symmetric()?;
     /// assert_eq!(gram.shape(), &[100, 100]);
     /// ```
-    pub fn try_dots_symmetric(&self) -> Result<Tensor<Scalar::Accumulator, Global, MAX_RANK>, TensorError> {
+    pub fn dots_symmetric(&self) -> Result<Tensor<Scalar::Accumulator, Global, MAX_RANK>, TensorError> {
         let (vector_count, _) = validate_symmetric_input(self)?;
-        let mut result = Tensor::<Scalar::Accumulator, Global, MAX_RANK>::try_full(
+        let mut result = Tensor::<Scalar::Accumulator, Global, MAX_RANK>::full(
             &[vector_count, vector_count],
             Scalar::Accumulator::default(),
         )?;
-        self.try_dots_symmetric_into(&mut result)?;
+        self.dots_symmetric_into(&mut result)?;
         Ok(result)
     }
 
@@ -2841,7 +2804,7 @@ where
     ///
     /// Only the upper triangle of `c` is written; the lower triangle is queries as-is. The output
     /// may be a `&mut Tensor<...>` or `&mut TensorSpan<...>`.
-    pub fn try_dots_symmetric_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
+    pub fn dots_symmetric_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         output: &mut OutputTensor,
     ) -> Result<(), TensorError>
@@ -2872,29 +2835,29 @@ where
 
 /// Extension trait: symmetric dot-product matrix for any [`TensorRef`] implementor.
 ///
-/// Blanket-implemented for every `TensorRef<Scalar, R>`, so calling `vectors.try_dots_symmetric()`
+/// Blanket-implemented for every `TensorRef<Scalar, R>`, so calling `vectors.dots_symmetric()`
 /// works on both owned [`Tensor`] and borrowed [`TensorView`] / `TensorSpan`. Only the __upper
 /// triangle__, including the diagonal, of the output is written by the kernel; the lower triangle
 /// is queries untouched — callers that need a full dense matrix must mirror it.
 ///
 /// Prefer this extension trait when you have a generic `TensorRef`; use the inherent
-/// [`TensorView::try_dots_symmetric`] form instead when you already hold a view and want to skip
+/// [`TensorView::dots_symmetric`] form instead when you already hold a view and want to skip
 /// the extra trait import.
 pub trait SymmetricDotsOps<Scalar: Dots, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK>
 where
     Scalar::Accumulator: 'static,
 {
-    fn try_dots_symmetric(&self) -> Result<Tensor<Scalar::Accumulator, Global, MAX_RANK>, TensorError> {
-        self.view().try_dots_symmetric()
+    fn dots_symmetric(&self) -> Result<Tensor<Scalar::Accumulator, Global, MAX_RANK>, TensorError> {
+        self.view().dots_symmetric()
     }
 
     /// Writes the symmetric dot-product matrix into pre-allocated output, touching only the upper
     /// triangle of it.
-    fn try_dots_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(&self, output: &mut Out) -> Result<(), TensorError>
+    fn dots_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(&self, output: &mut Out) -> Result<(), TensorError>
     where
         Out: TensorMut<Scalar::Accumulator, OUTPUT_MAX_RANK>,
     {
-        self.view().try_dots_symmetric_into(output)
+        self.view().dots_symmetric_into(output)
     }
 }
 
@@ -2905,12 +2868,12 @@ impl<Scalar: Dots, const R: usize, OutputTensor: TensorRef<Scalar, R>> Symmetric
 
 /// Extension trait: symmetric angular distance matrix for any [`TensorRef`] implementor.
 ///
-/// Blanket-implemented for every `TensorRef<Scalar, R>` so the `try_angulars_symmetric` method is
+/// Blanket-implemented for every `TensorRef<Scalar, R>` so the `angulars_symmetric` method is
 /// available on both owned [`Tensor`] and borrowed views. Only the upper triangle, including the
 /// diagonal, of the output is written by the kernel — mirror it yourself for a full dense matrix.
 ///
 /// Prefer this trait when operating on a generic `TensorRef`; use the inherent
-/// [`TensorView::try_angulars_symmetric`] form when you already hold a view and want to sidestep
+/// [`TensorView::angulars_symmetric`] form when you already hold a view and want to sidestep
 /// the extra trait import.
 
 #[cfg(test)]
@@ -2926,10 +2889,10 @@ mod tests {
         init_thread();
         for &(height, width, depth) in DIMS {
             let depth = align_depth::<Scalar>(depth);
-            let a = Tensor::<Scalar>::try_full(&[height, depth], Scalar::one()).unwrap();
-            let b = Tensor::<Scalar>::try_full(&[width, depth], Scalar::one()).unwrap();
-            let b_packed = DotsPackedMatrix::try_pack(&b).unwrap();
-            let output = a.dots_packed(&b_packed);
+            let a = Tensor::<Scalar>::full(&[height, depth], Scalar::one()).unwrap();
+            let b = Tensor::<Scalar>::full(&[width, depth], Scalar::one()).unwrap();
+            let b_packed = DotsPackedMatrix::new(&b).unwrap();
+            let output = a.dots_packed(&b_packed).unwrap();
             assert_eq!(output.shape(), &[height, width], "shape @ ({height},{width},{depth})");
             let expected = depth as f64;
             let tol = Scalar::atol() + Scalar::rtol() * expected.abs();
@@ -2942,16 +2905,16 @@ mod tests {
             }
             // Verify _into(&mut Tensor) and _into(&mut span) produce identical bytes.
             let mut into_tensor =
-                Tensor::<Scalar::Accumulator>::try_full(&[height, width], Scalar::Accumulator::default()).unwrap();
-            a.try_dots_packed_into(&b_packed, &mut into_tensor).unwrap();
+                Tensor::<Scalar::Accumulator>::full(&[height, width], Scalar::Accumulator::default()).unwrap();
+            a.dots_packed_into(&b_packed, &mut into_tensor).unwrap();
             assert_eq!(
                 output.as_slice(),
                 into_tensor.as_slice(),
                 "_into(Tensor) @ ({height},{width},{depth})"
             );
             let mut into_span_buf =
-                Tensor::<Scalar::Accumulator>::try_full(&[height, width], Scalar::Accumulator::default()).unwrap();
-            a.try_dots_packed_into(&b_packed, &mut into_span_buf.span()).unwrap();
+                Tensor::<Scalar::Accumulator>::full(&[height, width], Scalar::Accumulator::default()).unwrap();
+            a.dots_packed_into(&b_packed, &mut into_span_buf.span()).unwrap();
             assert_eq!(
                 output.as_slice(),
                 into_span_buf.as_slice(),
@@ -2967,10 +2930,10 @@ mod tests {
         init_thread();
         for &(height, width, depth) in DIMS {
             let depth = align_depth::<Scalar>(depth);
-            let a = Tensor::<Scalar>::try_full(&[height, depth], Scalar::one()).unwrap();
-            let b_t = Tensor::<Scalar>::try_full(&[depth, width], Scalar::from_f32(2.0)).unwrap();
-            let b_packed = DotsPackedMatrix::try_pack_transposed(&b_t).unwrap();
-            let output = a.dots_packed(&b_packed);
+            let a = Tensor::<Scalar>::full(&[height, depth], Scalar::one()).unwrap();
+            let b_t = Tensor::<Scalar>::full(&[depth, width], Scalar::from_f32(2.0)).unwrap();
+            let b_packed = DotsPackedMatrix::new_transposed(&b_t).unwrap();
+            let output = a.dots_packed(&b_packed).unwrap();
             assert_eq!(output.shape(), &[height, width], "shape @ ({height},{width},{depth})");
             let expected = depth as f64 * 2.0;
             let tol = Scalar::atol() + Scalar::rtol() * expected.abs();
@@ -2994,11 +2957,11 @@ mod tests {
         let topology = fu::Topology::new().unwrap();
         let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
         for &(height, width, depth) in DIMS {
-            let a = Tensor::<Scalar>::try_full(&[height, depth], Scalar::one()).unwrap();
-            let b = Tensor::<Scalar>::try_full(&[width, depth], Scalar::one()).unwrap();
-            let b_packed = DotsPackedMatrix::try_pack(&b).unwrap();
-            let serial = a.dots_packed(&b_packed);
-            let parallel = a.dots_packed_parallel(&b_packed, &mut pool);
+            let a = Tensor::<Scalar>::full(&[height, depth], Scalar::one()).unwrap();
+            let b = Tensor::<Scalar>::full(&[width, depth], Scalar::one()).unwrap();
+            let b_packed = DotsPackedMatrix::new(&b).unwrap();
+            let serial = a.dots_packed(&b_packed).unwrap();
+            let parallel = a.dots_packed_parallel(&b_packed, &mut pool).unwrap();
             assert_eq!(
                 serial.as_slice(),
                 parallel.as_slice(),
@@ -3018,11 +2981,11 @@ mod tests {
         let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
         for &(num_vectors, _, depth) in DIMS {
             let depth = align_depth::<Scalar>(depth);
-            let vectors = Tensor::<Scalar>::try_full(&[num_vectors, depth], Scalar::one()).unwrap();
+            let vectors = Tensor::<Scalar>::full(&[num_vectors, depth], Scalar::one()).unwrap();
 
             // dots: compare serial == parallel (upper triangle) and _parallel_into(span)
-            let serial = vectors.view().try_dots_symmetric().unwrap();
-            let parallel = vectors.dots_symmetric_parallel(&mut pool);
+            let serial = vectors.view().dots_symmetric().unwrap();
+            let parallel = vectors.dots_symmetric_parallel(&mut pool).unwrap();
             assert_upper_triangle_eq(
                 serial.as_slice(),
                 parallel.as_slice(),
@@ -3030,10 +2993,10 @@ mod tests {
                 "dots_symmetric_parallel",
             );
             let mut into_span =
-                Tensor::<Scalar::Accumulator>::try_full(&[num_vectors, num_vectors], Scalar::Accumulator::default())
+                Tensor::<Scalar::Accumulator>::full(&[num_vectors, num_vectors], Scalar::Accumulator::default())
                     .unwrap();
             vectors
-                .try_dots_symmetric_parallel_into(&mut into_span.span(), &mut pool)
+                .dots_symmetric_parallel_into(&mut into_span.span(), &mut pool)
                 .unwrap();
             assert_upper_triangle_eq(
                 serial.as_slice(),
@@ -3051,8 +3014,8 @@ mod tests {
         init_thread();
         for &(num_vectors, _num_targets, depth) in DIMS {
             let depth = align_depth::<Scalar>(depth);
-            let vectors = Tensor::<Scalar>::try_full(&[num_vectors, depth], Scalar::one()).unwrap();
-            let gram_matrix = vectors.view().try_dots_symmetric().unwrap();
+            let vectors = Tensor::<Scalar>::full(&[num_vectors, depth], Scalar::one()).unwrap();
+            let gram_matrix = vectors.view().dots_symmetric().unwrap();
             assert_eq!(
                 gram_matrix.shape(),
                 &[num_vectors, num_vectors],
@@ -3072,9 +3035,9 @@ mod tests {
             }
             // Verify _into on both &mut Tensor and &mut span via the extension trait.
             let mut into_tensor =
-                Tensor::<Scalar::Accumulator>::try_full(&[num_vectors, num_vectors], Scalar::Accumulator::default())
+                Tensor::<Scalar::Accumulator>::full(&[num_vectors, num_vectors], Scalar::Accumulator::default())
                     .unwrap();
-            vectors.try_dots_symmetric_into(&mut into_tensor).unwrap();
+            vectors.dots_symmetric_into(&mut into_tensor).unwrap();
             assert_upper_triangle_eq(
                 gram_matrix.as_slice(),
                 into_tensor.as_slice(),
@@ -3082,12 +3045,9 @@ mod tests {
                 "dots_symmetric_into(Tensor)",
             );
             let mut into_span_buf =
-                Tensor::<Scalar::Accumulator>::try_full(&[num_vectors, num_vectors], Scalar::Accumulator::default())
+                Tensor::<Scalar::Accumulator>::full(&[num_vectors, num_vectors], Scalar::Accumulator::default())
                     .unwrap();
-            vectors
-                .view()
-                .try_dots_symmetric_into(&mut into_span_buf.span())
-                .unwrap();
+            vectors.view().dots_symmetric_into(&mut into_span_buf.span()).unwrap();
             assert_upper_triangle_eq(
                 gram_matrix.as_slice(),
                 into_span_buf.as_slice(),
@@ -3138,8 +3098,8 @@ mod tests {
         let (height, width, depth) = (3usize, 4usize, 5usize);
         let a_data: Vec<f32> = (0..height * depth).map(|i| i as f32 * 0.5 - 1.0).collect();
         let b_data: Vec<f32> = (0..width * depth).map(|i| i as f32 * 0.25 + 0.3).collect();
-        let mut a = Tensor::<f32>::from_slice(&a_data, &[height, depth]);
-        let b = Tensor::<f32>::from_slice(&b_data, &[width, depth]);
+        let mut a = Tensor::<f32>::from_slice(&a_data, &[height, depth]).unwrap();
+        let b = Tensor::<f32>::from_slice(&b_data, &[width, depth]).unwrap();
 
         // Manual reference: C = A × Bᵀ, so C[i][j] = Σ_l A[i][l] · B[j][l].
         let mut expected = vec![0.0f64; height * width];
@@ -3160,32 +3120,27 @@ mod tests {
         };
 
         // Packing B from an owned tensor, a borrowed view, and a span must agree.
-        let packed_owned = DotsPackedMatrix::try_pack(&b).unwrap();
-        let packed_view = DotsPackedMatrix::try_pack(&b.view()).unwrap();
-        let packed_span = DotsPackedMatrix::try_pack(&b.clone().span()).unwrap();
+        let packed_owned = DotsPackedMatrix::new(&b).unwrap();
+        let packed_view = DotsPackedMatrix::new(&b.view()).unwrap();
+        let packed_span = DotsPackedMatrix::new(&b.clone().unwrap().span()).unwrap();
         assert_eq!(packed_owned.as_bytes(), packed_view.as_bytes(), "pack(view)");
         assert_eq!(packed_owned.as_bytes(), packed_span.as_bytes(), "pack(span)");
 
         // The A operand as an owned tensor via the inherent method, then a view and a span
         // via the DotsPackedOps blanket impl.
-        close(&a.dots_packed(&packed_view), &expected, "owned A");
-        close(&a.view().dots_packed(&packed_view), &expected, "view A");
-        close(
-            &a.view().try_dots_packed(&packed_view).unwrap(),
-            &expected,
-            "view A try",
-        );
-        close(&a.span().dots_packed(&packed_view), &expected, "span A");
+        close(&a.dots_packed(&packed_view).unwrap(), &expected, "owned A");
+        close(&a.view().dots_packed(&packed_view).unwrap(), &expected, "view A");
+        close(&a.span().dots_packed(&packed_view).unwrap(), &expected, "span A");
 
         // A view can also write into a caller-provided output.
-        let mut into = Tensor::<f64>::try_full(&[height, width], 0.0).unwrap();
-        a.view().try_dots_packed_into(&packed_view, &mut into).unwrap();
+        let mut into = Tensor::<f64>::full(&[height, width], 0.0).unwrap();
+        a.view().dots_packed_into(&packed_view, &mut into).unwrap();
         close(&into, &expected, "view A into");
 
         // Transposed packing from a view with B in k×n layout: C = A × B. Non-uniform
-        // values here guard the materialization inside `try_pack_transposed_in`.
+        // values here guard the materialization inside `new_transposed_in`.
         let bt_data: Vec<f32> = (0..depth * width).map(|i| i as f32 * 0.2 - 0.7).collect();
-        let bt = Tensor::<f32>::from_slice(&bt_data, &[depth, width]);
+        let bt = Tensor::<f32>::from_slice(&bt_data, &[depth, width]).unwrap();
         let mut expected_t = vec![0.0f64; height * width];
         for i in 0..height {
             for j in 0..width {
@@ -3196,8 +3151,12 @@ mod tests {
                 expected_t[i * width + j] = acc;
             }
         }
-        let packed_t = DotsPackedMatrix::try_pack_transposed(&bt.view()).unwrap();
-        close(&a.view().dots_packed(&packed_t), &expected_t, "transposed view");
+        let packed_t = DotsPackedMatrix::new_transposed(&bt.view()).unwrap();
+        close(
+            &a.view().dots_packed(&packed_t).unwrap(),
+            &expected_t,
+            "transposed view",
+        );
     }
 
     #[test]
@@ -3234,11 +3193,11 @@ mod tests {
     fn symmetric_rejects_non_contiguous_rows() {
         // A transposed view has a non-unit inner stride; the symmetric kernels read each row as
         // contiguous, so such a view must be rejected (Err) rather than read out of bounds.
-        let m = Tensor::<f32>::try_full(&[4, 6], 1.0f32).unwrap();
-        let transposed = m.view().try_transpose().unwrap();
+        let m = Tensor::<f32>::full(&[4, 6], 1.0f32).unwrap();
+        let transposed = m.view().transpose().unwrap();
         assert!(!transposed.has_contiguous_rows());
         assert!(matches!(
-            transposed.try_dots_symmetric(),
+            transposed.dots_symmetric(),
             Err(TensorError::NonContiguousRows)
         ));
     }
@@ -3248,8 +3207,8 @@ mod tests {
         init_thread();
         let (width, depth) = (4usize, 5usize);
         let b_data: Vec<f32> = (0..width * depth).map(|i| i as f32 * 0.25 + 0.3).collect();
-        let b = Tensor::<f32>::from_slice(&b_data, &[width, depth]);
-        let packed = DotsPackedMatrix::try_pack(&b).unwrap();
+        let b = Tensor::<f32>::from_slice(&b_data, &[width, depth]).unwrap();
+        let packed = DotsPackedMatrix::new(&b).unwrap();
 
         // The static size query matches the live packed byte length and the stored dims.
         assert_eq!(
@@ -3265,8 +3224,11 @@ mod tests {
         assert_eq!(adopted.shape(), (width, depth));
 
         let a_data: Vec<f32> = (0..3 * depth).map(|i| i as f32 * 0.5 - 1.0).collect();
-        let a = Tensor::<f32>::from_slice(&a_data, &[3, depth]);
-        assert_eq!(a.dots_packed(&packed).as_slice(), a.dots_packed(&adopted).as_slice());
+        let a = Tensor::<f32>::from_slice(&a_data, &[3, depth]).unwrap();
+        assert_eq!(
+            a.dots_packed(&packed).unwrap().as_slice(),
+            a.dots_packed(&adopted).unwrap().as_slice()
+        );
     }
 
     #[test]
@@ -3274,15 +3236,15 @@ mod tests {
         init_thread();
         let (max_width, depth) = (48usize, 16usize);
         let mut packed = DotsPackedMatrix::<f32>::empty_in(Global);
-        packed.try_reserve(max_width, depth).unwrap();
+        packed.reserve(max_width, depth).unwrap();
         let reserved_capacity = packed.capacity();
         let reserved_ptr = packed.as_ptr();
         assert!(reserved_capacity >= DotsPackedMatrix::<f32>::pack_size(max_width, depth).unwrap());
 
         for width in [4usize, 17, 48] {
             let b_data: Vec<f32> = (0..width * depth).map(|i| i as f32 * 0.1).collect();
-            let b = Tensor::<f32>::from_slice(&b_data, &[width, depth]);
-            packed.try_pack_into(&b).unwrap();
+            let b = Tensor::<f32>::from_slice(&b_data, &[width, depth]).unwrap();
+            packed.pack_into(&b).unwrap();
             assert_eq!(packed.shape(), (width, depth));
             assert_eq!(
                 packed.capacity(),
@@ -3295,13 +3257,13 @@ mod tests {
 
     #[test]
     fn foreign_pack_is_refused() {
-        // Every capability stamps the packs it writes, so bytes no capability wrote come back as a status.
+        // Every capability stamps the packs it writes, so bytes none wrote come back as a status.
         init_thread();
-        let queries = Tensor::<f32>::try_full(&[2, 8], 1.0).unwrap();
+        let queries = Tensor::<f32>::full(&[2, 8], 1.0).unwrap();
         let foreign = vec![0xFF_u8; DotsPackedMatrix::<f32>::pack_size(3, 8).unwrap()];
         let packed = unsafe { DotsPackedMatrix::<f32>::from_packed_bytes_in(&foreign, 3, 8, Global) }.unwrap();
         assert!(matches!(
-            queries.try_dots_packed(&packed),
+            queries.dots_packed(&packed),
             Err(TensorError::KernelFailed { status: -21 })
         ));
     }
@@ -3311,8 +3273,8 @@ mod tests {
         init_thread();
         fn check<Scalar: TestableType + Dots>(width: usize, depth: usize) {
             let depth = align_depth::<Scalar>(depth);
-            let b = Tensor::<Scalar>::try_full(&[width, depth], Scalar::one()).unwrap();
-            let packed = DotsPackedMatrix::try_pack(&b).unwrap();
+            let b = Tensor::<Scalar>::full(&[width, depth], Scalar::one()).unwrap();
+            let packed = DotsPackedMatrix::new(&b).unwrap();
             let (read_width, read_depth) = unsafe { Scalar::dots_packed_shape(packed.as_ptr()) }.unwrap();
             assert_eq!(
                 (read_width, read_depth),
@@ -3338,7 +3300,7 @@ mod tests {
         // cross panel path for f32/f16, the AMX tile path for i8/u8/bf16 on Sapphire Rapids).
         fn check<Scalar: TestableType + Dots>() {
             let (width, depth) = (5usize, align_depth::<Scalar>(20usize));
-            let b = Tensor::<Scalar>::try_full(&[width, depth], Scalar::one()).unwrap();
+            let b = Tensor::<Scalar>::full(&[width, depth], Scalar::one()).unwrap();
             let size = <Scalar as Dots>::dots_pack_size(width, depth).unwrap();
             let matrix_ptr = b.as_ptr();
             let matrix_stride = b.stride_bytes(0) as usize;
@@ -3375,11 +3337,11 @@ mod tests {
         // double-written column range leaves the blob differing from the serial reference.
         fn check<Scalar: TestableType + Dots>(width: usize) {
             let depth = align_depth::<Scalar>(20usize);
-            let b = Tensor::<Scalar>::try_full(&[width, depth], Scalar::one()).unwrap();
-            let serial = DotsPackedMatrix::try_pack(&b).unwrap();
+            let b = Tensor::<Scalar>::full(&[width, depth], Scalar::one()).unwrap();
+            let serial = DotsPackedMatrix::new(&b).unwrap();
             let topology = fu::Topology::new().unwrap();
             let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
-            let parallel = DotsPackedMatrix::try_pack_parallel(&b, &mut pool).unwrap();
+            let parallel = DotsPackedMatrix::new_parallel(&b, &mut pool).unwrap();
             assert_eq!(
                 serial.as_bytes(),
                 parallel.as_bytes(),
