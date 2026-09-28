@@ -13,6 +13,7 @@
 #if NUMKONG_TARGET_NEONSDOT
 
 #include "numkong/dots/serial.h"
+#include "numkong/cast/neon.h" // `nk_load_b128_neon_`, `nk_store_b128_neon_`
 #include "numkong/dot/neonsdot.h"
 
 #if defined(__cplusplus)

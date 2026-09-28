@@ -39,6 +39,7 @@
 #include "numkong/types.h"
 #include "numkong/cast/neon.h"
 #include "numkong/cast/serial.h" // `nk_f32_to_u8_serial_`, `nk_f32_to_i8_serial_`
+#include "numkong/scalar/serial.h" // `nk_i16_saturating_add_` and its siblings
 
 #if defined(__cplusplus)
 extern "C" {

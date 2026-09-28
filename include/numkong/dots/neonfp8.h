@@ -16,6 +16,7 @@
 #if NUMKONG_TARGET_NEONFP8
 
 #include "numkong/dots/serial.h"
+#include "numkong/cast/neon.h" // `nk_load_b128_neon_`, `nk_store_b128_neon_`
 #include "numkong/dot/neonfp8.h"
 
 #if defined(__cplusplus)
