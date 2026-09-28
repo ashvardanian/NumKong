@@ -513,12 +513,11 @@ NUMKONG_DEVICE void nk_attention_block_hopper_(nk_dtype_t dtype, nk_attention_wi
  *      buffer aligned up to the 512-byte boundary the 64-byte swizzle repeats on.
  *  @sa nk_attention_block_hopper_ for the parameters.
  */
-NUMKONG_DEVICE void nk_attention_tile_hopper_(nk_dtype_t dtype, nk_dtype_t mma_dtype, nk_attention_width_t width,
+NUMKONG_DEVICE void nk_attention_tile_hopper_(nk_dtype_t dtype, nk_attention_width_t width,
                                               nk_cross_epilogue_t epilogue, nk_attention_scores_hopper_t scores,
                                               nk_attention_values_hopper_t values_mma,
                                               nk_attention_weights_ampere_t weights,
                                               nk_attention_arguments_t const *arguments) {
-    nk_unused_(mma_dtype);
     extern __shared__ __align__(128) unsigned char nk_attention_shared_hopper_[];
     __shared__ nk_u64_t prefix[nk_attention_threads_k + 1];
     __shared__ nk_u64_t warp_totals[nk_attention_threads_k / 32];
@@ -570,11 +569,10 @@ NUMKONG_INLINE nk_size_t nk_attention_shared_ceiling_hopper_(nk_dtype_t dtype, n
  */
 NUMKONG_INLINE nk_status_t nk_attention_launch_hopper_(
     void const *narrow_kernel, void const *wide_kernel, void const *fallback_kernel, nk_dtype_t dtype,
-    nk_dtype_t mma_dtype, void const *queries, void const *packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_f32_t score_scale, nk_f32_t output_scale, nk_attention_mask_t mask,
-    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count, void *stream) {
-    nk_unused_(mma_dtype);
+    void const *queries, void const *packed, nk_f32_t *output, nk_size_t head_count, nk_size_t key_value_head_count,
+    nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale,
+    nk_f32_t score_scale, nk_f32_t output_scale, nk_attention_mask_t mask, nk_i64_t diagonal_offset, nk_size_t window,
+    nk_size_t task_start, nk_size_t task_count, void *stream) {
     if (((nk_size_t)packed & 15) || (((nk_size_t)output | output_stride) & 3)) return nk_misaligned_k;
     if (key_value_head_count == 0 || head_count % key_value_head_count != 0) return nk_unexpected_dimensions_k;
     if (task_count == 0 || depth == 0) return nk_success_k;
@@ -598,23 +596,23 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_hopper_(
 nk_define_device_attention_pack_size_(bf16, hopper, 2)
 nk_define_device_attention_packed_shape_(bf16, hopper)
 nk_define_device_attention_pack_(bf16, hopper, bf16)
-nk_define_device_attention_packed_(bf16, hopper, hopper, nk_attention_launch_hopper_, bf16, nk_bf16_k,
-                                   nk_cross_epilogue_f32_k, nk_attention_scores_bf16_hopper_,
-                                   nk_attention_values_bf16_hopper_, nk_attention_weights_bf16_ampere_, 1.0f, 1.0f)
+nk_define_device_attention_packed_(bf16, hopper, hopper, nk_attention_launch_hopper_, bf16, nk_cross_epilogue_f32_k,
+                                   nk_attention_scores_bf16_hopper_, nk_attention_values_bf16_hopper_,
+                                   nk_attention_weights_bf16_ampere_, 1.0f, 1.0f)
 
 nk_define_device_attention_pack_size_(e4m3, hopper, 1)
 nk_define_device_attention_packed_shape_(e4m3, hopper)
 nk_define_device_attention_pack_(e4m3, hopper, e4m3)
-nk_define_device_attention_packed_(e4m3, hopper, hopper, nk_attention_launch_hopper_, e4m3, nk_e4m3_k,
-                                   nk_cross_epilogue_f32_k, nk_attention_scores_e4m3_hopper_,
-                                   nk_attention_values_e4m3_hopper_, nk_attention_weights_e4m3_ada_, 1.0f, 1.0f)
+nk_define_device_attention_packed_(e4m3, hopper, hopper, nk_attention_launch_hopper_, e4m3, nk_cross_epilogue_f32_k,
+                                   nk_attention_scores_e4m3_hopper_, nk_attention_values_e4m3_hopper_,
+                                   nk_attention_weights_e4m3_ada_, 1.0f, 1.0f)
 
 nk_define_device_attention_pack_size_(i8, hopper, 1)
 nk_define_device_attention_packed_shape_(i8, hopper)
 nk_define_device_attention_pack_(i8, hopper, i8)
-nk_define_device_attention_packed_(i8, hopper, hopper, nk_attention_launch_hopper_, i8, nk_i8_k,
-                                   nk_cross_epilogue_i32_to_f32_k, nk_attention_scores_i8_hopper_,
-                                   nk_attention_values_u8i8_hopper_, nk_attention_weights_u8_ampere_, 1.0f, 1.0f)
+nk_define_device_attention_packed_(i8, hopper, hopper, nk_attention_launch_hopper_, i8, nk_cross_epilogue_i32_to_f32_k,
+                                   nk_attention_scores_i8_hopper_, nk_attention_values_u8i8_hopper_,
+                                   nk_attention_weights_u8_ampere_, 1.0f, 1.0f)
 
 #pragma endregion Instantiations
 

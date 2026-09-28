@@ -388,12 +388,10 @@ NUMKONG_DEVICE void nk_attention_block_cdna5_(nk_dtype_t dtype, nk_attention_wid
  *  @brief Every work item of a launch, walked with a stride of the grid.
  *  @sa nk_attention_block_cdna4_ for the parameters.
  */
-NUMKONG_DEVICE void nk_attention_tile_cdna5_(nk_dtype_t dtype, nk_dtype_t mma_dtype, nk_attention_width_t width,
-                                             nk_cross_epilogue_t epilogue, nk_attention_scores_cdna5_t scores,
-                                             nk_attention_values_cdna5_t values_mma,
+NUMKONG_DEVICE void nk_attention_tile_cdna5_(nk_dtype_t dtype, nk_attention_width_t width, nk_cross_epilogue_t epilogue,
+                                             nk_attention_scores_cdna5_t scores, nk_attention_values_cdna5_t values_mma,
                                              nk_attention_weights_cdna5_t weights,
                                              nk_attention_arguments_t const *arguments) {
-    nk_unused_(mma_dtype);
     extern __shared__ __attribute__((aligned(16))) unsigned char nk_attention_shared_cdna5_[];
     __shared__ nk_u64_t prefix[nk_attention_threads_k + 1];
     __shared__ nk_u64_t warp_totals[nk_attention_threads_k / 32];
@@ -414,23 +412,23 @@ NUMKONG_DEVICE void nk_attention_tile_cdna5_(nk_dtype_t dtype, nk_dtype_t mma_dt
 nk_define_device_attention_pack_size_(bf16, cdna5, 2)
 nk_define_device_attention_packed_shape_(bf16, cdna5)
 nk_define_device_attention_pack_(bf16, cdna5, bf16)
-nk_define_device_attention_packed_(bf16, cdna5, cdna5, nk_attention_launch_cdna4_, bf16, nk_bf16_k,
-                                   nk_cross_epilogue_f32_k, nk_attention_scores_bf16_cdna5_,
-                                   nk_attention_values_bf16_cdna5_, nk_attention_weights_bf16_cdna5_, 1.0f, 1.0f)
+nk_define_device_attention_packed_(bf16, cdna5, cdna5, nk_attention_launch_cdna4_, bf16, nk_cross_epilogue_f32_k,
+                                   nk_attention_scores_bf16_cdna5_, nk_attention_values_bf16_cdna5_,
+                                   nk_attention_weights_bf16_cdna5_, 1.0f, 1.0f)
 
 nk_define_device_attention_pack_size_(e4m3, cdna5, 1)
 nk_define_device_attention_packed_shape_(e4m3, cdna5)
 nk_define_device_attention_pack_(e4m3, cdna5, e4m3)
-nk_define_device_attention_packed_(e4m3, cdna5, cdna5, nk_attention_launch_cdna4_, e4m3, nk_f16_k,
-                                   nk_cross_epilogue_f32_k, nk_attention_scores_e4m3_cdna5_,
-                                   nk_attention_values_e4m3_cdna5_, nk_attention_weights_f16_cdna5_, 1.0f, 256.0f)
+nk_define_device_attention_packed_(e4m3, cdna5, cdna5, nk_attention_launch_cdna4_, e4m3, nk_cross_epilogue_f32_k,
+                                   nk_attention_scores_e4m3_cdna5_, nk_attention_values_e4m3_cdna5_,
+                                   nk_attention_weights_f16_cdna5_, 1.0f, 256.0f)
 
 nk_define_device_attention_pack_size_(i8, cdna5, 1)
 nk_define_device_attention_packed_shape_(i8, cdna5)
 nk_define_device_attention_pack_(i8, cdna5, i8)
-nk_define_device_attention_packed_(i8, cdna5, cdna5, nk_attention_launch_cdna4_, i8, nk_i8_k,
-                                   nk_cross_epilogue_i32_to_f32_k, nk_attention_scores_i8_cdna5_,
-                                   nk_attention_values_i8_cdna5_, nk_attention_weights_u8_cdna5_, 1.0f, 1.0f)
+nk_define_device_attention_packed_(i8, cdna5, cdna5, nk_attention_launch_cdna4_, i8, nk_cross_epilogue_i32_to_f32_k,
+                                   nk_attention_scores_i8_cdna5_, nk_attention_values_i8_cdna5_,
+                                   nk_attention_weights_u8_cdna5_, 1.0f, 1.0f)
 
 #pragma endregion Instantiations
 

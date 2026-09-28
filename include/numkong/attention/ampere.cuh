@@ -635,10 +635,11 @@ NUMKONG_DEVICE void nk_attention_block_ampere_(nk_dtype_t dtype, nk_dtype_t mma_
  *      count calls for.
  *  @sa nk_attention_block_ampere_ for the parameters.
  */
-NUMKONG_DEVICE void nk_attention_tile_ampere_(nk_dtype_t dtype, nk_dtype_t mma_dtype, nk_attention_width_t width,
-                                              nk_cross_epilogue_t epilogue, nk_attention_scores_ampere_t scores,
-                                              nk_cross_mma_ampere_t values_mma, nk_attention_weights_ampere_t weights,
-                                              nk_attention_arguments_t const *arguments) {
+NUMKONG_DEVICE void nk_attention_tile_mma_ampere_(nk_dtype_t dtype, nk_dtype_t mma_dtype, nk_attention_width_t width,
+                                                  nk_cross_epilogue_t epilogue, nk_attention_scores_ampere_t scores,
+                                                  nk_cross_mma_ampere_t values_mma,
+                                                  nk_attention_weights_ampere_t weights,
+                                                  nk_attention_arguments_t const *arguments) {
     extern __shared__ __align__(128) unsigned char nk_attention_shared_ampere_[];
     __shared__ nk_u64_t prefix[nk_attention_threads_k + 1];
     __shared__ nk_u64_t warp_totals[nk_attention_threads_k / 32];
@@ -655,6 +656,23 @@ NUMKONG_DEVICE void nk_attention_tile_ampere_(nk_dtype_t dtype, nk_dtype_t mma_d
             nk_attention_block_ampere_(dtype, mma_dtype, width, nk_attention_split_rows_k, epilogue, scores, values_mma,
                                        weights, arguments, &work, nk_attention_shared_ampere_, unions);
     }
+}
+
+/** The tile on MMAs of the input dtype itself. */
+NUMKONG_DEVICE void nk_attention_tile_ampere_(nk_dtype_t dtype, nk_attention_width_t width,
+                                              nk_cross_epilogue_t epilogue, nk_attention_scores_ampere_t scores,
+                                              nk_cross_mma_ampere_t values_mma, nk_attention_weights_ampere_t weights,
+                                              nk_attention_arguments_t const *arguments) {
+    nk_attention_tile_mma_ampere_(dtype, dtype, width, epilogue, scores, values_mma, weights, arguments);
+}
+
+/** The tile on F16 MMAs, for E4M3 converted to F16 first. */
+NUMKONG_DEVICE void nk_attention_tile_ampere_f16_mma_(nk_dtype_t dtype, nk_attention_width_t width,
+                                                      nk_cross_epilogue_t epilogue, nk_attention_scores_ampere_t scores,
+                                                      nk_cross_mma_ampere_t values_mma,
+                                                      nk_attention_weights_ampere_t weights,
+                                                      nk_attention_arguments_t const *arguments) {
+    nk_attention_tile_mma_ampere_(dtype, nk_f16_k, width, epilogue, scores, values_mma, weights, arguments);
 }
 
 #pragma endregion Tile
@@ -725,7 +743,7 @@ NUMKONG_INLINE nk_size_t nk_attention_shared_ceiling_ampere_(nk_dtype_t dtype, n
  *  @param[in] score_scale Undoes the power of two that converting Q and K puts on scores, or 1.
  *  @param[in] output_scale Undoes the power of two that converting V puts on the output, or 1.
  */
-NUMKONG_INLINE nk_status_t nk_attention_launch_ampere_(
+NUMKONG_INLINE nk_status_t nk_attention_launch_mma_ampere_(
     void const *narrow_kernel, void const *wide_kernel, void const *fallback_kernel, nk_dtype_t dtype,
     nk_dtype_t mma_dtype, void const *queries, void const *packed, nk_f32_t *output, nk_size_t head_count,
     nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
@@ -747,6 +765,32 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_ampere_(
                                NUMKONG_SIZE_MAX, &arguments, stream);
 }
 
+/** The launch for the tile on MMAs of the input dtype itself. */
+NUMKONG_INLINE nk_status_t nk_attention_launch_ampere_(
+    void const *narrow_kernel, void const *wide_kernel, void const *fallback_kernel, nk_dtype_t dtype,
+    void const *queries, void const *packed, nk_f32_t *output, nk_size_t head_count, nk_size_t key_value_head_count,
+    nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale,
+    nk_f32_t score_scale, nk_f32_t output_scale, nk_attention_mask_t mask, nk_i64_t diagonal_offset, nk_size_t window,
+    nk_size_t task_start, nk_size_t task_count, void *stream) {
+    return nk_attention_launch_mma_ampere_(narrow_kernel, wide_kernel, fallback_kernel, dtype, dtype, queries, packed,
+                                           output, head_count, key_value_head_count, depth, query_offsets, query_stride,
+                                           output_stride, scale, score_scale, output_scale, mask, diagonal_offset,
+                                           window, task_start, task_count, stream);
+}
+
+/** The launch for the tile on F16 MMAs, for E4M3 converted to F16 first. */
+NUMKONG_INLINE nk_status_t nk_attention_launch_ampere_f16_mma_(
+    void const *narrow_kernel, void const *wide_kernel, void const *fallback_kernel, nk_dtype_t dtype,
+    void const *queries, void const *packed, nk_f32_t *output, nk_size_t head_count, nk_size_t key_value_head_count,
+    nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale,
+    nk_f32_t score_scale, nk_f32_t output_scale, nk_attention_mask_t mask, nk_i64_t diagonal_offset, nk_size_t window,
+    nk_size_t task_start, nk_size_t task_count, void *stream) {
+    return nk_attention_launch_mma_ampere_(narrow_kernel, wide_kernel, fallback_kernel, dtype, nk_f16_k, queries,
+                                           packed, output, head_count, key_value_head_count, depth, query_offsets,
+                                           query_stride, output_stride, scale, score_scale, output_scale, mask,
+                                           diagonal_offset, window, task_start, task_count, stream);
+}
+
 #pragma endregion Launch
 
 /*  Later generations read the helpers above and emit only their own kernels. */
@@ -757,23 +801,23 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_ampere_(
 nk_define_device_attention_pack_size_(bf16, ampere, 2)
 nk_define_device_attention_packed_shape_(bf16, ampere)
 nk_define_device_attention_pack_(bf16, ampere, bf16)
-nk_define_device_attention_packed_(bf16, ampere, ampere, nk_attention_launch_ampere_, bf16, nk_bf16_k,
-                                   nk_cross_epilogue_f32_k, nk_attention_scores_bf16_ampere_, nk_mma_bf16_ampere_,
+nk_define_device_attention_packed_(bf16, ampere, ampere, nk_attention_launch_ampere_, bf16, nk_cross_epilogue_f32_k,
+                                   nk_attention_scores_bf16_ampere_, nk_mma_bf16_ampere_,
                                    nk_attention_weights_bf16_ampere_, 1.0f, 1.0f)
 
 nk_define_device_attention_pack_size_(e4m3, ampere, 1)
 nk_define_device_attention_packed_shape_(e4m3, ampere)
 nk_define_device_attention_pack_(e4m3, ampere, e4m3)
-nk_define_device_attention_packed_(e4m3, ampere, ampere, nk_attention_launch_ampere_, e4m3, nk_f16_k,
+nk_define_device_attention_packed_(e4m3, ampere, ampere_f16_mma, nk_attention_launch_ampere_f16_mma_, e4m3,
                                    nk_cross_epilogue_f32_k, nk_attention_scores_e4m3_ampere_, nk_mma_f16_ampere_,
                                    nk_attention_weights_f16_ampere_, 65536.0f, 256.0f)
 
 nk_define_device_attention_pack_size_(i8, ampere, 1)
 nk_define_device_attention_packed_shape_(i8, ampere)
 nk_define_device_attention_pack_(i8, ampere, i8)
-nk_define_device_attention_packed_(i8, ampere, ampere, nk_attention_launch_ampere_, i8, nk_i8_k,
-                                   nk_cross_epilogue_i32_to_f32_k, nk_attention_scores_i8_ampere_, nk_mma_u8i8_ampere_,
-                                   nk_attention_weights_u8_ampere_, 1.0f, 1.0f)
+nk_define_device_attention_packed_(i8, ampere, ampere, nk_attention_launch_ampere_, i8, nk_cross_epilogue_i32_to_f32_k,
+                                   nk_attention_scores_i8_ampere_, nk_mma_u8i8_ampere_, nk_attention_weights_u8_ampere_,
+                                   1.0f, 1.0f)
 
 #pragma endregion Instantiations
 

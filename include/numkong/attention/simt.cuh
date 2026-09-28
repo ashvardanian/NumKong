@@ -44,7 +44,8 @@ typedef enum {
     nk_attention_mask_causal_k,
 } nk_attention_mask_t;
 
-/** The largest head depth a tensor capability's tile takes. */
+/** Which tensor-core tile a head's depth takes: up to 128 or up to 256. Deeper heads
+ *  run the SIMT fallback kernel. */
 typedef enum {
     nk_attention_width_128_k,
     nk_attention_width_256_k,
@@ -741,22 +742,20 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_(void const *kernel, nk_capabilit
  *  @param[in] tile The tiling kernel family, like @c ampere, whose tile function the narrow and
  *      wide kernels run.
  *  @param[in] launch_fn The launch, taking the narrow, wide and fallback kernels in that order.
- *  @param[in] mma_dtype The dtype the tile's MMAs consume: @c nk_f16_k where E4M3 converts to F16
- *      first, else the input dtype.
  *  @param[in] score_scale Undoes the power of two that converting Q and K puts on scores, or 1.
  *  @param[in] output_scale Undoes the power of two that converting V puts on the output, or 1.
  */
-#define nk_define_device_attention_packed_(input_type_name, isa_suffix, tile, launch_fn, input_value_type, mma_dtype, \
-                                           epilogue, scores_fn, values_mma_fn, weights_fn, score_scale, output_scale) \
+#define nk_define_device_attention_packed_(input_type_name, isa_suffix, tile, launch_fn, input_value_type, epilogue,  \
+                                           scores_fn, values_mma_fn, weights_fn, score_scale, output_scale)           \
     static __global__ void __launch_bounds__(nk_attention_threads_k)                                                  \
         nk_attention_packed_##input_type_name##_##isa_suffix##_narrow_kernel_(nk_attention_arguments_t arguments) {   \
-        nk_attention_tile_##tile##_(nk_##input_value_type##_k, mma_dtype, nk_attention_width_128_k, epilogue,         \
-                                    scores_fn, values_mma_fn, weights_fn, &arguments);                                \
+        nk_attention_tile_##tile##_(nk_##input_value_type##_k, nk_attention_width_128_k, epilogue, scores_fn,         \
+                                    values_mma_fn, weights_fn, &arguments);                                           \
     }                                                                                                                 \
     static __global__ void __launch_bounds__(nk_attention_threads_k)                                                  \
         nk_attention_packed_##input_type_name##_##isa_suffix##_wide_kernel_(nk_attention_arguments_t arguments) {     \
-        nk_attention_tile_##tile##_(nk_##input_value_type##_k, mma_dtype, nk_attention_width_256_k, epilogue,         \
-                                    scores_fn, values_mma_fn, weights_fn, &arguments);                                \
+        nk_attention_tile_##tile##_(nk_##input_value_type##_k, nk_attention_width_256_k, epilogue, scores_fn,         \
+                                    values_mma_fn, weights_fn, &arguments);                                           \
     }                                                                                                                 \
     static __global__ void __launch_bounds__(nk_attention_threads_k)                                                  \
         nk_attention_packed_##input_type_name##_##isa_suffix##_fallback_kernel_(nk_attention_arguments_t arguments) { \
@@ -770,7 +769,7 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_(void const *kernel, nk_capabilit
         return launch_fn((void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_narrow_kernel_,         \
                          (void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_wide_kernel_,           \
                          (void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_fallback_kernel_,       \
-                         nk_##input_value_type##_k, mma_dtype, queries, key_value_packed, output, head_count,         \
+                         nk_##input_value_type##_k, queries, key_value_packed, output, head_count,                    \
                          key_value_head_count, depth, query_offsets, query_stride_bytes, output_stride_bytes, scale,  \
                          score_scale, output_scale, nk_attention_mask_bidirectional_k, 0, 0, task_start, task_count,  \
                          stream);                                                                                     \
@@ -783,7 +782,7 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_(void const *kernel, nk_capabilit
         return launch_fn((void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_narrow_kernel_,         \
                          (void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_wide_kernel_,           \
                          (void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_fallback_kernel_,       \
-                         nk_##input_value_type##_k, mma_dtype, queries, key_value_packed, output, head_count,         \
+                         nk_##input_value_type##_k, queries, key_value_packed, output, head_count,                    \
                          key_value_head_count, depth, query_offsets, query_stride_bytes, output_stride_bytes, scale,  \
                          score_scale, output_scale, nk_attention_mask_causal_k, diagonal_offset, window, task_start,  \
                          task_count, stream);                                                                         \

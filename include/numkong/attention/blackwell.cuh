@@ -412,12 +412,12 @@ NUMKONG_DEVICE void nk_attention_block_blackwell_(
  *      tensor-memory columns both products share.
  *  @sa nk_attention_block_blackwell_ for the parameters.
  */
-NUMKONG_DEVICE void nk_attention_tile_blackwell_(nk_dtype_t dtype, nk_dtype_t mma_dtype, nk_attention_width_t width,
+NUMKONG_DEVICE void nk_attention_tile_blackwell_(nk_dtype_t dtype, nk_attention_width_t width,
                                                  nk_cross_epilogue_t epilogue, nk_attention_mma_blackwell_t scores,
                                                  nk_attention_mma_blackwell_t values_mma,
                                                  nk_attention_weights_ampere_t weights,
                                                  nk_attention_arguments_t const *arguments) {
-    nk_unused_(dtype), nk_unused_(mma_dtype);
+    nk_unused_(dtype);
     extern __shared__ unsigned char nk_attention_shared_blackwell_[];
     __shared__ nk_u64_t prefix[nk_attention_threads_k + 1];
     __shared__ nk_u64_t warp_totals[nk_attention_threads_k / 32];
@@ -483,11 +483,11 @@ NUMKONG_INLINE nk_size_t nk_attention_shared_bytes_blackwell_(nk_size_t depth) {
  */
 NUMKONG_INLINE nk_status_t nk_attention_launch_blackwell_(
     void const *narrow_kernel, void const *wide_kernel, void const *fallback_kernel, nk_dtype_t dtype,
-    nk_dtype_t mma_dtype, void const *queries, void const *packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_f32_t score_scale, nk_f32_t output_scale, nk_attention_mask_t mask,
-    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count, void *stream) {
-    nk_unused_(dtype), nk_unused_(mma_dtype);
+    void const *queries, void const *packed, nk_f32_t *output, nk_size_t head_count, nk_size_t key_value_head_count,
+    nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale,
+    nk_f32_t score_scale, nk_f32_t output_scale, nk_attention_mask_t mask, nk_i64_t diagonal_offset, nk_size_t window,
+    nk_size_t task_start, nk_size_t task_count, void *stream) {
+    nk_unused_(dtype);
     if (((nk_size_t)packed & 15) || (((nk_size_t)output | output_stride) & 3)) return nk_misaligned_k;
     if (key_value_head_count == 0 || head_count % key_value_head_count != 0) return nk_unexpected_dimensions_k;
     if (task_count == 0 || depth == 0) return nk_success_k;
@@ -517,7 +517,7 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_blackwell_(
 nk_define_device_attention_pack_size_(e4m3, blackwell, 1)
 nk_define_device_attention_packed_shape_(e4m3, blackwell)
 nk_define_device_attention_pack_(e4m3, blackwell, e4m3)
-nk_define_device_attention_packed_(e4m3, blackwell, blackwell, nk_attention_launch_blackwell_, e4m3, nk_e4m3_k,
+nk_define_device_attention_packed_(e4m3, blackwell, blackwell, nk_attention_launch_blackwell_, e4m3,
                                    nk_cross_epilogue_f32_k, nk_attention_mma_e4m3_blackwell_,
                                    nk_attention_mma_e4m3_blackwell_, nk_attention_weights_e4m3_ada_, 1.0f, 1.0f)
 
