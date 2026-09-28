@@ -1,6 +1,6 @@
 # MaxSim Late-Interaction Scoring in NumKong
 
-NumKong implements ColBERT-style late-interaction scoring: the MaxSim score sums, over each query token, the minimum angular distance to any document token. A two-stage coarse-to-fine strategy uses i8-quantized screening to find the best document per query, then full-precision refinement computes the final angular distance.
+NumKong implements ColBERT-style late-interaction scoring: the MaxSim score sums, over each query token, the minimum angular distance to any document token. A two-stage coarse-to-fine strategy uses i8-quantized screening to rule out documents per query, then full-precision refinement of every document the screen cannot rule out computes the exact minimum angular distance.
 
 MaxSim score:
 
@@ -8,16 +8,22 @@ $$
 \text{MaxSim}(Q, D) = \sum_{i=0}^{m-1} \min_{j=0}^{n-1} \text{angular}(q_i, d_j)
 $$
 
-Coarse screening weights each i8 dot product by the document's quantization scale $s_j$ over its norm, which ranks documents by cosine and so finds argmin angular:
+Coarse screening weights each i8 dot product by the document's quantization scale $s_j$ over its norm, $w_j = s_j / \|d_j\|$, which ranks documents by cosine:
 
 $$
-j^* = \arg\max_j \text{dot}_{\text{i8}}(q_i, d_j) \cdot \frac{s_j}{\|d_j\|}
+\hat{c}_{ij} = \text{dot}_{\text{i8}}(q_i, d_j) \cdot w_j
 $$
 
-Full-precision refinement:
+Rounding leaves each quantized vector within $r = \tfrac{1}{2}\sqrt{k}$ of its scaled original in L2, so $\hat{c}_{ij}$ misses the exact $\text{dot}(q_i, d_j) / (s_{q_i} \|d_j\|)$ by at most
 
 $$
-\text{angular}(q_i, d_{j^*}) = 1 - \frac{\text{dot}(q_i, d_{j^*})}{\|q_i\| \cdot \|d_{j^*}\|}
+e_{ij} = r + w_j \left( \frac{r}{w_{q_i}} + r^2 \right)
+$$
+
+Refinement then covers every candidate $C_i = \{ j : \hat{c}_{ij} + e_{ij} \ge \max_l (\hat{c}_{il} - e_{il}) \}$, so near-tied documents are all refined and the result matches an exhaustive search:
+
+$$
+\min_{j \in C_i} \text{angular}(q_i, d_j) = \min_{j \in C_i} \left( 1 - \frac{\text{dot}(q_i, d_j)}{\|q_i\| \cdot \|d_j\|} \right)
 $$
 
 Reformulating as Python pseudocode:
@@ -27,12 +33,12 @@ import numpy as np
 
 def maxsim(queries: np.ndarray, documents: np.ndarray) -> float:
     score = 0.0
+    norms = np.linalg.norm(documents, axis=1)
     for q in queries:
-        dots = documents @ q
-        best = np.argmax(dots / np.linalg.norm(documents, axis=1))
-        d = documents[best]
-        angular = 1 - np.dot(q, d) / (np.linalg.norm(q) * np.linalg.norm(d))
-        score += angular
+        screened, error = coarse_screen(q, documents)  # i8 scores and their error bounds
+        candidates = screened + error >= np.max(screened - error)
+        cosines = documents[candidates] @ q / (norms[candidates] * np.linalg.norm(q))
+        score += max(1 - cosines.max(), 0)
     return score
 ```
 
@@ -66,7 +72,9 @@ End-to-end speedup (5×) exceeds GEMM-only speedup (1.5–2×) because maxsim el
 
 ### Two-Stage Coarse-to-Fine Scoring
 
-All backends use i8-quantized coarse screening at O(m·n·k) with 1 byte/element instead of 2–4, followed by full-precision refinement at O(m·k) for only the winning pairs.
+All backends use i8-quantized coarse screening at O(m·n·k) with 1 byte/element instead of 2–4, followed by full-precision refinement at O(m·|C|·k) for only the candidate pairs.
+On uniform random vectors the candidate set averages ~2.2 of 32 documents at depth 256, ~2.4 of 128 and ~4.2 of 300 at depth 128, and ~11 of 128 at depth 1536.
+Refinement sums the angular distances with compensation, and f32 inputs keep f64 inverse norms, so f32 results land within an f64 ULP or two of an exhaustive f64 search.
 Break-even at ~4 documents per query — beyond that, coarse screening dominates and the i8 bandwidth advantage compounds.
 
 ### ISA-Specific Quantization Ranges
@@ -90,13 +98,13 @@ The naive approach reads rows horizontally (`svread_hor_za32`) and reduces each 
 Vertical column extraction flips the access pattern: `svread_ver_za32_f32_m` reads one _column_ of ZA, returning one dot-product score per query for a single document.
 Element-wise `svcmpgt_f32` + `svsel_f32` (~1 cycle each) update the running maximum across all queries simultaneously.
 For 32 queries × 256 documents: horizontal approach = 32 × 256 × `svmaxv` = 8,192 horizontal reductions; vertical approach = 256 column reads × 1 element-wise `svmax` = 256 vertical reads + 256 comparisons (~270 cycles vs ~2,048 cycles for the argmax phase alone).
-The argmax index is tracked in-flight using `svsel` to conditionally update an index vector alongside the maximum values — no separate argmax pass needed.
-After finding the best document index per query, full-precision angular refinement uses the originals stored in the packed buffer's third region.
+The bf16 and f16 kernels keep that running maximum of exact cosines, while the f32 kernel screens in i8 and reads each 4-tile group twice.
+The first pass raises every query's lower bound with element-wise `svmaxnm`, and the second refines, from the originals in the packed buffer, only the queries whose column score plus error reaches that bound.
 
 ### Three-Region Packed Buffer
 
 All backends use a three-region packed buffer layout: [Header 64B] [i8 vectors, 64B-aligned] [metadata, 64B-aligned] [originals, 64B-aligned].
-Per-vector metadata (12 bytes) stores the screening weight (quantization scale over norm), i8 sum (for bias correction), and inverse norm (for angular finalization).
+Per-vector metadata (16 bytes) stores the screening weight (quantization scale over norm), i8 sum (for bias correction), and the f64 inverse norm (for angular finalization).
 The originals region stores full-precision vectors for refinement via existing `nk_dot_*` primitives.
 
 ## Performance

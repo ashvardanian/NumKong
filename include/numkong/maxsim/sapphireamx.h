@@ -50,6 +50,7 @@
 #include "numkong/types.h"
 #include "numkong/dots/sapphireamx.h" // AMX tile types, configure, load, transpose
 #include "numkong/dot/skylake.h"      // `nk_dot_f32_through_f64_skylake_`, `nk_dot_f16_through_f32_skylake_`
+#include "numkong/maxsim/serial.h"    // `nk_maxsim_screen_error_`, `nk_maxsim_screen_candidates_`
 #include "numkong/cast/serial.h"      // `nk_f16_to_f32_`, `nk_bf16_to_f32_`
 #include "numkong/spatial/haswell.h"  // `nk_rsqrt_f32x4_haswell_`
 
@@ -307,126 +308,101 @@ NUMKONG_INLINE nk_f64_t nk_maxsim_packed_i8_sapphireamx_(                       
             best_cosines[query_in_tile] = NUMKONG_F32_MIN;
         }
 
-        NUMKONG_ALIGN64_ nk_i32_t tile_results_i32[4][16][16];
-        nk_u32_t candidates[16];
+        NUMKONG_ALIGN64_ nk_i32_t group_dots[16][64];
+        nk_u32_t candidates[64];
         nk_size_t document_tile_index = 0;
 
-        // Fast path: 4 document tiles at a time
-        for (; document_tile_index + 4 <= document_tile_count; document_tile_index += 4) {
-            _tile_zero(4);
-            _tile_zero(5);
-            _tile_zero(6);
-            _tile_zero(7);
+        // 4 document tiles at a time, then 1 at a time
+        while (document_tile_index < document_tile_count) {
+            nk_size_t const group_tiles = document_tile_index + 4 <= document_tile_count ? 4 : 1;
+            if (group_tiles == 4) {
+                _tile_zero(4);
+                _tile_zero(5);
+                _tile_zero(6);
+                _tile_zero(7);
 
-            for (nk_size_t depth_step_index = 0; depth_step_index < depth_tile_count; depth_step_index++) {
-                nk_size_t query_tile_flat_index = query_tile_index * depth_tile_count + depth_step_index;
+                for (nk_size_t depth_step_index = 0; depth_step_index < depth_tile_count; depth_step_index++) {
+                    nk_size_t query_tile_flat_index = query_tile_index * depth_tile_count + depth_step_index;
 
-                _tile_loadd(0, (void const *)(query_a_side_base + query_tile_flat_index * 1024), 64);
+                    _tile_loadd(0, (void const *)(query_a_side_base + query_tile_flat_index * 1024), 64);
 
-                nk_size_t document_tile_flat_0 = (document_tile_index + 0) * depth_tile_count + depth_step_index;
-                nk_size_t document_tile_flat_1 = (document_tile_index + 1) * depth_tile_count + depth_step_index;
-                nk_size_t document_tile_flat_2 = (document_tile_index + 2) * depth_tile_count + depth_step_index;
-                nk_size_t document_tile_flat_3 = (document_tile_index + 3) * depth_tile_count + depth_step_index;
+                    nk_size_t document_tile_flat_0 = (document_tile_index + 0) * depth_tile_count + depth_step_index;
+                    nk_size_t document_tile_flat_1 = (document_tile_index + 1) * depth_tile_count + depth_step_index;
+                    nk_size_t document_tile_flat_2 = (document_tile_index + 2) * depth_tile_count + depth_step_index;
+                    nk_size_t document_tile_flat_3 = (document_tile_index + 3) * depth_tile_count + depth_step_index;
 
-                _tile_loadd(1, (void const *)(document_b_side_base + document_tile_flat_0 * 1024), 64);
-                _tile_dpbssd(4, 0, 1);
-                _tile_loadd(1, (void const *)(document_b_side_base + document_tile_flat_1 * 1024), 64);
-                _tile_dpbssd(5, 0, 1);
-                _tile_loadd(1, (void const *)(document_b_side_base + document_tile_flat_2 * 1024), 64);
-                _tile_dpbssd(6, 0, 1);
-                _tile_loadd(1, (void const *)(document_b_side_base + document_tile_flat_3 * 1024), 64);
-                _tile_dpbssd(7, 0, 1);
+                    _tile_loadd(1, (void const *)(document_b_side_base + document_tile_flat_0 * 1024), 64);
+                    _tile_dpbssd(4, 0, 1);
+                    _tile_loadd(1, (void const *)(document_b_side_base + document_tile_flat_1 * 1024), 64);
+                    _tile_dpbssd(5, 0, 1);
+                    _tile_loadd(1, (void const *)(document_b_side_base + document_tile_flat_2 * 1024), 64);
+                    _tile_dpbssd(6, 0, 1);
+                    _tile_loadd(1, (void const *)(document_b_side_base + document_tile_flat_3 * 1024), 64);
+                    _tile_dpbssd(7, 0, 1);
+                }
+
+                // Row stride of a whole group, so each query's 64 dots land contiguous
+                _tile_stored(4, &group_dots[0][0], 256);
+                _tile_stored(5, &group_dots[0][16], 256);
+                _tile_stored(6, &group_dots[0][32], 256);
+                _tile_stored(7, &group_dots[0][48], 256);
+            }
+            else {
+                _tile_zero(4);
+                for (nk_size_t depth_step_index = 0; depth_step_index < depth_tile_count; depth_step_index++) {
+                    nk_size_t query_tile_flat_index = query_tile_index * depth_tile_count + depth_step_index;
+                    nk_size_t document_tile_flat_index = document_tile_index * depth_tile_count + depth_step_index;
+                    _tile_loadd(0, (void const *)(query_a_side_base + query_tile_flat_index * 1024), 64);
+                    _tile_loadd(1, (void const *)(document_b_side_base + document_tile_flat_index * 1024), 64);
+                    _tile_dpbssd(4, 0, 1);
+                }
+                _tile_stored(4, &group_dots[0][0], 256);
             }
 
-            _tile_stored(4, tile_results_i32[0], 64);
-            _tile_stored(5, tile_results_i32[1], 64);
-            _tile_stored(6, tile_results_i32[2], 64);
-            _tile_stored(7, tile_results_i32[3], 64);
-
-            // Column extraction from 4 tiles
-            for (nk_size_t tile_offset = 0; tile_offset < 4; tile_offset++) {
-                nk_size_t document_column_start = (document_tile_index + tile_offset) * 16;
-                nk_size_t valid_documents = (document_column_start + 16 <= document_count)
-                                                ? 16
-                                                : (document_count - document_column_start);
-                for (nk_size_t column_within_tile = 0; column_within_tile < valid_documents; column_within_tile++) {
-                    __m512i gather_index_i32x16 = _mm512_add_epi32(row_stride_indices_i32x16,
-                                                                   _mm512_set1_epi32((int)column_within_tile));
-                    __m512i column_dots_i32x16 = _mm512_i32gather_epi32(gather_index_i32x16,
-                                                                        tile_results_i32[tile_offset], 4);
-                    __m512 column_scores_f32x16 = _mm512_mul_ps(
-                        _mm512_cvtepi32_ps(column_dots_i32x16),
-                        _mm512_set1_ps(document_screen_weights[document_column_start + column_within_tile]));
-                    __mmask16 is_better_m16 = _mm512_cmp_ps_mask(column_scores_f32x16, running_maximum_f32x16,
-                                                                 _CMP_GT_OQ);
-                    running_maximum_f32x16 = _mm512_mask_mov_ps(running_maximum_f32x16, is_better_m16,
-                                                                column_scores_f32x16);
-                    running_argmax_i32x16 = _mm512_mask_mov_epi32(
-                        running_argmax_i32x16, is_better_m16,
-                        _mm512_set1_epi32((int)(document_column_start + column_within_tile)));
+            // Raise each query's lower bound over the group, then refine what it cannot rule out
+            nk_size_t const group_start = document_tile_index * 16;
+            nk_size_t const group_documents = group_start + group_tiles * 16 <= document_count
+                                                  ? group_tiles * 16
+                                                  : document_count - group_start;
+            nk_f32_t const *weights = document_screen_weights + group_start;
+            for (nk_size_t query_in_tile = 0; query_in_tile < valid_queries; query_in_tile++) {
+                nk_size_t const query_index = query_row_start + query_in_tile;
+                nk_maxsim_screen_lower_bound_(group_dots[query_in_tile], 1, weights, 1, group_documents,
+                                              errors[query_in_tile], &lower_bounds[query_in_tile]);
+                nk_size_t const candidate_count = nk_maxsim_screen_candidates_(group_dots[query_in_tile], 1, weights, 1,
+                                                                               group_documents, errors[query_in_tile],
+                                                                               lower_bounds[query_in_tile], candidates);
+                for (nk_size_t candidate_index = 0; candidate_index < candidate_count; candidate_index++) {
+                    nk_size_t const document_index = group_start + candidates[candidate_index];
+                    nk_f64_t const cosine = refine_dot(query_originals + query_index * query_original_stride,
+                                                       document_originals + document_index * document_original_stride,
+                                                       depth) *
+                                            query_inverse_norms[query_index] * document_inverse_norms[document_index];
+                    if (cosine > best_cosines[query_in_tile]) best_cosines[query_in_tile] = cosine;
                 }
             }
+            document_tile_index += group_tiles;
         }
-
-        // Remainder: 1 document tile at a time
-        for (; document_tile_index < document_tile_count; document_tile_index++) {
-            nk_size_t document_column_start = document_tile_index * 16;
-            nk_size_t valid_documents = (document_column_start + 16 <= document_count)
-                                            ? 16
-                                            : (document_count - document_column_start);
-
-            _tile_zero(4);
-
-            for (nk_size_t depth_step_index = 0; depth_step_index < depth_tile_count; depth_step_index++) {
-                nk_size_t query_tile_flat_index = query_tile_index * depth_tile_count + depth_step_index;
-                nk_size_t document_tile_flat_index = document_tile_index * depth_tile_count + depth_step_index;
-
-                _tile_loadd(0, (void const *)(query_a_side_base + query_tile_flat_index * 1024), 64);
-                _tile_loadd(1, (void const *)(document_b_side_base + document_tile_flat_index * 1024), 64);
-                _tile_dpbssd(4, 0, 1);
-            }
-
-            _tile_stored(4, tile_results_i32[0], 64);
-
-            for (nk_size_t column_within_tile = 0; column_within_tile < valid_documents; column_within_tile++) {
-                __m512i gather_index_i32x16 = _mm512_add_epi32(row_stride_indices_i32x16,
-                                                               _mm512_set1_epi32((int)column_within_tile));
-                __m512i column_dots_i32x16 = _mm512_i32gather_epi32(gather_index_i32x16, tile_results_i32[0], 4);
-                __m512 column_scores_f32x16 = _mm512_mul_ps(
-                    _mm512_cvtepi32_ps(column_dots_i32x16),
-                    _mm512_set1_ps(document_screen_weights[document_column_start + column_within_tile]));
-                __mmask16 is_better_m16 = _mm512_cmp_ps_mask(column_scores_f32x16, running_maximum_f32x16, _CMP_GT_OQ);
-                running_maximum_f32x16 = _mm512_mask_mov_ps(running_maximum_f32x16, is_better_m16,
-                                                            column_scores_f32x16);
-                running_argmax_i32x16 = _mm512_mask_mov_epi32(
-                    running_argmax_i32x16, is_better_m16,
-                    _mm512_set1_epi32((int)(document_column_start + column_within_tile)));
-            }
-        }
-
-        // Refinement: for each valid query, compute full-precision dot with best document
-        NUMKONG_ALIGN64_ nk_i32_t best_document_indices_i32[16];
-        _mm512_store_si512(best_document_indices_i32, running_argmax_i32x16);
 
         for (nk_size_t query_in_tile = 0; query_in_tile < valid_queries; query_in_tile++) {
-            nk_size_t query_index = query_row_start + query_in_tile;
-            nk_u32_t best_document_index = (nk_u32_t)best_document_indices_i32[query_in_tile];
-
-            nk_f64_t dot_result_f64;
-            nk_dot_f32_through_f64_skylake_(
-                (nk_f32_t const *)(query_originals + query_index * query_original_stride),
-                (nk_f32_t const *)(document_originals + best_document_index * document_original_stride), depth,
-                &dot_result_f64);
-
-            nk_f64_t cosine_f64 = dot_result_f64 * (nk_f64_t)query_inverse_norms[query_index] *
-                                  (nk_f64_t)document_inverse_norms[best_document_index];
-            nk_f64_t angular_distance_f64 = 1.0 - cosine_f64;
-            if (angular_distance_f64 < 0.0) angular_distance_f64 = 0.0;
-            total_angular_distance_f64 += angular_distance_f64;
+            nk_f64_t angular = 1.0 - best_cosines[query_in_tile];
+            if (angular < 0.0) angular = 0.0;
+            nk_f64_dot2_(&total_angular_distance_f64, &total_compensation_f64, angular, 1.0);
         }
     }
 
-    *result = total_angular_distance_f64;
+    return total_angular_distance_f64 + total_compensation_f64;
+}
+
+NUMKONG_API nk_status_t nk_maxsim_packed_f32_sapphireamx( //
+    void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
+    nk_size_t depth, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (((nk_maxsim_sapphireamx_i8_header_t const *)query_packed)->capability != nk_cap_sapphireamx_k ||
+        ((nk_maxsim_sapphireamx_i8_header_t const *)document_packed)->capability != nk_cap_sapphireamx_k)
+        return nk_pack_mismatch_k;
+    *result = nk_maxsim_packed_i8_sapphireamx_(query_packed, document_packed, query_count, document_count, depth,
+                                               nk_maxsim_refine_f32_sapphireamx_);
     return nk_success_k;
 }
 #endif // NUMKONG_TARGET_SAPPHIREAMX
@@ -443,7 +419,7 @@ NUMKONG_INLINE nk_size_t nk_maxsim_packed_bytes_f16_sapphireamx_(nk_size_t vecto
     nk_size_t b_side_bytes = column_tile_count * depth_tile_count * 1024;
     nk_size_t original_stride = nk_size_round_up_to_multiple_(depth * sizeof(nk_f16_t), 64);
     nk_size_t originals_bytes = vector_count * original_stride;
-    nk_size_t norms_bytes = vector_count * sizeof(nk_f32_t);
+    nk_size_t norms_bytes = vector_count * sizeof(nk_f64_t);
     nk_size_t screen_weights_bytes = vector_count * sizeof(nk_f32_t);
     return 64 + 63 + a_side_bytes + b_side_bytes + originals_bytes + norms_bytes + screen_weights_bytes;
 }
@@ -491,7 +467,7 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f16_sapphireamx( //
     header->original_stride_bytes = (nk_u32_t)original_stride_bytes;
     header->norms_offset = (nk_u32_t)(a_side_offset + a_side_total_bytes + b_side_total_bytes +
                                       vector_count * original_stride_bytes);
-    header->screen_weights_offset = (nk_u32_t)(header->norms_offset + vector_count * sizeof(nk_f32_t));
+    header->screen_weights_offset = (nk_u32_t)(header->norms_offset + vector_count * sizeof(nk_f64_t));
     header->capability = nk_cap_sapphireamx_k;
     for (nk_size_t reserved_index = 0; reserved_index < 4; reserved_index++) header->reserved[reserved_index] = 0;
 
@@ -499,7 +475,7 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f16_sapphireamx( //
     nk_i8_t *a_side_base = (nk_i8_t *)((char *)packed + a_side_offset);
     char *b_side_base = (char *)packed + header->b_side_offset;
     char *originals_base = (char *)packed + header->originals_offset;
-    nk_f32_t *inverse_norms = (nk_f32_t *)((char *)packed + header->norms_offset);
+    nk_f64_t *inverse_norms = (nk_f64_t *)((char *)packed + header->norms_offset);
     nk_f32_t *screen_weights = (nk_f32_t *)((char *)packed + header->screen_weights_offset);
 
     // Zero all A-side tiles (aligned stores — A-side offset is 64B-aligned)
@@ -516,13 +492,13 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f16_sapphireamx( //
 
         // Pass 1: find absmax and norm_squared (convert f16 → f32)
         nk_f32_t absmax_f32 = 0.0f;
-        nk_f32_t norm_squared_f32 = 0.0f;
+        nk_f64_t norm_squared_f64 = 0.0;
         for (nk_size_t dimension_index = 0; dimension_index < depth; dimension_index++) {
             nk_f32_t element_f32;
             nk_f16_to_f32_(&source_vector[dimension_index], &element_f32);
             nk_f32_t abs_element_f32 = nk_f32_abs_(element_f32);
             if (abs_element_f32 > absmax_f32) absmax_f32 = abs_element_f32;
-            norm_squared_f32 += element_f32 * element_f32;
+            norm_squared_f64 += (nk_f64_t)element_f32 * element_f32;
         }
 
         // Pass 2: quantize to i8 [-127,127] and scatter into A-side tile positions
@@ -543,10 +519,8 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f16_sapphireamx( //
         }
 
         // Store inverse norm and screening weight
-        inverse_norms[vector_index] = (norm_squared_f32 > 0.0f)
-                                          ? _mm_cvtss_f32(nk_rsqrt_f32x4_haswell_(_mm_set_ss(norm_squared_f32)))
-                                          : 0.0f;
-        screen_weights[vector_index] = absmax_f32 / 127.0f * inverse_norms[vector_index];
+        inverse_norms[vector_index] = norm_squared_f64 > 0.0 ? nk_f64_rsqrt_(norm_squared_f64) : 0.0;
+        screen_weights[vector_index] = absmax_f32 / 127.0f * (nk_f32_t)inverse_norms[vector_index];
 
         // Copy original f16 vector with 64B-aligned stride
         char *destination_original = originals_base + vector_index * original_stride_bytes;
@@ -573,163 +547,8 @@ NUMKONG_API nk_status_t nk_maxsim_packed_f16_sapphireamx( //
     if (((nk_maxsim_sapphireamx_i8_header_t const *)query_packed)->capability != nk_cap_sapphireamx_k ||
         ((nk_maxsim_sapphireamx_i8_header_t const *)document_packed)->capability != nk_cap_sapphireamx_k)
         return nk_pack_mismatch_k;
-
-    nk_maxsim_sapphireamx_i8_header_t const *query_header = (nk_maxsim_sapphireamx_i8_header_t const *)query_packed;
-    nk_maxsim_sapphireamx_i8_header_t const *document_header =
-        (nk_maxsim_sapphireamx_i8_header_t const *)document_packed;
-
-    nk_size_t const depth_tile_count = query_header->depth_tile_count;
-    nk_size_t const query_tile_count = query_header->column_tile_count;
-    nk_size_t const document_tile_count = document_header->column_tile_count;
-
-    // Query loads from A-side (64B-aligned), documents from B-side
-    char const *query_a_side_base = (char const *)query_packed + query_header->a_side_offset;
-    char const *document_b_side_base = (char const *)document_packed + document_header->b_side_offset;
-
-    // Original vectors for refinement
-    char const *query_originals = (char const *)query_packed + query_header->originals_offset;
-    char const *document_originals = (char const *)document_packed + document_header->originals_offset;
-    nk_size_t const query_original_stride = query_header->original_stride_bytes;
-    nk_size_t const document_original_stride = document_header->original_stride_bytes;
-
-    nk_f32_t const *query_inverse_norms = (nk_f32_t const *)((char const *)query_packed + query_header->norms_offset);
-    nk_f32_t const *document_inverse_norms = (nk_f32_t const *)((char const *)document_packed +
-                                                                document_header->norms_offset);
-    nk_f32_t const *document_screen_weights = (nk_f32_t const *)((char const *)document_packed +
-                                                                 document_header->screen_weights_offset);
-
-    nk_amx_tile_configure_sapphireamx_();
-
-    __m512i const row_stride_indices_i32x16 = _mm512_setr_epi32(0, 16, 32, 48, 64, 80, 96, 112, 128, 144, 160, 176, 192,
-                                                                208, 224, 240);
-
-    nk_f64_t total_angular_distance_f64 = 0.0;
-
-    for (nk_size_t query_tile_index = 0; query_tile_index < query_tile_count; query_tile_index++) {
-        nk_size_t query_row_start = query_tile_index * 16;
-        nk_size_t valid_queries = (query_row_start + 16 <= query_count) ? 16 : (query_count - query_row_start);
-
-        __m512 running_maximum_f32x16 = _mm512_set1_ps(NUMKONG_F32_MIN);
-        __m512i running_argmax_i32x16 = _mm512_setzero_si512();
-
-        NUMKONG_ALIGN64_ nk_i32_t tile_results_i32[4][16][16];
-        nk_size_t document_tile_index = 0;
-
-        // Fast path: 4 document tiles at a time
-        for (; document_tile_index + 4 <= document_tile_count; document_tile_index += 4) {
-            _tile_zero(4);
-            _tile_zero(5);
-            _tile_zero(6);
-            _tile_zero(7);
-
-            for (nk_size_t depth_step_index = 0; depth_step_index < depth_tile_count; depth_step_index++) {
-                nk_size_t query_tile_flat_index = query_tile_index * depth_tile_count + depth_step_index;
-
-                _tile_loadd(0, (void const *)(query_a_side_base + query_tile_flat_index * 1024), 64);
-
-                nk_size_t document_tile_flat_0 = (document_tile_index + 0) * depth_tile_count + depth_step_index;
-                nk_size_t document_tile_flat_1 = (document_tile_index + 1) * depth_tile_count + depth_step_index;
-                nk_size_t document_tile_flat_2 = (document_tile_index + 2) * depth_tile_count + depth_step_index;
-                nk_size_t document_tile_flat_3 = (document_tile_index + 3) * depth_tile_count + depth_step_index;
-
-                _tile_loadd(1, (void const *)(document_b_side_base + document_tile_flat_0 * 1024), 64);
-                _tile_dpbssd(4, 0, 1);
-                _tile_loadd(1, (void const *)(document_b_side_base + document_tile_flat_1 * 1024), 64);
-                _tile_dpbssd(5, 0, 1);
-                _tile_loadd(1, (void const *)(document_b_side_base + document_tile_flat_2 * 1024), 64);
-                _tile_dpbssd(6, 0, 1);
-                _tile_loadd(1, (void const *)(document_b_side_base + document_tile_flat_3 * 1024), 64);
-                _tile_dpbssd(7, 0, 1);
-            }
-
-            _tile_stored(4, tile_results_i32[0], 64);
-            _tile_stored(5, tile_results_i32[1], 64);
-            _tile_stored(6, tile_results_i32[2], 64);
-            _tile_stored(7, tile_results_i32[3], 64);
-
-            for (nk_size_t tile_offset = 0; tile_offset < 4; tile_offset++) {
-                nk_size_t document_column_start = (document_tile_index + tile_offset) * 16;
-                nk_size_t valid_documents = (document_column_start + 16 <= document_count)
-                                                ? 16
-                                                : (document_count - document_column_start);
-                for (nk_size_t column_within_tile = 0; column_within_tile < valid_documents; column_within_tile++) {
-                    __m512i gather_index_i32x16 = _mm512_add_epi32(row_stride_indices_i32x16,
-                                                                   _mm512_set1_epi32((int)column_within_tile));
-                    __m512i column_dots_i32x16 = _mm512_i32gather_epi32(gather_index_i32x16,
-                                                                        tile_results_i32[tile_offset], 4);
-                    __m512 column_scores_f32x16 = _mm512_mul_ps(
-                        _mm512_cvtepi32_ps(column_dots_i32x16),
-                        _mm512_set1_ps(document_screen_weights[document_column_start + column_within_tile]));
-                    __mmask16 is_better_m16 = _mm512_cmp_ps_mask(column_scores_f32x16, running_maximum_f32x16,
-                                                                 _CMP_GT_OQ);
-                    running_maximum_f32x16 = _mm512_mask_mov_ps(running_maximum_f32x16, is_better_m16,
-                                                                column_scores_f32x16);
-                    running_argmax_i32x16 = _mm512_mask_mov_epi32(
-                        running_argmax_i32x16, is_better_m16,
-                        _mm512_set1_epi32((int)(document_column_start + column_within_tile)));
-                }
-            }
-        }
-
-        // Remainder: 1 document tile at a time
-        for (; document_tile_index < document_tile_count; document_tile_index++) {
-            nk_size_t document_column_start = document_tile_index * 16;
-            nk_size_t valid_documents = (document_column_start + 16 <= document_count)
-                                            ? 16
-                                            : (document_count - document_column_start);
-
-            _tile_zero(4);
-
-            for (nk_size_t depth_step_index = 0; depth_step_index < depth_tile_count; depth_step_index++) {
-                nk_size_t query_tile_flat_index = query_tile_index * depth_tile_count + depth_step_index;
-                nk_size_t document_tile_flat_index = document_tile_index * depth_tile_count + depth_step_index;
-
-                _tile_loadd(0, (void const *)(query_a_side_base + query_tile_flat_index * 1024), 64);
-                _tile_loadd(1, (void const *)(document_b_side_base + document_tile_flat_index * 1024), 64);
-                _tile_dpbssd(4, 0, 1);
-            }
-
-            _tile_stored(4, tile_results_i32[0], 64);
-
-            for (nk_size_t column_within_tile = 0; column_within_tile < valid_documents; column_within_tile++) {
-                __m512i gather_index_i32x16 = _mm512_add_epi32(row_stride_indices_i32x16,
-                                                               _mm512_set1_epi32((int)column_within_tile));
-                __m512i column_dots_i32x16 = _mm512_i32gather_epi32(gather_index_i32x16, tile_results_i32[0], 4);
-                __m512 column_scores_f32x16 = _mm512_mul_ps(
-                    _mm512_cvtepi32_ps(column_dots_i32x16),
-                    _mm512_set1_ps(document_screen_weights[document_column_start + column_within_tile]));
-                __mmask16 is_better_m16 = _mm512_cmp_ps_mask(column_scores_f32x16, running_maximum_f32x16, _CMP_GT_OQ);
-                running_maximum_f32x16 = _mm512_mask_mov_ps(running_maximum_f32x16, is_better_m16,
-                                                            column_scores_f32x16);
-                running_argmax_i32x16 = _mm512_mask_mov_epi32(
-                    running_argmax_i32x16, is_better_m16,
-                    _mm512_set1_epi32((int)(document_column_start + column_within_tile)));
-            }
-        }
-
-        // Refinement: for each valid query, compute full-precision dot with best document
-        NUMKONG_ALIGN64_ nk_i32_t best_document_indices_i32[16];
-        _mm512_store_si512(best_document_indices_i32, running_argmax_i32x16);
-
-        for (nk_size_t query_in_tile = 0; query_in_tile < valid_queries; query_in_tile++) {
-            nk_size_t query_index = query_row_start + query_in_tile;
-            nk_u32_t best_document_index = (nk_u32_t)best_document_indices_i32[query_in_tile];
-
-            nk_f32_t dot_result_f32;
-            nk_dot_f16_through_f32_skylake_(
-                (nk_f16_t const *)(query_originals + query_index * query_original_stride),
-                (nk_f16_t const *)(document_originals + best_document_index * document_original_stride), depth,
-                &dot_result_f32);
-
-            nk_f32_t cosine_f32 = dot_result_f32 * query_inverse_norms[query_index] *
-                                  document_inverse_norms[best_document_index];
-            nk_f32_t angular_distance_f32 = 1.0f - cosine_f32;
-            if (angular_distance_f32 < 0.0f) angular_distance_f32 = 0.0f;
-            total_angular_distance_f64 += (nk_f64_t)angular_distance_f32;
-        }
-    }
-
-    *result = (nk_f32_t)total_angular_distance_f64;
+    *result = (nk_f32_t)nk_maxsim_packed_i8_sapphireamx_(query_packed, document_packed, query_count, document_count,
+                                                         depth, nk_maxsim_refine_f16_sapphireamx_);
     return nk_success_k;
 }
 #endif // NUMKONG_TARGET_SAPPHIREAMX
