@@ -119,20 +119,41 @@ status_t sparse_dot(index_type_ const *a, index_type_ const *b, weight_t const *
 
 namespace ashvardanian::numkong {
 
-template <numeric_dtype index_type_>
-status_t sparse_intersect(vector_view<index_type_> a, vector_view<index_type_> b, std::size_t *count,
-                          nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
-    return sparse_intersect<index_type_>(a.data(), b.data(), a.size(), b.size(), nullptr, count, capabilities, stream);
+/** Counts the indices two sorted index runs share; @c unexpected_dimensions_k for a strided run or
+ *  one ending mid-value. */
+template <numeric_dtype index_type_, vector_of<index_type_> a_type_, vector_of<index_type_> b_type_>
+expected<std::size_t> sparse_intersect(a_type_ const &a, b_type_ const &b,
+                                       nk_capability_t capabilities = cpu_capabilities()) noexcept {
+    auto a_values = contiguous_values_<index_type_ const>(a);
+    auto b_values = contiguous_values_<index_type_ const>(b);
+    if (!a_values || !b_values) return {0, status_t::unexpected_dimensions_k};
+    std::size_t count = 0;
+    status_t status = sparse_intersect<index_type_>(a_values.value.data(), b_values.value.data(), a_values.value.size(),
+                                                    b_values.value.size(), nullptr, &count, capabilities);
+    return {count, status};
 }
 
+/** Σ of weight products over the indices two sorted runs share; @c unexpected_dimensions_k when a
+ *  weight run's size differs from its index run's, or any run is strided or ends mid-value. */
 template <numeric_dtype index_type_, numeric_dtype weight_t,
-          numeric_dtype result_type_ = typename weight_t::dot_result_t>
-status_t sparse_dot(vector_view<index_type_> a, vector_view<index_type_> b, vector_view<weight_t> a_weights,
-                    vector_view<weight_t> b_weights, result_type_ *product,
-                    nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
-    if (a_weights.size() != a.size() || b_weights.size() != b.size()) return status_t::unexpected_dimensions_k;
-    return sparse_dot<index_type_, weight_t, result_type_>(a.data(), b.data(), a_weights.data(), b_weights.data(),
-                                                           a.size(), b.size(), product, capabilities, stream);
+          numeric_dtype result_type_ = typename weight_t::dot_result_t, vector_of<index_type_> a_type_,
+          vector_of<index_type_> b_type_, vector_of<weight_t> a_weights_type_, vector_of<weight_t> b_weights_type_>
+expected<result_type_> sparse_dot(a_type_ const &a, b_type_ const &b, a_weights_type_ const &a_weights,
+                                  b_weights_type_ const &b_weights,
+                                  nk_capability_t capabilities = cpu_capabilities()) noexcept {
+    auto a_values = contiguous_values_<index_type_ const>(a);
+    auto b_values = contiguous_values_<index_type_ const>(b);
+    auto a_weights_values = contiguous_values_<weight_t const>(a_weights);
+    auto b_weights_values = contiguous_values_<weight_t const>(b_weights);
+    if (!a_values || !b_values || !a_weights_values || !b_weights_values ||
+        a_weights_values.value.size() != a_values.value.size() ||
+        b_weights_values.value.size() != b_values.value.size())
+        return {{}, status_t::unexpected_dimensions_k};
+    result_type_ product {};
+    status_t status = sparse_dot<index_type_, weight_t, result_type_>(
+        a_values.value.data(), b_values.value.data(), a_weights_values.value.data(), b_weights_values.value.data(),
+        a_values.value.size(), b_values.value.size(), &product, capabilities);
+    return {product, status};
 }
 
 } // namespace ashvardanian::numkong

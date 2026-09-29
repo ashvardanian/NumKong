@@ -89,18 +89,37 @@ status_t jaccard(in_type_ const *a, in_type_ const *b, std::size_t d, result_typ
 
 namespace ashvardanian::numkong {
 
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::hamming_result_t>
-status_t hamming(vector_view<in_type_> a, vector_view<in_type_> b, result_type_ *r,
-                 nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
-    if (a.size() != b.size()) return status_t::unexpected_dimensions_k;
-    return hamming<in_type_, result_type_>(a.data(), b.data(), a.size(), r, capabilities, stream);
+/** Hamming distance between two bit runs of equal dimensions; @c unexpected_dimensions_k
+ *  when they differ or either run is strided or ends mid-value. */
+template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::hamming_result_t,
+          vector_of<in_type_> a_type_, vector_of<in_type_> b_type_>
+expected<result_type_> hamming(a_type_ const &a, b_type_ const &b,
+                               nk_capability_t capabilities = cpu_capabilities()) noexcept {
+    auto a_values = contiguous_values_<in_type_ const>(a);
+    auto b_values = contiguous_values_<in_type_ const>(b);
+    std::size_t const dimensions = a_values.value.size() * dimensions_per_value<in_type_>();
+    if (!a_values || !b_values || dimensions != b_values.value.size() * dimensions_per_value<in_type_>())
+        return {{}, status_t::unexpected_dimensions_k};
+    result_type_ result {};
+    status_t status = hamming<in_type_, result_type_>(a_values.value.data(), b_values.value.data(), dimensions, &result,
+                                                      capabilities);
+    return {result, status};
 }
 
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::jaccard_result_t>
-status_t jaccard(vector_view<in_type_> a, vector_view<in_type_> b, result_type_ *r,
-                 nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
-    if (a.size() != b.size()) return status_t::unexpected_dimensions_k;
-    return jaccard<in_type_, result_type_>(a.data(), b.data(), a.size(), r, capabilities, stream);
+/** Jaccard distance between two bit runs, failing like the concept @c hamming. */
+template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::jaccard_result_t,
+          vector_of<in_type_> a_type_, vector_of<in_type_> b_type_>
+expected<result_type_> jaccard(a_type_ const &a, b_type_ const &b,
+                               nk_capability_t capabilities = cpu_capabilities()) noexcept {
+    auto a_values = contiguous_values_<in_type_ const>(a);
+    auto b_values = contiguous_values_<in_type_ const>(b);
+    std::size_t const dimensions = a_values.value.size() * dimensions_per_value<in_type_>();
+    if (!a_values || !b_values || dimensions != b_values.value.size() * dimensions_per_value<in_type_>())
+        return {{}, status_t::unexpected_dimensions_k};
+    result_type_ result {};
+    status_t status = jaccard<in_type_, result_type_>(a_values.value.data(), b_values.value.data(), dimensions, &result,
+                                                      capabilities);
+    return {result, status};
 }
 
 } // namespace ashvardanian::numkong

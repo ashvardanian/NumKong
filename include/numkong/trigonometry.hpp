@@ -164,6 +164,47 @@ status_t rope(in_type_ const *x, in_type_ *y, f32_t const *cos, f32_t const *sin
 
 namespace ashvardanian::numkong {
 
+#pragma region Vector Trigonometric
+
+/** Elementwise sin of one run into another of equal dimensions; @c unexpected_dimensions_k
+ *  when they differ or either run is strided or ends mid-value. */
+template <numeric_dtype in_type_, vector_of<in_type_> input_type_, mutable_vector_of<in_type_> output_type_>
+status_t sin(input_type_ const &input, output_type_ &&output, nk_capability_t capabilities = cpu_capabilities(),
+             void *stream = nullptr) noexcept {
+    auto input_values = contiguous_values_<in_type_ const>(input);
+    auto output_values = contiguous_values_<in_type_>(output);
+    std::size_t const dimensions = input_values.value.size() * dimensions_per_value<in_type_>();
+    if (!input_values || !output_values || dimensions != output_values.value.size() * dimensions_per_value<in_type_>())
+        return status_t::unexpected_dimensions_k;
+    return sin<in_type_>(input_values.value.data(), dimensions, output_values.value.data(), capabilities, stream);
+}
+
+/** Elementwise cos of one run into another, failing like the concept @c sin. */
+template <numeric_dtype in_type_, vector_of<in_type_> input_type_, mutable_vector_of<in_type_> output_type_>
+status_t cos(input_type_ const &input, output_type_ &&output, nk_capability_t capabilities = cpu_capabilities(),
+             void *stream = nullptr) noexcept {
+    auto input_values = contiguous_values_<in_type_ const>(input);
+    auto output_values = contiguous_values_<in_type_>(output);
+    std::size_t const dimensions = input_values.value.size() * dimensions_per_value<in_type_>();
+    if (!input_values || !output_values || dimensions != output_values.value.size() * dimensions_per_value<in_type_>())
+        return status_t::unexpected_dimensions_k;
+    return cos<in_type_>(input_values.value.data(), dimensions, output_values.value.data(), capabilities, stream);
+}
+
+/** Elementwise atan of one run into another, failing like the concept @c sin. */
+template <numeric_dtype in_type_, vector_of<in_type_> input_type_, mutable_vector_of<in_type_> output_type_>
+status_t atan(input_type_ const &input, output_type_ &&output, nk_capability_t capabilities = cpu_capabilities(),
+              void *stream = nullptr) noexcept {
+    auto input_values = contiguous_values_<in_type_ const>(input);
+    auto output_values = contiguous_values_<in_type_>(output);
+    std::size_t const dimensions = input_values.value.size() * dimensions_per_value<in_type_>();
+    if (!input_values || !output_values || dimensions != output_values.value.size() * dimensions_per_value<in_type_>())
+        return status_t::unexpected_dimensions_k;
+    return atan<in_type_>(input_values.value.data(), dimensions, output_values.value.data(), capabilities, stream);
+}
+
+#pragma endregion Vector Trigonometric
+
 #pragma region Tensor Trigonometric
 
 /** Elementwise sin into pre-allocated output. */

@@ -120,18 +120,42 @@ status_t mahalanobis(in_type_ const *a, in_type_ const *b, in_type_ const *c, st
 
 namespace ashvardanian::numkong {
 
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::curved_result_t>
-status_t bilinear(vector_view<in_type_> a, vector_view<in_type_> b, vector_view<in_type_> c, result_type_ *r,
-                  nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
-    if (a.size() != b.size() || c.size() != a.size() * a.size()) return status_t::unexpected_dimensions_k;
-    return bilinear<in_type_, result_type_>(a.data(), b.data(), c.data(), a.size(), r, capabilities, stream);
+/** aᵀ × C × b over runs of @p in_type_, with @p c holding the row-major square matrix;
+ *  @c unexpected_dimensions_k when the sizes disagree or any run is strided or ends mid-value. */
+template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::curved_result_t,
+          vector_of<in_type_> a_type_, vector_of<in_type_> b_type_, vector_of<in_type_> c_type_>
+expected<result_type_> bilinear(a_type_ const &a, b_type_ const &b, c_type_ const &c,
+                                nk_capability_t capabilities = cpu_capabilities()) noexcept {
+    auto a_values = contiguous_values_<in_type_ const>(a);
+    auto b_values = contiguous_values_<in_type_ const>(b);
+    auto c_values = contiguous_values_<in_type_ const>(c);
+    std::size_t const dimensions = a_values.value.size() * dimensions_per_value<in_type_>();
+    if (!a_values || !b_values || !c_values || b_values.value.size() * dimensions_per_value<in_type_>() != dimensions ||
+        c_values.value.size() * dimensions_per_value<in_type_>() != dimensions * dimensions)
+        return {{}, status_t::unexpected_dimensions_k};
+    result_type_ result {};
+    status_t status = bilinear<in_type_, result_type_>(a_values.value.data(), b_values.value.data(),
+                                                       c_values.value.data(), dimensions, &result, capabilities);
+    return {result, status};
 }
 
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::curved_result_t>
-status_t mahalanobis(vector_view<in_type_> a, vector_view<in_type_> b, vector_view<in_type_> c, result_type_ *r,
-                     nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
-    if (a.size() != b.size() || c.size() != a.size() * a.size()) return status_t::unexpected_dimensions_k;
-    return mahalanobis<in_type_, result_type_>(a.data(), b.data(), c.data(), a.size(), r, capabilities, stream);
+/** Mahalanobis distance of @p a and @p b under the row-major square matrix @p c,
+ *  failing like the concept @c bilinear. */
+template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::curved_result_t,
+          vector_of<in_type_> a_type_, vector_of<in_type_> b_type_, vector_of<in_type_> c_type_>
+expected<result_type_> mahalanobis(a_type_ const &a, b_type_ const &b, c_type_ const &c,
+                                   nk_capability_t capabilities = cpu_capabilities()) noexcept {
+    auto a_values = contiguous_values_<in_type_ const>(a);
+    auto b_values = contiguous_values_<in_type_ const>(b);
+    auto c_values = contiguous_values_<in_type_ const>(c);
+    std::size_t const dimensions = a_values.value.size() * dimensions_per_value<in_type_>();
+    if (!a_values || !b_values || !c_values || b_values.value.size() * dimensions_per_value<in_type_>() != dimensions ||
+        c_values.value.size() * dimensions_per_value<in_type_>() != dimensions * dimensions)
+        return {{}, status_t::unexpected_dimensions_k};
+    result_type_ result {};
+    status_t status = mahalanobis<in_type_, result_type_>(a_values.value.data(), b_values.value.data(),
+                                                          c_values.value.data(), dimensions, &result, capabilities);
+    return {result, status};
 }
 
 } // namespace ashvardanian::numkong

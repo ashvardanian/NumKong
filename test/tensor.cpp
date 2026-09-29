@@ -8,6 +8,8 @@
 #include <cassert>
 #include <complex>
 #include <limits>
+#include <span>
+#include <vector>
 
 #include "harness.hpp"
 
@@ -17,6 +19,7 @@
 #include "numkong/spatial.hpp"
 #include "numkong/curved.hpp"
 #include "numkong/reduce.hpp"
+#include "numkong/set.hpp"
 #include "numkong/trigonometry.hpp"
 
 #if __has_include(<format>)
@@ -1164,29 +1167,62 @@ error_stats_t test_tensor_maxsim_for_type() {
 
 error_stats_t test_view_overloads() {
     error_stats_t stats(comparison_family_t::exact_k);
-    nk::f32_t a_data[8] {}, b_data[8] {}, c_data[64] {};
-    nk::f32_t result {};
+    nk::f32_t a_data[8] {}, c_data[64] {};
+    std::array<nk::f32_t, 8> b_array {};
+    std::vector<nk::f32_t> b_vector(8);
     auto a_view = nk::vector_view<nk::f32_t>(a_data, 8u);
-    auto b_view = nk::vector_view<nk::f32_t>(b_data, 8u);
+    auto c_view = nk::vector_view<nk::f32_t>(c_data, 64u);
 
     // Inputs are all zero, so the metrics that are defined there must come back zero.
-    stats.expect(nk::dot(a_view, b_view, &result));
-    stats.expect(result == nk::f32_t(0), "dot of zero vectors");
-    stats.expect(nk::euclidean(a_view, b_view, &result));
-    stats.expect(result == nk::f32_t(0), "euclidean of zero vectors");
-    stats.expect(nk::sqeuclidean(a_view, b_view, &result));
-    stats.expect(result == nk::f32_t(0), "sqeuclidean of zero vectors");
-    stats.expect(nk::angular(a_view, b_view, &result));
+    auto [dot, dot_status] = nk::dot<nk::f32_t>(a_data, b_array);
+    stats.expect(nk::succeeded(dot_status) && dot == nk::f32_t(0), "dot of zero vectors");
+    auto [euclidean, euclidean_status] = nk::euclidean<nk::f32_t>(a_view, b_vector);
+    stats.expect(nk::succeeded(euclidean_status) && euclidean == nk::f32_t(0), "euclidean of zero vectors");
+    auto [sqeuclidean, sqeuclidean_status] = nk::sqeuclidean<nk::f32_t>(std::span<nk::f32_t const>(b_vector), a_view);
+    stats.expect(nk::succeeded(sqeuclidean_status) && sqeuclidean == nk::f32_t(0), "sqeuclidean of zero vectors");
+    stats.expect(nk::angular<nk::f32_t>(a_view, b_array).status);
+    stats.expect(nk::bilinear<nk::f32_t>(a_view, b_array, c_view).status);
+    stats.expect(nk::mahalanobis<nk::f32_t>(a_view, b_vector, c_data).status);
 
-    auto c_view = nk::vector_view<nk::f32_t>(c_data, 64u);
-    stats.expect(nk::bilinear(a_view, b_view, c_view, &result));
-    stats.expect(nk::mahalanobis(a_view, b_view, c_view, &result));
-
-    auto short_view = nk::vector_view<nk::f32_t>(b_data, 7u);
-    stats.expect(nk::dot(a_view, short_view, &result) == nk::status_t::unexpected_dimensions_k,
+    auto short_view = nk::vector_view<nk::f32_t>(a_data, 7u);
+    stats.expect(nk::dot<nk::f32_t>(a_view, short_view).status == nk::status_t::unexpected_dimensions_k,
                  "dot of mismatched lengths");
-    stats.expect(nk::bilinear(a_view, b_view, short_view, &result) == nk::status_t::unexpected_dimensions_k,
+    stats.expect(nk::bilinear<nk::f32_t>(a_view, b_array, short_view).status == nk::status_t::unexpected_dimensions_k,
                  "bilinear with a non-square metric");
+    auto strided_view = nk::vector_view<nk::f32_t>(reinterpret_cast<char const *>(a_data), 4u, 2 * sizeof(nk::f32_t));
+    stats.expect(nk::dot<nk::f32_t>(strided_view, strided_view).status == nk::status_t::unexpected_dimensions_k,
+                 "dot of strided views");
+    stats.expect(strided_view.values().status == nk::status_t::unexpected_dimensions_k, "values of a strided view");
+    stats.expect(a_view.values() && a_view.values().value.size() == 8, "values of a contiguous view");
+
+    // Sub-byte runs must fill whole storage values: 5 nibbles or 13 bits end mid-byte.
+    nk::i4x2_t nibbles[4] {};
+    nk::u1x8_t bits[2] {};
+    auto odd_nibbles = nk::vector_view<nk::i4x2_t>(nibbles, 5u);
+    auto odd_bits = nk::vector_view<nk::u1x8_t>(bits, 13u);
+    stats.expect(odd_nibbles.values().status == nk::status_t::unexpected_dimensions_k, "values of 5 nibbles");
+    stats.expect(nk::dot<nk::i4x2_t>(odd_nibbles, odd_nibbles).status == nk::status_t::unexpected_dimensions_k,
+                 "dot of 5 nibbles");
+    stats.expect(nk::hamming<nk::u1x8_t>(odd_bits, odd_bits).status == nk::status_t::unexpected_dimensions_k,
+                 "hamming of 13 bits");
+    auto even_nibbles = nk::vector_view<nk::i4x2_t>(nibbles, 6u);
+    auto [nibbles_dot, nibbles_status] = nk::dot<nk::i4x2_t>(even_nibbles, even_nibbles);
+    stats.expect(nk::succeeded(nibbles_status) && nibbles_dot == nk::i32_t(0), "dot of 6 nibbles");
+
+    std::vector<nk::f32_t> output(8);
+    stats.expect(nk::scale<nk::f32_t>(a_view, 2.0f, 1.0f, output));
+    stats.expect(output[7] == nk::f32_t(1), "scale into a std::vector");
+    stats.expect(nk::add<nk::f32_t>(output, b_array, nk::vector_span<nk::f32_t>(a_data, 8u)));
+    stats.expect(a_data[0] == nk::f32_t(1), "add into a span");
+    stats.expect(nk::sin<nk::f32_t>(b_array, output));
+    stats.expect(output[0] == nk::f32_t(0), "sin into a std::vector");
+    stats.expect(nk::add<nk::f32_t>(a_view, short_view, output) == nk::status_t::unexpected_dimensions_k,
+                 "add of mismatched lengths");
+
+    auto [moments, moments_status] = nk::reduce_moments<nk::f32_t>(a_data);
+    stats.expect(nk::succeeded(moments_status) && static_cast<double>(moments.sum) == 8.0, "moments of ones");
+    auto [extremes, extremes_status] = nk::reduce_minmax<nk::f32_t>(b_vector);
+    stats.expect(nk::succeeded(extremes_status) && extremes.min_index == 0, "minmax of zeros");
     return stats;
 }
 

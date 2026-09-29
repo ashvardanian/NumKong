@@ -156,7 +156,7 @@ constexpr std::size_t storage_values_for_shape_(shape_storage_<max_rank_> const 
  *  a partial one down, leaving the trailing dimensions without storage. */
 template <typename value_type_, std::size_t max_rank_>
 constexpr bool shape_fills_whole_values_(shape_storage_<max_rank_> const &shape) noexcept {
-    return shape.rank == 0 || shape.extents[shape.rank - 1] % dimensions_per_value<value_type_>() == 0;
+    return shape.rank == 0 || fills_whole_values_<value_type_>(shape.extents[shape.rank - 1]);
 }
 
 template <typename value_type_, std::size_t max_rank_>
@@ -425,6 +425,15 @@ struct tensor_view {
 
     /** Check if the tensor is contiguous in memory. */
     constexpr bool is_contiguous() const noexcept { return is_tensor_contiguous_<value_type>(shape_); }
+
+    /** Storage values as a contiguous span; @c unexpected_dimensions_k for a strided view or one
+     *  whose last extent ends mid-value. */
+    constexpr expected<std::span<value_type const>> values() const noexcept {
+        if (!is_contiguous() || !shape_fills_whole_values_<value_type>(shape_))
+            return {{}, status_t::unexpected_dimensions_k};
+        if (data_ == nullptr) return {{}, status_t::success_k};
+        return {{data(), storage_values_for_shape_<value_type>(shape_)}, status_t::success_k};
+    }
 
     /** Transpose: reverse the order of all dimensions, swapping extents and strides. */
     constexpr tensor_view transpose() const noexcept {
@@ -708,6 +717,15 @@ struct tensor_span {
 
     /** Check if contiguous in memory. */
     constexpr bool is_contiguous() const noexcept { return is_tensor_contiguous_<value_type>(shape_); }
+
+    /** Storage values as a contiguous span; @c unexpected_dimensions_k for a strided span or one
+     *  whose last extent ends mid-value. */
+    constexpr expected<std::span<value_type>> values() const noexcept {
+        if (!is_contiguous() || !shape_fills_whole_values_<value_type>(shape_))
+            return {{}, status_t::unexpected_dimensions_k};
+        if (data_ == nullptr) return {{}, status_t::success_k};
+        return {{data(), storage_values_for_shape_<value_type>(shape_)}, status_t::success_k};
+    }
 
     /** Transpose: reverse the order of all dimensions, swapping extents and strides. */
     constexpr tensor_span transpose() const noexcept {
@@ -1690,6 +1708,12 @@ struct tensor {
     /** Check if contiguous in memory. Always true for freshly-constructed tensors. */
     constexpr bool is_contiguous() const noexcept { return view().is_contiguous(); }
 
+    /** Storage values as a contiguous span, refused like @c tensor_view::values. */
+    constexpr expected<std::span<value_type const>> values() const noexcept { return view().values(); }
+
+    /** Mutable storage values as a contiguous span, refused like @c tensor_span::values. */
+    constexpr expected<std::span<value_type>> values() noexcept { return span().values(); }
+
     /** Slice along leading dimension, immutable view. */
     template <std::integral index_type_>
     constexpr view_type slice_leading(index_type_ idx) const noexcept {
@@ -1963,7 +1987,8 @@ struct scaled_tensor_view {
      */
     constexpr scaled_tensor_view columns(size_type start, size_type stop) const noexcept {
         auto r = rank();
-        if (r == 0 || stop <= start || start % block_size != 0 || stop % block_size != 0) return {};
+        if (r == 0 || stop <= start || !fills_whole_values_<format_>(start) || !fills_whole_values_<format_>(stop))
+            return {};
         size_type const last = r - 1;
         if (stop > extent(last)) return {};
 
@@ -2105,7 +2130,7 @@ struct scaled_tensor {
                                                  element_allocator_ element_alloc = {},
                                                  scale_allocator_ scale_alloc = {}) noexcept {
         scaled_tensor failure(element_tensor_type(element_alloc), scale_tensor_type(scale_alloc), 1.0f);
-        if (rank == 0 || rank > max_rank_ || extents[rank - 1] % block_size != 0)
+        if (rank == 0 || rank > max_rank_ || !fills_whole_values_<format_>(extents[rank - 1]))
             return {std::move(failure), status_t::unexpected_dimensions_k};
         size_type scale_extents[max_rank_];
         for (size_type d = 0; d < rank; ++d) scale_extents[d] = extents[d];
@@ -2163,7 +2188,7 @@ struct scaled_tensor {
      */
     constexpr status_t resize(size_type const *extents, size_type rank) noexcept {
         if (rank == 0 || rank > max_rank_) return status_t::unexpected_dimensions_k;
-        if (extents[rank - 1] % block_size != 0) return status_t::unexpected_dimensions_k;
+        if (!fills_whole_values_<format_>(extents[rank - 1])) return status_t::unexpected_dimensions_k;
         size_type scale_extents[max_rank_];
         for (size_type d = 0; d < rank; ++d) scale_extents[d] = extents[d];
         scale_extents[rank - 1] = extents[rank - 1] / block_size;

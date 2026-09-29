@@ -226,24 +226,54 @@ status_t vincenty(in_type_ const *a_lats, in_type_ const *a_lons, in_type_ const
 
 namespace ashvardanian::numkong {
 
-template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
-status_t haversine(vector_view<in_type_> a_lats, vector_view<in_type_> a_lons, vector_view<in_type_> b_lats,
-                   vector_view<in_type_> b_lons, in_type_ *results, nk_capability_t capabilities = cpu_capabilities(),
-                   void *stream = nullptr) noexcept {
-    if (a_lons.size() != a_lats.size() || b_lats.size() != a_lats.size() || b_lons.size() != a_lats.size())
+/** Great-circle distances between paired coordinates into @p out, all runs of equal size;
+ *  @c unexpected_dimensions_k when the sizes disagree or any run is strided or ends mid-value. */
+template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_, vector_of<in_type_> a_lats_type_,
+          vector_of<in_type_> a_lons_type_, vector_of<in_type_> b_lats_type_, vector_of<in_type_> b_lons_type_,
+          mutable_vector_of<in_type_> out_type_>
+status_t haversine(a_lats_type_ const &a_lats, a_lons_type_ const &a_lons, b_lats_type_ const &b_lats,
+                   b_lons_type_ const &b_lons, out_type_ &&out,
+                   nk_capability_t capabilities = cpu_capabilities()) noexcept {
+    auto a_lats_values = contiguous_values_<in_type_ const>(a_lats);
+    auto a_lons_values = contiguous_values_<in_type_ const>(a_lons);
+    auto b_lats_values = contiguous_values_<in_type_ const>(b_lats);
+    auto b_lons_values = contiguous_values_<in_type_ const>(b_lons);
+    auto out_values = contiguous_values_<in_type_>(out);
+    std::size_t const count = a_lats_values.value.size() * dimensions_per_value<in_type_>();
+    if (!a_lats_values || !a_lons_values || !b_lats_values || !b_lons_values || !out_values ||
+        a_lons_values.value.size() * dimensions_per_value<in_type_>() != count ||
+        b_lats_values.value.size() * dimensions_per_value<in_type_>() != count ||
+        b_lons_values.value.size() * dimensions_per_value<in_type_>() != count ||
+        out_values.value.size() * dimensions_per_value<in_type_>() != count)
         return status_t::unexpected_dimensions_k;
-    return haversine<in_type_, precision_type_>(a_lats.data(), a_lons.data(), b_lats.data(), b_lons.data(),
-                                                a_lats.size(), results, capabilities, stream);
+    return haversine<in_type_, precision_type_>(a_lats_values.value.data(), a_lons_values.value.data(),
+                                                b_lats_values.value.data(), b_lons_values.value.data(), count,
+                                                out_values.value.data(), capabilities);
 }
 
-template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
-status_t vincenty(vector_view<in_type_> a_lats, vector_view<in_type_> a_lons, vector_view<in_type_> b_lats,
-                  vector_view<in_type_> b_lons, in_type_ *results, nk_capability_t capabilities = cpu_capabilities(),
-                  void *stream = nullptr) noexcept {
-    if (a_lons.size() != a_lats.size() || b_lats.size() != a_lats.size() || b_lons.size() != a_lats.size())
+/** Ellipsoidal distances between paired coordinates into @p out, failing like the concept
+ *  @c haversine. */
+template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_, vector_of<in_type_> a_lats_type_,
+          vector_of<in_type_> a_lons_type_, vector_of<in_type_> b_lats_type_, vector_of<in_type_> b_lons_type_,
+          mutable_vector_of<in_type_> out_type_>
+status_t vincenty(a_lats_type_ const &a_lats, a_lons_type_ const &a_lons, b_lats_type_ const &b_lats,
+                  b_lons_type_ const &b_lons, out_type_ &&out,
+                  nk_capability_t capabilities = cpu_capabilities()) noexcept {
+    auto a_lats_values = contiguous_values_<in_type_ const>(a_lats);
+    auto a_lons_values = contiguous_values_<in_type_ const>(a_lons);
+    auto b_lats_values = contiguous_values_<in_type_ const>(b_lats);
+    auto b_lons_values = contiguous_values_<in_type_ const>(b_lons);
+    auto out_values = contiguous_values_<in_type_>(out);
+    std::size_t const count = a_lats_values.value.size() * dimensions_per_value<in_type_>();
+    if (!a_lats_values || !a_lons_values || !b_lats_values || !b_lons_values || !out_values ||
+        a_lons_values.value.size() * dimensions_per_value<in_type_>() != count ||
+        b_lats_values.value.size() * dimensions_per_value<in_type_>() != count ||
+        b_lons_values.value.size() * dimensions_per_value<in_type_>() != count ||
+        out_values.value.size() * dimensions_per_value<in_type_>() != count)
         return status_t::unexpected_dimensions_k;
-    return vincenty<in_type_, precision_type_>(a_lats.data(), a_lons.data(), b_lats.data(), b_lons.data(),
-                                               a_lats.size(), results, capabilities, stream);
+    return vincenty<in_type_, precision_type_>(a_lats_values.value.data(), a_lons_values.value.data(),
+                                               b_lats_values.value.data(), b_lons_values.value.data(), count,
+                                               out_values.value.data(), capabilities);
 }
 
 } // namespace ashvardanian::numkong

@@ -93,18 +93,37 @@ status_t vdot(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ 
 
 namespace ashvardanian::numkong {
 
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::dot_result_t>
-status_t dot(vector_view<in_type_> a, vector_view<in_type_> b, result_type_ *r,
-             nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
-    if (a.size() != b.size()) return status_t::unexpected_dimensions_k;
-    return dot<in_type_, result_type_>(a.data(), b.data(), a.size(), r, capabilities, stream);
+/** ⟨a,b⟩ over two runs of @p in_type_ with equal dimensions; @c unexpected_dimensions_k when they
+ *  differ or either run is strided or ends mid-value. */
+template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::dot_result_t,
+          vector_of<in_type_> a_type_, vector_of<in_type_> b_type_>
+expected<result_type_> dot(a_type_ const &a, b_type_ const &b,
+                           nk_capability_t capabilities = cpu_capabilities()) noexcept {
+    auto a_values = contiguous_values_<in_type_ const>(a);
+    auto b_values = contiguous_values_<in_type_ const>(b);
+    std::size_t const dimensions = a_values.value.size() * dimensions_per_value<in_type_>();
+    if (!a_values || !b_values || dimensions != b_values.value.size() * dimensions_per_value<in_type_>())
+        return {{}, status_t::unexpected_dimensions_k};
+    result_type_ result {};
+    status_t status = dot<in_type_, result_type_>(a_values.value.data(), b_values.value.data(), dimensions, &result,
+                                                  capabilities);
+    return {result, status};
 }
 
-template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::dot_result_t>
-status_t vdot(vector_view<in_type_> a, vector_view<in_type_> b, result_type_ *r,
-              nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
-    if (a.size() != b.size()) return status_t::unexpected_dimensions_k;
-    return vdot<in_type_, result_type_>(a.data(), b.data(), a.size(), r, capabilities, stream);
+/** Conjugated ⟨a,b⟩ over two complex runs, failing like the concept @c dot. */
+template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::dot_result_t,
+          vector_of<in_type_> a_type_, vector_of<in_type_> b_type_>
+expected<result_type_> vdot(a_type_ const &a, b_type_ const &b,
+                            nk_capability_t capabilities = cpu_capabilities()) noexcept {
+    auto a_values = contiguous_values_<in_type_ const>(a);
+    auto b_values = contiguous_values_<in_type_ const>(b);
+    std::size_t const dimensions = a_values.value.size() * dimensions_per_value<in_type_>();
+    if (!a_values || !b_values || dimensions != b_values.value.size() * dimensions_per_value<in_type_>())
+        return {{}, status_t::unexpected_dimensions_k};
+    result_type_ result {};
+    status_t status = vdot<in_type_, result_type_>(a_values.value.data(), b_values.value.data(), dimensions, &result,
+                                                   capabilities);
+    return {result, status};
 }
 
 } // namespace ashvardanian::numkong

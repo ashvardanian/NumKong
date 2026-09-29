@@ -37,12 +37,19 @@ status_t cast(from_type_ const *from, std::size_t n, to_type_ *to, nk_capability
         nk_cast_best(from, from_type_::dtype(), n, to, to_type_::dtype(), capabilities, stream));
 }
 
-/** Elementwise type-cast between vector views. Sizes must match. */
-template <numeric_dtype from_type_, numeric_dtype to_type_>
-status_t cast(vector_view<from_type_> from, vector_span<to_type_> to, nk_capability_t capabilities = cpu_capabilities(),
+/** Elementwise type-cast of one run into another of equal dimensions; @c unexpected_dimensions_k
+ *  when they differ or either run is strided or ends mid-value. */
+template <numeric_dtype from_type_, numeric_dtype to_type_, vector_of<from_type_> from_vector_type_,
+          mutable_vector_of<to_type_> to_vector_type_>
+status_t cast(from_vector_type_ const &from, to_vector_type_ &&to, nk_capability_t capabilities = cpu_capabilities(),
               void *stream = nullptr) noexcept {
-    std::size_t n = from.size() < to.size() ? from.size() : to.size();
-    return cast<from_type_, to_type_>(from.data(), n, to.data(), capabilities, stream);
+    auto from_values = contiguous_values_<from_type_ const>(from);
+    auto to_values = contiguous_values_<to_type_>(to);
+    std::size_t const dimensions = from_values.value.size() * dimensions_per_value<from_type_>();
+    if (!from_values || !to_values || dimensions != to_values.value.size() * dimensions_per_value<to_type_>())
+        return status_t::unexpected_dimensions_k;
+    return cast<from_type_, to_type_>(from_values.value.data(), dimensions, to_values.value.data(), capabilities,
+                                      stream);
 }
 
 #pragma region Block Scaled Casts

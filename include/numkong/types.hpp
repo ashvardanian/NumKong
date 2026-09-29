@@ -106,7 +106,9 @@
 #include <cmath>    // `std::sqrt`
 #include <complex>  // `std::complex`
 #include <cstdint>  // `nk_u32_t`
+#include <iterator> // `std::data`, `std::size`
 #include <limits>   // `std::numeric_limits`
+#include <span>     // `std::span`
 #include <utility>  // `std::swap`
 
 #include "numkong/types.h"
@@ -6454,6 +6456,13 @@ constexpr unsigned dimensions_per_value() noexcept {
     else return bits_per_value<scalar_type_>() / bits_per_dimension<scalar_type_>();
 }
 
+/** Whether @p dimensions fill a whole number of storage values: the one rule every allocation and
+ *  every conversion of a run into storage values applies, refusing runs that end mid-value. */
+template <typename value_type_>
+constexpr bool fills_whole_values_(std::size_t dimensions) noexcept {
+    return dimensions % dimensions_per_value<value_type_>() == 0;
+}
+
 /**
  *  @brief The mutable reference type for one logical dimension of a value.
  *
@@ -6719,6 +6728,29 @@ constexpr bool operator>=(double a, f118_t b) noexcept { return f118_t(a) >= b; 
 #pragma endregion F118 Mixed Operators
 
 #pragma region Concepts
+
+/** Anything that exposes one run of @p value_type_ through @c std::data and @c std::size. */
+template <typename vector_type_, typename value_type_>
+concept vector_of = requires(vector_type_ const &vector) {
+    { std::data(vector) } -> std::convertible_to<value_type_ const *>;
+    { std::size(vector) } -> std::convertible_to<std::size_t>;
+};
+template <typename vector_type_, typename value_type_>
+concept mutable_vector_of = vector_of<vector_type_, value_type_> && requires(vector_type_ &vector) {
+    { std::data(vector) } -> std::convertible_to<value_type_ *>;
+};
+
+/** The storage values of @p vector as one contiguous span; views refuse through their values(). */
+template <typename value_type_, typename vector_type_>
+constexpr expected<std::span<value_type_>> contiguous_values_(vector_type_ &&vector) noexcept {
+    if constexpr (requires { vector.values(); }) {
+        auto const values = vector.values();
+        return {{values.value.data(), values.value.size()}, values.status};
+    }
+    else if constexpr (requires { vector.size_values(); })
+        return {{std::data(vector), vector.size_values()}, status_t::success_k};
+    else return {{std::data(vector), std::size(vector)}, status_t::success_k};
+}
 
 template <typename matrix_type_, typename element_type_>
 concept const_matrix_of = requires(matrix_type_ const &m) {

@@ -17,14 +17,32 @@
  *  nk_status_t nk_dot_e5m2_best(nk_e5m2_t const*, nk_e5m2_t const*, nk_size_t, nk_f32_t *, nk_capability_t, void *);
  *  @endcode
  *
- *  As opposed to C++:
+ *  As opposed to C++, where the same kernels come in three layers. The raw-pointer layer mirrors
+ *  the C ABI one to one, keeping lengths, strides and task windows for sharded launches:
  *
  *  @code{.cpp}
- *  namespace ashvardanian::numkong {
- *      template <typename input_type_, typename result_type_>
- *      status_t dot(input_type_ const*, input_type_ const*, std::size_t, result_type_ *,
- *                   nk_capability_t = cpu_capabilities(), void * = nullptr);
- *  }
+ *  template <typename in_type_, typename result_type_ = typename in_type_::dot_result_t>
+ *  status_t dot(in_type_ const *, in_type_ const *, std::size_t, result_type_ *,
+ *               nk_capability_t = cpu_capabilities(), void * = nullptr);
+ *  @endcode
+ *
+ *  The concept layer takes any contiguous run satisfying @c vector_of, or a matrix satisfying
+ *  @c const_matrix_of, and returns the result with the @c status_t explaining it:
+ *
+ *  @code{.cpp}
+ *  std::vector<nk::f32_t> a {1, 2, 3}, b {4, 5, 6};
+ *  auto [dot, status] = nk::dot<nk::f32_t>(a, b); // nk::expected<nk::f64_t>
+ *  @endcode
+ *
+ *  Runs must fill whole storage values, so odd bit and nibble lengths pad with zero bits up to the
+ *  next byte; a view ending mid-value is refused with @c unexpected_dimensions_k.
+ *
+ *  The owning layer allocates through a caller's allocator for repeated workloads, like
+ *  @c tensor, @c packed_matrix, @c packed_maxsim and @c packed_attention:
+ *
+ *  @code{.cpp}
+ *  auto [b_matrix, b_status] = nk::matrix<nk::f32_t>::zeros({256, 512});
+ *  auto [packed, packed_status] = nk::packed_matrix<nk::f32_t>::make(b_matrix.view());
  *  @endcode
  *
  *  In HPC implementations, where pretty much every kernel and every datatype uses different

@@ -40,6 +40,7 @@
 #include <cstring>     // `std::memset`
 #include <iterator>    // `std::random_access_iterator_tag`
 #include <memory>      // `std::allocator_traits`
+#include <span>        // `std::span`
 #include <type_traits> // `std::conditional_t`
 #include <utility>     // `std::exchange`, `std::swap`
 
@@ -369,6 +370,14 @@ struct vector_view {
     /** Typed pointer (only valid if contiguous). */
     constexpr value_type const *data() const noexcept { return reinterpret_cast<value_type const *>(data_); }
 
+    /** Storage values as a contiguous span; @c unexpected_dimensions_k for a strided view or one
+     *  ending mid-value. */
+    constexpr expected<std::span<value_type const>> values() const noexcept {
+        if (!is_contiguous() || !fills_whole_values_<value_type>(dimensions_))
+            return {{}, status_t::unexpected_dimensions_k};
+        return {{data(), dimensions_ / dimensions_per_value<value_type>()}, status_t::success_k};
+    }
+
     /** Integral indexing: signed negatives wrap from end. */
     template <std::integral index_type_>
     constexpr decltype(auto) operator[](index_type_ idx) const noexcept {
@@ -476,6 +485,14 @@ struct vector_span {
 
     /** Typed pointer (only valid if contiguous). */
     constexpr value_type *data() const noexcept { return reinterpret_cast<value_type *>(data_); }
+
+    /** Storage values as a contiguous span; @c unexpected_dimensions_k for a strided span or one
+     *  ending mid-value. */
+    constexpr expected<std::span<value_type>> values() const noexcept {
+        if (!is_contiguous() || !fills_whole_values_<value_type>(dimensions_))
+            return {{}, status_t::unexpected_dimensions_k};
+        return {{data(), dimensions_ / dimensions_per_value<value_type>()}, status_t::success_k};
+    }
 
     /** Implicit conversion to const view. */
     constexpr operator vector_view<value_type>() const noexcept {
@@ -747,7 +764,7 @@ struct vector {
      */
     static expected<vector> uninitialized(size_type dims, allocator_type_ alloc = {}) noexcept {
         vector v(alloc);
-        if (dims % dimensions_per_value<value_type>()) return {std::move(v), status_t::unexpected_dimensions_k};
+        if (!fills_whole_values_<value_type>(dims)) return {std::move(v), status_t::unexpected_dimensions_k};
         size_type values = dimensions_to_values(dims);
         if (values == 0) return {std::move(v), status_t::success_k};
         pointer ptr = alloc_traits::allocate(v.alloc_, values);
@@ -765,7 +782,7 @@ struct vector {
      *  @param[in] alloc Allocator instance.
      */
     [[nodiscard]] static vector from_raw(pointer ptr, size_type dims, allocator_type_ alloc = {}) noexcept {
-        nk_assert_(dims % dimensions_per_value<value_type>() == 0);
+        nk_assert_(fills_whole_values_<value_type>(dims));
         vector v(alloc);
         v.data_ = ptr;
         v.dimensions_ = dims;
@@ -791,7 +808,7 @@ struct vector {
      *  @return @c success_k, or @c unexpected_dimensions_k leaving the size untouched.
      */
     constexpr status_t resize(size_type dims) noexcept {
-        if (dims % dimensions_per_value<value_type>() || dimensions_to_values(dims) > capacity_values_)
+        if (!fills_whole_values_<value_type>(dims) || dimensions_to_values(dims) > capacity_values_)
             return status_t::unexpected_dimensions_k;
         dimensions_ = dims;
         return status_t::success_k;
@@ -840,6 +857,10 @@ struct vector {
     /** Pointer to underlying data. */
     constexpr value_type *values_data() noexcept { return data_; }
     constexpr value_type const *values_data() const noexcept { return data_; }
+
+    /** Pointer to underlying data, so the vector satisfies @c vector_of through @c std::data. */
+    constexpr value_type *data() noexcept { return data_; }
+    constexpr value_type const *data() const noexcept { return data_; }
 
     constexpr raw_value_type *raw_values_data() noexcept { return reinterpret_cast<raw_value_type *>(data_); }
     constexpr raw_value_type const *raw_values_data() const noexcept {

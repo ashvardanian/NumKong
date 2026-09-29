@@ -126,25 +126,38 @@ The typed C++ wrappers usually read better unless you are building your own disp
 
 ## The C++ Layer
 
-The C++ wrappers add three things.
-They add type-level result promotion.
-They add explicit owning and non-owning containers.
-They add allocator-aware packed objects for repeated matrix workloads.
+The C++ wrappers come in three layers.
+Raw-pointer overloads mirror the C ABI one to one, with explicit lengths, strides and task windows for sharded launches.
+Overloads over the `nk::vector_of` and matrix concepts accept any contiguous run, like `std::vector`, `std::array`, `std::span`, a C array or an `nk::vector_view`, and return their results.
+Owning types, like `nk::tensor`, `nk::packed_matrix` and `nk::packed_attention`, allocate through your allocator for repeated workloads.
 
 ```cpp
+#include <vector>
 #include <numkong/numkong.hpp>
 
 namespace nk = ashvardanian::numkong;
 
 int main() {
-    nk::f32_t a[3] = {1, 2, 3}, b[3] = {4, 5, 6};
-    nk::f64_t dot {};
-    nk::status_t status = nk::dot(a, b, 3, &dot); // default result type is nk::f32_t::dot_result_t == nk::f64_t
+    std::vector<nk::f32_t> a {1, 2, 3}, b {4, 5, 6};
+    auto [dot, status] = nk::dot<nk::f32_t>(a, b); // nk::f32_t::dot_result_t == nk::f64_t
     if (nk::failed(status)) return 1;
-    status = nk::dot(a, b, 3, &dot, nk_cap_serial_k); // pin the serial kernel
-    return nk::succeeded(status) ? 0 : 1;
+
+    nk::f64_t raw {};
+    status = nk::dot(a.data(), b.data(), a.size(), &raw, nk_cap_serial_k); // the raw layer, pinned to serial
+    if (nk::failed(status)) return 1;
+
+    auto [matrix, matrix_status] = nk::matrix<nk::f32_t>::full({2, 3}, nk::f32_t(1));
+    if (nk::failed(matrix_status)) return 1;
+    auto [packed, packed_status] = nk::packed_matrix<nk::f32_t>::make(matrix.view()); // owning, reused across calls
+    return nk::succeeded(packed_status) && dot == raw ? 0 : 1;
 }
 ```
+
+Standard containers count storage values, so an `std::vector<nk::u1x8_t>` of 4 bytes holds 32 dimensions, while NumKong's own vectors and views count dimensions.
+Runs must fill whole storage values, so odd bit and nibble lengths pad with zero bits up to the next byte, and a view ending mid-value is refused.
+Strided views are refused with `nk::status_t::unexpected_dimensions_k`, and `vector_view::values()` turns a contiguous view into an `std::span` or refuses the same way.
+Outputs of elementwise kernels, like `nk::scale<nk::f32_t>(a, 2.0f, 1.0f, out)`, are any mutable run of the same size, and the call returns an `nk::status_t`.
+Multi-part results come back as small structs: `nk::reduce_moments` returns `{sum, sumsq}`, `nk::reduce_minmax` a `minmax_result`, and `nk::kabsch` a `mesh_result`.
 
 Every wrapper ends in the two arguments of its dispatch point, defaulted to `nk::cpu_capabilities()` and a null stream, and returns an `nk::status_t`.
 That scoped enum mirrors `nk_status_t` value for value, converts to it with `static_cast`, and is tested with `nk::succeeded` and `nk::failed` rather than as a `bool`.
@@ -402,8 +415,7 @@ auto view = nk::matrix_view<nk::f32_t>(
     md.extent(0), md.extent(1));
 
 // Now use any NumKong kernel on it
-nk::f64_t dot {};
-nk::status_t status = nk::dot(view.row(0).as_vector(), view.row(1).as_vector(), &dot);
+auto [dot, status] = nk::dot<nk::f32_t>(view.row(0).as_vector(), view.row(1).as_vector());
 ```
 
 ## Iterators and Enumeration
@@ -537,6 +549,13 @@ nk_f64_t rmsd = 0; // widened f32 → f64 output
 nk_umeyama_f32_best(source, target, 3, a_centroid, b_centroid, rotation, &scale, &rmsd, capabilities, NULL);
 assert(rmsd < 1e-6 && "umeyama should recover exact alignment");
 assert(scale > 1.99f && scale < 2.01f && "umeyama should recover 2x scale");
+```
+
+In C++, the concept overloads return all of it at once:
+
+```cpp
+std::array<nk::f32_t, 9> source {0, 0, 0, 1, 0, 0, 0, 1, 0}, target {0, 0, 0, 2, 0, 0, 0, 2, 0};
+auto [fit, status] = nk::umeyama<nk::f32_t>(source, target); // fit.a_centroid, .b_centroid, .rotation, .scale, .rmsd
 ```
 
 This family is separate from curved metrics because the output is a transform, not just a distance.

@@ -305,25 +305,6 @@ status_t rmsnorm(in_type_ const *x, f32_t const *gamma, in_type_ *y, std::size_t
     return status_t::success_k;
 }
 
-/** Compute sum and sum-of-squares over a vector view. */
-template <numeric_dtype in_type_, numeric_dtype sum_type_ = typename in_type_::reduce_moments_sum_t,
-          numeric_dtype sumsq_type_ = typename in_type_::reduce_moments_sumsq_t>
-status_t reduce_moments(vector_view<in_type_> input, sum_type_ *sum, sumsq_type_ *sumsq,
-                        nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
-    return reduce_moments<in_type_, sum_type_, sumsq_type_>(
-        input.data(), input.size(), static_cast<std::size_t>(input.stride_bytes()), sum, sumsq, capabilities, stream);
-}
-
-/** Find minimum and maximum elements with their indices over a vector view. */
-template <numeric_dtype in_type_, numeric_dtype minmax_type_ = typename in_type_::reduce_minmax_value_t>
-status_t reduce_minmax(vector_view<in_type_> input, minmax_type_ *min_value, std::size_t *min_index,
-                       minmax_type_ *max_value, std::size_t *max_index,
-                       nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
-    return reduce_minmax<in_type_, minmax_type_>(input.data(), input.size(),
-                                                 static_cast<std::size_t>(input.stride_bytes()), min_value, min_index,
-                                                 max_value, max_index, capabilities, stream);
-}
-
 } // namespace ashvardanian::numkong
 
 #include "numkong/tensor.hpp"
@@ -480,8 +461,10 @@ status_t reduce_rank1_minmax_(tensor_view<value_type_, max_rank_> input,
         }
         return status_t::success_k;
     }
-    return numkong::reduce_minmax<value_type_, minmax_t>(input.as_vector(), &result.min_value, &result.min_index,
-                                                         &result.max_value, &result.max_index, 0);
+    auto values = input.as_vector();
+    return numkong::reduce_minmax<value_type_, minmax_t>(
+        values.data(), values.size(), static_cast<std::size_t>(values.stride_bytes()), &result.min_value,
+        &result.min_index, &result.max_value, &result.max_index, 0);
 }
 
 template <numeric_dtype value_type_, std::size_t max_rank_>
@@ -759,7 +742,41 @@ std::size_t argmax(tensor_view<value_type_, max_rank_> input) noexcept {
     return minmax(input).max_index;
 }
 
-/** Compute Σxᵢ and Σxᵢ² over a vector view. */
+/** Σxᵢ and Σxᵢ² over one run of @p in_type_; @c unexpected_dimensions_k for a strided run or one
+ *  ending mid-value. */
+template <numeric_dtype in_type_, numeric_dtype sum_type_ = typename in_type_::reduce_moments_sum_t,
+          numeric_dtype sumsq_type_ = typename in_type_::reduce_moments_sumsq_t, vector_of<in_type_> input_type_>
+expected<moments_result<sum_type_, sumsq_type_>> reduce_moments(input_type_ const &input,
+                                                                nk_capability_t capabilities = cpu_capabilities(),
+                                                                void *stream = nullptr) noexcept {
+    auto values = contiguous_values_<in_type_ const>(input);
+    std::size_t const dimensions = values.value.size() * dimensions_per_value<in_type_>();
+    if (!values) return {{}, values.status};
+    moments_result<sum_type_, sumsq_type_> result {};
+    status_t status = reduce_moments<in_type_, sum_type_, sumsq_type_>(
+        values.value.data(), dimensions, sizeof(in_type_), &result.sum, &result.sumsq, capabilities, stream);
+    return {result, status};
+}
+
+/** Minimum and maximum, with their indices, over one run of @p in_type_; @c unexpected_dimensions_k
+ *  for a strided run or one ending mid-value, and @c NUMKONG_SIZE_MAX indices when every value is
+ *  NaN, which no minimum or maximum can index. */
+template <numeric_dtype in_type_, numeric_dtype minmax_type_ = typename in_type_::reduce_minmax_value_t,
+          vector_of<in_type_> input_type_>
+expected<minmax_result<minmax_type_>> reduce_minmax(input_type_ const &input,
+                                                    nk_capability_t capabilities = cpu_capabilities(),
+                                                    void *stream = nullptr) noexcept {
+    auto values = contiguous_values_<in_type_ const>(input);
+    std::size_t const dimensions = values.value.size() * dimensions_per_value<in_type_>();
+    if (!values) return {{}, values.status};
+    minmax_result<minmax_type_> result {};
+    status_t status = reduce_minmax<in_type_, minmax_type_>(values.value.data(), dimensions, sizeof(in_type_),
+                                                            &result.min_value, &result.min_index, &result.max_value,
+                                                            &result.max_index, capabilities, stream);
+    return {result, status};
+}
+
+/** Compute Σxᵢ and Σxᵢ² over a vector view, strided ones included. */
 template <numeric_dtype value_type_>
 moments_result<typename value_type_::reduce_moments_sum_t, typename value_type_::reduce_moments_sumsq_t> moments(
     vector_view<value_type_> input) noexcept {
@@ -767,17 +784,19 @@ moments_result<typename value_type_::reduce_moments_sum_t, typename value_type_:
     using sumsq_t = typename value_type_::reduce_moments_sumsq_t;
     moments_result<sum_t, sumsq_t> result {};
     if (input.size() == 0) return result;
-    if (failed(reduce_moments<value_type_>(input, &result.sum, &result.sumsq))) return {};
+    if (failed(reduce_moments<value_type_>(input.data(), input.size(), static_cast<std::size_t>(input.stride_bytes()),
+                                           &result.sum, &result.sumsq)))
+        return {};
     return result;
 }
 
-/** Find min and max values with their indices over a vector view. */
+/** Find min and max values with their indices over a vector view, strided ones included. */
 template <numeric_dtype value_type_>
 minmax_result<typename value_type_::reduce_minmax_value_t> minmax(vector_view<value_type_> input) noexcept {
     using minmax_t = typename value_type_::reduce_minmax_value_t;
     minmax_result<minmax_t> result {};
-    if (failed(reduce_minmax<value_type_>(input, &result.min_value, &result.min_index, &result.max_value,
-                                          &result.max_index)))
+    if (failed(reduce_minmax<value_type_>(input.data(), input.size(), static_cast<std::size_t>(input.stride_bytes()),
+                                          &result.min_value, &result.min_index, &result.max_value, &result.max_index)))
         return {{}, NUMKONG_SIZE_MAX, {}, NUMKONG_SIZE_MAX};
     return result;
 }

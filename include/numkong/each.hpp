@@ -384,6 +384,83 @@ status_t swiglu(in_type_ const *gate, in_type_ const *up, in_type_ *y, std::size
 
 namespace ashvardanian::numkong {
 
+#pragma region Vector Elementwise
+
+/** Elementwise cᵢ = aᵢ + bᵢ over runs of equal dimensions; @c unexpected_dimensions_k when they
+ *  differ or any run is strided or ends mid-value. */
+template <numeric_dtype in_type_, vector_of<in_type_> a_type_, vector_of<in_type_> b_type_,
+          mutable_vector_of<in_type_> output_type_>
+status_t add(a_type_ const &a, b_type_ const &b, output_type_ &&output,
+             nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+    auto a_values = contiguous_values_<in_type_ const>(a);
+    auto b_values = contiguous_values_<in_type_ const>(b);
+    auto output_values = contiguous_values_<in_type_>(output);
+    std::size_t const dimensions = a_values.value.size() * dimensions_per_value<in_type_>();
+    if (!a_values || !b_values || !output_values ||
+        b_values.value.size() * dimensions_per_value<in_type_>() != dimensions ||
+        output_values.value.size() * dimensions_per_value<in_type_>() != dimensions)
+        return status_t::unexpected_dimensions_k;
+    return add<in_type_>(a_values.value.data(), b_values.value.data(), dimensions, output_values.value.data(),
+                         capabilities, stream);
+}
+
+/** Elementwise cᵢ = α × aᵢ + β, failing like the concept @c add. */
+template <numeric_dtype in_type_, vector_of<in_type_> a_type_, mutable_vector_of<in_type_> output_type_>
+    requires(!requires(a_type_ const &tensor) { tensor.rank(); }) // tensors take the tensor overload below
+status_t scale(a_type_ const &a, typename in_type_::scale_t alpha, typename in_type_::scale_t beta,
+               output_type_ &&output, nk_capability_t capabilities = cpu_capabilities(),
+               void *stream = nullptr) noexcept {
+    auto a_values = contiguous_values_<in_type_ const>(a);
+    auto output_values = contiguous_values_<in_type_>(output);
+    std::size_t const dimensions = output_values.value.size() * dimensions_per_value<in_type_>();
+    if (!a_values || !output_values || dimensions != a_values.value.size() * dimensions_per_value<in_type_>())
+        return status_t::unexpected_dimensions_k;
+    return scale<in_type_>(a_values.value.data(), a_values.value.size() * dimensions_per_value<in_type_>(), &alpha,
+                           &beta, output_values.value.data(), capabilities, stream);
+}
+
+/** Elementwise cᵢ = α × aᵢ + β × bᵢ, failing like the concept @c add. */
+template <numeric_dtype in_type_, vector_of<in_type_> a_type_, vector_of<in_type_> b_type_,
+          mutable_vector_of<in_type_> output_type_>
+    requires(!requires(a_type_ const &tensor) { tensor.rank(); })
+status_t blend(a_type_ const &a, b_type_ const &b, typename in_type_::scale_t alpha, typename in_type_::scale_t beta,
+               output_type_ &&output, nk_capability_t capabilities = cpu_capabilities(),
+               void *stream = nullptr) noexcept {
+    auto a_values = contiguous_values_<in_type_ const>(a);
+    auto b_values = contiguous_values_<in_type_ const>(b);
+    auto output_values = contiguous_values_<in_type_>(output);
+    std::size_t const dimensions = a_values.value.size() * dimensions_per_value<in_type_>();
+    if (!a_values || !b_values || !output_values ||
+        b_values.value.size() * dimensions_per_value<in_type_>() != dimensions ||
+        output_values.value.size() * dimensions_per_value<in_type_>() != dimensions)
+        return status_t::unexpected_dimensions_k;
+    return blend<in_type_>(a_values.value.data(), b_values.value.data(), dimensions, &alpha, &beta,
+                           output_values.value.data(), capabilities, stream);
+}
+
+/** Elementwise outᵢ = α × aᵢ × bᵢ + β × cᵢ, failing like the concept @c add. */
+template <numeric_dtype in_type_, vector_of<in_type_> a_type_, vector_of<in_type_> b_type_, vector_of<in_type_> c_type_,
+          mutable_vector_of<in_type_> output_type_>
+    requires(!requires(a_type_ const &tensor) { tensor.rank(); })
+status_t fma(a_type_ const &a, b_type_ const &b, c_type_ const &c, typename in_type_::scale_t alpha,
+             typename in_type_::scale_t beta, output_type_ &&output, nk_capability_t capabilities = cpu_capabilities(),
+             void *stream = nullptr) noexcept {
+    auto a_values = contiguous_values_<in_type_ const>(a);
+    auto b_values = contiguous_values_<in_type_ const>(b);
+    auto c_values = contiguous_values_<in_type_ const>(c);
+    auto output_values = contiguous_values_<in_type_>(output);
+    std::size_t const dimensions = a_values.value.size() * dimensions_per_value<in_type_>();
+    if (!a_values || !b_values || !c_values || !output_values ||
+        b_values.value.size() * dimensions_per_value<in_type_>() != dimensions ||
+        c_values.value.size() * dimensions_per_value<in_type_>() != dimensions ||
+        output_values.value.size() * dimensions_per_value<in_type_>() != dimensions)
+        return status_t::unexpected_dimensions_k;
+    return fma<in_type_>(a_values.value.data(), b_values.value.data(), c_values.value.data(), dimensions, &alpha, &beta,
+                         output_values.value.data(), capabilities, stream);
+}
+
+#pragma endregion Vector Elementwise
+
 #pragma region Tensor Elementwise
 
 /** Fused SwiGLU over @b [rows,columns] matrices into a matching output span — @p up empty means

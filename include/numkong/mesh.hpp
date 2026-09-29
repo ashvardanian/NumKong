@@ -739,6 +739,90 @@ status_t umeyama(in_type_ const *a, in_type_ const *b, std::size_t n, transform_
 
 #pragma endregion Mesh Alignment Kernels
 
+#pragma region Mesh Alignment Views
+
+/** What a mesh alignment reports: both centroids, the transform from @b a onto @b b, its RMSD. */
+template <typename transform_type_, typename metric_type_>
+struct mesh_result {
+
+    /** Centroid of the first point cloud. */
+    transform_type_ a_centroid[3] {};
+
+    /** Centroid of the second point cloud. */
+    transform_type_ b_centroid[3] {};
+
+    /** Row-major 3 × 3 rotation, the identity for @c rmsd. */
+    transform_type_ rotation[9] {};
+
+    /** Uniform scale, 1 for @c rmsd and @c kabsch. */
+    transform_type_ scale {};
+
+    /** Root mean square deviation after the transform. */
+    metric_type_ rmsd {};
+};
+
+/** RMSD of two interleaved @b [points,3] clouds without alignment; @c unexpected_dimensions_k when
+ *  their sizes differ, are not a multiple of 3, or either run is strided or ends mid-value. */
+template <typename in_type_, typename transform_type_ = typename in_type_::mesh_transform_t,
+          typename metric_type_ = typename in_type_::mesh_metric_t, vector_of<in_type_> a_type_,
+          vector_of<in_type_> b_type_>
+expected<mesh_result<transform_type_, metric_type_>> rmsd(a_type_ const &a, b_type_ const &b,
+                                                          nk_capability_t capabilities = cpu_capabilities()) noexcept {
+    auto a_values = contiguous_values_<in_type_ const>(a);
+    auto b_values = contiguous_values_<in_type_ const>(b);
+    std::size_t const dimensions = a_values.value.size() * dimensions_per_value<in_type_>();
+    if (!a_values || !b_values || dimensions != b_values.value.size() * dimensions_per_value<in_type_>() ||
+        dimensions % 3)
+        return {{}, status_t::unexpected_dimensions_k};
+    mesh_result<transform_type_, metric_type_> fit {};
+    status_t status = rmsd<in_type_, transform_type_, metric_type_>(a_values.value.data(), b_values.value.data(),
+                                                                    dimensions / 3, fit.a_centroid, fit.b_centroid,
+                                                                    fit.rotation, &fit.scale, &fit.rmsd, capabilities);
+    return {fit, status};
+}
+
+/** Kabsch rigid alignment of two interleaved @b [points,3] clouds, failing like the concept
+ *  @c rmsd. */
+template <typename in_type_, typename transform_type_ = typename in_type_::mesh_transform_t,
+          typename metric_type_ = typename in_type_::mesh_metric_t, vector_of<in_type_> a_type_,
+          vector_of<in_type_> b_type_>
+expected<mesh_result<transform_type_, metric_type_>> kabsch(
+    a_type_ const &a, b_type_ const &b, nk_capability_t capabilities = cpu_capabilities()) noexcept {
+    auto a_values = contiguous_values_<in_type_ const>(a);
+    auto b_values = contiguous_values_<in_type_ const>(b);
+    std::size_t const dimensions = a_values.value.size() * dimensions_per_value<in_type_>();
+    if (!a_values || !b_values || dimensions != b_values.value.size() * dimensions_per_value<in_type_>() ||
+        dimensions % 3)
+        return {{}, status_t::unexpected_dimensions_k};
+    mesh_result<transform_type_, metric_type_> fit {};
+    status_t status = kabsch<in_type_, transform_type_, metric_type_>(
+        a_values.value.data(), b_values.value.data(), dimensions / 3, fit.a_centroid, fit.b_centroid, fit.rotation,
+        &fit.scale, &fit.rmsd, capabilities);
+    return {fit, status};
+}
+
+/** Umeyama similarity alignment of two interleaved @b [points,3] clouds, failing like the
+ *  concept @c rmsd. */
+template <typename in_type_, typename transform_type_ = typename in_type_::mesh_transform_t,
+          typename metric_type_ = typename in_type_::mesh_metric_t, vector_of<in_type_> a_type_,
+          vector_of<in_type_> b_type_>
+expected<mesh_result<transform_type_, metric_type_>> umeyama(
+    a_type_ const &a, b_type_ const &b, nk_capability_t capabilities = cpu_capabilities()) noexcept {
+    auto a_values = contiguous_values_<in_type_ const>(a);
+    auto b_values = contiguous_values_<in_type_ const>(b);
+    std::size_t const dimensions = a_values.value.size() * dimensions_per_value<in_type_>();
+    if (!a_values || !b_values || dimensions != b_values.value.size() * dimensions_per_value<in_type_>() ||
+        dimensions % 3)
+        return {{}, status_t::unexpected_dimensions_k};
+    mesh_result<transform_type_, metric_type_> fit {};
+    status_t status = umeyama<in_type_, transform_type_, metric_type_>(
+        a_values.value.data(), b_values.value.data(), dimensions / 3, fit.a_centroid, fit.b_centroid, fit.rotation,
+        &fit.scale, &fit.rmsd, capabilities);
+    return {fit, status};
+}
+
+#pragma endregion Mesh Alignment Views
+
 } // namespace ashvardanian::numkong
 
 #endif // NUMKONG_MESH_HPP
