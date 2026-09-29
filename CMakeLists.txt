@@ -350,11 +350,11 @@ elseif (CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|IntelLLVM)$")
         endif ()
     endif ()
 elseif (MSVC)
-    # MSVC: no per-function target pragma; these match defaults.
+    # MSVC: no per-function target pragma; these match defaults. NVCC would read them as input files.
     if (NUMKONG_ARCH_X8664_)
-        add_compile_options(/arch:SSE2)
+        add_compile_options($<$<COMPILE_LANGUAGE:C,CXX>:/arch:SSE2>)
     elseif (NUMKONG_ARCH_ARM64_)
-        add_compile_options(/arch:armv8.0)
+        add_compile_options($<$<COMPILE_LANGUAGE:C,CXX>:/arch:armv8.0>)
     endif ()
 endif ()
 
@@ -875,8 +875,8 @@ else ()
         endif ()
 
         # Link-time optimization for the shared library only: the static archive ships machine code any toolchain,
-        # cGo included, can link.
-        if (NUMKONG_IPO_SUPPORTED_ AND nk_library_ STREQUAL "numkong_shared")
+        # cGo included, can link. MSVC's `/GL` objects hide the symbols `WINDOWS_EXPORT_ALL_SYMBOLS` must list.
+        if (NUMKONG_IPO_SUPPORTED_ AND nk_library_ STREQUAL "numkong_shared" AND NOT MSVC)
             set_target_properties(${nk_library_} PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
         endif ()
 
@@ -1247,7 +1247,10 @@ function (numkong_cuda_test_target_ target architectures)
                                                                                             "${architectures}"
     )
     target_compile_options(${target} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
-    if (NUMKONG_ARCH_X8664_)
+    if (MSVC)
+        # {fmt} demands `/utf-8` for Unicode output, which NVCC's front end on Windows cannot honour.
+        target_compile_definitions(${target} PRIVATE FMT_UNICODE=0)
+    elseif (NUMKONG_ARCH_X8664_)
         target_compile_options(
             ${target} PRIVATE -Xcompiler=-march=x86-64 -Xcompiler=-fno-tree-vectorize
                               -Xcompiler=-fno-tree-slp-vectorize

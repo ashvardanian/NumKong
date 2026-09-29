@@ -14,7 +14,7 @@ Frameworks exercised:
 - JAX             — CPU round-trips for f32 / f64 / bf16.
 - TensorFlow      — CPU round-trips for f32 / f64 / bf16 via ``tf.experimental.dlpack``.
 - CuPy            — three guarded paths covering the importer's device-acceptance contract:
-                    (a) plain ``cudaMalloc`` (kDLCUDA) → must be REJECTED with a clear ValueError;
+                    (a) plain ``cudaMalloc`` (kDLCUDA) → must be ACCEPTED as a GPU tensor keeping its device;
                     (b) ``cudaMallocManaged`` unified memory (kDLCUDAManaged) → must be ACCEPTED;
                     (c) ``cudaMallocHost`` pinned host memory (kDLCUDAHost) → must be ACCEPTED.
 - PyArrow         — Arrow Array → NumKong (one-way; PyArrow is producer-only in the protocol).
@@ -23,8 +23,9 @@ Frameworks exercised:
                     run on macOS contributor machines / Apple Silicon CI.
 
 The importer accepts every DLPack ``device_type`` whose pointer is dereferenceable from host code
-(kDLCPU / CUDAHost / ROCMHost / CUDAManaged / OneAPI / Metal). Pure device memory (kDLCUDA, kDLROCM,
-kDLOpenCL, kDLVulkan, kDLWebGPU, kDLHexagon, kDLMAIA, kDLTrn, kDLVPI, kDLExtDev) is rejected.
+(kDLCPU / CUDAHost / ROCMHost / CUDAManaged / OneAPI / Metal) as a CPU tensor, and kDLCUDA / kDLROCM
+as a GPU tensor keeping its device. Other device memory (kDLOpenCL, kDLVulkan, kDLWebGPU, kDLHexagon,
+kDLMAIA, kDLTrn, kDLVPI, kDLExtDev) is rejected.
 
 File: test/dlpack.py
 Author: Ash Vardanian
@@ -329,12 +330,11 @@ def _cupy_or_skip():
     return cupy
 
 
-def test_cupy_device_memory_is_rejected():
-    """Plain ``cudaMalloc`` GPU memory (kDLCUDA) must be REJECTED — reading it on the host would fault."""
+def test_cupy_device_memory_keeps_its_device():
+    """Plain ``cudaMalloc`` GPU memory (kDLCUDA) imports as a GPU tensor on that device."""
     cupy = _cupy_or_skip()
     src = cupy.arange(16, dtype=cupy.float32)
-    with pytest.raises(ValueError, match="CPU-accessible"):
-        nk.from_dlpack(src)
+    assert nk.from_dlpack(src).device == nk.Device("cuda", src.device.id)
 
 
 def test_cupy_managed_memory_accepted():

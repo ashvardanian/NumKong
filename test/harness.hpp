@@ -491,7 +491,8 @@ struct error_stats_section_t {
     /** Runs @p test_fn over @p kernels, deducing a scenario's kernel types from the kernels
      *  themselves. */
     template <typename stats_type_ = error_stats_t, typename... kernels_types_>
-    void operator()(char const *kernel_name, stats_type_ (*test_fn)(kernels_types_...), kernels_types_... kernels) {
+    void operator()(char const *kernel_name, std::type_identity_t<stats_type_ (*)(kernels_types_...)> test_fn,
+                    kernels_types_... kernels) {
         (*this)(kernel_name, [&] { return test_fn(kernels...); });
     }
 
