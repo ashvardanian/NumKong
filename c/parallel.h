@@ -4,7 +4,7 @@
  *  @date August 6, 2026
  *  @brief Tile-parallel execution for NumKong language bindings.
  *
- *  Compiled only by `setup.py` and `binding.gyp`, never by CMake or Cargo.
+ *  Compiled into the Python and Node extensions, never into the libraries.
  *  Each platform's own pool runs the tiles, so no binding ships a @c libomp.
  */
 #ifndef NUMKONG_PARALLEL_H

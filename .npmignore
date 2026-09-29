@@ -5,7 +5,4 @@ go.mod
 .vscode
 pyproject.toml
 .clang-format
-VERSION
-setup.py
-CMakeLists.txt
 build

@@ -1,7 +1,7 @@
 # cmake/nk_loongarch_isa_probes.cmake — LoongArch ISA compiler-capability probes
 #
 # Detect which ISA extensions the compiler can emit.
-# Probe source lives in probes/loongarch_*.c — shared with setup.py and build.rs.
+# Probe source lives in probes/loongarch_*.c.
 
 set(nk_native_flags_ "-march=native")
 include(cmake/nk_isa_probe.cmake)

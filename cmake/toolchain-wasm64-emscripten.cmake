@@ -1,9 +1,9 @@
 # WASM64/Emscripten Memory64 toolchain for NumKong: 64-bit addressing, the only way one module passes 4 GiB.
-# Usage: cmake -B build-wasm64-emscripten -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm64-emscripten.cmake
+# Usage: cmake --preset wasm64_emscripten, which builds into `build_wasm64_emscripten`
 #
 # Every engine with Memory64 also has Relaxed SIMD, so the capability defaults to `v128relaxed`; `-DNUMKONG_TARGET_ARCH=v128`
-# narrows it. The kernels are thread-free, so no `-pthread` here. The flags go into the cache once, so use one
-# build directory per capability.
+# narrows it. The kernels are thread-free, so no `-pthread` here. The module is named after the capability, so both can
+# be built into one directory, one reconfigure apart.
 
 # Verify the Emscripten SDK.
 if (NOT DEFINED ENV{EMSDK})
@@ -15,21 +15,14 @@ if (NOT DEFINED ENV{EMSDK})
     )
 endif ()
 
-# SIMD capability: the flags define `__wasm_simd128__` / `__wasm_relaxed_simd__`, which `types.h` reads.
-set(NUMKONG_TARGET_ARCH "v128relaxed" CACHE STRING "WebAssembly SIMD capability of this module: v128 or v128relaxed")
-if (NUMKONG_TARGET_ARCH STREQUAL "v128relaxed")
-    set(WASM_SIMD_FLAGS "-msimd128 -mrelaxed-simd")
-elseif (NUMKONG_TARGET_ARCH STREQUAL "v128")
-    set(WASM_SIMD_FLAGS "-msimd128")
-else ()
-    message(FATAL_ERROR "NUMKONG_TARGET_ARCH must be v128 or v128relaxed, not `${NUMKONG_TARGET_ARCH}`")
-endif ()
+# `CMakeLists.txt` turns the capability into `-msimd128` and `-mrelaxed-simd` for every unit.
+set(NUMKONG_TARGET_ARCH "v128relaxed" CACHE STRING
+                                            "WebAssembly SIMD capability of this module: serial, v128 or v128relaxed"
+)
 
 # Emscripten's own toolchain file reads the width off these flags as it loads, so they precede the include.
-set(CMAKE_C_FLAGS "${WASM_SIMD_FLAGS} -sMEMORY64=1" CACHE STRING "Flags used by the C compiler during all build types.")
-set(CMAKE_CXX_FLAGS "${WASM_SIMD_FLAGS} -sMEMORY64=1" CACHE STRING
-                                                            "Flags used by the CXX compiler during all build types."
-)
+set(CMAKE_C_FLAGS "-sMEMORY64=1" CACHE STRING "Flags used by the C compiler during all build types.")
+set(CMAKE_CXX_FLAGS "-sMEMORY64=1" CACHE STRING "Flags used by the CXX compiler during all build types.")
 set(EMSCRIPTEN_SYSTEM_PROCESSOR wasm64)
 include("$ENV{EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake")
 

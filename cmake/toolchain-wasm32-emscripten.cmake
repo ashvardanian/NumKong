@@ -1,9 +1,9 @@
 # WASM/Emscripten toolchain for NumKong: 32-bit, single-threaded, the module any page and any runtime loads.
-# Usage: cmake -B build-wasm32-emscripten -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake
+# Usage: cmake --preset wasm32_emscripten, which builds into `build_wasm32_emscripten`
 #
 # The SIMD capability is a whole-module choice, so it is fixed here rather than probed: `v128` by default, which also
-# loads where Relaxed SIMD is absent - Safari and WebKit on iOS - or `-DNUMKONG_TARGET_ARCH=v128relaxed`. The flags go into
-# the cache once, so use one build directory per capability.
+# loads where Relaxed SIMD is absent - Safari and WebKit on iOS - or `-DNUMKONG_TARGET_ARCH=v128relaxed`. The module is
+# named after it, so both capabilities can be built into one directory, one reconfigure apart.
 
 # Verify the Emscripten SDK.
 if (NOT DEFINED ENV{EMSDK})
@@ -15,19 +15,9 @@ if (NOT DEFINED ENV{EMSDK})
     )
 endif ()
 
-# SIMD capability: the flags define `__wasm_simd128__` / `__wasm_relaxed_simd__`, which `types.h` reads.
-set(NUMKONG_TARGET_ARCH "v128" CACHE STRING "WebAssembly SIMD capability of this module: v128 or v128relaxed")
-if (NUMKONG_TARGET_ARCH STREQUAL "v128relaxed")
-    set(WASM_SIMD_FLAGS "-msimd128 -mrelaxed-simd")
-elseif (NUMKONG_TARGET_ARCH STREQUAL "v128")
-    set(WASM_SIMD_FLAGS "-msimd128")
-else ()
-    message(FATAL_ERROR "NUMKONG_TARGET_ARCH must be v128 or v128relaxed, not `${NUMKONG_TARGET_ARCH}`")
-endif ()
+# `CMakeLists.txt` turns the capability into `-msimd128` and `-mrelaxed-simd` for every unit.
+set(NUMKONG_TARGET_ARCH "v128" CACHE STRING "WebAssembly SIMD capability of this module: serial, v128 or v128relaxed")
 
-# Emscripten's own toolchain file reads the width off these flags as it loads, so they precede the include.
-set(CMAKE_C_FLAGS "${WASM_SIMD_FLAGS}" CACHE STRING "Flags used by the C compiler during all build types.")
-set(CMAKE_CXX_FLAGS "${WASM_SIMD_FLAGS}" CACHE STRING "Flags used by the CXX compiler during all build types.")
 set(EMSCRIPTEN_SYSTEM_PROCESSOR wasm32)
 include("$ENV{EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake")
 

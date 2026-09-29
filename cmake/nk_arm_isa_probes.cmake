@@ -1,7 +1,7 @@
 # cmake/nk_arm_isa_probes.cmake — Arm ISA compiler-capability probes
 #
 # Detect which ISA extensions the compiler can emit.
-# Probe source lives in probes/arm_*.c — shared with setup.py and build.rs.
+# Probe source lives in probes/arm_*.c.
 
 # Apple Clang 21+ recognises M-series CPUs under -mcpu=native and advertises
 # SME/SME2/BF16 feature macros correctly. Older Apple Clang didn't, which is

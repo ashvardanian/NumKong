@@ -130,50 +130,59 @@ The baseline type depends on the input dtype, selected by the `reference_for<inp
 
 ### WASM
 
-A WebAssembly module carries one SIMD capability, so every wasm toolchain fixes it through `NUMKONG_TARGET_ARCH` — `v128` or `v128relaxed` — and one build directory holds one capability.
+A WebAssembly module carries one SIMD capability, `serial`, `v128` or `v128relaxed`, which `NUMKONG_TARGET_ARCH` selects under every toolchain; Emscripten names each module after it.
 
 __Emscripten__
 
 ```sh
 source ~/emsdk/emsdk_env.sh
-cmake -B build-wasm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake -DNUMKONG_BUILD_TEST=1
-cmake --build build-wasm --parallel
+cmake --preset wasm32_emscripten -D NUMKONG_BUILD_TEST=ON
+cmake --build --preset wasm32_emscripten
 ```
 
 For the relaxed capability of the same 32-bit module, and for wasm64 — Memory64:
 
 ```sh
-cmake -B build-wasm-relaxed -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake -DNUMKONG_TARGET_ARCH=v128relaxed -DNUMKONG_BUILD_TEST=1
-cmake --build build-wasm-relaxed --parallel
-cmake -B build-wasm64 -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm64-emscripten.cmake -DNUMKONG_BUILD_TEST=1
-cmake --build build-wasm64 --parallel
+cmake --preset wasm32_emscripten -D NUMKONG_BUILD_TEST=ON -D NUMKONG_TARGET_ARCH=v128relaxed
+cmake --build --preset wasm32_emscripten
+cmake --preset wasm64_emscripten -D NUMKONG_BUILD_TEST=ON
+cmake --build --preset wasm64_emscripten
 ```
 
 __WASI__
 
 ```sh
-export WASI_SDK_PATH=~/wasi-sdk-24.0-x86_64-linux
-cmake -B build-wasi -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-wasi.cmake -DNUMKONG_BUILD_TEST=1
-cmake --build build-wasi --parallel
+export WASI_SDK_PATH=~/wasi-sdk
+cmake --preset wasm32_wasi
+cmake --build --preset wasm32_wasi
 ```
 
 For a module over an imported shared memory, which hosts with WASI threads run:
 
 ```sh
-cmake -B build-wasi-threads -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-wasi-threads.cmake -DNUMKONG_BUILD_TEST=1
-cmake --build build-wasi-threads --parallel
+cmake --preset wasm32_wasi_threads
+cmake --build --preset wasm32_wasi_threads
 ```
 
 __Running WASM Tests__
 
-`ctest` runs the WASI binary through `CMAKE_CROSSCOMPILING_EMULATOR`: `wasmtime` by default, or `wasmer` or `node` with `test/wasi.mjs` when the build names them, with the flags each module needs.
+`ctest --preset wasm32_wasi` and `ctest --preset wasm32_wasi_threads` run the WASI binaries through `CMAKE_CROSSCOMPILING_EMULATOR`: `wasmtime` by default, or `wasmer` or `node` with `test/wasi.mjs` when the build names them, with the flags each module needs.
 The same runs by hand:
 
 ```sh
-wasmtime run -W relaxed-simd=y ./build-wasi/numkong_cpu_test.wasm
-wasmer run --enable-simd --enable-relaxed-simd ./build-wasi/numkong_cpu_test.wasm
-wasmtime run -W relaxed-simd=y,threads=y -S threads=y,inherit-env=y ./build-wasi-threads/numkong_cpu_test.wasm
-node ./build-wasm/numkong_cpu_test.js
+wasmtime run -W relaxed-simd=y -S inherit-env=y ./build_wasm32_wasi/numkong_cpu_test.wasm
+wasmer run --enable-simd --enable-relaxed-simd ./build_wasm32_wasi/numkong_cpu_test.wasm
+wasmtime run -W relaxed-simd=y,threads=y -S threads=y,inherit-env=y ./build_wasm32_wasi_threads/numkong_cpu_test.wasm
+node ./build_wasm32_emscripten/numkong_cpu_test.js
+```
+
+The JavaScript wrappers run over the Emscripten modules, and over the WASI tests with the host probes, through `test/wasm.mjs`:
+
+```sh
+npm run build-js
+npm run test:wasm:emscripten                                     # build_wasm32_emscripten
+npm run test:wasm:emscripten64                                   # build_wasm64_emscripten
+npm run test:wasm:wasi                                           # build_wasm32_wasi, with -D NUMKONG_WITH_HOST_PROBES=ON
 ```
 
 __Memory Model__
@@ -220,14 +229,6 @@ cargo test -p numkong
 cargo test -p numkong -- --nocapture    # with output
 cargo test -p numkong --all-features    # all optional features
 cargo check -p numkong --no-default-features  # no-std compatibility
-```
-
-### WASM via Wasmtime
-
-The `wasm-runtime` feature embeds a Wasmtime runtime to test WASM modules from within `cargo test`.
-
-```sh
-cargo test -p numkong --features wasm-runtime -- wasm_runtime
 ```
 
 ## Python

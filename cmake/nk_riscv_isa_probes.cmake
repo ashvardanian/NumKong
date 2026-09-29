@@ -2,7 +2,7 @@
 #
 # Detect which ISA extensions the compiler can emit.
 # RISC-V has no -march=native, so native falls back to compile result.
-# Probe source lives in probes/riscv_*.c — shared with setup.py and build.rs.
+# Probe source lives in probes/riscv_*.c.
 
 set(nk_native_flags_ "")
 include(cmake/nk_isa_probe.cmake)

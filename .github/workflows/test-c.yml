@@ -264,6 +264,7 @@ jobs:
       - name: Build via Cargo
         env:
           CC_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-gcc-14
+          CXX_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-g++-14
           CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc-14
         run: cargo build --target armv7-unknown-linux-gnueabihf --release
 

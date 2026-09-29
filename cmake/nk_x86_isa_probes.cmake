@@ -1,7 +1,7 @@
 # cmake/nk_x86_isa_probes.cmake — x86 ISA compiler-capability probes
 #
 # Detect which ISA extensions the compiler can emit.
-# Probe source lives in probes/x86_*.c — shared with setup.py and build.rs.
+# Probe source lives in probes/x86_*.c.
 
 set(nk_native_flags_ "-march=native")
 include(cmake/nk_isa_probe.cmake)

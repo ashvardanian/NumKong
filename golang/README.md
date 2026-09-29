@@ -62,6 +62,7 @@ You can inspect the runtime SIMD surface from Go.
 
 The Go binding links the prebuilt static NumKong library through cGo, so programs carry it whole.
 Install `libnumkong_static.a` from the latest release, the `.deb` on Linux or the archive on macOS, or build it with `cmake --build --preset release_shared --target numkong_static` and copy it next to the Go sources.
+An archive elsewhere, like the one `NUMKONG_LIBRARY_DIR` names for the Rust crate, links through `CGO_LDFLAGS="-L$NUMKONG_LIBRARY_DIR"`.
 
 Import the subpackage from the root module:
 

@@ -1,6 +1,6 @@
 # WASI threads toolchain for NumKong: `wasm32-wasip1-threads` over an imported shared memory, for hosts that
 # spawn workers (Wasmtime with `-S threads=y`, a Node host, an embedding that links the pool).
-# Usage: cmake -B build-wasi-threads -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-wasi-threads.cmake -DNUMKONG_BUILD_TEST=ON
+# Usage: cmake --preset wasm32_wasi_threads, into `build_wasm32_wasi_threads`, or `build.rs` for `wasm32-wasip1-threads`
 #
 # Every runtime with WASI threads also has Relaxed SIMD, so the capability defaults to `v128relaxed`; `-DNUMKONG_TARGET_ARCH=v128`
 # narrows it. The single-threaded module lives in `toolchain-wasm32-wasi.cmake`.
@@ -48,18 +48,13 @@ set(CMAKE_FIND_ROOT_PATH "${WASI_SDK_PATH}")
 # A `-shared` module needs a main module to resolve `__global_base` and kin, which no standalone runtime supplies.
 set(NUMKONG_BUILD_SHARED OFF CACHE BOOL "Compile a dynamic library")
 
-# SIMD capability: the flags define `__wasm_simd128__` / `__wasm_relaxed_simd__`, which `types.h` reads.
-set(NUMKONG_TARGET_ARCH "v128relaxed" CACHE STRING "WebAssembly SIMD capability of this module: v128 or v128relaxed")
-if (NUMKONG_TARGET_ARCH STREQUAL "v128relaxed")
-    set(WASM_SIMD_FLAGS "-msimd128 -mrelaxed-simd")
-elseif (NUMKONG_TARGET_ARCH STREQUAL "v128")
-    set(WASM_SIMD_FLAGS "-msimd128")
-else ()
-    message(FATAL_ERROR "NUMKONG_TARGET_ARCH must be v128 or v128relaxed, not `${NUMKONG_TARGET_ARCH}`")
-endif ()
+# `CMakeLists.txt` turns the capability into `-msimd128` and `-mrelaxed-simd` for every unit.
+set(NUMKONG_TARGET_ARCH "v128relaxed" CACHE STRING
+                                            "WebAssembly SIMD capability of this module: serial, v128 or v128relaxed"
+)
 
-set(CMAKE_C_FLAGS_INIT "${WASM_SIMD_FLAGS} --target=wasm32-wasip1-threads -pthread")
-set(CMAKE_CXX_FLAGS_INIT "${WASM_SIMD_FLAGS} --target=wasm32-wasip1-threads -pthread -fno-exceptions")
+set(CMAKE_C_FLAGS_INIT "--target=wasm32-wasip1-threads -pthread")
+set(CMAKE_CXX_FLAGS_INIT "--target=wasm32-wasip1-threads -pthread -fno-exceptions")
 
 # Optimization flags.
 set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG")
@@ -94,7 +89,7 @@ message(STATUS "NumKong WASI: Toolchain at ${WASI_SDK_PATH}")
 # run this module: wasmtime with its threads proposal and WASI threads on, the default, or wasmer with threads on,
 # through `-DCMAKE_CROSSCOMPILING_EMULATOR="wasmer;run;--enable-simd;--enable-relaxed-simd;--enable-threads"`.
 find_program(NUMKONG_WASMTIME_EXE_ wasmtime PATHS "$ENV{HOME}/.wasmtime/bin")
-set(CMAKE_CROSSCOMPILING_EMULATOR "${NUMKONG_WASMTIME_EXE_};run;-W;relaxed-simd=y,threads=y;-S;threads=y"
+set(CMAKE_CROSSCOMPILING_EMULATOR "${NUMKONG_WASMTIME_EXE_};run;-W;relaxed-simd=y,threads=y;-S;threads=y,inherit-env=y"
     CACHE STRING "Runs the WASI tests"
 )
 message(STATUS "NumKong WASI: CTest runtime = ${CMAKE_CROSSCOMPILING_EMULATOR}")

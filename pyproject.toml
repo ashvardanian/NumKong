@@ -9,8 +9,43 @@
 # * running thousands of fuzzy tests on each wheel.
 
 [build-system]
-build-backend = "setuptools.build_meta"
-requires = ["setuptools>=42"]
+build-backend = "scikit_build_core.build"
+requires = ["hatch-fancy-pypi-readme>=22.3", "scikit-build-core>=0.10"]
+
+[project]
+authors = [{ email = "1983160+ashvardanian@users.noreply.github.com", name = "Ash Vardanian" }]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Natural Language :: English",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: C",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: Free Threading :: 3 - Stable",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+description = "Portable mixed-precision math, linear-algebra, & retrieval library with 2000+ SIMD kernels for x86, Arm, RISC-V, LoongArch, Power, & WebAssembly"
+dynamic = ["readme", "version"]
+license = { text = "Apache-2.0" }
+name = "numkong"
+requires-python = ">=3.9"
+
+[project.urls]
+Homepage = "https://github.com/ashvardanian/NumKong"
 
 [tool.cibuildwheel]
 # Every CI job narrows this with `CIBW_ARCHS`; the full set stays for local runs.
@@ -74,20 +109,21 @@ test-requires = ["pytest", "pytest-randomly", "pytest-repeat", "tabulate"]
 # (The wheels themselves import and run fine there; only the numeric-parity tests need NumPy.)
 test-skip = "*_i686 *_ppc64le *_s390x"
 
+# In Docker containers `os.cpu_count()` reports the host's cores, and that many SIMD compile jobs OOM the container.
 [tool.cibuildwheel.environment]
-NUMKONG_BUILD_JOBS = "2"
+CMAKE_BUILD_PARALLEL_LEVEL = "2"
 
 [tool.cibuildwheel.linux]
 # On CentOS we have to use `yum`, and `extras` fails to download on Arm instances.
 before-all = [
     "yum update -y --disablerepo=extras --setopt=install_weak_deps=0 && yum install -y --disablerepo=extras glibc-devel wget python3-devel",
 ]
-before-build = ["rm -rf {project}/build"]
+before-build = ["rm -rf {project}/build_python"]
 repair-wheel-command = "auditwheel repair -w {dest_dir} {wheel}"
 
 [tool.cibuildwheel.macos]
 # No `before-all`: nothing outside libSystem to link, so `delocate` bundles nothing.
-before-build = ["rm -rf {project}/build"]
+before-build = ["rm -rf {project}/build_python"]
 repair-wheel-command = "delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}"
 
 # Pin the platform tag on manylinux_2_28 architectures to avoid verbose
@@ -117,56 +153,6 @@ test-command = """
     set PYTHONMALLOC=debug && pytest {project}/test/ -s -x -Wd"
 """
 
-# x86-64 builds
-[[tool.cibuildwheel.overrides]]
-select = "*-win_amd64"
-environment.NUMKONG_ARCH_ARM64_ = "0"
-environment.NUMKONG_ARCH_X8664_ = "1"
-inherit.environment = "append"
-
-[[tool.cibuildwheel.overrides]]
-select = "*-manylinux*_x86_64"
-environment.NUMKONG_ARCH_ARM64_ = "0"
-environment.NUMKONG_ARCH_X8664_ = "1"
-inherit.environment = "append"
-
-[[tool.cibuildwheel.overrides]]
-select = "*-musllinux*_x86_64"
-environment.NUMKONG_ARCH_ARM64_ = "0"
-environment.NUMKONG_ARCH_X8664_ = "1"
-inherit.environment = "append"
-
-[[tool.cibuildwheel.overrides]]
-select = "*-macos*_x86_64"
-environment.NUMKONG_ARCH_ARM64_ = "0"
-environment.NUMKONG_ARCH_X8664_ = "1"
-inherit.environment = "append"
-
-# ARM64 builds
-[[tool.cibuildwheel.overrides]]
-select = "*-win_arm64"
-environment.NUMKONG_ARCH_ARM64_ = "1"
-environment.NUMKONG_ARCH_X8664_ = "0"
-inherit.environment = "append"
-
-[[tool.cibuildwheel.overrides]]
-select = "*-manylinux*_aarch64"
-environment.NUMKONG_ARCH_ARM64_ = "1"
-environment.NUMKONG_ARCH_X8664_ = "0"
-inherit.environment = "append"
-
-[[tool.cibuildwheel.overrides]]
-select = "*-musllinux*_aarch64"
-environment.NUMKONG_ARCH_ARM64_ = "1"
-environment.NUMKONG_ARCH_X8664_ = "0"
-inherit.environment = "append"
-
-[[tool.cibuildwheel.overrides]]
-select = "*-macos*_arm64"
-environment.NUMKONG_ARCH_ARM64_ = "1"
-environment.NUMKONG_ARCH_X8664_ = "0"
-inherit.environment = "append"
-
 # RISC-V builds: the images' GCC 14 ignores `#pragma GCC target`, which is how the RVV kernels
 # opt in, so GCC wheels would carry none. Clang honours its own pragma.
 [[tool.cibuildwheel.overrides]]
@@ -175,9 +161,6 @@ select = "*-manylinux*_riscv64"
 environment.CC = "clang"
 environment.CXX = "clang++"
 environment.LDFLAGS = "-fuse-ld=lld"
-environment.NUMKONG_ARCH_ARM64_ = "0"
-environment.NUMKONG_ARCH_RISCV64_ = "1"
-environment.NUMKONG_ARCH_X8664_ = "0"
 inherit.environment = "append"
 
 # Pyodide / Emscripten WASM builds
@@ -185,7 +168,7 @@ inherit.environment = "append"
 # be executed directly as shell commands, so we must use `python -m pytest`.
 # Also, `ml_dtypes` has no Pyodide wheel, so we skip it.
 [[tool.cibuildwheel.overrides]]
-before-build = ["rm -rf {project}/build"]
+before-build = ["rm -rf {project}/build_python"]
 select = "*-pyodide*"
 test-command = """
     python -m pip install numpy --only-binary=:all: || (echo "Failed to install NumPy" && exit 0) &&
@@ -195,9 +178,21 @@ test-command = """
 """
 
 [tool.cibuildwheel.windows]
-before-build = ["rd /s /q {project}\\build || echo Done"]
+before-build = ["rd /s /q {project}\\build_python || echo Done"]
 # cibuildwheel 4 defaults this to `delvewheel`; we link only system DLLs.
 repair-wheel-command = ""
+
+[tool.hatch.metadata.hooks.fancy-pypi-readme]
+content-type = "text/markdown"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.fragments]]
+path = "python/README.md"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.fragments]]
+text = "\n\n"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.fragments]]
+path = "README.md"
 
 [tool.pyright]
 extraPaths = ["test"]
@@ -239,11 +234,31 @@ known-first-party = ["numkong"]
 lines-after-imports = 2
 
 [tool.ruff.lint.per-file-ignores]
-"setup.py" = ["D"]  # packaging shim, not public API
 "test/*" = ["D", "E501", "F811"]  # tests self-document via names; docstrings not required
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.scikit-build]
+build.targets = ["numkong_python"]
+build-dir = "build_python/{wheel_tag}"
+install.components = ["numkong_python"]
+sdist.exclude = ["bench", "build*", "node_modules", "target", "test"]
+wheel.packages = ["python/numkong"]
+
+[tool.scikit-build.cmake.define]
+NUMKONG_BUILD_PYTHON = "ON"
+NUMKONG_BUILD_SHARED = "OFF"
+NUMKONG_INSTALL = "OFF"
+NUMKONG_TARGET_ARCH = { default = "", env = "NUMKONG_TARGET_ARCH" }
+
+[tool.scikit-build.metadata.readme]
+provider = "scikit_build_core.metadata.fancy_pypi_readme"
+
+[tool.scikit-build.metadata.version]
+input = "VERSION"
+provider = "scikit_build_core.metadata.regex"
+regex = "(?P<value>.+)"
 
 # TOML files stay canonical via toml-sort, the way .clang-format keeps C++ canonical.
 [tool.tomlsort]

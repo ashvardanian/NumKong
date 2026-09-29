@@ -10,6 +10,10 @@
 #   -D CMAKE_BUILD_TYPE=<Release|Debug|RelWithDebInfo>
 #   -D NUMKONG_BUILD_TEST=<ON|OFF>           (default: OFF, with NUMKONG_BUILD_SHARED also the shared-library test)
 #   -D NUMKONG_BUILD_BENCH=<ON|OFF>          (default: OFF)
+#   -D NUMKONG_BUILD_PYTHON=<ON|OFF>         (default: OFF, the CPython extension scikit-build-core packages)
+#   -D NUMKONG_BUILD_NODE=<ON|OFF>           (default: OFF, the Node addon cmake-js builds)
+#   -D NUMKONG_BUILD_SWIFT=<ON|OFF>          (default: OFF, the XCFramework or artifact bundle SwiftPM links)
+#   -D NUMKONG_SWIFT_TRIPLES=<list>          (default: the target's, like aarch64-unknown-linux-gnu, off Apple platforms)
 #   -D NUMKONG_BUILD_CUDA=<ON|OFF>           (default: OFF, adds CUDA to the libraries, tests and benchmarks built)
 #   -D NUMKONG_CUDA_ARCHITECTURES=<list>     (default: 75-real;80-real;89-real;90a-real;100f-real;120f-real;80-virtual)
 #   -D NUMKONG_BUILD_ROCM=<ON|OFF>           (default: OFF, adds HIP to the libraries and tests built)
@@ -20,9 +24,9 @@
 #   -D NUMKONG_COMPARE_TO_MKL=<AUTO|ON|OFF>  (default: AUTO)
 #   -D NUMKONG_BUILD_SHARED=<ON|OFF>         (default: ON when top-level, OFF as a subproject)
 #   -D NUMKONG_WITH_HOST_PROBES=<ON|OFF>     (default: OFF, import capability probes from host)
-#   -D NUMKONG_TARGET_ARCH=<arch>            (default: empty for the portable ABI floor, `native`, or under the
-#                                            WebAssembly toolchains the module's one SIMD capability, `v128` or
-#                                            `v128relaxed`)
+#   -D NUMKONG_TARGET_ARCH=<arch>            (default: the NUMKONG_TARGET_ARCH environment variable, empty for the
+#                                            portable ABI floor, `native`, or under the WebAssembly toolchains the
+#                                            module's one SIMD capability, `serial`, `v128` or `v128relaxed`)
 #
 # Different SIMD ISA extensions require different compiler versions:
 #
@@ -99,10 +103,11 @@ if (CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR AND EXISTS "${CMAKE_CURRE
     endif ()
 endif ()
 
-#
+# Every binding reads its version from `VERSION`, which the release bumps.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" NUMKONG_VERSION_ LIMIT_COUNT 1)
 project(
     numkong
-    VERSION 7.8.2
+    VERSION ${NUMKONG_VERSION_}
     LANGUAGES C CXX
     DESCRIPTION "Portable mixed-precision BLAS-like vector math library for x86 and ARM"
     HOMEPAGE_URL "https://github.com/ashvardanian/NumKong"
@@ -111,12 +116,7 @@ project(
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED YES)
 
-# Enable GNU extensions for WASM (required for EM_ASM runtime detection)
-if (CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
-    set(CMAKE_C_EXTENSIONS YES)
-else ()
-    set(CMAKE_C_EXTENSIONS NO)
-endif ()
+set(CMAKE_C_EXTENSIONS NO)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
@@ -134,12 +134,24 @@ option(NUMKONG_BUILD_SHARED "Compile a dynamic library" ${NUMKONG_IS_MAIN_PROJEC
 option(NUMKONG_INSTALL "Install headers, libraries & the CMake package files" ${NUMKONG_IS_MAIN_PROJECT_})
 option(NUMKONG_BUILD_TEST "Compile precision tests, and shared-library tests with NUMKONG_BUILD_SHARED" OFF)
 option(NUMKONG_BUILD_BENCH "Compile micro-benchmarks for current ISA" OFF)
+option(NUMKONG_BUILD_PYTHON "Compile the CPython extension over the static library" OFF)
+option(NUMKONG_BUILD_NODE "Compile the Node addon over the static library; cmake-js switches it on" OFF)
+option(NUMKONG_BUILD_SWIFT "Package the static library for SwiftPM, as an XCFramework or an artifact bundle" OFF)
 option(NUMKONG_BUILD_CUDA "Add CUDA to the libraries and to whichever of the test and bench builds is on" OFF)
 option(NUMKONG_BUILD_ROCM "Add ROCm, compiled through HIP, to the libraries and to the test build" OFF)
 option(NUMKONG_BUILD_METAL "Add Metal to the libraries and to whichever of the test and bench builds is on" OFF)
 option(NUMKONG_WITH_HOST_PROBES "Import the capability probes from the WASI host" OFF)
 
-set(NUMKONG_TARGET_ARCH "" CACHE STRING "Host-tuned `-march`, like native, for a build that is not portable")
+# `nk_cpu_capabilities_detected` lives in the library, so the imports reach every unit, not just the tests.
+if (NUMKONG_OS_WASI_ AND NUMKONG_WITH_HOST_PROBES)
+    add_compile_definitions(NUMKONG_WITH_HOST_PROBES=1)
+endif ()
+
+# Seeded from the environment at the first configure, so `cargo` and `cmake-js` honour `NUMKONG_TARGET_ARCH=native`.
+set(NUMKONG_TARGET_ARCH "$ENV{NUMKONG_TARGET_ARCH}"
+    CACHE STRING
+          "Host-tuned `-march`, like native, or a WebAssembly module's SIMD capability, serial, v128 or v128relaxed"
+)
 option(NUMKONG_ENABLE_ASAN "Enable AddressSanitizer in Debug builds" ${NUMKONG_IS_MAIN_PROJECT_})
 
 # `add_test()` entries are only generated when testing is enabled.
@@ -216,6 +228,9 @@ elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64le|ppc64|powerpc64le|powerpc64")
 elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "^arm|^ARM|armv7")
     set(NUMKONG_ARCH_ARM32_ TRUE)
     message(STATUS "NumKong Platform: ARM32 (CMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR})")
+elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "^wasm(32|64)$")
+    set(NUMKONG_ARCH_WASM_ TRUE)
+    message(STATUS "NumKong Platform: WebAssembly (CMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR})")
 else ()
     message(WARNING "Unknown CMAKE_SYSTEM_PROCESSOR: ${CMAKE_SYSTEM_PROCESSOR}")
 endif ()
@@ -287,7 +302,7 @@ endif ()
 # Portable baseline policy (commits 43e8324d, 453ed5ff, 23f51955): each translation unit gets a per-arch
 # ABI floor, auto-vectorization is forbidden so serial fallbacks stay scalar, and SIMD kernels opt in via
 # per-function __attribute__((target(...))) or #pragma GCC target. NUMKONG_TARGET_ARCH=native opts out for a
-# host-tuned build. Keep the per-arch table in sync with build.rs, setup.py, and binding.gyp.
+# host-tuned build.
 if (NUMKONG_TARGET_ARCH AND NOT MSVC AND NOT CMAKE_CROSSCOMPILING)
     message(
         WARNING "NUMKONG_TARGET_ARCH=${NUMKONG_TARGET_ARCH}: baking specific instructions; result may not run elsewhere"
@@ -320,6 +335,19 @@ elseif (CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|IntelLLVM)$")
     elseif (NUMKONG_ARCH_LOONGARCH64_)
         # LASX needs TU-level `-mlasx` until GCC >= 15 / Clang >= 22 ship per-function support.
         add_compile_options(-march=loongarch64 -mlasx)
+    elseif (NUMKONG_ARCH_WASM_)
+        # An engine validates a module whole, so every unit carries the module's one SIMD capability,
+        # whatever `CMAKE_C_FLAGS` a binding passes; `types.h` reads it back from the flags.
+        if (NUMKONG_TARGET_ARCH STREQUAL "v128relaxed")
+            add_compile_options(-msimd128 -mrelaxed-simd)
+        elseif (NUMKONG_TARGET_ARCH STREQUAL "v128")
+            add_compile_options(-msimd128)
+        elseif (NOT NUMKONG_TARGET_ARCH STREQUAL "serial")
+            message(
+                FATAL_ERROR
+                    "NUMKONG_TARGET_ARCH on WebAssembly: serial, v128 or v128relaxed, not `${NUMKONG_TARGET_ARCH}`"
+            )
+        endif ()
     endif ()
 elseif (MSVC)
     # MSVC: no per-function target pragma; these match defaults.
@@ -573,8 +601,8 @@ if (NUMKONG_BUILD_BENCH)
         bench/reduce.cpp
         # ISA-family cross/batch files for parallel compilation
         bench/cross_serial.cpp bench/cross_x8664.cpp bench/cross_arm64.cpp bench/cross_blas.cpp bench/cross_riscv64.cpp
-        bench/cross_ppc64.cpp bench/cross_wasm.cpp bench/cross_loongarch64.cpp
-        bench/cross_cuda.cu bench/cross_metal.cpp bench/maxsim.cpp
+        bench/cross_ppc64.cpp bench/cross_wasm.cpp bench/cross_loongarch64.cpp bench/cross_cuda.cu
+        bench/cross_metal.cpp bench/maxsim.cpp
     )
     target_link_libraries(numkong_bench numkong_static Threads::Threads benchmark fmt::fmt)
 
@@ -585,10 +613,6 @@ if (NUMKONG_BUILD_BENCH)
 
     # WASI-specific configuration for benchmarks
     if (NUMKONG_OS_WASI_)
-        if (NUMKONG_WITH_HOST_PROBES)
-            target_compile_definitions(numkong_bench PRIVATE NUMKONG_WITH_HOST_PROBES=1)
-        endif ()
-
         set_target_properties(numkong_bench PROPERTIES OUTPUT_NAME "numkong_bench.wasm")
         message(STATUS "NumKong: Building benchmarks for WASI (output: numkong_bench.wasm)")
     endif ()
@@ -619,15 +643,58 @@ endif ()
 # unit per CPU capability, defining that capability's kernels of every family. Each unit names its own
 # capability, so every file compiles with the same flags and the units build in parallel.
 set(NUMKONG_LIBRARY_UNITS_
-    c/dispatch/dot.c c/dispatch/dots.c c/dispatch/spatial.c c/dispatch/spatials.c c/dispatch/set.c c/dispatch/sets.c
-    c/dispatch/maxsim.c c/dispatch/attention.c c/dispatch/sparse.c c/dispatch/reduce.c c/dispatch/each.c
-    c/dispatch/cast.c c/dispatch/scalar.c c/dispatch/trigonometry.c c/dispatch/curved.c c/dispatch/probability.c
-    c/dispatch/geospatial.c c/dispatch/mesh.c
-    c/cpu/serial.c c/cpu/haswell.c c/cpu/alder.c c/cpu/sierra.c c/cpu/skylake.c c/cpu/icelake.c c/cpu/genoa.c
-    c/cpu/turin.c c/cpu/sapphire.c c/cpu/diamond.c c/cpu/sapphireamx.c c/cpu/graniteamx.c c/cpu/diamondamx.c
-    c/cpu/neon.c c/cpu/neonhalf.c c/cpu/neonbfdot.c c/cpu/neonfhm.c c/cpu/neonsdot.c c/cpu/neonfp8.c c/cpu/sve.c
-    c/cpu/svehalf.c c/cpu/svesdot.c c/cpu/svebfdot.c c/cpu/sve2.c c/cpu/sme.c c/cpu/smef64.c c/cpu/smebi32.c
-    c/cpu/rvv.c c/cpu/rvvhalf.c c/cpu/rvvbf16.c c/cpu/rvvbb.c c/cpu/v128.c c/cpu/v128relaxed.c c/cpu/powervsx.c
+    c/dispatch/dot.c
+    c/dispatch/dots.c
+    c/dispatch/spatial.c
+    c/dispatch/spatials.c
+    c/dispatch/set.c
+    c/dispatch/sets.c
+    c/dispatch/maxsim.c
+    c/dispatch/attention.c
+    c/dispatch/sparse.c
+    c/dispatch/reduce.c
+    c/dispatch/each.c
+    c/dispatch/cast.c
+    c/dispatch/scalar.c
+    c/dispatch/trigonometry.c
+    c/dispatch/curved.c
+    c/dispatch/probability.c
+    c/dispatch/geospatial.c
+    c/dispatch/mesh.c
+    c/cpu/serial.c
+    c/cpu/haswell.c
+    c/cpu/alder.c
+    c/cpu/sierra.c
+    c/cpu/skylake.c
+    c/cpu/icelake.c
+    c/cpu/genoa.c
+    c/cpu/turin.c
+    c/cpu/sapphire.c
+    c/cpu/diamond.c
+    c/cpu/sapphireamx.c
+    c/cpu/graniteamx.c
+    c/cpu/diamondamx.c
+    c/cpu/neon.c
+    c/cpu/neonhalf.c
+    c/cpu/neonbfdot.c
+    c/cpu/neonfhm.c
+    c/cpu/neonsdot.c
+    c/cpu/neonfp8.c
+    c/cpu/sve.c
+    c/cpu/svehalf.c
+    c/cpu/svesdot.c
+    c/cpu/svebfdot.c
+    c/cpu/sve2.c
+    c/cpu/sme.c
+    c/cpu/smef64.c
+    c/cpu/smebi32.c
+    c/cpu/rvv.c
+    c/cpu/rvvhalf.c
+    c/cpu/rvvbf16.c
+    c/cpu/rvvbb.c
+    c/cpu/v128.c
+    c/cpu/v128relaxed.c
+    c/cpu/powervsx.c
     c/cpu/loongsonasx.c
 )
 
@@ -637,8 +704,7 @@ set(NUMKONG_TEST_SOURCES_
     test/trigonometry.cpp test/geospatial.cpp test/mesh.cpp test/cast.cpp test/reduce.cpp test/sparse.cpp
     # ISA-family cross/batch files for parallel compilation
     test/cross_serial.cpp test/cross_x8664.cpp test/cross_arm64.cpp test/cross_blas.cpp test/cross_riscv64.cpp
-    test/cross_ppc64.cpp test/cross_loongarch64.cpp test/cross_wasm.cpp
-    test/maxsim.cpp test/tensor.cpp
+    test/cross_ppc64.cpp test/cross_loongarch64.cpp test/cross_wasm.cpp test/maxsim.cpp test/tensor.cpp
 )
 
 if (NUMKONG_BUILD_TEST)
@@ -653,10 +719,6 @@ if (NUMKONG_BUILD_TEST)
 
     # WASI-specific configuration
     if (NUMKONG_OS_WASI_)
-        if (NUMKONG_WITH_HOST_PROBES)
-            target_compile_definitions(numkong_cpu_test PRIVATE NUMKONG_WITH_HOST_PROBES=1)
-        endif ()
-
         set_target_properties(numkong_cpu_test PROPERTIES OUTPUT_NAME "numkong_cpu_test.wasm")
         message(STATUS "NumKong: Building tests for WASI (output: numkong_cpu_test.wasm)")
     endif ()
@@ -691,149 +753,254 @@ if (NUMKONG_BUILD_TEST)
     add_test(NAME numkong_cpu_header_test COMMAND numkong_cpu_header_test)
 endif ()
 
-# Static library, which tests and benchmarks link too, and the shared library (or Emscripten JS module)
-if (NUMKONG_BUILD_SHARED OR NUMKONG_BUILD_TEST OR NUMKONG_BUILD_BENCH)
-    set(NUMKONG_LIBRARY_SOURCES_ ${NUMKONG_SOURCES} c/numkong.c ${NUMKONG_LIBRARY_UNITS_})
+# The static library, which every binding but Swift links and a parent project reaches as `numkong::static`, and the
+# shared library, or the Emscripten JS module
+set(NUMKONG_LIBRARY_SOURCES_ ${NUMKONG_SOURCES} c/numkong.c ${NUMKONG_LIBRARY_UNITS_})
 
-    # Emscripten requires building as executable to generate JS bindings
-    if (CMAKE_SYSTEM_NAME STREQUAL "Emscripten" AND NUMKONG_BUILD_SHARED)
-        set(NUMKONG_LIBRARIES_ numkong_shared numkong_static)
-        # Detect wasm64 (memory64) mode
-        if (CMAKE_SYSTEM_PROCESSOR STREQUAL "wasm64")
-            set(NUMKONG_WASM64_ ON)
-        else ()
-            set(NUMKONG_WASM64_ OFF)
-        endif ()
+# Emscripten requires building as executable to generate JS bindings
+if (CMAKE_SYSTEM_NAME STREQUAL "Emscripten" AND NUMKONG_BUILD_SHARED)
+    set(NUMKONG_LIBRARIES_ numkong_shared numkong_static)
+    # Detect wasm64 (memory64) mode
+    if (CMAKE_SYSTEM_PROCESSOR STREQUAL "wasm64")
+        set(NUMKONG_WASM64_ ON)
+    else ()
+        set(NUMKONG_WASM64_ OFF)
+    endif ()
 
-        # Create a minimal main() wrapper for Emscripten
-        file(WRITE "${CMAKE_BINARY_DIR}/emscripten_stub.c"
-             "// Stub main for Emscripten to generate JS bindings\nint main() { return 0; }\n"
+    # Create a minimal main() wrapper for Emscripten
+    file(WRITE "${CMAKE_BINARY_DIR}/emscripten_stub.c"
+         "// Stub main for Emscripten to generate JS bindings\nint main(void) { return 0; }\n"
+    )
+
+    add_executable(numkong_shared ${NUMKONG_LIBRARY_SOURCES_} "${CMAKE_BINARY_DIR}/emscripten_stub.c")
+
+    # Consumers that `add_subdirectory(numkong)` link a library, not the `.js` executable.
+    add_library(numkong_static STATIC ${NUMKONG_LIBRARY_SOURCES_})
+    add_library(numkong::static ALIAS numkong_static)
+    set_target_properties(numkong_static PROPERTIES EXPORT_NAME static)
+
+    # One module carries one SIMD capability, the toolchain's NUMKONG_TARGET_ARCH, so its name says which.
+    if (NUMKONG_WASM64_)
+        set(NUMKONG_WASM_MODULE_NAME_ "numkong-wasm64-${NUMKONG_TARGET_ARCH}")
+    else ()
+        set(NUMKONG_WASM_MODULE_NAME_ "numkong-wasm32-${NUMKONG_TARGET_ARCH}")
+    endif ()
+    # Generates `${NUMKONG_WASM_MODULE_NAME_}.js` + `.wasm`
+    set_target_properties(numkong_shared PROPERTIES OUTPUT_NAME "${NUMKONG_WASM_MODULE_NAME_}" SUFFIX ".js")
+    message(STATUS "NumKong: Building Emscripten module ${NUMKONG_WASM_MODULE_NAME_}")
+
+    # `types.h` leaves every non-WebAssembly kit off, and `v128` and `v128relaxed` follow `-msimd128` and
+    # `-mrelaxed-simd`.
+    foreach (nk_library_ ${NUMKONG_LIBRARIES_})
+        # The library, unlike the headers, may use C11: `c/numkong.c` caches detection in <stdatomic.h> atomics.
+        set_target_properties(${nk_library_} PROPERTIES C_STANDARD 11)
+        target_include_directories(
+            ${nk_library_} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>
         )
+        # The library's units reach their private `dispatch.h` by name.
+        target_include_directories(${nk_library_} PRIVATE "${PROJECT_SOURCE_DIR}/c")
+    endforeach ()
 
-        add_executable(numkong_shared ${NUMKONG_LIBRARY_SOURCES_} "${CMAKE_BINARY_DIR}/emscripten_stub.c")
+    target_link_options(
+        numkong_shared
+        PRIVATE
+        "SHELL:-sEXPORT_ES6=1" # Generate ES6 module
+        "SHELL:-sMODULARIZE=1" # Wrap in module factory
+        "SHELL:-sEXPORT_NAME=NumKongModule" # Export name
+        "SHELL:-sEXPORTED_FUNCTIONS=['_malloc','_free','_nk_dot_f32_best','_nk_dot_f64_best','_nk_dot_f16_best','_nk_dot_bf16_best','_nk_dot_i8_best','_nk_dot_u8_best','_nk_angular_f32_best','_nk_angular_f64_best','_nk_angular_f16_best','_nk_angular_bf16_best','_nk_angular_i8_best','_nk_angular_u8_best','_nk_sqeuclidean_f32_best','_nk_sqeuclidean_f64_best','_nk_sqeuclidean_f16_best','_nk_sqeuclidean_bf16_best','_nk_sqeuclidean_i8_best','_nk_sqeuclidean_u8_best','_nk_euclidean_f32_best','_nk_euclidean_f64_best','_nk_euclidean_f16_best','_nk_euclidean_bf16_best','_nk_euclidean_i8_best','_nk_euclidean_u8_best','_nk_hamming_u1_best','_nk_hamming_u8_best','_nk_jaccard_u1_best','_nk_jaccard_u16_best','_nk_jaccard_u32_best','_nk_kld_f32_best','_nk_kld_f64_best','_nk_kld_f16_best','_nk_kld_bf16_best','_nk_jsd_f32_best','_nk_jsd_f64_best','_nk_jsd_f16_best','_nk_jsd_bf16_best','_nk_cpu_capabilities_detected','_nk_cpu_capabilities_compiled','_nk_cpu_capabilities_enabled','_nk_name_capabilities','_nk_status_to_string','_nk_dots_pack_size_f32_best','_nk_dots_pack_size_f64_best','_nk_dots_pack_size_f16_best','_nk_dots_pack_size_bf16_best','_nk_dots_pack_size_i8_best','_nk_dots_pack_size_u8_best','_nk_dots_pack_f32_best','_nk_dots_pack_f64_best','_nk_dots_pack_f16_best','_nk_dots_pack_bf16_best','_nk_dots_pack_i8_best','_nk_dots_pack_u8_best','_nk_dots_packed_f32_best','_nk_dots_packed_f64_best','_nk_dots_packed_f16_best','_nk_dots_packed_bf16_best','_nk_dots_packed_i8_best','_nk_dots_packed_u8_best','_nk_dots_packed_shape_f32_best','_nk_dots_packed_shape_f64_best','_nk_dots_packed_shape_f16_best','_nk_dots_packed_shape_bf16_best','_nk_dots_packed_shape_i8_best','_nk_dots_packed_shape_u8_best','_nk_dots_symmetric_f32_best','_nk_dots_symmetric_f64_best','_nk_dots_symmetric_f16_best','_nk_dots_symmetric_bf16_best','_nk_dots_symmetric_i8_best','_nk_dots_symmetric_u8_best','_nk_angulars_packed_f32_best','_nk_angulars_packed_f64_best','_nk_angulars_packed_f16_best','_nk_angulars_packed_bf16_best','_nk_angulars_symmetric_f32_best','_nk_angulars_symmetric_f64_best','_nk_angulars_symmetric_f16_best','_nk_angulars_symmetric_bf16_best','_nk_euclideans_packed_f32_best','_nk_euclideans_packed_f64_best','_nk_euclideans_packed_f16_best','_nk_euclideans_packed_bf16_best','_nk_euclideans_symmetric_f32_best','_nk_euclideans_symmetric_f64_best','_nk_euclideans_symmetric_f16_best','_nk_euclideans_symmetric_bf16_best']"
+        "SHELL:-sEXPORTED_RUNTIME_METHODS=['wasmMemory']" # Export memory object
+        "SHELL:-sALLOW_MEMORY_GROWTH=1" # Dynamic memory
+        "SHELL:-sENVIRONMENT=web,node" # Both browser and Node.js
+        "SHELL:-sSINGLE_FILE=0" # Separate .wasm file (recommended)
+        "SHELL:-sEXPORT_ALL=0" # Security - don't export everything
+        "SHELL:-sSTANDALONE_WASM=0" # Keep JS wrapper (required for browser)
+        "SHELL:-sINITIAL_MEMORY=16MB" # Initial heap size
+        "SHELL:-sSTACK_SIZE=5MB" # Stack size for recursion
+    )
 
-        # Consumers that `add_subdirectory(numkong)` link a library, not the `.js` executable.
-        add_library(numkong_static STATIC ${NUMKONG_LIBRARY_SOURCES_})
-        add_library(numkong::static ALIAS numkong_static)
-        set_target_properties(numkong_static PROPERTIES EXPORT_NAME static)
+    # Memory64 link option for wasm64 builds
+    if (NUMKONG_WASM64_)
+        target_link_options(numkong_shared PRIVATE "SHELL:-sMEMORY64=1")
+    endif ()
 
-        # One module carries one SIMD capability, the toolchain's NUMKONG_TARGET_ARCH, so its name says which.
-        if (NUMKONG_WASM64_)
-            set(NUMKONG_WASM_MODULE_NAME_ "numkong-wasm64-${NUMKONG_TARGET_ARCH}")
-        else ()
-            set(NUMKONG_WASM_MODULE_NAME_ "numkong-wasm32-${NUMKONG_TARGET_ARCH}")
-        endif ()
-        # Generates `${NUMKONG_WASM_MODULE_NAME_}.js` + `.wasm`
-        set_target_properties(numkong_shared PROPERTIES OUTPUT_NAME "${NUMKONG_WASM_MODULE_NAME_}" SUFFIX ".js")
-        message(STATUS "NumKong: Building Emscripten module ${NUMKONG_WASM_MODULE_NAME_}")
-
-        # `types.h` leaves every non-WebAssembly kit off, and `v128` and `v128relaxed` follow `-msimd128` and
-        # `-mrelaxed-simd`.
-        foreach (nk_library_ numkong_shared numkong_static)
-            target_include_directories(
-                ${nk_library_} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>
-            )
-            # The library's units reach their private `dispatch.h` by name.
-            target_include_directories(${nk_library_} PRIVATE "${PROJECT_SOURCE_DIR}/c")
-        endforeach ()
-
-        target_link_options(
-            numkong_shared
-            PRIVATE
-            "SHELL:-sEXPORT_ES6=1" # Generate ES6 module
-            "SHELL:-sMODULARIZE=1" # Wrap in module factory
-            "SHELL:-sEXPORT_NAME=NumKongModule" # Export name
-            "SHELL:-sEXPORTED_FUNCTIONS=['_malloc','_free','_nk_dot_f32_best','_nk_dot_f64_best','_nk_dot_f16_best','_nk_dot_bf16_best','_nk_dot_i8_best','_nk_dot_u8_best','_nk_angular_f32_best','_nk_angular_f64_best','_nk_angular_f16_best','_nk_angular_bf16_best','_nk_angular_i8_best','_nk_angular_u8_best','_nk_sqeuclidean_f32_best','_nk_sqeuclidean_f64_best','_nk_sqeuclidean_f16_best','_nk_sqeuclidean_bf16_best','_nk_sqeuclidean_i8_best','_nk_sqeuclidean_u8_best','_nk_euclidean_f32_best','_nk_euclidean_f64_best','_nk_euclidean_f16_best','_nk_euclidean_bf16_best','_nk_euclidean_i8_best','_nk_euclidean_u8_best','_nk_hamming_u1_best','_nk_hamming_u8_best','_nk_jaccard_u1_best','_nk_jaccard_u16_best','_nk_jaccard_u32_best','_nk_kld_f32_best','_nk_kld_f64_best','_nk_kld_f16_best','_nk_kld_bf16_best','_nk_jsd_f32_best','_nk_jsd_f64_best','_nk_jsd_f16_best','_nk_jsd_bf16_best','_nk_cpu_capabilities_detected','_nk_cpu_capabilities_compiled','_nk_cpu_capabilities_enabled','_nk_name_capabilities','_nk_status_to_string','_nk_dots_pack_size_f32_best','_nk_dots_pack_size_f64_best','_nk_dots_pack_size_f16_best','_nk_dots_pack_size_bf16_best','_nk_dots_pack_size_i8_best','_nk_dots_pack_size_u8_best','_nk_dots_pack_f32_best','_nk_dots_pack_f64_best','_nk_dots_pack_f16_best','_nk_dots_pack_bf16_best','_nk_dots_pack_i8_best','_nk_dots_pack_u8_best','_nk_dots_packed_f32_best','_nk_dots_packed_f64_best','_nk_dots_packed_f16_best','_nk_dots_packed_bf16_best','_nk_dots_packed_i8_best','_nk_dots_packed_u8_best','_nk_dots_packed_shape_f32_best','_nk_dots_packed_shape_f64_best','_nk_dots_packed_shape_f16_best','_nk_dots_packed_shape_bf16_best','_nk_dots_packed_shape_i8_best','_nk_dots_packed_shape_u8_best','_nk_dots_symmetric_f32_best','_nk_dots_symmetric_f64_best','_nk_dots_symmetric_f16_best','_nk_dots_symmetric_bf16_best','_nk_dots_symmetric_i8_best','_nk_dots_symmetric_u8_best','_nk_angulars_packed_f32_best','_nk_angulars_packed_f64_best','_nk_angulars_packed_f16_best','_nk_angulars_packed_bf16_best','_nk_angulars_symmetric_f32_best','_nk_angulars_symmetric_f64_best','_nk_angulars_symmetric_f16_best','_nk_angulars_symmetric_bf16_best','_nk_euclideans_packed_f32_best','_nk_euclideans_packed_f64_best','_nk_euclideans_packed_f16_best','_nk_euclideans_packed_bf16_best','_nk_euclideans_symmetric_f32_best','_nk_euclideans_symmetric_f64_best','_nk_euclideans_symmetric_f16_best','_nk_euclideans_symmetric_bf16_best']"
-            "SHELL:-sEXPORTED_RUNTIME_METHODS=['wasmMemory']" # Export memory object
-            "SHELL:-sALLOW_MEMORY_GROWTH=1" # Dynamic memory
-            "SHELL:-sENVIRONMENT=web,node" # Both browser and Node.js
-            "SHELL:-sSINGLE_FILE=0" # Separate .wasm file (recommended)
-            "SHELL:-sEXPORT_ALL=0" # Security - don't export everything
-            "SHELL:-sSTANDALONE_WASM=0" # Keep JS wrapper (required for browser)
-            "SHELL:-sINITIAL_MEMORY=16MB" # Initial heap size
-            "SHELL:-sSTACK_SIZE=5MB" # Stack size for recursion
-        )
-
-        # Memory64 link option for wasm64 builds
-        if (NUMKONG_WASM64_)
-            target_link_options(numkong_shared PRIVATE "SHELL:-sMEMORY64=1")
-        endif ()
-
-        # Under Emscripten numkong_shared is an executable (.js/.wasm), not a shared
-        # library. CMake refuses target_link_libraries against an imported
-        # executable unless it exports its symbol table. Upstream projects that
-        # add_subdirectory(numkong) and link to numkong_shared need this.
-        set_target_properties(numkong_shared PROPERTIES ENABLE_EXPORTS ON)
+    # Under Emscripten numkong_shared is an executable (.js/.wasm), not a shared
+    # library. CMake refuses target_link_libraries against an imported
+    # executable unless it exports its symbol table. Upstream projects that
+    # add_subdirectory(numkong) and link to numkong_shared need this.
+    set_target_properties(numkong_shared PROPERTIES ENABLE_EXPORTS ON)
+else ()
+    if (NUMKONG_BUILD_SHARED)
+        set(NUMKONG_LIBRARIES_ numkong_static numkong_shared)
     else ()
         set(NUMKONG_LIBRARIES_ numkong_static)
-        add_library(numkong_static STATIC ${NUMKONG_LIBRARY_SOURCES_})
-        add_library(numkong::static ALIAS numkong_static)
-        set_target_properties(numkong_static PROPERTIES EXPORT_NAME static)
-        if (NUMKONG_BUILD_SHARED)
-            list(APPEND NUMKONG_LIBRARIES_ numkong_shared)
-            add_library(numkong_shared SHARED ${NUMKONG_LIBRARY_SOURCES_})
-            add_library(numkong::shared ALIAS numkong_shared)
-            # Windows exports every symbol, as `NUMKONG_API` spells no `__declspec` for the DLL.
-            set_target_properties(
-                numkong_shared PROPERTIES EXPORT_NAME shared WINDOWS_EXPORT_ALL_SYMBOLS ON
-            )
-        endif ()
-        foreach (nk_library_ ${NUMKONG_LIBRARIES_})
-            # The library, unlike the headers, may use C11: `c/numkong.c` caches detection in <stdatomic.h> atomics,
-            # which MSVC gates behind a flag.
-            set_target_properties(${nk_library_} PROPERTIES C_STANDARD 11)
-            target_compile_options(${nk_library_} PRIVATE $<$<C_COMPILER_ID:MSVC>:/experimental:c11atomics>)
-            target_include_directories(
-                ${nk_library_} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>
-            )
-            # The library's units reach their private `dispatch.h` by name.
-            target_include_directories(${nk_library_} PRIVATE "${PROJECT_SOURCE_DIR}/c")
-
-            # Hide all symbols by default; only NUMKONG_API-annotated API functions are exported.
-            # Strip unwind tables from this pure-C library (saves ~78 KB).
-            if (NOT MSVC)
-                target_compile_options(
-                    ${nk_library_} PRIVATE -fvisibility=hidden -fno-asynchronous-unwind-tables -fno-builtin-memset
-                                           -fno-builtin-memcpy -fno-builtin-memmove
-                )
-                if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-                    target_compile_options(${nk_library_} PRIVATE -fno-tree-loop-distribute-patterns)
-                endif ()
-            endif ()
-
-            # MSVC ARM64 cross-compilation: <intrin.h> pulls in <winnt.h> which
-            # requires _ARM64_ to be defined. The Visual Studio generator doesn't
-            # always propagate this for pure-C targets.
-            if (MSVC AND NUMKONG_ARCH_ARM64_)
-                target_compile_definitions(${nk_library_} PRIVATE _ARM64_)
-            endif ()
-
-            # Link-time optimization for the shared library only: the static archive ships machine code any toolchain,
-            # cGo included, can link.
-            if (NUMKONG_IPO_SUPPORTED_ AND nk_library_ STREQUAL "numkong_shared")
-                set_target_properties(${nk_library_} PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
-            endif ()
-
-            # Every kit the toolchain builds; `nk_cpu_capabilities_enabled()` picks among them at load.
-            target_compile_definitions(${nk_library_} PRIVATE ${nk_compile_definitions_})
-        endforeach ()
     endif ()
+    add_library(numkong_static STATIC ${NUMKONG_LIBRARY_SOURCES_})
+    add_library(numkong::static ALIAS numkong_static)
+    # Position-independent, as the bindings link it into shared objects and position-independent executables.
+    set_target_properties(numkong_static PROPERTIES EXPORT_NAME static POSITION_INDEPENDENT_CODE ON)
+    if (NUMKONG_BUILD_SHARED)
+        add_library(numkong_shared SHARED ${NUMKONG_LIBRARY_SOURCES_})
+        add_library(numkong::shared ALIAS numkong_shared)
+        # Windows exports every symbol, as `NUMKONG_API` spells no `__declspec` for the DLL.
+        set_target_properties(numkong_shared PROPERTIES EXPORT_NAME shared WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    endif ()
+    foreach (nk_library_ ${NUMKONG_LIBRARIES_})
+        # The library, unlike the headers, may use C11: `c/numkong.c` caches detection in <stdatomic.h> atomics,
+        # which MSVC gates behind a flag.
+        set_target_properties(${nk_library_} PROPERTIES C_STANDARD 11)
+        target_compile_options(${nk_library_} PRIVATE $<$<C_COMPILER_ID:MSVC>:/experimental:c11atomics>)
+        target_include_directories(
+            ${nk_library_} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>
+        )
+        # The library's units reach their private `dispatch.h` by name.
+        target_include_directories(${nk_library_} PRIVATE "${PROJECT_SOURCE_DIR}/c")
 
-    if (NUMKONG_INSTALL)
-        install(
-            TARGETS ${NUMKONG_LIBRARIES_}
-            EXPORT numkongTargets
-            ARCHIVE
-            BUNDLE
-            FRAMEWORK
-            LIBRARY
-            OBJECTS
-            PRIVATE_HEADER
-            PUBLIC_HEADER
-            RESOURCE
-            RUNTIME
+        # Hide all symbols by default; only NUMKONG_API-annotated API functions are exported.
+        # Strip unwind tables from this pure-C library (saves ~78 KB).
+        if (NOT MSVC)
+            target_compile_options(
+                ${nk_library_} PRIVATE -fvisibility=hidden -fno-asynchronous-unwind-tables -fno-builtin-memset
+                                       -fno-builtin-memcpy -fno-builtin-memmove
+            )
+            if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+                target_compile_options(${nk_library_} PRIVATE -fno-tree-loop-distribute-patterns)
+            endif ()
+        endif ()
+
+        # MSVC ARM64 cross-compilation: <intrin.h> pulls in <winnt.h> which
+        # requires _ARM64_ to be defined. The Visual Studio generator doesn't
+        # always propagate this for pure-C targets, so it reaches every binding that includes the headers too.
+        if (MSVC AND NUMKONG_ARCH_ARM64_)
+            target_compile_definitions(${nk_library_} PUBLIC _ARM64_)
+        endif ()
+
+        # Link-time optimization for the shared library only: the static archive ships machine code any toolchain,
+        # cGo included, can link.
+        if (NUMKONG_IPO_SUPPORTED_ AND nk_library_ STREQUAL "numkong_shared")
+            set_target_properties(${nk_library_} PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+        endif ()
+
+        # Every kit the toolchain builds; `nk_cpu_capabilities_enabled()` picks among them at load.
+        target_compile_definitions(${nk_library_} PRIVATE ${nk_compile_definitions_})
+    endforeach ()
+endif ()
+
+if (NUMKONG_INSTALL)
+    install(
+        TARGETS ${NUMKONG_LIBRARIES_}
+        EXPORT numkongTargets
+        ARCHIVE
+        BUNDLE
+        FRAMEWORK
+        LIBRARY
+        OBJECTS
+        PRIVATE_HEADER
+        PUBLIC_HEADER
+        RESOURCE
+        RUNTIME
+    )
+endif ()
+
+# The `numkong._numkong` extension, which scikit-build-core builds and packages from `pyproject.toml`.
+if (NUMKONG_BUILD_PYTHON)
+    find_package(Python 3.9 REQUIRED COMPONENTS Interpreter Development.Module)
+    find_package(OpenMP COMPONENTS C)
+    python_add_library(
+        numkong_python MODULE WITH_SOABI python/numkong.c python/tensor.c python/matrix.c python/types.c
+        python/distance.c python/each.c python/trigonometry.c python/mesh.c python/attention.c python/maxsim.c
+        python/numpy_interop.c python/dlpack_interop.c c/parallel.c
+    )
+    set_target_properties(numkong_python PROPERTIES OUTPUT_NAME "_numkong" C_STANDARD 11)
+    target_include_directories(numkong_python PRIVATE python c)
+    target_link_libraries(
+        numkong_python PRIVATE numkong_static $<$<PLATFORM_ID:Linux,FreeBSD>:m>
+                               $<$<AND:$<BOOL:${OpenMP_C_FOUND}>,$<PLATFORM_ID:Linux,FreeBSD>>:OpenMP::OpenMP_C>
+    )
+    install(TARGETS numkong_python DESTINATION numkong COMPONENT numkong_python)
+endif ()
+
+# The `numkong.node` addon, which `cmake-js` builds from `package.json` and which links the C interface as an archive.
+if (NUMKONG_BUILD_NODE)
+    if (NOT CMAKE_JS_INC)
+        message(FATAL_ERROR "The Node addon is built by cmake-js, which supplies the headers and import library")
+    endif ()
+    find_package(OpenMP COMPONENTS C)
+    # `CMAKE_JS_SRC` is the Windows delay-load hook and empty everywhere else.
+    add_library(numkong_node SHARED javascript/numkong.c c/parallel.c ${CMAKE_JS_SRC})
+    set_target_properties(numkong_node PROPERTIES PREFIX "" SUFFIX ".node" OUTPUT_NAME "numkong" C_STANDARD 11)
+    target_include_directories(numkong_node PRIVATE ${CMAKE_JS_INC} c)
+    target_compile_definitions(numkong_node PRIVATE NAPI_VERSION=8)
+    target_compile_options(numkong_node PRIVATE $<$<C_COMPILER_ID:MSVC>:/Zc:preprocessor>)
+    target_link_libraries(
+        numkong_node PRIVATE numkong_static ${CMAKE_JS_LIB}
+                             $<$<AND:$<BOOL:${OpenMP_C_FOUND}>,$<PLATFORM_ID:Linux,FreeBSD>>:OpenMP::OpenMP_C>
+    )
+endif ()
+
+# The static library as SwiftPM links it, beside the headers and their module map: an XCFramework on Apple platforms,
+# and elsewhere an SE-0482 artifact bundle. Each build adds its target to the one in NUMKONG_SWIFT_DIRECTORY, so a
+# release fills one artifact from a build per target.
+if (NUMKONG_BUILD_SWIFT)
+    set(NUMKONG_SWIFT_DIRECTORY "${PROJECT_BINARY_DIR}" CACHE PATH "Where the Swift artifact lands")
+    if (APPLE)
+        # The SDK names the XCFramework library an archive joins, and Mac Catalyst builds with the macOS one.
+        get_filename_component(NUMKONG_SWIFT_SDK_ "${CMAKE_OSX_SYSROOT}" NAME)
+        string(TOLOWER "${NUMKONG_SWIFT_SDK_}" NUMKONG_SWIFT_SDK_)
+        string(REGEX REPLACE "[0-9.]*\\.sdk$" "" NUMKONG_SWIFT_SDK_ "${NUMKONG_SWIFT_SDK_}")
+        if (CMAKE_C_FLAGS MATCHES "-macabi")
+            set(NUMKONG_SWIFT_SDK_ maccatalyst)
+        elseif (NOT NUMKONG_SWIFT_SDK_)
+            set(NUMKONG_SWIFT_SDK_ macosx)
+        endif ()
+        if (CMAKE_OSX_ARCHITECTURES)
+            set(NUMKONG_SWIFT_ARCHITECTURE_ "${CMAKE_OSX_ARCHITECTURES}")
+        else ()
+            set(NUMKONG_SWIFT_ARCHITECTURE_ "${CMAKE_SYSTEM_PROCESSOR}")
+        endif ()
+        set(NUMKONG_SWIFT_TARGET_ -D "NUMKONG_SWIFT_SDK=${NUMKONG_SWIFT_SDK_}" -D
+                                  "NUMKONG_SWIFT_ARCHITECTURE=${NUMKONG_SWIFT_ARCHITECTURE_}"
+        )
+    else ()
+        # SwiftPM matches a variant by the exact triple it builds for, spelled as Swift spells it.
+        if (NUMKONG_ARCH_X8664_)
+            set(NUMKONG_SWIFT_ARCH_ x86_64)
+        elseif (NUMKONG_ARCH_ARM64_)
+            set(NUMKONG_SWIFT_ARCH_ aarch64)
+        elseif (NUMKONG_ARCH_ARM32_)
+            set(NUMKONG_SWIFT_ARCH_ armv7)
+        else ()
+            set(NUMKONG_SWIFT_ARCH_ "${CMAKE_SYSTEM_PROCESSOR}")
+        endif ()
+        set(NUMKONG_SWIFT_TRIPLE_)
+        if (NUMKONG_OS_LINUX_)
+            set(NUMKONG_SWIFT_TRIPLE_ "${NUMKONG_SWIFT_ARCH_}-unknown-linux-gnu")
+        elseif (NUMKONG_OS_ANDROID_)
+            set(NUMKONG_SWIFT_TRIPLE_ "${NUMKONG_SWIFT_ARCH_}-unknown-linux-android${ANDROID_NATIVE_API_LEVEL}")
+        elseif (NUMKONG_OS_WINDOWS_)
+            set(NUMKONG_SWIFT_TRIPLE_ "${NUMKONG_SWIFT_ARCH_}-unknown-windows-msvc")
+        elseif (NUMKONG_OS_WASI_)
+            set(NUMKONG_SWIFT_TRIPLE_ "wasm32-unknown-wasip1")
+        endif ()
+        set(NUMKONG_SWIFT_TRIPLES "${NUMKONG_SWIFT_TRIPLE_}" CACHE STRING
+                                                                   "Swift target triples the artifact bundle serves"
+        )
+        if (NOT NUMKONG_SWIFT_TRIPLES)
+            message(FATAL_ERROR "NUMKONG_BUILD_SWIFT needs NUMKONG_SWIFT_TRIPLES on ${CMAKE_SYSTEM_NAME}")
+        endif ()
+        set(NUMKONG_SWIFT_TARGET_ -D "NUMKONG_SWIFT_TRIPLES=$<JOIN:${NUMKONG_SWIFT_TRIPLES},,>" -D
+                                  "NUMKONG_SWIFT_VERSION=${PROJECT_VERSION}"
         )
     endif ()
+    add_custom_target(
+        numkong_swift ALL
+        COMMAND
+            "${CMAKE_COMMAND}" -D "NUMKONG_SWIFT_ARCHIVE=$<TARGET_FILE:numkong_static>" -D
+            "NUMKONG_SWIFT_HEADERS=${PROJECT_SOURCE_DIR}/include" -D
+            "NUMKONG_SWIFT_DIRECTORY=${NUMKONG_SWIFT_DIRECTORY}" ${NUMKONG_SWIFT_TARGET_} -P
+            "${PROJECT_SOURCE_DIR}/cmake/nk_swift_artifact.cmake"
+        DEPENDS numkong_static
+        VERBATIM
+    )
 endif ()
 
 # Shared-library test (tests runtime dispatch path)
@@ -1000,7 +1167,7 @@ function (numkong_add_gpu_unit_ source codes)
                                  -Xcompiler=-fvisibility=hidden> $<$<COMPILE_LANGUAGE:HIP>:-fvisibility=hidden>
     )
     target_link_libraries(numkong_${unit}_ PRIVATE ${ARGN})
-    foreach (nk_library_ numkong_shared numkong_static)
+    foreach (nk_library_ ${NUMKONG_LIBRARIES_})
         target_sources(${nk_library_} PRIVATE $<TARGET_OBJECTS:numkong_${unit}_>)
         target_link_libraries(${nk_library_} PUBLIC ${ARGN})
     endforeach ()
@@ -1008,7 +1175,7 @@ endfunction ()
 
 # One unit per GPU generation, as USearch builds them, so no cubin or code object carries another generation's
 # kernels and the units compile in parallel. The dispatch units see every capability some listed code runs.
-if (NUMKONG_BUILD_SHARED AND NUMKONG_BUILD_CUDA)
+if (NUMKONG_BUILD_CUDA)
     find_package(CUDAToolkit REQUIRED)
     numkong_gpu_codes_(
         "${NUMKONG_CUDA_RESOLVED_ARCHITECTURES_}" "${NUMKONG_CUDA_AMPERE_CODES_}" NUMKONG_AMPERE_UNIT_CODES_
@@ -1026,32 +1193,32 @@ if (NUMKONG_BUILD_SHARED AND NUMKONG_BUILD_CUDA)
     numkong_add_gpu_unit_(c/nvidia/cuda.cu "${NUMKONG_CUDA_RESOLVED_ARCHITECTURES_}" CUDA::cudart)
     numkong_add_gpu_unit_(c/nvidia/ampere.cu "${NUMKONG_AMPERE_UNIT_CODES_}" CUDA::cudart)
     numkong_add_gpu_unit_(c/nvidia/hopper.cu "${NUMKONG_HOPPER_UNIT_CODES_}" CUDA::cudart)
-    numkong_add_gpu_unit_(c/nvidia/blackwell.cu "${NUMKONG_BLACKWELL_UNIT_CODES_}" CUDA::cudart CUDA::cuda_driver)
+    numkong_add_gpu_unit_(c/nvidia/blackwell.cu "${NUMKONG_BLACKWELL_UNIT_CODES_}" CUDA::cudart)
     numkong_add_gpu_unit_(c/nvidia/blackwellrtx.cu "${NUMKONG_BLACKWELLRTX_UNIT_CODES_}" CUDA::cudart)
-    foreach (nk_library_ numkong_shared numkong_static)
+    foreach (nk_library_ ${NUMKONG_LIBRARIES_})
         target_compile_definitions(${nk_library_} PRIVATE NUMKONG_ARCH_CUDA_=1 ${NUMKONG_CUDA_FAMILY_DEFINITIONS_})
     endforeach ()
-    set_target_properties(numkong_shared numkong_static PROPERTIES CUDA_ARCHITECTURES "${NUMKONG_CUDA_ARCHITECTURES}")
+    set_target_properties(${NUMKONG_LIBRARIES_} PROPERTIES CUDA_ARCHITECTURES "${NUMKONG_CUDA_ARCHITECTURES}")
 endif ()
 
 # Both GPU vendors may share one library: their units are separate files, each vendor has its own capability group,
 # and NumKong numbers CUDA devices before ROCm ones.
-if (NUMKONG_BUILD_SHARED AND NUMKONG_BUILD_ROCM)
+if (NUMKONG_BUILD_ROCM)
     find_package(hip REQUIRED)
     numkong_gpu_codes_("${NUMKONG_ROCM_ARCHITECTURES}" "${NUMKONG_ROCM_CDNA4_CODES_}" NUMKONG_CDNA4_UNIT_CODES_)
     numkong_gpu_codes_("${NUMKONG_ROCM_ARCHITECTURES}" "${NUMKONG_ROCM_CDNA5_CODES_}" NUMKONG_CDNA5_UNIT_CODES_)
     numkong_add_gpu_unit_(c/amd/rocm.hip "${NUMKONG_ROCM_ARCHITECTURES}" hip::host)
     numkong_add_gpu_unit_(c/amd/cdna4.hip "${NUMKONG_CDNA4_UNIT_CODES_}" hip::host)
     numkong_add_gpu_unit_(c/amd/cdna5.hip "${NUMKONG_CDNA5_UNIT_CODES_}" hip::host)
-    foreach (nk_library_ numkong_shared numkong_static)
+    foreach (nk_library_ ${NUMKONG_LIBRARIES_})
         target_compile_definitions(${nk_library_} PRIVATE NUMKONG_ARCH_ROCM_=1 ${NUMKONG_ROCM_FAMILY_DEFINITIONS_})
     endforeach ()
-    set_target_properties(numkong_shared numkong_static PROPERTIES HIP_ARCHITECTURES "${NUMKONG_ROCM_ARCHITECTURES}")
+    set_target_properties(${NUMKONG_LIBRARIES_} PROPERTIES HIP_ARCHITECTURES "${NUMKONG_ROCM_ARCHITECTURES}")
     # HIP-Clang cannot read the GCC link-time-optimized objects of the CPU sources, so the host linker links.
-    set_target_properties(numkong_shared numkong_static PROPERTIES LINKER_LANGUAGE C)
+    set_target_properties(${NUMKONG_LIBRARIES_} PROPERTIES LINKER_LANGUAGE C)
 endif ()
 
-if (NUMKONG_BUILD_SHARED AND NUMKONG_BUILD_METAL)
+if (NUMKONG_BUILD_METAL)
     # Metal compiles its kernels on the device, so the C units hold only the host side of each Apple capability.
     add_library(numkong_apple_ OBJECT c/apple/metal.c c/apple/apple9.c c/apple/apple10.c)
     target_include_directories(numkong_apple_ PRIVATE "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/c")
@@ -1060,14 +1227,15 @@ if (NUMKONG_BUILD_SHARED AND NUMKONG_BUILD_METAL)
         numkong_apple_ PRIVATE ${NUMKONG_SERIAL_DEFINITIONS_} ${NUMKONG_METAL_FAMILY_DEFINITIONS_}
     )
     target_compile_options(numkong_apple_ PRIVATE -fvisibility=hidden)
-    foreach (nk_library_ numkong_shared numkong_static)
+    foreach (nk_library_ ${NUMKONG_LIBRARIES_})
         target_sources(${nk_library_} PRIVATE $<TARGET_OBJECTS:numkong_apple_>)
         target_compile_definitions(${nk_library_} PRIVATE ${NUMKONG_METAL_FAMILY_DEFINITIONS_})
         target_link_libraries(${nk_library_} PUBLIC "-framework Metal" "-framework Foundation")
     endforeach ()
     # Consumers see the Metal entries and the queue they take.
-    target_compile_definitions(numkong_shared INTERFACE NUMKONG_WITH_METAL=1)
-    target_compile_definitions(numkong_static INTERFACE NUMKONG_WITH_METAL=1)
+    foreach (nk_library_ ${NUMKONG_LIBRARIES_})
+        target_compile_definitions(${nk_library_} INTERFACE NUMKONG_WITH_METAL=1)
+    endforeach ()
 endif ()
 
 # Compiles a CUDA test target for `architectures` the way every CUDA test expects: C++20, `constexpr` host helpers
@@ -1125,7 +1293,9 @@ endfunction ()
 # ROCm test built from test/main_rocm.hip and test/cross_rocm.hip, the latter with every capability some listed
 # architecture runs, sharing the device backend of test/cross_simt.cuh with the CUDA test.
 if (NUMKONG_BUILD_TEST AND NUMKONG_BUILD_ROCM)
-    set_source_files_properties(test/cross_rocm.hip PROPERTIES COMPILE_DEFINITIONS "${NUMKONG_ROCM_FAMILY_DEFINITIONS_}")
+    set_source_files_properties(
+        test/cross_rocm.hip PROPERTIES COMPILE_DEFINITIONS "${NUMKONG_ROCM_FAMILY_DEFINITIONS_}"
+    )
     add_executable(numkong_rocm_header_test test/main_rocm.hip test/cross_rocm.hip)
     numkong_rocm_test_target_(numkong_rocm_header_test "${NUMKONG_ROCM_ARCHITECTURES}")
     # Header-only, so its dispatch scenario checks the stubs.
@@ -1146,9 +1316,12 @@ endif ()
 if (NUMKONG_BUILD_TEST AND NUMKONG_BUILD_METAL)
     add_executable(numkong_metal_header_test test/main_metal.cpp test/cross_metal.cpp)
     target_include_directories(numkong_metal_header_test PRIVATE "${PROJECT_SOURCE_DIR}/include")
-    set_target_properties(numkong_metal_header_test PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+    set_target_properties(
+        numkong_metal_header_test PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO
+    )
     target_compile_definitions(
-        numkong_metal_header_test PRIVATE NUMKONG_HEADER_ONLY=1 ${nk_run_definitions_} ${NUMKONG_METAL_FAMILY_DEFINITIONS_}
+        numkong_metal_header_test PRIVATE NUMKONG_HEADER_ONLY=1 ${nk_run_definitions_}
+                                          ${NUMKONG_METAL_FAMILY_DEFINITIONS_}
     )
     target_link_libraries(numkong_metal_header_test PRIVATE fmt::fmt "-framework Metal" "-framework Foundation")
     add_test(NAME numkong_metal_header_test COMMAND numkong_metal_header_test)

@@ -41,13 +41,13 @@ jobs:
           # Install i686 multilib and ARM cross-compiler separately to avoid
           # gcc-multilib vs gcc-arm-linux-gnueabihf package conflicts.
           sudo apt-get install -y gcc-multilib g++-multilib libc6-dev-i386
-          sudo apt-get install -y gcc-14-arm-linux-gnueabihf
+          sudo apt-get install -y gcc-14-arm-linux-gnueabihf g++-14-arm-linux-gnueabihf
 
       - name: Test Default Build
         run: cargo test
 
-      - name: Test with All Features
-        run: cargo test --all-features
+      - name: Test with All CPU Features
+        run: cargo test --features parallel
 
       - name: Test with Std Feature
         run: cargo test --features std
@@ -68,12 +68,14 @@ jobs:
       - name: Test ARMv7 Cross-Compilation Build
         env:
           CC_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-gcc-14
+          CXX_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-g++-14
           CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc-14
         run: cargo build --target armv7-unknown-linux-gnueabihf --features std
 
       - name: Cross-Compile No-Std for ARMv7
         env:
           CC_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-gcc-14
+          CXX_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-g++-14
           CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc-14
         run: cargo build --target armv7-unknown-linux-gnueabihf --no-default-features
 
@@ -87,8 +89,8 @@ jobs:
         uses: dtolnay/rust-toolchain@nightly
         with:
           components: clippy, rustfmt
-      - name: Run Clippy with All Features
-        run: cargo clippy --all-features -- -D warnings
+      - name: Run Clippy with All CPU Features
+        run: cargo clippy --features parallel -- -D warnings
       - name: Rustfmt Check
         run: cargo fmt --all --check
 
@@ -105,3 +107,71 @@ jobs:
         run: cargo build
       - name: Build No-Alloc
         run: cargo build --no-default-features
+
+  # Each Rust WASI target builds through its own CMake toolchain, with the capability its target features declare.
+  build_wasi:
+    name: Build Rust for ${{ matrix.target }} with ${{ matrix.features }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: wasm32-wasip1
+            features: +simd128
+          - target: wasm32-wasip1
+            features: +relaxed-simd
+          - target: wasm32-wasip1-threads
+            features: +relaxed-simd
+    env:
+      WASI_SDK_VERSION: "34"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install WASI SDK
+        uses: nick-fields/retry@v4
+        with:
+          max_attempts: 3
+          retry_wait_seconds: 15
+          timeout_minutes: 10
+          command: |
+            wget -q https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_SDK_VERSION}/wasi-sdk-${WASI_SDK_VERSION}.0-x86_64-linux.tar.gz
+            tar xzf wasi-sdk-${WASI_SDK_VERSION}.0-x86_64-linux.tar.gz -C ~
+            mv ~/wasi-sdk-* ~/wasi-sdk
+      - name: Build Library
+        run: cargo build --target ${{ matrix.target }} --features std
+        env:
+          RUSTFLAGS: -C target-feature=${{ matrix.features }}
+
+  # No hosted runner has a GPU, so the `cuda` and `rocm` features, which build through CMake, are link checks.
+  build_cuda:
+    name: Build Rust with CUDA
+    runs-on: ubuntu-26.04
+    # NVIDIA publishes no Ubuntu 26.04 CUDA image yet, so the toolkit comes in a 24.04 container.
+    container: nvidia/cuda:13.0.1-devel-ubuntu24.04
+    steps:
+      - name: Install Dependencies
+        run: apt-get update && apt-get install -y cmake make g++ git curl
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@nightly
+      - name: Link Tests with CUDA
+        run: cargo test --features cuda --no-run
+
+  build_rocm:
+    name: Build Rust with ROCm
+    runs-on: ubuntu-26.04
+    container: rocm/dev-ubuntu-26.04:latest
+    steps:
+      - name: Install Dependencies
+        run: apt-get update && apt-get install -y cmake make git curl
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@nightly
+      - name: Link Tests with ROCm
+        run: cargo test --features rocm --no-run

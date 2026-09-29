@@ -11,14 +11,14 @@
  */
 import { readFileSync } from 'node:fs';
 import { WASI } from 'node:wasi';
-import { argv, exit } from 'node:process';
+import { argv, env, exit } from 'node:process';
 
 const modulePath = argv[2];
 if (!modulePath) {
     console.error('usage: node wasi.mjs <module.wasm> [args...]');
     exit(2);
 }
-const wasi = new WASI({ version: 'preview1', args: argv.slice(2), returnOnExit: true });
+const wasi = new WASI({ version: 'preview1', args: argv.slice(2), env, returnOnExit: true });
 const module = new WebAssembly.Module(readFileSync(modulePath));
 const instance = new WebAssembly.Instance(module, wasi.getImportObject());
 exit(wasi.start(instance));

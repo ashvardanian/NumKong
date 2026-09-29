@@ -11,8 +11,17 @@ env:
   GH_TOKEN: ${{ secrets.SEMANTIC_RELEASE_TOKEN }}
 
 jobs:
+  build_swift_artifacts:
+    name: Build Swift Artifacts
+    uses: ./.github/workflows/_swift.yml
+    with:
+      release: true
+
+  # `Package.swift` names the Swift artifacts by URL and checksum, so the release commit carries both and the
+  # artifacts join the release it creates.
   versioning:
     name: Update Version
+    needs: build_swift_artifacts
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
@@ -20,6 +29,19 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Download Swift Artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: swift-{xcframework,artifactbundle}
+          path: ${{ runner.temp }}/swift
+          merge-multiple: true
+      - name: Point the Swift Manifest at the Swift Artifacts
+        run: |
+          echo "NUMKONG_PREVIOUS_VERSION=$(cat VERSION)" >> "$GITHUB_ENV"
+          apple=$(sha256sum "$RUNNER_TEMP/swift/CNumKong.xcframework.zip" | cut -d ' ' -f 1)
+          portable=$(sha256sum "$RUNNER_TEMP/swift/CNumKong.artifactbundle.zip" | cut -d ' ' -f 1)
+          sed -i -E "s/^(let appleChecksum = )\".*\"/\1\"$apple\"/; s/^(let portableChecksum = )\".*\"/\1\"$portable\"/" Package.swift
+          grep -E "^let (apple|portable)Checksum" Package.swift
       - name: Run TinySemVer
         uses: ashvardanian/tinysemver@v3
         with:
@@ -34,8 +56,8 @@ jobs:
             javascript/@numkong-darwin-arm64/package.json:"version": "(\d+\.\d+\.\d+)"
             javascript/@numkong-win32-x64/package.json:"version": "(\d+\.\d+\.\d+)"
             javascript/@numkong-win32-arm64/package.json:"version": "(\d+\.\d+\.\d+)"
-            CMakeLists.txt:VERSION (\d+\.\d+\.\d+)
             CITATION.cff:^version: (\d+\.\d+\.\d+)
+            Package.swift:releases/download/v(\d+\.\d+\.\d+)
             package.json:@numkong/darwin-arm64": "(\d+\.\d+\.\d+)"
             package.json:@numkong/darwin-x64": "(\d+\.\d+\.\d+)"
             package.json:@numkong/linux-arm64": "(\d+\.\d+\.\d+)"
@@ -52,6 +74,12 @@ jobs:
           push: "true"
           create-release: "true"
           github-token: ${{ secrets.SEMANTIC_RELEASE_TOKEN }}
+      - name: Upload Swift Artifacts to the Release
+        run: |
+          version=$(cat VERSION)
+          if [ "$version" != "$NUMKONG_PREVIOUS_VERSION" ]; then
+            gh release upload "v$version" "$RUNNER_TEMP"/swift/*.zip --repo "${{ github.repository }}"
+          fi
 
   rebase:
     name: Rebase Development Branch

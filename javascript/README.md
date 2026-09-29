@@ -55,7 +55,10 @@ pnpm add numkong
 bun add numkong
 ```
 
-If you build from source, the package uses `node-gyp-build` on install and TypeScript sources under `javascript/`.
+Installing picks the `@numkong/<platform>-<arch>` package with the prebuilt addon.
+Where none matches or loads, the install compiles the addon through `cmake-js`, which needs CMake and a C compiler, and `node-gyp-build` loads it.
+To build it by hand in a checkout, run `npm install --omit=optional`, so the published addon does not shadow yours, then `npm run prebuild` and `npm run build-js`.
+Other native addons that link NumKong use CMake too: `add_subdirectory` or `FetchContent`, then `numkong::static`, as the [C README](../include/README.md) shows.
 
 ## Browser and WASM
 
@@ -93,6 +96,16 @@ Or import the subpath from a bundler or Node.js (without the native addon):
 
 ```js
 import { dot } from "numkong/wasm";
+```
+
+To build the modules in a checkout, the `wasm32_emscripten` preset makes one per `NUMKONG_TARGET_ARCH`, both into `build_wasm32_emscripten/`, where `npm run build-browser` bundles the loader beside them:
+
+```sh
+source ~/emsdk/emsdk_env.sh
+cmake --preset wasm32_emscripten && cmake --build --preset wasm32_emscripten
+cmake --preset wasm32_emscripten -D NUMKONG_TARGET_ARCH=v128relaxed && cmake --build --preset wasm32_emscripten
+npm run build-js && npm run build-browser
+npm run test:wasm:emscripten
 ```
 
 ## Dot Products

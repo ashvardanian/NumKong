@@ -1,6 +1,6 @@
 # WASI toolchain for NumKong: single-threaded, self-contained memory, so the same `.wasm` runs under Wasmtime, Wasmer
 # and Node alike (standalone runtimes without a host).
-# Usage: cmake -B build-wasi -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-wasi.cmake -DNUMKONG_BUILD_TEST=ON
+# Usage: cmake --preset wasm32_wasi, which builds into `build_wasm32_wasi`, or `build.rs` for `wasm32-wasip1`
 #
 # The SIMD capability is a whole-module choice, so it is fixed here rather than probed: `v128` by default, or
 # `-DNUMKONG_TARGET_ARCH=v128relaxed`. Threads live in `toolchain-wasm32-wasi-threads.cmake`.
@@ -48,18 +48,11 @@ set(CMAKE_FIND_ROOT_PATH "${WASI_SDK_PATH}")
 # A `-shared` module needs a main module to resolve `__global_base` and kin, which no standalone runtime supplies.
 set(NUMKONG_BUILD_SHARED OFF CACHE BOOL "Compile a dynamic library")
 
-# SIMD capability: the flags define `__wasm_simd128__` / `__wasm_relaxed_simd__`, which `types.h` reads.
-set(NUMKONG_TARGET_ARCH "v128" CACHE STRING "WebAssembly SIMD capability of this module: v128 or v128relaxed")
-if (NUMKONG_TARGET_ARCH STREQUAL "v128relaxed")
-    set(WASM_SIMD_FLAGS "-msimd128 -mrelaxed-simd")
-elseif (NUMKONG_TARGET_ARCH STREQUAL "v128")
-    set(WASM_SIMD_FLAGS "-msimd128")
-else ()
-    message(FATAL_ERROR "NUMKONG_TARGET_ARCH must be v128 or v128relaxed, not `${NUMKONG_TARGET_ARCH}`")
-endif ()
+# `CMakeLists.txt` turns the capability into `-msimd128` and `-mrelaxed-simd` for every unit.
+set(NUMKONG_TARGET_ARCH "v128" CACHE STRING "WebAssembly SIMD capability of this module: serial, v128 or v128relaxed")
 
-set(CMAKE_C_FLAGS_INIT "${WASM_SIMD_FLAGS} --target=wasm32-wasip1")
-set(CMAKE_CXX_FLAGS_INIT "${WASM_SIMD_FLAGS} --target=wasm32-wasip1 -fno-exceptions")
+set(CMAKE_C_FLAGS_INIT "--target=wasm32-wasip1")
+set(CMAKE_CXX_FLAGS_INIT "--target=wasm32-wasip1 -fno-exceptions")
 
 # Optimization flags.
 set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG")
@@ -89,5 +82,7 @@ message(STATUS "NumKong WASI: Toolchain at ${WASI_SDK_PATH}")
 # `-DCMAKE_CROSSCOMPILING_EMULATOR="wasmer;run;--enable-simd;--enable-relaxed-simd"` or
 # `"node;<source>/test/wasi.mjs"`. Relaxed SIMD lowers differently per engine, so testing more than one matters.
 find_program(NUMKONG_WASMTIME_EXE_ wasmtime PATHS "$ENV{HOME}/.wasmtime/bin")
-set(CMAKE_CROSSCOMPILING_EMULATOR "${NUMKONG_WASMTIME_EXE_};run;-W;relaxed-simd=y" CACHE STRING "Runs the WASI tests")
+set(CMAKE_CROSSCOMPILING_EMULATOR "${NUMKONG_WASMTIME_EXE_};run;-W;relaxed-simd=y;-S;inherit-env=y"
+    CACHE STRING "Runs the WASI tests"
+)
 message(STATUS "NumKong WASI: CTest runtime = ${CMAKE_CROSSCOMPILING_EMULATOR}")

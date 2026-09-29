@@ -140,35 +140,30 @@ __Emscripten — wasm32 and wasm64__
 
 ```sh
 source ~/emsdk/emsdk_env.sh
-cmake -B build-wasm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake -DNUMKONG_BUILD_BENCH=1
-cmake --build build-wasm --parallel
+cmake --preset wasm32_emscripten -D NUMKONG_BUILD_BENCH=ON
+cmake --build --preset wasm32_emscripten
+cmake --preset wasm64_emscripten -D NUMKONG_BUILD_BENCH=ON
+cmake --build --preset wasm64_emscripten
 ```
 
-For wasm64:
-
-```sh
-cmake -B build-wasm64 -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm64-emscripten.cmake -DNUMKONG_BUILD_BENCH=1
-cmake --build build-wasm64 --parallel
-```
-
-Each toolchain file picks one SIMD capability through `NUMKONG_TARGET_ARCH`, `v128` for wasm32 and `v128relaxed` for wasm64 by default; pass `-DNUMKONG_TARGET_ARCH=v128relaxed` to time the relaxed kernels on wasm32.
+Each toolchain file picks one SIMD capability through `NUMKONG_TARGET_ARCH`, `v128` for wasm32 and `v128relaxed` for wasm64 by default; pass `-D NUMKONG_TARGET_ARCH=v128relaxed` to time the relaxed kernels on wasm32.
 
 __WASI__
 
 ```sh
-export WASI_SDK_PATH=~/wasi-sdk-24.0-x86_64-linux
-cmake -B build-wasi -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-wasi.cmake -DNUMKONG_BUILD_BENCH=1
-cmake --build build-wasi --parallel
+export WASI_SDK_PATH=~/wasi-sdk
+cmake --preset wasm32_wasi -D NUMKONG_BUILD_BENCH=ON
+cmake --build --preset wasm32_wasi
 ```
 
-`toolchain-wasm32-wasi-threads.cmake` is the threaded twin, with shared memory and the relaxed capability by default.
+The `wasm32_wasi_threads` preset is the threaded twin, with shared memory and the relaxed capability by default.
 
 __Running__
 
 ```sh
-wasmtime run -W simd=y,relaxed-simd=y -S inherit-env=y ./build-wasi/numkong_bench.wasm
-wasmer run --enable-simd --enable-relaxed-simd ./build-wasi/numkong_bench.wasm
-node ./build-wasm/numkong_bench.js
+wasmtime run -W simd=y,relaxed-simd=y -S inherit-env=y ./build_wasm32_wasi/numkong_bench.wasm
+wasmer run --enable-simd --enable-relaxed-simd ./build_wasm32_wasi/numkong_bench.wasm
+node ./build_wasm32_emscripten/numkong_bench.js
 ```
 
 A module from the threads toolchain also needs `-W threads=y,shared-memory=y -S threads=y` under Wasmtime.

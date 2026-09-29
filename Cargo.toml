@@ -11,7 +11,17 @@ description = "Portable mixed-precision math, linear-algebra, & retrieval librar
 documentation = "https://docs.rs/numkong"
 edition = "2021"
 homepage = "https://ashvardanian.com/posts/numkong-faster-scipy"
-include = ["rust/*.rs", "c/*.c", "c/*.h", "c/dispatch/*.c", "c/cpu/*.c","include/**/*.h", "probes/*.c", "build.rs"]
+include = [
+  "/rust/*.rs",
+  "/build.rs",
+  # Everything CMake reads to build the archive
+  "/CMakeLists.txt",
+  "/cmake/*",
+  "/c/**",
+  "/include/**",
+  "/probes/*.c",
+  "/VERSION",
+]
 keywords = ["simd", "search", "linear-algebra", "vector"]
 license = "Apache-2.0"
 links = "numkong"
@@ -26,11 +36,11 @@ name = "numkong"
 path = "rust/numkong.rs"
 
 [package.metadata.docs.rs]
-all-features = true
+features = ["parallel"] # Every feature but `cuda` and `rocm`, which need a GPU toolkit
 rustdoc-args = ["--cfg", "docsrs"]
 
 [build-dependencies]
-cc = "1.2.36"
+cmake = "0.1"
 
 [profile.bench]
 codegen-units = 1 # May increase compilation time but optimizes further
@@ -41,9 +51,10 @@ rpath = false     # On some systems, setting this to false can help with optimiz
 [features]
 default = ["alloc"]
 alloc = []
+cuda = []
+rocm = []
 parallel = ["dep:forkunion", "std"]
 std = ["alloc"]
-wasm-runtime = []
 
 [dependencies]
 forkunion = { version = "3.0", optional = true }
@@ -51,5 +62,3 @@ forkunion = { version = "3.0", optional = true }
 [dev-dependencies]
 half = { version = "2.6.0" }
 rand = { version = "0.10.0" }
-wasmtime = { version = "48.0" }
-wasmtime-wasi = { version = "48.0" }

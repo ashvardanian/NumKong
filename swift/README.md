@@ -76,7 +76,9 @@ Then add the product to your target:
 )
 ```
 
-The root package manifest already exposes the `NumKong` and `CNumKong` library products.
+The `NumKong` product carries the C layer too, which a target imports as `CNumKong`.
+SwiftPM downloads it prebuilt from the GitHub release: an XCFramework on Apple platforms, and an artifact bundle for Linux, Windows, Android and WASI.
+The WASI variant carries the strict `v128` SIMD capability, which every engine with SIMD128 validates.
 Xcode package integration uses the same URL.
 
 ## Collection-Based Dot Products

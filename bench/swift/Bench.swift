@@ -2,10 +2,12 @@
 //  bench/swift/Bench.swift
 //  Swift Testing benchmarks for NumKong.
 //
-//  Runs on an iPad, iPhone or Mac through Xcode, or anywhere SwiftPM runs:
+//  Runs on an iPad, iPhone or Mac through Xcode, or anywhere SwiftPM runs, over CMake's library:
 //
 //  ```sh
-//  xcodebuild test -scheme NumKong-Package -destination 'platform=iOS,name=...' -only-testing Bench
+//  cmake --preset swift && cmake --build --preset swift
+//  export NUMKONG_SWIFT_ARTIFACT=build_swift/CNumKong.xcframework
+//  xcodebuild test -scheme NumKong -destination 'platform=iOS,name=...' -only-testing Bench
 //  swift test -c release --filter Bench
 //  ```
 //

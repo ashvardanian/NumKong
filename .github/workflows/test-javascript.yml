@@ -56,9 +56,8 @@ jobs:
 
       - name: Build and Test
         run: |
-          npm install --ignore-scripts
-          node probes/probe.js
-          npx node-gyp rebuild
+          npm install --ignore-scripts --omit=optional
+          npm run prebuild
           npm run build-js
           npm test
 
@@ -75,21 +74,18 @@ jobs:
             sdk: emscripten
             preset: wasm32_emscripten
             simd: v128
-            build: build-wasm
             runtime: emscripten
             node: 22
           - name: wasm32-emscripten v128relaxed under Node
             sdk: emscripten
             preset: wasm32_emscripten
             simd: v128relaxed
-            build: build-wasm
             runtime: emscripten
             node: 22
           - name: wasm64-emscripten v128relaxed under Node
             sdk: emscripten
             preset: wasm64_emscripten
             simd: v128relaxed
-            build: build-wasm64
             runtime: emscripten64
             node: 24
           - name: wasm32-wasi v128 under Node
@@ -165,13 +161,23 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
 
+      # CTest runs the WASI tests through the Wasmtime the toolchain finds at configure time.
+      - name: Install Wasmtime
+        if: matrix.runtime == 'standalone' || matrix.runtime == 'wasmtime-threads'
+        uses: nick-fields/retry@v4
+        with:
+          max_attempts: 3
+          retry_wait_seconds: 15
+          timeout_minutes: 10
+          command: curl https://wasmtime.dev/install.sh -sSf | bash -s -- --version "$WASMTIME_VERSION"
+
+      # `test/wasm.mjs` and the browser pages load the modules from each preset's build directory by name.
       - name: Build Emscripten Module
         if: matrix.sdk == 'emscripten'
         run: |
           source ~/emsdk/emsdk_env.sh
-          # `test/wasm.mjs` and the browser pages load the modules from these directories by name
-          cmake --preset ${{ matrix.preset }} -B ${{ matrix.build }} -D NUMKONG_TARGET_ARCH=${{ matrix.simd }}
-          cmake --build ${{ matrix.build }}
+          cmake --preset ${{ matrix.preset }} -D NUMKONG_TARGET_ARCH=${{ matrix.simd }}
+          cmake --build --preset ${{ matrix.preset }}
 
       - name: Upload Emscripten Module
         if: matrix.runtime == 'emscripten'
@@ -179,18 +185,17 @@ jobs:
         with:
           name: wasm-module-wasm32-${{ matrix.simd }}
           path: |
-            ${{ matrix.build }}/numkong-wasm32-${{ matrix.simd }}.js
-            ${{ matrix.build }}/numkong-wasm32-${{ matrix.simd }}.wasm
+            build_${{ matrix.preset }}/numkong-wasm32-${{ matrix.simd }}.js
+            build_${{ matrix.preset }}/numkong-wasm32-${{ matrix.simd }}.wasm
           if-no-files-found: error
           retention-days: 1
 
       - name: Build WASI Module
         if: matrix.sdk == 'wasi'
         run: |
-          export WASI_SDK_PATH=~/wasi-sdk
-          cmake --preset ${{ matrix.preset }} -B build-wasi -D NUMKONG_TARGET_ARCH=${{ matrix.simd }} \
+          cmake --preset ${{ matrix.preset }} -D NUMKONG_TARGET_ARCH=${{ matrix.simd }} \
             -D NUMKONG_WITH_HOST_PROBES=${{ matrix.runtime == 'wasi-node' && 'ON' || 'OFF' }}
-          cmake --build build-wasi
+          cmake --build --preset ${{ matrix.preset }}
 
       - name: Build JavaScript Bindings
         if: matrix.runtime != 'standalone' && matrix.runtime != 'wasmtime-threads'
@@ -202,17 +207,9 @@ jobs:
         if: matrix.runtime == 'emscripten' || matrix.runtime == 'emscripten64' || matrix.runtime == 'wasi-node'
         run: NUMKONG_RUNTIME=${{ matrix.runtime }} node --test test/wasm.mjs
 
-      - name: Install Rust Toolchain
-        if: matrix.runtime == 'standalone'
-        uses: moonrepo/setup-rust@v1
-
-      # The Wasmtime run goes through the Rust harness, which owns the shared-memory and probe imports.
       - name: Test on Wasmtime
-        if: matrix.runtime == 'standalone'
-        run: cargo test --features wasm-runtime -- wasm_runtime
-        env:
-          NUMKONG_WASI_MODULE: build-wasi/numkong_cpu_test.wasm
-          NUMKONG_BUDGET_SECS: 0.1
+        if: matrix.runtime == 'standalone' || matrix.runtime == 'wasmtime-threads'
+        run: ctest --preset ${{ matrix.preset }}
 
       # Install the latest released Wasmer (which now ships relaxed-SIMD). Building
       # `--git main` broke: upstream's main pulls a private SSH submodule
@@ -232,24 +229,7 @@ jobs:
         run: |
           export PATH="$HOME/.wasmer/bin:$PATH"
           wasmer run --enable-simd ${{ matrix.simd == 'v128relaxed' && '--enable-relaxed-simd' || '' }} \
-            --forward-host-env ./build-wasi/numkong_cpu_test.wasm
-        env:
-          NUMKONG_BUDGET_SECS: 0.1
-
-      - name: Install Wasmtime
-        if: matrix.runtime == 'wasmtime-threads'
-        uses: nick-fields/retry@v4
-        with:
-          max_attempts: 3
-          retry_wait_seconds: 15
-          timeout_minutes: 10
-          command: curl https://wasmtime.dev/install.sh -sSf | bash -s -- --version "$WASMTIME_VERSION"
-
-      - name: Test on Wasmtime with Threads
-        if: matrix.runtime == 'wasmtime-threads'
-        run: |
-          export PATH="$HOME/.wasmtime/bin:$PATH"
-          wasmtime run -W relaxed-simd=y,threads=y -S threads=y,inherit-env=y ./build-wasi/numkong_cpu_test.wasm
+            --forward-host-env ./build_wasm32_wasi/numkong_cpu_test.wasm
         env:
           NUMKONG_BUDGET_SECS: 0.1
 
@@ -282,19 +262,14 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           pattern: wasm-module-wasm32-*
-          path: build-wasm
+          path: build_wasm32_emscripten
           merge-multiple: true
 
-      - name: Build JavaScript Bindings
+      - name: Build JavaScript Bindings and Browser Bundle
         run: |
           npm install --ignore-scripts
           npm run build-js
-
-      - name: Build Browser Bundle
-        run: |
-          npx esbuild javascript/dist/esm/numkong-browser.js \
-            --bundle --format=esm --platform=browser --target=es2022 \
-            --outfile=build-wasm/numkong-bundle.js
+          npm run build-browser
 
       - name: Install Playwright
         uses: nick-fields/retry@v4
@@ -352,9 +327,8 @@ jobs:
 
       - name: Build and Test with Node
         run: |
-          npm install --ignore-scripts
-          node probes/probe.js
-          npx node-gyp rebuild
+          npm install --ignore-scripts --omit=optional
+          npm run prebuild
           npm run build-js
           npm test
 
@@ -403,9 +377,8 @@ jobs:
 
       - name: Build Prebuilds and JS
         run: |
-          npm install --ignore-scripts
-          node probes/probe.js
-          npx node-gyp rebuild
+          npm install --ignore-scripts --omit=optional
+          npm run prebuild
           npm run build-js
 
       - name: Test with Node

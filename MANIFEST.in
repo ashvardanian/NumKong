@@ -1,8 +1,0 @@
-recursive-include include *.h
-recursive-include c *.c *.h
-recursive-include python *.c *.h *.py *.pyi
-recursive-include probes *.c
-include VERSION
-include LICENSE
-include README.md
-include python/README.md

@@ -1,7 +1,7 @@
 # cmake/nk_power_isa_probes.cmake — Power ISA compiler-capability probes
 #
 # Detect which ISA extensions the compiler can emit.
-# Probe source lives in probes/power_*.c — shared with setup.py and build.rs.
+# Probe source lives in probes/power_*.c.
 
 set(nk_native_flags_ "-mcpu=native")
 include(cmake/nk_isa_probe.cmake)

@@ -207,9 +207,7 @@ jobs:
         with:
           python-version: "3.13"
       # Must be a real dev environment, not `setup-msbuild` — MSBuild is not a C compiler, and
-      # without `vcvarsall` there is no `cl.exe` on PATH for the ISA probes to run. `setup.py`
-      # also resolves the compiler itself and fails the build if it cannot; both together mean
-      # neither half can silently regress into a scalar wheel.
+      # without `vcvarsall` there is no `cl.exe` on PATH for the ISA probes to run.
       - name: Set Up MSVC
         uses: ilammy/msvc-dev-cmd@v1
         with:

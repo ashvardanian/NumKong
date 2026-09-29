@@ -9,9 +9,9 @@
  *  the library disagree with the bindings that call it — the sources under `python/` do not include
  *  this header and honour the build system instead. `types.h` defaults both to 0 for everyone.
  *
- *  The @c NUMKONG_TARGET_* verdicts come from the build: the probes in `CMakeLists.txt`, `setup.py`,
- *  `build.rs` and `binding.gyp`, or the fixed table in `Package.swift`. Builds that pass none, like
- *  Go's, get them from the compiler flags in `types.h`.
+ *  The @c NUMKONG_TARGET_* verdicts come from the probes in `CMakeLists.txt`, which every binding
+ *  builds through or links the output of. Builds that pass none get them from `types.h`, which
+ *  reads the compiler flags.
  */
 #ifndef NUMKONG_DISPATCH_H
 #define NUMKONG_DISPATCH_H

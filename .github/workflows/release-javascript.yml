@@ -22,32 +22,32 @@ jobs:
             os: ubuntu-24.04
             cc: gcc-14
             cxx: g++-14
-            node-gyp-args: ""
+            script: prebuild
           - platform: linux-arm64
             os: ubuntu-24.04
             cc: aarch64-linux-gnu-gcc-14
             cxx: aarch64-linux-gnu-g++-14
-            node-gyp-args: "--arch=arm64"
+            script: prebuild-arm64
           - platform: darwin-arm64
             os: macos-15
             cc: clang
             cxx: clang++
-            node-gyp-args: ""
+            script: prebuild
           - platform: darwin-x64
             os: macos-15
             cc: clang
             cxx: clang++
-            node-gyp-args: "--arch=x64"
+            script: prebuild-x64
           - platform: win32-x64
             os: windows-2025
             cc: cl.exe
             cxx: cl.exe
-            node-gyp-args: ""
+            script: prebuild
           - platform: win32-arm64
             os: windows-2025
             cc: cl.exe
             cxx: cl.exe
-            node-gyp-args: "--arch=arm64"
+            script: prebuild-arm64
     runs-on: ${{ matrix.os }}
     env:
       CC: ${{ matrix.cc }}
@@ -95,15 +95,16 @@ jobs:
           timeout_minutes: 180
           command: npm install --ignore-scripts
 
-      - name: Run ISA Probes
-        run: node probes/probe.js
+      # CMake reads the toolchain file from the environment, which picks the target's probes and ABI floor.
+      - name: Point CMake at the AArch64 Cross Toolchain
+        if: matrix.platform == 'linux-arm64'
+        run: |
+          echo "CMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/cmake/toolchain-aarch64-gnu.cmake" >> "$GITHUB_ENV"
+          echo "AARCH64_COMPILER_SUFFIX=-14" >> "$GITHUB_ENV"
 
+      # Stages the addon into its `javascript/@numkong-<platform>` package.
       - name: Build Native Module
-        run: npx node-gyp rebuild ${{ matrix.node-gyp-args }}
-
-      - name: Copy Binary to Platform Package
-        shell: bash
-        run: cp build/Release/numkong.node javascript/@numkong-${{ matrix.platform }}/numkong.node
+        run: npm run ${{ matrix.script }}
 
       - name: Upload Platform Package
         uses: actions/upload-artifact@v7
@@ -273,13 +274,15 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: npm install --ignore-scripts
+          command: npm install --ignore-scripts --omit=optional
 
-      - name: Probe ISA Capabilities
-        run: node probes/probe.js
+      - name: Install CMake
+        run: |
+          sudo apt update
+          sudo apt install -y cmake build-essential
 
       - name: Build Native Addon
-        run: npx node-gyp rebuild
+        run: npm run prebuild
 
       - name: Build JavaScript from TypeScript
         run: npm run build-js

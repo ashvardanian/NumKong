@@ -46,6 +46,17 @@
       "cacheVariables": { "NUMKONG_BUILD_TEST": "OFF", "NUMKONG_BUILD_BENCH": "OFF", "NUMKONG_BUILD_SHARED": "ON" }
     },
     {
+      "name": "swift",
+      "inherits": "base",
+      "displayName": "Release - the XCFramework or artifact bundle SwiftPM links",
+      "cacheVariables": {
+        "NUMKONG_BUILD_TEST": "OFF",
+        "NUMKONG_BUILD_SHARED": "OFF",
+        "NUMKONG_BUILD_SWIFT": "ON",
+        "CMAKE_OSX_DEPLOYMENT_TARGET": "12.0"
+      }
+    },
+    {
       "name": "msvc_x64",
       "inherits": ["base", "windows"],
       "generator": "Visual Studio 18 2026",
@@ -147,6 +158,7 @@
     { "name": "debug", "configurePreset": "debug" },
     { "name": "release", "configurePreset": "release" },
     { "name": "release_shared", "configurePreset": "release_shared" },
+    { "name": "swift", "configurePreset": "swift", "configuration": "Release" },
     { "name": "msvc_x64", "configurePreset": "msvc_x64", "configuration": "Release" },
     { "name": "msvc_arm64", "configurePreset": "msvc_arm64", "configuration": "Release" },
     { "name": "linux_arm64", "configurePreset": "linux_arm64" },

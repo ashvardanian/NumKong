@@ -113,19 +113,19 @@ async function loadEmscripten() {
     try {
         // The relaxed capability where both were built, the strict capability otherwise
         const wasmPath = ['numkong-wasm32-v128relaxed.js', 'numkong-wasm32-v128.js']
-            .map((name) => path.join(rootDir, 'build-wasm', name))
+            .map((name) => path.join(rootDir, 'build_wasm32_emscripten', name))
             .find((candidate) => existsSync(candidate));
         if (!wasmPath) {
-            throw new Error('Missing build-wasm/numkong-wasm32-v128.js');
+            throw new Error('Missing build_wasm32_emscripten/numkong-wasm32-v128.js');
         }
         const wrapperPath = path.join(rootDir, 'javascript', 'dist', 'esm', 'numkong-wasm.js');
-        const wasmModule = await import(pathToFileURL(wasmPath).href);
-        const { initWasm } = await import(pathToFileURL(wrapperPath).href);
-        const numkong = await initWasm(wasmModule.default);
+        const { default: NumKongModule } = await import(pathToFileURL(wasmPath).href);
+        const numkong = await import(pathToFileURL(wrapperPath).href);
+        numkong.initWasm(await NumKongModule());
         console.log('✓ Loaded NumKong Emscripten WASM');
         return numkong;
     } catch (e) {
-        throw new Error(`Failed to load Emscripten WASM: ${e.message}\nBuild with: cmake -B build-wasm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake -DNUMKONG_BUILD_SHARED=ON && cmake --build build-wasm`);
+        throw new Error(`Failed to load Emscripten WASM: ${e.message}\nBuild with: cmake --preset wasm32_emscripten && cmake --build --preset wasm32_emscripten`);
     }
 }
 
@@ -278,14 +278,14 @@ async function runBrowserBenchmarks() {
     console.log(`  Seed: ${CONFIG.seed}\n`);
 
     // Check if WASM build exists
-    const wasmPath = path.join(rootDir, 'build-wasm', 'numkong-wasm32-v128relaxed.js');
+    const wasmPath = path.join(rootDir, 'build_wasm32_emscripten', 'numkong-wasm32-v128relaxed.js');
     if (!existsSync(wasmPath)) {
         console.error('❌ Emscripten WASM build not found!');
         console.error(`   Expected: ${wasmPath}`);
         console.error('   Build it with:');
         console.error('     source ~/emsdk/emsdk_env.sh');
-        console.error('     cmake -B build-wasm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake -DNUMKONG_TARGET_ARCH=v128relaxed');
-        console.error('     cmake --build build-wasm');
+        console.error('     cmake --preset wasm32_emscripten -D NUMKONG_TARGET_ARCH=v128relaxed');
+        console.error('     cmake --build --preset wasm32_emscripten');
         process.exit(1);
     }
 

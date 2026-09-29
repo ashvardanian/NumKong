@@ -7,12 +7,28 @@ on:
 permissions:
   contents: read
 
-# Swift packages are consumed as source via git tags — no artifact upload needed.
-# This workflow validates that the tagged commit builds and passes tests on both
-# platforms, so Swift Package Index (and consumers) see a healthy tag.
+# The release commit names the Swift artifacts the release carries, which `release.yml` uploads right after
+# publishing it. Once they land, this resolves the package as a consumer does, downloading and checking them.
 jobs:
+  wait_for_artifacts:
+    name: Wait for Swift Artifacts
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Wait for Swift Artifacts
+        uses: nick-fields/retry@v4
+        env:
+          GH_TOKEN: ${{ github.token }}
+        with:
+          max_attempts: 30
+          retry_wait_seconds: 60
+          timeout_minutes: 5
+          command: |
+            assets=$(gh release view "${{ github.event.release.tag_name }}" --repo "${{ github.repository }}" --json assets --jq '.assets[].name')
+            grep -qx CNumKong.xcframework.zip <<< "$assets" && grep -qx CNumKong.artifactbundle.zip <<< "$assets"
+
   validate_macos:
     name: Validate Swift Package on macOS
+    needs: wait_for_artifacts
     runs-on: xcode-27
     steps:
       - name: Checkout
@@ -24,6 +40,7 @@ jobs:
 
   validate_linux:
     name: Validate Swift Package on Linux ${{ matrix.arch }}
+    needs: wait_for_artifacts
     runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     container: swift:6.4
     strategy:

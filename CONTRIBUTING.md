@@ -8,7 +8,7 @@ To keep the quality of the code high, we follow the [coding style and convention
 include/numkong/          C and C++ headers — one .h per kernel family with its dispatch points, one .hpp per C++ API
 include/numkong/*/        Kernels, one file per CPU or GPU capability — serial, haswell, neon, sme, rvv, ampere, etc.
 c/                        Library units — per-capability kernels, per-family dispatch points, binding thread pools
-probes/                   ISA probe sources, shared by CMake, setup.py, build.rs, and the Node build
+probes/                   ISA probe sources, which CMake compiles for every binding
 test/                     C++ precision tests — see test/README.md
 bench/                    C++ Google Benchmark suite and JS bench runner — see bench/README.md
 python/                   CPython extension, no SWIG or PyBind11
@@ -39,6 +39,9 @@ Machine-specific settings, like a compiler path, belong in an untracked `CMakeUs
 | :---------------------------- | :------------------------------ | :---------------------------------------------------------------------------- |
 | `NUMKONG_BUILD_TEST`          | `OFF`                           | Compile precision tests, and with the shared library also tests against it    |
 | `NUMKONG_BUILD_BENCH`         | `OFF`                           | Compile micro-benchmarks                                                      |
+| `NUMKONG_BUILD_PYTHON`        | `OFF`                           | Compile the CPython extension, as `pip install .` does through scikit-build   |
+| `NUMKONG_BUILD_NODE`          | `OFF`                           | Compile the Node addon, as `npm run build-native` does through `cmake-js`     |
+| `NUMKONG_BUILD_SWIFT`         | `OFF`                           | Package the static library for SwiftPM, as the `swift` preset does            |
 | `NUMKONG_BUILD_SHARED`        | `ON`, if top-level              | Compile dynamic library                                                       |
 | `NUMKONG_INSTALL`             | `ON`, if top-level              | Install headers, libraries, and the CMake package files                       |
 | `NUMKONG_ENABLE_ASAN`         | `ON`, if top-level              | Enable AddressSanitizer in Debug builds                                       |
@@ -53,7 +56,24 @@ Machine-specific settings, like a compiler path, belong in an untracked `CMakeUs
 | `NUMKONG_COMPARE_TO_CUBLAS`   | `ON`                            | Include cuBLASLt and cuBLAS into CUDA benchmarks                              |
 | `NUMKONG_COMPARE_TO_CUDNN`    | `OFF`                           | Include cuDNN attention into CUDA benchmarks, from `NUMKONG_CUDNN_ROOT`       |
 | `NUMKONG_COMPARE_TO_CUVS`     | `OFF`                           | Include cuVS distances into CUDA benchmarks, from `NUMKONG_CUVS_ROOTS`        |
-| `NUMKONG_TARGET_ARCH`         | empty                           | Tune for a CPU, like the host with `native`                                   |
+| `NUMKONG_TARGET_ARCH`         | `$NUMKONG_TARGET_ARCH`          | Tune for a CPU, like the host with `native`, or pick a WASM `v128relaxed`     |
+
+Every binding builds the static library through this `CMakeLists.txt`, or links one it built, so CMake is the one place that probes which ISA capabilities the compiler supports.
+Each binding hands CMake its options its own way:
+
+| Binding | Builds                                            | Passing another option                                                  |
+| :------ | :------------------------------------------------ | :---------------------------------------------------------------------- |
+| Python  | `NUMKONG_BUILD_PYTHON`, from `pyproject.toml`     | `pip install . -C cmake.define.NUMKONG_BUILD_CUDA=ON`                   |
+| Rust    | `numkong_static`, from `build.rs`                 | `cargo build --features cuda`, or `rocm` for `NUMKONG_BUILD_ROCM`       |
+| Node    | `NUMKONG_BUILD_NODE`, from `package.json`         | `npm run build-native -- --CDNUMKONG_TARGET_ARCH=native`                |
+| Go      | `numkong_static`, built by hand for `cgo`         | `cmake -D NUMKONG_TARGET_ARCH=native`, then `--target numkong_static`   |
+| Swift   | `NUMKONG_BUILD_SWIFT`, from the `swift` preset    | `cmake --preset swift -D NUMKONG_TARGET_ARCH=native`                    |
+| WASM    | the `wasm*_emscripten` and `wasm32_wasi*` presets | `cmake --preset wasm32_wasi -D NUMKONG_TARGET_ARCH=v128relaxed`         |
+
+Rust links an archive CMake already built when `NUMKONG_LIBRARY_DIR` names its directory, and Go always does.
+On WebAssembly, `build.rs` hands CMake the toolchain the Rust target needs and the SIMD capability its target features declare, as [rust/README.md](rust/README.md#webassembly) lists.
+`numkong_static` needs nothing beyond the C library, so its consumers add only what their own sources need: `libm` for Python's, and OpenMP where `c/parallel.c` joins the Python extension or the Node addon.
+A GPU build adds the runtime it compiled against, `cudart` or `amdhip64`, which the CMake targets carry and `build.rs` names.
 
 The test suites seed from 42, or from a fresh draw under `NUMKONG_SEED=random`, and print the seed they use.
 `NUMKONG_FILTER` is a regex over kernel names, and each failing kernel prints a `rerun:` line with its seed and a filter selecting it alone.
@@ -62,7 +82,7 @@ The [test README](test/README.md#environment-variables) lists every variable.
 
 ### Target Baseline Policy
 
-`CMakeLists.txt`, `build.rs`, `setup.py`, and `binding.gyp` pin the TU-level baseline to each architecture's ABI floor so distributable artifacts run on any CPU matching the ABI, not just the build host.
+`CMakeLists.txt`, which every binding builds through, pins the TU-level baseline to each architecture's ABI floor so distributable artifacts run on any CPU matching the ABI, not just the build host.
 SIMD kernels live inside `#pragma GCC target(...)` regions and run only when the capability mask holds their capability — see the README's [Dispatch Points & Capability Masks](README.md#dispatch-points--capability-masks) section.
 
 | Target arch   | GCC/Clang baseline          | MSVC baseline   | Notes                                                       |
@@ -78,9 +98,9 @@ That keeps the capability dispatch design intact: "serial" kernels stay actually
 MSVC has no per-function target pragma and no command-line vectorizer toggle, so the explicit `/arch:` flags above match defaults and document intent only; NumKong's MSVC strategy is compile-time gating via `_MSC_VER` version checks (see `include/numkong/types.h`).
 LoongArch is the one arch that can't honor the per-function-pragma model: `__attribute__((target("lasx")))` and `#pragma GCC target("lasx")` only landed in GCC 15.1 (Feb 2025) and Clang 22.1 (May 2025), and the bundled `lasxintrin.h` gates every wrapper on the `__loongarch_asx` macro that those older toolchains only set via TU-level `-mlasx`.
 Until NumKong's minimum supported toolchain catches up, LoongArch artifacts require LASX-capable hardware (LA464+, c. 2021).
-`Package.swift` and `golang/numkong.go` do not pin baselines: SPM forbids `.unsafeFlags()` on remotely consumed targets, and the cgo bindings rely on the surrounding compiler default.
 
-For host-tuned local builds, set `NUMKONG_TARGET_ARCH=native` (env var honored by `build.rs`, `setup.py` and `binding.gyp`; CMake option `-DNUMKONG_TARGET_ARCH=native`).
+For host-tuned local builds, set `NUMKONG_TARGET_ARCH=native`, either as the CMake option `-DNUMKONG_TARGET_ARCH=native` or as an environment variable.
+`pip install` reads the variable on every build, while `cargo build` and `npm run build-native` read it when they first configure their build directory.
 The resulting artifact bakes host-specific instructions into scaffolding code and is __not__ portable.
 
 ### Compiler Requirements
@@ -125,7 +145,9 @@ Targets with a `qemu-*` emulator additionally require `qemu-user`.
 | WASI                    | `wasm32-wasi`         | Wasmtime / Wasmer           | WASI SDK 24+, `v128` by default                   |
 | WASI threads            | `wasm32-wasi-threads` | Wasmtime with threads       | WASI SDK 24+, `v128relaxed` by default            |
 
-A WebAssembly module carries one SIMD capability, so each wasm toolchain fixes it through `NUMKONG_TARGET_ARCH` — `v128` or `v128relaxed` — and one build directory holds one capability.
+A WebAssembly module carries one SIMD capability, `serial`, `v128` or `v128relaxed`, and `NUMKONG_TARGET_ARCH` selects it for every toolchain and binding.
+Each toolchain file sets its default, and `CMakeLists.txt` turns the choice into `-msimd128` and `-mrelaxed-simd` for every unit, whatever flags a binding passes.
+Emscripten names each module after its capability, so both wasm32 modules can share the preset's build directory.
 
 The Linux and Android recipes below build the tests too, and `ctest --test-dir <build>` runs them under the emulator the table names; [test/README.md](test/README.md#wasm) covers the WASM runtimes.
 Set `NUMKONG_IN_QEMU=1` to shrink test shapes under emulation, and repetitions too in Python.
@@ -179,32 +201,34 @@ __WASM via Emscripten__
 
 ```sh
 source ~/emsdk/emsdk_env.sh
-cmake -B build-wasm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake
-cmake --build build-wasm --parallel
+cmake --preset wasm32_emscripten                                     # numkong-wasm32-v128
+cmake --build --preset wasm32_emscripten
 ```
 
-For the `v128relaxed` capability of the same 32-bit module, and for wasm64 — Memory64:
+For the `v128relaxed` module beside it, and for wasm64 — Memory64:
 
 ```sh
-cmake -B build-wasm-relaxed -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-emscripten.cmake -DNUMKONG_TARGET_ARCH=v128relaxed
-cmake --build build-wasm-relaxed --parallel
-cmake -B build-wasm64 -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm64-emscripten.cmake
-cmake --build build-wasm64 --parallel
+cmake --preset wasm32_emscripten -D NUMKONG_TARGET_ARCH=v128relaxed  # numkong-wasm32-v128relaxed
+cmake --build --preset wasm32_emscripten
+cmake --preset wasm64_emscripten                                     # numkong-wasm64-v128relaxed
+cmake --build --preset wasm64_emscripten
 ```
 
 __WASI__
 
 ```sh
-export WASI_SDK_PATH=~/wasi-sdk-24.0-x86_64-linux
-cmake -B build-wasi -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-wasi.cmake
-cmake --build build-wasi --parallel
+export WASI_SDK_PATH=~/wasi-sdk                                      # the default, when unset
+cmake --preset wasm32_wasi
+cmake --build --preset wasm32_wasi
+ctest --preset wasm32_wasi
 ```
 
 For a module over an imported shared memory, which hosts with WASI threads run:
 
 ```sh
-cmake -B build-wasi-threads -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-wasi-threads.cmake
-cmake --build build-wasi-threads --parallel
+cmake --preset wasm32_wasi_threads
+cmake --build --preset wasm32_wasi_threads
+ctest --preset wasm32_wasi_threads
 ```
 
 __iOS Simulator via Xcode__
@@ -390,9 +414,30 @@ npm run bench           # Run benchmarks
 
 ## Swift
 
+SwiftPM links the static library CMake builds: an XCFramework on Apple platforms and an [SE-0482](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0482-swiftpm-static-library-binary-target-non-apple-platforms.md) artifact bundle elsewhere.
+A checkout builds its own and points `NUMKONG_SWIFT_ARTIFACT` at it, relative to the package root, while every other consumer downloads the release's:
+
 ```sh
+cmake --preset swift && cmake --build --preset swift
+export NUMKONG_SWIFT_ARTIFACT=build_swift/CNumKong.xcframework # or build_swift/CNumKong.artifactbundle off Apple platforms
 swift build && swift test -v
 ```
+
+A package depending on this one by path, as USearch does, reads the same variable.
+The manifest reads it from the environment of whatever evaluates it, `swift`, `xcodebuild` or Xcode, so an Xcode started from the Dock does not see a shell's `export`.
+Each build adds its target to the artifact in `NUMKONG_SWIFT_DIRECTORY`, which defaults to the build directory, so a simulator slice joins the macOS one:
+
+```sh
+cmake --preset swift -B build_swift_iossim -D NUMKONG_SWIFT_DIRECTORY=$PWD/build_swift \
+    -D CMAKE_SYSTEM_NAME=iOS -D CMAKE_OSX_SYSROOT=iphonesimulator -D CMAKE_OSX_ARCHITECTURES=arm64 \
+    -D CMAKE_OSX_DEPLOYMENT_TARGET=15.0 -D nk_target_sme_compiles=0 -D nk_target_smef64_compiles=0 \
+    -D nk_target_smebi32_compiles=0
+cmake --build build_swift_iossim
+```
+
+The simulators lack the `__sme_memset` routine streaming SME code calls, hence the SME verdicts turned off.
+`.github/workflows/_swift.yml` builds every slice and triple the release ships, and `release.yml` writes their checksums into `Package.swift` before tagging.
+On Linux, `swift package experimental-audit-binary-artifact build_swift/CNumKong.artifactbundle` checks that the archive needs nothing beyond the C library.
 
 `Package.swift` declares `swift-tools-version:6.4`, so the package needs Swift 6.4 or newer.
 Running Swift on Linux requires a couple of extra steps, as the Swift compiler is not available in the default repositories.
@@ -421,7 +466,11 @@ source ~/.bashrc
 Alternatively, on Linux, the official Swift Docker image can be used for builds and tests:
 
 ```bash
-sudo docker run --rm -v "$PWD:/workspace" -w /workspace swift:6.4 /bin/bash -cl "swift build -c release --static-swift-stdlib && swift test -c release"
+sudo docker run --rm -v "$PWD:/workspace" -w /workspace swift:6.4 /bin/bash -cl "
+    apt-get update && apt-get install -y cmake &&
+    cmake --preset swift -B build_swift_linux -D CMAKE_C_COMPILER=clang -D CMAKE_CXX_COMPILER=clang++ &&
+    cmake --build build_swift_linux &&
+    NUMKONG_SWIFT_ARTIFACT=build_swift_linux/CNumKong.artifactbundle swift test -c release"
 ```
 
 ## GoLang

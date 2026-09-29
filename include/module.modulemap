@@ -1,8 +1,5 @@
-// One module, so that `-fmodule-name=CNumKong` makes every header textual in the package's own units,
-// which set their capability targets before including them.
+// One module over the library's public header, as the Swift artifacts and CMake installs ship it.
 module CNumKong {
-    config_macros [exhaustive] NUMKONG_HEADER_ONLY, NUMKONG_NATIVE_F16, NUMKONG_NATIVE_BF16
-
     header "numkong/numkong.h"
     export *
 }

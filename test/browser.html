@@ -89,7 +89,7 @@
       // Import WASM wrapper and Emscripten module
       import * as numkongWrapper from "../javascript/dist/esm/numkong-wasm.js";
       import { detectWasmSimdTier } from "../javascript/dist/esm/wasm-probes.js";
-      const { default: NumKongModule } = await import(`../build-wasm/numkong-wasm32-${detectWasmSimdTier()}.js`);
+      const { default: NumKongModule } = await import(`../build_wasm32_emscripten/numkong-wasm32-${detectWasmSimdTier()}.js`);
 
       const results = [];
       let capabilities = null;

@@ -41,11 +41,11 @@ async function loadNumKong(runtime) {
       // Load the wasm32 Emscripten build, the relaxed capability where both capabilities were built
       const wasmWrapper = await import("../javascript/dist/esm/numkong-wasm.js");
       const emscriptenModule = resolveModule([
-        "./build-wasm/numkong-wasm32-v128relaxed.js",
-        "./build-wasm/numkong-wasm32-v128.js",
+        "./build_wasm32_emscripten/numkong-wasm32-v128relaxed.js",
+        "./build_wasm32_emscripten/numkong-wasm32-v128.js",
       ]);
       if (!emscriptenModule) {
-        throw new Error("Missing build-wasm/numkong-wasm32-v128.js or build-wasm/numkong-wasm32-v128relaxed.js");
+        throw new Error("Missing build_wasm32_emscripten/numkong-wasm32-v128.js or numkong-wasm32-v128relaxed.js");
       }
       const EmModule = await import(new URL(`.${emscriptenModule}`, import.meta.url).href);
       const wasmInstance = await EmModule.default();
@@ -56,7 +56,7 @@ async function loadNumKong(runtime) {
     case "emscripten64": {
       // Load Emscripten wasm64 (memory64) build
       const wasmWrapper64 = await import("../javascript/dist/esm/numkong-wasm.js");
-      const EmModule64 = await import("../build-wasm64/numkong-wasm64-v128relaxed.js");
+      const EmModule64 = await import("../build_wasm64_emscripten/numkong-wasm64-v128relaxed.js");
       const wasmInstance64 = await EmModule64.default();
       wasmWrapper64.initWasm(wasmInstance64);
       return wasmWrapper64;
@@ -71,9 +71,9 @@ async function loadNumKong(runtime) {
         env: {},
       });
 
-      const wasiModule = resolveModule(["./build-wasi/numkong_cpu_test.wasm"]);
+      const wasiModule = resolveModule(["./build_wasm32_wasi/numkong_cpu_test.wasm"]);
       if (!wasiModule) {
-        throw new Error("Missing build-wasi/numkong_cpu_test.wasm");
+        throw new Error("Missing build_wasm32_wasi/numkong_cpu_test.wasm");
       }
       const wasmBytes = readFileSync(wasiModule);
 

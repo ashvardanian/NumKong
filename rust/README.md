@@ -76,15 +76,14 @@ numkong = { version = "7", features = ["parallel", "std"] }
 
 ## Compilation and Backend Selection
 
-The crate uses the `cc` build system to compile the C library automatically.
-All supported backends for the target architecture are compiled into a single binary and selected at runtime.
+The crate builds the C library through CMake, which probes the compiler for every backend of the target architecture, so the build machine needs CMake 3.21 or newer.
+All supported backends are compiled into a single binary and selected at runtime.
+Setting `NUMKONG_LIBRARY_DIR` to a directory holding a `numkong_static` archive CMake already built, like a parent project's build tree or a release's, skips the build and links that one.
 
 The two CPU features are `std`, which enables standard library support, and `parallel`, which adds host-side orchestration via ForkUnion and implies `std`.
 
 The `cuda` and `rocm` features add the NVIDIA and AMD GPU kernels, and may be combined.
-They build the library through CMake instead of `cc`, so the build machine needs CMake 3.21 or newer and `nvcc` or `hipcc`.
-The binary then links `libcudart` or `libamdhip64` from the toolkit CMake found.
-The `NUMKONG_TARGET_*` variables below steer only the `cc` build.
+They need `nvcc` or `hipcc` on the build machine, and the binary then links `libcudart` or `libamdhip64` from the toolkit CMake found.
 
 ```toml
 [dependencies]
@@ -95,19 +94,25 @@ Backend selection follows the target architecture.
 ARM gets NEON, SVE, and SME, with SME available on Linux, FreeBSD, and macOS.
 x86-64 gets Haswell (AVX2), Skylake/Icelake/Sapphire Rapids AVX-512 variants, and AMX on Linux and Windows only.
 RISC-V gets RVV backends on Linux and FreeBSD.
-WASM gets relaxed v128.
+WebAssembly gets the one SIMD capability the Rust target declares, as the next section shows.
+A backend the compiler cannot build is left out, and `NUMKONG_TARGET_ARCH=native` tunes the scaffolding for the build host, as described in [CONTRIBUTING.md](../CONTRIBUTING.md#target-baseline-policy).
 
-Individual backends can be disabled through environment variables.
-Any `NUMKONG_TARGET_*` variable set to `0` or `false` disables that backend.
-Backends not explicitly disabled are enabled by default for the target platform.
+### WebAssembly
+
+An engine validates a WebAssembly module whole, so the crate compiles one SIMD capability, the one the Rust target declares: `v128relaxed` under `-C target-feature=+relaxed-simd`, `v128` under `+simd128`, and the serial kernels alone without either, for engines that lack SIMD.
+A target declaring neither fails the build, rather than quietly falling back to the serial kernels.
+`build.rs` passes that capability to CMake as `NUMKONG_TARGET_ARCH`, beside the toolchain the target needs:
+
+| Rust target                                        | CMake toolchain                             | Needs                            |
+| :------------------------------------------------- | :------------------------------------------ | :------------------------------- |
+| `wasm32-wasip1`, `wasm32-wasip2`                   | `cmake/toolchain-wasm32-wasi.cmake`         | `WASI_SDK_PATH`, or `~/wasi-sdk` |
+| `wasm32-wasip1-threads`                            | `cmake/toolchain-wasm32-wasi-threads.cmake` | `WASI_SDK_PATH`, or `~/wasi-sdk` |
+| `wasm32-unknown-emscripten`                        | `cmake/toolchain-wasm32-emscripten.cmake`   | `EMSDK`                          |
+| `wasm32-unknown-unknown`, `wasm64-unknown-unknown` | none, as the library needs no libc          | a Clang with WebAssembly         |
 
 ```sh
-NUMKONG_TARGET_NEON=0 cargo build
-NUMKONG_TARGET_SVE=0 NUMKONG_TARGET_SME=0 cargo build
+RUSTFLAGS="-C target-feature=+relaxed-simd" cargo build --target wasm32-wasip1
 ```
-
-If a backend fails to compile, the build system automatically disables it and retries with the remaining backends.
-A warning is emitted for each disabled backend.
 
 ## Runtime Dispatch and Capabilities
 
