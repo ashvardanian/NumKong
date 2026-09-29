@@ -99,7 +99,7 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "avx512bf16", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-/** Dot product of BF16 vectors, accumulated in F32 with `VDPBF16PS`. */
+/** Dot product of BF16 vectors, accumulated in F32 with @c VDPBF16PS. */
 NUMKONG_INLINE void nk_dot_bf16_through_f32_genoa_(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
                                                    nk_size_t count_scalars, nk_f32_t *result) {
     __m512i a_bf16x32, b_bf16x32;

@@ -227,7 +227,7 @@ func kernel(_ kernel: Kernel) throws {
 @Test func foreignPackThrows() throws {
     let a = try Tensor<Float32>.fromArray([1, 2, 3, 4, 5, 6], rows: 2, cols: 3)
     let packed = try a.packForDots()
-    // Every capability stamps the packs it writes, so bytes no capability wrote are refused rather than read.
+    // Every capability stamps its packs, so bytes no capability wrote are refused rather than read.
     UnsafeMutableRawPointer(mutating: packed.rawBuffer.baseAddress!)
         .initializeMemory(as: UInt8.self, repeating: 0xFF, count: packed.byteCount)
     #expect(throws: NumKongMatrixError.kernelFailed) { try a.dotsPacked(packed) }

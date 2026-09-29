@@ -6,7 +6,7 @@
  *
  *  Each array is one function of type `() → v128`, which `WebAssembly.validate` accepts exactly
  *  where the engine implements that capability. A WASI-hosted module imports its `nk_has_v128` and
- *  `nk_has_relaxed` probes from a host that validates these bytes, so both agree on what it can run.
+ *  `nk_has_relaxed` probes from a host that validates these bytes, so both agree on what runs.
  */
 
 /** The one `WebAssembly` member this module calls; the package compiles without the DOM typings. */

@@ -56,7 +56,7 @@ extern "C" {
             if (indices[index - 1] >= indices[index]) return 0;                                                       \
         return 1;                                                                                                     \
     }                                                                                                                 \
-    /** Intersects two ascending index arrays, merging or galloping through the longer one. */                        \
+    /* Intersects two ascending index arrays, merging or galloping through the longer one. */                         \
     NUMKONG_INLINE void nk_sparse_intersect_##input_type##_(                                                          \
         nk_##input_type##_t const *shorter, nk_##input_type##_t const *longer, nk_size_t shorter_length,              \
         nk_size_t longer_length, nk_##input_type##_t *result, nk_size_t *count) {                                     \
@@ -103,7 +103,7 @@ extern "C" {
     }
 
 #define nk_define_sparse_dot_helpers_(input_type, weight_type, accumulator_type, load_and_convert)         \
-    /** Sums the weight products over the indices two ascending index arrays share. */                     \
+    /* Sums the weight products over the indices two ascending index arrays share. */                      \
     NUMKONG_INLINE void nk_sparse_dot_##input_type##weight_type##_(                                        \
         nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_##weight_type##_t const *a_weights, \
         nk_##weight_type##_t const *b_weights, nk_size_t a_length, nk_size_t b_length,                     \

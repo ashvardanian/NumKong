@@ -545,7 +545,7 @@ NUMKONG_INLINE void nk_reduce_moments_f32_haswell_gather_(             //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-/** Sums and squares @p count F32 values @p stride_bytes apart, in chunks the vector accumulators hold. */
+/** Sums and squares @p count F32 values @p stride_bytes apart, in chunks the accumulators hold. */
 NUMKONG_INLINE void nk_reduce_moments_f32_haswell_chunked_(nk_f32_t const *data_ptr, nk_size_t count,
                                                            nk_size_t stride_bytes, nk_f64_t *sum_ptr,
                                                            nk_f64_t *sumsq_ptr) {
@@ -686,7 +686,7 @@ NUMKONG_API nk_status_t nk_reduce_minmax_f32_haswell(                  //
                 *min_value_ptr = min_value, *min_index_ptr = min_index, *max_value_ptr = max_value,
                 *max_index_ptr = max_index;
             else {
-                // An all-NaN earlier chunk has no index, so an equal infinity in a later one still wins
+                // An all-NaN earlier chunk has no index, so a later equal infinity still wins
                 if (min_value < *min_value_ptr || (*min_index_ptr == NUMKONG_SIZE_MAX && min_index != NUMKONG_SIZE_MAX))
                     *min_value_ptr = min_value, *min_index_ptr = start + min_index;
                 if (max_value > *max_value_ptr || (*max_index_ptr == NUMKONG_SIZE_MAX && max_index != NUMKONG_SIZE_MAX))
@@ -2577,7 +2577,7 @@ NUMKONG_INLINE void nk_reduce_moments_e4m3_haswell_strided_(               //
     *sum_ptr = nk_reduce_add_f32x8_haswell_(sum_f32x8), *sumsq_ptr = nk_reduce_add_f32x8_haswell_(sumsq_f32x8);
 }
 
-/** Sums and squares @p count E4M3 values @p stride_bytes apart, in chunks the vector accumulators hold. */
+/** Sums and squares @p count E4M3 values @p stride_bytes apart, in chunks the accumulators hold. */
 NUMKONG_INLINE void nk_reduce_moments_e4m3_haswell_chunked_(nk_e4m3_t const *data_ptr, nk_size_t count,
                                                             nk_size_t stride_bytes, nk_f32_t *sum_ptr,
                                                             nk_f32_t *sumsq_ptr) {
@@ -3468,7 +3468,7 @@ NUMKONG_INLINE void nk_reduce_moments_bf16_haswell_contiguous_( //
     *sum_ptr = nk_reduce_add_f32x8_haswell_(sum_f32x8), *sumsq_ptr = nk_reduce_add_f32x8_haswell_(sumsq_f32x8);
 }
 
-/** Sums and squares @p count BF16 values @p stride_bytes apart, in chunks the vector accumulators hold. */
+/** Sums and squares @p count BF16 values @p stride_bytes apart, in chunks the accumulators hold. */
 NUMKONG_INLINE void nk_reduce_moments_bf16_haswell_chunked_(nk_bf16_t const *data_ptr, nk_size_t count,
                                                             nk_size_t stride_bytes, nk_f32_t *sum_ptr,
                                                             nk_f32_t *sumsq_ptr) {

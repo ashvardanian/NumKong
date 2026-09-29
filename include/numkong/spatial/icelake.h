@@ -43,7 +43,7 @@ extern "C" {
                    "bmi", "bmi2")
 #endif
 
-/** @brief Squared Euclidean distance between two i8 vectors. */
+/** Squared Euclidean distance between two i8 vectors. */
 NUMKONG_INLINE void nk_squared_distance_i8_icelake_(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result) {
     // Optimized i8 L2-squared using saturating subtract + DPWSSD
     //
@@ -197,7 +197,7 @@ nk_angular_i8_icelake_cycle:
 }
 #endif // NUMKONG_TARGET_ICELAKE
 
-/** @brief Squared Euclidean distance between two u8 vectors. */
+/** Squared Euclidean distance between two u8 vectors. */
 NUMKONG_INLINE void nk_squared_distance_u8_icelake_(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
     __m512i distance_sq_low_i32x16 = _mm512_setzero_si512();
     __m512i distance_sq_high_i32x16 = _mm512_setzero_si512();
@@ -301,7 +301,7 @@ nk_angular_u8_icelake_cycle:
 
 #endif // NUMKONG_TARGET_ICELAKE
 
-/** @brief Squared Euclidean distance between two i4 vectors. */
+/** Squared Euclidean distance between two i4 vectors. */
 NUMKONG_INLINE void nk_squared_distance_i4_icelake_(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n,
                                                     nk_u32_t *result) {
     // i4 values are packed as nibbles: two 4-bit signed values per byte.
@@ -498,7 +498,7 @@ nk_angular_i4_icelake_cycle:
 
 #endif // NUMKONG_TARGET_ICELAKE
 
-/** @brief Squared Euclidean distance between two u4 vectors. */
+/** Squared Euclidean distance between two u4 vectors. */
 NUMKONG_INLINE void nk_squared_distance_u4_icelake_(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n,
                                                     nk_u32_t *result) {
     // u4 values are packed as nibbles: two 4-bit unsigned values per byte.
@@ -640,7 +640,7 @@ nk_angular_u4_icelake_cycle:
 
 #endif // NUMKONG_TARGET_ICELAKE
 
-/** @brief Squared Euclidean distance between two e4m3 vectors. */
+/** Squared Euclidean distance between two e4m3 vectors. */
 NUMKONG_INLINE void nk_squared_distance_e4m3_icelake_(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
                                                       nk_f32_t *result) {
     // E4M3 squared Euclidean distance via octave VNNI.
@@ -931,7 +931,7 @@ nk_angular_e4m3_icelake_cycle:
 
 #endif // NUMKONG_TARGET_ICELAKE
 
-/** @brief Squared Euclidean distance between two e2m3 vectors. */
+/** Squared Euclidean distance between two e2m3 vectors. */
 NUMKONG_INLINE void nk_squared_distance_e2m3_icelake_(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
                                                       nk_f32_t *result) {
     // E2M3 squared Euclidean distance via VPDPBUSD integer MAC.
@@ -1052,7 +1052,7 @@ nk_angular_e2m3_icelake_cycle:
 
 #endif // NUMKONG_TARGET_ICELAKE
 
-/** @brief Squared Euclidean distance between two e3m2 vectors. */
+/** Squared Euclidean distance between two e3m2 vectors. */
 NUMKONG_INLINE void nk_squared_distance_e3m2_icelake_(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
                                                       nk_f32_t *result) {
     // E3M2 squared Euclidean distance via direct difference squaring.

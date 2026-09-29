@@ -85,8 +85,8 @@ func CapabilitiesEnabled() Capability {
 }
 
 // CapabilitiesEnable makes wanted the enabled set, clamped to [CapabilitiesDetected] and
-// [CapabilitiesCompiled] and keeping [CapSerial], and returns the set that took effect. A matrix
-// packed before the call must be packed again, since packed kernels refuse another capability's layout.
+// [CapabilitiesCompiled] and keeping [CapSerial], and returns the set that took effect.
+// Repack matrices packed before the call, since packed kernels refuse another capability's layout.
 func CapabilitiesEnable(wanted Capability) Capability {
 	mask := wanted&available() | CapSerial
 	enabled.Store(uint64(mask))

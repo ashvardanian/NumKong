@@ -37,7 +37,7 @@ extern "C" {
                    "bmi", "bmi2")
 #endif
 
-/** @brief Squared Euclidean distance between two e4m3 vectors. */
+/** Squared Euclidean distance between two e4m3 vectors. */
 NUMKONG_INLINE void nk_squared_distance_e4m3_diamond_(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
                                                       nk_f32_t *result) {
     __m512 a_sq_f32x16 = _mm512_setzero_ps();
@@ -117,7 +117,7 @@ nk_angular_e4m3_diamond_cycle:
     return nk_success_k;
 }
 
-/** @brief Squared Euclidean distance between two e5m2 vectors. */
+/** Squared Euclidean distance between two e5m2 vectors. */
 NUMKONG_INLINE void nk_squared_distance_e5m2_diamond_(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
                                                       nk_f32_t *result) {
     __m512 a_sq_f32x16 = _mm512_setzero_ps();
@@ -197,7 +197,7 @@ nk_angular_e5m2_diamond_cycle:
     return nk_success_k;
 }
 
-/** @brief Squared Euclidean distance between two f16 vectors. */
+/** Squared Euclidean distance between two f16 vectors. */
 NUMKONG_INLINE void nk_squared_distance_f16_diamond_(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
                                                      nk_f32_t *result) {
     __m512 a_sq_f32x16 = _mm512_setzero_ps();

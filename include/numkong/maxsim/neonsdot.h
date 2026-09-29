@@ -153,8 +153,8 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f16_neonsdot( //
     return nk_success_k;
 }
 
-/** Coarse i8 kernel for NEONSDOT as an @c nk_maxsim_coarse_dots_t. Uses vdotq_s32 (signed × signed),
- *  so no XOR bias. 4Q × 4D register tiling with 16 int32x4_t accumulators. */
+/** Coarse i8 kernel for NEONSDOT as an @c nk_maxsim_coarse_dots_t. Uses vdotq_s32 (signed ×
+ *  signed), so no XOR bias. 4Q × 4D register tiling with 16 int32x4_t accumulators. */
 NUMKONG_INLINE void nk_maxsim_coarse_dots_neonsdot_(      //
     nk_i8_t const *query_i8, nk_i8_t const *document_i8,  //
     nk_maxsim_vector_metadata_t const *document_metadata, //
@@ -219,7 +219,8 @@ NUMKONG_INLINE void nk_maxsim_coarse_dots_neonsdot_(      //
             for (nk_size_t query_tile_index = 0; query_tile_index < 4; query_tile_index++)
                 for (nk_size_t document_tile_index = 0; document_tile_index < 4; document_tile_index++)
                     dots[(query_block_start_index + query_tile_index) * document_count + document_block_start_index +
-                         document_tile_index] = vaddvq_s32(accumulator_tiles_i32x4[query_tile_index][document_tile_index]);
+                         document_tile_index] =
+                        vaddvq_s32(accumulator_tiles_i32x4[query_tile_index][document_tile_index]);
         }
 
         // Document tail: 4Q × 1D

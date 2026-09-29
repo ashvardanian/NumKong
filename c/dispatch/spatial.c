@@ -2,7 +2,7 @@
  *  @file c/dispatch/spatial.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
- *  @brief The spatial distance capability lists, @c _best dispatch points and @c nk_spatial_find_kernel.
+ *  @brief Spatial distances: capability lists, @c _best dispatch points, @c nk_spatial_find_kernel.
  */
 #include "dispatch.h"
 #include "numkong/spatial.h"

@@ -267,7 +267,7 @@ NUMKONG_API nk_status_t nk_dots_packed_f32_rvv(nk_f32_t const *a, void const *b_
 
 #endif // NUMKONG_TARGET_RVV
 
-/** Dots of rows [row_start, row_start + row_count) against themselves and every later row. */
+/** Dots of @p row_count rows from @p row_start against themselves and every later row. */
 NUMKONG_INLINE void nk_dots_symmetric_f32_rvv_upper_(nk_f32_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                                      nk_size_t stride_in_bytes, nk_f64_t *result,
                                                      nk_size_t result_stride_in_bytes, nk_size_t row_start,
@@ -414,7 +414,7 @@ NUMKONG_API nk_status_t nk_dots_packed_f64_rvv(nk_f64_t const *a, void const *b_
 }
 #endif // NUMKONG_TARGET_RVV
 
-/** Dots of rows [row_start, row_start + row_count) against themselves and every later row. */
+/** Dots of @p row_count rows from @p row_start against themselves and every later row. */
 NUMKONG_INLINE void nk_dots_symmetric_f64_rvv_upper_(nk_f64_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                                      nk_size_t stride_in_bytes, nk_f64_t *result,
                                                      nk_size_t result_stride_in_bytes, nk_size_t row_start,
@@ -699,7 +699,7 @@ NUMKONG_API nk_status_t nk_dots_packed_e2m3_rvv(nk_e2m3_t const *a, void const *
 
 #endif // NUMKONG_TARGET_RVV
 
-/** Dots of rows [row_start, row_start + row_count) against themselves and every later row. */
+/** Dots of @p row_count rows from @p row_start against themselves and every later row. */
 NUMKONG_INLINE void nk_dots_symmetric_e2m3_rvv_upper_(nk_e2m3_t const *vectors, nk_size_t vectors_count,
                                                       nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
                                                       nk_size_t result_stride_in_bytes, nk_size_t row_start,
@@ -993,7 +993,7 @@ NUMKONG_API nk_status_t nk_dots_packed_e2m1_rvv(nk_e2m1x2_t const *a, void const
 
 #endif // NUMKONG_TARGET_RVV
 
-/** Dots of rows [row_start, row_start + row_count) against themselves and every later row. */
+/** Dots of @p row_count rows from @p row_start against themselves and every later row. */
 NUMKONG_INLINE void nk_dots_symmetric_e2m1_rvv_upper_(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
                                                       nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
                                                       nk_size_t result_stride_in_bytes, nk_size_t row_start,
@@ -1278,7 +1278,7 @@ NUMKONG_API nk_status_t nk_dots_packed_e3m2_rvv(nk_e3m2_t const *a, void const *
 
 #endif // NUMKONG_TARGET_RVV
 
-/** Dots of rows [row_start, row_start + row_count) against themselves and every later row. */
+/** Dots of @p row_count rows from @p row_start against themselves and every later row. */
 NUMKONG_INLINE void nk_dots_symmetric_e3m2_rvv_upper_(nk_e3m2_t const *vectors, nk_size_t vectors_count,
                                                       nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
                                                       nk_size_t result_stride_in_bytes, nk_size_t row_start,
@@ -1551,7 +1551,7 @@ NUMKONG_API nk_status_t nk_dots_packed_bf16_rvv(nk_bf16_t const *a, void const *
 
 #endif // NUMKONG_TARGET_RVV
 
-/** Dots of rows [row_start, row_start + row_count) against themselves and every later row. */
+/** Dots of @p row_count rows from @p row_start against themselves and every later row. */
 NUMKONG_INLINE void nk_dots_symmetric_bf16_rvv_upper_(nk_bf16_t const *vectors, nk_size_t vectors_count,
                                                       nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
                                                       nk_size_t result_stride_in_bytes, nk_size_t row_start,
@@ -1789,7 +1789,7 @@ NUMKONG_API nk_status_t nk_dots_packed_f16_rvv(nk_f16_t const *a, void const *b_
 
 #endif // NUMKONG_TARGET_RVV
 
-/** Dots of rows [row_start, row_start + row_count) against themselves and every later row. */
+/** Dots of @p row_count rows from @p row_start against themselves and every later row. */
 NUMKONG_INLINE void nk_dots_symmetric_f16_rvv_upper_(nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                                      nk_size_t stride_in_bytes, nk_f32_t *result,
                                                      nk_size_t result_stride_in_bytes, nk_size_t row_start,
@@ -2032,7 +2032,7 @@ NUMKONG_API nk_status_t nk_dots_packed_i8_rvv(nk_i8_t const *a, void const *b_pa
 
 #endif // NUMKONG_TARGET_RVV
 
-/** Dots of rows [row_start, row_start + row_count) against themselves and every later row. */
+/** Dots of @p row_count rows from @p row_start against themselves and every later row. */
 NUMKONG_INLINE void nk_dots_symmetric_i8_rvv_upper_(nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                                     nk_size_t stride_in_bytes, nk_i32_t *result,
                                                     nk_size_t result_stride_in_bytes, nk_size_t row_start,
@@ -2273,7 +2273,7 @@ NUMKONG_API nk_status_t nk_dots_packed_u8_rvv(nk_u8_t const *a, void const *b_pa
 
 #endif // NUMKONG_TARGET_RVV
 
-/** Dots of rows [row_start, row_start + row_count) against themselves and every later row. */
+/** Dots of @p row_count rows from @p row_start against themselves and every later row. */
 NUMKONG_INLINE void nk_dots_symmetric_u8_rvv_upper_(nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                                     nk_size_t stride_in_bytes, nk_u32_t *result,
                                                     nk_size_t result_stride_in_bytes, nk_size_t row_start,
@@ -2572,7 +2572,7 @@ NUMKONG_API nk_status_t nk_dots_packed_e4m3_rvv(nk_e4m3_t const *a, void const *
 
 #endif // NUMKONG_TARGET_RVV
 
-/** Dots of rows [row_start, row_start + row_count) against themselves and every later row. */
+/** Dots of @p row_count rows from @p row_start against themselves and every later row. */
 NUMKONG_INLINE void nk_dots_symmetric_e4m3_rvv_upper_(nk_e4m3_t const *vectors, nk_size_t vectors_count,
                                                       nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
                                                       nk_size_t result_stride_in_bytes, nk_size_t row_start,
@@ -2896,7 +2896,7 @@ NUMKONG_API nk_status_t nk_dots_packed_e5m2_rvv(nk_e5m2_t const *a, void const *
 
 #endif // NUMKONG_TARGET_RVV
 
-/** Dots of rows [row_start, row_start + row_count) against themselves and every later row. */
+/** Dots of @p row_count rows from @p row_start against themselves and every later row. */
 NUMKONG_INLINE void nk_dots_symmetric_e5m2_rvv_upper_(nk_e5m2_t const *vectors, nk_size_t vectors_count,
                                                       nk_size_t depth, nk_size_t stride_in_bytes, nk_f32_t *result,
                                                       nk_size_t result_stride_in_bytes, nk_size_t row_start,

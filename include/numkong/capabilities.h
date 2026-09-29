@@ -230,9 +230,9 @@ typedef nk_u64_t nk_capability_t;
 #define nk_cap_powervsx_k    ((nk_capability_t)1 << 33)
 #define nk_cap_loongsonasx_k ((nk_capability_t)1 << 34)
 
-/** GPU capabilities, reported for one device by each vendor's `nk_<vendor>_capabilities_*` functions, and
- *  grouped by vendor above bit 47, leaving room for more CPU capabilities and more per vendor.
- *  Each vendor's baseline runs on every device of that vendor, as @c serial runs on every CPU. */
+/** GPU capabilities, as each vendor's `nk_<vendor>_capabilities_*` functions report them for one
+ *  device, grouped by vendor above bit 47 to leave room for more CPU capabilities and more per
+ *  vendor. Each vendor's baseline runs on all its devices, as @c serial runs on every CPU. */
 #define nk_cap_cuda_k         ((nk_capability_t)1 << 48)
 #define nk_cap_ampere_k       ((nk_capability_t)1 << 49)
 #define nk_cap_ada_k          ((nk_capability_t)1 << 50)
@@ -1129,8 +1129,8 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_wasm_(void) {
     if (nk_has_relaxed()) caps |= nk_cap_v128_k | nk_cap_v128relaxed_k;
     return caps;
 #else
-    // The engine validated every opcode this module carries
-    // before running it, so the compiled capabilities are the detected ones.
+    // The engine validated every opcode this module carries before running it,
+    // so the compiled capabilities are the detected ones.
     return nk_cap_serial_k | (nk_cap_v128_k * NUMKONG_TARGET_V128) |
            (nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED);
 #endif
@@ -1290,8 +1290,9 @@ NUMKONG_API nk_size_t nk_name_capabilities(nk_capability_t capabilities, char *b
 
 #endif
 
-/*  Each vendor's helpers answer from its runtime where the translation unit is compiled for that vendor, and
- *  report no devices elsewhere: the library's host-only units include neither runtime, as the two clash. */
+/*  Each vendor's helpers answer from its runtime where the translation unit is compiled for that
+ *  vendor, and report no devices elsewhere: the library's host-only units include neither runtime,
+ *  as the two clash. */
 
 /** How many CUDA devices the runtime sees, or zero. */
 NUMKONG_INLINE nk_size_t nk_cuda_count_devices_(void) {
@@ -1378,7 +1379,8 @@ NUMKONG_INLINE nk_status_t nk_metal_capabilities_detected_(nk_size_t device, nk_
     return nk_success_k;
 }
 
-/** The CUDA capabilities this binary holds kernels for: the baseline and what `NUMKONG_TARGET_*` enables. */
+/** The CUDA capabilities this binary holds kernels for: the baseline and what
+ *  `NUMKONG_TARGET_*` enables. */
 NUMKONG_CONSTEXPR nk_capability_t nk_cuda_capabilities_compiled_(void) {
     return (nk_cap_cuda_k * NUMKONG_ARCH_CUDA_) | (nk_cap_ampere_k * NUMKONG_TARGET_AMPERE) |
            (nk_cap_ada_k * NUMKONG_TARGET_ADA) | (nk_cap_hopper_k * NUMKONG_TARGET_HOPPER) |
@@ -1397,16 +1399,17 @@ NUMKONG_CONSTEXPR nk_capability_t nk_metal_capabilities_compiled_(void) {
            (nk_cap_apple10_k * NUMKONG_TARGET_APPLE10);
 }
 
-/*  GPU capabilities, per vendor, of one device named by that runtime's own ordinal: the index `cudaSetDevice` or
- *  `hipSetDevice` takes, or the position in Metal's device list. Each vendor has four queries:
+/*  GPU capabilities, per vendor, of one device named by its runtime's own ordinal: the index that
+ *  @c cudaSetDevice or @c hipSetDevice takes, or the position in Metal's device list. Each vendor
+ *  has four queries:
  *
- *  - @b nk_cuda_count_devices() — how many devices the runtime sees, zero without its kernels in this binary.
+ *  - @b nk_cuda_count_devices() — how many devices the runtime sees, zero without its kernels.
  *  - @b nk_cuda_capabilities_detected() — what one device runs.
  *  - @b nk_cuda_capabilities_compiled() — what this binary holds kernels for.
- *  - @b nk_cuda_capabilities_enabled() — both at once: the mask to pass every dispatch point for that device.
+ *  - @b nk_cuda_capabilities_enabled() — both at once: the mask for its dispatch points.
  *
- *  ROCm and Metal have the same four. Nothing is cached, as the runtimes answer from their own state: ask once
- *  per device and keep the mask. */
+ *  ROCm and Metal have the same four. Nothing is cached, as the runtimes answer from their own
+ *  state: ask once per device and keep the mask. */
 
 /**
  *  @brief Counts the CUDA devices the process sees.
@@ -1418,15 +1421,15 @@ NUMKONG_API nk_status_t nk_cuda_count_devices(nk_size_t *count);
  *  @brief Reports the capabilities CUDA device @p device runs.
  *  @param[in] device The CUDA runtime's ordinal, like @c cudaSetDevice takes.
  *  @param[out] capabilities The CUDA baseline and what the device runs, zero on failure.
- *  @return @c nk_success_k, @c nk_missing_gpu_k past the last device, or @c nk_device_code_mismatch_k when the
- *      runtime fails to answer.
+ *  @return @c nk_success_k, @c nk_missing_gpu_k past the last device, or
+ *      @c nk_device_code_mismatch_k when the runtime fails to answer.
  */
 NUMKONG_API nk_status_t nk_cuda_capabilities_detected(nk_size_t device, nk_capability_t *capabilities);
 
 /** Reports the CUDA capabilities this binary holds kernels for. */
 NUMKONG_API nk_status_t nk_cuda_capabilities_compiled(nk_capability_t *capabilities);
 
-/** @copydoc nk_cuda_capabilities_detected, narrowed to the capabilities this binary holds kernels for. */
+/** @copydoc nk_cuda_capabilities_detected, narrowed to what this binary holds kernels for. */
 NUMKONG_API nk_status_t nk_cuda_capabilities_enabled(nk_size_t device, nk_capability_t *capabilities);
 
 /** @copydoc nk_cuda_count_devices, for ROCm. */
@@ -1444,7 +1447,7 @@ NUMKONG_API nk_status_t nk_rocm_capabilities_enabled(nk_size_t device, nk_capabi
 /** @copydoc nk_cuda_count_devices, for Metal. */
 NUMKONG_API nk_status_t nk_metal_count_devices(nk_size_t *count);
 
-/** @copydoc nk_cuda_capabilities_detected, for Metal, whose devices count in the order the system lists them. */
+/** @copydoc nk_cuda_capabilities_detected, for Metal, whose devices count in system order. */
 NUMKONG_API nk_status_t nk_metal_capabilities_detected(nk_size_t device, nk_capability_t *capabilities);
 
 /** @copydoc nk_cuda_capabilities_compiled, for Metal. */

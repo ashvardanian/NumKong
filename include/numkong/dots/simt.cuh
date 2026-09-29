@@ -57,7 +57,8 @@ extern "C" {
 #endif
 
 /*  The baseline tiles' launch shape, the same on every vendor. AMD blocks stay whole multiples of
- *  64 threads, so they hold whole wavefronts of either width. */
+ *  64 threads, so they hold whole wavefronts of either width. The grid side counts the threads
+ *  along each side of a tile, and each block of a device pack holds 8 groups of 32 lanes. */
 #pragma region Configuration
 
 enum {
@@ -66,13 +67,13 @@ enum {
     nk_cross_thread_tile_simt_k = 4,
     nk_cross_slab_simt_k = 16,
     nk_cross_loads_simt_k = nk_cross_tile_simt_k * nk_cross_slab_simt_k / nk_cross_threads_simt_k,
-    nk_cross_grid_side_simt_k = nk_cross_tile_simt_k / nk_cross_thread_tile_simt_k, // threads along each side
+    nk_cross_grid_side_simt_k = nk_cross_tile_simt_k / nk_cross_thread_tile_simt_k,
     // Both baseline tiles launch that shape, named after each tile for the generators' pastes.
     nk_cross_threads_simt_f64_k = nk_cross_threads_simt_k,
     nk_cross_tile_simt_f64_k = nk_cross_tile_simt_k,
     nk_cross_threads_simt_b32_k = nk_cross_threads_simt_k,
     nk_cross_tile_simt_b32_k = nk_cross_tile_simt_k,
-    nk_cross_pack_groups_k = 8, // 32-lane groups per block of a device pack
+    nk_cross_pack_groups_k = 8,
 };
 
 nk_static_assert_(nk_cross_grid_side_simt_k *nk_cross_grid_side_simt_k == nk_cross_threads_simt_k,
@@ -83,64 +84,140 @@ nk_static_assert_(nk_cross_threads_simt_k % nk_cross_slab_simt_k == 0 && nk_cros
 
 /** How a tile accumulates, matching the serial backends, and how a B32 tile's word holds depth. */
 typedef enum {
-    nk_cross_accumulation_f64_k,   // one F64 FMA per product, for F32 inputs
-    nk_cross_accumulation_dot2_k,  // Ogita-Rump-Oishi Dot2: TwoProd and TwoSum, for F64 inputs
-    nk_cross_accumulation_f32_k,   // one element per word as F32, folded by one F32 FMA
-    nk_cross_accumulation_f16x2_k, // two elements per word as F16, folded by one dot2 into F32
-    nk_cross_accumulation_i8x4_k,  // four signed bytes per word, folded by one dot4 into wrapping I32
-    nk_cross_accumulation_u8x4_k,  // four unsigned bytes per word, folded by one dot4 into wrapping U32
-    nk_cross_accumulation_i4x4_k,  // four signed nibbles widened to bytes, folded as `i8x4`
-    nk_cross_accumulation_u4x4_k,  // four unsigned nibbles widened to bytes, folded as `u8x4`
-    nk_cross_accumulation_i4x8_k,  // eight signed nibbles as packed, folded by one dot8 into wrapping I32
-    nk_cross_accumulation_u4x8_k,  // eight unsigned nibbles as packed, folded by one dot8 into wrapping U32
+
+    /** One F64 FMA per product, for F32 inputs. */
+    nk_cross_accumulation_f64_k,
+
+    /** Ogita-Rump-Oishi Dot2: TwoProd and TwoSum, for F64 inputs. */
+    nk_cross_accumulation_dot2_k,
+
+    /** One element per word as F32, folded by one F32 FMA. */
+    nk_cross_accumulation_f32_k,
+
+    /** Two elements per word as F16, folded by one dot2 into F32. */
+    nk_cross_accumulation_f16x2_k,
+
+    /** Four signed bytes per word, folded by one dot4 into wrapping I32. */
+    nk_cross_accumulation_i8x4_k,
+
+    /** Four unsigned bytes per word, folded by one dot4 into wrapping U32. */
+    nk_cross_accumulation_u8x4_k,
+
+    /** Four signed nibbles widened to bytes, folded as @c i8x4. */
+    nk_cross_accumulation_i4x4_k,
+
+    /** Four unsigned nibbles widened to bytes, folded as @c u8x4. */
+    nk_cross_accumulation_u4x4_k,
+
+    /** Eight signed nibbles as packed, folded by one dot8 into wrapping I32. */
+    nk_cross_accumulation_i4x8_k,
+
+    /** Eight unsigned nibbles as packed, folded by one dot8 into wrapping U32. */
+    nk_cross_accumulation_u4x8_k,
 } nk_cross_accumulation_t;
 
 /** Which outputs a tile writes. */
 typedef enum {
-    nk_cross_triangle_full_k,  // every output, for `packed`
-    nk_cross_triangle_upper_k, // the upper triangle with its diagonal, for `symmetric`
+
+    /** Every output, for @c packed. */
+    nk_cross_triangle_full_k,
+
+    /** The upper triangle with its diagonal, for @c symmetric. */
+    nk_cross_triangle_upper_k,
 } nk_cross_triangle_t;
 
 /** What a tile turns each dot product into. */
 typedef enum {
-    nk_cross_metric_dot_k,       // the dot product itself
-    nk_cross_metric_angular_k,   // 1 − dot / (‖a‖ ‖b‖), clamped at 0
-    nk_cross_metric_euclidean_k, // √(‖a‖² + ‖b‖² − 2 · dot), clamped at 0
+
+    /** The dot product itself. */
+    nk_cross_metric_dot_k,
+
+    /** 1 − dot / (‖a‖ ‖b‖), clamped at 0. */
+    nk_cross_metric_angular_k,
+
+    /** √(‖a‖² + ‖b‖² − 2 · dot), clamped at 0. */
+    nk_cross_metric_euclidean_k,
 } nk_cross_metric_t;
 
 /** Everything one launch shares, passed by value as the kernels' only argument. */
 typedef struct {
-    unsigned char const *a; // row-major A, or the vectors for `symmetric`
-    unsigned char const *b; // packed B rows past the header, or the vectors again for `symmetric`
-    void *c;                // row-major output, indexed by absolute row
-    nk_size_t row_start;    // first output row
-    nk_size_t row_end;      // one past the last output row
-    nk_size_t column_count; // output columns, the rows of B
-    nk_size_t depth_bytes;  // bytes of depth per row, past which A and B read as zeros
-    nk_size_t depth;        // elements of depth per row, which the baseline tiles count in
-    nk_size_t a_stride;     // bytes between rows of A
-    nk_size_t b_stride;     // bytes between rows of B
-    nk_size_t c_stride;     // bytes between rows of C
-    nk_size_t depth_slabs;  // 64-byte slabs of depth, which the tensor tiles count in
-    nk_size_t column_tiles; // output tiles per row of tiles
-    nk_size_t tiles;        // output tiles in all, which the blocks walk with a stride of the grid
-    void const *b_norms;    // column norms past the packed rows, which only a `packed` metric reads
+
+    /** Row-major A, or the vectors for @c symmetric. */
+    unsigned char const *a;
+
+    /** Packed B rows past the header, or the vectors again for @c symmetric. */
+    unsigned char const *b;
+
+    /** Row-major output, indexed by absolute row. */
+    void *c;
+
+    /** First output row. */
+    nk_size_t row_start;
+
+    /** One past the last output row. */
+    nk_size_t row_end;
+
+    /** Output columns, the rows of B. */
+    nk_size_t column_count;
+
+    /** Bytes of depth per row, past which A and B read as zeros. */
+    nk_size_t depth_bytes;
+
+    /** Elements of depth per row, which the baseline tiles count in. */
+    nk_size_t depth;
+
+    /** Bytes between rows of A. */
+    nk_size_t a_stride;
+
+    /** Bytes between rows of B. */
+    nk_size_t b_stride;
+
+    /** Bytes between rows of C. */
+    nk_size_t c_stride;
+
+    /** 64-byte slabs of depth, which the tensor tiles count in. */
+    nk_size_t depth_slabs;
+
+    /** Output tiles per row of tiles. */
+    nk_size_t column_tiles;
+
+    /** Output tiles in all, which the blocks walk with a stride of the grid. */
+    nk_size_t tiles;
+
+    /** Column norms past the packed rows, which only a @c packed metric reads. */
+    void const *b_norms;
 } nk_cross_tile_arguments_t;
 
 /** What the accumulators hold and how they reach the output. */
 typedef enum {
-    nk_cross_epilogue_f32_k,        // F32 sums, stored times the output scale
-    nk_cross_epilogue_i32_k,        // integer sums, stored as they are
-    nk_cross_epilogue_i32_to_f32_k, // integer sums of scaled codes, converted and stored times the output scale
-    nk_cross_epilogue_offset_u32_k, // integer sums of U8 codes offset by −128, restored from the byte sums
+
+    /** F32 sums, stored times the output scale. */
+    nk_cross_epilogue_f32_k,
+
+    /** Integer sums, stored as they are. */
+    nk_cross_epilogue_i32_k,
+
+    /** Integer sums of scaled codes, converted and stored times the output scale. */
+    nk_cross_epilogue_i32_to_f32_k,
+
+    /** Integer sums of U8 codes offset by −128, restored from the byte sums. */
+    nk_cross_epilogue_offset_u32_k,
 } nk_cross_epilogue_t;
 
 /** How squared norms are stored, which also fixes the precision a metric is computed in. */
 typedef enum {
-    nk_cross_norm_f32_k, // F32 in true units
-    nk_cross_norm_f64_k, // F64
-    nk_cross_norm_i32_k, // wrapping U32 sums read as I32
-    nk_cross_norm_u32_k, // wrapping U32 sums
+
+    /** F32 in true units. */
+    nk_cross_norm_f32_k,
+
+    /** F64. */
+    nk_cross_norm_f64_k,
+
+    /** Wrapping U32 sums read as I32. */
+    nk_cross_norm_i32_k,
+
+    /** Wrapping U32 sums. */
+    nk_cross_norm_u32_k,
 } nk_cross_norm_t;
 
 /** Adds the squares of 16 staged bytes: exact integer codes into @p integer_sum, the others
@@ -185,8 +262,8 @@ NUMKONG_INLINE nk_status_t nk_launch_(void const *kernel, nk_size_t blocks, unsi
  *  @brief Launches as many blocks of @p kernel as stay resident across the current device, at most
  *      @p blocks_wanted, passing the one argument struct at @p arguments by value.
  *  @param[in] shared_bytes Dynamic shared memory of this launch.
- *  @param[in] shared_ceiling Dynamic shared memory the kernel may take at any depth, or zero to keep
- *      the default.
+ *  @param[in] shared_ceiling Dynamic shared memory the kernel may take at any depth, or zero for
+ *      the runtime's default ceiling.
  */
 NUMKONG_INLINE nk_status_t nk_launch_resident_(void const *kernel, unsigned threads, nk_size_t shared_bytes,
                                                nk_size_t shared_ceiling, nk_size_t blocks_wanted, void *arguments,
@@ -259,9 +336,9 @@ NUMKONG_INLINE nk_size_t nk_device_cross_padded_values_(nk_size_t depth, nk_size
     return nk_size_round_up_to_multiple_(depth, depth_simd_dimensions) / dimensions_per_value;
 }
 
-/** Validates the contract and launches as many blocks of @p kernel as stay resident, each
- *  walking @p tile × @p tile output tiles with a stride of the grid. @p b_norms is the packed column norms a @c packed
- * metric reads, or null. */
+/** Validates the contract and launches as many blocks of @p kernel as stay resident, each walking
+ *  @p tile × @p tile output tiles with a stride of the grid. @p b_norms holds the packed column
+ *  norms a @c packed metric reads, or is null. */
 NUMKONG_INLINE nk_status_t nk_cross_launch_(void const *kernel, unsigned tile, unsigned threads, void const *a,
                                             void const *b, void const *b_norms, void *c, nk_size_t result_bytes,
                                             nk_size_t row_start, nk_size_t row_end, nk_size_t column_count,

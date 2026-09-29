@@ -2,7 +2,7 @@
  *  @file c/dispatch/sets.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
- *  @brief The batched set distance capability lists, @c _best dispatch points and @c nk_sets_find_kernel.
+ *  @brief Batched set distances: capability lists, @c _best points and @c nk_sets_find_kernel.
  */
 #include "dispatch.h"
 #include "numkong/sets.h"

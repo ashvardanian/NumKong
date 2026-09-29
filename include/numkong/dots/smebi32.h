@@ -46,20 +46,28 @@ NUMKONG_INLINE nk_size_t nk_smebi32_svl_bytes_(void) {
 NUMKONG_INLINE nk_size_t nk_smebi32_tile_dim_(void) { return nk_smebi32_svl_bytes_() / sizeof(nk_u32_t); }
 
 typedef struct {
+
     /** Row tiles, ⌈rows / tile dimension⌉. */
     nk_u32_t row_tile_count;
+
     /** Depth tiles, ⌈depth bits / depth tile bits⌉. */
     nk_u32_t depth_tile_count;
+
     /** Rows, not padded. */
     nk_u32_t rows;
+
     /** Depth in bits, not padded. */
     nk_u32_t depth_bits;
+
     /** Streaming vector length in bytes at pack time, which every consumer validates. */
     nk_u32_t svl_bytes;
+
     /** Byte offset from the buffer start to the norms, or 0 without them. */
     nk_u32_t norms_offset;
+
     /** Zeroed; pads the header to 64 bytes. */
     nk_u32_t reserved[8];
+
     /** The capability that packed the buffer, which every consumer checks. */
     nk_capability_t capability;
 } nk_dots_smebi32_packed_header_t;

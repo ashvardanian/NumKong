@@ -38,7 +38,7 @@ NUMKONG_INLINE nk_f32_t nk_f32_rsqrt_(nk_f32_t number) {
     return y;
 }
 
-/** Square root of @p number as @p number times its reciprocal square root, zero for non-positives. */
+/** Square root of @p number as its product with its reciprocal square root, 0 if not positive. */
 NUMKONG_INLINE nk_f32_t nk_f32_sqrt_(nk_f32_t number) { return number > 0 ? number * nk_f32_rsqrt_(number) : 0; }
 
 /** Reciprocal square root of @p number: a bit-trick seed and four Newton steps, ~69.3 bits. */
@@ -54,7 +54,7 @@ NUMKONG_INLINE nk_f64_t nk_f64_rsqrt_(nk_f64_t number) {
     return y;
 }
 
-/** Square root of @p number as @p number times its reciprocal square root, zero for non-positives. */
+/** Square root of @p number as its product with its reciprocal square root, 0 if not positive. */
 NUMKONG_INLINE nk_f64_t nk_f64_sqrt_(nk_f64_t number) { return number > 0 ? number * nk_f64_rsqrt_(number) : 0; }
 
 /** Fused multiply-add emulated in F64 with Dekker's TwoProduct and Knuth's TwoSum error terms. */
@@ -169,25 +169,30 @@ NUMKONG_CONSTEXPR nk_u16_t nk_u16_saturating_add_(nk_u16_t a, nk_u16_t b) {
     nk_u32_t result = (nk_u32_t)a + (nk_u32_t)b;
     return (result > 65535u) ? (nk_u16_t)65535u : (nk_u16_t)result;
 }
+
 /** Sum of @p a and @p b clamped to the U32 range. */
 NUMKONG_CONSTEXPR nk_u32_t nk_u32_saturating_add_(nk_u32_t a, nk_u32_t b) {
     nk_u64_t result = (nk_u64_t)a + (nk_u64_t)b;
     return (result > 4294967295u) ? (nk_u32_t)4294967295u : (nk_u32_t)result;
 }
+
 /** Sum of @p a and @p b clamped to the U64 range. */
 NUMKONG_CONSTEXPR nk_u64_t nk_u64_saturating_add_(nk_u64_t a, nk_u64_t b) {
     return (a + b < a) ? 18446744073709551615ull : (a + b);
 }
+
 /** Sum of @p a and @p b clamped to the I16 range. */
 NUMKONG_CONSTEXPR nk_i16_t nk_i16_saturating_add_(nk_i16_t a, nk_i16_t b) {
     nk_i32_t result = (nk_i32_t)a + (nk_i32_t)b;
     return (result > 32767) ? 32767 : (result < -32768 ? -32768 : result);
 }
+
 /** Sum of @p a and @p b clamped to the I32 range. */
 NUMKONG_CONSTEXPR nk_i32_t nk_i32_saturating_add_(nk_i32_t a, nk_i32_t b) {
     nk_i64_t result = (nk_i64_t)a + (nk_i64_t)b;
     return (result > 2147483647ll) ? 2147483647ll : (result < -2147483648ll ? -2147483648ll : (nk_i32_t)result);
 }
+
 /** Sum of @p a and @p b clamped to the I64 range, checked before adding. */
 NUMKONG_CONSTEXPR nk_i64_t nk_i64_saturating_add_(nk_i64_t a, nk_i64_t b) {
     //? We can't just write `-9223372036854775808ll`, even though it's the smallest signed 64-bit value.
@@ -221,7 +226,7 @@ NUMKONG_CONSTEXPR nk_u64_t nk_u64_saturating_mul_(nk_u64_t a, nk_u64_t b) {
     return result;
 }
 
-/** Product of @p a and @p b clamped to the I64 range, from the magnitudes' 32-bit partial products. */
+/** Product of @p a and @p b clamped to the I64 range, from the magnitudes' 32-bit halves. */
 NUMKONG_CONSTEXPR nk_i64_t nk_i64_saturating_mul_(nk_i64_t a, nk_i64_t b) {
     int sign = ((a < 0) ^ (b < 0)) ? -1 : 1; // Track the sign of the result
 
@@ -252,36 +257,41 @@ NUMKONG_CONSTEXPR nk_i64_t nk_i64_saturating_mul_(nk_i64_t a, nk_i64_t b) {
     return (sign < 0) ? (nk_i64_t)(0u - result) : (nk_i64_t)result;
 }
 
-/** Orders two E4M3 values by their sign-magnitude bits: negative, zero or positive, NaNs outermost. */
+/** Orders two E4M3 values by sign-magnitude bits: negative, zero or positive, NaNs outermost. */
 NUMKONG_CONSTEXPR int nk_e4m3_order_(nk_e4m3_t a, nk_e4m3_t b) {
     int sign_a = a >> 7, sign_b = b >> 7;
     return (a ^ -sign_a) - (b ^ -sign_b);
 }
-/** Orders two E5M2 values by their sign-magnitude bits: negative, zero or positive, NaNs outermost. */
+
+/** Orders two E5M2 values by sign-magnitude bits: negative, zero or positive, NaNs outermost. */
 NUMKONG_CONSTEXPR int nk_e5m2_order_(nk_e5m2_t a, nk_e5m2_t b) {
     int sign_a = a >> 7, sign_b = b >> 7;
     return (a ^ -sign_a) - (b ^ -sign_b);
 }
+
 /** Orders two E2M3 values by their 6 sign-magnitude bits: negative, zero or positive. */
 NUMKONG_CONSTEXPR int nk_e2m3_order_(nk_e2m3_t a, nk_e2m3_t b) {
     int value_a = a & 0x3F, value_b = b & 0x3F;
     int sign_a = value_a >> 5, sign_b = value_b >> 5;
     return (value_a ^ -sign_a) - (value_b ^ -sign_b);
 }
+
 /** Orders two E3M2 values by their 6 sign-magnitude bits: negative, zero or positive. */
 NUMKONG_CONSTEXPR int nk_e3m2_order_(nk_e3m2_t a, nk_e3m2_t b) {
     int value_a = a & 0x3F, value_b = b & 0x3F;
     int sign_a = value_a >> 5, sign_b = value_b >> 5;
     return (value_a ^ -sign_a) - (value_b ^ -sign_b);
 }
-/** Orders two BF16 values by their sign-magnitude bits: negative, zero or positive, NaNs outermost. */
+
+/** Orders two BF16 values by sign-magnitude bits: negative, zero or positive, NaNs outermost. */
 NUMKONG_INLINE int nk_bf16_order_(nk_bf16_t a, nk_bf16_t b) {
     nk_fui16_t a_fui, b_fui;
     a_fui.bf = a, b_fui.bf = b;
     int sign_a = a_fui.u >> 15, sign_b = b_fui.u >> 15;
     return ((int)a_fui.u ^ -sign_a) - ((int)b_fui.u ^ -sign_b);
 }
-/** Orders two F16 values by their sign-magnitude bits: negative, zero or positive, NaNs outermost. */
+
+/** Orders two F16 values by sign-magnitude bits: negative, zero or positive, NaNs outermost. */
 NUMKONG_INLINE int nk_f16_order_(nk_f16_t a, nk_f16_t b) {
     nk_fui16_t a_fui, b_fui;
     a_fui.f = a, b_fui.f = b;
@@ -698,7 +708,7 @@ NUMKONG_INLINE nk_f64_t nk_f64_sin_(nk_f64_t const angle_radians) {
     return result;
 }
 
-/** Cosine of @p angle_radians: Cody-Waite reduction around π/2 and an Estrin-evaluated polynomial. */
+/** Cosine of @p angle_radians: Cody-Waite reduction around π/2 and an Estrin polynomial. */
 NUMKONG_INLINE nk_f64_t nk_f64_cos_(nk_f64_t const angle_radians) {
 
     // Constants for argument reduction
@@ -809,7 +819,7 @@ NUMKONG_INLINE nk_f64_t nk_f64_atan_(nk_f64_t const input) {
     return result;
 }
 
-/** Four-quadrant arctangent of @p y_input over @p x_input, with IEEE signed zeros and infinities. */
+/** Four-quadrant arctangent of @p y_input / @p x_input, with IEEE signed zeros and infinities. */
 NUMKONG_INLINE nk_f64_t nk_f64_atan2_(nk_f64_t const y_input, nk_f64_t const x_input) {
     // Polynomial coefficients for atan2 approximation
     nk_f64_t const coeff_19 = -1.88796008463073496563746e-05;

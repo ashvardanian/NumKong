@@ -124,7 +124,7 @@ extern "C" {
         result->imag = sum_imag;                                                                                       \
     }
 
-/** Generates @c nk_vdot_<input_type>_, a conjugated complex dot product with simple accumulation. */
+/** Generates @c nk_vdot_<input_type>_, a conjugated complex dot product, simply accumulated. */
 #define nk_define_vdot_complex_(input_type, accumulator_type, output_complex_type, load_and_convert)       \
     NUMKONG_INLINE void nk_vdot_##input_type##_(nk_##input_type##_t const *a_pairs,                        \
                                                 nk_##input_type##_t const *b_pairs, nk_size_t count_pairs, \

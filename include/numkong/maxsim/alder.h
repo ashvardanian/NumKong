@@ -165,7 +165,7 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f16_alder( //
 }
 
 /** Coarse i8 kernel for Alder Lake as an @c nk_maxsim_coarse_dots_t. One VPDPBUSD per query × doc
- *  pair (no i16 intermediate) with XOR-0x80 bias. 4Q × 4D register tiling with 16 YMM accumulators. */
+ *  pair, with no i16 intermediate and an XOR-0x80 bias, tiled 4Q × 4D over 16 YMM accumulators. */
 NUMKONG_INLINE void nk_maxsim_coarse_dots_alder_(         //
     nk_i8_t const *query_i8, nk_i8_t const *document_i8,  //
     nk_maxsim_vector_metadata_t const *document_metadata, //

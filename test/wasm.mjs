@@ -223,7 +223,7 @@ test(`[${runtime}] Capability detection`, () => {
   assert.strictEqual(enabled, detected & compiled, "enabled must default to detected & compiled");
   assert.strictEqual(enabled & Capability.serial, Capability.serial, "serial must always be enabled");
 
-  // Names come from the C library at load: one per CPU capability, none for the GPU capabilities from bit 48 up.
+  // The C library names them at load: one per CPU capability, none for GPU ones from bit 48 up.
   assert(Object.isFrozen(Capability), "Capability must be frozen");
   assert.strictEqual(Capability.v128, 1n << 31n);
   assert.strictEqual(Capability.ampere, undefined);

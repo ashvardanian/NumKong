@@ -84,7 +84,7 @@ typedef struct {
     /** Sum of all i8 quantized elements (for VPDPBUSD/VPMADDUBSW bias correction). */
     nk_i32_t sum_i8_i32;
 
-    /** Inverse norm 1 / ‖v‖ from an f64 sum of squares, or 0 for a zero vector, for angular finalization. */
+    /** Inverse norm 1 / ‖v‖ for angular scores, from an f64 sum of squares; 0 for a zero vector. */
     nk_f64_t inverse_norm_f64;
 } nk_maxsim_vector_metadata_t;
 
@@ -268,8 +268,9 @@ typedef struct {
     nk_f32_t per_weight;
 } nk_maxsim_screen_error_t;
 
-/** Rounding residues e_q, e_d of norm ≤ r = ½√depth give |error| ≤ r + w_d · (r / w_q + r²), as
- *  ‖q / scale_q‖ = 1 / w_q and ‖d / scale_d‖ · w_d = 1; depth · 2⁻²¹ / w_q absorbs f32 norm rounding. */
+/** Rounding residues e_q, e_d of norm ≤ r = ½√depth give |error| ≤ r + w_d · (r / w_q + r²).
+ *  It holds as ‖q / scale_q‖ = 1 / w_q and ‖d / scale_d‖ · w_d = 1.
+ *  The extra depth · 2⁻²¹ / w_q term absorbs the f32 norm rounding. */
 NUMKONG_INLINE nk_maxsim_screen_error_t nk_maxsim_screen_error_( //
     nk_f32_t query_screen_weight, nk_f32_t residue, nk_size_t depth) NUMKONG_STREAMABLE_ {
     nk_f32_t const query_scaled_norm = query_screen_weight > 0.0f ? 1.0f / query_screen_weight : 0.0f;
@@ -281,7 +282,7 @@ NUMKONG_INLINE nk_maxsim_screen_error_t nk_maxsim_screen_error_( //
 
 /** Raises @p lower_bound to the best screened score, less its error, among @p document_count dots
  *  spaced @p dots_stride apart, weighted by screening weights spaced @p weights_stride apart. */
-NUMKONG_INLINE void nk_maxsim_screen_lower_bound_(                                           //
+NUMKONG_INLINE void nk_maxsim_screen_lower_bound_(                                                  //
     nk_i32_t const *dots, nk_size_t dots_stride, nk_f32_t const *weights, nk_size_t weights_stride, //
     nk_size_t document_count, nk_maxsim_screen_error_t error, nk_f32_t *lower_bound) NUMKONG_STREAMABLE_ {
     nk_f32_t bound = *lower_bound;
@@ -296,7 +297,7 @@ NUMKONG_INLINE void nk_maxsim_screen_lower_bound_(                              
 
 /** Lists into @p candidates the documents whose screened score plus error reaches @p lower_bound,
  *  the only ones that can hold the exact maximum, and returns their count. */
-NUMKONG_INLINE nk_size_t nk_maxsim_screen_candidates_(                                     //
+NUMKONG_INLINE nk_size_t nk_maxsim_screen_candidates_(                                              //
     nk_i32_t const *dots, nk_size_t dots_stride, nk_f32_t const *weights, nk_size_t weights_stride, //
     nk_size_t document_count, nk_maxsim_screen_error_t error, nk_f32_t lower_bound,                 //
     nk_u32_t *candidates) NUMKONG_STREAMABLE_ {
@@ -322,8 +323,8 @@ typedef nk_f64_t (*nk_maxsim_refine_dot_t)(void const *query, void const *docume
 /** Σ minⱼ angular(qᵢ, dⱼ) over two packs sharing @c nk_maxsim_packed_header_t: screens 32 × 128
  *  tiles with @p coarse_dots, then refines with @p refine_dot every document the screen cannot rule
  *  out, so the result matches an exhaustive search. */
-NUMKONG_INLINE nk_f64_t nk_maxsim_packed_angular_(                                          //
-    void const *query_packed, void const *document_packed, nk_size_t query_count,             //
+NUMKONG_INLINE nk_f64_t nk_maxsim_packed_angular_(                                  //
+    void const *query_packed, void const *document_packed, nk_size_t query_count,   //
     nk_size_t document_count, nk_size_t depth, nk_maxsim_coarse_dots_t coarse_dots, //
     nk_maxsim_refine_dot_t refine_dot) {
 
@@ -348,11 +349,11 @@ NUMKONG_INLINE nk_f64_t nk_maxsim_packed_angular_(                              
 
         for (nk_size_t document_start = 0; document_start < document_count; document_start += 128) {
             nk_size_t const document_tile = document_count - document_start < 128 ? document_count - document_start
-                                                                                   : 128;
+                                                                                  : 128;
             coarse_dots(regions.query_quantized + query_start * regions.depth_i8_padded,
                         regions.document_quantized + document_start * regions.depth_i8_padded,
-                        regions.document_metadata + document_start, query_tile, document_tile,
-                        regions.depth_i8_padded, dots);
+                        regions.document_metadata + document_start, query_tile, document_tile, regions.depth_i8_padded,
+                        dots);
             nk_f32_t const *weights = &regions.document_metadata[document_start].screen_weight_f32;
 
             for (nk_size_t query_index = 0; query_index < query_tile; query_index++) {
@@ -360,9 +361,9 @@ NUMKONG_INLINE nk_f64_t nk_maxsim_packed_angular_(                              
                 nk_i32_t const *query_dots = dots + query_index * document_tile;
                 nk_maxsim_screen_lower_bound_(query_dots, 1, weights, weights_stride, document_tile,
                                               errors[query_index], &lower_bounds[query_index]);
-                nk_size_t const candidate_count = nk_maxsim_screen_candidates_(
-                    query_dots, 1, weights, weights_stride, document_tile, errors[query_index],
-                    lower_bounds[query_index], candidates);
+                nk_size_t const candidate_count = nk_maxsim_screen_candidates_(query_dots, 1, weights, weights_stride,
+                                                                               document_tile, errors[query_index],
+                                                                               lower_bounds[query_index], candidates);
                 for (nk_size_t candidate_index = 0; candidate_index < candidate_count; candidate_index++) {
                     nk_size_t const document_index = document_start + candidates[candidate_index];
                     nk_f64_t const cosine =

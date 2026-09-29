@@ -212,20 +212,28 @@ __attribute__((weak, target("+sme"))) void *__arm_sc_memmove(void *d, void const
 /** SME-specific packed buffer header (64-byte aligned).
  *  Layout optimized for SME outer product access patterns with predicate-based edge handling. */
 typedef struct {
+
     /** Column tiles, ⌈columns / tile dimension⌉. */
     nk_u32_t column_tile_count;
+
     /** Depth tiles, ⌈depth / depth tile size⌉. */
     nk_u32_t depth_tile_count;
+
     /** Columns, not padded, for the predicates. */
     nk_u32_t columns;
+
     /** Depth, not padded, for the predicates. */
     nk_u32_t depth;
+
     /** Streaming vector length in bytes at pack time, which every consumer validates. */
     nk_u32_t svl_bytes;
+
     /** Byte offset from the buffer start to the per-column norms. */
     nk_u32_t norms_offset;
+
     /** Zeroed; pads the header to 64 bytes. */
     nk_u32_t reserved[8];
+
     /** The capability that packed the buffer, which every consumer checks. */
     nk_capability_t capability;
 } nk_dots_sme_packed_header_t;
@@ -233,17 +241,34 @@ typedef struct {
 /*  Selective ZA tile zeroing masks for `svzero_mask_za(mask)`, which zero individual tiles without
  *  destroying other accumulators. ZA.S tile t is bits t and t + 4; ZA.D tile t is bit t. */
 enum {
+
+    /** ZA0.S alone. */
     nk_sme_zero_za32_tile_0_k = 0x11,
+
+    /** ZA1.S alone. */
     nk_sme_zero_za32_tile_1_k = 0x22,
+
+    /** ZA2.S alone. */
     nk_sme_zero_za32_tile_2_k = 0x44,
+
+    /** ZA3.S alone. */
     nk_sme_zero_za32_tile_3_k = 0x88,
+
     /** ZA1.S to ZA3.S, the accumulators, keeping the ZA0.S staging tile. */
     nk_sme_zero_za32_tiles_123_k = 0xEE,
+
+    /** ZA0.D alone. */
     nk_sme_zero_za64_tile_0_k = 0x01,
+
+    /** ZA1.D alone. */
     nk_sme_zero_za64_tile_1_k = 0x02,
+
+    /** ZA2.D alone. */
     nk_sme_zero_za64_tile_2_k = 0x04,
+
     /** ZA1.D to ZA5.D and ZA7.D, the Ozaki products, keeping the staging tiles. */
     nk_sme_zero_za64_tiles_1_5_7_k = 0xBE,
+
     /** ZA1.D to ZA7.D, the accumulators, keeping the ZA0.D staging tile. */
     nk_sme_zero_za64_tiles_1_7_k = 0xFE,
 };
@@ -431,7 +456,7 @@ __arm_new("za") NUMKONG_MAYBE_UNUSED_ static void nk_dots_pack_b8_sme_streaming_
     }
 }
 
-/** Packs columns @p columns_begin to @p columns_end of F16 @p b into SME tiles, with their squared norms. */
+/** Packs F16 @p b columns @p columns_begin to @p columns_end into SME tiles with squared norms. */
 NUMKONG_INLINE void nk_dots_pack_f16_tiles_sme_(           //
     nk_f16_t const *b, nk_size_t columns, nk_size_t depth, //
     nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end) {
@@ -471,7 +496,7 @@ NUMKONG_INLINE void nk_dots_pack_f16_tiles_sme_(           //
     }
 }
 
-/** Packs columns @p columns_begin to @p columns_end of BF16 @p b into SME tiles, with their squared norms. */
+/** Packs BF16 @p b columns @p columns_begin to @p columns_end into SME tiles with squared norms. */
 NUMKONG_INLINE void nk_dots_pack_bf16_tiles_sme_(           //
     nk_bf16_t const *b, nk_size_t columns, nk_size_t depth, //
     nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end) {

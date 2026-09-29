@@ -30,7 +30,7 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "avx512bf16", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-/** @brief Squared Euclidean distance between two bf16 vectors. */
+/** Squared Euclidean distance between two bf16 vectors. */
 NUMKONG_INLINE void nk_squared_distance_bf16_genoa_(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
                                                     nk_f32_t *result) {
     __m512 a_sq_f32x16 = _mm512_setzero_ps();

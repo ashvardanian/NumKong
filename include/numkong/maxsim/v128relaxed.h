@@ -32,8 +32,8 @@ extern "C" {
 #endif
 
 /** Coarse i8 kernel for WASM Relaxed SIMD as an @c nk_maxsim_coarse_dots_t. Uses
- *  relaxed_dot_i8x16_i7x16_add with both operands in [-63, 63], so native signed × signed arithmetic
- *  needs no bias correction. */
+ *  relaxed_dot_i8x16_i7x16_add with both operands in [-63, 63], so native signed × signed
+ *  arithmetic needs no bias correction. */
 NUMKONG_INLINE void nk_maxsim_coarse_dots_v128relaxed_(   //
     nk_i8_t const *query_i8, nk_i8_t const *document_i8,  //
     nk_maxsim_vector_metadata_t const *document_metadata, //

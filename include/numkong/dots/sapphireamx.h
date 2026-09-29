@@ -99,22 +99,31 @@ extern "C" {
 /*  AMX-specific packed buffer header (64-byte aligned).
  *  Different from nk_dots_amx_packed_header_t as AMX uses tile-based layout. */
 typedef struct {
+
     /** Columns, not padded, at offset 0, where every packed shape reader finds them. */
     nk_u32_t columns;
+
     /** Depth, not padded, at offset 4. */
     nk_u32_t depth;
+
     /** Full column tiles of 16 rows each. */
     nk_u32_t full_column_tiles;
+
     /** Depth tiles: 32 columns for BF16, 64 for I8. */
     nk_u32_t full_depth_tiles;
+
     /** Rows left after the full tiles, 0 to 15. */
     nk_u32_t column_remainder_count;
+
     /** Byte offset to the edge data region. */
     nk_u32_t column_edge_offset;
+
     /** Byte offset to the per-column norms, for angular and euclidean. */
     nk_u32_t norms_byte_offset;
+
     /** Zeroed; pads the header to 64 bytes. */
     nk_u32_t reserved[7];
+
     /** The capability that packed the buffer, which every consumer checks. */
     nk_capability_t capability;
 } nk_dots_amx_packed_header_t;
@@ -885,7 +894,7 @@ NUMKONG_INLINE void nk_dots_pack_i8_transposed_sapphireamx_( //
 
 #pragma region F16 Floats
 
-/** @brief Bytes needed to pack `column_count` BF16 columns of `depth` into AMX tiles, with header and norms. */
+/** Bytes a pack of @p column_count BF16 columns of @p depth takes: header, AMX tiles, norms. */
 NUMKONG_INLINE nk_size_t nk_dots_packed_bytes_bf16_sapphireamx_(nk_size_t column_count, nk_size_t depth) {
     nk_size_t const tmm_rows = 16;
     nk_size_t const tmm_cols = 32;
@@ -1030,7 +1039,7 @@ NUMKONG_API nk_status_t nk_dots_pack_bf16_sapphireamx(           //
 
 #endif // NUMKONG_TARGET_SAPPHIREAMX
 
-/** @brief BF16 GEMM of `a` rows against pre-packed B columns into F32 `c`, on AMX tiles. */
+/** BF16 GEMM of @p a rows against pre-packed B columns into F32 @p c,on AMX tiles. */
 NUMKONG_INLINE nk_status_t nk_gemm_packed_bf16_sapphireamx_( //
     nk_bf16_t const *a, void const *b_packed, nk_f32_t *c,   //
     nk_size_t rows_count, nk_size_t cols_count, nk_size_t depth, nk_size_t a_stride_bytes, nk_size_t c_stride_bytes) {
@@ -1366,7 +1375,7 @@ NUMKONG_API nk_status_t nk_dots_packed_bf16_sapphireamx(   //
 
 #endif // NUMKONG_TARGET_SAPPHIREAMX
 
-/** @brief BF16 Gram matrix of `vectors` for rows [row_start, row_start + row_count), upper triangle, on AMX tiles. */
+/** BF16 Gram upper triangle of @p vectors on AMX tiles, @p row_count rows from @p row_start. */
 NUMKONG_INLINE nk_status_t nk_gram_bf16_sapphireamx_(                              //
     nk_bf16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,            //
     nk_size_t stride_in_bytes, nk_f32_t *result, nk_size_t result_stride_in_bytes, //
@@ -1453,7 +1462,7 @@ NUMKONG_API nk_status_t nk_dots_symmetric_bf16_sapphireamx(                     
 
 #pragma region Signed Integers
 
-/** @brief Bytes needed to pack `column_count` I8 columns of `depth` into AMX tiles, with header and norms. */
+/** Bytes a pack of @p column_count I8 columns of @p depth takes: header, AMX tiles, norms. */
 NUMKONG_INLINE nk_size_t nk_dots_packed_bytes_i8_sapphireamx_(nk_size_t column_count, nk_size_t depth) {
     nk_size_t const tmm_rows = 16;
     nk_size_t const tmm_cols = 64;
@@ -1601,7 +1610,7 @@ NUMKONG_API nk_status_t nk_dots_pack_i8_sapphireamx(           //
 
 #endif // NUMKONG_TARGET_SAPPHIREAMX
 
-/** @brief I8 GEMM of `a` rows against pre-packed B columns into I32 `c`, on AMX tiles. */
+/** I8 GEMM of @p a rows against pre-packed B columns into I32 @p c,on AMX tiles. */
 NUMKONG_INLINE nk_status_t nk_gemm_packed_i8_sapphireamx_( //
     nk_i8_t const *a, void const *b_packed, nk_i32_t *c,   //
     nk_size_t rows_count, nk_size_t cols_count, nk_size_t depth, nk_size_t a_stride_bytes, nk_size_t c_stride_bytes) {
@@ -1931,7 +1940,7 @@ NUMKONG_API nk_status_t nk_dots_packed_i8_sapphireamx(   //
 
 #endif // NUMKONG_TARGET_SAPPHIREAMX
 
-/** @brief I8 Gram matrix of `vectors` for rows [row_start, row_start + row_count), upper triangle, on AMX tiles. */
+/** I8 Gram upper triangle of @p vectors on AMX tiles, @p row_count rows from @p row_start. */
 NUMKONG_INLINE nk_status_t nk_gram_i8_sapphireamx_(                                //
     nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,              //
     nk_size_t stride_in_bytes, nk_i32_t *result, nk_size_t result_stride_in_bytes, //
@@ -2136,7 +2145,7 @@ NUMKONG_API nk_status_t nk_dots_pack_u8_sapphireamx(           //
 
 #endif // NUMKONG_TARGET_SAPPHIREAMX
 
-/** @brief U8 GEMM of `a` rows against pre-packed B columns into U32 `c`, on AMX tiles. */
+/** U8 GEMM of @p a rows against pre-packed B columns into U32 @p c,on AMX tiles. */
 NUMKONG_INLINE nk_status_t nk_gemm_packed_u8_sapphireamx_( //
     nk_u8_t const *a, void const *b_packed, nk_u32_t *c,   //
     nk_size_t rows_count, nk_size_t cols_count, nk_size_t depth, nk_size_t a_stride_bytes, nk_size_t c_stride_bytes) {
@@ -2459,7 +2468,7 @@ NUMKONG_API nk_status_t nk_dots_packed_u8_sapphireamx(   //
 
 #endif // NUMKONG_TARGET_SAPPHIREAMX
 
-/** @brief U8 Gram matrix of `vectors` for rows [row_start, row_start + row_count), upper triangle, on AMX tiles. */
+/** U8 Gram upper triangle of @p vectors on AMX tiles, @p row_count rows from @p row_start. */
 NUMKONG_INLINE nk_status_t nk_gram_u8_sapphireamx_(                                //
     nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,              //
     nk_size_t stride_in_bytes, nk_u32_t *result, nk_size_t result_stride_in_bytes, //
@@ -2654,7 +2663,7 @@ NUMKONG_API nk_status_t nk_dots_pack_e4m3_sapphireamx(           //
 
 #endif // NUMKONG_TARGET_SAPPHIREAMX
 
-/** @brief E4M3 GEMM of `a` rows against pre-packed B columns into F32 `c`, through BF16 AMX tiles. */
+/** E4M3 GEMM of @p a rows against pre-packed B columns into F32 @p c,through BF16 AMX tiles. */
 NUMKONG_INLINE nk_status_t nk_gemm_packed_e4m3_sapphireamx_( //
     nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,   //
     nk_size_t rows_count, nk_size_t cols_count, nk_size_t depth, nk_size_t a_stride_bytes, nk_size_t c_stride_bytes) {
@@ -2978,7 +2987,7 @@ NUMKONG_API nk_status_t nk_dots_pack_e5m2_sapphireamx(           //
 
 #endif // NUMKONG_TARGET_SAPPHIREAMX
 
-/** @brief E5M2 GEMM of `a` rows against pre-packed B columns into F32 `c`, through BF16 AMX tiles. */
+/** E5M2 GEMM of @p a rows against pre-packed B columns into F32 @p c,through BF16 AMX tiles. */
 NUMKONG_INLINE nk_status_t nk_gemm_packed_e5m2_sapphireamx_( //
     nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,   //
     nk_size_t rows_count, nk_size_t cols_count, nk_size_t depth, nk_size_t a_stride_bytes, nk_size_t c_stride_bytes) {
@@ -3190,7 +3199,7 @@ NUMKONG_API nk_status_t nk_dots_packed_e5m2_sapphireamx(   //
 
 #endif // NUMKONG_TARGET_SAPPHIREAMX
 
-/** @brief E5M2 Gram matrix of `vectors` for rows [row_start, row_start + row_count), upper triangle, on AMX tiles. */
+/** E5M2 Gram upper triangle of @p vectors on AMX tiles, @p row_count rows from @p row_start. */
 NUMKONG_INLINE nk_status_t nk_gram_e5m2_sapphireamx_(                              //
     nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,            //
     nk_size_t stride_in_bytes, nk_f32_t *result, nk_size_t result_stride_in_bytes, //
@@ -3272,7 +3281,7 @@ NUMKONG_API nk_status_t nk_dots_symmetric_e5m2_sapphireamx(                     
 
 #endif // NUMKONG_TARGET_SAPPHIREAMX
 
-/** @brief E4M3 Gram matrix of `vectors` for rows [row_start, row_start + row_count), upper triangle, on AMX tiles. */
+/** E4M3 Gram upper triangle of @p vectors on AMX tiles, @p row_count rows from @p row_start. */
 NUMKONG_INLINE nk_status_t nk_gram_e4m3_sapphireamx_(                              //
     nk_e4m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth,            //
     nk_size_t stride_in_bytes, nk_f32_t *result, nk_size_t result_stride_in_bytes, //
@@ -3571,7 +3580,7 @@ NUMKONG_API nk_status_t nk_dots_pack_e2m3_sapphireamx(           //
 
 #endif // NUMKONG_TARGET_SAPPHIREAMX
 
-/** @brief E2M3 GEMM of `a` rows against pre-packed B columns into F32 `c`, through I8 AMX tiles. */
+/** E2M3 GEMM of @p a rows against pre-packed B columns into F32 @p c,through I8 AMX tiles. */
 NUMKONG_INLINE nk_status_t nk_gemm_packed_e2m3_sapphireamx_( //
     nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,   //
     nk_size_t rows_count, nk_size_t cols_count, nk_size_t depth, nk_size_t a_stride_bytes, nk_size_t c_stride_bytes) {
@@ -3788,7 +3797,7 @@ NUMKONG_API nk_status_t nk_dots_packed_e2m3_sapphireamx(   //
 
 #endif // NUMKONG_TARGET_SAPPHIREAMX
 
-/** @brief E2M3 Gram matrix of `vectors` for rows [row_start, row_start + row_count), upper triangle, on AMX tiles. */
+/** E2M3 Gram upper triangle of @p vectors on AMX tiles, @p row_count rows from @p row_start. */
 NUMKONG_INLINE nk_status_t nk_gram_e2m3_sapphireamx_(                              //
     nk_e2m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth,            //
     nk_size_t stride_in_bytes, nk_f32_t *result, nk_size_t result_stride_in_bytes, //
@@ -4057,7 +4066,7 @@ NUMKONG_API nk_status_t nk_dots_pack_e2m1_sapphireamx(             //
 
 #endif // NUMKONG_TARGET_SAPPHIREAMX
 
-/** @brief E2M1 GEMM of `a` rows against pre-packed B columns into F32 `c`, through I8 AMX tiles. */
+/** E2M1 GEMM of @p a rows against pre-packed B columns into F32 @p c,through I8 AMX tiles. */
 NUMKONG_INLINE nk_status_t nk_gemm_packed_e2m1_sapphireamx_( //
     nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c, //
     nk_size_t rows_count, nk_size_t cols_count, nk_size_t depth, nk_size_t a_stride_bytes, nk_size_t c_stride_bytes) {
@@ -4274,7 +4283,7 @@ NUMKONG_API nk_status_t nk_dots_packed_e2m1_sapphireamx(     //
 
 #endif // NUMKONG_TARGET_SAPPHIREAMX
 
-/** @brief E2M1 Gram matrix of `vectors` for rows [row_start, row_start + row_count), upper triangle, on AMX tiles. */
+/** E2M1 Gram upper triangle of @p vectors on AMX tiles, @p row_count rows from @p row_start. */
 NUMKONG_INLINE nk_status_t nk_gram_e2m1_sapphireamx_(                              //
     nk_e2m1x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,          //
     nk_size_t stride_in_bytes, nk_f32_t *result, nk_size_t result_stride_in_bytes, //
@@ -4487,7 +4496,7 @@ NUMKONG_API nk_status_t nk_dots_pack_e3m2_sapphireamx(           //
 
 #endif // NUMKONG_TARGET_SAPPHIREAMX
 
-/** @brief E3M2 GEMM of `a` rows against pre-packed B columns into F32 `c`, through BF16 AMX tiles. */
+/** E3M2 GEMM of @p a rows against pre-packed B columns into F32 @p c,through BF16 AMX tiles. */
 NUMKONG_INLINE nk_status_t nk_gemm_packed_e3m2_sapphireamx_( //
     nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,   //
     nk_size_t rows_count, nk_size_t cols_count, nk_size_t depth, nk_size_t a_stride_bytes, nk_size_t c_stride_bytes) {
@@ -4699,7 +4708,7 @@ NUMKONG_API nk_status_t nk_dots_packed_e3m2_sapphireamx(   //
 
 #endif // NUMKONG_TARGET_SAPPHIREAMX
 
-/** @brief E3M2 Gram matrix of `vectors` for rows [row_start, row_start + row_count), upper triangle, on AMX tiles. */
+/** E3M2 Gram upper triangle of @p vectors on AMX tiles, @p row_count rows from @p row_start. */
 NUMKONG_INLINE nk_status_t nk_gram_e3m2_sapphireamx_(                              //
     nk_e3m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,            //
     nk_size_t stride_in_bytes, nk_f32_t *result, nk_size_t result_stride_in_bytes, //

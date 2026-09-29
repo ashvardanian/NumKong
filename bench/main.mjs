@@ -111,7 +111,7 @@ function loadNative() {
 
 async function loadEmscripten() {
     try {
-        // The relaxed capability where both capabilities were built, the strict capability otherwise
+        // The relaxed capability where both were built, the strict capability otherwise
         const wasmPath = ['numkong-wasm32-v128relaxed.js', 'numkong-wasm32-v128.js']
             .map((name) => path.join(rootDir, 'build-wasm', name))
             .find((candidate) => existsSync(candidate));

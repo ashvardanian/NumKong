@@ -10,8 +10,8 @@
  *
  *  The @c svaddv intrinsic stays inside a macro so it expands in the caller's target context — SVE
  *  and SME streaming translation units carry incompatible target attributes. The unpoisoning runs
- *  on the already-reduced scalar, so it lives in a target-agnostic @c NUMKONG_INLINE helper
- *  called from the macro.
+ *  on the already-reduced scalar, so it lives in a target-agnostic @c NUMKONG_INLINE helper called
+ *  from the macro.
  *
  *  @sa include/numkong/reduce.h
  */

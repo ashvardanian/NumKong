@@ -54,7 +54,7 @@ NUMKONG_INLINE __m512 nk_rsqrt_f32x16_skylake_(__m512 x) {
 
 #pragma region F32 and F64 Floats
 
-/** @brief Squared Euclidean distance between two f32 vectors. */
+/** Squared Euclidean distance between two f32 vectors. */
 NUMKONG_INLINE void nk_squared_distance_f32_skylake_(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
                                                      nk_f64_t *result) {
     // Upcast to f64 for higher precision accumulation
@@ -163,7 +163,7 @@ nk_angular_f32_skylake_cycle:
 }
 #endif // NUMKONG_TARGET_SKYLAKE
 
-/** @brief Squared Euclidean distance between two f64 vectors. */
+/** Squared Euclidean distance between two f64 vectors. */
 NUMKONG_INLINE void nk_squared_distance_f64_skylake_(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
                                                      nk_f64_t *result) {
     __m512d sum_f64x8 = _mm512_setzero_pd();
@@ -289,7 +289,7 @@ NUMKONG_INLINE void nk_euclidean_f64x4_from_dot_skylake_(nk_b256_vec_t const *do
 #pragma endregion F32 and F64 Floats
 #pragma region F16 and BF16 Floats
 
-/** @brief Squared Euclidean distance between two f16 vectors. */
+/** Squared Euclidean distance between two f16 vectors. */
 NUMKONG_INLINE void nk_squared_distance_f16_skylake_(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
                                                      nk_f32_t *result) {
     __m512 sum_f32x16 = _mm512_setzero_ps();
@@ -367,7 +367,7 @@ nk_angular_f16_skylake_cycle:
 }
 #endif // NUMKONG_TARGET_SKYLAKE
 
-/** @brief Squared Euclidean distance between two e4m3 vectors. */
+/** Squared Euclidean distance between two e4m3 vectors. */
 NUMKONG_INLINE void nk_squared_distance_e4m3_skylake_(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
                                                       nk_f32_t *result) {
     // E4M3 has no free widen shift (its 4-bit exponent doesn't line up with F16's 5-bit
@@ -458,7 +458,7 @@ nk_angular_e4m3_skylake_cycle:
 }
 #endif // NUMKONG_TARGET_SKYLAKE
 
-/** @brief Squared Euclidean distance between two e5m2 vectors. */
+/** Squared Euclidean distance between two e5m2 vectors. */
 NUMKONG_INLINE void nk_squared_distance_e5m2_skylake_(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
                                                       nk_f32_t *result) {
     // E5M2 shares F16's exponent bias (15): `byte << 8` equals the matching F16 bit-pattern
@@ -583,7 +583,7 @@ nk_angular_e5m2_skylake_cycle:
 }
 #endif // NUMKONG_TARGET_SKYLAKE
 
-/** @brief Squared Euclidean distance between two e2m3 vectors. */
+/** Squared Euclidean distance between two e2m3 vectors. */
 NUMKONG_INLINE void nk_squared_distance_e2m3_skylake_(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
                                                       nk_f32_t *result) {
     __m512 sum_f32x16 = _mm512_setzero_ps();
@@ -661,7 +661,7 @@ nk_angular_e2m3_skylake_cycle:
 }
 #endif // NUMKONG_TARGET_SKYLAKE
 
-/** @brief Squared Euclidean distance between two e3m2 vectors. */
+/** Squared Euclidean distance between two e3m2 vectors. */
 NUMKONG_INLINE void nk_squared_distance_e3m2_skylake_(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
                                                       nk_f32_t *result) {
     __m512 sum_f32x16 = _mm512_setzero_ps();

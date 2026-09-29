@@ -110,7 +110,7 @@ NUMKONG_API nk_status_t nk_angular_i8_alder(nk_i8_t const *a, nk_i8_t const *b, 
     return nk_success_k;
 }
 
-/** @brief Squared Euclidean distance between two i8 vectors. */
+/** Squared Euclidean distance between two i8 vectors. */
 NUMKONG_INLINE void nk_squared_distance_i8_alder_(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result) {
     // Squared Euclidean distance for i8 using DPBUSD with norm decomposition.
     // ||a-b||^2 = ||a||^2 + ||b||^2 - 2*dot(a,b)
@@ -174,7 +174,7 @@ NUMKONG_API nk_status_t nk_euclidean_i8_alder(nk_i8_t const *a, nk_i8_t const *b
     return nk_success_k;
 }
 
-/** @brief Squared Euclidean distance between two u8 vectors. */
+/** Squared Euclidean distance between two u8 vectors. */
 NUMKONG_INLINE void nk_squared_distance_u8_alder_(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
     // Squared Euclidean distance for u8 using DPBUSD with norm decomposition.
     // ||a-b||^2 = ||a||^2 + ||b||^2 - 2*dot(a,b)
@@ -365,7 +365,7 @@ nk_angular_e2m3_alder_cycle:
     return nk_success_k;
 }
 
-/** @brief Squared Euclidean distance between two e2m3 vectors. */
+/** Squared Euclidean distance between two e2m3 vectors. */
 NUMKONG_INLINE void nk_squared_distance_e2m3_alder_(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
                                                     nk_size_t count_scalars, nk_f32_t *result) {
     // Squared Euclidean distance for e2m3 using norm decomposition:
@@ -549,7 +549,7 @@ nk_angular_e3m2_alder_cycle:
     return nk_success_k;
 }
 
-/** @brief Squared Euclidean distance between two e3m2 vectors. */
+/** Squared Euclidean distance between two e3m2 vectors. */
 NUMKONG_INLINE void nk_squared_distance_e3m2_alder_(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
                                                     nk_size_t count_scalars, nk_f32_t *result) {
     // Squared Euclidean distance for e3m2 via direct difference squaring.

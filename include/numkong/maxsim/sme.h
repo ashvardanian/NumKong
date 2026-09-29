@@ -51,10 +51,10 @@
 #if NUMKONG_ARCH_ARM64_
 #if NUMKONG_ARCH_ARM64_SME_
 
-#include "numkong/dots/sme.h"     // `nk_dots_pack_bf16_tiles_sme_`, `nk_sme_zero_za32_*`
+#include "numkong/dots/sme.h"      // `nk_dots_pack_bf16_tiles_sme_`, `nk_sme_zero_za32_*`
 #include "numkong/maxsim/serial.h" // `nk_maxsim_screen_error_`
 #include "numkong/reduce/sve.h"    // `nk_svaddv_f64_`
-#include "numkong/scalar/neon.h" // `nk_f64_rsqrt_refined_neon_`
+#include "numkong/scalar/neon.h"   // `nk_f64_rsqrt_refined_neon_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -77,26 +77,37 @@ extern "C" {
  *  @c screen_weights_offset unused at 0.
  */
 typedef struct {
+
     /** Column tiles, ⌈vectors / tile dimension⌉. */
     nk_u32_t column_tile_count;
+
     /** Depth tiles, ⌈depth / expansion⌉. */
     nk_u32_t depth_tile_count;
+
     /** Vectors, not padded, for the predicates. */
     nk_u32_t columns;
+
     /** Depth, not padded. */
     nk_u32_t depth;
+
     /** Streaming vector length in bytes at pack time, which every consumer validates. */
     nk_u32_t svl_bytes;
+
     /** Byte offset to the per-vector inverse norms: f64 for f32, f32 for bf16 and f16. */
     nk_u32_t norms_offset;
+
     /** Byte offset to the f32 original vectors, or 0 for bf16 and f16. */
     nk_u32_t originals_offset;
+
     /** Row stride in bytes of the originals, 64-byte aligned, or 0 for bf16 and f16. */
     nk_u32_t original_stride;
+
     /** Byte offset to the f32 screening weights, or 0 for bf16 and f16. */
     nk_u32_t screen_weights_offset;
+
     /** Zeroed; pads the header to 64 bytes. */
     nk_u32_t reserved[5];
+
     /** The capability that packed the buffer, which every consumer checks. */
     nk_capability_t capability;
 } nk_maxsim_sme_packed_header_t;
@@ -576,7 +587,7 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f16_sme( //
 }
 #endif // NUMKONG_TARGET_SME
 
-/** Bytes of an F32 MaxSim pack: I8 tiles, f64 inverse norms, screening weights and 64-byte aligned originals. */
+/** Bytes of an F32 pack: I8 tiles, f64 inverse norms, screening weights, aligned originals. */
 NUMKONG_INLINE nk_size_t nk_maxsim_pack_bytes_f32_sme_(nk_size_t columns, nk_size_t depth) {
     nk_size_t const expansion = 4;                    // i8 → i32 SMOPA
     nk_size_t const tile_dimension = nk_sme_cntw_();  // 16 for SVL=512
@@ -738,9 +749,9 @@ typedef struct {
     nk_f32_t const *document_screen_weights;
 } nk_maxsim_refine_f32_sme_t;
 
-/** Raises each query's lower bound by one document column, as @c nk_maxsim_screen_lower_bound_ does. */
-NUMKONG_INLINE svfloat32_t nk_maxsim_fold_column_sme_(                                               //
-    svfloat32_t lower_bounds_f32x, svint32_t dots_i32x, nk_f32_t screen_weight,                       //
+/** Raises each query's lower bound with a column, as @c nk_maxsim_screen_lower_bound_ does. */
+NUMKONG_INLINE svfloat32_t nk_maxsim_fold_column_sme_(                          //
+    svfloat32_t lower_bounds_f32x, svint32_t dots_i32x, nk_f32_t screen_weight, //
     svfloat32_t error_bases_f32x, svfloat32_t error_per_weights_f32x) NUMKONG_STREAMING_ {
     svbool_t const predicate_all_b32x = svptrue_b32();
     svfloat32_t scores_f32x = svmul_n_f32_x(predicate_all_b32x, svcvt_f32_s32_x(predicate_all_b32x, dots_i32x),
@@ -753,8 +764,8 @@ NUMKONG_INLINE svfloat32_t nk_maxsim_fold_column_sme_(                          
 
 /** Refines against @p document_index every query whose screened score plus error reaches its lower
  *  bound, as @c nk_maxsim_screen_candidates_ selects, keeping each query's best cosine. */
-NUMKONG_INLINE void nk_maxsim_refine_column_sme_(                                                   //
-    nk_maxsim_refine_f32_sme_t const *refine, svint32_t dots_i32x, nk_size_t document_index,       //
+NUMKONG_INLINE void nk_maxsim_refine_column_sme_(                                                    //
+    nk_maxsim_refine_f32_sme_t const *refine, svint32_t dots_i32x, nk_size_t document_index,         //
     svfloat32_t error_bases_f32x, svfloat32_t error_per_weights_f32x, svfloat32_t lower_bounds_f32x, //
     svbool_t row_predicate_b32x, nk_size_t row_start, nk_f64_t *best_cosines) NUMKONG_STREAMING_ {
     svbool_t const predicate_all_b32x = svptrue_b32();
@@ -773,11 +784,10 @@ NUMKONG_INLINE void nk_maxsim_refine_column_sme_(                               
     for (nk_size_t row_in_tile = 0; row_in_tile < svcntw(); row_in_tile++) {
         if (!candidate_flags[row_in_tile]) continue;
         nk_size_t const query_index = row_start + row_in_tile;
-        nk_f64_t const cosine = nk_maxsim_reduce_dot_f32_ssve_(
-                                    refine->query_originals + query_index * refine->query_stride_elements,
-                                    document_original, refine->depth) *
-                                refine->query_inverse_norms[query_index] *
-                                refine->document_inverse_norms[document_index];
+        nk_f64_t const cosine =
+            nk_maxsim_reduce_dot_f32_ssve_(refine->query_originals + query_index * refine->query_stride_elements,
+                                           document_original, refine->depth) *
+            refine->query_inverse_norms[query_index] * refine->document_inverse_norms[document_index];
         if (cosine > best_cosines[row_in_tile]) best_cosines[row_in_tile] = cosine;
     }
 }
@@ -789,8 +799,8 @@ NUMKONG_INLINE void nk_maxsim_refine_column_sme_(                               
  *  FMOPA. With 4 ZA tiles the fast path processes 64 document columns per iteration.
  *
  *  Each 4-tile group is read from ZA twice: once to raise every query's lower bound, then to refine
- *  in f64 every (query, document) pair the screen cannot rule out, so the compensated sum of angular
- *  distances 1 − dot / (‖q‖ · ‖d‖) matches an exhaustive search.
+ *  in f64 every (query, document) pair the screen cannot rule out, so the compensated sum of
+ *  angular distances 1 − dot / (‖q‖ · ‖d‖) matches an exhaustive search.
  */
 __arm_new("za") static void nk_maxsim_packed_f32_streaming_( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
@@ -996,8 +1006,7 @@ NUMKONG_API nk_status_t nk_maxsim_packed_f32_sme( //
 
     nk_f32_t const residue = 0.5f * nk_f32_sqrt_((nk_f32_t)depth);
     nk_sme_start_streaming_();
-    nk_maxsim_packed_f32_streaming_(query_packed, document_packed, query_count, document_count, depth, residue,
-                                    result);
+    nk_maxsim_packed_f32_streaming_(query_packed, document_packed, query_count, document_count, depth, residue, result);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }

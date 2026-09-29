@@ -35,10 +35,10 @@
  *  3) because it runs on the faster main core.
  *
  *  On Apple M4, SVE instructions are only available inside SME streaming mode. Functions using SVE
- *  intrinsics are marked @c __arm_locally_streaming in a @c _streaming_ helper; the
- *  NUMKONG_API entry point is a thin non-streaming wrapper. NEON intrinsics cannot be
- *  called from streaming mode, so Mahalanobis functions split into a streaming SVE helper and a
- *  non-streaming NEON wrapper for the sqrt.
+ *  intrinsics are marked @c __arm_locally_streaming in a @c _streaming_ helper; the NUMKONG_API
+ *  entry point is a thin non-streaming wrapper. NEON intrinsics cannot be called from streaming
+ *  mode, so Mahalanobis functions split into a streaming SVE helper and a non-streaming NEON
+ *  wrapper for the sqrt.
  *
  *  Dot2 follows Ogita, T., Rump, S.M., Oishi, S. (2005), "Accurate Sum and Dot Product".
  */

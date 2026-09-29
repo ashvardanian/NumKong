@@ -1026,7 +1026,7 @@ NUMKONG_INLINE nk_b32_vec_t nk_f32x4_to_e3m2x4_neon_(float32x4_t f32x4) {
 
 #pragma region Public API
 
-/** Converts @p n elements between plain dtypes, through an F16 or F32 hub, and serially where NEON can't. */
+/** Converts @p n elements between plain dtypes via an F16 or F32 hub, serially where NEON can't. */
 NUMKONG_INLINE void nk_cast_elementwise_neon_(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
                                               nk_dtype_t to_type) {
     // Same-type fast path

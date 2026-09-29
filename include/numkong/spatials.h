@@ -4698,10 +4698,10 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_u4_cdna5(nk_u4x2_t const *vector
 #endif // NUMKONG_TARGET_CDNA5
 
 /**
- *  @brief Finds the batched spatial distance kernel of @p kind for @p dtype, from the best of @p capabilities.
+ *  @brief Finds the spatials kernel of @p kind for @p dtype, from the best of @p capabilities.
  *  @param[out] kernel The kernel, or null when none of @p capabilities has it.
  *  @param[out] capability The capability the kernel belongs to, or zero.
- *  @return @c nk_success_k, @c nk_missing_kernel_k, or @c nk_missing_library_k in header-only builds.
+ *  @return @c nk_success_k, @c nk_missing_kernel_k, or @c nk_missing_library_k when header-only.
  */
 NUMKONG_API nk_status_t nk_spatials_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
                                                 nk_kernel_punned_t *kernel, nk_capability_t *capability);

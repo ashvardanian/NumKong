@@ -368,7 +368,7 @@ NUMKONG_API nk_status_t nk_each_fma_bf16_v128relaxed(           //
 #pragma endregion BF16 Floats
 #pragma region I8 Integers
 
-/** Maps @p n I8 values of @p a to @p alpha_val × a + @p beta_val in F32, rounded and saturated to I8. */
+/** Maps @p n I8 values of @p a to @p alpha_val × a + @p beta_val in F32, rounded and saturated. */
 NUMKONG_INLINE void nk_each_affine_i8_v128relaxed_(nk_i8_t const *a, nk_size_t n, nk_f32_t alpha_val, nk_f32_t beta_val,
                                                    nk_i8_t *result) {
     v128_t alpha_f32x4 = wasm_f32x4_splat(alpha_val);
@@ -467,7 +467,7 @@ NUMKONG_API nk_status_t nk_each_fma_i8_v128relaxed(       //
 #pragma endregion I8 Integers
 #pragma region U8 Integers
 
-/** Maps @p n U8 values of @p a to @p alpha_val × a + @p beta_val in F32, rounded and saturated to U8. */
+/** Maps @p n U8 values of @p a to @p alpha_val × a + @p beta_val in F32, rounded and saturated. */
 NUMKONG_INLINE void nk_each_affine_u8_v128relaxed_(nk_u8_t const *a, nk_size_t n, nk_f32_t alpha_val, nk_f32_t beta_val,
                                                    nk_u8_t *result) {
     v128_t alpha_f32x4 = wasm_f32x4_splat(alpha_val);

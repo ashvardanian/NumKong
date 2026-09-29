@@ -2,7 +2,7 @@
  *  @file c/dispatch/scalar.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
- *  @brief Dispatch points of the scalar math: square roots, FMA, saturating arithmetic and ordering.
+ *  @brief Dispatch points of the scalar math: square roots, FMA, saturating math and ordering.
  */
 #include "dispatch.h"
 

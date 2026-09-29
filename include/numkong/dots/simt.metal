@@ -64,11 +64,9 @@ inline float nk_widened_load_(device uchar const *row, uint index) {
     return (float)dtype_::widen(ushort4(code, 0, 0, 0)).x;
 }
 
-/**
- *  How the kernels read each dtype, named as in `types.hpp`: its stored @c raw_t, the dimensions
+/*  How the kernels read each dtype, named as in `types.hpp`: its stored @c raw_t, the dimensions
  *  one value holds, the @c dot_result_t the @c metal tile sums it in, and the @c norm_t of its
- *  packed squares. A float also names the @c stage_t it multiplies in and widens four codes into it.
- */
+ *  packed squares. A float also names the @c stage_t that four codes widen into for multiplying. */
 namespace nk {
 
 struct i8_t {

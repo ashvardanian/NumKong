@@ -153,7 +153,7 @@ struct Bench {
     /// Reports the fastest of ten runs, the one least disturbed by the rest of the system.
     @Test(arguments: workloads, [false, true])
     func run(_ workload: Workload, serial: Bool) throws {
-        // Packed kernels refuse another capability's layout, so inputs are packed under the timed mask.
+        // Packed kernels refuse another capability's layout, so pack inputs under the timed mask.
         if serial { Capabilities.enable(.serial) }
         defer { Capabilities.enable(.detected) }
         let call = try workload.prepare()

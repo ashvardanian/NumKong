@@ -169,8 +169,8 @@ NUMKONG_INLINE __m128i nk_maxsim_reduce_i32x16x4_icelake_(      //
                          _mm_add_epi32(sum_lane_2_i32x4, sum_lane_3_i32x4));
 }
 
-/** Coarse i8 kernel for Ice Lake / Genoa as an @c nk_maxsim_coarse_dots_t. Uses AVX-512 VNNI VPDPBUSD
- *  with XOR-0x80 bias and 128*sum_quantized correction. */
+/** Coarse i8 kernel for Ice Lake / Genoa as an @c nk_maxsim_coarse_dots_t: AVX-512 VNNI VPDPBUSD
+ *  with an XOR-0x80 bias and a 128 × sum_quantized correction. */
 NUMKONG_INLINE void nk_maxsim_coarse_dots_icelake_(       //
     nk_i8_t const *query_i8, nk_i8_t const *document_i8,  //
     nk_maxsim_vector_metadata_t const *document_metadata, //

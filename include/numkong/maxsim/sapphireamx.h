@@ -12,7 +12,7 @@
  *
  *  f32/f16: coarse i8 screening via AMX TDPBSSD, signed i8 × signed i8 → i32, with a 4-accumulator
  *  pipeline, weighted by each document's scale / ‖d‖, then full-precision refinement with
- *  nk_dot_f32/nk_dot_f16.
+ *  nk_dot_f32/nk_dot_f16 of every document the screen's error bound cannot rule out.
  *
  *  TMM register allocation, all 3 dtypes:
  *  - TMM0: query, A-side — loaded once per depth step
@@ -30,7 +30,7 @@
  *  i8 packed layout, f32/f16:
  *  [Header 64B] [0-63B padding for 64B alignment] [i8 A-side tiles: col_tiles × depth_tiles × 1KB]
  *  [i8 B-side tiles: col_tiles × depth_tiles × 1KB] [originals 64B-aligned: n × original_stride]
- *  [inverse norms: n × f32] [screening weights: n × f32]
+ *  [inverse norms: n × f64] [screening weights: n × f32]
  *
  *  @verbatim
  *  Intrinsic                   Instruction         Notes
@@ -100,7 +100,7 @@ typedef struct {
     /** 64B-aligned stride for originals. */
     nk_u32_t original_stride_bytes;
 
-    /** Byte offset from buffer start to f32 inverse norms. */
+    /** Byte offset from buffer start to f64 inverse norms. */
     nk_u32_t norms_offset;
 
     /** Byte offset from buffer start to f32 screening weights, absmax / (127 · ‖v‖). */
@@ -119,7 +119,7 @@ nk_static_assert_(sizeof(nk_maxsim_sapphireamx_i8_header_t) == 64, nk_maxsim_sap
 
 #pragma region F32 Floats
 
-/** Bytes an F32 MaxSim pack of @p vector_count vectors of @p depth takes: header, AMX tiles, originals, norms. */
+/** Bytes of an F32 pack of @p vector_count vectors of @p depth: header, tiles, originals, norms. */
 NUMKONG_INLINE nk_size_t nk_maxsim_packed_bytes_f32_sapphireamx_(nk_size_t vector_count, nk_size_t depth) {
     nk_size_t column_tile_count = nk_size_divide_round_up_(vector_count, 16);
     nk_size_t depth_tile_count = nk_size_divide_round_up_(depth, 64);
@@ -258,8 +258,8 @@ NUMKONG_INLINE nk_f64_t nk_maxsim_refine_f16_sapphireamx_(void const *query, voi
 }
 
 /** Σ minⱼ angular(qᵢ, dⱼ) over two i8 packs: screens 16 × 64 blocks with TDPBSSD, then refines with
- *  @p refine_dot every document the screen cannot rule out, so the result matches an exhaustive search. */
-NUMKONG_INLINE nk_f64_t nk_maxsim_packed_i8_sapphireamx_(                                   //
+ *  @p refine_dot every document the screen cannot rule out, matching an exhaustive search. */
+NUMKONG_INLINE nk_f64_t nk_maxsim_packed_i8_sapphireamx_(                                                   //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count, //
     nk_size_t depth, nk_maxsim_refine_dot_t refine_dot) {
 
@@ -411,7 +411,7 @@ NUMKONG_API nk_status_t nk_maxsim_packed_f32_sapphireamx( //
 
 #pragma region F16 Floats
 
-/** Bytes an F16 MaxSim pack of @p vector_count vectors of @p depth takes: header, AMX tiles, originals, norms. */
+/** Bytes of an F16 pack of @p vector_count vectors of @p depth: header, tiles, originals, norms. */
 NUMKONG_INLINE nk_size_t nk_maxsim_packed_bytes_f16_sapphireamx_(nk_size_t vector_count, nk_size_t depth) {
     nk_size_t column_tile_count = nk_size_divide_round_up_(vector_count, 16);
     nk_size_t depth_tile_count = nk_size_divide_round_up_(depth, 64);
@@ -593,7 +593,7 @@ typedef struct {
 nk_static_assert_(sizeof(nk_maxsim_sapphireamx_bf16_header_t) == 64,
                   nk_maxsim_sapphireamx_bf16_header_must_be_64_bytes);
 
-/** Bytes a BF16 MaxSim pack of @p vector_count vectors of @p depth takes: header, AMX tiles, norms. */
+/** Bytes of a BF16 pack of @p vector_count vectors of @p depth: header, AMX tiles, norms. */
 NUMKONG_INLINE nk_size_t nk_maxsim_packed_bytes_bf16_sapphireamx_(nk_size_t vector_count, nk_size_t depth) {
     nk_size_t const tile_bytes = 1024; // 16 × 32 × 2B = 1KB per tile
     nk_size_t column_tile_count = nk_size_divide_round_up_(vector_count, 16);

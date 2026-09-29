@@ -75,9 +75,10 @@ NUMKONG_API nk_status_t nk_find_kernel_punned(nk_kernel_kind_t kind, nk_dtype_t 
     }
 }
 
-/** The CPU's capabilities, probed on the first query: the C++ wrappers ask on every call, and a query can be a
- *  system call. Racing threads probe the same CPU and store the same word, never zero once filled, as it always
- *  holds @c nk_cap_serial_k. The GPU queries keep nothing, as their runtimes answer from their own state. */
+/** The CPU's capabilities, probed on the first query: the C++ wrappers ask on every call, and a
+ *  query can be a system call. Racing threads probe the same CPU and store the same word, never
+ *  zero once filled, as it always holds @c nk_cap_serial_k. The GPU queries keep nothing, as their
+ *  runtimes answer from their own state. */
 static _Atomic nk_capability_t nk_cpu_detected_;
 
 NUMKONG_API nk_status_t nk_cpu_capabilities_detected(nk_capability_t *capabilities) {
@@ -108,7 +109,7 @@ NUMKONG_API nk_size_t nk_name_capabilities(nk_capability_t capabilities, char *b
 
 NUMKONG_API char const *nk_status_to_string(nk_status_t status) { return nk_status_to_string_(status); }
 
-/*  With CUDA kernels in the library, `c/nvidia/cuda.cu` counts and probes the devices through the runtime. */
+/*  With CUDA kernels in the library, `c/nvidia/cuda.cu` counts and probes the devices instead. */
 #if !NUMKONG_ARCH_CUDA_
 NUMKONG_API nk_status_t nk_cuda_count_devices(nk_size_t *count) {
     *count = 0;
@@ -130,7 +131,7 @@ NUMKONG_API nk_status_t nk_cuda_capabilities_enabled(nk_size_t device, nk_capabi
     return status;
 }
 
-/*  With ROCm kernels in the library, `c/amd/rocm.hip` counts and probes the devices through the runtime. */
+/*  With ROCm kernels in the library, `c/amd/rocm.hip` counts and probes the devices instead. */
 #if !NUMKONG_ARCH_ROCM_
 NUMKONG_API nk_status_t nk_rocm_count_devices(nk_size_t *count) {
     *count = 0;
@@ -152,7 +153,7 @@ NUMKONG_API nk_status_t nk_rocm_capabilities_enabled(nk_size_t device, nk_capabi
     return status;
 }
 
-/*  With Metal kernels in the library, `c/apple/metal.c` counts and probes the devices through the runtime. */
+/*  With Metal kernels in the library, `c/apple/metal.c` counts and probes the devices instead. */
 #if !NUMKONG_WITH_METAL
 NUMKONG_API nk_status_t nk_metal_count_devices(nk_size_t *count) {
     *count = 0;

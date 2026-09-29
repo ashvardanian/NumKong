@@ -356,8 +356,7 @@ NUMKONG_INLINE void nk_reduce_moments_e2m3_neonsdot_chunked_(           //
             nk_e2m3_t const *chunk_ptr = data_ptr + start * stride_elements;
             nk_size_t chunk_count = count - start < chunk_limit ? count - start : chunk_limit;
             nk_f32_t sum, sumsq;
-            if (stride_elements == 1)
-                nk_reduce_moments_e2m3_neonsdot_contiguous_(chunk_ptr, chunk_count, &sum, &sumsq);
+            if (stride_elements == 1) nk_reduce_moments_e2m3_neonsdot_contiguous_(chunk_ptr, chunk_count, &sum, &sumsq);
             else if (stride_elements <= 4)
                 nk_reduce_moments_e2m3_neonsdot_strided_(chunk_ptr, chunk_count, stride_elements, &sum, &sumsq);
             else nk_reduce_moments_e2m3_strided_(chunk_ptr, chunk_count, stride_bytes, &sum, &sumsq);

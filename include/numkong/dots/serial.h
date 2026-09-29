@@ -107,14 +107,19 @@ extern "C" {
  *    - values = storage bytes containing nibbles (e.g., 64 bytes for 128 nibbles)
  *    - dimensions_per_value = 2 (2 nibbles per byte) */
 typedef struct {
+
     /** Columns, not padded. */
     nk_u32_t column_count;
+
     /** Logical depth in dimensions: nibbles for i4 and u4, values for i8 and f32. */
     nk_u32_t depth_dimensions;
+
     /** Padded depth in storage values: bytes for i4 and u4, values for i8 and f32. */
     nk_u32_t depth_padded_values;
+
     /** Zeroed; pads the header to 64 bytes. */
     nk_u32_t reserved[11];
+
     /** The capability that packed the buffer, which every consumer checks. */
     nk_capability_t capability;
 } nk_cross_packed_buffer_header_t;

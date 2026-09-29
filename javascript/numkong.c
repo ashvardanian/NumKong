@@ -292,7 +292,7 @@ napi_value api_capabilities_enable(napi_env env, napi_callback_info info) {
     return result;
 }
 
-/** Exports @c Capability, mapping every CPU capability's name to its BigInt bit, and no GPU capabilities. */
+/** Exports @c Capability, mapping each CPU capability's name to its BigInt bit, and no GPU ones. */
 static napi_status export_capability_names(napi_env env, napi_value exports) {
     napi_value names;
     napi_status status = napi_create_object(env, &names);

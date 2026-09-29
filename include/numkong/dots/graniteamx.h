@@ -351,7 +351,7 @@ NUMKONG_API nk_status_t nk_dots_pack_f16_graniteamx(            //
     return nk_success_k;
 }
 
-/** @brief F16 GEMM of `a` rows against pre-packed B columns into F32 `c`, on AMX-FP16 tiles. */
+/** F16 GEMM of @p a rows against pre-packed B columns into F32 @p c, on AMX-FP16 tiles. */
 NUMKONG_INLINE nk_status_t nk_gemm_packed_f16_graniteamx_( //
     nk_f16_t const *a, void const *b_packed, nk_f32_t *c,  //
     nk_size_t rows_count, nk_size_t cols_count, nk_size_t depth, nk_size_t a_stride_bytes, nk_size_t c_stride_bytes) {
@@ -680,8 +680,7 @@ NUMKONG_API nk_status_t nk_dots_packed_f16_graniteamx(    //
                                           c_stride_bytes);
 }
 
-/** @brief F16 Gram matrix of `vectors` for rows [row_start, row_start + row_count), upper triangle, on AMX-FP16 tiles.
- */
+/** F16 Gram upper triangle of @p vectors on AMX-FP16, @p row_count rows from @p row_start. */
 NUMKONG_INLINE nk_status_t nk_gram_f16_graniteamx_(                                //
     nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,             //
     nk_size_t stride_in_bytes, nk_f32_t *result, nk_size_t result_stride_in_bytes, //
@@ -930,7 +929,7 @@ NUMKONG_API nk_status_t nk_dots_pack_e5m2_graniteamx(            //
     return nk_success_k;
 }
 
-/** @brief E5M2 GEMM of `a` rows against pre-packed B columns into F32 `c`, through F16 AMX tiles. */
+/** E5M2 GEMM of @p a rows against pre-packed B columns into F32 @p c, through F16 AMX tiles. */
 NUMKONG_INLINE nk_status_t nk_gemm_packed_e5m2_graniteamx_( //
     nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,  //
     nk_size_t rows_count, nk_size_t cols_count, nk_size_t depth, nk_size_t a_stride_bytes, nk_size_t c_stride_bytes) {
@@ -1158,8 +1157,7 @@ NUMKONG_API nk_status_t nk_dots_packed_e5m2_graniteamx(    //
                                            c_stride_bytes);
 }
 
-/** @brief E5M2 Gram matrix of `vectors` for rows [row_start, row_start + row_count), upper triangle, on AMX-FP16 tiles.
- */
+/** E5M2 Gram upper triangle of @p vectors on AMX-FP16, @p row_count rows from @p row_start. */
 NUMKONG_INLINE nk_status_t nk_gram_e5m2_graniteamx_(                               //
     nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,            //
     nk_size_t stride_in_bytes, nk_f32_t *result, nk_size_t result_stride_in_bytes, //

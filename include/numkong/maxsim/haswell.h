@@ -185,8 +185,8 @@ NUMKONG_INLINE __m128i nk_maxsim_reduce_i32x8x4_haswell_(     //
                          _mm_add_epi32(sum_lane_2_i32x4, sum_lane_3_i32x4));
 }
 
-/** Coarse i8 kernel for Haswell as an @c nk_maxsim_coarse_dots_t. Uses AVX2 VPMADDUBSW (u8 × i8 → i16)
- *  + VPMADDWD (i16×1 → i32) with XOR-0x80 bias. 4Q × 4D register tiling with 16 YMM accumulators. */
+/** Coarse i8 kernel for Haswell as an @c nk_maxsim_coarse_dots_t: AVX2 VPMADDUBSW (u8 × i8 → i16)
+ *  and VPMADDWD (i16 × 1 → i32) with an XOR-0x80 bias, tiled 4Q × 4D over 16 YMM accumulators. */
 NUMKONG_INLINE void nk_maxsim_coarse_dots_haswell_(       //
     nk_i8_t const *query_i8, nk_i8_t const *document_i8,  //
     nk_maxsim_vector_metadata_t const *document_metadata, //

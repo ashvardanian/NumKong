@@ -1,4 +1,4 @@
-// Capability capability names, checked against the C name table, and the mask kernels are called with.
+// Capability names, checked against the C name table, and the mask kernels are called with.
 //
 // File: golang/capabilities_test.go
 // Author: Ash Vardanian

@@ -252,7 +252,7 @@ public struct Capabilities: OptionSet, Sendable, CustomStringConvertible {
     public let rawValue: UInt64
     public init(rawValue: UInt64) { self.rawValue = rawValue }
 
-    /// The mask as the C API takes it: `UInt` on Linux arm64, where `nk_capability_t` is `unsigned long`.
+    /// The C API's mask: `UInt` on Linux arm64, where `nk_capability_t` is `unsigned long`.
     @usableFromInline var native: nk_capability_t { nk_capability_t(rawValue) }
 
     public static let serial = Capabilities(rawValue: 1 << 0)
@@ -305,8 +305,7 @@ public struct Capabilities: OptionSet, Sendable, CustomStringConvertible {
     nonisolated(unsafe) private static var selected = query(nk_cpu_capabilities_enabled)
 
     /// Makes `wanted` the ``enabled`` set, clamped to ``detected`` and ``compiled`` and keeping
-    /// ``serial``. Pack matrices again after the call, since packed kernels refuse another capability's
-    /// layout.
+    /// ``serial``. Matrices packed before the call must be packed again under the new set.
     /// - Returns: The set that took effect.
     @discardableResult
     public static func enable(_ wanted: Capabilities) -> Capabilities {

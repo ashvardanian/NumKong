@@ -70,7 +70,7 @@ NUMKONG_INLINE void nk_reduce_moments_bf16_genoa_contiguous_( //
     *sumsq_ptr = nk_reduce_add_f32x16_skylake_(sumsq_f32x16);
 }
 
-/** Sums and squares @p count BF16 values @p stride_bytes apart, in chunks the vector accumulators hold. */
+/** Sums and squares @p count BF16 values @p stride_bytes apart, in chunks the accumulators hold. */
 NUMKONG_INLINE void nk_reduce_moments_bf16_genoa_chunked_(              //
     nk_bf16_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
@@ -130,7 +130,7 @@ NUMKONG_INLINE void nk_reduce_moments_e4m3_genoa_contiguous_( //
     *sumsq_ptr = nk_reduce_add_f32x16_skylake_(sumsq_f32x16);
 }
 
-/** Sums and squares @p count E4M3 values @p stride_bytes apart, in chunks the vector accumulators hold. */
+/** Sums and squares @p count E4M3 values @p stride_bytes apart, in chunks the accumulators hold. */
 NUMKONG_INLINE void nk_reduce_moments_e4m3_genoa_chunked_(              //
     nk_e4m3_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {

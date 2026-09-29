@@ -215,7 +215,7 @@ NUMKONG_INLINE nk_f32_t nk_angular_normalize_f32_haswell_(nk_f32_t ab, nk_f32_t 
 
 #pragma region F16 and BF16 Floats
 
-/** @brief Squared Euclidean distance between two f16 vectors, accumulated in f32. */
+/** Squared Euclidean distance between two f16 vectors, accumulated in f32. */
 NUMKONG_INLINE void nk_squared_distance_f16_haswell_(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
                                                      nk_f32_t *result) {
     __m256 a_f32x8, b_f32x8;
@@ -292,7 +292,7 @@ nk_angular_f16_haswell_cycle:
 }
 #endif // NUMKONG_TARGET_HASWELL
 
-/** @brief Squared Euclidean distance between two bf16 vectors, accumulated in f32. */
+/** Squared Euclidean distance between two bf16 vectors, accumulated in f32. */
 NUMKONG_INLINE void nk_squared_distance_bf16_haswell_(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
                                                       nk_f32_t *result) {
     __m256i a_bf16_i16x16, b_bf16_i16x16;
@@ -387,7 +387,7 @@ nk_angular_bf16_haswell_cycle:
 #endif // NUMKONG_TARGET_HASWELL
 #pragma region I8 and U8 Integers
 
-/** @brief Squared Euclidean distance between two i8 vectors, accumulated in i32. */
+/** Squared Euclidean distance between two i8 vectors, accumulated in i32. */
 NUMKONG_INLINE void nk_squared_distance_i8_haswell_(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result) {
     // Optimized i8 L2-squared using saturating subtract + VPMADDWD
     //
@@ -521,7 +521,7 @@ NUMKONG_API nk_status_t nk_angular_i8_haswell(nk_i8_t const *a, nk_i8_t const *b
 }
 #endif // NUMKONG_TARGET_HASWELL
 
-/** @brief Squared Euclidean distance between two u8 vectors, accumulated in i32. */
+/** Squared Euclidean distance between two u8 vectors, accumulated in i32. */
 NUMKONG_INLINE void nk_squared_distance_u8_haswell_(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
     __m256i distance_sq_low_i32x8 = _mm256_setzero_si256();
     __m256i distance_sq_high_i32x8 = _mm256_setzero_si256();
@@ -727,7 +727,7 @@ NUMKONG_API nk_status_t nk_angular_f32_haswell(nk_f32_t const *a, nk_f32_t const
 }
 #endif // NUMKONG_TARGET_HASWELL
 
-/** @brief Squared Euclidean distance between two f64 vectors. */
+/** Squared Euclidean distance between two f64 vectors. */
 NUMKONG_INLINE void nk_squared_distance_f64_haswell_(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
                                                      nk_f64_t *result) {
     __m256d sum_f64x4 = _mm256_setzero_pd();
@@ -823,7 +823,7 @@ nk_angular_f64_haswell_cycle:
 #endif // NUMKONG_TARGET_HASWELL
 #pragma region FP8 Floats
 
-/** @brief Squared Euclidean distance between two e2m3 vectors, accumulated in f32. */
+/** Squared Euclidean distance between two e2m3 vectors, accumulated in f32. */
 NUMKONG_INLINE void nk_squared_distance_e2m3_haswell_(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
                                                       nk_f32_t *result) {
     __m256 distance_sq_f32x8 = _mm256_setzero_ps();
@@ -903,7 +903,7 @@ nk_angular_e2m3_haswell_cycle:
 
 #endif // NUMKONG_TARGET_HASWELL
 
-/** @brief Squared Euclidean distance between two e3m2 vectors, accumulated in f32. */
+/** Squared Euclidean distance between two e3m2 vectors, accumulated in f32. */
 NUMKONG_INLINE void nk_squared_distance_e3m2_haswell_(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
                                                       nk_f32_t *result) {
     __m256 distance_sq_f32x8 = _mm256_setzero_ps();
@@ -983,7 +983,7 @@ nk_angular_e3m2_haswell_cycle:
 
 #endif // NUMKONG_TARGET_HASWELL
 
-/** @brief Squared Euclidean distance between two e4m3 vectors, accumulated in f32. */
+/** Squared Euclidean distance between two e4m3 vectors, accumulated in f32. */
 NUMKONG_INLINE void nk_squared_distance_e4m3_haswell_(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
                                                       nk_f32_t *result) {
     // E4M3 has no free widen shift, so we call the Giesen-based 8-lane cast helper
@@ -1078,7 +1078,7 @@ nk_angular_e4m3_haswell_cycle:
 
 #endif // NUMKONG_TARGET_HASWELL
 
-/** @brief Squared Euclidean distance between two e5m2 vectors, accumulated in f32. */
+/** Squared Euclidean distance between two e5m2 vectors, accumulated in f32. */
 NUMKONG_INLINE void nk_squared_distance_e5m2_haswell_(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
                                                       nk_f32_t *result) {
     // E5M2 shares F16's exponent bias (15): `byte << 8` equals the matching F16 encoding.

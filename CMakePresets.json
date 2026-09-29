@@ -163,7 +163,11 @@
     { "name": "wasm32_wasi_threads", "configurePreset": "wasm32_wasi_threads" },
     { "name": "cuda", "configurePreset": "cuda" },
     { "name": "rocm", "configurePreset": "rocm" },
-    { "name": "metal", "configurePreset": "metal", "targets": ["numkong_metal_header_test", "numkong_metal_shared_test"] }
+    {
+      "name": "metal",
+      "configurePreset": "metal",
+      "targets": ["numkong_metal_header_test", "numkong_metal_shared_test"]
+    }
   ],
   "testPresets": [
     {

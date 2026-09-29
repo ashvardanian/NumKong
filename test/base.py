@@ -574,7 +574,9 @@ def downcast_f32_to_dtype(f32_arr: np.ndarray, dtype: str) -> tuple[np.ndarray, 
     return raw, raw.astype(np.float64)
 
 
-possible_capabilities: list[str] = [capability.name.lower() for capability in nk.Capability if capability in nk.capabilities_enabled()]
+possible_capabilities: list[str] = [
+    capability.name.lower() for capability in nk.Capability if capability in nk.capabilities_enabled()
+]
 """Must be `enabled` at import, not `detected`: parametrizing over a capability this CPU has but this
 binary lacks silently tests the serial fallback while claiming to cover the SIMD kernel. A binary holds
 one CPU capability group, serial first, so no per-architecture list is needed.

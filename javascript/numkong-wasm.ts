@@ -92,7 +92,7 @@ let HEAPU32: Uint32Array;
 let HEAPF32: Float32Array;
 let HEAPF64: Float64Array;
 
-/** The mask kernels run with, which {@link capabilitiesEnable} narrows from the enabled capabilities. */
+/** The mask kernels run with, which {@link capabilitiesEnable} narrows from the enabled ones. */
 let defaultCapabilities: bigint = 1n;
 
 /** Convert a number, e.g. from `_malloc` or `byteOffset`, to the pointer type expected by raw C
@@ -586,7 +586,7 @@ export function capabilitiesEnable(wanted: bigint): bigint {
   return defaultCapabilities;
 }
 
-/** Lowercase CPU capability names, like `v128`, mapped to their capability bits by {@link initWasm}. */
+/** Lowercase CPU capability names, like `v128`, mapped to their bits by {@link initWasm}. */
 export let Capability: Readonly<Record<string, bigint>>;
 
 /** `FinalizationRegistry` for WASM `PackedMatrix` cleanup, an ES2021 feature from Node 14. */

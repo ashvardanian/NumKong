@@ -125,8 +125,8 @@
 #endif
 
 /** Base of function annotations:
- *  - @c NUMKONG_API           every public function, a kernel of one capability or a dispatch point.
- *  - @c NUMKONG_CONSTEXPR   internal helper; the compiler decides inlining.
+ *  - @c NUMKONG_API every public function, a kernel of one capability or a dispatch point.
+ *  - @c NUMKONG_CONSTEXPR internal helper; the compiler decides inlining.
  *  - @c NUMKONG_INLINE internal helper forced inline, for devirtualizing driver loops. */
 #define NUMKONG_C_INLINE_ inline static
 
@@ -144,8 +144,8 @@
 
 /** @c NUMKONG_CONSTEXPR is @c constexpr from C++20, so callers can fold it at compile time and
  *  CUDA kernels reach it through @c --expt-relaxed-constexpr. A helper that touches an intrinsic,
- *  @c asm or a runtime can never be constant-evaluated, so it takes @c NUMKONG_INLINE
- *  instead, and MSVC gets the plain helper, as it rejects its own intrinsics in @c constexpr. */
+ *  @c asm or a runtime can never be constant-evaluated, so it takes @c NUMKONG_INLINE instead, and
+ *  MSVC gets the plain helper, as it rejects its own intrinsics in @c constexpr. */
 #if defined(__cplusplus) && __cplusplus >= 202002L && !(defined(_MSC_VER) && !defined(__clang__))
 #define NUMKONG_CONSTEXPR NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ constexpr
 #else
@@ -278,16 +278,16 @@
 #define NUMKONG_WITH_METAL 0
 #endif // !defined(NUMKONG_WITH_METAL)
 
-/** Importing the capability probes from the host, NUMKONG_WITH_HOST_PROBES: set by the build for a WASI
- *  module whose host supplies @c nk_has_v128 and @c nk_has_relaxed. The Wasmer and Wasmtime CLIs cannot,
- *  so it defaults to 0 and a module reports the capabilities it was compiled with. */
+/** Importing the capability probes from the host, NUMKONG_WITH_HOST_PROBES: set by the build for a
+ *  WASI module whose host supplies @c nk_has_v128 and @c nk_has_relaxed. The Wasmer and Wasmtime
+ *  CLIs cannot, so it defaults to 0 and a module reports the capabilities it was compiled with. */
 #if !defined(NUMKONG_WITH_HOST_PROBES)
 #define NUMKONG_WITH_HOST_PROBES 0
 #endif // !defined(NUMKONG_WITH_HOST_PROBES)
 
-/*  Defining the serial kernels: NUMKONG_TARGET_SERIAL. Header-only builds define them in every
- *  translation unit; in the library only its serial unit does, so units that include a serial header
- *  for its helpers, like the bindings', leave its kernels to the library. */
+/** Defining the serial kernels: NUMKONG_TARGET_SERIAL. Header-only builds define them in every
+ *  translation unit; in the library only its serial unit does, so units that include a serial
+ *  header for its helpers, like the bindings', leave its kernels to the library. */
 #if !defined(NUMKONG_TARGET_SERIAL)
 #define NUMKONG_TARGET_SERIAL NUMKONG_HEADER_ONLY
 #endif // !defined(NUMKONG_TARGET_SERIAL)
@@ -765,7 +765,7 @@
 #define NUMKONG_TARGET_METAL (NUMKONG_WITH_METAL && NUMKONG_HEADER_ONLY)
 #endif // !defined(NUMKONG_TARGET_METAL) || ...
 
-/*  Whether a capability's helpers compile here: its own target, or any capability built on it. Each
+/** Whether a capability's helpers compile here: its own target, or any capability built on it. Each
  *  architecture's base, Haswell, NEON, RVV and V128, covers every capability of that architecture.
  *  @c NUMKONG_TARGET_* alone decides where its kernels are defined. */
 #define NUMKONG_ARCH_X8664_SAPPHIREAMX_ \
@@ -822,7 +822,7 @@
 #if NUMKONG_ARCH_WASM_V128_
 #include <wasm_simd128.h>
 #endif
-/*  Host-only units include neither runtime, as the two clash, and probe devices through the vendor units. */
+/*  Host-only units include neither runtime, as the two clash; vendor units probe the devices. */
 #if NUMKONG_ARCH_CUDA_ && defined(__CUDACC__)
 #include <cuda_fp16.h>    // `__half2float`
 #include <cuda_runtime.h> // `cudaLaunchKernel`, `cudaStream_t`
@@ -848,8 +848,8 @@
 /** ARM streaming attributes, requiring an SME-capable compiler: GCC 14+, Clang 16+.
  *  @c NUMKONG_STREAMING_ marks functions that require streaming SVE mode, such as FCVTLT.
  *  @c NUMKONG_STREAMABLE_ marks helpers callable in and out of streaming mode.
- *  @c NUMKONG_OUTLINED_ replaces @c static on streaming bodies called from non-streaming
- *  kernels, which GCC would inline, rejecting their SVE intrinsics or framing them by VL and spilling at SVL. */
+ *  @c NUMKONG_OUTLINED_ replaces @c static on streaming bodies called from non-streaming kernels,
+ *  which GCC would inline, then reject their SVE intrinsics or frame by VL and spill at SVL. */
 #if NUMKONG_ARCH_ARM64_ && NUMKONG_ARCH_ARM64_SME_
 #define NUMKONG_STREAMING_  __arm_streaming
 #define NUMKONG_STREAMABLE_ __arm_streaming_compatible

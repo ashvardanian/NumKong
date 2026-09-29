@@ -313,7 +313,7 @@ NUMKONG_INLINE void nk_each_affine_bf16_rvv_(nk_bf16_t const *a, nk_size_t n, nk
     }
 }
 
-/** Elementwise @p alpha times @p a plus @p beta over @p n I8 values, computed in F32 and saturated. */
+/** Maps @p n I8 values of @p a to @p alpha_val × a + @p beta_val in F32, rounded and saturated. */
 NUMKONG_INLINE void nk_each_affine_i8_rvv_(nk_i8_t const *a, nk_size_t n, nk_f32_t alpha_val, nk_f32_t beta_val,
                                            nk_i8_t *result) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
@@ -337,7 +337,7 @@ NUMKONG_INLINE void nk_each_affine_i8_rvv_(nk_i8_t const *a, nk_size_t n, nk_f32
     }
 }
 
-/** Elementwise @p alpha times @p a plus @p beta over @p n U8 values, computed in F32 and saturated. */
+/** Maps @p n U8 values of @p a to @p alpha_val × a + @p beta_val in F32, rounded and saturated. */
 NUMKONG_INLINE void nk_each_affine_u8_rvv_(nk_u8_t const *a, nk_size_t n, nk_f32_t alpha_val, nk_f32_t beta_val,
                                            nk_u8_t *result) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();

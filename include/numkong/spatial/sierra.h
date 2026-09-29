@@ -76,7 +76,7 @@ NUMKONG_API nk_status_t nk_angular_i8_sierra(nk_i8_t const *a, nk_i8_t const *b,
     return nk_success_k;
 }
 
-/** @brief Squared Euclidean distance between two i8 vectors. */
+/** Squared Euclidean distance between two i8 vectors. */
 NUMKONG_INLINE void nk_squared_distance_i8_sierra_(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result) {
     // ||a-b||^2 = ||a||^2 + ||b||^2 - 2*dot(a,b) using dpbssds (signed x signed)
 
@@ -156,7 +156,7 @@ NUMKONG_API nk_status_t nk_angular_u8_sierra(nk_u8_t const *a, nk_u8_t const *b,
     return nk_success_k;
 }
 
-/** @brief Squared Euclidean distance between two u8 vectors. */
+/** Squared Euclidean distance between two u8 vectors. */
 NUMKONG_INLINE void nk_squared_distance_u8_sierra_(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
     // ||a-b||^2 = ||a||^2 + ||b||^2 - 2*dot(a,b) using dpbuud (unsigned x unsigned)
 
@@ -276,7 +276,7 @@ nk_angular_e2m3_sierra_cycle:
     return nk_success_k;
 }
 
-/** @brief Squared Euclidean distance between two e2m3 vectors. */
+/** Squared Euclidean distance between two e2m3 vectors. */
 NUMKONG_INLINE void nk_squared_distance_e2m3_sierra_(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
                                                      nk_size_t count_scalars, nk_f32_t *result) {
     // Squared Euclidean distance for e2m3 using norm decomposition + VPDPBSSD.
@@ -361,7 +361,7 @@ NUMKONG_API nk_status_t nk_euclidean_e2m3_sierra(nk_e2m3_t const *a, nk_e2m3_t c
     return nk_success_k;
 }
 
-/** @brief Squared Euclidean distance between two e3m2 vectors. */
+/** Squared Euclidean distance between two e3m2 vectors. */
 NUMKONG_INLINE void nk_squared_distance_e3m2_sierra_(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
                                                      nk_size_t count_scalars, nk_f32_t *result) {
     // E3M2 squared Euclidean distance via direct difference squaring.

@@ -2,7 +2,7 @@
  *  @file c/dispatch/dots.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
- *  @brief The batched dot product capability lists, @c _best dispatch points and @c nk_dots_find_kernel.
+ *  @brief Batched dot products: capability lists, @c _best dispatch points, @c nk_dots_find_kernel.
  */
 #include "dispatch.h"
 #include "numkong/dots.h"
