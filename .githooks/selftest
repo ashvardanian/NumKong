@@ -1106,6 +1106,17 @@ assert_accepts "prose naming a parameter, a mnemonic and a code span" include/nu
 static inline int probe(int const *buffer) { return buffer[0]; }
 FIXTURE
 
+stage_fixture_with_header include/numkong/probe.h <<'FIXTURE'
+typedef int const *probe_buf_t;
+FIXTURE
+git -C "$fixture_directory" commit --quiet -m "Chore: Seed the fixture"
+stage_sibling_with_header include/numkong/probe/serial.h <<'FIXTURE'
+/** Reads the first value. */
+static inline int probe_serial(probe_buf_t values) { return values[0]; }
+FIXTURE
+run_precommit
+expect_acceptance "new header reusing a name from HEAD's headers"
+
 assert_rejects "line comment above a preprocessor block" "writes a // comment outside a function body" include/numkong/probe.h <<'FIXTURE'
 // EM_JS expands to an empty-parameter-list declaration, tripping -Wstrict-prototypes.
 #if defined(__clang__)
@@ -1429,6 +1440,31 @@ FIXTURE
 assert_accepts "Python lowercase emphasis" python/probe.py <<'FIXTURE'
 """Reads only the header."""
 FIXTURE
+
+stage_fixture_with_header python/probe.py <<'FIXTURE'
+import os
+def probe(value):
+    return value
+FIXTURE
+git -C "$fixture_directory" commit --quiet -m "Chore: Seed the fixture"
+cat >> "$fixture_directory/python/probe.py" <<'FIXTURE'
+
+
+def settled(value):
+    return value
+FIXTURE
+git -C "$fixture_directory" add -- python/probe.py
+run_precommit
+expect_acceptance "ruff debt HEAD carries outside the added lines"
+cat >> "$fixture_directory/python/probe.py" <<'FIXTURE'
+
+
+def flagged(value):
+    return undefined_value
+FIXTURE
+git -C "$fixture_directory" add -- python/probe.py
+run_precommit
+expect_rejection "ruff finding on an added line beside that debt" "has ruff lint findings on its added lines"
 
 assert_rejects "Python arguments aligned into a column" "aligns docstring arguments into a column" python/probe.py <<'FIXTURE'
 """Probes a value.

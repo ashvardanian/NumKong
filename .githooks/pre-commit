@@ -24,7 +24,7 @@ rejection_count=0
 project_name="NumKong"
 project_namespace="ashvardanian::numkong"
 sibling_projects='stringzilla|usearch|forkunion|smashtable|simsimd|smallfield|stringtape'
-abbreviations_refused="hi lo bot acc accum tmp temp res bcast ext idx cnt ptr buf len str val obj elem iter"
+abbreviations_refused="hi lo bot acc accum tmp temp res bcast ext idx cnt buf len str val obj elem iter"
 rustfmt_command="cargo +nightly fmt"
 
 # endregion Project Settings
@@ -1882,9 +1882,12 @@ check_proper_names_capitalized() {
 
 # Rejects an abbreviation from `abbreviations_refused`, such as `hi` or `lo` for register halves, because
 # names and prose spell words out. A bare one in a comment always fires; in code only a name new since HEAD
-# fires, so touching a line never forces a rename the commit is not about.
+# fires, so touching a line never forces a rename the commit is not about. A path HEAD lacks, whether new or a
+# rename git cannot pair, is weighed against every name in HEAD's headers, as it reuses the library's types.
 check_abbreviations_spelled_out() {
-    local abbreviated
+    local abbreviated previous_text
+    previous_text=$(git show "HEAD:$staged_path" 2> /dev/null) ||
+        previous_text=${head_header_names:=$(git grep -h -o -w -E '[A-Za-z_][A-Za-z0-9_]*' HEAD -- include/numkong | sort -u)}
     abbreviated=$(awk -v abbreviations="$abbreviations_refused" '
         BEGIN { count = split(abbreviations, words, " "); for (word = 1; word <= count; ++word) banned[words[word]] = 1 }
         function has_banned_segment(token,    segments, total, segment) {
@@ -1912,7 +1915,7 @@ check_abbreviations_spelled_out() {
                 if (prose && (token in declared || token == toupper(token))) continue
                 if ((prose && token !~ /_/) || !(token in existing)) { print "    " token ": " substr($0, 2); break }
             }
-        }' <(git show "HEAD:$staged_path" 2> /dev/null || true) \
+        }' <(printf '%s\n' "$previous_text") \
         <(printf '%s\n' "$staged_file_text" | blank_c_comments_preserving_columns) \
         <(printf '%s\n' "$staged_added_text") || true)
     [ -z "$abbreviated" ] || reject_with_reason "$abbreviated" \
@@ -2068,14 +2071,14 @@ check_harness_namespace_matches_directory() {
     local expected_namespace foreign
     case "$staged_path" in
     test/*.h | bench/*.h)
-        printf '%s\n' "$staged_file_text" | grep -qE '(^|[^A-Za-z0-9_])(namespace|template|class)[[:space:]]' || return 0
+        grep -qE '(^|[^A-Za-z0-9_])(namespace|template|class)[[:space:]]' <<< "$staged_file_text" || return 0
         ;;
     esac
     expected_namespace="${project_namespace}::${staged_path%/*}"
     expected_namespace=${expected_namespace//\//::}
     case "$staged_path" in
     *.hpp | *.cuh)
-        if ! printf '%s\n' "$staged_file_text" | grep -qE "^namespace ${expected_namespace} \{"; then
+        if ! grep -qE "^namespace ${expected_namespace} \{" <<< "$staged_file_text"; then
             reject_with_reason "" "$staged_path does not open \`namespace $expected_namespace {\` in one piece;" \
                 "            spell the namespace its directory names on a single line"
             return 0
@@ -2185,25 +2188,57 @@ check_gofmt_clean() {
     reject_with_reason "" "$staged_path is not gofmt clean;" "            run: gofmt -w $staged_path"
 }
 
-# Rejects rustfmt drift across the crate, because `rustfmt.toml` is the law; `rustfmt_command` names the
-# toolchain that understands it, and the check skips without that toolchain or a crate.
+# Rejects rustfmt drift in the Rust files as staged, not as they sit in the working tree, because `rustfmt.toml`
+# is the law; it skips without a crate or the nightly rustfmt that understands that file.
 check_rustfmt_clean() {
-    [ -f Cargo.toml ] && command -v cargo > /dev/null 2>&1 && $rustfmt_command --version > /dev/null 2>&1 || return 0
-    git diff --cached --name-only --diff-filter=ACM -- '*.rs' | grep -q . || return 0
-    $rustfmt_command --check > /dev/null 2>&1 && return 0
-    reject_with_reason "" "staged Rust changes are not rustfmt clean;" "            run: $rustfmt_command"
+    [ -f Cargo.toml ] && rustfmt +nightly --version > /dev/null 2>&1 || return 0
+    local edition staged_rust_path drifted=""
+    edition=$(sed -n 's/^edition = "\(.*\)"/\1/p' Cargo.toml)
+    for staged_rust_path in $(git diff --cached --name-only --diff-filter=ACM -- '*.rs'); do
+        # Reading stdin, `--check` prints its diff yet exits 0, so the diff itself is the verdict.
+        [ -z "$(git show ":$staged_rust_path" | rustfmt +nightly --edition "$edition" --config-path rustfmt.toml \
+            --check 2> /dev/null)" ] || drifted="$drifted $staged_rust_path"
+    done
+    [ -z "$drifted" ] || reject_with_reason "" "staged Rust files are not rustfmt clean:$drifted;" \
+        "            run: $rustfmt_command"
 }
 
-# Rejects ruff format drift and ruff lint findings, because `pyproject.toml` is the law; it skips without ruff.
-check_ruff_clean() {
+# Rejects ruff format drift that rewrites an added line or inserts beside one, because `pyproject.toml` is the
+# law and legacy lines migrate on their own schedule. It skips without ruff, and on a syntax error, which the
+# lint check reports.
+check_ruff_format_on_added_lines() {
     command -v ruff > /dev/null 2>&1 || return 0
-    local staged_python_paths
-    staged_python_paths=$(git diff --cached --name-only --diff-filter=ACM -- '*.py')
-    [ -n "$staged_python_paths" ] || return 0
-    ruff format --check --quiet --force-exclude $staged_python_paths > /dev/null 2>&1 ||
-        reject_with_reason "" "staged Python changes are not ruff-format clean;" "            run: ruff format <files>"
-    ruff check --quiet --force-exclude $staged_python_paths > /dev/null 2>&1 ||
-        reject_with_reason "" "staged Python changes have ruff lint findings;" "            run: ruff check --fix <files>"
+    local formatted drift
+    formatted=$(git show ":$staged_path" |
+        ruff format --force-exclude --stdin-filename "$staged_path" - 2> /dev/null) || return 0
+    drift=$(diff -U0 <(git show ":$staged_path") <(printf '%s\n' "$formatted") | awk '
+        NR == FNR { added[$1 + 0]; next }
+        /^@@/ {
+            split($2, range, ",")
+            start = -range[1]
+            count = (range[2] == "") ? 1 : range[2] + 0
+            touching = count == 0 && (start in added || (start + 1) in added)
+            for (line = start; line < start + count; ++line) if (line in added) touching = 1
+        }
+        touching && /^[-+@]/' <(printf '%s\n' "$staged_added_line_numbers_list") -)
+    [ -z "$drift" ] || reject_with_reason "$drift" \
+        "$staged_path is not ruff-format clean on its added lines; run: ruff format $staged_path," \
+        "            or edit them as it would:"
+}
+
+# Rejects a ruff lint finding on an added line, because `pyproject.toml` is the law and legacy lines migrate
+# on their own schedule. A syntax error fires wherever ruff places it, as an unclosed bracket surfaces at the
+# end of the file. It skips without ruff.
+check_ruff_lint_on_added_lines() {
+    command -v ruff > /dev/null 2>&1 || return 0
+    local findings
+    findings=$(git show ":$staged_path" |
+        ruff check --quiet --force-exclude --output-format=concise --stdin-filename "$staged_path" - 2> /dev/null |
+        awk -F: 'NR == FNR { added[$1 + 0]; next } ($2 + 0) in added || $4 == " invalid-syntax"' \
+            <(printf '%s\n' "$staged_added_line_numbers_list") -)
+    [ -z "$findings" ] || reject_with_reason "$findings" \
+        "$staged_path has ruff lint findings on its added lines; run: ruff check --fix $staged_path," \
+        "            or fix them by hand:"
 }
 
 # Rejects swift-format lint findings, because `.swift-format` is the law; it skips without swift-format.
@@ -2500,6 +2535,10 @@ run_shared_formatters() {
     case "$staged_path" in
     CMakeLists.txt | *.cmake) check_cmake_format_clean ;;
     *.go) check_gofmt_clean ;;
+    *.py)
+        check_ruff_format_on_added_lines
+        check_ruff_lint_on_added_lines
+        ;;
     esac
 }
 
@@ -2508,7 +2547,6 @@ run_tree_checks() {
     check_clang_format_on_changed_lines
     check_rustfmt_clean
     check_taplo_clean
-    check_ruff_clean
     check_swift_format_clean
     check_dprint_clean
 }
@@ -2722,16 +2760,45 @@ run_project_checks() {
 
 git rev-parse --verify HEAD > /dev/null 2>&1 || exit 0
 
+results_directory=$(mktemp -d)
+trap 'rm -rf "$results_directory"' EXIT
+
+# Deals the paths round-robin to one worker per core, each running `judge_path` into a numbered report, then
+# prints the reports in path order, so the output reads exactly as a serial run's would.
+judge_paths_in_parallel() { # judge_paths_in_parallel <path>...
+    local worker worker_count ordinal
+    worker_count=$(getconf _NPROCESSORS_ONLN 2> /dev/null || echo 4)
+    [ "$worker_count" -le $# ] || worker_count=$#
+    for ((worker = 0; worker < worker_count; ++worker)); do
+        (
+            ordinal=0
+            for staged_path in "$@"; do
+                ordinal=$((ordinal + 1))
+                [ $(((ordinal - 1) % worker_count)) -eq "$worker" ] || continue
+                # The selftest carries one violation per rule by design.
+                [ "$staged_path" = .githooks/selftest ] || judge_path > "$results_directory/$ordinal"
+            done
+            echo "$rejection_count" > "$results_directory/count-$worker"
+        ) &
+    done
+    wait
+    for ((ordinal = 1; ordinal <= $#; ++ordinal)); do
+        [ ! -f "$results_directory/$ordinal" ] || cat "$results_directory/$ordinal"
+    done
+    for ((worker = 0; worker < worker_count; ++worker)); do
+        rejection_count=$((rejection_count + $(cat "$results_directory/count-$worker")))
+    done
+}
+
 # `--all-lines <path>...` judges whole working-tree files as though every line outside a function body were
 # added, and `--changed-lines <path>...` judges the lines they changed since HEAD; both skip the formatters
 # and the checks over the commit as a whole. With no arguments the hook judges what is staged.
 if [ "${1:-}" = --changed-lines ]; then
     shift
-    for staged_path in "$@"; do
-        [ "$staged_path" = .githooks/selftest ] && continue
-        [ -f "$staged_path" ] || continue
+    judge_path() {
+        [ -f "$staged_path" ] || return 0
         staged_added_text=$(git diff HEAD --unified=0 -- "$staged_path" | grep '^+' | grep -v '^+++' || true)
-        [ -n "$staged_added_text" ] || continue
+        [ -n "$staged_added_text" ] || return 0
         staged_added_line_numbers_list=$(git diff HEAD --unified=0 -- "$staged_path" | awk '
             /^@@/ {
                 split($3, range, ",")
@@ -2742,34 +2809,43 @@ if [ "${1:-}" = --changed-lines ]; then
         staged_file_text=$(cat -- "$staged_path")
         run_shared_checks
         run_project_checks
-    done
+    }
+    judge_paths_in_parallel "$@"
 elif [ "${1:-}" = --all-lines ]; then
     shift
-    for staged_path in "$@"; do
-        [ "$staged_path" = .githooks/selftest ] && continue
-        [ -f "$staged_path" ] || continue
+    judge_path() {
+        [ -f "$staged_path" ] || return 0
         staged_file_text=$(cat -- "$staged_path")
-        [ -n "$staged_file_text" ] || continue
+        [ -n "$staged_file_text" ] || return 0
         staged_added_line_numbers_list=$(lines_outside_function_bodies)
         staged_added_text=$(printf '%s\n' "$staged_file_text" | awk 'NR == FNR { kept[$1]; next } FNR in kept { print "+" $0 }' \
             <(printf '%s\n' "$staged_added_line_numbers_list") -)
         run_shared_checks
         run_project_checks
-    done
+    }
+    judge_paths_in_parallel "$@"
 else
-    while IFS= read -r -d '' staged_path; do
-        # The selftest carries one violation per rule by design.
-        [ "$staged_path" = .githooks/selftest ] && continue
+    judge_path() {
         check_generated_artifacts
         staged_added_text=$(git diff --cached --unified=0 -- "$staged_path" | grep '^+' | grep -v '^+++' || true)
-        [ -n "$staged_added_text" ] || continue
+        [ -n "$staged_added_text" ] || return 0
         staged_added_line_numbers_list=$(staged_added_line_numbers "$staged_path")
         staged_file_text=$(git show ":$staged_path")
         run_shared_checks
         run_shared_formatters
         run_project_checks
-    done < <(git diff --cached --name-only -z --diff-filter=ACM)
-    run_tree_checks
+    }
+    staged_paths=()
+    while IFS= read -r -d '' staged_path; do staged_paths+=("$staged_path"); done \
+        < <(git diff --cached --name-only -z --diff-filter=ACM)
+    # The checks over the whole commit overlap the per-path workers and still report after them.
+    (
+        run_tree_checks > "$results_directory/tree"
+        echo "$rejection_count" > "$results_directory/count-tree"
+    ) &
+    judge_paths_in_parallel ${staged_paths[@]+"${staged_paths[@]}"}
+    cat "$results_directory/tree"
+    rejection_count=$((rejection_count + $(cat "$results_directory/count-tree")))
 fi
 
 # endregion Dispatch
