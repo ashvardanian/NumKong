@@ -114,13 +114,19 @@ inline constexpr all_t all {};
 
 /** Slicing descriptor: [start, stop) with optional step. @c step must be non-zero. Negative
  *  start/stop indices wrap from the end. */
-struct range {
+struct range_t {
     std::ptrdiff_t start, stop, step;
     template <std::integral start_type_, std::integral stop_type_, std::integral step_type_ = int>
-    constexpr range(start_type_ start, stop_type_ stop, step_type_ step = 1) noexcept
+    constexpr range_t(start_type_ start, stop_type_ stop, step_type_ step = 1) noexcept
         : start(static_cast<std::ptrdiff_t>(start)), stop(static_cast<std::ptrdiff_t>(stop)),
           step(static_cast<std::ptrdiff_t>(step)) {}
 };
+
+/** Builds a @c range_t, so slices read `v[nk::range(1, 4)]`. */
+template <std::integral start_type_, std::integral stop_type_, std::integral step_type_ = int>
+constexpr range_t range(start_type_ start, stop_type_ stop, step_type_ step = 1) noexcept {
+    return range_t(start, stop, step);
+}
 
 /** Resolve an integral index to an unsigned offset. Negative wraps from end, and @p extent itself
  *  resolves too, as ranges stop there; element access checks the tighter bound. */
@@ -148,14 +154,14 @@ constexpr std::size_t resolve_extent_(extent_type_ extent) noexcept {
     return static_cast<std::size_t>(extent);
 }
 
-/** Resolve range start/stop against an extent (handles negatives). */
-constexpr void resolve_range_(range const &r, std::size_t extent, //
+/** Resolve range_t start/stop against an extent (handles negatives). */
+constexpr void resolve_range_(range_t const &r, std::size_t extent, //
                               std::size_t &out_start, std::size_t &out_stop) noexcept {
     out_start = resolve_index_(r.start, extent);
     out_stop = resolve_index_(r.stop, extent);
 }
 
-/** Number of elements in a resolved range with the given step. */
+/** Number of elements in a resolved range_t with the given step. */
 constexpr std::size_t range_extent_(std::size_t start, std::size_t stop, std::ptrdiff_t step) noexcept {
     nk_assert_(step != 0);
     if (step > 0) return start < stop ? divide_round_up(stop - start, static_cast<std::size_t>(step)) : 0;
@@ -381,7 +387,7 @@ struct vector_view {
     }
 
     /** Sub-slice via range. */
-    constexpr vector_view operator[](range r) const noexcept {
+    constexpr vector_view operator[](range_t r) const noexcept {
         size_type start, stop;
         resolve_range_(r, dimensions_, start, stop);
         auto count = range_extent_(start, stop, r.step);
@@ -494,7 +500,7 @@ struct vector_span {
     }
 
     /** Sub-slice via range. */
-    constexpr vector_span operator[](range r) const noexcept {
+    constexpr vector_span operator[](range_t r) const noexcept {
         size_type start, stop;
         resolve_range_(r, dimensions_, start, stop);
         auto count = range_extent_(start, stop, r.step);
@@ -632,7 +638,7 @@ struct vector_span {
  *  `reserve()` is the explicit opt-in that may reallocate to grow capacity.
  *
  *  Supports signed indexing (`v[-1]`), sub-byte types via proxy references, and slicing via
- *  `operator[](range)`.
+ *  `operator[](range_t)`.
  *
  *  @tparam value_type_ Element type.
  *  @tparam allocator_type_ Allocator (default: aligned_allocator).
@@ -867,8 +873,8 @@ struct vector {
         else return data_[i];
     }
 
-    /** Slice via range, returns a vector_span. */
-    constexpr vector_span<value_type> operator[](range r) noexcept {
+    /** Slice via range_t, returns a vector_span. */
+    constexpr vector_span<value_type> operator[](range_t r) noexcept {
         size_type start, stop;
         resolve_range_(r, dimensions_, start, stop);
         auto count = range_extent_(start, stop, r.step);
@@ -878,8 +884,8 @@ struct vector {
                 count, stride};
     }
 
-    /** Slice via range (const), returns a vector_view. */
-    constexpr vector_view<value_type> operator[](range r) const noexcept {
+    /** Slice via range_t (const), returns a vector_view. */
+    constexpr vector_view<value_type> operator[](range_t r) const noexcept {
         size_type start, stop;
         resolve_range_(r, dimensions_, start, stop);
         auto count = range_extent_(start, stop, r.step);

@@ -120,20 +120,20 @@ status_t atan(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t 
  */
 template <numeric_dtype in_type_>
 status_t rope(in_type_ const *x, in_type_ *y, f32_t const *cos, f32_t const *sin, std::size_t rows, std::size_t heads,
-              std::size_t half_dim, std::size_t x_row_stride, std::size_t y_row_stride, float input_scale = 1.0f,
+              std::size_t half_dim, std::size_t x_row_stride, std::size_t y_row_stride, f32_t input_scale = 1.0f,
               nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f32_t>)
             return static_cast<status_t>(nk_trig_rope_f32_best(&x->raw_, &y->raw_, &cos->raw_, &sin->raw_, rows, heads,
-                                                               half_dim, x_row_stride, y_row_stride, input_scale,
+                                                               half_dim, x_row_stride, y_row_stride, input_scale.raw_,
                                                                capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, bf16_t>)
             return static_cast<status_t>(nk_trig_rope_bf16_best(&x->raw_, &y->raw_, &cos->raw_, &sin->raw_, rows, heads,
-                                                                half_dim, x_row_stride, y_row_stride, input_scale,
+                                                                half_dim, x_row_stride, y_row_stride, input_scale.raw_,
                                                                 capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e4m3_t>)
             return static_cast<status_t>(nk_trig_rope_e4m3_best(&x->raw_, &y->raw_, &cos->raw_, &sin->raw_, rows, heads,
-                                                                half_dim, x_row_stride, y_row_stride, input_scale,
+                                                                half_dim, x_row_stride, y_row_stride, input_scale.raw_,
                                                                 capabilities, stream));
     }
     // Scalar fallback for other numeric dtypes or a mask of no capability.
@@ -147,8 +147,8 @@ status_t rope(in_type_ const *x, in_type_ *y, f32_t const *cos, f32_t const *sin
             in_type_ const *x_base = x_row + head * 2 * half_dim;
             in_type_ *y_base = y_row + head * 2 * half_dim;
             for (std::size_t i = 0; i < half_dim; ++i) {
-                float low = static_cast<float>(x_base[i]) * input_scale;
-                float high = static_cast<float>(x_base[i + half_dim]) * input_scale;
+                float low = static_cast<float>(x_base[i]) * input_scale.raw_;
+                float high = static_cast<float>(x_base[i + half_dim]) * input_scale.raw_;
                 float cosine = static_cast<float>(cos_row[i]), sine = static_cast<float>(sin_row[i]);
                 y_base[i] = f32_t(low * cosine - high * sine).template to<in_type_>();
                 y_base[i + half_dim] = f32_t(low * sine + high * cosine).template to<in_type_>();
@@ -227,7 +227,7 @@ status_t atan(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_
  *  2 · @p half_dim; @c unexpected_dimensions_k when the shapes or the tables are too small. */
 template <numeric_dtype value_type_>
 status_t rope(matrix_view<value_type_> x, matrix_span<value_type_> y, vector_view<f32_t> cos, vector_view<f32_t> sin,
-              std::size_t heads, std::size_t half_dim, float input_scale = 1.0f) noexcept {
+              std::size_t heads, std::size_t half_dim, f32_t input_scale = 1.0f) noexcept {
     if (x.extent(0) != y.extent(0) || x.extent(1) != y.extent(1)) return status_t::unexpected_dimensions_k;
     if (x.extent(1) < heads * 2 * half_dim) return status_t::unexpected_dimensions_k;
     if (cos.size() < x.extent(0) * half_dim || sin.size() < x.extent(0) * half_dim)

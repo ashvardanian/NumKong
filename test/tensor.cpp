@@ -456,7 +456,8 @@ error_stats_t test_scaled_tensor() {
     auto const *encoded_scales = reinterpret_cast<unsigned char const *>(quantized.block_scales().byte_data());
     for (std::size_t i = 0; i < reference_scales.size_values(); ++i)
         stats.expect(encoded_scales[i] == reference_scales.raw_values_data()[i], "NVFP4 scales differ from reference");
-    stats.expect(quantized.tensor_scale() == reference_tensor_scale.f32, "derived tensor_scale differs from reference");
+    stats.expect(quantized.tensor_scale().raw_ == reference_tensor_scale.f32,
+                 "derived tensor_scale differs from reference");
 
     std::size_t const row_element_bytes = nk_block_scaled_elements_size(cols, nvfp4_format); // 32
     std::size_t const row_scale_bytes = nk_block_scaled_scales_size(cols, nvfp4_format);     // 4
@@ -467,7 +468,7 @@ error_stats_t test_scaled_tensor() {
     {
         auto reference_row = make_vector<f32_t>(cols);
         nk_scalar_buffer_t tensor_scale;
-        tensor_scale.f32 = quantized.tensor_scale();
+        tensor_scale.f32 = quantized.tensor_scale().raw_;
         stats.expect(nk_cast_block_scaled_serial(                         //
             reference_elements.raw_values_data() + 1 * row_element_bytes, //
             reference_scales.raw_values_data() + 1 * row_scale_bytes,     //
@@ -492,7 +493,7 @@ error_stats_t test_scaled_tensor() {
         auto reference_tile_row = make_vector<f32_t>(32);
         for (std::size_t r = 0; r < rows; ++r) {
             nk_scalar_buffer_t tensor_scale;
-            tensor_scale.f32 = quantized.tensor_scale();
+            tensor_scale.f32 = quantized.tensor_scale().raw_;
             stats.expect(nk_cast_block_scaled_serial(                         //
                 reference_elements.raw_values_data() + r * row_element_bytes, //
                 reference_scales.raw_values_data() + r * row_scale_bytes,     //
@@ -530,7 +531,7 @@ error_stats_t test_scaled_tensor() {
         auto reference_mid = make_vector<f32_t>(32);
         for (std::size_t r = 0; r < rows; ++r) {
             nk_scalar_buffer_t tensor_scale;
-            tensor_scale.f32 = quantized.tensor_scale();
+            tensor_scale.f32 = quantized.tensor_scale().raw_;
             stats.expect(nk_cast_block_scaled_serial(                                  //
                 reference_elements.raw_values_data() + r * row_element_bytes + 16 / 2, // column 16 → byte 8
                 reference_scales.raw_values_data() + r * row_scale_bytes + 16 / 16,    // block 1
@@ -1499,10 +1500,11 @@ error_stats_t test_tensor_attention_for_type() {
     stats.expect(nk::attention_causal_packed<value_type_>(queries.value.data(), raw_packed.values_data(),
                                                           reference.value.data(), heads, key_value_heads, depth,
                                                           offsets, query_stride, output_stride, scale, 1, 3));
-    stats.expect(
-        nk::attention_causal_packed<value_type_>(queries.value.view(), packed.value, output.value.span(), scale, 1, 3));
+    stats.expect(nk::attention_causal_packed<value_type_>(queries.value.view(), packed.value, output.value.span(),
+                                                          scale, {.diagonal_offset = 1, .window = 3}));
     expect_equal(output.value.view());
-    auto causal = nk::attention_causal_packed<value_type_>(queries.value.view(), packed.value, scale, 1, 3);
+    auto causal = nk::attention_causal_packed<value_type_>(queries.value.view(), packed.value, scale,
+                                                           {.diagonal_offset = 1, .window = 3});
     stats.expect(causal.status);
     if (causal) expect_equal(causal.value.view());
 

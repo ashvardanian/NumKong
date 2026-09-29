@@ -30,23 +30,31 @@ namespace ashvardanian::numkong {
  */
 template <numeric_dtype index_type_>
 status_t sparse_intersect(index_type_ const *a, index_type_ const *b, std::size_t a_length, std::size_t b_length,
-                          index_type_ *result, nk_size_t *count, nk_capability_t capabilities = cpu_capabilities(),
+                          index_type_ *result, std::size_t *count, nk_capability_t capabilities = cpu_capabilities(),
                           void *stream = nullptr) noexcept {
     typename index_type_::raw_t *result_raw = result ? &result->raw_ : nullptr;
-
+    nk_size_t found = 0;
     if (capabilities) {
-        if constexpr (std::is_same_v<index_type_, u16_t>)
-            return static_cast<status_t>(nk_sparse_intersect_u16_best(&a->raw_, &b->raw_, a_length, b_length,
-                                                                      result_raw, count, capabilities, stream));
-        else if constexpr (std::is_same_v<index_type_, u32_t>)
-            return static_cast<status_t>(nk_sparse_intersect_u32_best(&a->raw_, &b->raw_, a_length, b_length,
-                                                                      result_raw, count, capabilities, stream));
-        else if constexpr (std::is_same_v<index_type_, u64_t>)
-            return static_cast<status_t>(nk_sparse_intersect_u64_best(&a->raw_, &b->raw_, a_length, b_length,
-                                                                      result_raw, count, capabilities, stream));
+        if constexpr (std::is_same_v<index_type_, u16_t>) {
+            nk_status_t status = nk_sparse_intersect_u16_best(&a->raw_, &b->raw_, a_length, b_length, result_raw,
+                                                              &found, capabilities, stream);
+            *count = static_cast<std::size_t>(found);
+            return static_cast<status_t>(status);
+        }
+        else if constexpr (std::is_same_v<index_type_, u32_t>) {
+            nk_status_t status = nk_sparse_intersect_u32_best(&a->raw_, &b->raw_, a_length, b_length, result_raw,
+                                                              &found, capabilities, stream);
+            *count = static_cast<std::size_t>(found);
+            return static_cast<status_t>(status);
+        }
+        else if constexpr (std::is_same_v<index_type_, u64_t>) {
+            nk_status_t status = nk_sparse_intersect_u64_best(&a->raw_, &b->raw_, a_length, b_length, result_raw,
+                                                              &found, capabilities, stream);
+            *count = static_cast<std::size_t>(found);
+            return static_cast<status_t>(status);
+        }
     }
-    nk_size_t c = 0;
-    std::size_t i = 0, j = 0;
+    std::size_t c = 0, i = 0, j = 0;
     while (i < a_length && j < b_length) {
         if (a[i] < b[j]) i++;
         else if (b[j] < a[i]) j++;
@@ -112,7 +120,7 @@ status_t sparse_dot(index_type_ const *a, index_type_ const *b, weight_t const *
 namespace ashvardanian::numkong {
 
 template <numeric_dtype index_type_>
-status_t sparse_intersect(vector_view<index_type_> a, vector_view<index_type_> b, nk_size_t *count,
+status_t sparse_intersect(vector_view<index_type_> a, vector_view<index_type_> b, std::size_t *count,
                           nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
     return sparse_intersect<index_type_>(a.data(), b.data(), a.size(), b.size(), nullptr, count, capabilities, stream);
 }

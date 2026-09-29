@@ -553,7 +553,7 @@ error_stats_t test_dots_packed(backend_type_ backend, pack_size_kernel_type_ pac
             auto b_packed =
                 bytes_t::zeros(pack_size_bytes(stats, packed_size_fn, width, depth), allocator_of<char>(backend)).value;
             std::vector<reference_t> c_reference(height * width);
-            auto b_packed_reference = make_vector<char>(nk::dots_pack_size<scalar_t>(width, depth, no_tiers_k));
+            auto b_packed_reference = make_vector<char>(nk::dots_pack_size<scalar_t>(width, depth, no_tiers_k).value);
 
             if constexpr (std::is_same_v<scalar_t, f64_t>) {
                 if (test_case.operands == dots_operands_t::ill_conditioned_k)
@@ -896,7 +896,7 @@ error_stats_t test_hammings_packed(typename scalar_type_::hammings_pack_size_ker
             auto c = make_vector<result_t>(m * n);
             auto c_ref = make_vector<result_t>(m * n);
             auto b_packed = make_vector<char>(pack_size_bytes(stats, packed_size_fn, n, k));
-            auto b_packed_ref = make_vector<char>(nk::dots_pack_size<scalar_t>(n, k, no_tiers_k));
+            auto b_packed_ref = make_vector<char>(nk::dots_pack_size<scalar_t>(n, k, no_tiers_k).value);
             fill_random(generator, a);
             fill_random(generator, b);
 
@@ -976,7 +976,7 @@ error_stats_t test_jaccards_packed(typename scalar_type_::jaccards_pack_size_ker
             auto c = make_vector<result_t>(m * n);
             auto c_ref = make_vector<result_t>(m * n);
             auto b_packed = make_vector<char>(pack_size_bytes(stats, packed_size_fn, n, k));
-            auto b_packed_ref = make_vector<char>(nk::dots_pack_size<scalar_t>(n, k, no_tiers_k));
+            auto b_packed_ref = make_vector<char>(nk::dots_pack_size<scalar_t>(n, k, no_tiers_k).value);
             fill_random(generator, a);
             fill_random(generator, b);
             std::memset(a.raw_values_data(), 0, stride);
@@ -1069,7 +1069,7 @@ error_stats_t test_angulars_packed(pack_size_kernel_type_ packed_size_fn, pack_k
             auto c = results_t::zeros(m * n).value;
             auto c_ref = make_vector<reference_t>(m * n);
             auto b_packed = bytes_t::zeros(pack_size_bytes(stats, packed_size_fn, n, k)).value;
-            auto b_packed_ref = make_vector<char>(nk::dots_pack_size<scalar_t>(n, k, no_tiers_k));
+            auto b_packed_ref = make_vector<char>(nk::dots_pack_size<scalar_t>(n, k, no_tiers_k).value);
             auto a_sumsqs = make_vector<reference_t>(m);
             auto b_sumsqs = make_vector<reference_t>(n);
             fill_random(generator, a);
@@ -1141,7 +1141,7 @@ error_stats_t test_euclideans_packed(pack_size_kernel_type_ packed_size_fn, pack
             auto c = results_t::zeros(m * n).value;
             auto c_ref = make_vector<reference_t>(m * n);
             auto b_packed = bytes_t::zeros(pack_size_bytes(stats, packed_size_fn, n, k)).value;
-            auto b_packed_ref = make_vector<char>(nk::dots_pack_size<scalar_t>(n, k, no_tiers_k));
+            auto b_packed_ref = make_vector<char>(nk::dots_pack_size<scalar_t>(n, k, no_tiers_k).value);
             auto a_sumsqs = make_vector<reference_t>(m);
             auto b_sumsqs = make_vector<reference_t>(n);
             fill_random(generator, a);

@@ -35,7 +35,7 @@ error_stats_t test_intersect(typename index_type_::sparse_intersect_kernel_t ker
         stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), a_length, b_length, matched.raw_values_data(),
                             &stored_count, nullptr));
 
-        nk_size_t ref;
+        std::size_t ref;
         stats.expect(nk::sparse_intersect<index_t>(a.values_data(), b.values_data(), a_length, b_length,
                                                    expected.values_data(), &ref, no_tiers_k));
         stats.accumulate(count, ref);

@@ -344,21 +344,21 @@ status_t fma(in_type_ const *a, in_type_ const *b, in_type_ const *c, std::size_
 template <numeric_dtype in_type_>
 status_t swiglu(in_type_ const *gate, in_type_ const *up, in_type_ *y, std::size_t rows, std::size_t cols,
                 std::size_t gate_row_stride, std::size_t up_row_stride, std::size_t y_row_stride,
-                float input_scale = 1.0f, nk_capability_t capabilities = cpu_capabilities(),
+                f32_t input_scale = 1.0f, nk_capability_t capabilities = cpu_capabilities(),
                 void *stream = nullptr) noexcept {
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f32_t>)
             return static_cast<status_t>(nk_each_swiglu_f32_best(&gate->raw_, up ? &up->raw_ : nullptr, &y->raw_, rows,
                                                                  cols, gate_row_stride, up_row_stride, y_row_stride,
-                                                                 input_scale, capabilities, stream));
+                                                                 input_scale.raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, bf16_t>)
             return static_cast<status_t>(nk_each_swiglu_bf16_best(&gate->raw_, up ? &up->raw_ : nullptr, &y->raw_, rows,
                                                                   cols, gate_row_stride, up_row_stride, y_row_stride,
-                                                                  input_scale, capabilities, stream));
+                                                                  input_scale.raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e4m3_t>)
             return static_cast<status_t>(nk_each_swiglu_e4m3_best(&gate->raw_, up ? &up->raw_ : nullptr, &y->raw_, rows,
                                                                   cols, gate_row_stride, up_row_stride, y_row_stride,
-                                                                  input_scale, capabilities, stream));
+                                                                  input_scale.raw_, capabilities, stream));
     }
     // Scalar fallback for other numeric dtypes or a mask of no capability.
     for (std::size_t row = 0; row < rows; ++row) {
@@ -369,9 +369,9 @@ status_t swiglu(in_type_ const *gate, in_type_ const *up, in_type_ *y, std::size
         in_type_ *output_row = reinterpret_cast<in_type_ *>(reinterpret_cast<char *>(y) + row * y_row_stride);
         // SiLU(g) = g / (1 + exp(-g)), with exp from the type method, like the sin/cos fallbacks.
         for (std::size_t column = 0; column < cols; ++column) {
-            float gate_value = static_cast<float>(gate_row[column]) * input_scale;
+            float gate_value = static_cast<float>(gate_row[column]) * input_scale.raw_;
             float result = gate_value / (1.0f + static_cast<float>(f32_t(-gate_value).exp()));
-            if (up_row) result *= static_cast<float>(up_row[column]) * input_scale;
+            if (up_row) result *= static_cast<float>(up_row[column]) * input_scale.raw_;
             output_row[column] = f32_t(result).template to<in_type_>();
         }
     }
@@ -390,7 +390,7 @@ namespace ashvardanian::numkong {
  *  SiLU; @c unexpected_dimensions_k when the shapes disagree. */
 template <numeric_dtype value_type_>
 status_t swiglu(matrix_view<value_type_> gate, matrix_view<value_type_> up, matrix_span<value_type_> output,
-                float input_scale = 1.0f) noexcept {
+                f32_t input_scale = 1.0f) noexcept {
     bool const has_up = !up.empty();
     if (gate.extent(0) != output.extent(0) || gate.extent(1) != output.extent(1))
         return status_t::unexpected_dimensions_k;
@@ -407,7 +407,7 @@ status_t swiglu(matrix_view<value_type_> gate, matrix_view<value_type_> up, matr
  *  @p gate, or the allocation's or the kernel's failure. */
 template <numeric_dtype value_type_, typename allocator_type_ = aligned_allocator<value_type_>>
 expected<tensor<value_type_, allocator_type_, 2>> swiglu(matrix_view<value_type_> gate, matrix_view<value_type_> up,
-                                                         float input_scale = 1.0f,
+                                                         f32_t input_scale = 1.0f,
                                                          allocator_type_ alloc = {}) noexcept {
     using out_tensor_t = tensor<value_type_, allocator_type_, 2>;
     if (gate.empty()) return {out_tensor_t(alloc), status_t::success_k};

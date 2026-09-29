@@ -141,7 +141,7 @@ template <typename format_, std::size_t max_rank_>
 status_t cast(scaled_tensor_view<format_, max_rank_> from, vector_span<f32_t> to,
               nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
     float tensor_scale = 0.0f;
-    if constexpr (format_::has_tensor_scale()) tensor_scale = from.tensor_scale();
+    if constexpr (format_::has_tensor_scale()) tensor_scale = from.tensor_scale().raw_;
     auto source = scaled_operand_<format_>(from.elements().byte_data(), from.block_scales().byte_data(), tensor_scale);
     auto destination = plain_f32_operand_(to.data());
     std::size_t count = from.numel() < to.size() ? from.numel() : to.size();
@@ -161,7 +161,7 @@ status_t cast(scaled_tensor_view<format_, max_rank_> from, tensor_span<f32_t, ma
                             to.is_contiguous();
     if (from.rank() <= 1 || contiguous) {
         float tensor_scale = 0.0f;
-        if constexpr (format_::has_tensor_scale()) tensor_scale = from.tensor_scale();
+        if constexpr (format_::has_tensor_scale()) tensor_scale = from.tensor_scale().raw_;
         auto source = scaled_operand_<format_>(from.elements().byte_data(), from.block_scales().byte_data(),
                                                tensor_scale);
         auto destination = plain_f32_operand_(to.byte_data());
@@ -186,7 +186,7 @@ template <typename from_format_, typename to_format_, std::size_t max_rank_>
 status_t cast(scaled_tensor_view<from_format_, max_rank_> from, scaled_tensor_span<to_format_, max_rank_> to,
               nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
     float from_tensor_scale = 0.0f;
-    if constexpr (from_format_::has_tensor_scale()) from_tensor_scale = from.tensor_scale();
+    if constexpr (from_format_::has_tensor_scale()) from_tensor_scale = from.tensor_scale().raw_;
     auto source = scaled_operand_<from_format_>(from.elements().byte_data(), from.block_scales().byte_data(),
                                                 from_tensor_scale);
     auto destination = scaled_operand_<to_format_>(to.elements().byte_data(), to.block_scales().byte_data(),

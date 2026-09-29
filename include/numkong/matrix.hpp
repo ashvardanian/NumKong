@@ -36,44 +36,46 @@ namespace ashvardanian::numkong {
  *  @param[in] row_count Number of rows in B (n)
  *  @param[in] depth Number of dimensions per row (k)
  *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
- *  @return Size in bytes for row-major B data plus stride metadata, or zero when no capability in
- *      @p capabilities packs @p in_type_
+ *  @return Size in bytes for row-major B data plus stride metadata, or @c missing_kernel_k when no
+ *      capability in @p capabilities packs @p in_type_
  *
  *  @tparam in_type_ Input element type
  */
 template <numeric_dtype in_type_>
-size_t dots_pack_size(size_t row_count, size_t depth, nk_capability_t capabilities = cpu_capabilities()) {
-    nk_size_t bytes = 0;
+expected<std::size_t> dots_pack_size(std::size_t row_count, std::size_t depth,
+                                     nk_capability_t capabilities = cpu_capabilities()) {
+    // The C++ template packs only the pointer to the original B matrix and its stride
+    nk_size_t bytes = sizeof(void *) + sizeof(std::size_t);
+    nk_status_t status = nk_success_k;
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f64_t>)
-            return nk_dots_pack_size_f64_best(row_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+            status = nk_dots_pack_size_f64_best(row_count, depth, capabilities, &bytes);
         else if constexpr (std::is_same_v<in_type_, f32_t>)
-            return nk_dots_pack_size_f32_best(row_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+            status = nk_dots_pack_size_f32_best(row_count, depth, capabilities, &bytes);
         else if constexpr (std::is_same_v<in_type_, f16_t>)
-            return nk_dots_pack_size_f16_best(row_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+            status = nk_dots_pack_size_f16_best(row_count, depth, capabilities, &bytes);
         else if constexpr (std::is_same_v<in_type_, bf16_t>)
-            return nk_dots_pack_size_bf16_best(row_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+            status = nk_dots_pack_size_bf16_best(row_count, depth, capabilities, &bytes);
         else if constexpr (std::is_same_v<in_type_, i8_t>)
-            return nk_dots_pack_size_i8_best(row_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+            status = nk_dots_pack_size_i8_best(row_count, depth, capabilities, &bytes);
         else if constexpr (std::is_same_v<in_type_, u8_t>)
-            return nk_dots_pack_size_u8_best(row_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+            status = nk_dots_pack_size_u8_best(row_count, depth, capabilities, &bytes);
         else if constexpr (std::is_same_v<in_type_, e4m3_t>)
-            return nk_dots_pack_size_e4m3_best(row_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+            status = nk_dots_pack_size_e4m3_best(row_count, depth, capabilities, &bytes);
         else if constexpr (std::is_same_v<in_type_, e5m2_t>)
-            return nk_dots_pack_size_e5m2_best(row_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+            status = nk_dots_pack_size_e5m2_best(row_count, depth, capabilities, &bytes);
         else if constexpr (std::is_same_v<in_type_, e2m3_t>)
-            return nk_dots_pack_size_e2m3_best(row_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+            status = nk_dots_pack_size_e2m3_best(row_count, depth, capabilities, &bytes);
         else if constexpr (std::is_same_v<in_type_, e2m1x2_t>)
-            return nk_dots_pack_size_e2m1_best(row_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+            status = nk_dots_pack_size_e2m1_best(row_count, depth, capabilities, &bytes);
         else if constexpr (std::is_same_v<in_type_, e3m2_t>)
-            return nk_dots_pack_size_e3m2_best(row_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+            status = nk_dots_pack_size_e3m2_best(row_count, depth, capabilities, &bytes);
         else if constexpr (std::is_same_v<in_type_, u4x2_t>)
-            return nk_dots_pack_size_u4_best(row_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+            status = nk_dots_pack_size_u4_best(row_count, depth, capabilities, &bytes);
         else if constexpr (std::is_same_v<in_type_, i4x2_t>)
-            return nk_dots_pack_size_i4_best(row_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+            status = nk_dots_pack_size_i4_best(row_count, depth, capabilities, &bytes);
     }
-    // We need enough space for the pointer to the original B matrix and its stride
-    return sizeof(void *) + sizeof(size_t);
+    return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
 }
 
 /**
@@ -89,8 +91,8 @@ size_t dots_pack_size(size_t row_count, size_t depth, nk_capability_t capabiliti
  *  @tparam in_type_ Input element type
  */
 template <numeric_dtype in_type_>
-status_t dots_pack(in_type_ const *b, size_t row_count, size_t depth, size_t b_stride_in_bytes, void *b_packed,
-                   nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) {
+status_t dots_pack(in_type_ const *b, std::size_t row_count, std::size_t depth, std::size_t b_stride_in_bytes,
+                   void *b_packed, nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) {
     using raw_t = typename in_type_::raw_t;
     raw_t const *b_raw = reinterpret_cast<raw_t const *>(b);
 
@@ -138,7 +140,7 @@ status_t dots_pack(in_type_ const *b, size_t row_count, size_t depth, size_t b_s
     // Persist the pointer to the original B matrix and its stride
     char *b_packed_bytes = reinterpret_cast<char *>(b_packed);
     std::memcpy(b_packed_bytes, &b, sizeof(void *));
-    std::memcpy(b_packed_bytes + sizeof(void *), &b_stride_in_bytes, sizeof(size_t));
+    std::memcpy(b_packed_bytes + sizeof(void *), &b_stride_in_bytes, sizeof(std::size_t));
     return status_t::success_k;
 }
 
@@ -147,24 +149,26 @@ status_t dots_pack(in_type_ const *b, size_t row_count, size_t depth, size_t b_s
  *  @param[in] vector_count Number of vectors to pack.
  *  @param[in] depth Number of dimensions per vector.
  *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template.
- *  @return Size in bytes for the packed buffer, or zero when no capability in @p capabilities packs
- *      @p in_type_.
+ *  @return Size in bytes for the packed buffer, or @c missing_kernel_k when no capability in
+ *      @p capabilities packs @p in_type_.
  *
  *  @tparam in_type_ Input element type (bf16_t, f32_t, f16_t).
  */
 template <numeric_dtype in_type_>
-std::size_t maxsim_pack_size(std::size_t vector_count, std::size_t depth,
-                             nk_capability_t capabilities = cpu_capabilities()) {
-    nk_size_t bytes = 0;
+expected<std::size_t> maxsim_pack_size(std::size_t vector_count, std::size_t depth,
+                                       nk_capability_t capabilities = cpu_capabilities()) {
+    // The C++ template packs only the pointer to the original vectors and their stride
+    nk_size_t bytes = sizeof(void *) + sizeof(std::size_t);
+    nk_status_t status = nk_success_k;
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, bf16_t>)
-            return nk_maxsim_pack_size_bf16_best(vector_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+            status = nk_maxsim_pack_size_bf16_best(vector_count, depth, capabilities, &bytes);
         else if constexpr (std::is_same_v<in_type_, f32_t>)
-            return nk_maxsim_pack_size_f32_best(vector_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+            status = nk_maxsim_pack_size_f32_best(vector_count, depth, capabilities, &bytes);
         else if constexpr (std::is_same_v<in_type_, f16_t>)
-            return nk_maxsim_pack_size_f16_best(vector_count, depth, capabilities, &bytes) == nk_success_k ? bytes : 0;
+            status = nk_maxsim_pack_size_f16_best(vector_count, depth, capabilities, &bytes);
     }
-    return sizeof(void *) + sizeof(std::size_t);
+    return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
 }
 
 /**
@@ -214,7 +218,7 @@ status_t maxsim_pack(typename in_type_::raw_t const *vectors, std::size_t vector
  */
 template <numeric_dtype in_type_>
 expected<std::size_t> attention_pack_size(std::size_t key_value_head_count, std::size_t depth,
-                                          nk_u32_t const *segment_lengths, std::size_t segment_count,
+                                          std::uint32_t const *segment_lengths, std::size_t segment_count,
                                           nk_capability_t capabilities = cpu_capabilities()) {
     nk_size_t bytes = 0;
     nk_status_t status = nk_missing_kernel_k;
@@ -249,8 +253,8 @@ expected<std::size_t> attention_pack_size(std::size_t key_value_head_count, std:
  *  @param[in] keys_stride_in_bytes Row (token) stride of @p keys in bytes.
  *  @param[in] values_stride_in_bytes Row (token) stride of @p values in bytes.
  *  @param[out] key_value_packed 64-byte-aligned buffer of @c attention_pack_size bytes.
- *  @param[in] task_begin First task of a window over the segments × K/V heads grid.
- *  @param[in] task_end End of that half-open window, so callers can shard packing across threads.
+ *  @param[in] task_start First task of a window over the segments × K/V heads grid.
+ *  @param[in] task_count Tasks in that window, clipped to the grid, so callers can shard packing.
  *  @param[in] capabilities Capabilities to pick from, or zero for the serial reference.
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
  *
@@ -258,43 +262,46 @@ expected<std::size_t> attention_pack_size(std::size_t key_value_head_count, std:
  */
 template <numeric_dtype in_type_>
 status_t attention_pack(in_type_ const *keys, in_type_ const *values, std::size_t key_value_head_count,
-                        std::size_t depth, nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
+                        std::size_t depth, std::uint32_t const *segment_offsets, std::uint32_t const *segment_lengths,
                         std::size_t segment_count, std::size_t keys_stride_in_bytes, std::size_t values_stride_in_bytes,
-                        void *key_value_packed, std::size_t task_begin = 0,
-                        std::size_t task_end = static_cast<std::size_t>(-1),
+                        void *key_value_packed, std::size_t task_start = 0,
+                        std::size_t task_count = static_cast<std::size_t>(-1),
                         nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) {
     using raw_t = typename in_type_::raw_t;
     raw_t const *keys_raw = reinterpret_cast<raw_t const *>(keys);
     raw_t const *values_raw = reinterpret_cast<raw_t const *>(values);
+    // The C kernels take a half-open [begin, end) window, clipped to the grid
+    std::size_t const task_end = task_count > NUMKONG_SIZE_MAX - task_start ? NUMKONG_SIZE_MAX
+                                                                            : task_start + task_count;
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, bf16_t>)
             return static_cast<status_t>(nk_attention_pack_bf16_best(
                 keys_raw, values_raw, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-                keys_stride_in_bytes, values_stride_in_bytes, key_value_packed, task_begin, task_end, capabilities,
+                keys_stride_in_bytes, values_stride_in_bytes, key_value_packed, task_start, task_end, capabilities,
                 stream));
         else if constexpr (std::is_same_v<in_type_, e4m3_t>)
             return static_cast<status_t>(nk_attention_pack_e4m3_best(
                 keys_raw, values_raw, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-                keys_stride_in_bytes, values_stride_in_bytes, key_value_packed, task_begin, task_end, capabilities,
+                keys_stride_in_bytes, values_stride_in_bytes, key_value_packed, task_start, task_end, capabilities,
                 stream));
         else if constexpr (std::is_same_v<in_type_, i8_t>)
             return static_cast<status_t>(
                 nk_attention_pack_i8_best(keys_raw, values_raw, key_value_head_count, depth, segment_offsets,
                                           segment_lengths, segment_count, keys_stride_in_bytes, values_stride_in_bytes,
-                                          key_value_packed, task_begin, task_end, capabilities, stream));
+                                          key_value_packed, task_start, task_end, capabilities, stream));
     }
     if constexpr (std::is_same_v<in_type_, bf16_t>)
         return static_cast<status_t>(nk_attention_pack_bf16_serial(
             keys_raw, values_raw, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-            keys_stride_in_bytes, values_stride_in_bytes, key_value_packed, task_begin, task_end, stream));
+            keys_stride_in_bytes, values_stride_in_bytes, key_value_packed, task_start, task_end, stream));
     else if constexpr (std::is_same_v<in_type_, e4m3_t>)
         return static_cast<status_t>(nk_attention_pack_e4m3_serial(
             keys_raw, values_raw, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-            keys_stride_in_bytes, values_stride_in_bytes, key_value_packed, task_begin, task_end, stream));
+            keys_stride_in_bytes, values_stride_in_bytes, key_value_packed, task_start, task_end, stream));
     else if constexpr (std::is_same_v<in_type_, i8_t>)
         return static_cast<status_t>(nk_attention_pack_i8_serial(
             keys_raw, values_raw, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-            keys_stride_in_bytes, values_stride_in_bytes, key_value_packed, task_begin, task_end, stream));
+            keys_stride_in_bytes, values_stride_in_bytes, key_value_packed, task_start, task_end, stream));
     else return status_t::missing_kernel_k;
 }
 
@@ -378,8 +385,9 @@ struct packed_matrix {
         packed_matrix pm(alloc);
         pm.rows_ = b.extent(0);
         pm.depth_ = b.extent(1);
-        pm.size_bytes_ = dots_pack_size<value_type_>(pm.rows_, pm.depth_);
-        if (pm.size_bytes_ == 0) return {packed_matrix(alloc), status_t::missing_kernel_k};
+        auto size = dots_pack_size<value_type_>(pm.rows_, pm.depth_);
+        if (!size) return {packed_matrix(alloc), size.status};
+        pm.size_bytes_ = size.value;
 
         pm.data_ = alloc_traits::allocate(pm.alloc_, pm.size_bytes_);
         if (!pm.data_) return {packed_matrix(alloc), status_t::bad_alloc_k};
@@ -459,8 +467,9 @@ class packed_maxsim {
         packed_maxsim pm(alloc);
         pm.vector_count_ = vectors.extent(0);
         pm.depth_ = vectors.extent(1);
-        pm.size_bytes_ = maxsim_pack_size<value_type_>(pm.vector_count_, pm.depth_);
-        if (pm.size_bytes_ == 0) return {packed_maxsim(alloc), status_t::missing_kernel_k};
+        auto size = maxsim_pack_size<value_type_>(pm.vector_count_, pm.depth_);
+        if (!size) return {packed_maxsim(alloc), size.status};
+        pm.size_bytes_ = size.value;
 
         pm.data_ = alloc_traits::allocate(pm.alloc_, pm.size_bytes_);
         if (!pm.data_) return {packed_maxsim(alloc), status_t::bad_alloc_k};
@@ -501,7 +510,7 @@ class packed_attention {
     std::size_t segment_count_ = 0;
     [[no_unique_address]] allocator_type_ alloc_;
 
-    std::size_t allocated_bytes_() const noexcept { return size_bytes_ + (segment_count_ + 1) * sizeof(nk_u32_t); }
+    std::size_t allocated_bytes_() const noexcept { return size_bytes_ + (segment_count_ + 1) * sizeof(std::uint32_t); }
 
   public:
     packed_attention() noexcept = default;
@@ -546,8 +555,8 @@ class packed_attention {
     template <std::size_t max_rank_>
     static expected<packed_attention> make(tensor_view<value_type_, max_rank_> keys,
                                            tensor_view<value_type_, max_rank_> values,
-                                           vector_view<nk_u32_t> segment_offsets, vector_view<nk_u32_t> segment_lengths,
-                                           allocator_type_ alloc = {},
+                                           vector_view<std::uint32_t> segment_offsets,
+                                           vector_view<std::uint32_t> segment_lengths, allocator_type_ alloc = {},
                                            nk_capability_t capabilities = cpu_capabilities()) noexcept {
         std::size_t const segment_count = segment_lengths.size();
         bool shaped = attention_rows_supported_(keys) && attention_rows_supported_(values) &&
@@ -576,7 +585,7 @@ class packed_attention {
                                                           static_cast<std::size_t>(-1), capabilities);
             failed(status))
             return {packed_attention(alloc), status};
-        std::memcpy(pa.data_ + pa.size_bytes_, segment_offsets.data(), (segment_count + 1) * sizeof(nk_u32_t));
+        std::memcpy(pa.data_ + pa.size_bytes_, segment_offsets.data(), (segment_count + 1) * sizeof(std::uint32_t));
         return {std::move(pa), status_t::success_k};
     }
 
@@ -588,9 +597,9 @@ class packed_attention {
     std::size_t size_bytes() const noexcept { return size_bytes_; }
 
     /** The pack-time segment offsets, which the view overloads take as the query offsets. */
-    vector_view<nk_u32_t> segment_offsets() const noexcept {
+    vector_view<std::uint32_t> segment_offsets() const noexcept {
         if (!data_) return {};
-        return {reinterpret_cast<nk_u32_t const *>(data_ + size_bytes_), segment_count_ + 1};
+        return {reinterpret_cast<std::uint32_t const *>(data_ + size_bytes_), segment_count_ + 1};
     }
 };
 

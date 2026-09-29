@@ -22,7 +22,7 @@
  *  @code{.cpp}
  *  namespace ashvardanian::numkong {
  *      template <typename input_type_, typename result_type_>
- *      status_t dot(input_type_ const*, input_type_ const*, size_t, result_type_ *,
+ *      status_t dot(input_type_ const*, input_type_ const*, std::size_t, result_type_ *,
  *                   nk_capability_t = cpu_capabilities(), void * = nullptr);
  *  }
  *  @endcode

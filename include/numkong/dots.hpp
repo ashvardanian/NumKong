@@ -40,21 +40,21 @@ namespace ashvardanian::numkong {
  *  @tparam result_type_ Accumulator/output type (e.g., f32_t, f118_t for high precision)
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::dot_result_t>
-void dots_unpacked(in_type_ const *a, in_type_ const *b, result_type_ *c, size_t row_count, size_t column_count,
-                   size_t depth, size_t a_stride_in_bytes, size_t b_stride_in_bytes,
-                   size_t c_stride_in_bytes) noexcept {
+void dots_unpacked(in_type_ const *a, in_type_ const *b, result_type_ *c, std::size_t row_count,
+                   std::size_t column_count, std::size_t depth, std::size_t a_stride_in_bytes,
+                   std::size_t b_stride_in_bytes, std::size_t c_stride_in_bytes) noexcept {
     char const *a_bytes = reinterpret_cast<char const *>(a);
     char const *b_bytes = reinterpret_cast<char const *>(b);
     char *c_bytes = reinterpret_cast<char *>(c);
     std::size_t const depth_values = depth / dimensions_per_value<in_type_>();
 
-    for (size_t i = 0; i < row_count; i++) {
+    for (std::size_t i = 0; i < row_count; i++) {
         in_type_ const *a_row = reinterpret_cast<in_type_ const *>(a_bytes + i * a_stride_in_bytes);
         result_type_ *c_row = reinterpret_cast<result_type_ *>(c_bytes + i * c_stride_in_bytes);
-        for (size_t j = 0; j < column_count; j++) {
+        for (std::size_t j = 0; j < column_count; j++) {
             in_type_ const *b_row = reinterpret_cast<in_type_ const *>(b_bytes + j * b_stride_in_bytes);
             result_type_ sum {};
-            for (size_t l = 0; l < depth_values; l++) sum = fma(a_row[l], b_row[l], sum);
+            for (std::size_t l = 0; l < depth_values; l++) sum = fma(a_row[l], b_row[l], sum);
             c_row[j] = sum;
         }
     }
@@ -68,21 +68,21 @@ void dots_unpacked(in_type_ const *a, in_type_ const *b, result_type_ *c, size_t
  *  inner product matching `cblas_{c,z}gemm` with @c CblasConjTrans.
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::dot_result_t>
-void dots_unpacked_conjugated(in_type_ const *a, in_type_ const *b, result_type_ *c, size_t row_count,
-                              size_t column_count, size_t depth, size_t a_stride_in_bytes, size_t b_stride_in_bytes,
-                              size_t c_stride_in_bytes) noexcept {
+void dots_unpacked_conjugated(in_type_ const *a, in_type_ const *b, result_type_ *c, std::size_t row_count,
+                              std::size_t column_count, std::size_t depth, std::size_t a_stride_in_bytes,
+                              std::size_t b_stride_in_bytes, std::size_t c_stride_in_bytes) noexcept {
     char const *a_bytes = reinterpret_cast<char const *>(a);
     char const *b_bytes = reinterpret_cast<char const *>(b);
     char *c_bytes = reinterpret_cast<char *>(c);
     std::size_t const depth_values = depth / dimensions_per_value<in_type_>();
 
-    for (size_t i = 0; i < row_count; i++) {
+    for (std::size_t i = 0; i < row_count; i++) {
         in_type_ const *a_row = reinterpret_cast<in_type_ const *>(a_bytes + i * a_stride_in_bytes);
         result_type_ *c_row = reinterpret_cast<result_type_ *>(c_bytes + i * c_stride_in_bytes);
-        for (size_t j = 0; j < column_count; j++) {
+        for (std::size_t j = 0; j < column_count; j++) {
             in_type_ const *b_row = reinterpret_cast<in_type_ const *>(b_bytes + j * b_stride_in_bytes);
             result_type_ sum {};
-            for (size_t l = 0; l < depth_values; l++) sum = fcma(b_row[l], a_row[l], sum);
+            for (std::size_t l = 0; l < depth_values; l++) sum = fcma(b_row[l], a_row[l], sum);
             c_row[j] = sum;
         }
     }
@@ -106,9 +106,10 @@ void dots_unpacked_conjugated(in_type_ const *a, in_type_ const *b, result_type_
  *  @tparam result_type_ Accumulator/output type, defaults to @c in_type_::dot_result_t
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::dot_result_t>
-status_t dots_packed(in_type_ const *a, void const *b_packed, result_type_ *c, size_t row_count, size_t column_count,
-                     size_t depth, size_t a_stride_in_bytes, size_t c_stride_in_bytes,
-                     nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+status_t dots_packed(in_type_ const *a, void const *b_packed, result_type_ *c, std::size_t row_count,
+                     std::size_t column_count, std::size_t depth, std::size_t a_stride_in_bytes,
+                     std::size_t c_stride_in_bytes, nk_capability_t capabilities = cpu_capabilities(),
+                     void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::dot_result_t>;
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
@@ -165,10 +166,10 @@ status_t dots_packed(in_type_ const *a, void const *b_packed, result_type_ *c, s
                                                                 capabilities, stream));
     }
     in_type_ const *b;
-    size_t b_stride_in_bytes;
+    std::size_t b_stride_in_bytes;
     char const *b_packed_bytes = reinterpret_cast<char const *>(b_packed);
     std::memcpy(&b, b_packed_bytes, sizeof(void *));
-    std::memcpy(&b_stride_in_bytes, b_packed_bytes + sizeof(void *), sizeof(size_t));
+    std::memcpy(&b_stride_in_bytes, b_packed_bytes + sizeof(void *), sizeof(std::size_t));
     dots_unpacked<in_type_, result_type_>(a, b, c, row_count, column_count, depth, a_stride_in_bytes, b_stride_in_bytes,
                                           c_stride_in_bytes);
     return status_t::success_k;
@@ -366,10 +367,10 @@ status_t hammings_packed(in_type_ const *a, void const *b_packed, result_type_ *
     }
     // Scalar fallback: extract pointer and stride from b_packed, then compute directly
     in_type_ const *b;
-    size_t b_stride_in_bytes;
+    std::size_t b_stride_in_bytes;
     char const *b_packed_bytes = reinterpret_cast<char const *>(b_packed);
     std::memcpy(&b, b_packed_bytes, sizeof(void *));
-    std::memcpy(&b_stride_in_bytes, b_packed_bytes + sizeof(void *), sizeof(size_t));
+    std::memcpy(&b_stride_in_bytes, b_packed_bytes + sizeof(void *), sizeof(std::size_t));
 
     // Compute Hamming distances using unpacked matrices
     char const *a_bytes = reinterpret_cast<char const *>(a);
@@ -456,10 +457,10 @@ status_t jaccards_packed(in_type_ const *a, void const *b_packed, result_type_ *
     }
     // Scalar fallback: extract pointer and stride from b_packed, then compute directly
     in_type_ const *b;
-    size_t b_stride_in_bytes;
+    std::size_t b_stride_in_bytes;
     char const *b_packed_bytes = reinterpret_cast<char const *>(b_packed);
     std::memcpy(&b, b_packed_bytes, sizeof(void *));
-    std::memcpy(&b_stride_in_bytes, b_packed_bytes + sizeof(void *), sizeof(size_t));
+    std::memcpy(&b_stride_in_bytes, b_packed_bytes + sizeof(void *), sizeof(std::size_t));
 
     char const *a_bytes = reinterpret_cast<char const *>(a);
     char const *b_bytes = reinterpret_cast<char const *>(b);

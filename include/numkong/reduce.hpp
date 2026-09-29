@@ -154,7 +154,7 @@ status_t reduce_minmax(in_type_ const *data, std::size_t count, std::size_t stri
                        std::size_t *min_index, minmax_type_ *max_value, std::size_t *max_index,
                        nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<minmax_type_, typename in_type_::reduce_minmax_value_t>;
-    static_assert(sizeof(std::size_t) == sizeof(nk_size_t), "size_t and nk_size_t must have the same width");
+    static_assert(sizeof(std::size_t) == sizeof(nk_size_t), "std::size_t and nk_size_t must have the same width");
     nk_size_t min_offset = NUMKONG_SIZE_MAX, max_offset = NUMKONG_SIZE_MAX;
     nk_status_t status = nk_success_k;
     bool dispatched = false;
@@ -262,23 +262,23 @@ status_t reduce_minmax(in_type_ const *data, std::size_t count, std::size_t stri
  */
 template <numeric_dtype in_type_>
 status_t rmsnorm(in_type_ const *x, f32_t const *gamma, in_type_ *y, std::size_t rows, std::size_t groups,
-                 std::size_t cols, std::size_t x_row_stride, std::size_t y_row_stride, float eps,
-                 float input_scale = 1.0f, nk_capability_t capabilities = cpu_capabilities(),
+                 std::size_t cols, std::size_t x_row_stride, std::size_t y_row_stride, f32_t eps,
+                 f32_t input_scale = 1.0f, nk_capability_t capabilities = cpu_capabilities(),
                  void *stream = nullptr) noexcept {
     nk_f32_t const *gamma_raw = gamma ? &gamma->raw_ : nullptr;
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f32_t>)
             return static_cast<status_t>(nk_reduce_rmsnorm_f32_best(&x->raw_, gamma_raw, &y->raw_, rows, groups, cols,
-                                                                    x_row_stride, y_row_stride, eps, input_scale,
-                                                                    capabilities, stream));
+                                                                    x_row_stride, y_row_stride, eps.raw_,
+                                                                    input_scale.raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, bf16_t>)
             return static_cast<status_t>(nk_reduce_rmsnorm_bf16_best(&x->raw_, gamma_raw, &y->raw_, rows, groups, cols,
-                                                                     x_row_stride, y_row_stride, eps, input_scale,
-                                                                     capabilities, stream));
+                                                                     x_row_stride, y_row_stride, eps.raw_,
+                                                                     input_scale.raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e4m3_t>)
             return static_cast<status_t>(nk_reduce_rmsnorm_e4m3_best(&x->raw_, gamma_raw, &y->raw_, rows, groups, cols,
-                                                                     x_row_stride, y_row_stride, eps, input_scale,
-                                                                     capabilities, stream));
+                                                                     x_row_stride, y_row_stride, eps.raw_,
+                                                                     input_scale.raw_, capabilities, stream));
     }
     // Scalar fallback for other numeric dtypes or a mask of no capability.
     for (std::size_t row = 0; row < rows; ++row) {
@@ -290,13 +290,13 @@ status_t rmsnorm(in_type_ const *x, f32_t const *gamma, in_type_ *y, std::size_t
             in_type_ *group_output = row_output + group * cols;
             double mean_square = 0;
             for (std::size_t column = 0; column < cols; ++column) {
-                float value = static_cast<float>(group_input[column]) * input_scale;
+                float value = static_cast<float>(group_input[column]) * input_scale.raw_;
                 mean_square += static_cast<double>(value) * static_cast<double>(value);
             }
             float inverse_rms = static_cast<float>(
-                f32_t(static_cast<float>(mean_square / static_cast<double>(cols)) + eps).rsqrt());
+                f32_t(static_cast<float>(mean_square / static_cast<double>(cols)) + eps.raw_).rsqrt());
             for (std::size_t column = 0; column < cols; ++column) {
-                float value = static_cast<float>(group_input[column]) * input_scale;
+                float value = static_cast<float>(group_input[column]) * input_scale.raw_;
                 float gamma_value = gamma ? static_cast<float>(gamma[column]) : 1.0f;
                 group_output[column] = f32_t(value * inverse_rms * gamma_value).template to<in_type_>();
             }
@@ -337,7 +337,7 @@ namespace ashvardanian::numkong {
  *  disagree with each other. */
 template <numeric_dtype value_type_>
 status_t rmsnorm(matrix_view<value_type_> input, vector_view<f32_t> gamma, matrix_span<value_type_> output,
-                 std::size_t groups, float eps, float input_scale = 1.0f) noexcept {
+                 std::size_t groups, f32_t eps, f32_t input_scale = 1.0f) noexcept {
     if (input.extent(0) != output.extent(0) || input.extent(1) != output.extent(1))
         return status_t::unexpected_dimensions_k;
     std::size_t const columns_total = input.extent(1);
@@ -353,7 +353,7 @@ status_t rmsnorm(matrix_view<value_type_> input, vector_view<f32_t> gamma, matri
  *  allocation's or the kernel's failure. */
 template <numeric_dtype value_type_, typename allocator_type_ = aligned_allocator<value_type_>>
 expected<tensor<value_type_, allocator_type_, 2>> rmsnorm(matrix_view<value_type_> input, vector_view<f32_t> gamma,
-                                                          std::size_t groups, float eps, float input_scale = 1.0f,
+                                                          std::size_t groups, f32_t eps, f32_t input_scale = 1.0f,
                                                           allocator_type_ alloc = {}) noexcept {
     using out_tensor_t = tensor<value_type_, allocator_type_, 2>;
     if (input.empty()) return {out_tensor_t(alloc), status_t::success_k};

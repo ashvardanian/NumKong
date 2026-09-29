@@ -476,6 +476,7 @@ The useful economics are:
 Caller-side alignment is not required.
 Owned `packed_matrix` storage uses its allocator.
 The C ABI also exposes `nk_dots_pack_size_*_best`, which writes the byte count of the capability the mask picks, so you can `malloc` the exact external buffer yourself.
+In C++, `nk::dots_pack_size<nk::f32_t>(rows, depth)` returns that count as an `nk::expected<std::size_t>`.
 A packed buffer records the capability that packed it, and a packed kernel of another capability refuses it with `nk_pack_mismatch_k`, so pack and multiply under the same mask.
 
 ## Symmetric Kernels for SYRK-Like Workloads
@@ -584,7 +585,8 @@ nk::status_t status = nk::attention_causal_packed<nk::bf16_t>(queries.view(), pa
 auto [fresh, fresh_status] = nk::attention_bidirectional_packed<nk::bf16_t>(queries.view(), packed, 0.125f); // nk::tensor<nk::f32_t>
 ```
 
-The causal overloads also take a diagonal offset, aligning queries to the end of a longer cache, and a sliding window.
+The causal overloads also take an `nk::causal_mask_t`, whose diagonal offset aligns queries to the end of a longer cache and whose window slides.
+For example, `nk::attention_causal_packed<nk::bf16_t>(queries.view(), packed, output.span(), 0.125f, {.window = 4096})` attends to at most 4096 keys per row.
 The raw-pointer overloads take the query offsets separately, for cross-attention, and a window over the segments × heads task grid, for sharding one launch across workers.
 
 ## Capabilities and Devices

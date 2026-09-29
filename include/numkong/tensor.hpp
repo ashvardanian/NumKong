@@ -69,7 +69,7 @@ template <typename... rest_types_>
 struct trailing_tensor_slice_args_<all_t, rest_types_...> : trailing_tensor_slice_args_<rest_types_...> {};
 
 template <typename... rest_types_>
-struct trailing_tensor_slice_args_<range, rest_types_...> : trailing_tensor_slice_args_<rest_types_...> {};
+struct trailing_tensor_slice_args_<range_t, rest_types_...> : trailing_tensor_slice_args_<rest_types_...> {};
 
 template <typename... arg_types_>
 inline constexpr bool trailing_tensor_slice_args_v =
@@ -227,7 +227,7 @@ template <typename tensor_type_, typename... rest_types_>
 constexpr tensor_type_ tensor_slice_suffix_(tensor_type_ input, all_t, rest_types_... rest) noexcept;
 
 template <typename tensor_type_, typename... rest_types_>
-constexpr tensor_type_ tensor_slice_suffix_(tensor_type_ input, range r, rest_types_... rest) noexcept;
+constexpr tensor_type_ tensor_slice_suffix_(tensor_type_ input, range_t r, rest_types_... rest) noexcept;
 
 #pragma endregion Shape Storage
 
@@ -917,7 +917,7 @@ constexpr tensor_type_ tensor_slice_suffix_(tensor_type_ input, index_type_ idx,
  *  Returns @c false when either operand's data pointer is null, meaning the inner slice over-sliced
  *  to an empty tensor, so callers bail before subtracting @p first_row.byte_data() from
  *  inner.byte_data(), which is undefined behavior for a null operand. Shared by the @c all_t and
- *  @c range slice overloads.
+ *  @c range_t slice overloads.
  */
 template <typename tensor_type_>
 constexpr bool slice_inner_byte_offset_(tensor_type_ const &inner, tensor_type_ const &first_row,
@@ -965,7 +965,7 @@ constexpr tensor_type_ tensor_slice_suffix_(tensor_type_ input, all_t, rest_type
 }
 
 template <typename tensor_type_, typename... rest_types_>
-constexpr tensor_type_ tensor_slice_suffix_(tensor_type_ input, range r, rest_types_... rest) noexcept {
+constexpr tensor_type_ tensor_slice_suffix_(tensor_type_ input, range_t r, rest_types_... rest) noexcept {
     if (input.rank() == 0) return {};
     using size_type = typename tensor_type_::size_type;
     using difference_type = typename tensor_type_::difference_type;
@@ -1864,7 +1864,7 @@ using matrix_span = tensor_span<value_type_, 2>;
  *  - elements()   — tensor<format::element_t>   of the logical shape, packed sub-byte.
  *  - block_scales()   — tensor<format::scale_t>   of the same shape with the last extent
  *    divided by block_size  ; one scale per block.
- *  - tensor_scale()   — a scalar float   multiplier, NVFP4 only; the call is removed by a
+ *  - tensor_scale()   — a scalar f32_t   multiplier, NVFP4 only; the call is removed by a
  *    requires   clause for the MX family, which has no per-tensor scale.
  *  @endverbatim
  *
@@ -1905,12 +1905,12 @@ struct scaled_tensor_view {
   private:
     element_view_type elements_;
     scale_view_type block_scales_;
-    float tensor_scale_ = 1.0f;
+    f32_t tensor_scale_ = 1.0f;
 
   public:
     constexpr scaled_tensor_view() noexcept = default;
     constexpr scaled_tensor_view(element_view_type elements, scale_view_type block_scales,
-                                 float tensor_scale = 1.0f) noexcept
+                                 f32_t tensor_scale = 1.0f) noexcept
         : elements_(elements), block_scales_(block_scales), tensor_scale_(tensor_scale) {}
 
     /** Number of dimensions. */
@@ -1936,7 +1936,7 @@ struct scaled_tensor_view {
     constexpr scale_view_type block_scales() const noexcept { return block_scales_; }
 
     /** Per-tensor multiplier, NVFP4 only; the call is absent for the MX family. */
-    constexpr float tensor_scale() const noexcept
+    constexpr f32_t tensor_scale() const noexcept
         requires(format_::has_tensor_scale())
     {
         return tensor_scale_;
@@ -2020,12 +2020,12 @@ struct scaled_tensor_span {
   private:
     element_span_type elements_;
     scale_span_type block_scales_;
-    float *tensor_scale_ = nullptr;
+    f32_t *tensor_scale_ = nullptr;
 
   public:
     constexpr scaled_tensor_span() noexcept = default;
     constexpr scaled_tensor_span(element_span_type elements, scale_span_type block_scales,
-                                 float *tensor_scale = nullptr) noexcept
+                                 f32_t *tensor_scale = nullptr) noexcept
         : elements_(elements), block_scales_(block_scales), tensor_scale_(tensor_scale) {}
 
     constexpr size_type rank() const noexcept { return elements_.rank(); }
@@ -2044,7 +2044,7 @@ struct scaled_tensor_span {
     constexpr scale_span_type block_scales() const noexcept { return block_scales_; }
 
     /** Pointer to the per-tensor multiplier slot, NVFP4 only; kernels write it here. */
-    constexpr float *tensor_scale_slot() const noexcept
+    constexpr f32_t *tensor_scale_slot() const noexcept
         requires(format_::has_tensor_scale())
     {
         return tensor_scale_;
@@ -2052,7 +2052,8 @@ struct scaled_tensor_span {
 
     /** Decay to an immutable view. */
     constexpr view_type view() const noexcept {
-        return {element_view_of_(elements_), scale_view_of_(block_scales_), tensor_scale_ ? *tensor_scale_ : 1.0f};
+        return {element_view_of_(elements_), scale_view_of_(block_scales_),
+                tensor_scale_ ? *tensor_scale_ : f32_t(1.0f)};
     }
 
   private:
@@ -2082,9 +2083,9 @@ struct scaled_tensor {
   private:
     element_tensor_type elements_;
     scale_tensor_type block_scales_;
-    float tensor_scale_ = 1.0f;
+    f32_t tensor_scale_ = 1.0f;
 
-    scaled_tensor(element_tensor_type elements, scale_tensor_type block_scales, float tensor_scale) noexcept
+    scaled_tensor(element_tensor_type elements, scale_tensor_type block_scales, f32_t tensor_scale) noexcept
         : elements_(std::move(elements)), block_scales_(std::move(block_scales)), tensor_scale_(tensor_scale) {}
 
   public:
@@ -2130,7 +2131,7 @@ struct scaled_tensor {
      *      @p elements with the last extent divided by @c block_size.
      */
     static expected<scaled_tensor> from_components(element_tensor_type elements, scale_tensor_type block_scales,
-                                                   float tensor_scale = 1.0f) noexcept {
+                                                   f32_t tensor_scale = 1.0f) noexcept {
         size_type const rank = elements.rank();
         bool shaped = rank != 0 && block_scales.rank() == rank &&
                       elements.extent(rank - 1) == block_scales.extent(rank - 1) * block_size;
@@ -2213,7 +2214,7 @@ struct scaled_tensor {
 
     /** Per-tensor multiplier, NVFP4 only, absent for the MX family. `cast()` derives and writes it
      *  on encode through `span().tensor_scale_slot()`. */
-    float tensor_scale() const noexcept
+    f32_t tensor_scale() const noexcept
         requires(format_::has_tensor_scale())
     {
         return tensor_scale_;

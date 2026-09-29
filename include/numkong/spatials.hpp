@@ -235,9 +235,10 @@ status_t euclideans_symmetric(in_type_ const *a, std::size_t vectors_count, std:
  *  @tparam result_type_ Output type, defaults to @c in_type_::angular_result_t
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::angular_result_t>
-status_t angulars_packed(in_type_ const *a, void const *b_packed, result_type_ *c, size_t row_count,
-                         size_t column_count, size_t depth, size_t a_stride_in_bytes, size_t c_stride_in_bytes,
-                         nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+status_t angulars_packed(in_type_ const *a, void const *b_packed, result_type_ *c, std::size_t row_count,
+                         std::size_t column_count, std::size_t depth, std::size_t a_stride_in_bytes,
+                         std::size_t c_stride_in_bytes, nk_capability_t capabilities = cpu_capabilities(),
+                         void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::angular_result_t>;
 
     if (capabilities) {
@@ -296,20 +297,20 @@ status_t angulars_packed(in_type_ const *a, void const *b_packed, result_type_ *
     }
     // Scalar fallback: extract pointer and stride, compute pairwise angular distances
     in_type_ const *b;
-    size_t b_stride_in_bytes;
+    std::size_t b_stride_in_bytes;
     char const *b_packed_bytes = reinterpret_cast<char const *>(b_packed);
     std::memcpy(&b, b_packed_bytes, sizeof(void *));
-    std::memcpy(&b_stride_in_bytes, b_packed_bytes + sizeof(void *), sizeof(size_t));
+    std::memcpy(&b_stride_in_bytes, b_packed_bytes + sizeof(void *), sizeof(std::size_t));
 
     char const *a_bytes = reinterpret_cast<char const *>(a);
     char const *b_bytes = reinterpret_cast<char const *>(b);
     char *c_bytes = reinterpret_cast<char *>(c);
     std::size_t depth_values = depth / dimensions_per_value<in_type_>();
 
-    for (size_t i = 0; i < row_count; i++) {
+    for (std::size_t i = 0; i < row_count; i++) {
         in_type_ const *a_row = reinterpret_cast<in_type_ const *>(a_bytes + i * a_stride_in_bytes);
         result_type_ *c_row = reinterpret_cast<result_type_ *>(c_bytes + i * c_stride_in_bytes);
-        for (size_t j = 0; j < column_count; j++) {
+        for (std::size_t j = 0; j < column_count; j++) {
             in_type_ const *b_row = reinterpret_cast<in_type_ const *>(b_bytes + j * b_stride_in_bytes);
             result_type_ ab {}, aa {}, bb {};
             for (std::size_t l = 0; l < depth_values; l++) {
@@ -342,9 +343,10 @@ status_t angulars_packed(in_type_ const *a, void const *b_packed, result_type_ *
  *  @tparam result_type_ Output type, defaults to @c in_type_::euclidean_result_t
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::euclidean_result_t>
-status_t euclideans_packed(in_type_ const *a, void const *b_packed, result_type_ *c, size_t row_count,
-                           size_t column_count, size_t depth, size_t a_stride_in_bytes, size_t c_stride_in_bytes,
-                           nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+status_t euclideans_packed(in_type_ const *a, void const *b_packed, result_type_ *c, std::size_t row_count,
+                           std::size_t column_count, std::size_t depth, std::size_t a_stride_in_bytes,
+                           std::size_t c_stride_in_bytes, nk_capability_t capabilities = cpu_capabilities(),
+                           void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::euclidean_result_t>;
 
     if (capabilities) {
@@ -403,20 +405,20 @@ status_t euclideans_packed(in_type_ const *a, void const *b_packed, result_type_
     }
     // Scalar fallback: extract pointer and stride, compute pairwise euclidean distances
     in_type_ const *b;
-    size_t b_stride_in_bytes;
+    std::size_t b_stride_in_bytes;
     char const *b_packed_bytes = reinterpret_cast<char const *>(b_packed);
     std::memcpy(&b, b_packed_bytes, sizeof(void *));
-    std::memcpy(&b_stride_in_bytes, b_packed_bytes + sizeof(void *), sizeof(size_t));
+    std::memcpy(&b_stride_in_bytes, b_packed_bytes + sizeof(void *), sizeof(std::size_t));
 
     char const *a_bytes = reinterpret_cast<char const *>(a);
     char const *b_bytes = reinterpret_cast<char const *>(b);
     char *c_bytes = reinterpret_cast<char *>(c);
     std::size_t depth_values = depth / dimensions_per_value<in_type_>();
 
-    for (size_t i = 0; i < row_count; i++) {
+    for (std::size_t i = 0; i < row_count; i++) {
         in_type_ const *a_row = reinterpret_cast<in_type_ const *>(a_bytes + i * a_stride_in_bytes);
         result_type_ *c_row = reinterpret_cast<result_type_ *>(c_bytes + i * c_stride_in_bytes);
-        for (size_t j = 0; j < column_count; j++) {
+        for (std::size_t j = 0; j < column_count; j++) {
             in_type_ const *b_row = reinterpret_cast<in_type_ const *>(b_bytes + j * b_stride_in_bytes);
             result_type_ sum {};
             for (std::size_t l = 0; l < depth_values; l++) sum = fdsa(a_row[l], b_row[l], sum);
