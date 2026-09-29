@@ -12,3 +12,4 @@
 
 #include "numkong/dot/svehalf.h"
 #include "numkong/spatial/svehalf.h"
+#include "numkong/trigonometry/svehalf.h"

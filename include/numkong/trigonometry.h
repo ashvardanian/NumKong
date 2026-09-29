@@ -17,7 +17,7 @@
  *
  *  For hardware architectures:
  *
- *  - Arm: NEON
+ *  - Arm: NEON, NEON FP16, SVE FP16
  *  - x86: Haswell, Skylake, Sapphire Rapids
  *
  *  Those functions partially complement the `each.h` module, and are necessary for the
@@ -31,6 +31,8 @@
  *  - @c f64 sin, cos and atan: within 2 ULP of the correctly rounded result, so not faithful.
  *  - @c f32 sin and cos: within 2 ULP for |x| ≤ 10⁴, next to their zeros too; atan within 3 ULP.
  *  - @c f16: shorter polynomials evaluated in @c f32, within 1 ULP of the correctly rounded result.
+ *  - @c f16 on NEON FP16, SVE FP16 and Sapphire Rapids: evaluated in @c f16, also within 1 ULP.
+ *  - Their sine and cosine reduce in @c f16 up to |x| ≤ 256, and in @c f32 past it.
  *
  *  The measurements behind these bounds are in @c include/numkong/trigonometry/README.md.
  *
@@ -283,6 +285,24 @@ NUMKONG_API nk_status_t nk_trig_cos_f32_neon(nk_f32_t const *ins, nk_size_t n, n
 NUMKONG_API nk_status_t nk_trig_atan_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream);
 #endif // NUMKONG_TARGET_NEON
 
+#if NUMKONG_TARGET_NEONHALF
+/** @copydoc nk_trig_sin_f16_best */
+NUMKONG_API nk_status_t nk_trig_sin_f16_neonhalf(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream);
+/** @copydoc nk_trig_cos_f16_best */
+NUMKONG_API nk_status_t nk_trig_cos_f16_neonhalf(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream);
+/** @copydoc nk_trig_atan_f16_best */
+NUMKONG_API nk_status_t nk_trig_atan_f16_neonhalf(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream);
+#endif // NUMKONG_TARGET_NEONHALF
+
+#if NUMKONG_TARGET_SVEHALF
+/** @copydoc nk_trig_sin_f16_best */
+NUMKONG_API nk_status_t nk_trig_sin_f16_svehalf(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream);
+/** @copydoc nk_trig_cos_f16_best */
+NUMKONG_API nk_status_t nk_trig_cos_f16_svehalf(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream);
+/** @copydoc nk_trig_atan_f16_best */
+NUMKONG_API nk_status_t nk_trig_atan_f16_svehalf(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream);
+#endif // NUMKONG_TARGET_SVEHALF
+
 /*  SIMD-powered backends for AVX2 CPUs of Haswell generation and newer, using 32-bit arithmetic
  *  over 256-bit words. First demonstrated in 2011, at least one Haswell-based processor was
  *  still being sold in 2022 — the Pentium G3420. Practically all modern x86 CPUs support AVX2,
@@ -409,6 +429,15 @@ NUMKONG_API nk_status_t nk_trig_cos_f16_skylake(nk_f16_t const *ins, nk_size_t n
 NUMKONG_API nk_status_t nk_trig_atan_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream);
 #endif // NUMKONG_TARGET_SKYLAKE
 
+#if NUMKONG_TARGET_SAPPHIRE
+/** @copydoc nk_trig_sin_f16_best */
+NUMKONG_API nk_status_t nk_trig_sin_f16_sapphire(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream);
+/** @copydoc nk_trig_cos_f16_best */
+NUMKONG_API nk_status_t nk_trig_cos_f16_sapphire(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream);
+/** @copydoc nk_trig_atan_f16_best */
+NUMKONG_API nk_status_t nk_trig_atan_f16_sapphire(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream);
+#endif // NUMKONG_TARGET_SAPPHIRE
+
 #if NUMKONG_TARGET_V128RELAXED
 /** @copydoc nk_trig_sin_f64_best */
 NUMKONG_API nk_status_t nk_trig_sin_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream);
@@ -462,8 +491,11 @@ NUMKONG_API nk_status_t nk_trigonometry_find_kernel(nk_kernel_kind_t kind, nk_dt
 #if NUMKONG_HEADER_ONLY
 #include "numkong/trigonometry/serial.h"
 #include "numkong/trigonometry/neon.h"
+#include "numkong/trigonometry/neonhalf.h"
+#include "numkong/trigonometry/svehalf.h"
 #include "numkong/trigonometry/haswell.h"
 #include "numkong/trigonometry/skylake.h"
+#include "numkong/trigonometry/sapphire.h"
 #include "numkong/trigonometry/v128relaxed.h"
 #include "numkong/trigonometry/rvv.h"
 

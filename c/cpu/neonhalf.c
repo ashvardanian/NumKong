@@ -8,3 +8,4 @@
 
 #include "numkong/scalar/neonhalf.h"
 #include "numkong/each/neonhalf.h"
+#include "numkong/trigonometry/neonhalf.h"

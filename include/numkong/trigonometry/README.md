@@ -39,11 +39,11 @@ def atan(a: np.ndarray) -> np.ndarray:
 
 ## Input & Output Types
 
-| Input Type | Output Type | Description                                      |
-| :--------- | :---------- | :----------------------------------------------- |
-| `f64`      | `f64`       | 64-bit IEEE 754 double precision                 |
-| `f32`      | `f32`       | 32-bit IEEE 754 single precision                 |
-| `f16`      | `f16`       | 16-bit half precision, widened to f32 internally |
+| Input Type | Output Type | Description                                                      |
+| :--------- | :---------- | :--------------------------------------------------------------- |
+| `f64`      | `f64`       | 64-bit IEEE 754 double precision                                 |
+| `f32`      | `f32`       | 32-bit IEEE 754 single precision                                 |
+| `f16`      | `f16`       | 16-bit half precision, in f16 with FP16 arithmetic, else via f32 |
 
 ## Optimizations
 
@@ -73,6 +73,20 @@ The serial kernels, lacking a fused multiply-add, split the remainder once more 
 Arc tangent folds $|x| > 1$ through $\pi/2 - \text{atan}(1/x)$ and evaluates an odd degree-9 minimax polynomial on $[0, 1]$, at most $3 \cdot 10^{-5}$ relative error.
 `nk_trig_sin_f64_serial` uses degree-19 polynomials for 52-bit mantissa coverage.
 
+### Native F16 Evaluation
+
+The NEON FP16, SVE FP16 and Sapphire Rapids kernels evaluate in f16, on twice the lanes of f32 and without conversions.
+The f32-fitted polynomials above, with coefficients rounded to f16, reach 2 ulp there, so these kernels use their own.
+Sine and cosine evaluate `r + r³·(c3 + r²·(c5 + r²·c7))`, whose unit linear term keeps tiny angles exact.
+Its f16 coefficients, $-0.16650390625$, $0.00824737548828125$ and $-0.00018310546875$, are the f16 neighbours of a minimax fit that hold every f16 input within 1 ulp.
+Their reduction splits $\pi$ into three f16 parts, $3.140625$, $9.675 \cdot 10^{-4}$ and a third scaled by $2^{12}$.
+Unscaled, that third part would be an f16 subnormal with 2 significant bits, costing 27 ulp next to the zero of cosine at $x = 177.5$, and dropping it costs 143 ulp there.
+The f16 reduction holds 1 ulp only up to $|x| \le 256$, as the rounded f16 quotient $x / \pi$ drifts from the nearest multiple past it.
+Past $2048\pi$ that multiple is no longer an f16 integer, and over all finite inputs the f16 reduction reaches 47104 ulp.
+So a vector with any lane beyond 256 reduces in f32 with the two-part split of the f32-evaluated kernels, and narrows the reduced angle back for the same f16 polynomial.
+Arc tangent divides in f16 and evaluates an odd degree-7 polynomial with coefficients $-0.328125$, $0.1600341796875$ and $-0.046722412109375$.
+Its folded lanes add the low part of $\pi/2$ before the high part, because $\pi/2$ rounded to f16 alone is half an ulp off.
+
 ### Vectorized Polynomial Evaluation
 
 `nk_trig_sin_f32_haswell`, `nk_trig_cos_f32_skylake` evaluate the same polynomial on 8 (AVX2) or 16 (AVX-512) elements simultaneously.
@@ -86,18 +100,21 @@ The f32 bounds come from every f32 input in the range, both signs, against the c
 The f16 bounds come from every f16 input in the range.
 The f64 bounds come from 180 thousand sampled inputs against a 200-bit reference.
 
-| Kernel      | Input range         | Max error                            |
-| :---------- | :------------------ | :----------------------------------- |
-| f64 sin/cos | $[-2\pi, 2\pi]$     | 1.6 ulp of the exact value           |
-| f64 atan    | $[-10, 10]$         | 1.6 ulp of the exact value           |
-| f32 sin/cos | $\|x\| \le 10^4$    | 2 ulp, $1.25 \cdot 10^{-7}$ absolute |
-| f32 atan    | all finite          | 3 ulp                                |
-| f16 all     | all finite          | 1 ulp                                |
+| Kernel      | Input range      | Max error                            |
+| :---------- | :--------------- | :----------------------------------- |
+| f64 sin/cos | $[-2\pi, 2\pi]$  | 1.6 ulp of the exact value           |
+| f64 atan    | $[-10, 10]$      | 1.6 ulp of the exact value           |
+| f32 sin/cos | $\|x\| \le 10^4$ | 2 ulp, $1.25 \cdot 10^{-7}$ absolute |
+| f32 atan    | all finite       | 3 ulp                                |
+| f16 all     | all finite       | 1 ulp                                |
 
 F64 results are not faithfully rounded: the worst of them sit 2 ulp from the correctly rounded value.
 The f32 sine and cosine bound holds next to the zeros too, where the result is as small as $5 \cdot 10^{-14}$.
 The FMA capabilities keep it up to $|x| \le 10^5$, and 3 ulp up to $10^6$.
 F16 polynomial errors stay below half an f16 ulp, so the rounded result is at most one ulp from the correctly rounded value: 5012 of the 63488 finite inputs for sine, 4934 for cosine, and 544 for arc tangent.
+The native f16 kernels hold the same 1 ulp bound over all finite inputs, with more results at one ulp: 7902 for sine, 11238 for cosine, and 2766 for arc tangent.
+Those counts were measured on NEON FP16.
+SVE FP16 and Sapphire Rapids run the same sequence of correctly rounded operations, so they should return the same results, but they have only been compiled.
 
 The ulp figures in the tables below are mean errors recorded with earlier kernels, whose f32 sine and cosine lacked the reduction and coefficients above.
 

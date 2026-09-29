@@ -13,3 +13,4 @@
 #include "numkong/scalar/sapphire.h"
 #include "numkong/cast/sapphire.h"
 #include "numkong/each/sapphire.h"
+#include "numkong/trigonometry/sapphire.h"

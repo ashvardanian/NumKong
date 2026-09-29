@@ -128,6 +128,18 @@ void bench_trigonometry() {
     run_trigonometry<f64_k>("trig_atan_f64_neon", nk_trig_atan_f64_neon);
 #endif
 
+#if NUMKONG_TARGET_NEONHALF
+    run_trigonometry<f16_k>("trig_sin_f16_neonhalf", nk_trig_sin_f16_neonhalf);
+    run_trigonometry<f16_k>("trig_cos_f16_neonhalf", nk_trig_cos_f16_neonhalf);
+    run_trigonometry<f16_k>("trig_atan_f16_neonhalf", nk_trig_atan_f16_neonhalf);
+#endif
+
+#if NUMKONG_TARGET_SVEHALF
+    run_trigonometry<f16_k>("trig_sin_f16_svehalf", nk_trig_sin_f16_svehalf);
+    run_trigonometry<f16_k>("trig_cos_f16_svehalf", nk_trig_cos_f16_svehalf);
+    run_trigonometry<f16_k>("trig_atan_f16_svehalf", nk_trig_atan_f16_svehalf);
+#endif
+
 #if NUMKONG_TARGET_HASWELL
     run_trigonometry<f32_k>("trig_sin_f32_haswell", nk_trig_sin_f32_haswell);
     run_trigonometry<f32_k>("trig_cos_f32_haswell", nk_trig_cos_f32_haswell);
@@ -153,6 +165,12 @@ void bench_trigonometry() {
     run_rope<f32_k>("trig_rope_f32_skylake", nk_trig_rope_f32_skylake);
     run_rope<bf16_k>("trig_rope_bf16_skylake", nk_trig_rope_bf16_skylake);
     run_rope<e4m3_k>("trig_rope_e4m3_skylake", nk_trig_rope_e4m3_skylake);
+#endif
+
+#if NUMKONG_TARGET_SAPPHIRE
+    run_trigonometry<f16_k>("trig_sin_f16_sapphire", nk_trig_sin_f16_sapphire);
+    run_trigonometry<f16_k>("trig_cos_f16_sapphire", nk_trig_cos_f16_sapphire);
+    run_trigonometry<f16_k>("trig_atan_f16_sapphire", nk_trig_atan_f16_sapphire);
 #endif
 
 #if NUMKONG_TARGET_V128RELAXED

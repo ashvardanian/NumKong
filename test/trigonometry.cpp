@@ -142,6 +142,20 @@ void test_trigonometry() {
     check("trig_atan_f64_neon", test_atan<f64_t>, nk_trig_atan_f64_neon);
 #endif // NUMKONG_TARGET_NEON
 
+#if NUMKONG_TARGET_NEONHALF
+    check.section("Trigonometry NEON HALF", nk_cap_neonhalf_k);
+    check("trig_sin_f16_neonhalf", test_sin<f16_t>, nk_trig_sin_f16_neonhalf);
+    check("trig_cos_f16_neonhalf", test_cos<f16_t>, nk_trig_cos_f16_neonhalf);
+    check("trig_atan_f16_neonhalf", test_atan<f16_t>, nk_trig_atan_f16_neonhalf);
+#endif // NUMKONG_TARGET_NEONHALF
+
+#if NUMKONG_TARGET_SVEHALF
+    check.section("Trigonometry SVE HALF", nk_cap_svehalf_k);
+    check("trig_sin_f16_svehalf", test_sin<f16_t>, nk_trig_sin_f16_svehalf);
+    check("trig_cos_f16_svehalf", test_cos<f16_t>, nk_trig_cos_f16_svehalf);
+    check("trig_atan_f16_svehalf", test_atan<f16_t>, nk_trig_atan_f16_svehalf);
+#endif // NUMKONG_TARGET_SVEHALF
+
 #if NUMKONG_TARGET_HASWELL
     check.section("Trigonometry Haswell", nk_cap_haswell_k);
     check("trig_sin_f32_haswell", test_sin<f32_t>, nk_trig_sin_f32_haswell);
@@ -164,6 +178,13 @@ void test_trigonometry() {
     check("trig_cos_f16_skylake", test_cos<f16_t>, nk_trig_cos_f16_skylake);
     check("trig_atan_f16_skylake", test_atan<f16_t>, nk_trig_atan_f16_skylake);
 #endif // NUMKONG_TARGET_SKYLAKE
+
+#if NUMKONG_TARGET_SAPPHIRE
+    check.section("Trigonometry Sapphire", nk_cap_sapphire_k);
+    check("trig_sin_f16_sapphire", test_sin<f16_t>, nk_trig_sin_f16_sapphire);
+    check("trig_cos_f16_sapphire", test_cos<f16_t>, nk_trig_cos_f16_sapphire);
+    check("trig_atan_f16_sapphire", test_atan<f16_t>, nk_trig_atan_f16_sapphire);
+#endif // NUMKONG_TARGET_SAPPHIRE
 
 #if NUMKONG_TARGET_V128RELAXED
     check.section("Trigonometry V128 Relaxed", nk_cap_v128relaxed_k);
